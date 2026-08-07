@@ -1,0 +1,36 @@
+"use client";
+
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { raceStatusLabel } from "@/lib/format";
+import { raceHref } from "@/lib/routes";
+import type { RaceDoc } from "@/lib/types/race";
+
+export function SeasonStrip({ races }: { races: RaceDoc[] }) {
+  return (
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={staggerContainer}
+      className="flex gap-3 overflow-x-auto pb-2"
+    >
+      {races.map((race) => {
+        const statusLabel = raceStatusLabel(race);
+
+        return (
+          <motion.div key={race.id} variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
+            <Link
+              href={raceHref(race.year, race.slug)}
+              className="flex min-w-[168px] flex-col gap-1 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-3 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
+            >
+              <span className="text-xs text-neutral-500">Round {race.round}</span>
+              <span className="text-sm font-semibold text-white">{race.name.replace(" Grand Prix", "")}</span>
+              <span className="text-xs text-neutral-400">{statusLabel}</span>
+            </Link>
+          </motion.div>
+        );
+      })}
+    </motion.div>
+  );
+}

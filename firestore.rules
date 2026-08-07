@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Race data is written only by the Admin SDK (admin refresh route / backfill script), which
+    // bypasses these rules entirely — client writes are always denied.
+    match /races/{raceId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // A user's own picks for an upcoming race. Doc ID matches the race ID (`${year}_${slug}`).
+    // Creating/updating a pick is only allowed while that race is still upcoming — once it's
+    // completed, picks are read-only history.
+    match /users/{uid}/picks/{raceId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && get(/databases/$(database)/documents/races/$(raceId)).data.status == 'upcoming';
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

@@ -1,0 +1,3 @@
+fastf1>=3.7
+firebase-admin>=7.5
+pandas>=2.0
