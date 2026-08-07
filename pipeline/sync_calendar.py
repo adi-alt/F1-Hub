@@ -28,7 +28,9 @@ import fastf1
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-fastf1.Cache.enable_cache(str(Path(__file__).resolve().parent / "f1_cache"))
+CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
+CACHE_DIR.mkdir(exist_ok=True)
+fastf1.Cache.enable_cache(str(CACHE_DIR))
 
 
 def slugify(name: str) -> str:

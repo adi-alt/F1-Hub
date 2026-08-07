@@ -1,0 +1,26 @@
+name: Sync season calendar
+
+# Weekly, not every-few-hours like fetch-races — a season's schedule almost never changes once
+# announced, so there's nothing to gain from checking more often.
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Sync current year's calendar (no year hardcoded)
+        run: python pipeline/sync_calendar.py
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
