@@ -42,14 +42,21 @@ different buckets of data, not one blanket oversight:
 
 - **Tried and rejected as finish-model features**: circuit-level historical context — safety-car
   rate, overtaking difficulty, rain probability, pit-stop patterns (`ml/circuit_stats.py`, module
-  still exists, unused by any model). Built with recency + regulation-era weighting, actually
-  fetched (safety-car counts backfilled across all 184 pre-existing races), then tested against the
-  real backtest — it *hurt*, every one of the four features, individually and combined
+  still exists, unused by any model). Built with recency + regulation-era weighting; safety-car
+  counts were fetched and backfilled across all 184 pre-existing races at the time. Tested against
+  the real backtest — it *hurt*, every one of the four features, individually and combined
   (3.453 → 3.464 MAE). Root cause, confirmed by correlation analysis: these numbers are identical
-  for every driver in a given race, so a model ranking 20 drivers against each other can't extract
-  anything from them. This is a general finding, not specific to safety cars — see the standing
-  rule in memory (`ml-feature-validation-rule`): a feature must vary across drivers within the same
-  race to be a finish/pole-model candidate.
+  for every driver in a given race, so *for this specific ranking formulation* — a model ordering
+  20 drivers against each other within one race — there's no standalone discriminative information
+  to extract. That's not a claim that circuit-level data is inherently useless; the same
+  `circuit_SC_rate = 0.42` that can't distinguish Verstappen from Norris inside this Random Forest
+  could be exactly the input a future `P(safety car | race)` model needs, since that model isn't
+  ranking drivers against each other at all. See the standing rule in memory
+  (`ml-feature-validation-rule`): a feature must vary across drivers within the same race to be a
+  finish/pole/pace-model candidate — that's a rule about *this layer* of the architecture, not a
+  general verdict on the data. **The safety-car fetch itself was bundled into the same
+  2 commits as the FP1-3 practice work and got removed by the revert below — safety cars aren't
+  being fetched at all right now, not just unused.**
 - **Structurally excluded (leakage), not rejected on merit**: actual race-day tire strategy and
   actual race-day weather. Both describe what *happens during* the race being predicted — not
   knowable before the race, so never valid candidates for a pre-race feature, independent of
@@ -62,11 +69,16 @@ different buckets of data, not one blanket oversight:
   `fetch_practice()` from `fetch_races.py` entirely, so practice-session fetching is currently not
   running at all, not just unused. **This is intentionally left for the user, not something to
   redo without their go-ahead.**
-- **Deferred, never built**: traffic (car-to-car gaps on track). FastF1 exposes raw per-car
-  telemetry (`pos_data`: X/Y/Z position; `car_data`: speed/throttle/brake/DRS) but no built-in
-  gap-to-car-ahead metric — turning that into a real feature needs full-field telemetry fetching,
-  track-distance alignment between cars, and a from-scratch time-loss heuristic. Scoped as its own
-  project, not attempted half-built.
+- **Fetched and tested, rejected as a Pace feature**: traffic (car-to-car gaps on track). Turned
+  out to be much cheaper than the full-telemetry approach first assumed — lap `Position` + `Time`
+  (already loaded via `laps=True`) is enough to compute gap-to-car-ahead per lap without any GPS
+  telemetry, no new fetch cost. Backfilled across all 184 races (`race.trafficStats`, from local
+  cache, no rate-limit exposure). Tested as a leakage-safe historical feature (a driver's own
+  average traffic exposure from strictly-prior rounds this season, not this race's own — which
+  would be leakage) against the Pace benchmark: 0.905 → 0.904 MAE, a wash. Not shipped as a model
+  feature, kept as raw data — likely too noisy/circumstantial a trait to persist race-to-race
+  compared to something like Elo, and probably partly redundant with grid position (which already
+  correlates with how much traffic a driver sees).
 
 ## Pace model — rebuilt from scratch, post-Phase-3
 
@@ -83,7 +95,8 @@ with real rigor. Fixed that:
   across every metric: MAE 1.064 → 0.903, R² -0.283 → -0.146, Spearman 0.449 → 0.615.
 - Tested and rejected as further Pace features: historical stint-count as a tyre-wear proxy (no
   real per-compound pace data exists to do this properly — hurt the backtest); practice weather
-  (noise-level, on the small 38-round sample that has practice data).
+  (noise-level, on the small 38-round sample that has practice data); historical traffic exposure
+  (see the traffic entry above — 0.905 → 0.904 MAE, a wash).
 
 R² is still negative — real room left, but nothing cheap has moved it yet.
 
