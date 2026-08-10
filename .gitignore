@@ -44,3 +44,7 @@ pipeline/__pycache__/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent instructions (local only)
+AGENTS.md
+CLAUDE.md
