@@ -1,11 +1,17 @@
 # FastF1 → Firestore pipeline
 
-Two independent scripts, both safe to run with no arguments and no code changes across season
-boundaries — neither hardcodes a year.
+See [PROGRESS.md](./PROGRESS.md) for the full history of what's been built, tried, and rejected.
 
-- **`fetch_races.py`** — quali + race results, weather, tire stints for races that have actually
-  happened. Writes to the `races` collection. Skips anything already `completed`, so it's safe to
-  run on every scheduled tick.
+Three scripts, all safe to run with no arguments and no code changes across season boundaries —
+none hardcode a year.
+
+- **`fetch_races.py`** — quali + race results, weather, tire stints, safety-car counts for races
+  that have actually happened. Writes to the `races` collection. Skips anything already
+  `completed`, so it's safe to run on every scheduled tick.
+- **`train_predict.py`** — trains the finish-order, pole, and pace models (`ml/`) on whatever's
+  been fetched so far this season and freezes predictions once each race is ready. Always run after
+  `fetch_races.py`, never before — predictions are meaningless without that run's fresh data (see
+  `.github/workflows/fetch-races.yml`, which chains the two in one job for exactly this reason).
 - **`sync_calendar.py`** — the season schedule (names, dates, locations) for races that *haven't*
   happened yet, so the site has something to show for "next race" without predicting anything.
   Writes to the separate `calendar` collection.
