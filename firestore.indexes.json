@@ -12,7 +12,7 @@
       "collectionGroup": "races",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "circuit", "order": "ASCENDING" },
+        { "fieldPath": "location", "order": "ASCENDING" },
         { "fieldPath": "year", "order": "ASCENDING" }
       ]
     },

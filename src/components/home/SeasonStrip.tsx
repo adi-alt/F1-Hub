@@ -21,7 +21,7 @@ export function SeasonStrip({ races }: { races: RaceDoc[] }) {
         return (
           <motion.div key={race.id} variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
             <Link
-              href={raceHref(race.year, race.slug)}
+              href={raceHref(race.year, race.round)}
               className="flex min-w-[168px] flex-col gap-1 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-3 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
             >
               <span className="text-xs text-neutral-500">Round {race.round}</span>

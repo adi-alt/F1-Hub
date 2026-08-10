@@ -29,7 +29,7 @@ export function NextRaceCard({ race }: { race: RaceDoc | null }) {
           </p>
           <h2 className="mt-1 text-2xl font-bold text-white">{race.name}</h2>
         </div>
-        <Link href={raceHref(race.year, race.slug)} className="group inline-block">
+        <Link href={raceHref(race.year, race.round)} className="group inline-block">
           <motion.span
             whileHover={{ x: 3 }}
             whileTap={{ scale: 0.96 }}

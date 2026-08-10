@@ -1,14 +1,15 @@
-name: Fetch race data
+name: Fetch race data and predict
 
-# Every few hours, not on every commit or PR — this is a data pipeline on a clock, unrelated to
-# code changes. workflow_dispatch is here so it can be triggered manually to cross-check it works.
+# Every few hours, not on every commit or PR — this is a data/ML pipeline on a clock, unrelated
+# to code changes. workflow_dispatch is here so it can be triggered manually to cross-check it
+# works, rather than waiting for the schedule.
 on:
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
 
 jobs:
-  fetch:
+  fetch-and-predict:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,5 +23,13 @@ jobs:
 
       - name: Fetch current season (no year/round hardcoded — always "whatever's current")
         run: python pipeline/fetch_races.py
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      # Deliberately a second step in the same job, not a separate workflow: predictions are
+      # meaningless without this run's freshly-fetched data, and running both in one job on one
+      # schedule guarantees that ordering for free — no cross-workflow coordination needed.
+      - name: Train and freeze predictions for anything newly ready
+        run: python pipeline/train_predict.py
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}

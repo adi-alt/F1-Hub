@@ -19,7 +19,7 @@ import { getSession } from "@/lib/session/getSession";
 export default async function RacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; slug?: string }>;
+  searchParams: Promise<{ year?: string; round?: string }>;
 }) {
   const session = await getSession();
   if (!session.uid) {
@@ -30,10 +30,10 @@ export default async function RacePage({
     );
   }
 
-  const { year, slug } = await searchParams;
-  if (!year || !slug) notFound();
+  const { year, round } = await searchParams;
+  if (!year || !round) notFound();
 
-  const race = await getRace(Number(year), slug);
+  const race = await getRace(Number(year), Number(round));
   if (!race) notFound();
 
   const highlights = computeHighlights(race);

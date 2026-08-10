@@ -21,7 +21,7 @@ export function PastWinnersList({ races }: { races: RaceDoc[] }) {
           return (
             <motion.div key={race.id} variants={staggerItem}>
               <Link
-                href={raceHref(race.year, race.slug)}
+                href={raceHref(race.year, race.round)}
                 className="flex items-center justify-between bg-[var(--f1-carbon)] px-5 py-3 transition hover:bg-white/[0.05]"
               >
                 <span className="font-medium text-white">{race.year}</span>

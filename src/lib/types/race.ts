@@ -4,9 +4,7 @@ export type RaceResultEntry = {
   driver: string; // 3-letter code, e.g. "VER"
   driverName: string;
   team: string;
-  grid: number;
-  qualiPosition: number;
-  qualifyingGapSec: number;
+  grid: number | null; // starting grid position (post-penalty)
   finishPosition: number;
   finishGapSec: number | null;
   status: FinishStatus;
@@ -19,7 +17,7 @@ export type RaceInputEntry = {
   driverName: string;
   team: string;
   grid: number;
-  qualifyingGapSec: number;
+  qualifyingGapSec: number | null;
 };
 
 export type PredictedOrderEntry = {
@@ -83,29 +81,30 @@ export type TireStint = {
   lapCount: number;
 };
 
+/**
+ * The shape every page/component actually consumes — an adapted view over the raw FastF1-native
+ * Firestore document (see FirestoreRaceDoc in lib/firestore/races.ts), not a direct mirror of it.
+ * Field names deliberately match what this app has always called them (`name`, `circuit`, `grid`,
+ * `results`), even though the raw document calls them `eventName`/`location`/`gridPosition`/
+ * `race.results` — the adapter in races.ts is the one place that translation happens, so this
+ * type (and everything that reads it) doesn't need to know the raw pipeline's schema at all.
+ */
 export type RaceDoc = {
-  id: string; // `${year}_${slug}`
+  id: string; // `${year}_r${round}_${event-slug}`
   year: number;
   round: number;
-  slug: string;
-  circuit: string; // stable per-track key, = slug
-  name: string;
+  name: string; // FastF1's eventName, e.g. "Hungarian Grand Prix"
+  circuit: string; // FastF1's location, e.g. "Budapest" — stable per physical track across years
   status: RaceStatus;
-  dateStart?: string;
-  dateEnd?: string;
+  updatedAt: string;
   results?: RaceResultEntry[];
   poleSitter?: string;
   poleTimeSec?: number;
   inputs?: RaceInputEntry[];
-  prediction?: RacePrediction;
-  polePrediction?: PolePrediction;
-  sourceUrl: string;
-  updatedAt: string;
-  // Populated by a separate FastF1-based pipeline (Python, GitHub Action) — not the Node scraper.
-  // Both optional and only ever partial-merged onto this doc, never part of a full `saveRace`.
+  prediction?: RacePrediction; // not yet populated — Phase 1
+  polePrediction?: PolePrediction; // not yet populated — Phase 1
   weather?: SessionWeather;
   tireStints?: TireStint[];
-  fastF1UpdatedAt?: string;
 };
 
 export type UserPick = {

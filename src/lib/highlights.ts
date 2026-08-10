@@ -21,9 +21,9 @@ export function computeHighlights(race: RaceDoc): RaceHighlights | null {
     ? withFastestLap.reduce((best, r) => (r.fastestLapSec! < best.fastestLapSec! ? r : best))
     : null;
 
-  const classified = results.filter((r) => r.status !== "dnf");
+  const classified = results.filter((r) => r.status !== "dnf" && r.grid !== null);
   const byMovement = classified
-    .map((r) => ({ driver: r.driver, movement: r.grid - r.finishPosition })) // positive = gained places
+    .map((r) => ({ driver: r.driver, movement: r.grid! - r.finishPosition })) // positive = gained places
     .sort((a, b) => b.movement - a.movement);
 
   const gainer = byMovement[0];

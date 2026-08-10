@@ -1,7 +1,9 @@
 // Query-param routing by design (a deliberate stylistic choice, not a technical requirement) —
 // centralized here so the URL shape only needs to change in one place.
-export function raceHref(year: number, slug: string): string {
-  return `/races?year=${year}&slug=${encodeURIComponent(slug)}`;
+// Keyed by round, not a slug: round is a stable field every race document already has, so this
+// avoids any dependency on how (or whether) an event name gets turned into a URL-safe string.
+export function raceHref(year: number, round: number): string {
+  return `/races?year=${year}&round=${round}`;
 }
 
 export function seasonHref(year: number): string {

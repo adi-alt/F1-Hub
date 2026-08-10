@@ -18,7 +18,7 @@ export function CalendarList({ races }: { races: RaceDoc[] }) {
       {races.map((race) => (
         <motion.div key={race.id} variants={staggerItem}>
           <Link
-            href={raceHref(race.year, race.slug)}
+            href={raceHref(race.year, race.round)}
             className="flex items-center justify-between gap-4 bg-[var(--f1-carbon)] px-5 py-3 transition hover:bg-white/[0.04]"
           >
             <div className="flex items-center gap-4">

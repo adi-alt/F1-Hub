@@ -6,8 +6,8 @@ import type { RaceResultEntry } from "@/lib/types/race";
 
 export function MovementChart({ results }: { results: RaceResultEntry[] }) {
   const data = results
-    .filter((r) => r.status !== "dnf")
-    .map((r) => ({ name: r.driver, movement: r.grid - r.finishPosition }))
+    .filter((r) => r.status !== "dnf" && r.grid !== null)
+    .map((r) => ({ name: r.driver, movement: r.grid! - r.finishPosition }))
     .filter((d) => d.movement !== 0)
     .sort((a, b) => b.movement - a.movement);
 

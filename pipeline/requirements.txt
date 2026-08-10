@@ -1,3 +1,5 @@
 fastf1>=3.7
 firebase-admin>=7.5
 pandas>=2.0
+scikit-learn>=1.4
+numpy>=1.24

@@ -9,8 +9,6 @@ function result(driver: string, team: string, finishPosition: number, points: nu
     driverName: driver,
     team,
     grid: finishPosition,
-    qualiPosition: finishPosition,
-    qualifyingGapSec: 0,
     finishPosition,
     finishGapSec: finishPosition === 1 ? 0 : 1,
     status: "finished",
@@ -24,12 +22,10 @@ function completedRace(round: number, results: RaceResultEntry[]): RaceDoc {
     id: `2026_r${round}`,
     year: 2026,
     round,
-    slug: `r${round}`,
     circuit: `r${round}`,
     name: `Round ${round}`,
     status: "completed",
     results,
-    sourceUrl: "",
     updatedAt: "",
   };
 }
@@ -62,12 +58,10 @@ test("computeStandings ignores upcoming races entirely", () => {
     id: "2026_r3",
     year: 2026,
     round: 3,
-    slug: "r3",
     circuit: "r3",
     name: "Round 3",
     status: "upcoming",
     inputs: [{ driver: "VER", driverName: "VER", team: "Red Bull", grid: 1, qualifyingGapSec: 0 }],
-    sourceUrl: "",
     updatedAt: "",
   };
   const standings = computeStandings([upcoming]);

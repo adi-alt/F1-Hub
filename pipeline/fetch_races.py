@@ -55,6 +55,15 @@ def fetch_qualifying(year: int, round_num: int):
 
         results = session.results.sort_values("Position")
         pole_time = results["Q3"].fillna(results["Q2"]).fillna(results["Q1"]).min()
+        best_laps = None
+        if pd.isna(pole_time):
+            # Q1/Q2/Q3 columns are occasionally just empty for a whole session (a real FastF1
+            # data quirk, not a fetch failure — confirmed on 2025 Miami) even though per-lap data
+            # exists. Fall back to each driver's fastest lap of the session.
+            session.load(laps=True, weather=False, telemetry=False)
+            best_laps = session.laps.groupby("Driver")["LapTime"].min()
+            pole_time = best_laps.min()
+
         grid = []
         for row in results.itertuples():
             if pd.isna(row.Position):
@@ -62,19 +71,38 @@ def fetch_qualifying(year: int, round_num: int):
                 print(f"    quali: skipping {row.Abbreviation}, no position set")
                 continue
             best = row.Q3 if pd.notna(row.Q3) else (row.Q2 if pd.notna(row.Q2) else row.Q1)
+            if pd.isna(best) and best_laps is not None:
+                best = best_laps.get(row.Abbreviation)
             gap = (best - pole_time).total_seconds() if pd.notna(best) else None
             grid.append(
                 {
                     "driver": row.Abbreviation,
+                    "driverName": row.FullName,
                     "team": row.TeamName,
                     "gridPosition": int(row.Position),
                     "qualifyingGapSec": round(gap, 3) if gap is not None else None,
                 }
             )
-        return {"session": "Q", "grid": grid}
+        return {
+            "session": "Q",
+            "grid": grid,
+            "poleTimeSec": round(pole_time.total_seconds(), 3) if pd.notna(pole_time) else None,
+        }
     except Exception as exc:
         print(f"    quali: not available ({exc})")
         return None
+
+
+# FastF1's raw `Status` covers ~50 distinct values (every mechanical failure gets its own string:
+# "Gearbox", "Puncture", "Water leak", ...). The app only ever needs the 3-way distinction a race
+# result actually cares about, so it's collapsed here rather than pushing that enumeration problem
+# onto every UI component that branches on status.
+def normalize_status(raw_status: str) -> str:
+    if raw_status == "Finished":
+        return "finished"
+    if raw_status == "Lapped" or re.match(r"^\+\d+\s+Laps?$", raw_status):
+        return "lapped"
+    return "dnf"
 
 
 def fetch_race(year: int, round_num: int):
@@ -85,19 +113,30 @@ def fetch_race(year: int, round_num: int):
         if session.results is None or session.results.empty:
             raise fastf1.core.DataNotLoadedError("no results")
 
+        # F1's own timing convention, which FastF1's `Time` column preserves as-is: the winner's
+        # `Time` is their absolute race duration, everyone else's is already their gap *to* the
+        # winner — not something to compute ourselves, just read correctly per row.
+        fastest_laps = session.laps.groupby("Driver")["LapTime"].min()
+
         results = []
         for row in session.results.sort_values("Position").itertuples():
             if pd.isna(row.Position):
                 print(f"    race: skipping {row.Abbreviation}, no classified position")
                 continue
+            fastest_lap = fastest_laps.get(row.Abbreviation)
             results.append(
                 {
                     "driver": row.Abbreviation,
+                    "driverName": row.FullName,
                     "team": row.TeamName,
                     "gridPosition": int(row.GridPosition) if pd.notna(row.GridPosition) else None,
                     "finishPosition": int(row.Position),
-                    "status": row.Status,
+                    "status": normalize_status(row.Status),
                     "points": float(row.Points),
+                    "finishGapSec": 0 if row.Position == 1 else (
+                        round(row.Time.total_seconds(), 3) if pd.notna(row.Time) else None
+                    ),
+                    "fastestLapSec": round(fastest_lap.total_seconds(), 3) if pd.notna(fastest_lap) else None,
                 }
             )
 
@@ -158,6 +197,16 @@ def build_and_push(db, year: int, round_num: int):
         print("    nothing available yet, not pushing a placeholder")
         return
 
+    # A transient failure (rate limiting, a network blip) on a *re*-fetch must never regress a
+    # race that's already known to be completed — `.set()` overwrites the whole document, so
+    # silently falling back to "upcoming" here would erase real results that were already stored.
+    # This actually happened once already: Hungary got downgraded and lost its race data this way.
+    if not race:
+        existing = db.collection("races").document(doc_id).get()
+        if existing.exists and existing.to_dict().get("race"):
+            print("    race fetch failed but a completed race already exists — keeping it, not overwriting")
+            race = existing.to_dict()["race"]
+
     doc = {
         "year": year,
         "round": round_num,
@@ -166,7 +215,11 @@ def build_and_push(db, year: int, round_num: int):
         "eventName": event_name,
         "location": str(calendar_event["Location"]),
         "country": str(calendar_event["Country"]),
-        "qualifying": {"session": "Q", "grid": qualifying["grid"]} if qualifying else None,
+        "qualifying": (
+            {"session": "Q", "grid": qualifying["grid"], "poleTimeSec": qualifying["poleTimeSec"]}
+            if qualifying
+            else None
+        ),
         "race": (
             {
                 "session": "R",

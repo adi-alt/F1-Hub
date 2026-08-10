@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // pipeline/ is a Python project living inside this repo (see pipeline/README.md) — its
+    // .venv/f1_cache are gitignored but still walkable by ESLint without an explicit ignore.
+    "pipeline/**",
   ]),
 ]);
 

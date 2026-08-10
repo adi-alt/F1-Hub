@@ -49,14 +49,20 @@ def init_firestore():
     return firestore.client()
 
 
-def session_date(row, label: str):
-    """Session slot numbers shift by weekend format (sprint weekends have 5 sessions, not 3) —
-    find a session by its label ("Race", "Qualifying") rather than assuming a fixed slot."""
+def all_sessions(row):
+    """Every session this weekend actually has, whatever they're called — a conventional weekend
+    has 5 (3 practices, qualifying, race), a sprint weekend has a different 5 (practice, sprint
+    qualifying, sprint, qualifying, race). Reading whichever slots are populated, rather than
+    hardcoding specific labels, means this doesn't silently drop sessions on a format it wasn't
+    written with in mind — including formats introduced in future seasons.
+    """
+    sessions = []
     for i in range(1, 6):
-        if row.get(f"Session{i}") == label:
-            date = row.get(f"Session{i}DateUtc")
-            return date.isoformat() if date is not None and not str(date) == "NaT" else None
-    return None
+        label = row.get(f"Session{i}")
+        date = row.get(f"Session{i}DateUtc")
+        if label and date is not None and str(date) != "NaT":
+            sessions.append({"label": str(label), "date": date.isoformat()})
+    return sessions
 
 
 def sync_year(db, year: int):
@@ -68,6 +74,8 @@ def sync_year(db, year: int):
         round_num = int(row["RoundNumber"])
         event_name = str(row["EventName"])
         doc_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
+        sessions = all_sessions(row)
+        race_session = next((s for s in sessions if s["label"] == "Race"), None)
         doc = {
             "year": year,
             "round": round_num,
@@ -75,11 +83,13 @@ def sync_year(db, year: int):
             "location": str(row["Location"]),
             "country": str(row["Country"]),
             "eventFormat": str(row["EventFormat"]),
-            "qualifyingDate": session_date(row, "Qualifying"),
-            "raceDate": session_date(row, "Race"),
+            "sessions": sessions,
+            # Convenience copy of the one session every weekend definitely has, so "next race in
+            # N days" sorting/display doesn't need to dig into the sessions list.
+            "raceDate": race_session["date"] if race_session else None,
         }
         db.collection("calendar").document(doc_id).set(doc)
-        print(f"  {doc_id}: race={doc['raceDate']}")
+        print(f"  {doc_id}: {len(sessions)} sessions, race={doc['raceDate']}")
 
 
 def main():

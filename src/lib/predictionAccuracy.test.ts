@@ -9,8 +9,6 @@ function result(driver: string, finishPosition: number): RaceResultEntry {
     driverName: driver,
     team: "Team",
     grid: finishPosition,
-    qualiPosition: finishPosition,
-    qualifyingGapSec: 0,
     finishPosition,
     finishGapSec: 1,
     status: "finished",
@@ -24,7 +22,6 @@ test("comparePrediction pairs each prediction with the SAME driver's actual resu
     id: "2026_x",
     year: 2026,
     round: 1,
-    slug: "x",
     circuit: "x",
     name: "X",
     status: "completed",
@@ -41,7 +38,6 @@ test("comparePrediction pairs each prediction with the SAME driver's actual resu
       predictedPaceGapSec: {},
       backtest: [],
     },
-    sourceUrl: "",
     updatedAt: "",
   };
 
@@ -59,12 +55,10 @@ test("comparePrediction returns null when there's no locked-in prediction", () =
     id: "2026_y",
     year: 2026,
     round: 2,
-    slug: "y",
     circuit: "y",
     name: "Y",
     status: "completed",
     results: [result("VER", 1)],
-    sourceUrl: "",
     updatedAt: "",
   };
   assert.equal(comparePrediction(race), null);
@@ -75,7 +69,6 @@ test("comparePolePrediction reports a hit when the frozen prior-form pick matche
     id: "2026_z",
     year: 2026,
     round: 3,
-    slug: "z",
     circuit: "z",
     name: "Z",
     status: "completed",
@@ -87,7 +80,6 @@ test("comparePolePrediction reports a hit when the frozen prior-form pick matche
       order: [{ driver: "VER", team: "Red Bull", predictedQualiPosition: 1, predictedScore: 0 }],
       featureImportance: {},
     },
-    sourceUrl: "",
     updatedAt: "",
   };
   const accuracy = comparePolePrediction(race)!;
@@ -101,13 +93,11 @@ test("comparePolePrediction returns null without a frozen pole prediction", () =
     id: "2026_w",
     year: 2026,
     round: 4,
-    slug: "w",
     circuit: "w",
     name: "W",
     status: "completed",
     poleSitter: "VER",
     results: [result("VER", 1)],
-    sourceUrl: "",
     updatedAt: "",
   };
   assert.equal(comparePolePrediction(race), null);

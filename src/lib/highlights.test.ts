@@ -7,8 +7,6 @@ function row(partial: Partial<RaceResultEntry> & { driver: string; grid: number;
   return {
     driverName: partial.driver,
     team: "Team",
-    qualiPosition: partial.grid,
-    qualifyingGapSec: 0,
     finishGapSec: 1,
     status: "finished",
     fastestLapSec: null,
@@ -22,11 +20,9 @@ test("computeHighlights returns null for a race with no stored results", () => {
     id: "x",
     year: 2026,
     round: 1,
-    slug: "x",
     circuit: "x",
     name: "X",
     status: "upcoming",
-    sourceUrl: "",
     updatedAt: "",
   };
   assert.equal(computeHighlights(race), null);
@@ -37,7 +33,6 @@ test("computeHighlights finds podium, fastest lap, and biggest mover", () => {
     id: "2026_x",
     year: 2026,
     round: 1,
-    slug: "x",
     circuit: "x",
     name: "X",
     status: "completed",
@@ -50,7 +45,6 @@ test("computeHighlights finds podium, fastest lap, and biggest mover", () => {
       row({ driver: "HAM", grid: 3, finishPosition: 18, status: "finished" }), // biggest loser: -15
       row({ driver: "PIA", grid: 4, finishPosition: 20, status: "dnf" }),
     ],
-    sourceUrl: "",
     updatedAt: "",
   };
 
