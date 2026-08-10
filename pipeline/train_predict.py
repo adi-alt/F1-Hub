@@ -28,9 +28,10 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 from ml.features import TrainingResultRow
+from ml.pace_features import PaceResultRow
 from ml.predict_finish import MODEL_VERSION as FINISH_MODEL_VERSION
 from ml.predict_finish import chronological_backtest, predict_finish_order
-from ml.predict_pace import fit_pace_model, predict_pace_gaps
+from ml.predict_pace import predict_pace_gaps
 from ml.predict_pole import MODEL_VERSION as POLE_MODEL_VERSION
 from ml.predict_pole import predict_pole_order
 
@@ -92,24 +93,31 @@ def to_training_rows(race_doc: dict) -> list[TrainingResultRow]:
     return rows
 
 
-def to_pace_training_race(race_doc: dict) -> list[dict]:
+def to_pace_rows(race_doc: dict) -> list[PaceResultRow]:
     """DNF drivers are excluded: their "fastest lap" is whatever they set in the handful of laps
     before retiring, not a measurement of race pace — verified on the real backtest that including
     them roughly halves the model's edge over a naive baseline (DNFs are ~15% of all results,
-    enough to matter, not a rounding error)."""
+    enough to matter, not a rounding error). Rows with no representative qualifying gap or
+    fastest lap are dropped too — nothing for the pace model to learn from or predict against."""
     quali = _quali_lookup(race_doc.get("qualifying"))
-    out = []
+    rows = []
     for r in race_doc["race"]["results"]:
-        if r["status"] == "dnf":
+        if r["status"] == "dnf" or r["fastestLapSec"] is None:
             continue
-        out.append(
-            {
-                "driver": r["driver"],
-                "qualifyingGapSec": quali["get"](r["driver"])["qualifyingGapSec"],
-                "fastestLapSec": r["fastestLapSec"],
-            }
+        q = quali["get"](r["driver"])
+        if q["qualifyingGapSec"] is None:
+            continue
+        rows.append(
+            PaceResultRow(
+                round=race_doc["round"],
+                driver=r["driver"],
+                team=r["team"],
+                grid=q["gridPosition"],
+                qualifying_gap_sec=q["qualifyingGapSec"],
+                fastest_lap_sec=r["fastestLapSec"],
+            )
         )
-    return out
+    return rows
 
 
 def derive_entrants(completed_docs: list[dict]) -> list[dict]:
@@ -136,6 +144,7 @@ def build_pole_prediction(training_rows: list[TrainingResultRow], entrants: list
 def process_year(db, year: int):
     docs = list(db.collection("races").where("year", "==", year).order_by("round").stream())
     training_rows: list[TrainingResultRow] = []
+    pace_rows: list[PaceResultRow] = []
     completed_docs: list[dict] = []
 
     for doc in docs:
@@ -147,6 +156,7 @@ def process_year(db, year: int):
             # upcoming) is left exactly as-is — this is what makes later accuracy comparisons
             # honest, not retroactively flattering.
             training_rows.extend(to_training_rows(data))
+            pace_rows.extend(to_pace_rows(data))
             completed_docs.append(data)
             print(f"  round {round_num}: completed, added to training history ({len(training_rows)} rows so far)")
             continue
@@ -192,15 +202,13 @@ def process_year(db, year: int):
             for q in qualifying["grid"]
         ]
         finish = predict_finish_order(training_rows, inputs)
-        pace_model = fit_pace_model([to_pace_training_race(d) for d in completed_docs])
-        pace_inputs = [{"driver": e["driver"], "qualifyingGapSec": e["qualifyingGapSec"]} for e in inputs]
 
         update["prediction"] = {
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "modelVersion": FINISH_MODEL_VERSION,
             "finishOrder": finish["order"],
             "finishFeatureImportance": finish["featureImportance"],
-            "predictedPaceGapSec": predict_pace_gaps(pace_model, pace_inputs),
+            "predictedPaceGapSec": predict_pace_gaps(pace_rows, inputs),
             "backtest": chronological_backtest(training_rows),
         }
         doc.reference.update(update)
