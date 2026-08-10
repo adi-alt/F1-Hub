@@ -105,11 +105,59 @@ def normalize_status(raw_status: str) -> str:
     return "dnf"
 
 
+def fetch_practice(year: int, round_num: int, label: str):
+    """{session: "FP1"/"FP2"/"FP3", bestLaps: [...], weather: {...}}, or None if that session
+    hasn't happened (or doesn't exist for this weekend — sprint weekends have no FP2/FP3).
+
+    Unlike qualifying/race data, this is available *before* a weekend's own quali or race — FP1-3
+    always run first — which is what makes it a legitimate live predictive input for the pole
+    model rather than just another historical aggregate: "how is this driver going this weekend"
+    is knowable ahead of Saturday's qualifying in a way next race's grid isn't.
+    """
+    try:
+        session = fastf1.get_session(year, round_num, label)
+        session.load(laps=True, weather=True, telemetry=False, messages=False)
+        if session.laps is None or session.laps.empty:
+            raise fastf1.core.DataNotLoadedError("no laps")
+
+        best_by_driver = session.laps.groupby("Driver")["LapTime"].min()
+        session_best = best_by_driver.min()
+        if pd.isna(session_best):
+            raise fastf1.core.DataNotLoadedError("no valid lap times")
+
+        best_laps = [
+            {
+                "driver": driver,
+                "lapTimeSec": round(lap_time.total_seconds(), 3),
+                "deltaToBestSec": round((lap_time - session_best).total_seconds(), 3),
+            }
+            for driver, lap_time in best_by_driver.items()
+            if pd.notna(lap_time)
+        ]
+
+        weather_df = session.weather_data
+        weather = (
+            {
+                "airTempC": round(float(weather_df["AirTemp"].mean()), 1),
+                "trackTempC": round(float(weather_df["TrackTemp"].mean()), 1),
+                "humidityPct": round(float(weather_df["Humidity"].mean()), 1),
+                "rainfall": bool((weather_df["Rainfall"] > 0).any()),
+            }
+            if weather_df is not None and not weather_df.empty
+            else None
+        )
+
+        return {"session": label, "bestLaps": best_laps, "weather": weather}
+    except Exception as exc:
+        print(f"    {label}: not available ({exc})")
+        return None
+
+
 def fetch_race(year: int, round_num: int):
     """{session: "R", results/weather/tireStints: ...}, or None if the race hasn't run yet."""
     try:
         session = fastf1.get_session(year, round_num, "R")
-        session.load(laps=True, weather=True, telemetry=False)
+        session.load(laps=True, weather=True, telemetry=False, messages=True)
         if session.results is None or session.results.empty:
             raise fastf1.core.DataNotLoadedError("no results")
 
@@ -148,6 +196,14 @@ def fetch_race(year: int, round_num: int):
             "rainfall": bool((weather_df["Rainfall"] > 0).any()),
         }
 
+        # Race control uses a clean structured Category field for this ("SafetyCar", with
+        # DEPLOYED/ENDING message pairs) rather than needing to pattern-match free text — counting
+        # DEPLOYED events avoids double-counting a period's start and end as two periods.
+        messages = session.race_control_messages
+        safety_car_periods = int(
+            messages[(messages["Category"] == "SafetyCar") & messages["Message"].str.contains("DEPLOYED", na=False)].shape[0]
+        )
+
         stints_df = (
             session.laps[["Driver", "Stint", "Compound", "LapNumber"]]
             .groupby(["Driver", "Stint", "Compound"])
@@ -165,6 +221,7 @@ def fetch_race(year: int, round_num: int):
             "results": results,
             "weather": weather,
             "tireStints": tire_stints,
+            "safetyCarPeriods": safety_car_periods,
         }
     except Exception as exc:
         print(f"    race: not available ({exc})")
@@ -187,25 +244,36 @@ def build_and_push(db, year: int, round_num: int):
     doc_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
     print(f"  {doc_id}:")
 
+    practice = {}
+    for label in ("FP1", "FP2", "FP3"):
+        result = fetch_practice(year, round_num, label)
+        if result:
+            practice[label] = {"bestLaps": result["bestLaps"], "weather": result["weather"]}
     qualifying = fetch_qualifying(year, round_num)
     race = fetch_race(year, round_num)
 
-    if not qualifying and not race:
+    if not practice and not qualifying and not race:
         # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
         # "what's coming up"; pushing an empty placeholder here is exactly the clutter this
         # collection is meant to avoid.
         print("    nothing available yet, not pushing a placeholder")
         return
 
-    # A transient failure (rate limiting, a network blip) on a *re*-fetch must never regress a
-    # race that's already known to be completed — `.set()` overwrites the whole document, so
-    # silently falling back to "upcoming" here would erase real results that were already stored.
-    # This actually happened once already: Hungary got downgraded and lost its race data this way.
-    if not race:
+    # A transient failure (rate limiting, a network blip) on a *re*-fetch must never regress
+    # anything that's already known to have happened — `.set()` overwrites the whole document, so
+    # silently dropping a session here would erase real data that was already stored. This
+    # actually happened once already: Hungary got downgraded and lost its race data this way.
+    missing_practice = [label for label in ("FP1", "FP2", "FP3") if label not in practice]
+    if not race or missing_practice:
         existing = db.collection("races").document(doc_id).get()
-        if existing.exists and existing.to_dict().get("race"):
+        existing_data = existing.to_dict() if existing.exists else {}
+        if not race and existing_data.get("race"):
             print("    race fetch failed but a completed race already exists — keeping it, not overwriting")
-            race = existing.to_dict()["race"]
+            race = existing_data["race"]
+        for label in missing_practice:
+            existing_session = (existing_data.get("practice") or {}).get(label)
+            if existing_session:
+                practice[label] = existing_session
 
     doc = {
         "year": year,
@@ -215,6 +283,7 @@ def build_and_push(db, year: int, round_num: int):
         "eventName": event_name,
         "location": str(calendar_event["Location"]),
         "country": str(calendar_event["Country"]),
+        "practice": practice or None,
         "qualifying": (
             {"session": "Q", "grid": qualifying["grid"], "poleTimeSec": qualifying["poleTimeSec"]}
             if qualifying
@@ -226,6 +295,7 @@ def build_and_push(db, year: int, round_num: int):
                 "results": race["results"],
                 "weather": race["weather"],
                 "tireStints": race["tireStints"],
+                "safetyCarPeriods": race["safetyCarPeriods"],
             }
             if race
             else None
@@ -235,7 +305,10 @@ def build_and_push(db, year: int, round_num: int):
     db.collection("races").document(doc_id).set(doc)
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows = len(race["results"]) if race else 0
-    print(f"    pushed: status={doc['status']}, qualifying.grid={quali_rows} rows, race.results={race_rows} rows")
+    print(
+        f"    pushed: status={doc['status']}, practice={sorted(practice.keys())}, "
+        f"qualifying.grid={quali_rows} rows, race.results={race_rows} rows"
+    )
 
 
 def discover_rounds(year: int) -> list[int]:

@@ -115,10 +115,15 @@ def derive_entrants(completed_docs: list[dict]) -> list[dict]:
     return [{"driver": r["driver"], "team": r["team"]} for r in most_recent["race"]["results"]]
 
 
-def build_pole_prediction(training_rows: list[TrainingResultRow], entrants: list[dict]) -> dict | None:
+def build_pole_prediction(
+    training_rows: list[TrainingResultRow],
+    entrants: list[dict],
+    practice_by_round: dict[int, dict | None],
+    current_practice: dict | None,
+) -> dict | None:
     if not entrants:
         return None
-    pole = predict_pole_order(training_rows, entrants)
+    pole = predict_pole_order(training_rows, entrants, practice_by_round, current_practice)
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "modelVersion": POLE_MODEL_VERSION,
@@ -131,6 +136,7 @@ def process_year(db, year: int):
     docs = list(db.collection("races").where("year", "==", year).order_by("round").stream())
     training_rows: list[TrainingResultRow] = []
     completed_docs: list[dict] = []
+    practice_by_round: dict[int, dict | None] = {}
 
     for doc in docs:
         data = doc.to_dict()
@@ -142,14 +148,16 @@ def process_year(db, year: int):
             # honest, not retroactively flattering.
             training_rows.extend(to_training_rows(data))
             completed_docs.append(data)
+            practice_by_round[round_num] = data.get("practice")
             print(f"  round {round_num}: completed, added to training history ({len(training_rows)} rows so far)")
             continue
 
         qualifying = data.get("qualifying")
         entrants = derive_entrants(completed_docs)
+        current_practice = data.get("practice")
 
         if not qualifying:
-            pole_prediction = build_pole_prediction(training_rows, entrants)
+            pole_prediction = build_pole_prediction(training_rows, entrants, practice_by_round, current_practice)
             if pole_prediction:
                 doc.reference.update({"polePrediction": pole_prediction})
                 print(f"  round {round_num}: polePrediction updated (live, {len(training_rows)} training rows)")
@@ -159,7 +167,9 @@ def process_year(db, year: int):
 
         # Qualifying just became available (or already was) — freeze whatever pole prediction
         # exists right now; from this point there's nothing left to guess about pole.
-        pole_prediction = data.get("polePrediction") or build_pole_prediction(training_rows, entrants)
+        pole_prediction = data.get("polePrediction") or build_pole_prediction(
+            training_rows, entrants, practice_by_round, current_practice
+        )
 
         if data.get("prediction"):
             print(f"  round {round_num}: prediction already frozen, leaving it alone")
