@@ -160,11 +160,37 @@ def fetch_race(year: int, round_num: int):
             for r in stints_df.itertuples()
         ]
 
+        # Gap to the car directly ahead (by classified position), per lap, excluding pit in/out
+        # laps since those distort the gap independent of any real on-track proximity. Not a
+        # telemetry/GPS computation — FastF1's per-lap cumulative session Time is already exactly
+        # what's needed: sort a lap's drivers by Position, the gap is just the Time delta between
+        # consecutive rows. Aggregated to one summary per driver since the whole-race distribution,
+        # not any single lap, is what could plausibly describe a persistent trait ("this driver's
+        # races tend to involve a lot of close following") worth using as historical context later.
+        clean_laps = session.laps[session.laps["PitInTime"].isna() & session.laps["PitOutTime"].isna()]
+        gap_rows = []
+        for _, lap_group in clean_laps.groupby("LapNumber"):
+            ordered = lap_group[["Driver", "Position", "Time"]].dropna().sort_values("Position")
+            ordered["gapAheadSec"] = ordered["Time"].diff().dt.total_seconds()
+            gap_rows.append(ordered[["Driver", "gapAheadSec"]])
+        traffic_stats = []
+        if gap_rows:
+            all_gaps = pd.concat(gap_rows).dropna()
+            for driver, gaps in all_gaps.groupby("Driver")["gapAheadSec"]:
+                traffic_stats.append(
+                    {
+                        "driver": driver,
+                        "avgGapAheadSec": round(float(gaps.mean()), 3),
+                        "pctLapsCloseBehind": round(float((gaps < 1.5).mean()), 3),
+                    }
+                )
+
         return {
             "session": "R",
             "results": results,
             "weather": weather,
             "tireStints": tire_stints,
+            "trafficStats": traffic_stats,
         }
     except Exception as exc:
         print(f"    race: not available ({exc})")
@@ -226,6 +252,7 @@ def build_and_push(db, year: int, round_num: int):
                 "results": race["results"],
                 "weather": race["weather"],
                 "tireStints": race["tireStints"],
+                "trafficStats": race["trafficStats"],
             }
             if race
             else None
