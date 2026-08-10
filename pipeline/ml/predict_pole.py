@@ -11,11 +11,12 @@ from sklearn.ensemble import RandomForestRegressor
 from .features import TrainingResultRow
 from .pole_features import POLE_FEATURE_ORDER, build_pole_historical_features, build_pole_input_features, to_pole_feature_matrix
 
-MODEL_VERSION = "sklearn-rf-v1"
+MODEL_VERSION = "sklearn-rf-v2-elo"
 
-# driverRecentQuali, teamRecentQuali: worse (higher) recent quali position must never predict a
-# better pole. History-depth counts: no known direction.
-MONOTONIC_CST = [1, 1, 0, 0]
+# driverQualiEloRating, teamQualiEloRating: higher (better) rating must never predict a worse
+# pole -> -1 (opposite sign from the rolling-average position features these replaced, where
+# higher was worse). History-depth counts: no known direction.
+MONOTONIC_CST = [-1, -1, 0, 0]
 
 
 def predict_pole_order(history: list[TrainingResultRow], entrants: list[dict]) -> dict:
