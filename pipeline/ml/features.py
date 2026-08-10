@@ -3,12 +3,6 @@ each entry; driver/team *form* now comes from Elo ratings (see elo.py) rather th
 average of the last 3/6 races — same leakage-safety rule either way (a round's features only ever
 reflect strictly-prior rounds), but Elo's decaying K-factor handles the "how much do we actually
 trust this estimate yet" question the rolling average had no answer for.
-
-Circuit-level context (safety car rate, overtaking difficulty, rain probability, pit-stop
-patterns — see circuit_stats.py) was tried here and measurably made the real walk-forward backtest
-worse, not better, whichever single one of the four was added (checked individually, not just as a
-bundle). Not wired in as a result — recency/era-weighted circuit history is real infrastructure
-now, just not yet a feature that's earned its way into this specific model.
 """
 
 from __future__ import annotations

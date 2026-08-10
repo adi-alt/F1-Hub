@@ -11,26 +11,20 @@ from sklearn.ensemble import RandomForestRegressor
 from .features import TrainingResultRow
 from .pole_features import POLE_FEATURE_ORDER, build_pole_historical_features, build_pole_input_features, to_pole_feature_matrix
 
-MODEL_VERSION = "sklearn-rf-v3-practice"
+MODEL_VERSION = "sklearn-rf-v2-elo"
 
 # driverQualiEloRating, teamQualiEloRating: higher (better) rating must never predict a worse
 # pole -> -1 (opposite sign from the rolling-average position features these replaced, where
-# higher was worse). History-depth counts: no known direction. fp1/fp2/fp3DeltaToBestSec: further
-# off the session's best time must never predict a *better* pole -> +1.
-MONOTONIC_CST = [-1, -1, 0, 0, 1, 1, 1]
+# higher was worse). History-depth counts: no known direction.
+MONOTONIC_CST = [-1, -1, 0, 0]
 
 
-def predict_pole_order(
-    history: list[TrainingResultRow],
-    entrants: list[dict],
-    practice_by_round: dict[int, dict | None],
-    current_practice: dict | None,
-) -> dict:
-    training = build_pole_historical_features(history, practice_by_round)
+def predict_pole_order(history: list[TrainingResultRow], entrants: list[dict]) -> dict:
+    training = build_pole_historical_features(history)
     model = RandomForestRegressor(n_estimators=500, max_features=0.8, monotonic_cst=MONOTONIC_CST, random_state=42)
     model.fit(to_pole_feature_matrix(training), [row["qualiPosition"] for row in training])
 
-    input_features = build_pole_input_features(entrants, history, current_practice)
+    input_features = build_pole_input_features(entrants, history)
     scores = model.predict(to_pole_feature_matrix(input_features))
 
     ranked = sorted(
