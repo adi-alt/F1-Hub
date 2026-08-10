@@ -61,14 +61,16 @@ different buckets of data, not one blanket oversight:
   actual race-day weather. Both describe what *happens during* the race being predicted — not
   knowable before the race, so never valid candidates for a pre-race feature, independent of
   whether they'd otherwise help. Stored for display/analysis, never modeled.
-- **Tried and shipped, then reverted at the user's explicit request**: FP1/FP2/FP3 practice-pace
-  deltas as pole-model features. These *do* vary per driver and are legitimately knowable before
-  qualifying (practice always runs first). Verified real improvement (2.974 MAE, Spearman 0.746,
-  P1 hit rate 41.7% on the full 175-round set) and shipped as `sklearn-rf-v3-practice` — then
-  reverted (2 commits) so the user could rebuild that part themselves. That revert also removed
-  `fetch_practice()` from `fetch_races.py` entirely, so practice-session fetching is currently not
-  running at all, not just unused. **This is intentionally left for the user, not something to
-  redo without their go-ahead.**
+- **Shipped, reverted, then rebuilt**: FP1/FP2/FP3 practice-pace deltas as pole-model features.
+  These *do* vary per driver and are legitimately knowable before qualifying (practice always runs
+  first). Verified real improvement, shipped as `sklearn-rf-v3-practice`, reverted at the user's
+  explicit request so they could rebuild it themselves, then rebuilt at the user's later explicit
+  request — re-verified fresh on the current dataset before recommitting (Elo-only 3.014 → Elo +
+  practice 2.974 MAE), not just trusting the old numbers. The historical practice-data backfill
+  also finished completely this time (184/184 races, across several rate-limit-respecting passes),
+  so the frozen benchmark now reflects real practice data for every evaluable round instead of
+  falling back to neutral defaults for 2020-2026 — see the current-state table below for the final
+  numbers.
 - **Fetched and tested, rejected as a Pace feature**: traffic (car-to-car gaps on track). Turned
   out to be much cheaper than the full-telemetry approach first assumed — lap `Position` + `Time`
   (already loaded via `laps=True`) is enough to compute gap-to-car-ahead per lap without any GPS
@@ -127,16 +129,16 @@ at 3.453 MAE and shouldn't be revisited without a fundamentally different hypoth
 | Model | Algorithm | Features | Benchmark | Status |
 |---|---|---|---|---|
 | Finish-order | RF, monotonic constraints, grid-baseline shrinkage | `grid`, `qualifyingGapSec`, `driverEloRating`, `teamEloRating`, `driverHistoryCount`, `teamHistoryCount` | 3.453 MAE | 🟢 Frozen |
-| Pole | RF, monotonic constraints | `driverQualiEloRating`, `teamQualiEloRating`, `driverHistoryCount`, `teamHistoryCount` | — | 🟡 Reverted to Elo-only; FP1-3 rebuild is the user's |
+| Pole | RF, monotonic constraints | `driverQualiEloRating`, `teamQualiEloRating`, `driverHistoryCount`, `teamHistoryCount`, `fp1DeltaToBestSec`, `fp2DeltaToBestSec`, `fp3DeltaToBestSec` | MAE 2.872, naive baseline 3.595, Spearman 0.762 (pooled 0.765), P1 hit rate 38.3%, top-3 overlap 1.93/3, top-5 overlap 3.65/5 — full 175-round set, frozen at `modelBenchmarks/sklearn-rf-v3-practice` | 🟢 Shipped |
 | Pace | RF, monotonic constraints | `grid`, `qualifyingGapSec`, `driverPaceEloRating`, `teamPaceEloRating` | 0.903 MAE, R² -0.146, Spearman 0.615 | 🟢 Shipped, open to further experiments |
 
 ## Known constraints
 
 - **FastF1 public API rate limit**: 500 calls/hour hard ceiling. Each practice-session fetch costs
   ~7 API calls, so a bulk historical backfill blows through this in ~20-25 races/hour. The FP1-3
-  historical backfill only reached 2018-2019 (23/184 races) before hitting the wall, and can't be
-  resumed right now regardless of the rate limit, since its dependency (`fetch_practice()`) was
-  removed by the pole-model revert.
+  historical backfill needed 7 separate rate-limit-respecting passes (spaced far enough apart to
+  let the ceiling reset) to go from 23/184 to the full 184/184 — expect the same pattern for any
+  future bulk historical fetch of a new data type.
 - **GitHub Actions secrets** (adi-alt/F1-Hub): were completely unset until fixed directly —
   `FIREBASE_SERVICE_ACCOUNT_JSON`, all 7 `NEXT_PUBLIC_FIREBASE_*` vars, `CRON_SECRET`,
   `SESSION_SECRET`. All three workflows (`fetch-races.yml`, `sync-calendar.yml`, `ci.yml`)
