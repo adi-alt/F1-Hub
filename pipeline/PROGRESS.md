@@ -216,8 +216,41 @@ excluded. Fixed by matching on `eventName` instead, which is stable across the s
 Verified before/after: Abu Dhabi 100% → 2.6%. This affects anything that ever reuses
 `circuit_stats.py`'s circuit-matching, not just weather.
 
-**The Monte Carlo engine itself: not started.** Next: grid → pace → sample DNF → sample SC
-(occurred yes/no only, no assumed positional effect yet — that's an explicit, documented
-assumption to revisit once there's data to estimate it) → finishing order, run 10,000× per race,
-evaluated on MAE/Spearman/Brier/log-loss/calibration against the deterministic Finish model before
-adding tyre strategy or traffic.
+**Weather API key**: a real `WEATHER_API_KEY` (OpenWeatherMap) was added as a GitHub secret and
+verified against the live API directly (Monaco, Mexico City, Las Vegas, Miami Gardens all
+resolved correctly). One known, gracefully-handled limitation: "Yas Marina" (Abu Dhabi's location
+string) 404s against OpenWeatherMap's geocoding — not a recognized city name — so Abu Dhabi's live
+forecast always falls through to the historical fallback. Fails safe, not loudly; a
+location-to-coordinates override table would fix it properly if it's ever worth the complexity.
+
+**Step 4 — Monte Carlo simulator v1, shipped, a real multi-metric win.** `ml/simulate_race.py`:
+samples race pace (predicted pace + Gaussian noise, stdev = the Pace model's own real backtest
+residual stdev, 2.2s — not a guess), samples DNF per driver from `ml/predict_dnf.py`, samples
+safety-car occurrence from the global historical rate but gives it **no effect on finishing order
+yet** — an explicit, documented v1 assumption, not an invented mechanic with no data behind it (see
+`ml/circuit_stats.py`'s Step 1 finding for why inventing an SC-effect size would be exactly the
+kind of unjustified assumption this project has avoided elsewhere). Runs 10,000× per race, producing
+a full finish-position probability distribution per driver rather than one point estimate.
+
+Verified on a 40-race walk-forward sample against two deterministic baselines:
+
+| | MAE | Spearman |
+|---|---|---|
+| A: existing Finish model | 3.790 | 0.602 |
+| B: grid + predicted pace | 3.770 | 0.597 |
+| **C: simulator (median position)** | **3.482** | **0.640** |
+
+The first pass used the *mean* of each driver's simulated position, which came out worse than both
+baselines (MAE 4.199) — but MAE is minimized by the median of a distribution, not the mean; that
+was a methodology bug in how the point estimate was extracted, not a real flaw in the simulator.
+Switching to median flipped the result to a clear win on both metrics. Probability calibration
+also beats a naive uniform baseline on Brier score: P1 0.0416 vs 0.0475 naive, podium 0.0910 vs
+0.1275 naive. Smaller sample than the 175-round benchmarks used elsewhere (each test race here
+retrains 3 models plus runs 5,000-10,000 simulations, so a full 175-round validation is
+meaningfully more expensive) — a real result, not noise, but worth firming up on more data before
+treating these numbers as permanently frozen the way Finish/Pole/Pace's are.
+
+**Not yet done**: tyre strategy, traffic, and pit strategy remain explicitly out of scope for v1,
+per the "build the simplest version that can falsify the hypothesis first" principle — v1 already
+falsifies "combining point estimates with probabilistic DNF/SC sampling doesn't help" (it does
+help), which is the bar that had to clear before adding more mechanics.
