@@ -19,14 +19,23 @@ DNF/SC sampling produce a better-calibrated *distribution* of outcomes than a si
 prediction? Not "is this a complete race simulation" — tyre strategy, traffic, and pit strategy are
 explicitly out of scope for v1.
 
-Verified on a 40-race walk-forward sample against the two deterministic baselines (the existing
-Finish model, and a plain grid+pace ranking): using the median of each driver's simulated position
+Verified on the full 175-round walk-forward set (2018-2026, the same population the frozen
+Finish/Pole/Pace benchmarks use) against the two deterministic baselines (the existing Finish
+model, and a plain grid+pace ranking): using the median of each driver's simulated position
 distribution — not the mean, which is a natural first instinct but is the wrong summary statistic
-for MAE — the simulator beats both on MAE (3.482 vs 3.790/3.770) and Spearman (0.640 vs
-0.602/0.597), and its P1/podium probabilities beat a naive uniform baseline on Brier score (P1:
-0.0416 vs 0.0475; podium: 0.091 vs 0.1275). A real result, not a wash — though on a smaller sample
-than the 175-round benchmarks used elsewhere in this pipeline, worth firming up on more data before
-treating these numbers as permanently frozen.
+for MAE — the simulator beats both on MAE (3.071 vs 3.470/3.531) and Spearman (0.693 vs
+0.640/0.631), and its P1/podium probabilities beat a naive uniform baseline on Brier score (P1:
+0.0414 vs 0.0473; podium: 0.096 vs 0.127). A real, confirmed result — the gap widened, not shrank,
+versus an earlier smaller-sample read.
+
+Calibration is the honest caveat: bucketing predicted probabilities against actual outcome rates
+shows the model is systematically *under-confident about genuine contenders* — drivers given a
+30-40% predicted podium chance actually made the podium 70% of the time in that bucket — while
+roughly right for longshots. Beating a naive baseline on aggregate Brier score doesn't mean the
+individual probabilities are trustworthy yet; a "Verstappen: 42% to win" product claim built
+directly on these numbers would currently be understating genuine favorites. Likely cause: a
+single pace-noise stdev (2.20s) applied uniformly to every driver flattens the distribution more
+than real skill gaps warrant. Not fixed yet — flagged for whoever builds on this next.
 """
 
 from __future__ import annotations
