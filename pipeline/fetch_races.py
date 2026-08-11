@@ -157,7 +157,7 @@ def fetch_race(year: int, round_num: int):
     """{session: "R", results/weather/tireStints: ...}, or None if the race hasn't run yet."""
     try:
         session = fastf1.get_session(year, round_num, "R")
-        session.load(laps=True, weather=True, telemetry=False)
+        session.load(laps=True, weather=True, telemetry=False, messages=True)
         if session.results is None or session.results.empty:
             raise fastf1.core.DataNotLoadedError("no results")
 
@@ -208,6 +208,18 @@ def fetch_race(year: int, round_num: int):
             for r in stints_df.itertuples()
         ]
 
+        # Race-level, not driver-level, on purpose: this is the input to a future P(safety car)
+        # race-environment model, not a per-driver ranking feature — that earlier attempt (safety
+        # car rate as a finish-model feature) failed for a structural reason (identical for every
+        # driver in a race, no ranking signal), not because the data itself is uninformative. Race
+        # control uses a clean structured Category field ("SafetyCar", with DEPLOYED/ENDING message
+        # pairs) rather than needing to pattern-match free text — counting DEPLOYED events avoids
+        # double-counting a period's start and end as two periods.
+        messages = session.race_control_messages
+        safety_car_periods = int(
+            messages[(messages["Category"] == "SafetyCar") & messages["Message"].str.contains("DEPLOYED", na=False)].shape[0]
+        )
+
         # Gap to the car directly ahead (by classified position), per lap, excluding pit in/out
         # laps since those distort the gap independent of any real on-track proximity. Not a
         # telemetry/GPS computation — FastF1's per-lap cumulative session Time is already exactly
@@ -239,6 +251,7 @@ def fetch_race(year: int, round_num: int):
             "weather": weather,
             "tireStints": tire_stints,
             "trafficStats": traffic_stats,
+            "safetyCarPeriods": safety_car_periods,
         }
     except Exception as exc:
         print(f"    race: not available ({exc})")
@@ -313,6 +326,7 @@ def build_and_push(db, year: int, round_num: int):
                 "weather": race["weather"],
                 "tireStints": race["tireStints"],
                 "trafficStats": race["trafficStats"],
+                "safetyCarPeriods": race["safetyCarPeriods"],
             }
             if race
             else None
