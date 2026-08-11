@@ -85,7 +85,11 @@ export type RaceSimulation = {
   drivers: SimulatedDriverEntry[];
 };
 
-export type RaceStatus = "upcoming" | "completed";
+// "scheduled" = on the calendar (pipeline/sync_calendar.py) but no FastF1 session data exists yet
+// for this round — the far side of the season, not this weekend. Distinct from "upcoming", which
+// means at least qualifying/practice data already exists (pipeline/fetch_races.py has a doc for
+// it), just not the race result yet.
+export type RaceStatus = "upcoming" | "completed" | "scheduled";
 
 /** Race-session summary, not a time series — mean readings plus whether it rained at all. */
 export type SessionWeather = {
@@ -127,6 +131,7 @@ export type RaceDoc = {
   simulation?: RaceSimulation;
   weather?: SessionWeather;
   tireStints?: TireStint[];
+  raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
 };
 
 export type UserPick = {

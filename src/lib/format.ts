@@ -13,14 +13,20 @@ export function raceTitle(slug: string): string {
 }
 
 export function raceStatusLabel(race: {
-  status: "upcoming" | "completed";
+  status: "upcoming" | "completed" | "scheduled";
   results?: { finishPosition: number; driverName: string }[];
   prediction?: unknown;
   polePrediction?: unknown;
+  raceDate?: string;
 }): string {
   if (race.status === "completed") {
     const winner = race.results?.find((r) => r.finishPosition === 1);
     return `Winner: ${winner?.driverName ?? "—"}`;
+  }
+  if (race.status === "scheduled") {
+    return race.raceDate
+      ? new Date(race.raceDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      : "Scheduled";
   }
   if (race.prediction) return "Predicted";
   if (race.polePrediction) return "Pole predicted";

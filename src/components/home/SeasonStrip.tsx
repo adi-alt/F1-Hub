@@ -17,16 +17,37 @@ export function SeasonStrip({ races }: { races: RaceDoc[] }) {
     >
       {races.map((race) => {
         const statusLabel = raceStatusLabel(race);
+        const card = (
+          <div className="flex min-w-[168px] flex-col gap-1 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-3">
+            <span className="text-xs text-neutral-500">Round {race.round}</span>
+            <span
+              className={
+                race.status === "scheduled"
+                  ? "text-sm font-semibold text-neutral-400"
+                  : "text-sm font-semibold text-white"
+              }
+            >
+              {race.name.replace(" Grand Prix", "")}
+            </span>
+            <span className="text-xs text-neutral-400">{statusLabel}</span>
+          </div>
+        );
+
+        if (race.status === "scheduled") {
+          return (
+            <motion.div key={race.id} variants={staggerItem}>
+              {card}
+            </motion.div>
+          );
+        }
 
         return (
           <motion.div key={race.id} variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
             <Link
               href={raceHref(race.year, race.round)}
-              className="flex min-w-[168px] flex-col gap-1 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-3 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
+              className="block rounded-xl transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
             >
-              <span className="text-xs text-neutral-500">Round {race.round}</span>
-              <span className="text-sm font-semibold text-white">{race.name.replace(" Grand Prix", "")}</span>
-              <span className="text-xs text-neutral-400">{statusLabel}</span>
+              {card}
             </Link>
           </motion.div>
         );
