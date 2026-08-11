@@ -257,10 +257,43 @@ the time in that bucket), while roughly right for longshots. Beating naive on *a
 doesn't mean the individual probabilities are trustworthy — a "Verstappen: 42% to win" product
 claim built directly on these numbers would currently understate genuine favorites. Likely cause:
 one global pace-noise stdev (2.20s) applied uniformly to every driver flattens the distribution
-more than real skill gaps warrant. **This is the real open item before v1's probabilities could be
-called well-calibrated**, separate from the (now confirmed, real) MAE/Spearman/aggregate-Brier win.
+more than real skill gaps warrant.
 
-**Not yet done**: tyre strategy, traffic, and pit strategy remain explicitly out of scope for v1,
-per the "build the simplest version that can falsify the hypothesis first" principle — v1 already
-falsifies "combining point estimates with probabilistic DNF/SC sampling doesn't help" (it does
-help), which is the bar that had to clear before adding more mechanics.
+## Simulator v1.1 — grid-bucket noise: fixed ranking further, did not fix calibration
+
+Diagnosed before fixing, per the agreed order: computed Pace-model residual stdev by grid-position
+bucket, twice — once on the full dataset, once on a 2018-2023-only held-out-safe split — and both
+confirmed real heteroscedasticity (front-runner residual stdev ~0.9-1.0s, backmarker ~3.2-3.8s, a
+3-4x spread). Replaced the single global 2.2s noise with grid-bucketed values estimated only from
+2018-2023, explicitly to validate the fix on the genuinely-unseen 2024-2026 split rather than tune
+against the same races used to evaluate it.
+
+Result, reported honestly rather than declared a win:
+
+| | MAE | Spearman | P1 Brier | Podium Brier |
+|---|---|---|---|---|
+| All 175 (Finish RF) | 3.470 | 0.640 | — | — |
+| All 175, sim v1 (uniform noise) | 3.071 | 0.693 | 0.0414 (beats 0.0473 naive) | 0.096 (beats 0.127 naive) |
+| All 175, sim v1.1 (grid-bucket noise) | **3.011** | **0.700** | 0.0495 (**worse** than 0.0473 naive) | 0.1217 (barely beats 0.127 naive) |
+| Held-out 2024-2026, sim v1.1 | **2.653** | **0.755** | 0.0504 (worse than 0.0468 naive) | 0.1306 (**worse** than 0.1258 naive) |
+
+MAE/Spearman improved further with v1.1, and that improvement **genuinely generalizes** — held-out
+2024-2026 scores even better than the estimation years, so it's not overfitting to 2018-2023.
+But **calibration got worse, not better**, on the metric the whole exercise was meant to fix: P1
+Brier flipped from beating naive to losing to it, and held-out podium Brier also now loses to
+naive. The bucketed calibration table shows why — the severe under-confidence for genuine
+high-probability contenders (30-50%+ predicted podium buckets actually podium 63-100% of the time)
+persists almost unchanged; heteroscedastic noise shifted *where* some of the miscalibration shows
+up (the lowest bucket flipped from over- to under-predicted) without fixing the core problem.
+
+**Conclusion**: the noise-heteroscedasticity hypothesis was real (independently confirmed twice)
+and a genuine, validated ranking-accuracy improvement — but it is not sufficient by itself to fix
+probability calibration. Something else is contributing to the miscalibration. Next candidate per
+the original diagnostic plan: proper output recalibration (isotonic or Platt scaling, fit only on
+past races), not further tuning of the input noise mechanism. Kept v1.1's noise change (real,
+held-out-validated MAE/Spearman win) rather than reverting it, since it's net-positive on the
+metrics it actually improved — calibration remains open, tracked separately.
+
+**Not yet done**: tyre strategy, traffic, pit strategy, and output recalibration all remain
+explicitly out of scope until calibration is genuinely resolved — per the "don't add complexity on
+top of an incorrectly calibrated distribution" principle.
