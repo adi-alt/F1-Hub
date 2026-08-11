@@ -13,7 +13,7 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { getRace } from "@/lib/firestore/races";
 import { computeHighlights } from "@/lib/highlights";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
-import { circuitHref, seasonHref } from "@/lib/routes";
+import { circuitHref, raceSimulationHref, seasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function RacePage({
@@ -52,12 +52,22 @@ export default async function RacePage({
           </p>
           <h1 className="text-3xl font-bold text-white">{race.name}</h1>
         </div>
-        <Link
-          href={circuitHref(race.circuit)}
-          className="rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/30"
-        >
-          Track history →
-        </Link>
+        <div className="flex gap-2">
+          {race.simulation && (
+            <Link
+              href={raceSimulationHref(race.year, race.round)}
+              className="rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/30"
+            >
+              Race simulator →
+            </Link>
+          )}
+          <Link
+            href={circuitHref(race.circuit)}
+            className="rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/30"
+          >
+            Track history →
+          </Link>
+        </div>
       </div>
 
       {race.status === "completed" && race.results ? (

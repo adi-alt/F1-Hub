@@ -6,6 +6,10 @@ export function raceHref(year: number, round: number): string {
   return `/races?year=${year}&round=${round}`;
 }
 
+export function raceSimulationHref(year: number, round: number): string {
+  return `/races/simulation?year=${year}&round=${round}`;
+}
+
 export function seasonHref(year: number): string {
   return `/season?year=${year}`;
 }

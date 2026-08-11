@@ -7,6 +7,7 @@ import type {
   RaceInputEntry,
   RacePrediction,
   RaceResultEntry,
+  RaceSimulation,
   SessionWeather,
   TireStint,
 } from "@/lib/types/race";
@@ -60,6 +61,7 @@ type FirestoreRaceDoc = {
   // else above, via partial update, so it's optional here independent of `status`/`qualifying`.
   prediction?: RacePrediction;
   polePrediction?: PolePrediction;
+  simulation?: RaceSimulation;
 };
 
 /**
@@ -105,6 +107,7 @@ function toRaceDoc(id: string, raw: FirestoreRaceDoc): RaceDoc {
     tireStints: raw.race?.tireStints,
     prediction: raw.prediction,
     polePrediction: raw.polePrediction,
+    simulation: raw.simulation,
   };
 }
 

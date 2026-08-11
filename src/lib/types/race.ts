@@ -64,6 +64,27 @@ export type PolePrediction = {
   featureImportance: Record<string, number>;
 };
 
+export type SimulatedDriverEntry = {
+  driver: string;
+  team: string;
+  medianPosition: number;
+  positionProbabilities: number[]; // index 0 = P1, raw (uncalibrated) — the full distribution
+  p1: number; // calibrated
+  podium: number; // calibrated
+  top5: number; // raw — no calibrator exists for this target yet
+};
+
+/**
+ * Monte Carlo race simulation (grid + pace-model output + DNF probability, sampled with
+ * correlated race/team/individual noise — see pipeline/ml/simulate_race.py). Same freeze timing
+ * as `prediction`: needs this race's own qualifying data, computed once, never recomputed.
+ */
+export type RaceSimulation = {
+  generatedAt: string;
+  modelVersion: string;
+  drivers: SimulatedDriverEntry[];
+};
+
 export type RaceStatus = "upcoming" | "completed";
 
 /** Race-session summary, not a time series — mean readings plus whether it rained at all. */
@@ -103,6 +124,7 @@ export type RaceDoc = {
   inputs?: RaceInputEntry[];
   prediction?: RacePrediction; // not yet populated — Phase 1
   polePrediction?: PolePrediction; // not yet populated — Phase 1
+  simulation?: RaceSimulation;
   weather?: SessionWeather;
   tireStints?: TireStint[];
 };
