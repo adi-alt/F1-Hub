@@ -144,11 +144,28 @@ at 3.453 MAE and shouldn't be revisited without a fundamentally different hypoth
   `SESSION_SECRET`. All three workflows (`fetch-races.yml`, `sync-calendar.yml`, `ci.yml`)
   confirmed working after the fix.
 
-## The next real architecture (not started)
+## Race-environment / simulation architecture — in progress
 
-Race-environment/simulation: safety-car, VSC, DNF, and weather *probability* models, feeding a
-Monte Carlo race simulator that outputs a full finish-position probability distribution per driver
-rather than a single point estimate — evaluated on calibration/log-loss/Brier score, not just MAE.
-This is where the data already collected (safety cars, weather, tire stints) has a legitimate home,
-now that the simpler per-driver models are demonstrably saturated. Deliberately not started until
-the cheaper wins were exhausted first — which, per the Finish-model results above, they now are.
+Safety-car, VSC, DNF, and weather *probability* models, feeding a Monte Carlo race simulator that
+outputs a full finish-position probability distribution per driver rather than a single point
+estimate — evaluated on calibration/log-loss/Brier score, not just MAE. This is where circuit-level
+data (safety cars, tire stints, weather) has a legitimate home, now that the simpler per-driver
+models are demonstrably saturated.
+
+**Step 1 — safety car, tried, null result.** `race.safetyCarPeriods` re-fetched (this time with a
+legitimate race-level use, unlike its earlier rejected per-driver-feature attempt) and backfilled
+across all 184 races. Built a race-level `P(safety car occurred | race)` model and tested three
+feature formulations against a naive "historical global base rate" baseline (~73% of races have a
+safety car), all with proper walk-forward validation: `circuit_stats.py`'s recency+era-weighted
+rate, a purpose-built circuit-own-occurrence-rate, and a shrinkage blend swept across trust
+thresholds. **All converge to the same conclusion: circuit-specific signal doesn't beat the global
+rate with this much data** (~5-11 races per circuit — real cross-circuit variation exists in the
+raw numbers, from 43% at Yas Island to 100% at Baku/Mexico City/Jeddah, but it's too noisy a sample
+per circuit to exploit reliably going forward). The shrinkage sweep makes this unambiguous: trusting
+circuit-specific data more aggressively only makes predictions worse (Brier 0.2265 at low trust vs
+0.2088 naive), converging back to the naive number as trust decreases toward zero. Not shipped as a
+model — for now, the honest answer for a simulation's `P(SC)` input is closer to "the global base
+rate" than "a circuit-specific model." `circuit_stats.py` kept as infrastructure regardless; the
+module itself is fine, this specific application of it just didn't pan out.
+
+**Steps 2/3 (DNF, weather-forecast-based) and the Monte Carlo engine itself: not started.**
