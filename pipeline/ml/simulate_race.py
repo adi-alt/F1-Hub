@@ -24,18 +24,29 @@ DNF/SC sampling produce a better-calibrated *distribution* of outcomes than a si
 prediction? Not "is this a complete race simulation" — tyre strategy, traffic, and pit strategy are
 explicitly out of scope for v1.
 
-v1 (uniform noise) was verified on the full 175-round walk-forward set (2018-2026, the same
-population the frozen Finish/Pole/Pace benchmarks use) against two deterministic baselines: using
-the median of each driver's simulated position (MAE is minimized by the median, not the mean — a
-first pass used mean and was measurably worse than both baselines, a methodology bug, not a real
-flaw), it beat the existing Finish model (MAE 3.071 vs 3.470, Spearman 0.693 vs 0.640) and a plain
-grid+pace baseline (3.531/0.631), and beat a naive uniform baseline on aggregate Brier score (P1
-0.0414 vs 0.0473; podium 0.096 vs 0.127). But bucketed calibration was poor — see above for why.
+v1 (uniform 2.2s noise) was verified on the full 175-round walk-forward set (2018-2026, the same
+population the frozen Finish/Pole/Pace benchmarks use): using the median of each driver's simulated
+position (MAE is minimized by the median, not the mean — a first pass used mean and was measurably
+worse than both baselines, a methodology bug, not a real flaw), it beat the existing Finish model
+(MAE 3.071 vs 3.470, Spearman 0.693 vs 0.640) and a plain grid+pace baseline (3.531/0.631), and
+beat a naive uniform baseline on aggregate Brier score (P1 0.0414 vs 0.0473; podium 0.096 vs
+0.127). But bucketed calibration was poor: systematic under-confidence about genuine contenders (a
+30-40% predicted podium bucket actually podiumed 70% of the time).
 
-The GRID_NOISE_BUCKETS stdevs were estimated from 2018-2023 Pace-model residuals only, holding out
-2024-2026 so the fix could be validated on genuinely unseen data rather than tuned against the
-same races used to evaluate it — the same leakage-safety discipline used everywhere else in this
-pipeline, applied to a calibration parameter instead of a training feature.
+v1.1 (grid-bucket noise, this version) was built specifically to fix that calibration problem. The
+GRID_NOISE_BUCKETS stdevs were estimated from 2018-2023 Pace-model residuals only, holding out
+2024-2026 so the fix could be validated on genuinely unseen data rather than tuned against the same
+races used to evaluate it. Result, honestly: it improved MAE/Spearman further, and that
+improvement *does* generalize to the held-out years (2024-2026 alone: MAE 2.653/Spearman 0.755 vs
+Finish RF's 3.12/0.704 on the same races — not overfitting). But **it did not fix calibration**.
+P1 Brier score is now *worse* than naive (0.0495 vs 0.0473, all years — v1's uniform noise had
+actually beaten naive here, 0.0414). Held-out podium Brier is also worse than naive (0.1306 vs
+0.1258). The core problem — severe under-confidence for the highest-probability contenders —
+persists in the 30-50%+ predicted-podium buckets essentially unchanged. Heteroscedastic pace noise
+was a real, confirmed effect (residual stdev really does vary ~4x by grid position) and a genuine
+ranking-accuracy improvement, but it is not sufficient by itself to fix probability calibration —
+something else is contributing to the miscalibration. Next candidate: proper output recalibration
+(isotonic or Platt scaling, fit only on past races), not further noise-mechanism tuning.
 """
 
 from __future__ import annotations
