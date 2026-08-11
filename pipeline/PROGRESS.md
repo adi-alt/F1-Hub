@@ -294,6 +294,42 @@ past races), not further tuning of the input noise mechanism. Kept v1.1's noise 
 held-out-validated MAE/Spearman win) rather than reverting it, since it's net-positive on the
 metrics it actually improved — calibration remains open, tracked separately.
 
-**Not yet done**: tyre strategy, traffic, pit strategy, and output recalibration all remain
-explicitly out of scope until calibration is genuinely resolved — per the "don't add complexity on
-top of an incorrectly calibrated distribution" principle.
+## Step 4.2 — probability recalibration: podium fixed, P1 improved to parity
+
+`ml/calibrate_probabilities.py` — Platt (logistic) and isotonic regression tested walk-forward on
+the real simulator output (175 races), each calibrator fit only on the pooled (probability,
+outcome) pairs from strictly-prior races, never the race being evaluated. Different winner per
+target, not one universal answer:
+
+| | raw (v1.1) | Platt | Isotonic |
+|---|---|---|---|
+| P1 Brier | 0.0494 | **0.0473** | 0.0473 |
+| Podium Brier | 0.1221 | 0.1219 | **0.1185** |
+
+**P1**: both methods land at exact parity with the naive base-rate baseline (0.0473) — a real fix
+over raw's worse-than-naive number, but not a genuine edge beyond it. Checking why: P1 is rare
+enough (~1/20 by definition) that there isn't much separable signal left to calibrate toward once
+properly corrected. Uses Platt as the simpler, lower-variance choice since isotonic offers no
+advantage here.
+
+**Podium**: isotonic clearly wins, and — checking the reliability curve rather than trusting
+aggregate Brier alone, per instruction — it's for the right reason. The exact bucket that was
+worst before is the one it fixes: 30-40% predicted → 65.1% actual now corrects to 72.3% (was
+33.8%); 40-50% predicted → 100% actual now corrects to 93.4% (was 44.3%). That's the real,
+high-probability-contender miscalibration this whole investigation was chasing. Cost: isotonic
+gets slightly noisier at the low end (0-10% bucket moves a bit further from truth) — a real,
+smaller tradeoff, not free.
+
+MAE/Spearman are unaffected by design — recalibration only touches the P1/podium probability
+*values*, not the underlying position-ranking mechanism (median position, computed from the full
+per-position probability array), confirming the conceptual separation between "is the ranking
+correct" and "are the probabilities correct" holds cleanly in this architecture.
+
+**Verdict**: partial, honest success. Podium — the more product-relevant metric — is genuinely
+fixed. P1 is improved but not clearly better than just guessing the base rate; there may not be
+much more to extract for that specific target with current inputs.
+
+**Not yet done**: tyre strategy, traffic, pit strategy remain explicitly out of scope. A live
+consumer for the calibrators (fitting incrementally as new races complete, mirroring every other
+walk-forward feature in this pipeline) doesn't exist yet either, since there's still no product
+surface consuming the simulator's output at all.
