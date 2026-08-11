@@ -22,6 +22,9 @@
     "recharts": "^3.10.1",
     "three": "^0.185.1"
   },
+  "overrides": {
+    "jose": "^4.15.9"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
