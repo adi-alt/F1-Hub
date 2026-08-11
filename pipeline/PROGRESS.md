@@ -168,4 +168,31 @@ model — for now, the honest answer for a simulation's `P(SC)` input is closer 
 rate" than "a circuit-specific model." `circuit_stats.py` kept as infrastructure regardless; the
 module itself is fine, this specific application of it just didn't pan out.
 
-**Steps 2/3 (DNF, weather-forecast-based) and the Monte Carlo engine itself: not started.**
+**Step 2 — DNF, tried, real signal.** Unlike safety cars, DNF is naturally driver/team-specific,
+which is exactly what made it a richer target. `ml/predict_dnf.py` — `P(driver DNF)`, cross-season
+on purpose (reliability plausibly persists across season boundaries in a way pure competitive
+strength doesn't, unlike the Elo-based models). Compared 5 formulations with proper walk-forward
+validation (Brier score primary, plus log loss and ROC-AUC):
+
+| Formulation | Brier | LogLoss | AUC |
+|---|---|---|---|
+| Global rate (naive baseline) | 0.1260 | 0.4194 | 0.500 |
+| Driver historical rate alone | 0.1309 | 0.5483 | 0.515 |
+| Team historical rate alone | 0.1274 | 0.4491 | 0.538 |
+| Driver + team (logistic regression) | 0.1259 | 0.4191 | 0.505 |
+| **RF (raw driver/team rates + grid + qualifying gap)** | **0.1252** | **0.4162** | **0.554** |
+
+The driver/team rates *alone* are too noisy to beat naive (small-N per driver/team, same lesson as
+the safety-car circuit rates) — but combined with grid and qualifying gap inside a Random Forest,
+the result beats naive on all three metrics, not just one. Also tried shrinking the driver/team
+rates toward the global rate before feeding the RF (the same principle behind grid-baseline
+shrinkage elsewhere) — consistently slightly *worse* than raw at every trust threshold tried,
+because RF already learns the equivalent of adaptive trust from raw sample counts via its own
+split structure; a hand-tuned linear shrinkage on top is redundant here (unlike for the plain
+logistic regression, which has no such mechanism). No consumer yet — this feeds the Monte Carlo
+simulator (Step 4), not any currently-shipped prediction.
+
+**Step 3 (weather) and the Monte Carlo engine itself: not started.** Plan for weather: use a real
+forecast at prediction time rather than building an ML weather-prediction model — historical
+weather data remains useful for analysis, but there's no reason to reinvent forecasting when a
+legitimate forecast is the actual available input in production.
