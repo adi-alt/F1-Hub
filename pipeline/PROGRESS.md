@@ -232,23 +232,33 @@ yet** — an explicit, documented v1 assumption, not an invented mechanic with n
 kind of unjustified assumption this project has avoided elsewhere). Runs 10,000× per race, producing
 a full finish-position probability distribution per driver rather than one point estimate.
 
-Verified on a 40-race walk-forward sample against two deterministic baselines:
+First verified on a 40-race sample, then re-validated on the **full 175-round set** (same
+population the frozen Finish/Pole/Pace benchmarks use — the 40-race sample was inadvertently only
+2018-2019, not a fair comparison against the frozen 3.453 Finish MAE):
 
 | | MAE | Spearman |
 |---|---|---|
-| A: existing Finish model | 3.790 | 0.602 |
-| B: grid + predicted pace | 3.770 | 0.597 |
-| **C: simulator (median position)** | **3.482** | **0.640** |
+| A: existing Finish model | 3.470 | 0.640 |
+| B: grid + predicted pace | 3.531 | 0.631 |
+| **C: simulator (median position)** | **3.071** | **0.693** |
 
-The first pass used the *mean* of each driver's simulated position, which came out worse than both
-baselines (MAE 4.199) — but MAE is minimized by the median of a distribution, not the mean; that
-was a methodology bug in how the point estimate was extracted, not a real flaw in the simulator.
-Switching to median flipped the result to a clear win on both metrics. Probability calibration
-also beats a naive uniform baseline on Brier score: P1 0.0416 vs 0.0475 naive, podium 0.0910 vs
-0.1275 naive. Smaller sample than the 175-round benchmarks used elsewhere (each test race here
-retrains 3 models plus runs 5,000-10,000 simulations, so a full 175-round validation is
-meaningfully more expensive) — a real result, not noise, but worth firming up on more data before
-treating these numbers as permanently frozen the way Finish/Pole/Pace's are.
+Finish RF's 3.470 here closely matches the frozen 3.453 (small residual difference is normal
+run-to-run noise), confirming this is now a fair comparison — and the simulator's advantage
+*widened* on the full set (0.31 → 0.40 MAE gap), not a smaller-sample fluke. The first pass used
+the *mean* of each driver's simulated position, which came out worse than both baselines — MAE is
+minimized by the median, not the mean; that was a methodology bug in how the point estimate was
+extracted, not a real flaw in the simulator. Switching to median flipped the result to a clear win.
+
+Aggregate probability calibration also beats a naive uniform baseline on Brier score: P1 0.0414
+vs 0.0473 naive, podium 0.096 vs 0.127 naive. **But bucketed calibration (predicted probability vs
+actual outcome rate) is honestly not good yet** — the model is systematically under-confident
+about genuine contenders (drivers given a 30-40% predicted podium chance actually podiumed 70% of
+the time in that bucket), while roughly right for longshots. Beating naive on *aggregate* Brier
+doesn't mean the individual probabilities are trustworthy — a "Verstappen: 42% to win" product
+claim built directly on these numbers would currently understate genuine favorites. Likely cause:
+one global pace-noise stdev (2.20s) applied uniformly to every driver flattens the distribution
+more than real skill gaps warrant. **This is the real open item before v1's probabilities could be
+called well-calibrated**, separate from the (now confirmed, real) MAE/Spearman/aggregate-Brier win.
 
 **Not yet done**: tyre strategy, traffic, and pit strategy remain explicitly out of scope for v1,
 per the "build the simplest version that can falsify the hypothesis first" principle — v1 already
