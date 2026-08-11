@@ -41,6 +41,11 @@ def _historical_fallback(circuit_records, event_name: str, year: int, round_num:
 
 
 def _live_forecast(location: str, race_date: datetime) -> dict | None:
+    """Verified against the real API with a real key: works for most circuit locations, but not
+    all — "Yas Marina" 404s (not a geocodable city name in OpenWeatherMap's database), so Abu
+    Dhabi's live forecast will always fail through to the historical fallback below. Fails safe,
+    not loudly, which is why this isn't treated as a blocker — a location-to-coordinates override
+    table would fix it properly if it's ever worth the added complexity."""
     api_key = os.environ.get("WEATHER_API_KEY")
     if not api_key:
         return None
