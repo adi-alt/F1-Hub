@@ -192,7 +192,32 @@ split structure; a hand-tuned linear shrinkage on top is redundant here (unlike 
 logistic regression, which has no such mechanism). No consumer yet — this feeds the Monte Carlo
 simulator (Step 4), not any currently-shipped prediction.
 
-**Step 3 (weather) and the Monte Carlo engine itself: not started.** Plan for weather: use a real
-forecast at prediction time rather than building an ML weather-prediction model — historical
-weather data remains useful for analysis, but there's no reason to reinvent forecasting when a
-legitimate forecast is the actual available input in production.
+**Step 3 — weather, shipped, no ML model (deliberately).** `weather_forecast.py` — for an upcoming
+race, use a real forecast if available (written against OpenWeatherMap's free 5-day forecast API,
+ready to activate once a `WEATHER_API_KEY` secret exists), otherwise fall back to the circuit's
+historical rain-probability/temperature via `circuit_stats.py`, clearly labeled `source:
+"historical_fallback"` rather than pretending to be a real forecast. Every forecast stores a
+`fetchedAt` timestamp and is never silently overwritten by the eventual actual weather — treating a
+forecast as a permanent snapshot of what was knowable at that time, not something to retcon later.
+Wired into `sync_calendar.py`'s `calendar` collection (the right home, since a forecast is
+inherently about an upcoming race, and `races` docs don't exist until something has actually
+happened). No ML weather model was built, on purpose — a real forecast is a better input than
+reinventing one from history when the actual production input is a live forecast.
+
+**Real bug found and fixed along the way:** `circuit_stats.py` matched circuits by Firestore's
+`location` field, but FastF1 reports different `Location` strings for the same physical circuit
+across years for at least 4 events (Monaco: "Monte Carlo"/"Monaco", Singapore:
+"Singapore"/"Marina Bay", Abu Dhabi: "Yas Marina"/"Yas Island", Miami: "Miami"/"Miami Gardens").
+That silently broke matching for those circuits, fell through to the whole-history fallback pool,
+and produced nonsense — Abu Dhabi's rain probability came out as 100% for a circuit with zero
+rainy races on record, because the era/recency weighting in that fallback ends up dominated by
+whichever handful of races happen to be "same year" once the real Abu Dhabi data is silently
+excluded. Fixed by matching on `eventName` instead, which is stable across the same dataset.
+Verified before/after: Abu Dhabi 100% → 2.6%. This affects anything that ever reuses
+`circuit_stats.py`'s circuit-matching, not just weather.
+
+**The Monte Carlo engine itself: not started.** Next: grid → pace → sample DNF → sample SC
+(occurred yes/no only, no assumed positional effect yet — that's an explicit, documented
+assumption to revisit once there's data to estimate it) → finishing order, run 10,000× per race,
+evaluated on MAE/Spearman/Brier/log-loss/calibration against the deterministic Finish model before
+adding tyre strategy or traffic.
