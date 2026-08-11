@@ -29,11 +29,20 @@ from firebase_admin import credentials, firestore
 
 from ml.features import TrainingResultRow
 from ml.pace_features import PaceResultRow
+from ml.predict_dnf import DnfResultRow
 from ml.predict_finish import MODEL_VERSION as FINISH_MODEL_VERSION
 from ml.predict_finish import chronological_backtest, predict_finish_order
 from ml.predict_pace import predict_pace_gaps
 from ml.predict_pole import MODEL_VERSION as POLE_MODEL_VERSION
 from ml.predict_pole import predict_pole_order
+from ml.tyre_features import (
+    GLOBAL_DEGRADATION_DEFAULT,
+    GLOBAL_PACE_DELTA_DEFAULT,
+    TyreRaceRow,
+    build_tyre_race_row,
+    build_tyre_trait_history,
+    current_tyre_traits,
+)
 
 
 def init_firestore():
@@ -93,13 +102,56 @@ def to_training_rows(race_doc: dict) -> list[TrainingResultRow]:
     return rows
 
 
-def to_pace_rows(race_doc: dict) -> list[PaceResultRow]:
+def to_dnf_rows(race_doc: dict) -> list[DnfResultRow]:
+    """One row per driver, unfiltered — unlike to_pace_rows, predict_dnf.py's target literally *is*
+    the dnf flag, so DNF rows are exactly what it needs, not something to exclude. Needs year,
+    unlike TrainingResultRow/PaceResultRow, since ml/predict_dnf.py's history is cross-season."""
+    quali = _quali_lookup(race_doc.get("qualifying"))
+    year, round_num = race_doc["year"], race_doc["round"]
+    rows = []
+    for r in race_doc["race"]["results"]:
+        q = quali["get"](r["driver"])
+        rows.append(
+            DnfResultRow(
+                year=year,
+                round=round_num,
+                driver=r["driver"],
+                team=r["team"],
+                grid=r["gridPosition"] if r["gridPosition"] is not None else 20,
+                qualifying_gap_sec=q["qualifyingGapSec"] if q["qualifyingGapSec"] is not None else 2.0,
+                dnf=1 if r["status"] == "dnf" else 0,
+            )
+        )
+    return rows
+
+
+def to_tyre_rows(race_doc: dict) -> list[TyreRaceRow]:
+    """One row per driver who has real tireCompoundPace data for this race — independent of DNF
+    status, unlike to_pace_rows below: a driver's clean laps before retiring are still a real
+    observation of their tyre management, even though their "fastest lap" isn't a valid race-pace
+    measurement."""
+    tcp = (race_doc.get("race") or {}).get("tireCompoundPace") or []
+    rows = []
+    for r in race_doc["race"]["results"]:
+        row = build_tyre_race_row(race_doc["year"], race_doc["round"], r["driver"], r["team"], tcp)
+        if row:
+            rows.append(row)
+    return rows
+
+
+def to_pace_rows(race_doc: dict, trait_history: dict) -> list[PaceResultRow]:
     """DNF drivers are excluded: their "fastest lap" is whatever they set in the handful of laps
     before retiring, not a measurement of race pace — verified on the real backtest that including
     them roughly halves the model's edge over a naive baseline (DNFs are ~15% of all results,
     enough to matter, not a rounding error). Rows with no representative qualifying gap or
-    fastest lap are dropped too — nothing for the pace model to learn from or predict against."""
+    fastest lap are dropped too — nothing for the pace model to learn from or predict against.
+
+    `trait_history`: (year, round, driver) -> tyre trait dict, built once across every completed
+    race regardless of season (see ml/tyre_features.py) — cross-season, unlike the Elo features
+    computed later from just this row's season.
+    """
     quali = _quali_lookup(race_doc.get("qualifying"))
+    year, round_num = race_doc["year"], race_doc["round"]
     rows = []
     for r in race_doc["race"]["results"]:
         if r["status"] == "dnf" or r["fastestLapSec"] is None:
@@ -107,14 +159,27 @@ def to_pace_rows(race_doc: dict) -> list[PaceResultRow]:
         q = quali["get"](r["driver"])
         if q["qualifyingGapSec"] is None:
             continue
+        trait = trait_history.get(
+            (year, round_num, r["driver"]),
+            {
+                "driverTyrePaceDelta": GLOBAL_PACE_DELTA_DEFAULT,
+                "driverTyreDegradation": GLOBAL_DEGRADATION_DEFAULT,
+                "teamTyrePaceDelta": GLOBAL_PACE_DELTA_DEFAULT,
+                "teamTyreDegradation": GLOBAL_DEGRADATION_DEFAULT,
+            },
+        )
         rows.append(
             PaceResultRow(
-                round=race_doc["round"],
+                round=round_num,
                 driver=r["driver"],
                 team=r["team"],
                 grid=q["gridPosition"],
                 qualifying_gap_sec=q["qualifyingGapSec"],
                 fastest_lap_sec=r["fastestLapSec"],
+                driver_tyre_pace_delta=trait["driverTyrePaceDelta"],
+                driver_tyre_degradation=trait["driverTyreDegradation"],
+                team_tyre_pace_delta=trait["teamTyrePaceDelta"],
+                team_tyre_degradation=trait["teamTyreDegradation"],
             )
         )
     return rows
@@ -148,6 +213,16 @@ def build_pole_prediction(
 
 def process_year(db, year: int):
     docs = list(db.collection("races").where("year", "==", year).order_by("round").stream())
+
+    # Cross-season on purpose (see ml/tyre_features.py) — unlike the season-scoped Elo features
+    # below, tyre-management traits are built from every completed race regardless of year, one
+    # query, done once per run rather than once per race.
+    all_tyre_rows: list[TyreRaceRow] = []
+    for completed_doc in db.collection("races").where("status", "==", "completed").stream():
+        all_tyre_rows.extend(to_tyre_rows(completed_doc.to_dict()))
+    trait_history = build_tyre_trait_history(all_tyre_rows)
+    driver_tyre_traits, team_tyre_traits, tyre_global = current_tyre_traits(all_tyre_rows)
+
     training_rows: list[TrainingResultRow] = []
     pace_rows: list[PaceResultRow] = []
     completed_docs: list[dict] = []
@@ -162,7 +237,7 @@ def process_year(db, year: int):
             # upcoming) is left exactly as-is — this is what makes later accuracy comparisons
             # honest, not retroactively flattering.
             training_rows.extend(to_training_rows(data))
-            pace_rows.extend(to_pace_rows(data))
+            pace_rows.extend(to_pace_rows(data, trait_history))
             completed_docs.append(data)
             practice_by_round[round_num] = data.get("practice")
             print(f"  round {round_num}: completed, added to training history ({len(training_rows)} rows so far)")
@@ -208,6 +283,10 @@ def process_year(db, year: int):
                 "team": q["team"],
                 "grid": q["gridPosition"],
                 "qualifyingGapSec": q["qualifyingGapSec"],
+                "driverTyrePaceDelta": driver_tyre_traits.get(q["driver"], {}).get("driverTyrePaceDelta", tyre_global["pace"]),
+                "driverTyreDegradation": driver_tyre_traits.get(q["driver"], {}).get("driverTyreDegradation", tyre_global["degradation"]),
+                "teamTyrePaceDelta": team_tyre_traits.get(q["team"], {}).get("teamTyrePaceDelta", tyre_global["pace"]),
+                "teamTyreDegradation": team_tyre_traits.get(q["team"], {}).get("teamTyreDegradation", tyre_global["degradation"]),
             }
             for q in qualifying["grid"]
         ]

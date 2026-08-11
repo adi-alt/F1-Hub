@@ -99,8 +99,78 @@ with real rigor. Fixed that:
   real per-compound pace data exists to do this properly — hurt the backtest); practice weather
   (noise-level, on the small 38-round sample that has practice data); historical traffic exposure
   (see the traffic entry above — 0.905 → 0.904 MAE, a wash).
+- **Real per-compound tyre data changed this.** `fetch_races.py` now computes actual per-driver,
+  per-compound race pace and degradation (`race.tireCompoundPace`: `avgPaceDeltaSec` — mean lap time
+  minus that race's best lap, on that compound; `degradationSecPerLap` — the lap_time-vs-tyre_age
+  slope within that compound stint) from `session.laps`' `Compound`/`TyreLife`/`LapTime` columns
+  already loaded via the existing `laps=True` fetch — no new network calls, backfilled across all
+  184 races from cache. `degradationSecPerLap` conflates real tire wear with fuel-burn-off and
+  track evolution (lap time alone can't separate the three) — a real limitation of the proxy, not
+  hidden; in dry races the sign is very often *negative* (getting faster as fuel burns off, despite
+  tire wear), confirmed on real data (2023 Miami GP), so no monotonic direction is assumed for it.
+  Derived 4 leakage-safe cross-season historical traits (`ml/tyre_features.py`, same convention as
+  `predict_dnf.py`'s DNF rates — tyre management is plausibly a persisting driver trait across
+  season boundaries, unlike pure competitive strength): `driver`/`teamTyrePaceDelta` (historical avg
+  pace-delta) and `driver`/`teamTyreDegradation` (historical avg degradation), lap-count-weighted
+  across whichever compounds a driver actually used each race. **Caught and fixed a real leakage bug
+  in the first version of this validation**: using the whole dataset's mean as the fallback for
+  drivers/teams with no prior tyre history yet leaks future races into early rows — fixed to use the
+  running cross-season average instead (same fix pattern as `GLOBAL_DNF_RATE_DEFAULT`). On the
+  corrected walk-forward backtest (this session's harness, 184 races, warmup=8), adding these 4
+  features improved every metric: MAE 1.002 → 0.928, R² -0.155 → 0.007 (**first time this model's
+  R² has been positive**), Spearman 0.659 → 0.673. Shipped as `sklearn-rf-v3-pace-tyre`.
+- **A first reconstruction attempt (1.002/0.659) didn't match the frozen 0.903/0.615 benchmark, and
+  this was deliberately investigated rather than assumed away or silently overwritten.** Ruled out
+  population growth (175 rounds, when 0.903 was set, vs 184 now) — restricting to the first 175
+  races barely moved the number. An arbitrary "skip N rounds" warmup was the wrong model of the
+  original protocol: sweeping it (0/5/8/10/15) swung MAE from 0.795 to 1.071 without ever
+  reproducing both 0.903 MAE and 0.615 Spearman together.
+- **Root cause found: Pace was the only one of the three per-driver models without a *permanent*
+  backtest function.** Finish has `chronological_backtest()` in `ml/predict_finish.py`; Pole has
+  `pole_chronological_backtest()` + a permanent `evaluate_pole_benchmark.py`. Pace's 0.903/0.615 had
+  come from a one-off script, deleted after use like every other throwaway experiment in this
+  project — except a benchmark-defining harness isn't a throwaway experiment; it's the definition of
+  "beat the benchmark." Fixed by adding `ml/predict_pace.py::pace_chronological_backtest()`
+  (permanent) and `evaluate_pace_benchmark.py` (permanent, writes Firestore + a local manifest),
+  using the same convention Finish/Pole already used: no arbitrary warmup, just the exact
+  minimum-row gate `predict_pace_gaps` already enforces in production (`len(train) >= 10`), so the
+  backtest evaluates what would actually have been predicted. **This reconciles cleanly**: rerunning
+  `evaluate_finish_benchmark.py` (a same-day companion script, same convention) reproduces Finish's
+  3.453 MAE and 175-round count *exactly*; the Pace no-tyre baseline under the same corrected
+  convention lands at **0.907 MAE / -0.174 R² / 0.673 Spearman (per-race) / 0.599 Spearman
+  (pooled)**, 175 rounds — MAE matches 0.903 within noise, and the pooled Spearman (0.599) sits much
+  closer to 0.615 than the per-race-averaged one does, suggesting the original number used pooled
+  Spearman (Pole's evaluator reports both for exactly this reason). Recorded permanently in
+  `benchmarks/pace/sklearn-rf-v2-pace-reconciled.json`; the original number is kept unchanged in
+  `benchmarks/pace/sklearn-rf-v2-pace-original-unreconciled.json` — reconciled, not replaced.
+- **Corrected tyre-feature result** (this permanent harness, not the earlier one-off script): MAE
+  0.907 → **0.865**, R² -0.174 → **0.002** — both clear wins. Spearman moves the *other* way, very
+  slightly: 0.673 → 0.670 (per-race), 0.599 → 0.585 (pooled) — small, but real, and the earlier claim
+  that "every metric improved" wasn't quite accurate. Net verdict unchanged (ships), but the honest
+  one is 2-of-3 core metrics improving clearly with a small Spearman give-back, not a clean sweep.
+  See `benchmarks/pace/sklearn-rf-v3-pace-tyre.json`.
+- **Process change adopted**: benchmark-defining harnesses (the function + script pair that produces
+  a number quoted as "the frozen benchmark") are now kept permanently, never deleted — distinct from
+  ordinary one-off experiments/backfills, which are still written, run, and deleted as before. Each
+  one writes both a Firestore `modelBenchmarks` doc and a local JSON manifest under `benchmarks/
+  {model}/{version}.json` recording the exact protocol (population, warmup rule, features, target
+  definition, monotonic constraints, random seed, git commit). **Never overwrite one of these
+  manifests** — a changed model gets a new `MODEL_VERSION` and a new manifest file, preserving
+  lineage the way `benchmarks/pace/` now does across v2-original, v2-reconciled, and v3-tyre.
+- **But it does not improve the Monte Carlo simulator.** Re-ran the full simulator (Step 4 below)
+  walk-forward with tyre-aware pace vs the old 4-feature pace, same DNF model/noise model/random
+  seed for both (a paired comparison — both arms see identical simulation draws, so any difference
+  reflects the pace input, not Monte Carlo noise) on a 112-race population: MAE 3.867 → 3.928,
+  Spearman 0.608 → 0.603, P1 Brier 0.0495 → 0.0502, Podium Brier 0.1216 → 0.1252 — every metric
+  slightly *worse*, not mixed. Likely explanation: the point-estimate gain (well under 0.1s) is
+  small relative to the simulator's own injected pace noise (0.95-3.85s, grid-bucketed) — the
+  simulator's current bottleneck is the noise model, not pace point-estimate accuracy, so a genuine
+  Pace-model improvement doesn't propagate through. The Pace model upgrade ships anyway since it's a
+  real win on its own terms (same precedent as the DNF model, which shipped without a live consumer
+  yet) — this is specifically about the narrower hypothesis "does tyre data improve the simulator,"
+  which the evidence says no, not yet, with this simulator architecture.
 
-R² is still negative — real room left, but nothing cheap has moved it yet.
+R² had been negative since this model existed — now positive for the first time.
 
 ## Finish model — exhaustively tested, frozen
 
@@ -130,7 +200,7 @@ at 3.453 MAE and shouldn't be revisited without a fundamentally different hypoth
 |---|---|---|---|---|
 | Finish-order | RF, monotonic constraints, grid-baseline shrinkage | `grid`, `qualifyingGapSec`, `driverEloRating`, `teamEloRating`, `driverHistoryCount`, `teamHistoryCount` | 3.453 MAE | 🟢 Frozen |
 | Pole | RF, monotonic constraints | `driverQualiEloRating`, `teamQualiEloRating`, `driverHistoryCount`, `teamHistoryCount`, `fp1DeltaToBestSec`, `fp2DeltaToBestSec`, `fp3DeltaToBestSec` | MAE 2.872, naive baseline 3.595, Spearman 0.762 (pooled 0.765), P1 hit rate 38.3%, top-3 overlap 1.93/3, top-5 overlap 3.65/5 — full 175-round set, frozen at `modelBenchmarks/sklearn-rf-v3-practice` | 🟢 Shipped |
-| Pace | RF, monotonic constraints | `grid`, `qualifyingGapSec`, `driverPaceEloRating`, `teamPaceEloRating` | 0.903 MAE, R² -0.146, Spearman 0.615 | 🟢 Shipped, open to further experiments |
+| Pace | RF, monotonic constraints | `grid`, `qualifyingGapSec`, `driverPaceEloRating`, `teamPaceEloRating`, `driverTyrePaceDelta`, `driverTyreDegradation`, `teamTyrePaceDelta`, `teamTyreDegradation` | Reconciled with the original 0.903/0.615 (see Pace section — pace_chronological_backtest, `benchmarks/pace/`). No-tyre 0.907/-0.174 → with-tyre **0.865 MAE / 0.002 R²** (first positive), Spearman 0.673→0.670 per-race, 0.599→0.585 pooled (small give-back) — `sklearn-rf-v3-pace-tyre` | 🟢 Shipped |
 
 ## Known constraints
 
@@ -333,3 +403,97 @@ much more to extract for that specific target with current inputs.
 consumer for the calibrators (fitting incrementally as new races complete, mirroring every other
 walk-forward feature in this pipeline) doesn't exist yet either, since there's still no product
 surface consuming the simulator's output at all.
+
+## Step 5 — tyre strategy: helped the Pace model, didn't help the simulator
+
+Narrowly scoped per instruction: not "the complete F1 strategy simulator," just "can tyre-aware
+race pace improve the existing simulator?" Built real per-driver, per-compound pace/degradation data
+(`fetch_races.py`'s `race.tireCompoundPace`, not stint counts — see the Pace-model section above for
+the full writeup and the leakage bug caught and fixed along the way) and derived 4 leakage-safe
+cross-season traits (`ml/tyre_features.py`).
+
+**Two separate, honest results, not one**:
+- As a Pace-model feature, under the permanent, production-faithful harness (`pace_chronological_
+  backtest`, 175 rounds — see the Pace-model section above, which also reconciles with the original
+  0.903/0.615 benchmark rather than replacing it): MAE 0.907 → 0.865, R² -0.174 → 0.002 (first
+  positive R² this model has ever had) — real wins. Spearman moves slightly the other way (0.673 →
+  0.670 per-race, 0.599 → 0.585 pooled) — a small, real give-back, not swept under the rug. Shipped
+  as `sklearn-rf-v3-pace-tyre`.
+- Propagated into the full Monte Carlo simulator (Step 4): does **not** help, and if anything is a
+  small, consistent net negative on every metric (MAE, Spearman, P1 Brier, Podium Brier), tested as
+  a paired comparison (identical DNF model, noise model, and random seed for both pace variants, so
+  the difference isolates the pace input rather than simulation randomness). The likely reason:
+  the point-estimate improvement (well under 0.1s) is small next to the simulator's own injected
+  pace noise (0.95-3.85s, grid-bucketed) — right now the simulator's accuracy is bottlenecked by the
+  noise model, not by pace point-estimate precision, so a genuine upstream improvement doesn't show
+  up downstream. This is itself useful information: it says where to look next if the simulator is
+  revisited (the noise/uncertainty model), not "tyres don't matter."
+
+The Pace-model win ships regardless of the simulator result — same precedent as the DNF model,
+which shipped on its own backtest before any consumer existed. Per instruction, this closes Step 5
+without chasing further tyre-strategy complexity (driver×compound splits, pit-strategy modeling)
+that the evidence doesn't yet support building.
+
+## Benchmark infrastructure — permanent harnesses, never overwrite
+
+Every frozen benchmark now has a permanent, reproducible harness: `evaluate_finish_benchmark.py`,
+`evaluate_pole_benchmark.py`, `evaluate_pace_benchmark.py`, `evaluate_simulator_benchmark.py`. Each
+writes a Firestore `modelBenchmarks/{modelVersion}` doc *and* a local JSON manifest under
+`pipeline/benchmarks/{model}/{version}.json` — population, warmup rule, features, target
+definition, monotonic constraints, random seed, git commit, all recorded. This exists because the
+Pace model's original 0.903 MAE benchmark came from a one-off script (deleted after use, like every
+other throwaway experiment in this project) and a later re-validation couldn't be matched against
+it — not because the model was wrong, but because the *measurement protocol* was gone. Root-caused
+and fixed (Pace was the only one of the three per-driver models without a permanent backtest
+function); see the Pace-model section above for the full reconciliation. **Going forward: never
+overwrite a manifest.** A changed model bumps `MODEL_VERSION` and gets a new file — see
+`benchmarks/pace/` for what that lineage looks like in practice (v2-original-unreconciled,
+v2-reconciled, v3-pace-tyre, all kept).
+
+**Simulator v1.2 — now frozen.** `evaluate_simulator_benchmark.py` composes the shipped Pace v3,
+DNF model, `simulate_race`, and walk-forward calibration exactly as they'd run together: **MAE
+3.889, Spearman 0.614, raw P1/podium Brier 0.0501/0.1246, calibrated P1/podium Brier
+0.0479/0.1247**, 112 evaluated rounds. This is the number Step 6 must beat.
+
+## Step 6 — simulator uncertainty/correlation mechanics: found it
+
+Motivation, per explicit instruction: tyre precision improved the Pace model but not the simulator
+— the bottleneck is downstream of pace point-estimate accuracy, likely the noise/uncertainty
+generation itself. Five candidate hypotheses, tested **one at a time**, diagnosing before building
+each time — no code changes without a positive diagnostic first:
+
+1. **Driver-specific residual distributions — rejected.** Split each driver's races chronologically
+   in half; a real trait should make first-half residual stdev predict second-half stdev. It
+   doesn't (r = -0.165 across 34 drivers with ≥20 races) — the wrong sign, the classic signature of
+   regression-to-the-mean on a small sample, not a real effect. (Norris ranking as one of the
+   "noisiest" drivers in the grid 6-10 bucket, implausible for one of the grid's most consistent
+   drivers, confirms it's sample-size noise, not signal.)
+2. Team-specific residual distributions — superseded by hypothesis 5 below (tested together).
+3. **Pace-separation-dependent uncertainty — rejected, even controlling for grid.** Hypothesis: a
+   tightly-bunched midfield should be more order-volatile than an isolated leader, independent of
+   grid position. Uncontrolled test ran the *opposite* direction (r=+0.117: bigger separation, not
+   smaller, associated with bigger residuals) and controlling for grid bucket didn't rescue it
+   (r ranging -0.020 to 0.168 across buckets, weak and inconsistent, strongest reading driven by
+   tiny noisy tail samples). No clean signal, controlled or not.
+4. **Correlated race-wide pace shocks — confirmed, strongly.** The variance of each race's *mean*
+   residual across drivers is **9.15x** larger than independence would predict (observed 2.212 vs
+   an independence-implied 0.242, avg 17.1 drivers/race, 175 rounds) — some races see essentially
+   every driver run faster or slower than predicted, together.
+5. **Team-specific correlation — confirmed, strongly.** Teammate residuals correlate at **r=0.618**
+   across 1288 same-race teammate pairs — real, sizeable, not explained by anything the model
+   already knows (grid, Elo, tyre traits are already netted out of a residual).
+
+**Built and shipped a fix.** Method-of-moments variance decomposition on that same residual data
+(pooled variance 4.132, the 9.15x race-mean inflation, the 0.618 teammate correlation) splits total
+per-driver residual variance into ~50% race-shared / ~12% team-shared / ~38% individual. Rebuilt
+`ml/simulate_race.py` (now v2) to sample noise as 3 additive components — one shared draw per race,
+one shared draw per team, one independent per driver — each scaled to its variance fraction of that
+driver's own existing grid-bucket stdev, so the independently-confirmed heteroscedastic-by-grid
+finding is preserved rather than discarded. Verified on the identical 112-round population as the
+frozen `simulator-v1.2` benchmark: **every metric improved, no mixed bag** — MAE 3.889→3.721,
+Spearman 0.614→0.621, raw P1/podium Brier 0.0501/0.1246→0.0452/0.1068, calibrated P1/podium Brier
+0.0479/0.1247→0.0470/0.1007 (podium Brier improved ~19% calibrated). Shipped as `simulator-v2`
+(`evaluate_simulator_benchmark.py`, `benchmarks/simulator/simulator-v2.json`). This is also the
+mechanism that finally lets a genuinely better Pace model (the tyre-aware features) help the
+simulator — the bottleneck wasn't pace point-estimate quality, it was not modeling *why* drivers'
+pace errors move together on the same day.

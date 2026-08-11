@@ -1,13 +1,16 @@
-"""Computes and freezes the pole model's benchmark in Firestore (`modelBenchmarks/{modelVersion}`)
-— deliberately a separate artifact from the live per-race polePrediction, recomputed on demand
-(when the model or the underlying data changes) rather than every scheduled tick. MAE alone can't
-distinguish "got the competitive hierarchy right, off by a place" from "no signal at all," so this
-also reports Spearman rank correlation (both per-race-averaged and pooled across every driver),
-P1/top-3/top-5 hit rates, and a naive "last known quali position" baseline for comparison — see
-ml/predict_pole.py's pole_chronological_backtest for the per-race mechanics.
+"""Computes and freezes the Pace model's benchmark in Firestore (`modelBenchmarks/{modelVersion}`)
+and a local reproducibility manifest (`benchmarks/pace/{modelVersion}.json`) — see
+ml/predict_pace.py's pace_chronological_backtest for the per-race mechanics. Run on demand (when
+the model or underlying data changes), not on a schedule, same as evaluate_pole_benchmark.py.
+
+This is the first *permanent* Pace benchmark harness — the original v2 (no-tyre) 0.903 MAE number
+came from a one-off script that was deleted after use, and a later reconstruction attempt landed on
+a different, unreconcilable number. Never overwrite a benchmark this script produces: if the model
+changes again, bump MODEL_VERSION in ml/predict_pace.py first, so the new run writes a new
+Firestore doc and a new manifest file instead of replacing this one.
 
 Run:
-  python pipeline/evaluate_pole_benchmark.py
+  python pipeline/evaluate_pace_benchmark.py
 """
 
 from __future__ import annotations
@@ -23,9 +26,10 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from scipy.stats import spearmanr
 
-from ml.pole_features import POLE_FEATURE_ORDER
-from ml.predict_pole import MODEL_VERSION, MONOTONIC_CST, pole_chronological_backtest
-from train_predict import to_training_rows
+from ml.pace_features import PACE_FEATURE_ORDER
+from ml.predict_pace import MODEL_VERSION, MONOTONIC_CST, pace_chronological_backtest
+from ml.tyre_features import build_tyre_trait_history
+from train_predict import to_pace_rows, to_tyre_rows
 
 
 def init_firestore():
@@ -49,26 +53,31 @@ def _git_commit() -> str:
 def main():
     db = init_firestore()
     docs = [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
+    docs.sort(key=lambda d: (d["year"], d["round"]))
+
+    all_tyre_rows = []
+    for d in docs:
+        all_tyre_rows.extend(to_tyre_rows(d))
+    trait_history = build_tyre_trait_history(all_tyre_rows)
+
     by_year: dict[int, list[dict]] = {}
     for d in docs:
         by_year.setdefault(d["year"], []).append(d)
 
     per_race = []
-    all_predicted: list[int] = []
-    all_actual: list[int] = []
+    all_predicted: list[float] = []
+    all_actual: list[float] = []
 
     for year in sorted(by_year):
         year_docs = sorted(by_year[year], key=lambda d: d["round"])
         rows = []
-        practice_by_round = {}
         event_by_round = {d["round"]: d["eventName"] for d in year_docs}
         for d in year_docs:
-            rows.extend(to_training_rows(d))
-            practice_by_round[d["round"]] = d.get("practice")
+            rows.extend(to_pace_rows(d, trait_history))
 
-        for round_result in pole_chronological_backtest(rows, practice_by_round):
-            all_predicted.extend(round_result["predictedPositions"])
-            all_actual.extend(round_result["actualPositions"])
+        for round_result in pace_chronological_backtest(rows):
+            all_predicted.extend(round_result["predicted"])
+            all_actual.extend(round_result["actual"])
             per_race.append(
                 {
                     "season": year,
@@ -77,9 +86,6 @@ def main():
                     "mae": round(round_result["mae"], 3),
                     "naiveMae": round(round_result["naiveMae"], 3),
                     "spearman": round(round_result["spearman"], 3) if round_result["spearman"] is not None else None,
-                    "p1Hit": round_result["p1Hit"],
-                    "top3Overlap": round_result["top3Overlap"],
-                    "top5Overlap": round_result["top5Overlap"],
                 }
             )
 
@@ -88,16 +94,18 @@ def main():
 
     race_level_spearman = [r["spearman"] for r in per_race if r["spearman"] is not None]
     pooled_rho, _ = spearmanr(all_predicted, all_actual)
+    mean_actual = mean(all_actual)
+    ss_res = sum((a - p) ** 2 for a, p in zip(all_actual, all_predicted))
+    ss_tot = sum((a - mean_actual) ** 2 for a in all_actual)
 
     aggregate = {
         "mae": round(mean(r["mae"] for r in per_race), 3),
         "naiveMae": round(mean(r["naiveMae"] for r in per_race), 3),
         "spearman": round(mean(race_level_spearman), 3) if race_level_spearman else None,
         "pooledSpearman": round(float(pooled_rho), 3),
-        "p1HitRate": round(mean(1.0 if r["p1Hit"] else 0.0 for r in per_race), 3),
-        "top3Overlap": round(mean(r["top3Overlap"] for r in per_race), 2),
-        "top5Overlap": round(mean(r["top5Overlap"] for r in per_race), 2),
+        "r2": round(1 - ss_res / ss_tot, 3),
         "evaluatedRounds": len(per_race),
+        "totalDriverRows": len(all_actual),
         "seasons": sorted({r["season"] for r in per_race}),
     }
 
@@ -112,30 +120,34 @@ def main():
     )
 
     manifest = {
-        "model": "pole",
+        "model": "pace",
         "version": MODEL_VERSION,
         "gitCommit": _git_commit(),
         "evaluatedAt": evaluated_at,
         "evaluationPopulation": f"{aggregate['seasons'][0]}-{aggregate['seasons'][-1]}",
         "raceCount": aggregate["evaluatedRounds"],
-        "warmupRule": "len(train) >= 5 and len(test) >= 2 per season (see pole_chronological_backtest)",
+        "warmupRule": (
+            "len(train) >= 10 rows per season — mirrors predict_pace_gaps' own production "
+            "fallback threshold, not a fixed round-count warmup"
+        ),
         "walkForward": True,
-        "seasonScoping": "quali-Elo/history-count features reset per season; FP1-3 practice deltas are same-weekend, not historical",
-        "features": POLE_FEATURE_ORDER,
+        "seasonScoping": "Elo features reset per season; the 4 tyre traits are cross-season (ml/tyre_features.py)",
+        "features": PACE_FEATURE_ORDER,
         "monotonicConstraints": MONOTONIC_CST,
-        "targetDefinition": "classified qualifying position",
+        "targetDefinition": "fastest_lap_sec minus that race's fastest lap (paceGapSec)",
+        "dnfHandling": "excluded from target — a DNF driver's fastest lap before retiring isn't a race-pace measurement",
         "randomSeed": 42,
         "firestoreDoc": f"modelBenchmarks/{MODEL_VERSION}",
         "metrics": aggregate,
     }
-    manifest_path = Path(__file__).resolve().parent / "benchmarks" / "pole" / f"{MODEL_VERSION}.json"
+    manifest_path = Path(__file__).resolve().parent / "benchmarks" / "pace" / f"{MODEL_VERSION}.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
     print(f"Benchmark for {MODEL_VERSION}:")
     for key, value in aggregate.items():
         print(f"  {key}: {value}")
-    print(f"Wrote modelBenchmarks/{MODEL_VERSION} ({len(per_race)} per-race records) and {manifest_path}.")
+    print(f"Wrote modelBenchmarks/{MODEL_VERSION} ({len(per_race)} per-race records) and {manifest_path}")
 
 
 if __name__ == "__main__":

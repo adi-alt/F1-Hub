@@ -1,0 +1,19 @@
+{
+  "model": "pace",
+  "version": "sklearn-rf-v2-pace",
+  "gitCommit": "unknown",
+  "evaluatedAt": "unknown",
+  "evaluationPopulation": "2018-2026 (approx, remembered as \"full 175-round set\")",
+  "raceCount": 175,
+  "warmupRule": "unknown - harness script deleted after use, before this project adopted the keep-benchmark-harnesses convention",
+  "walkForward": true,
+  "harnessRecoverable": false,
+  "features": ["grid", "qualifyingGapSec", "driverPaceEloRating", "teamPaceEloRating"],
+  "targetDefinition": "fastest_lap_sec minus that race's fastest lap (paceGapSec)",
+  "note": "Original frozen benchmark, quoted throughout PROGRESS.md/memory prior to 2026-08-11. Reconciled (within noise, on MAE) by benchmarks/pace/sklearn-rf-v2-pace-reconciled.json, which reconstructs the same protocol under the new permanent pace_chronological_backtest harness. Kept here unchanged, never overwritten, per the lineage rule.",
+  "metrics": {
+    "mae": 0.903,
+    "r2": -0.146,
+    "spearman": 0.615
+  }
+}

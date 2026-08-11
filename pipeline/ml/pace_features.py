@@ -4,6 +4,10 @@ incidents, and reliability, so this is its own Elo track, not a reuse of the fin
 
 DNF rows are excluded upstream (see train_predict.py) before they ever reach this module: a
 driver's fastest lap in the handful of laps before retiring isn't a measurement of race pace.
+
+The 4 `*Tyre*` features are resolved by the caller (train_predict.py, via ml/tyre_features.py)
+before a PaceResultRow is built, since they're cross-season traits — unlike the Elo ratings here,
+which are intentionally season-scoped and computed fresh below.
 """
 
 from __future__ import annotations
@@ -11,8 +15,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .elo import current_ratings, rating_progression
+from .tyre_features import TYRE_FEATURE_ORDER
 
-PACE_FEATURE_ORDER = ["grid", "qualifyingGapSec", "driverPaceEloRating", "teamPaceEloRating"]
+PACE_FEATURE_ORDER = ["grid", "qualifyingGapSec", "driverPaceEloRating", "teamPaceEloRating"] + TYRE_FEATURE_ORDER
 
 
 @dataclass
@@ -23,6 +28,10 @@ class PaceResultRow:
     grid: float
     qualifying_gap_sec: float
     fastest_lap_sec: float
+    driver_tyre_pace_delta: float
+    driver_tyre_degradation: float
+    team_tyre_pace_delta: float
+    team_tyre_degradation: float
 
 
 def _driver_pace_event(rows: list[PaceResultRow]) -> list[str]:
@@ -58,6 +67,10 @@ def build_pace_historical_features(all_results: list[PaceResultRow]) -> list[dic
                     "qualifyingGapSec": row.qualifying_gap_sec,
                     "driverPaceEloRating": driver_ratings.get(row.driver, 1500.0),
                     "teamPaceEloRating": team_ratings.get(row.team, 1500.0),
+                    "driverTyrePaceDelta": row.driver_tyre_pace_delta,
+                    "driverTyreDegradation": row.driver_tyre_degradation,
+                    "teamTyrePaceDelta": row.team_tyre_pace_delta,
+                    "teamTyreDegradation": row.team_tyre_degradation,
                     "round": round_num,
                     "driver": row.driver,
                     "team": row.team,
@@ -69,7 +82,10 @@ def build_pace_historical_features(all_results: list[PaceResultRow]) -> list[dic
 
 def build_pace_input_features(inputs: list[dict], history: list[PaceResultRow]) -> list[dict]:
     """Feature rows for an upcoming race's field. `inputs`: [{"driver","team","grid",
-    "qualifyingGapSec"}, ...]."""
+    "qualifyingGapSec","driverTyrePaceDelta","driverTyreDegradation","teamTyrePaceDelta",
+    "teamTyreDegradation"}, ...] — the tyre trait values are resolved by the caller
+    (ml/tyre_features.py's current_tyre_traits), since they're cross-season, unlike the Elo ratings
+    computed fresh here from the season-scoped `history`."""
     rounds = sorted({r.round for r in history})
     rows_by_round = {round_num: [r for r in history if r.round == round_num] for round_num in rounds}
     driver_ratings, _ = current_ratings([_driver_pace_event(rows_by_round[r]) for r in rounds])
@@ -81,6 +97,10 @@ def build_pace_input_features(inputs: list[dict], history: list[PaceResultRow]) 
             "qualifyingGapSec": entry["qualifyingGapSec"],
             "driverPaceEloRating": driver_ratings.get(entry["driver"], 1500.0),
             "teamPaceEloRating": team_ratings.get(entry["team"], 1500.0),
+            "driverTyrePaceDelta": entry["driverTyrePaceDelta"],
+            "driverTyreDegradation": entry["driverTyreDegradation"],
+            "teamTyrePaceDelta": entry["teamTyrePaceDelta"],
+            "teamTyreDegradation": entry["teamTyreDegradation"],
             "driver": entry["driver"],
             "team": entry["team"],
         }

@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import fastf1
+import numpy as np
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -245,6 +246,42 @@ def fetch_race(year: int, round_num: int):
                     }
                 )
 
+        # Per-driver, per-compound pace and degradation — not stint counts (already tested and
+        # rejected as a Pace-model feature; too coarse to carry real signal). `degradationSecPerLap`
+        # is the actual lap_time-vs-tyre_age slope within a compound, so it captures how fast a
+        # compound falls off, not just how long a driver ran it. This conflates tire wear with
+        # fuel-burn-off and track evolution (all three move lap time as a stint progresses, and lap
+        # time alone can't separate them) — a real limitation of this proxy, not hidden from anyone
+        # using it. `IsAccurate` + excluding in/out laps filters out the safety-car/traffic/pit
+        # laps that would otherwise swamp the signal with noise unrelated to the tyre itself.
+        tyre_laps = session.laps[
+            session.laps["PitInTime"].isna()
+            & session.laps["PitOutTime"].isna()
+            & session.laps["IsAccurate"]
+            & session.laps["LapTime"].notna()
+            & session.laps["TyreLife"].notna()
+        ].copy()
+        tyre_laps["LapTimeSec"] = tyre_laps["LapTime"].dt.total_seconds()
+        compound_pace = []
+        if not tyre_laps.empty:
+            session_best_sec = float(tyre_laps["LapTimeSec"].min())
+            for (driver, compound), group in tyre_laps.groupby(["Driver", "Compound"]):
+                if len(group) < 3:
+                    continue
+                degradation = None
+                if group["TyreLife"].nunique() >= 2:
+                    slope, _ = np.polyfit(group["TyreLife"], group["LapTimeSec"], 1)
+                    degradation = round(float(slope), 4)
+                compound_pace.append(
+                    {
+                        "driver": driver,
+                        "compound": compound,
+                        "lapCount": int(len(group)),
+                        "avgPaceDeltaSec": round(float(group["LapTimeSec"].mean() - session_best_sec), 3),
+                        "degradationSecPerLap": degradation,
+                    }
+                )
+
         return {
             "session": "R",
             "results": results,
@@ -252,6 +289,7 @@ def fetch_race(year: int, round_num: int):
             "tireStints": tire_stints,
             "trafficStats": traffic_stats,
             "safetyCarPeriods": safety_car_periods,
+            "tireCompoundPace": compound_pace,
         }
     except Exception as exc:
         print(f"    race: not available ({exc})")
@@ -327,6 +365,7 @@ def build_and_push(db, year: int, round_num: int):
                 "tireStints": race["tireStints"],
                 "trafficStats": race["trafficStats"],
                 "safetyCarPeriods": race["safetyCarPeriods"],
+                "tireCompoundPace": race["tireCompoundPace"],
             }
             if race
             else None

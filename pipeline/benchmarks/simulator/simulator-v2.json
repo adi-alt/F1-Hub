@@ -1,0 +1,67 @@
+{
+  "model": "simulator",
+  "version": "simulator-v2",
+  "gitCommit": "6f310420e5cfe40d18879422f75e057df95a0cdd",
+  "evaluatedAt": "2026-08-11T08:11:39.884668+00:00",
+  "evaluationPopulation": "2018-2026",
+  "raceCount": 112,
+  "warmupRule": "first 8 rounds of each season skipped, plus prior-pace >=10 rows and prior-dnf >=50 rows with both classes present",
+  "walkForward": true,
+  "components": {
+    "pace": "ml.predict_pace.predict_pace_gaps (sklearn-rf-v3-pace-tyre)",
+    "dnf": "ml.predict_dnf.predict_dnf_probabilities (sklearn-rf-v1-dnf)",
+    "simulate": "ml.simulate_race.simulate_race (grid-bucketed total stdev, split into correlated race-shared/team-shared/individual components, n_simulations=10000)",
+    "calibration": "ml.calibrate_probabilities (Platt for P1, isotonic for podium, walk-forward fit)"
+  },
+  "gridNoiseBuckets": [
+    [
+      1,
+      5,
+      0.95
+    ],
+    [
+      6,
+      10,
+      2.5
+    ],
+    [
+      11,
+      15,
+      2.45
+    ],
+    [
+      16,
+      25,
+      3.85
+    ]
+  ],
+  "noiseVarianceFractions": {
+    "raceShock": 0.5,
+    "teamShock": 0.12,
+    "individual": 0.38
+  },
+  "safetyCarRate": 0.734,
+  "randomSeed": 42,
+  "firestoreDoc": "modelBenchmarks/simulator-v2",
+  "metrics": {
+    "mae": 3.718,
+    "spearman": 0.622,
+    "rawP1Brier": 0.0452,
+    "rawPodiumBrier": 0.1068,
+    "calibratedP1Brier": 0.047,
+    "calibratedPodiumBrier": 0.1007,
+    "evaluatedRounds": 112,
+    "totalDriverRows": 2243,
+    "seasons": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ]
+  }
+}
