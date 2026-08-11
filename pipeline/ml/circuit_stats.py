@@ -12,7 +12,17 @@ race-level number is identical for every driver in a race, so it carries no rank
 real home is a race-level model (safety-car/DNF/rain probability), where the leakage-safety rule is
 the same one used everywhere else in this pipeline, just chronological across years instead of
 within a season: a race's circuit features only ever come from strictly earlier (year, round)
-pairs at that location.
+pairs at the same circuit.
+
+Circuits are matched by `eventName`, not Firestore's `location` field — confirmed the hard way:
+FastF1 reports different `Location` strings for the same physical circuit across years for at
+least 4 events (Monaco: "Monte Carlo"/"Monaco", Singapore: "Singapore"/"Marina Bay", Abu Dhabi:
+"Yas Marina"/"Yas Island", Miami: "Miami"/"Miami Gardens"). Matching on `location` silently fails
+for those, falls through to the whole-history fallback pool, and produces nonsense — an Abu Dhabi
+forecast came out as 100% rain probability for a circuit with zero rainy races on record, because
+the era/recency weighting in that fallback pool ends up dominated by whichever handful of races
+happen to be "same year" once every real Abu Dhabi record is silently excluded. `eventName` doesn't
+have this problem across the same dataset.
 """
 
 from __future__ import annotations
@@ -32,6 +42,7 @@ CIRCUIT_FEATURE_ORDER = [
     "circuitOvertakingDelta",
     "circuitRainProbability",
     "circuitAvgPitStops",
+    "circuitAvgAirTempC",
 ]
 
 # Neutral fallbacks used only when a circuit has no prior history *and* no other race exists yet
@@ -43,6 +54,7 @@ _NEUTRAL_DEFAULTS = {
     "circuitOvertakingDelta": 2.5,
     "circuitRainProbability": 0.15,
     "circuitAvgPitStops": 2.0,
+    "circuitAvgAirTempC": 22.0,
 }
 
 
@@ -62,13 +74,14 @@ def _weight(history_year: int, target_year: int) -> float:
 
 @dataclass
 class CircuitRaceRecord:
-    location: str
+    event_name: str
     year: int
     round: int
     safety_car_periods: float | None
     overtaking_delta: float | None  # mean |finishPosition - gridPosition| across classified finishers
     rainfall: bool | None
     avg_pit_stops: float | None  # mean tire-stint count per driver, a proxy for stop count
+    air_temp_c: float | None
 
 
 def build_circuit_records(race_docs: list[dict]) -> list[CircuitRaceRecord]:
@@ -89,26 +102,28 @@ def build_circuit_records(race_docs: list[dict]) -> list[CircuitRaceRecord]:
 
         records.append(
             CircuitRaceRecord(
-                location=doc["location"],
+                event_name=doc["eventName"],
                 year=doc["year"],
                 round=doc["round"],
                 safety_car_periods=race.get("safetyCarPeriods"),
                 overtaking_delta=(sum(deltas) / len(deltas)) if deltas else None,
                 rainfall=(race.get("weather") or {}).get("rainfall"),
                 avg_pit_stops=(sum(stints_per_driver.values()) / len(stints_per_driver)) if stints_per_driver else None,
+                air_temp_c=(race.get("weather") or {}).get("airTempC"),
             )
         )
     return records
 
 
 def build_circuit_features(
-    records: list[CircuitRaceRecord], location: str, before_year: int, before_round: int
+    records: list[CircuitRaceRecord], event_name: str, before_year: int, before_round: int
 ) -> dict:
-    """Recency- and era-weighted average of every strictly-prior race at `location`. Falls back to
-    the whole (still weighted) historical pool for a circuit with no prior visits, then to fixed
-    neutral defaults only if there's no history at all yet."""
+    """Recency- and era-weighted average of every strictly-prior race at this circuit (matched by
+    `eventName` — see module docstring for why). Falls back to the whole (still weighted)
+    historical pool for a circuit with no prior visits, then to fixed neutral defaults only if
+    there's no history at all yet."""
     prior = [r for r in records if (r.year, r.round) < (before_year, before_round)]
-    same_circuit = [r for r in prior if r.location == location]
+    same_circuit = [r for r in prior if r.event_name == event_name]
     pool = same_circuit if same_circuit else prior
 
     def weighted_mean(getter, key: str) -> float:
@@ -128,4 +143,5 @@ def build_circuit_features(
         "circuitOvertakingDelta": weighted_mean(lambda r: r.overtaking_delta, "circuitOvertakingDelta"),
         "circuitRainProbability": weighted_mean(lambda r: 1.0 if r.rainfall else (0.0 if r.rainfall is not None else None), "circuitRainProbability"),
         "circuitAvgPitStops": weighted_mean(lambda r: r.avg_pit_stops, "circuitAvgPitStops"),
+        "circuitAvgAirTempC": weighted_mean(lambda r: r.air_temp_c, "circuitAvgAirTempC"),
     }

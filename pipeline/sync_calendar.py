@@ -21,12 +21,15 @@ import os
 import re
 import sys
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import fastf1
 import firebase_admin
 from firebase_admin import credentials, firestore
+
+from ml.circuit_stats import build_circuit_records
+from weather_forecast import fetch_weather_forecast
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -70,26 +73,49 @@ def sync_year(db, year: int):
     events = schedule[schedule["RoundNumber"] > 0]  # excludes pre-season testing entries
     print(f"{year}: {len(events)} rounds")
 
+    # Cross-season on purpose (see ml/circuit_stats.py) — a forecast fallback for an upcoming
+    # race needs every prior completed race, not just this season's.
+    circuit_records = build_circuit_records(
+        [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
+    )
+    now = datetime.now(timezone.utc)
+
     for _, row in events.iterrows():
         round_num = int(row["RoundNumber"])
         event_name = str(row["EventName"])
+        location = str(row["Location"])
         doc_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
         sessions = all_sessions(row)
         race_session = next((s for s in sessions if s["label"] == "Race"), None)
+        race_date_str = race_session["date"] if race_session else None
+
+        # A forecast for a race that already happened is meaningless — only compute it for races
+        # still ahead of `now`, so this doesn't churn every past event on every weekly run.
+        weather_forecast = None
+        if race_date_str:
+            race_date = datetime.fromisoformat(race_date_str)
+            if race_date.tzinfo is None:
+                race_date = race_date.replace(tzinfo=timezone.utc)
+            if race_date > now:
+                weather_forecast = fetch_weather_forecast(
+                    circuit_records, event_name, location, year, round_num, race_date
+                )
+
         doc = {
             "year": year,
             "round": round_num,
             "eventName": event_name,
-            "location": str(row["Location"]),
+            "location": location,
             "country": str(row["Country"]),
             "eventFormat": str(row["EventFormat"]),
             "sessions": sessions,
             # Convenience copy of the one session every weekend definitely has, so "next race in
             # N days" sorting/display doesn't need to dig into the sessions list.
-            "raceDate": race_session["date"] if race_session else None,
+            "raceDate": race_date_str,
+            "weatherForecast": weather_forecast,
         }
         db.collection("calendar").document(doc_id).set(doc)
-        print(f"  {doc_id}: {len(sessions)} sessions, race={doc['raceDate']}")
+        print(f"  {doc_id}: {len(sessions)} sessions, race={doc['raceDate']}, forecast={weather_forecast}")
 
 
 def main():
