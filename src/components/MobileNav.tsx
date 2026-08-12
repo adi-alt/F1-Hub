@@ -5,13 +5,14 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { seasonHref } from "@/lib/routes";
 
-const links = [
+const baseLinks = [
   { href: seasonHref(2026), label: "Season" },
   { href: "/circuits", label: "Circuits" },
 ];
 
-export function MobileNav() {
+export function MobileNav({ showAdmin = false }: { showAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
+  const links = showAdmin ? [...baseLinks, { href: "/admin", label: "Admin" }] : baseLinks;
 
   return (
     <div className="sm:hidden">

@@ -8,6 +8,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The user's own profile — favorite driver/team, notification prefs, and (critically) `role`.
+    // Written only by the Admin SDK, same as `races` above: if clients could write this directly,
+    // any signed-in user could set their own `role` field to "admin". Read-only for its own owner.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
     // A user's own picks for an upcoming race. Doc ID matches the race ID (`${year}_${slug}`).
     // Creating/updating a pick is only allowed while that race is still upcoming — once it's
     // completed, picks are read-only history.

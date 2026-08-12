@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
+import { ensureUserDoc } from "@/lib/firestore/users";
 import { getSession } from "@/lib/session/getSession";
 
 /**
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
+
+  await ensureUserDoc(decoded.uid, decoded.email ?? null, decoded.name ?? null);
 
   const session = await getSession();
   session.uid = decoded.uid;

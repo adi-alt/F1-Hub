@@ -2,8 +2,13 @@ import Link from "next/link";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { seasonHref } from "@/lib/routes";
+import { getSession } from "@/lib/session/getSession";
+import { isAdmin } from "@/lib/session/isAdmin";
 
-export function Header() {
+export async function Header() {
+  const session = await getSession();
+  const admin = await isAdmin(session.uid);
+
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
       <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
@@ -18,9 +23,14 @@ export function Header() {
           <Link href="/circuits" className="transition hover:text-white">
             Circuits
           </Link>
+          {admin && (
+            <Link href="/admin" className="transition hover:text-white">
+              Admin
+            </Link>
+          )}
         </nav>
         <div className="flex items-center gap-3">
-          <MobileNav />
+          <MobileNav showAdmin={admin} />
           <SignInButton />
         </div>
       </div>
