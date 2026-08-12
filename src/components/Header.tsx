@@ -1,13 +1,15 @@
+"use client";
+
 import Link from "next/link";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
+import { permissionsForRole } from "@/lib/rbac";
 import { seasonHref } from "@/lib/routes";
-import { getSession } from "@/lib/session/getSession";
-import { isAdmin } from "@/lib/session/isAdmin";
 
-export async function Header() {
-  const session = await getSession();
-  const admin = await isAdmin(session.uid);
+export function Header() {
+  const { user, role } = useAuth();
+  const admin = !!role && permissionsForRole(role).canAccessAdmin;
 
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
@@ -16,21 +18,25 @@ export async function Header() {
           <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
           F1 HUB
         </Link>
-        <nav className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
-          <Link href={seasonHref(2026)} className="transition hover:text-white">
-            Season
-          </Link>
-          <Link href="/circuits" className="transition hover:text-white">
-            Circuits
-          </Link>
-          {admin && (
-            <Link href="/admin" className="transition hover:text-white">
-              Admin
+        {/* Signed-out visitors get no nav options — every one of these pages immediately shows a
+            sign-in gate anyway, so a link to them is a dead end, not a shortcut. */}
+        {user && (
+          <nav className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
+            <Link href={seasonHref(2026)} className="transition hover:text-white">
+              Season
             </Link>
-          )}
-        </nav>
+            <Link href="/circuits" className="transition hover:text-white">
+              Circuits
+            </Link>
+            {admin && (
+              <Link href="/admin" className="transition hover:text-white">
+                Admin
+              </Link>
+            )}
+          </nav>
+        )}
         <div className="flex items-center gap-3">
-          <MobileNav showAdmin={admin} />
+          <MobileNav showAdmin={admin} showNav={!!user} />
           <SignInButton />
         </div>
       </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { ensureUserDoc } from "@/lib/firestore/users";
 import { getSession } from "@/lib/session/getSession";
+import { getUserRole } from "@/lib/session/getUserRole";
 
 /**
  * Bridges Firebase's client-only auth into a server-readable session: the client posts its
@@ -22,15 +23,17 @@ export async function POST(request: Request) {
   }
 
   await ensureUserDoc(decoded.uid, decoded.email ?? null, decoded.name ?? null);
+  const role = await getUserRole(decoded.uid);
 
   const session = await getSession();
   session.uid = decoded.uid;
   session.email = decoded.email ?? null;
   session.displayName = decoded.name ?? null;
   session.photoURL = decoded.picture ?? null;
+  session.role = role;
   await session.save();
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, role });
 }
 
 export async function DELETE() {

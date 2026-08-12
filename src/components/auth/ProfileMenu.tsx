@@ -1,0 +1,89 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useAuth } from "./AuthProvider";
+
+const ITEMS = [
+  { href: "/profile/personalization", label: "Personalisation" },
+  { href: "/profile/notifications", label: "Notifications" },
+  { href: "/profile/edit", label: "Edit profile" },
+];
+
+export function ProfileMenu() {
+  const { user, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  if (!user) return null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Profile menu"
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded-full border border-white/10 py-1 pl-1 pr-3 text-sm text-neutral-200 transition hover:border-white/20 hover:bg-white/5"
+      >
+        {user.photoURL ? (
+          <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
+        ) : (
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
+            {(user.displayName ?? user.email ?? "?").charAt(0).toUpperCase()}
+          </span>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] shadow-xl"
+          >
+            <div className="border-b border-[var(--f1-line)] px-4 py-3">
+              <p className="truncate text-sm font-medium text-white">{user.displayName ?? "Signed in"}</p>
+              <p className="truncate text-xs text-neutral-500">{user.email}</p>
+            </div>
+            <nav className="py-1">
+              {ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className="block px-4 py-2.5 text-sm text-neutral-300 transition hover:bg-white/5 hover:text-white"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="border-t border-[var(--f1-line)] py-1">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  void signOut();
+                }}
+                className="block w-full px-4 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/5 hover:text-white"
+              >
+                Log out
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

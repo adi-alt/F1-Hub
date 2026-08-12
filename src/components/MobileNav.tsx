@@ -10,9 +10,11 @@ const baseLinks = [
   { href: "/circuits", label: "Circuits" },
 ];
 
-export function MobileNav({ showAdmin = false }: { showAdmin?: boolean }) {
+export function MobileNav({ showAdmin = false, showNav = false }: { showAdmin?: boolean; showNav?: boolean }) {
   const [open, setOpen] = useState(false);
   const links = showAdmin ? [...baseLinks, { href: "/admin", label: "Admin" }] : baseLinks;
+
+  if (!showNav) return null;
 
   return (
     <div className="sm:hidden">
