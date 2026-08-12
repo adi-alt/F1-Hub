@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { raceStatusLabel } from "@/lib/format";
-import { raceHref } from "@/lib/routes";
+import { circuitHref, raceHref } from "@/lib/routes";
 import type { RaceDoc } from "@/lib/types/race";
 
 export function CalendarList({ races }: { races: RaceDoc[] }) {
@@ -27,15 +27,14 @@ export function CalendarList({ races }: { races: RaceDoc[] }) {
             <span className="text-sm text-neutral-400">{raceStatusLabel(race)}</span>
           </div>
         );
+        // "scheduled" (see toCalendarPlaceholder in lib/firestore/races.ts) has no race doc to
+        // view yet, but the track itself has history — link there instead of a dead end.
+        const href = race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round);
         return (
           <motion.div key={race.id} variants={staggerItem} className="bg-[var(--f1-carbon)]">
-            {race.status === "scheduled" ? (
-              row
-            ) : (
-              <Link href={raceHref(race.year, race.round)} className="block transition hover:bg-white/[0.04]">
-                {row}
-              </Link>
-            )}
+            <Link href={href} className="block transition hover:bg-white/[0.04]">
+              {row}
+            </Link>
           </motion.div>
         );
       })}

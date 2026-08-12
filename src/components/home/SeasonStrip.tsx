@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { raceStatusLabel } from "@/lib/format";
-import { raceHref } from "@/lib/routes";
+import { circuitHref, raceHref } from "@/lib/routes";
 import type { RaceDoc } from "@/lib/types/race";
 
 export function SeasonStrip({ races }: { races: RaceDoc[] }) {
@@ -33,18 +33,13 @@ export function SeasonStrip({ races }: { races: RaceDoc[] }) {
           </div>
         );
 
-        if (race.status === "scheduled") {
-          return (
-            <motion.div key={race.id} variants={staggerItem}>
-              {card}
-            </motion.div>
-          );
-        }
-
+        // "scheduled" has no race doc to view yet, but the track has history — link there
+        // instead of a dead end, same fix as CalendarList.tsx.
+        const href = race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round);
         return (
           <motion.div key={race.id} variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>
             <Link
-              href={raceHref(race.year, race.round)}
+              href={href}
               className="block rounded-xl transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
             >
               {card}

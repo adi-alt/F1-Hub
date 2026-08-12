@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { raceHref } from "@/lib/routes";
+import { circuitHref, raceHref } from "@/lib/routes";
 import type { RaceDoc } from "@/lib/types/race";
 
 export function NextRaceCard({ race }: { race: RaceDoc | null }) {
@@ -29,17 +29,18 @@ export function NextRaceCard({ race }: { race: RaceDoc | null }) {
           </p>
           <h2 className="mt-1 text-2xl font-bold text-white">{race.name}</h2>
         </div>
-        {race.status !== "scheduled" && (
-          <Link href={raceHref(race.year, race.round)} className="group inline-block">
-            <motion.span
-              whileHover={{ x: 3 }}
-              whileTap={{ scale: 0.96 }}
-              className="block rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-200 transition group-hover:border-white/30 group-hover:text-white"
-            >
-              View race →
-            </motion.span>
-          </Link>
-        )}
+        <Link
+          href={race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round)}
+          className="group inline-block"
+        >
+          <motion.span
+            whileHover={{ x: 3 }}
+            whileTap={{ scale: 0.96 }}
+            className="block rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-200 transition group-hover:border-white/30 group-hover:text-white"
+          >
+            {race.status === "scheduled" ? "Track history →" : "View race →"}
+          </motion.span>
+        </Link>
       </div>
 
       {race.status === "scheduled" ? (
