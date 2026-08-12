@@ -1,3 +1,4 @@
+import { AboutSection } from "@/components/home/AboutSection";
 import { Hero } from "@/components/home/Hero";
 import { NextRaceCard } from "@/components/home/NextRaceCard";
 import { SeasonStrip } from "@/components/home/SeasonStrip";
@@ -18,7 +19,16 @@ export default async function HomePage() {
     return (
       <>
         <Hero />
-        <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+            How this works
+          </h2>
+          <p className="mb-8 max-w-2xl text-2xl font-bold text-white">
+            Not a scoreboard — a forecast, held to the same standard as the sport it predicts.
+          </p>
+          <AboutSection />
+        </section>
+        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
           <SignInGate label="race predictions" />
         </section>
       </>
