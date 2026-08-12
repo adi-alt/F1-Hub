@@ -2,7 +2,6 @@ import { AboutSection } from "@/components/home/AboutSection";
 import { Hero } from "@/components/home/Hero";
 import { NextRaceCard } from "@/components/home/NextRaceCard";
 import { SeasonStrip } from "@/components/home/SeasonStrip";
-import { SignInGate } from "@/components/auth/SignInGate";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/firestore/races";
 import { getSession } from "@/lib/session/getSession";
 
@@ -27,9 +26,6 @@ export default async function HomePage() {
             Not a scoreboard — a forecast, held to the same standard as the sport it predicts.
           </p>
           <AboutSection />
-        </section>
-        <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-          <SignInGate label="race predictions" />
         </section>
       </>
     );

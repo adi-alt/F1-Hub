@@ -1,24 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
-import Lenis from "lenis";
+import { usePathname } from "next/navigation";
+import { useLenisPage } from "./useLenisContainer";
 
-/** Mounted once in the root layout — owns the whole page's scroll physics, not a per-section
- * thing. No visual output; just drives the requestAnimationFrame loop Lenis needs. */
+/** Mounted once in the root layout. Re-initializes on pathname change (see useLenisPage) —
+ * that re-init, plus the delayed-init/guarded-cleanup hardening ported from Nexus, is what fixes
+ * the "stuck after navigating" bug the previous naive `new Lenis()` + bare raf loop had. No
+ * visual output; just drives Lenis's requestAnimationFrame loop. */
 export function SmoothScroll() {
-  useEffect(() => {
-    const lenis = new Lenis();
-    let frame: number;
-    function raf(time: number) {
-      lenis.raf(time);
-      frame = requestAnimationFrame(raf);
-    }
-    frame = requestAnimationFrame(raf);
-    return () => {
-      cancelAnimationFrame(frame);
-      lenis.destroy();
-    };
-  }, []);
-
+  const pathname = usePathname();
+  useLenisPage(undefined, pathname);
   return null;
 }
