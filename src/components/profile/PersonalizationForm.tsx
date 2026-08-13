@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import type { ConstructorStanding, DriverStanding } from "@/lib/standings";
 
 type Entrant = { driver: string; driverName: string; team: string };
 
 export function PersonalizationForm({
   entrants,
+  driverStandings,
+  constructorStandings,
   initialFavoriteDriver,
   initialFavoriteTeam,
 }: {
   entrants: Entrant[];
+  driverStandings: DriverStanding[];
+  constructorStandings: ConstructorStanding[];
   initialFavoriteDriver?: string;
   initialFavoriteTeam?: string;
 }) {
@@ -20,6 +25,11 @@ export function PersonalizationForm({
   const [error, setError] = useState<string | null>(null);
 
   const teams = [...new Set(entrants.map((e) => e.team))].sort();
+
+  const driverPos = driverStandings.findIndex((d) => d.driver === favoriteDriver);
+  const driverInfo = driverPos === -1 ? null : { ...driverStandings[driverPos], position: driverPos + 1 };
+  const teamPos = constructorStandings.findIndex((c) => c.team === favoriteTeam);
+  const teamInfo = teamPos === -1 ? null : { ...constructorStandings[teamPos], position: teamPos + 1 };
 
   async function save() {
     setSaving(true);
@@ -56,6 +66,20 @@ export function PersonalizationForm({
             </option>
           ))}
         </select>
+        {driverInfo && (
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-3">
+            <div>
+              <p className="font-semibold text-white">{driverInfo.driverName}</p>
+              <p className="text-xs text-neutral-400">{driverInfo.team}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-white">P{driverInfo.position}</p>
+              <p className="text-xs text-neutral-400">
+                {driverInfo.points} pts · {driverInfo.wins} wins · {driverInfo.podiums} podiums
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div>
@@ -72,6 +96,17 @@ export function PersonalizationForm({
             </option>
           ))}
         </select>
+        {teamInfo && (
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-3">
+            <p className="font-semibold text-white">{teamInfo.team}</p>
+            <div className="text-right">
+              <p className="text-lg font-bold text-white">P{teamInfo.position}</p>
+              <p className="text-xs text-neutral-400">
+                {teamInfo.points} pts · {teamInfo.wins} wins · {teamInfo.podiums} podiums
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

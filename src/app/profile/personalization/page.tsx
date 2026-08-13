@@ -4,6 +4,7 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { getRacesByYear } from "@/lib/firestore/races";
 import { getUserProfile } from "@/lib/firestore/users";
 import { getSession } from "@/lib/session/getSession";
+import { computeStandings } from "@/lib/standings";
 
 export default async function PersonalizationPage() {
   const session = await getSession();
@@ -25,6 +26,11 @@ export default async function PersonalizationPage() {
     ? withEntrants.results.map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team }))
     : (withEntrants?.inputs ?? []).map((i) => ({ driver: i.driver, driverName: i.driverName, team: i.team }));
 
+  // Same completed-races-only standings the season page shows — reused here so picking a
+  // favorite immediately shows something real (points, wins, championship position) instead of
+  // just silently recording a string nobody ever sees again.
+  const standings = computeStandings(races);
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <Link href="/" className="text-sm text-neutral-500 hover:text-neutral-300">
@@ -37,6 +43,8 @@ export default async function PersonalizationPage() {
       <div className="mt-8">
         <PersonalizationForm
           entrants={entrants}
+          driverStandings={standings.drivers}
+          constructorStandings={standings.constructors}
           initialFavoriteDriver={profile?.favoriteDriver}
           initialFavoriteTeam={profile?.favoriteTeam}
         />
