@@ -40,9 +40,9 @@ export function Hero() {
           className="mt-4 max-w-xl text-base text-neutral-300 sm:text-lg"
         >
           F1 Hub tracks the 2026 Formula 1 season end to end: full results, pole positions, and
-          standout performances for every race that's happened, and machine-learning predictions
-          for finishing order, pole, and race pace for every race that hasn't — the moment
-          qualifying data exists.
+          standout performances for every race that&apos;s happened, and machine-learning
+          predictions for finishing order, pole, and race pace for every race that hasn&apos;t,
+          the moment qualifying data exists.
         </motion.p>
         <motion.div
           initial="hidden"
