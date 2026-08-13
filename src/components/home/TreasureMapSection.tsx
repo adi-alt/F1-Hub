@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, type MotionValue } from "framer-motion";
 
 const INK = "#c9a668"; // aged-map ink: warm gold, for labels only now that the route itself is tarmac
 const TARMAC = "#33333a";
@@ -173,6 +173,80 @@ function Tree({ x, y, scale }: { x: number; y: number; scale: number }) {
   );
 }
 
+// A top-down car, nose along +x in its own local space, rotated to match the road's tangent at
+// whatever point the scroll position corresponds to - moves as this section scrolls through the
+// viewport, not on a timer, so it tracks how far down the story you actually are.
+function MovingCar({
+  pathRef,
+  sectionRef,
+  sizeScale,
+}: {
+  pathRef: React.RefObject<SVGPathElement | null>;
+  sectionRef: React.RefObject<HTMLDivElement | null>;
+  sizeScale: number;
+}) {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const rotate = useMotionValue(0);
+
+  useEffect(() => {
+    if (!sectionRef.current || !pathRef.current) return;
+    const section: HTMLDivElement = sectionRef.current;
+    const path: SVGPathElement = pathRef.current;
+
+    let scrollParent: HTMLElement | Window = window;
+    let node = section.parentElement;
+    while (node) {
+      if (getComputedStyle(node).overflowY === "auto") {
+        scrollParent = node;
+        break;
+      }
+      node = node.parentElement;
+    }
+
+    let raf = 0;
+    function update() {
+      const total = path.getTotalLength();
+      if (total === 0) return;
+      const rect = section.getBoundingClientRect();
+      const viewportHeight = scrollParent === window ? window.innerHeight : (scrollParent as HTMLElement).clientHeight;
+      const progress = Math.min(1, Math.max(0, (viewportHeight - rect.top) / (rect.height + viewportHeight)));
+      const len = progress * total;
+      const point = path.getPointAtLength(len);
+      const ahead = path.getPointAtLength(Math.min(len + 2, total));
+      x.set(point.x);
+      y.set(point.y);
+      rotate.set((Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180) / Math.PI);
+    }
+    function onScroll() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    }
+
+    update();
+    scrollParent.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      scrollParent.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [pathRef, sectionRef, x, y, rotate]);
+
+  return (
+    <motion.g style={{ x, y, rotate } as Record<string, MotionValue<number>>}>
+      <g transform={`scale(${sizeScale})`}>
+        <ellipse cx="0" cy="0" rx="10" ry="5" fill="var(--f1-red)" />
+        <rect x="-6" y="-2.4" width="8" height="4.8" rx="1.4" fill="#15151a" />
+        <circle cx="-6" cy="-5.6" r="1.7" fill="#0c0c0e" />
+        <circle cx="-6" cy="5.6" r="1.7" fill="#0c0c0e" />
+        <circle cx="4" cy="-5.6" r="1.7" fill="#0c0c0e" />
+        <circle cx="4" cy="5.6" r="1.7" fill="#0c0c0e" />
+      </g>
+    </motion.g>
+  );
+}
+
 // A rounded body with a few overlapping circular bumps along the top edge, the standard
 // low-tech way to fake a cloud/thought-bubble shape without an SVG silhouette that would have
 // to gracefully fit arbitrary text lengths.
@@ -202,6 +276,7 @@ function CloudCallout({ stat, title, body }: { stat: string; title: string; body
 
 export function TreasureMapSection() {
   const { ref, size } = useMeasuredSize();
+  const pathRef = useRef<SVGPathElement>(null);
 
   const roadPath = useMemo(() => (size ? buildRoadPath(size.width, size.height) : null), [size]);
   const tarmacWidth = size ? size.width * 0.07 : 0;
@@ -210,7 +285,7 @@ export function TreasureMapSection() {
   const sizeScale = size ? size.width / 400 : 1;
 
   return (
-    <div ref={ref} className="relative overflow-hidden bg-[var(--f1-carbon)]/40 px-6 py-14 sm:px-10">
+    <div ref={ref} className="relative overflow-hidden rounded-2xl bg-[var(--f1-carbon)]/40 px-6 py-14 sm:px-10">
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
       <div className="pointer-events-none absolute inset-0">
@@ -222,7 +297,7 @@ export function TreasureMapSection() {
 
             {/* The road surface itself - a real track, not an ink line: wide tarmac stroke, then
                 a dashed white centerline drawn in on scroll like lane markings being painted. */}
-            <path d={roadPath} fill="none" stroke={TARMAC} strokeWidth={tarmacWidth} strokeLinecap="round" />
+            <path ref={pathRef} d={roadPath} fill="none" stroke={TARMAC} strokeWidth={tarmacWidth} strokeLinecap="round" />
             <motion.path
               d={roadPath}
               fill="none"
@@ -235,6 +310,8 @@ export function TreasureMapSection() {
               viewport={{ once: true }}
               transition={{ duration: 2, ease: "easeInOut" }}
             />
+
+            <MovingCar pathRef={pathRef} sectionRef={ref} sizeScale={sizeScale} />
           </svg>
         )}
       </div>
