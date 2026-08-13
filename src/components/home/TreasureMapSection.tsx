@@ -2,7 +2,9 @@
 
 import { motion } from "framer-motion";
 
-const INK = "#c9a668"; // aged-map ink: warm gold, distinct from the site's red accent
+const INK = "#c9a668"; // aged-map ink: warm gold, for labels only now that the route itself is tarmac
+const TARMAC = "#33333a";
+const CONE_ORANGE = "#ff6a00";
 
 const BEATS = [
   {
@@ -35,8 +37,8 @@ const BEATS = [
 function CompassRose({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 100 100" className={className} aria-hidden>
-      <circle cx="50" cy="50" r="34" fill="none" stroke={INK} strokeWidth="1" opacity={0.5} />
-      <circle cx="50" cy="50" r="3" fill={INK} opacity={0.6} />
+      <circle cx="50" cy="50" r="34" fill="none" stroke="var(--f1-red)" strokeWidth="1" opacity={0.6} />
+      <circle cx="50" cy="50" r="3" fill="var(--f1-red)" opacity={0.7} />
       {[0, 90, 180, 270].map((deg) => (
         <line
           key={deg}
@@ -44,27 +46,33 @@ function CompassRose({ className = "" }: { className?: string }) {
           y1="50"
           x2={50 + 40 * Math.cos((deg * Math.PI) / 180)}
           y2={50 + 40 * Math.sin((deg * Math.PI) / 180)}
-          stroke={INK}
+          stroke="var(--f1-red)"
           strokeWidth="1"
-          opacity={0.5}
+          opacity={0.6}
         />
       ))}
-      <path d="M 50 12 L 57 50 L 50 88 L 43 50 Z" fill={INK} opacity={0.35} />
-      <text x="50" y="8" textAnchor="middle" fontSize="8" fill={INK} opacity={0.7}>
+      <path d="M 50 12 L 57 50 L 50 88 L 43 50 Z" fill="var(--f1-red)" opacity={0.4} />
+      <text x="50" y="8" textAnchor="middle" fontSize="8" fill="var(--f1-red)" opacity={0.8}>
         N
       </text>
     </svg>
   );
 }
 
-function Pin({ number }: { number: number }) {
+// A traffic cone, not a plain pin - orange body, reflective stripe, dark base - with the
+// waypoint number on a small badge at its foot rather than replacing the cone shape entirely.
+function Cone({ number }: { number: number }) {
   return (
-    <span
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold text-white"
-      style={{ borderColor: INK, backgroundColor: "var(--f1-carbon)" }}
-    >
-      {number}
-    </span>
+    <div className="relative flex h-14 w-11 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 40 50" className="h-14 w-11" aria-hidden>
+        <rect x="3" y="43" width="34" height="6" rx="1.5" fill="#111114" />
+        <path d="M 6 46 L 34 46 L 22 10 L 18 10 Z" fill={CONE_ORANGE} />
+        <path d="M 11.3 30 L 28.7 30 L 30.7 36 L 9.3 36 Z" fill="#f5f5f5" />
+      </svg>
+      <span className="absolute -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--f1-carbon)] text-[10px] font-bold text-white ring-1 ring-white/40">
+        {number}
+      </span>
+    </div>
   );
 }
 
@@ -103,13 +111,22 @@ export function TreasureMapSection() {
       <svg
         viewBox="0 0 400 1200"
         preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-60"
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-80"
         aria-hidden
       >
+        {/* The road surface itself - a real track, not an ink line: wide tarmac stroke, then a
+            dashed white centerline drawn in on scroll like lane markings being painted. */}
+        <path
+          d="M 200 0 C 340 100, 340 200, 200 280 C 60 360, 60 460, 200 540 C 340 620, 340 720, 200 800 C 60 880, 60 980, 200 1060 C 340 1140, 340 1180, 200 1200"
+          fill="none"
+          stroke={TARMAC}
+          strokeWidth={26}
+          strokeLinecap="round"
+        />
         <motion.path
           d="M 200 0 C 340 100, 340 200, 200 280 C 60 360, 60 460, 200 540 C 340 620, 340 720, 200 800 C 60 880, 60 980, 200 1060 C 340 1140, 340 1180, 200 1200"
           fill="none"
-          stroke={INK}
+          stroke="#f2f2f3"
           strokeWidth={2}
           strokeDasharray="10 10"
           strokeLinecap="round"
@@ -133,7 +150,7 @@ export function TreasureMapSection() {
               className={`flex ${fromLeft ? "md:justify-start" : "md:justify-end"}`}
             >
               <div className={`flex items-start gap-4 ${fromLeft ? "" : "md:flex-row-reverse"}`}>
-                <Pin number={i + 1} />
+                <Cone number={i + 1} />
                 <CloudCallout stat={beat.stat} title={beat.title} body={beat.body} />
               </div>
             </motion.div>
