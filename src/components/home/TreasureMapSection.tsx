@@ -1,10 +1,28 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ValleyScene } from "@/components/three/ValleyScene";
 
-const INK = "#c9a668"; // aged-map ink: warm gold, for the stat labels
+const INK = "#c9a668"; // aged-map ink: warm gold, for labels only now that the route itself is tarmac
+const TARMAC = "#33333a";
 const CROWD = ["#c9c9d0", "#9a9aa2", "#e8e8ec", "var(--f1-red)", "#9a9aa2", "#c9c9d0"];
+
+// A handful of fixed positions flanking the winding road, alternating sides down its length -
+// purely decorative scenery, not tied to any waypoint.
+const TREE_SPOTS: [number, number, number][] = [
+  [40, 60, 1],
+  [365, 130, 0.8],
+  [30, 240, 0.9],
+  [370, 340, 1.1],
+  [45, 430, 0.85],
+  [355, 500, 1],
+  [35, 610, 1.05],
+  [368, 700, 0.9],
+  [40, 790, 1],
+  [360, 880, 0.85],
+  [35, 970, 1.1],
+  [365, 1060, 0.9],
+  [50, 1140, 1],
+];
 
 const BEATS = [
   {
@@ -34,39 +52,33 @@ const BEATS = [
   },
 ];
 
-function MapDefs() {
+function CompassRose({ className = "" }: { className?: string }) {
   return (
-    <defs>
-      <linearGradient id="standGradient" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#5c5c66" />
-        <stop offset="100%" stopColor="#31313a" />
-      </linearGradient>
-      <linearGradient id="roofGradient" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#ff3b30" />
-        <stop offset="100%" stopColor="#a5030a" />
-      </linearGradient>
-      <linearGradient id="podiumGold" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#ff453d" />
-        <stop offset="100%" stopColor="#96030a" />
-      </linearGradient>
-      <linearGradient id="podiumSilver" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#aaaab3" />
-        <stop offset="100%" stopColor="#63636c" />
-      </linearGradient>
-      <linearGradient id="podiumBronze" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#71717a" />
-        <stop offset="100%" stopColor="#414149" />
-      </linearGradient>
-      <filter id="softShadow" x="-60%" y="-60%" width="220%" height="220%">
-        <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#000" floodOpacity="0.4" />
-      </filter>
-    </defs>
+    <svg viewBox="0 0 100 100" className={className} aria-hidden>
+      <circle cx="50" cy="50" r="34" fill="none" stroke="var(--f1-red)" strokeWidth="1" opacity={0.6} />
+      <circle cx="50" cy="50" r="3" fill="var(--f1-red)" opacity={0.7} />
+      {[0, 90, 180, 270].map((deg) => (
+        <line
+          key={deg}
+          x1="50"
+          y1="50"
+          x2={50 + 40 * Math.cos((deg * Math.PI) / 180)}
+          y2={50 + 40 * Math.sin((deg * Math.PI) / 180)}
+          stroke="var(--f1-red)"
+          strokeWidth="1"
+          opacity={0.6}
+        />
+      ))}
+      <path d="M 50 12 L 57 50 L 50 88 L 43 50 Z" fill="var(--f1-red)" opacity={0.4} />
+      <text x="50" y="8" textAnchor="middle" fontSize="8" fill="var(--f1-red)" opacity={0.8}>
+        N
+      </text>
+    </svg>
   );
 }
 
-// Tiered seating with shaded rows, a scattered crowd, a two-tone roof with a ridge line and
-// support struts, and a ground shadow - a grandstand with some real dimension to it, not a flat
-// cutout. The waypoint number sits on a badge at the foot.
+// Tiered seating, a crowd of small dots, a red roof canopy - a grandstand alongside the track,
+// not a cone marking it. The waypoint number sits on a badge at the foot, same as before.
 function Grandstand({ number }: { number: number }) {
   const rows = [
     { y: 34, x: 4, w: 42 },
@@ -74,18 +86,14 @@ function Grandstand({ number }: { number: number }) {
     { y: 18, x: 10, w: 30 },
   ];
   return (
-    <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
-      <svg viewBox="0 0 50 58" className="h-16 w-16" aria-hidden>
-        <ellipse cx="25" cy="53" rx="20" ry="3" fill="#000" opacity={0.35} />
+    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 50 56" className="h-14 w-14" aria-hidden>
         <rect x="8" y="42" width="3" height="10" fill="#3a3a40" />
         <rect x="39" y="42" width="3" height="10" fill="#3a3a40" />
-        <line x1="25" y1="6" x2="8" y2="18" stroke="#8a1a10" strokeWidth="1.2" />
-        <line x1="25" y1="6" x2="42" y2="18" stroke="#8a1a10" strokeWidth="1.2" />
-        <path d="M 2 18 L 25 5 L 48 18 Z" fill="url(#roofGradient)" filter="url(#softShadow)" />
-        <line x1="25" y1="5" x2="25" y2="18" stroke="#7a0208" strokeWidth="1" opacity={0.5} />
+        <path d="M 2 18 L 25 5 L 48 18 Z" fill="var(--f1-red)" />
         {rows.map((row, r) => (
           <g key={r}>
-            <rect x={row.x} y={row.y} width={row.w} height={8} fill="url(#standGradient)" />
+            <rect x={row.x} y={row.y} width={row.w} height={8} fill={r % 2 === 0 ? "#4a4a52" : "#3e3e46"} />
             {Array.from({ length: 6 }, (_, i) => (
               <circle
                 key={i}
@@ -102,6 +110,17 @@ function Grandstand({ number }: { number: number }) {
         {number}
       </span>
     </div>
+  );
+}
+
+function Tree({ x, y, scale }: { x: number; y: number; scale: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`} opacity={0.5}>
+      <rect x="-2" y="10" width="4" height="10" fill="#4a3b2f" />
+      <circle cx="0" cy="2" r="9" fill="#3f5a44" />
+      <circle cx="-6" cy="7" r="6" fill="#3a5340" />
+      <circle cx="6" cy="7" r="6" fill="#3a5340" />
+    </g>
   );
 }
 
@@ -134,16 +153,43 @@ function CloudCallout({ stat, title, body }: { stat: string; title: string; body
 
 export function TreasureMapSection() {
   return (
-    <div className="relative">
-      {/* Defs shared by every Grandstand/podium svg below via document-wide id lookup - one copy
-          rather than one per instance. */}
-      <svg width={0} height={0} aria-hidden>
-        <MapDefs />
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon-2)] px-6 py-14 sm:px-10">
+      <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
+
+      <svg
+        viewBox="0 0 400 1200"
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-80"
+        aria-hidden
+      >
+        {TREE_SPOTS.map(([x, y, scale], i) => (
+          <Tree key={i} x={x} y={y} scale={scale} />
+        ))}
+
+        {/* The road surface itself - a real track, not an ink line: wide tarmac stroke, then a
+            dashed white centerline drawn in on scroll like lane markings being painted. */}
+        <path
+          d="M 200 0 C 340 100, 340 200, 200 280 C 60 360, 60 460, 200 540 C 340 620, 340 720, 200 800 C 60 880, 60 980, 200 1060 C 340 1140, 340 1180, 200 1200"
+          fill="none"
+          stroke={TARMAC}
+          strokeWidth={26}
+          strokeLinecap="round"
+        />
+        <motion.path
+          d="M 200 0 C 340 100, 340 200, 200 280 C 60 360, 60 460, 200 540 C 340 620, 340 720, 200 800 C 60 880, 60 980, 200 1060 C 340 1140, 340 1180, 200 1200"
+          fill="none"
+          stroke="#f2f2f3"
+          strokeWidth={2}
+          strokeDasharray="10 10"
+          strokeLinecap="round"
+          initial={{ pathLength: 0 }}
+          whileInView={{ pathLength: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 2, ease: "easeInOut" }}
+        />
       </svg>
 
-      <ValleyScene />
-
-      <div className="relative mt-10 space-y-14 sm:space-y-20">
+      <div className="relative space-y-14 sm:space-y-20">
         {BEATS.map((beat, i) => {
           const fromLeft = i % 2 === 0;
           return (
@@ -162,36 +208,31 @@ export function TreasureMapSection() {
             </motion.div>
           );
         })}
-
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="flex flex-col items-center gap-2 pt-4 text-center"
-        >
-          <svg viewBox="0 0 120 84" className="h-16 w-24" aria-hidden>
-            <ellipse cx="60" cy="70" rx="56" ry="4" fill="#000" opacity={0.35} />
-            <path
-              d="M 58 4 L 62 12 L 70 13 L 64 19 L 66 27 L 58 22 L 50 27 L 52 19 L 46 13 L 54 12 Z"
-              fill="var(--f1-red)"
-            />
-            <rect x="4" y="34" width="32" height="34" fill="url(#podiumSilver)" filter="url(#softShadow)" />
-            <text x="20" y="55" textAnchor="middle" fontSize="16" fontWeight="700" fill="white">
-              2
-            </text>
-            <rect x="44" y="12" width="32" height="56" fill="url(#podiumGold)" filter="url(#softShadow)" />
-            <text x="60" y="45" textAnchor="middle" fontSize="18" fontWeight="700" fill="white">
-              1
-            </text>
-            <rect x="84" y="42" width="32" height="26" fill="url(#podiumBronze)" filter="url(#softShadow)" />
-            <text x="100" y="60" textAnchor="middle" fontSize="14" fontWeight="700" fill="white">
-              3
-            </text>
-          </svg>
-          <p className="text-sm text-neutral-400">That&apos;s the whole lap.</p>
-        </motion.div>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="relative mt-16 flex flex-col items-center gap-2 text-center"
+      >
+        <svg viewBox="0 0 120 74" className="h-16 w-24" aria-hidden>
+          <rect x="4" y="34" width="32" height="34" fill="#6b6b74" />
+          <text x="20" y="55" textAnchor="middle" fontSize="16" fontWeight="700" fill="white">
+            2
+          </text>
+          <rect x="44" y="12" width="32" height="56" fill="var(--f1-red)" />
+          <text x="60" y="45" textAnchor="middle" fontSize="18" fontWeight="700" fill="white">
+            1
+          </text>
+          <rect x="84" y="42" width="32" height="26" fill="#4a4a52" />
+          <text x="100" y="60" textAnchor="middle" fontSize="14" fontWeight="700" fill="white">
+            3
+          </text>
+        </svg>
+        <p className="text-sm text-neutral-400">That&apos;s the whole lap.</p>
+      </motion.div>
     </div>
   );
 }
