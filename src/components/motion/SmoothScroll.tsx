@@ -1,14 +1,39 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useLenisPage } from "./useLenisContainer";
+import { Footer } from "@/components/Footer";
+import { useLenisContainer } from "./useLenisContainer";
 
-/** Mounted once in the root layout. Re-initializes on pathname change (see useLenisPage) —
- * that re-init, plus the delayed-init/guarded-cleanup hardening ported from Nexus, is what fixes
- * the "stuck after navigating" bug the previous naive `new Lenis()` + bare raf loop had. No
- * visual output; just drives Lenis's requestAnimationFrame loop. */
-export function SmoothScroll() {
+/**
+ * The app's root scroll region — mounted once in the root layout around `<main>`, with the
+ * header sitting outside it as a non-scrolling flex sibling. Uses a state setter as the ref
+ * (not a plain useRef) so the DOM node reaching `useLenisContainer` triggers a real re-render the
+ * moment it attaches, rather than depending on some unrelated re-render to pick up the change —
+ * Nexus's own call sites get away with `ref.current` because those pages happen to re-render
+ * often anyway (live timers, polling); this page doesn't have that, so it needs its own trigger.
+ */
+export function SmoothScroll({ children }: { children: React.ReactNode }) {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const pathname = usePathname();
-  useLenisPage(undefined, pathname);
-  return null;
+  useLenisContainer(container, undefined, pathname);
+
+  // Next.js's built-in "scroll to top on navigation" only touches window scroll — since this
+  // container owns scroll instead, it has to reset itself on every route change.
+  useEffect(() => {
+    container?.scrollTo({ top: 0 });
+  }, [pathname, container]);
+
+  return (
+    <div ref={setContainer} className="flex-1 overflow-y-auto">
+      {/* One wrapper, not two siblings — Lenis measures its `content` node's height as the
+          scroll limit, and this hook resolves that to the container's first child, so the
+          footer has to live inside the same node as `main` or its height falls outside what
+          Lenis thinks is scrollable. */}
+      <div className="flex min-h-full flex-col">
+        <main className="flex-1">{children}</main>
+        <Footer />
+      </div>
+    </div>
+  );
 }

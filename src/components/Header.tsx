@@ -12,7 +12,7 @@ export function Header() {
   const admin = !!role && permissionsForRole(role).canAccessAdmin;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
+    <header className="relative z-50 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
       <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight transition hover:opacity-80">
           <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
@@ -27,6 +27,9 @@ export function Header() {
             </Link>
             <Link href="/circuits" className="transition hover:text-white">
               Circuits
+            </Link>
+            <Link href="/archive" className="transition hover:text-white">
+              Archive
             </Link>
             {admin && (
               <Link href="/admin" className="transition hover:text-white">

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "F1 Hub — 2026 Predictions",
+  title: "F1 Hub: 2026 Predictions",
   description: "Race results, track history, and ML-driven predictions for the 2026 F1 season.",
 };
 
@@ -30,11 +30,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <body className="flex h-full flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
         <AuthProvider>
-          <SmoothScroll />
           <Header />
-          <main className="flex-1">{children}</main>
+          <SmoothScroll>{children}</SmoothScroll>
         </AuthProvider>
       </body>
     </html>
