@@ -153,7 +153,7 @@ function CloudCallout({ stat, title, body }: { stat: string; title: string; body
 
 export function TreasureMapSection() {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon-2)] px-6 py-14 sm:px-10">
+    <div className="relative overflow-hidden bg-[var(--background)] px-6 py-14 sm:px-10">
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
       <svg
