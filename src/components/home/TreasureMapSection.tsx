@@ -28,19 +28,41 @@ const TREE_SPOTS: [number, number, number, number][] = Array.from({ length: TREE
 // math, just placed to sit near x=0 and x=400 so they read as distant peaks either side of the
 // track rather than boxed decoration.
 const MOUNTAINS: { x: number; y: number; w: number; h: number; shade: string }[] = [
-  { x: -40, y: 10, w: 160, h: 200, shade: "#232b38" },
-  { x: -20, y: 190, w: 140, h: 170, shade: "#1c222c" },
-  { x: -45, y: 430, w: 170, h: 210, shade: "#232b38" },
-  { x: -15, y: 690, w: 150, h: 180, shade: "#1c222c" },
-  { x: -40, y: 930, w: 165, h: 210, shade: "#232b38" },
-  { x: -20, y: 1170, w: 150, h: 190, shade: "#1c222c" },
-  { x: 300, y: 0, w: 160, h: 190, shade: "#1c222c" },
-  { x: 330, y: 180, w: 140, h: 170, shade: "#232b38" },
-  { x: 295, y: 420, w: 170, h: 200, shade: "#1c222c" },
-  { x: 325, y: 680, w: 150, h: 180, shade: "#232b38" },
-  { x: 295, y: 920, w: 165, h: 210, shade: "#1c222c" },
-  { x: 320, y: 1170, w: 150, h: 190, shade: "#232b38" },
+  { x: -50, y: 10, w: 190, h: 210, shade: "#232b38" },
+  { x: -25, y: 190, w: 160, h: 180, shade: "#1c222c" },
+  { x: -55, y: 430, w: 200, h: 220, shade: "#232b38" },
+  { x: -20, y: 690, w: 170, h: 190, shade: "#1c222c" },
+  { x: -50, y: 930, w: 195, h: 220, shade: "#232b38" },
+  { x: -25, y: 1170, w: 175, h: 200, shade: "#1c222c" },
+  { x: 290, y: 0, w: 190, h: 200, shade: "#1c222c" },
+  { x: 320, y: 180, w: 160, h: 180, shade: "#232b38" },
+  { x: 280, y: 420, w: 200, h: 210, shade: "#1c222c" },
+  { x: 315, y: 680, w: 170, h: 190, shade: "#232b38" },
+  { x: 280, y: 920, w: 195, h: 220, shade: "#1c222c" },
+  { x: 310, y: 1170, w: 175, h: 200, shade: "#232b38" },
 ];
+
+// A few small trees climbing each mountain's slope, on both sides, shrinking toward the peak -
+// forested mountains rather than bare silhouettes with trees floating separately beside them.
+const SLOPE_TREES: [number, number, number, number][] = MOUNTAINS.flatMap((m, mi) => {
+  const peakX = m.x + m.w / 2;
+  return Array.from({ length: 4 }, (_, i) => {
+    const t = 0.22 + i * 0.16;
+    const onLeftSlope = i % 2 === 0;
+    const slopeX = onLeftSlope ? m.x + t * (peakX - m.x) : m.x + m.w - t * (m.x + m.w - peakX);
+    const slopeY = m.y + m.h - t * m.h * 0.85;
+    return [slopeX, slopeY, 0.4 + t * 0.35, (mi + i) % 3] as [number, number, number, number];
+  });
+});
+
+// Rounded rock clusters at the foot of each mountain.
+const BOULDERS: [number, number, number][] = MOUNTAINS.flatMap((m, i) => {
+  const baseY = m.y + m.h - 8;
+  return [
+    [m.x + m.w * 0.22, baseY, 0.8 + Math.abs(Math.sin(i * 3)) * 0.5],
+    [m.x + m.w * 0.62, baseY + 10, 0.6 + Math.abs(Math.cos(i * 2)) * 0.4],
+  ] as [number, number, number][];
+});
 
 const BEATS = [
   {
@@ -133,16 +155,35 @@ function CompassRose({ className = "" }: { className?: string }) {
   );
 }
 
+// A bumpy, rounded silhouette rather than one sharp triangle, plus a real rounded snow cap
+// blob near the peak - softer and closer to an actual mountain than a geometric wedge.
 function Mountain({ x, y, w, h, shade }: { x: number; y: number; w: number; h: number; shade: string }) {
   const peakX = x + w / 2;
+  const body =
+    `M ${x} ${y + h} ` +
+    `C ${x + w * 0.15} ${y + h * 0.68}, ${x + w * 0.25} ${y + h * 0.52}, ${x + w * 0.35} ${y + h * 0.38} ` +
+    `C ${x + w * 0.42} ${y + h * 0.2}, ${peakX - w * 0.05} ${y + h * 0.05}, ${peakX} ${y} ` +
+    `C ${peakX + w * 0.05} ${y + h * 0.05}, ${x + w * 0.58} ${y + h * 0.2}, ${x + w * 0.65} ${y + h * 0.38} ` +
+    `C ${x + w * 0.75} ${y + h * 0.52}, ${x + w * 0.85} ${y + h * 0.68}, ${x + w} ${y + h} Z`;
+  const cap =
+    `M ${peakX - w * 0.11} ${y + h * 0.21} ` +
+    `C ${peakX - w * 0.09} ${y + h * 0.11}, ${peakX - w * 0.04} ${y + h * 0.03}, ${peakX} ${y} ` +
+    `C ${peakX + w * 0.04} ${y + h * 0.03}, ${peakX + w * 0.09} ${y + h * 0.11}, ${peakX + w * 0.11} ${y + h * 0.21} ` +
+    `C ${peakX + w * 0.04} ${y + h * 0.26}, ${peakX - w * 0.04} ${y + h * 0.26}, ${peakX - w * 0.11} ${y + h * 0.21} Z`;
   return (
-    <g opacity={0.9}>
-      <path d={`M ${x} ${y + h} L ${peakX} ${y} L ${x + w} ${y + h} Z`} fill={shade} />
-      <path
-        d={`M ${peakX - w * 0.13} ${y + h * 0.16} L ${peakX} ${y} L ${peakX + w * 0.13} ${y + h * 0.16} L ${peakX} ${y + h * 0.09} Z`}
-        fill="#5a6b80"
-        opacity={0.55}
-      />
+    <g opacity={0.92}>
+      <path d={body} fill={shade} />
+      <path d={cap} fill="#e8edf2" opacity={0.85} />
+    </g>
+  );
+}
+
+function Boulder({ x, y, scale }: { x: number; y: number; scale: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`} opacity={0.85}>
+      <ellipse cx="0" cy="4.5" rx="5.5" ry="1.3" fill="#000" opacity={0.25} />
+      <path d="M -4 3 C -5 -1, -2 -4, 2 -3 C 5 -2, 5 1, 3 3 C 1 4.5, -2 4.5, -4 3 Z" fill="#6b6f6a" />
+      <path d="M -3 1 C -3 -1, -1 -2.5, 1 -2" stroke="#8a8f88" strokeWidth="1" fill="none" opacity={0.6} />
     </g>
   );
 }
@@ -333,7 +374,9 @@ export function TreasureMapSection() {
   const pathRef = useRef<SVGPathElement>(null);
 
   return (
-    <div ref={sectionRef} className="relative overflow-hidden px-6 py-14 sm:px-10">
+    // Full-bleed: this section's parent is a max-w-6xl reading column, but the scene itself
+    // should run to the actual edges of the viewport, not stop where the text does.
+    <div ref={sectionRef} className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden py-14">
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
       <svg
@@ -347,9 +390,18 @@ export function TreasureMapSection() {
         {MOUNTAINS.map((m, i) => (
           <Mountain key={i} {...m} />
         ))}
+        {BOULDERS.map(([x, y, scale], i) => (
+          <Boulder key={i} x={x} y={y} scale={scale} />
+        ))}
+        {SLOPE_TREES.map(([x, y, scale, variant], i) => {
+          const TreeVariant = TREE_VARIANTS[variant];
+          return <TreeVariant key={`slope-${i}`} x={x} y={y} scale={scale} />;
+        })}
 
-        {/* Grass runoff either side of the tarmac - the same path, a wider and lower stroke. */}
-        <path d={TRACK_PATH} fill="none" stroke={GRASS} strokeWidth={90} strokeLinecap="round" />
+        {/* Grass runoff either side of the tarmac, then a white shoulder line peeking out from
+            under the tarmac, then the tarmac itself - the same path, three widths. */}
+        <path d={TRACK_PATH} fill="none" stroke={GRASS} strokeWidth={110} strokeLinecap="round" />
+        <path d={TRACK_PATH} fill="none" stroke="#e8e8ec" strokeWidth={50} strokeLinecap="round" />
 
         {TREE_SPOTS.map(([x, y, scale, variant], i) => {
           const TreeVariant = TREE_VARIANTS[variant];
@@ -375,7 +427,9 @@ export function TreasureMapSection() {
         <MovingCar pathRef={pathRef} sectionRef={sectionRef} />
       </svg>
 
-      <div className="relative space-y-14 sm:space-y-20">
+      {/* The callouts stay at the page's normal reading width, centered inside the full-bleed
+          scene behind them, so the text lines up with everything else on the page. */}
+      <div className="relative mx-auto max-w-6xl space-y-14 px-4 sm:space-y-20 sm:px-6">
         {BEATS.map((beat, i) => {
           const fromLeft = i % 2 === 0;
           return (
@@ -394,36 +448,36 @@ export function TreasureMapSection() {
             </motion.div>
           );
         })}
-      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5 }}
-        className="relative mt-16 flex flex-col items-center gap-2 text-center"
-      >
-        <svg viewBox="0 0 120 84" className="h-16 w-24" aria-hidden>
-          <ellipse cx="60" cy="70" rx="56" ry="4" fill="#000" opacity={0.35} />
-          <path
-            d="M 58 4 L 62 12 L 70 13 L 64 19 L 66 27 L 58 22 L 50 27 L 52 19 L 46 13 L 54 12 Z"
-            fill="var(--f1-red)"
-          />
-          <rect x="4" y="34" width="32" height="34" fill="url(#podiumSilver)" filter="url(#softShadow)" />
-          <text x="20" y="55" textAnchor="middle" fontSize="16" fontWeight="700" fill="white">
-            2
-          </text>
-          <rect x="44" y="12" width="32" height="56" fill="url(#podiumGold)" filter="url(#softShadow)" />
-          <text x="60" y="45" textAnchor="middle" fontSize="18" fontWeight="700" fill="white">
-            1
-          </text>
-          <rect x="84" y="42" width="32" height="26" fill="url(#podiumBronze)" filter="url(#softShadow)" />
-          <text x="100" y="60" textAnchor="middle" fontSize="14" fontWeight="700" fill="white">
-            3
-          </text>
-        </svg>
-        <p className="text-sm text-neutral-400">That&apos;s the whole lap.</p>
-      </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col items-center gap-2 pt-4 text-center"
+        >
+          <svg viewBox="0 0 120 84" className="h-16 w-24" aria-hidden>
+            <ellipse cx="60" cy="70" rx="56" ry="4" fill="#000" opacity={0.35} />
+            <path
+              d="M 58 4 L 62 12 L 70 13 L 64 19 L 66 27 L 58 22 L 50 27 L 52 19 L 46 13 L 54 12 Z"
+              fill="var(--f1-red)"
+            />
+            <rect x="4" y="34" width="32" height="34" fill="url(#podiumSilver)" filter="url(#softShadow)" />
+            <text x="20" y="55" textAnchor="middle" fontSize="16" fontWeight="700" fill="white">
+              2
+            </text>
+            <rect x="44" y="12" width="32" height="56" fill="url(#podiumGold)" filter="url(#softShadow)" />
+            <text x="60" y="45" textAnchor="middle" fontSize="18" fontWeight="700" fill="white">
+              1
+            </text>
+            <rect x="84" y="42" width="32" height="26" fill="url(#podiumBronze)" filter="url(#softShadow)" />
+            <text x="100" y="60" textAnchor="middle" fontSize="14" fontWeight="700" fill="white">
+              3
+            </text>
+          </svg>
+          <p className="text-sm text-neutral-400">That&apos;s the whole lap.</p>
+        </motion.div>
+      </div>
     </div>
   );
 }
