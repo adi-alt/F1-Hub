@@ -1,7 +1,7 @@
 "use client";
 
 import { getApps, initializeApp, type FirebaseOptions } from "firebase/app";
-import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from "firebase/auth";
+import { browserLocalPersistence, getAuth, GithubAuthProvider, GoogleAuthProvider, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
@@ -18,6 +18,7 @@ const app = getApps()[0] ?? initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+export const githubProvider = new GithubAuthProvider();
 
 // Auth's default IndexedDB-backed persistence throws "Database is closing/hidden" across tab
 // visibility changes and dev-mode hot reloads (a well-known flaky spot in the SDK). localStorage

@@ -8,8 +8,12 @@ export type UserProfile = {
   displayName: string | null;
   role?: "admin" | "moderator";
   createdAt: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
   favoriteDriver?: string;
   favoriteTeam?: string;
+  favoriteTrack?: string;
   notifyBeforeQualifying?: boolean;
   notifyOnResults?: boolean;
 };
@@ -18,16 +22,27 @@ export type PreferencesPatch = Partial<
   Pick<UserProfile, "favoriteDriver" | "favoriteTeam" | "notifyBeforeQualifying" | "notifyOnResults">
 >;
 
-/** Creates users/{uid} on a brand-new sign-in — never overwrites an existing doc, so a later
- * profile/preference update here is never clobbered by a subsequent sign-in. The first admin is
- * granted here, once: if ADMIN_EMAILS (comma-separated) contains this email and no doc exists yet
- * for it, this is the moment it's created with role: "admin". Every admin after that is granted
- * via setUserRole from the admin dashboard, not this env var. */
-export async function ensureUserDoc(uid: string, email: string | null, displayName: string | null): Promise<void> {
-  const ref = adminDb.collection("users").doc(uid);
-  const existing = await ref.get();
-  if (existing.exists) return;
+export type NewProfileInput = {
+  firstName: string;
+  lastName: string;
+  username: string;
+  favoriteDriver?: string;
+  favoriteTeam?: string;
+  favoriteTrack?: string;
+};
 
+/** Creates users/{uid} once, at the end of the OTP-gated signup flow — never called for a
+ * returning user, so there's no "never overwrite an existing doc" guard to worry about here
+ * (complete-signup's route already rejects the call if a profile exists). The first admin is
+ * granted here, once: if ADMIN_EMAILS (comma-separated) contains this email, the new profile is
+ * created with role: "admin" directly. Every admin after that is granted via setUserRole from
+ * the admin dashboard, not this env var. */
+export async function createUserProfile(
+  uid: string,
+  email: string | null,
+  displayName: string | null,
+  input: NewProfileInput,
+): Promise<void> {
   const allowlist = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
@@ -39,9 +54,35 @@ export async function ensureUserDoc(uid: string, email: string | null, displayNa
     email,
     displayName,
     createdAt: new Date().toISOString(),
+    firstName: input.firstName,
+    lastName: input.lastName,
+    username: input.username,
+    ...(input.favoriteDriver ? { favoriteDriver: input.favoriteDriver } : {}),
+    ...(input.favoriteTeam ? { favoriteTeam: input.favoriteTeam } : {}),
+    ...(input.favoriteTrack ? { favoriteTrack: input.favoriteTrack } : {}),
     ...(isBootstrapAdmin ? { role: "admin" as const } : {}),
   };
-  await ref.set(doc);
+  await adminDb.collection("users").doc(uid).set(doc);
+}
+
+/** Exact-match, case-insensitive via a lowercased mirror isn't worth the extra field at this
+ * scale - usernames are short and this collection isn't huge, so a direct query is fine. */
+export async function isUsernameTaken(username: string): Promise<boolean> {
+  const snap = await adminDb.collection("users").where("username", "==", username).limit(1).get();
+  return !snap.empty;
+}
+
+/** A handful of deterministic variations (numeric suffixes) rather than anything clever - good
+ * enough for "someone else already picked this exact word" without a whole word-association
+ * generator. Stops as soon as it has 3 available options. */
+export async function suggestUsernames(base: string): Promise<string[]> {
+  const clean = base.toLowerCase().replace(/[^a-z0-9_]/g, "") || "fan";
+  const suggestions: string[] = [];
+  for (let i = 0; suggestions.length < 3 && i < 20; i++) {
+    const candidate = i === 0 ? clean : `${clean}${Math.floor(Math.random() * 9000) + 100}`;
+    if (!(await isUsernameTaken(candidate))) suggestions.push(candidate);
+  }
+  return suggestions;
 }
 
 /** Cursor-paginated, not "fetch everyone" — this collection is expected to grow into the

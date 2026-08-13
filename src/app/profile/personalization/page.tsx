@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PersonalizationForm } from "@/components/profile/PersonalizationForm";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getRacesByYear } from "@/lib/firestore/races";
+import { getCurrentEntrants, getRacesByYear } from "@/lib/firestore/races";
 import { getUserProfile } from "@/lib/firestore/users";
 import { getSession } from "@/lib/session/getSession";
 import { computeStandings } from "@/lib/standings";
@@ -16,15 +16,12 @@ export default async function PersonalizationPage() {
     );
   }
 
-  const [profile, races] = await Promise.all([getUserProfile(session.uid), getRacesByYear(new Date().getFullYear())]);
-
-  // The most recent race with a real grid — results if one's happened, otherwise the next
-  // race's qualifying-based inputs — gives an accurate, always-current driver/team list without
-  // needing a hardcoded roster that goes stale every time a seat changes.
-  const withEntrants = [...races].reverse().find((r) => (r.results?.length ?? 0) > 0 || (r.inputs?.length ?? 0) > 0);
-  const entrants = withEntrants?.results?.length
-    ? withEntrants.results.map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team }))
-    : (withEntrants?.inputs ?? []).map((i) => ({ driver: i.driver, driverName: i.driverName, team: i.team }));
+  const year = new Date().getFullYear();
+  const [profile, races, entrants] = await Promise.all([
+    getUserProfile(session.uid),
+    getRacesByYear(year),
+    getCurrentEntrants(year),
+  ]);
 
   // Same completed-races-only standings the season page shows — reused here so picking a
   // favorite immediately shows something real (points, wins, championship position) instead of

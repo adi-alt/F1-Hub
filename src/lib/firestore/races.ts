@@ -205,3 +205,15 @@ export const getNextUpcomingRace = unstable_cache(
   ["get-next-upcoming-race"],
   { revalidate: REVALIDATE_SECONDS },
 );
+
+/** The current grid — driver/team pairs from the most recent race with real results or a real
+ * qualifying-based grid, so this never needs a hardcoded roster that goes stale the moment a
+ * seat changes. Shared by the personalization page and the signup form. */
+export async function getCurrentEntrants(year: number): Promise<{ driver: string; driverName: string; team: string }[]> {
+  const races = await getRacesByYear(year);
+  const withEntrants = [...races].reverse().find((r) => (r.results?.length ?? 0) > 0 || (r.inputs?.length ?? 0) > 0);
+  if (!withEntrants) return [];
+  return withEntrants.results?.length
+    ? withEntrants.results.map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team }))
+    : (withEntrants.inputs ?? []).map((i) => ({ driver: i.driver, driverName: i.driverName, team: i.team }));
+}

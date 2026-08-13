@@ -16,6 +16,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // OTP codes, written and read only by the Admin SDK (lib/otp.ts) - never legitimate for a
+    // client to read (that would defeat the point) or write (that would let anyone verify
+    // themselves with a code they made up).
+    match /otp_codes/{email} {
+      allow read, write: if false;
+    }
+
     // A user's own picks for an upcoming race. Doc ID matches the race ID (`${year}_${slug}`).
     // Creating/updating a pick is only allowed while that race is still upcoming — once it's
     // completed, picks are read-only history.
