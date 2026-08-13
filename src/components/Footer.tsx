@@ -10,7 +10,7 @@ const EXPLORE_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-[var(--f1-line)] bg-[var(--f1-carbon)]">
+    <footer className="bg-[var(--background)]">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">

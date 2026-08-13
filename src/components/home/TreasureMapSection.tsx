@@ -1,27 +1,29 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 const INK = "#c9a668"; // aged-map ink: warm gold, for labels only now that the route itself is tarmac
 const TARMAC = "#33333a";
 const CROWD = ["#c9c9d0", "#9a9aa2", "#e8e8ec", "var(--f1-red)", "#9a9aa2", "#c9c9d0"];
 
-// A handful of fixed positions flanking the winding road, alternating sides down its length -
-// purely decorative scenery, not tied to any waypoint.
+// Fractional (0-1) positions flanking the road, alternating sides down its length - converted to
+// real pixels at render time against whatever the section actually measures, same as the road
+// itself (see buildRoadPath below for why that matters).
 const TREE_SPOTS: [number, number, number][] = [
-  [40, 60, 1],
-  [365, 130, 0.8],
-  [30, 240, 0.9],
-  [370, 340, 1.1],
-  [45, 430, 0.85],
-  [355, 500, 1],
-  [35, 610, 1.05],
-  [368, 700, 0.9],
-  [40, 790, 1],
-  [360, 880, 0.85],
-  [35, 970, 1.1],
-  [365, 1060, 0.9],
-  [50, 1140, 1],
+  [0.1, 0.05, 1],
+  [0.91, 0.11, 0.8],
+  [0.075, 0.2, 0.9],
+  [0.925, 0.28, 1.1],
+  [0.11, 0.36, 0.85],
+  [0.89, 0.42, 1],
+  [0.09, 0.51, 1.05],
+  [0.92, 0.58, 0.9],
+  [0.1, 0.66, 1],
+  [0.9, 0.73, 0.85],
+  [0.09, 0.81, 1.1],
+  [0.91, 0.88, 0.9],
+  [0.13, 0.95, 1],
 ];
 
 const BEATS = [
@@ -51,6 +53,53 @@ const BEATS = [
     body: "Built for someone watching their first Grand Prix this weekend, and for someone who's been arguing about Imola since before this site existed. Neither has to learn the other's vocabulary to use it.",
   },
 ];
+
+// Six segments, deliberately uneven sway - some nearly straight, a couple of gentle bends, one or
+// two sharp switchbacks - rather than one wave repeating at a constant amplitude, which is what
+// reads as artificial rather than like an actual road.
+const CURVE_INTENSITY = [0.1, 0.5, 1, 0.25, 0.75, 0.15];
+
+function buildRoadPath(width: number, height: number): string {
+  const midX = width / 2;
+  const maxSway = Math.min(width * 0.32, 260);
+  const segH = height / CURVE_INTENSITY.length;
+
+  let d = `M ${midX} 0`;
+  let prevX = midX;
+  CURVE_INTENSITY.forEach((intensity, i) => {
+    const side = i % 2 === 0 ? 1 : -1;
+    const targetX = midX + maxSway * intensity * side;
+    const y0 = i * segH;
+    const y1 = (i + 1) * segH;
+    d += ` C ${prevX} ${y0 + segH * 0.4}, ${targetX} ${y0 + segH * 0.6}, ${targetX} ${y1}`;
+    prevX = targetX;
+  });
+  return d;
+}
+
+// The previous version stretched a fixed 400x1200 viewBox to fill the section's actual (and
+// dynamic, text-length-dependent) size via preserveAspectRatio="none" - independent x/y scale
+// factors, which distorts anything stroke-based. A gentle bend near the top of the path, once
+// stretched vertically far more than horizontally, flattened into what looked like a straight
+// line across most of the width. Measuring the real box and building the path in true pixel
+// space keeps the scale uniform, so curves render the way they were actually drawn.
+function useMeasuredSize() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize({ width, height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, size };
+}
 
 function CompassRose({ className = "" }: { className?: string }) {
   return (
@@ -152,42 +201,45 @@ function CloudCallout({ stat, title, body }: { stat: string; title: string; body
 }
 
 export function TreasureMapSection() {
+  const { ref, size } = useMeasuredSize();
+
+  const roadPath = useMemo(() => (size ? buildRoadPath(size.width, size.height) : null), [size]);
+  const tarmacWidth = size ? size.width * 0.07 : 0;
+  const centerlineWidth = size ? Math.max(2, size.width * 0.006) : 2;
+  const dash = size ? size.width * 0.025 : 10;
+  const sizeScale = size ? size.width / 400 : 1;
+
   return (
-    <div className="relative overflow-hidden bg-[var(--background)] px-6 py-14 sm:px-10">
+    <div ref={ref} className="relative overflow-hidden bg-[var(--background)] px-6 py-14 sm:px-10">
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
-      <svg
-        viewBox="0 0 400 1200"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-0 h-full w-full opacity-80"
-        aria-hidden
-      >
-        {TREE_SPOTS.map(([x, y, scale], i) => (
-          <Tree key={i} x={x} y={y} scale={scale} />
-        ))}
+      {/* Blurred so the scenery sits back a step and feels atmospheric rather than a crisp layer
+          competing with the text on top of it. */}
+      <div className="pointer-events-none absolute inset-0 blur-[2px]">
+        {size && roadPath && (
+          <svg viewBox={`0 0 ${size.width} ${size.height}`} className="h-full w-full opacity-80" aria-hidden>
+            {TREE_SPOTS.map(([fx, fy, scale], i) => (
+              <Tree key={i} x={fx * size.width} y={fy * size.height} scale={scale * sizeScale} />
+            ))}
 
-        {/* The road surface itself - a real track, not an ink line: wide tarmac stroke, then a
-            dashed white centerline drawn in on scroll like lane markings being painted. */}
-        <path
-          d="M 200 0 C 340 100, 340 200, 200 280 C 60 360, 60 460, 200 540 C 340 620, 340 720, 200 800 C 60 880, 60 980, 200 1060 C 340 1140, 340 1180, 200 1200"
-          fill="none"
-          stroke={TARMAC}
-          strokeWidth={26}
-          strokeLinecap="round"
-        />
-        <motion.path
-          d="M 200 0 C 340 100, 340 200, 200 280 C 60 360, 60 460, 200 540 C 340 620, 340 720, 200 800 C 60 880, 60 980, 200 1060 C 340 1140, 340 1180, 200 1200"
-          fill="none"
-          stroke="#f2f2f3"
-          strokeWidth={2}
-          strokeDasharray="10 10"
-          strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          whileInView={{ pathLength: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 2, ease: "easeInOut" }}
-        />
-      </svg>
+            {/* The road surface itself - a real track, not an ink line: wide tarmac stroke, then
+                a dashed white centerline drawn in on scroll like lane markings being painted. */}
+            <path d={roadPath} fill="none" stroke={TARMAC} strokeWidth={tarmacWidth} strokeLinecap="round" />
+            <motion.path
+              d={roadPath}
+              fill="none"
+              stroke="#f2f2f3"
+              strokeWidth={centerlineWidth}
+              strokeDasharray={`${dash} ${dash}`}
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              whileInView={{ pathLength: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 2, ease: "easeInOut" }}
+            />
+          </svg>
+        )}
+      </div>
 
       <div className="relative space-y-14 sm:space-y-20">
         {BEATS.map((beat, i) => {
