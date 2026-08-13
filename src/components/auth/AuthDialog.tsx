@@ -35,6 +35,45 @@ function friendlyAuthError(err: unknown): string {
   return "Something went wrong. Try again.";
 }
 
+// A lightweight 2D illustration, not another WebGL canvas - a modal that opens and closes
+// repeatedly is exactly the wrong place to re-init a GLTF-loading r3f scene on every open.
+function FormulaScene() {
+  return (
+    <div className="relative flex h-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[var(--f1-carbon)] via-black to-[var(--f1-carbon-2)] p-8">
+      <svg viewBox="0 0 300 500" className="pointer-events-none absolute inset-0 h-full w-full opacity-70" aria-hidden>
+        <path
+          d="M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500"
+          fill="none"
+          stroke="#33333a"
+          strokeWidth="26"
+          strokeLinecap="round"
+        />
+        <path
+          d="M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500"
+          fill="none"
+          stroke="#f2f2f3"
+          strokeWidth="2"
+          strokeDasharray="10 10"
+          strokeLinecap="round"
+          opacity={0.5}
+        />
+      </svg>
+      <div className="relative z-10 flex items-center gap-2 text-lg font-bold tracking-tight text-white">
+        <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+        F1 HUB
+      </div>
+      <div className="relative z-10">
+        <p className="text-2xl font-bold leading-tight text-white">
+          Every race.
+          <br />
+          Every prediction.
+        </p>
+        <p className="mt-2 text-sm text-neutral-400">Predictions, a race simulator, and a full archive back to 1950.</p>
+      </div>
+    </div>
+  );
+}
+
 async function startOtpFlow(user: User): Promise<{ idToken: string; email: string }> {
   const idToken = await user.getIdToken();
   const res = await fetch("/api/auth/start", {
@@ -215,8 +254,23 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-6 shadow-2xl"
+        className="relative grid w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl md:max-w-3xl md:grid-cols-2"
       >
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white"
+        >
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
+            <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        <div className="hidden md:block">
+          <FormulaScene />
+        </div>
+
+        <div className="p-6">
         {step === "method" && (
           <div className="space-y-3">
             <h2 className="text-lg font-bold text-white">Sign in or sign up</h2>
@@ -396,6 +450,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
             {error && <p className="text-sm text-red-400">{error}</p>}
           </div>
         )}
+        </div>
       </div>
     </div>,
     document.body,
