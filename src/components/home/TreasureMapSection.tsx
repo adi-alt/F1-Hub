@@ -210,12 +210,10 @@ export function TreasureMapSection() {
   const sizeScale = size ? size.width / 400 : 1;
 
   return (
-    <div ref={ref} className="relative overflow-hidden bg-[var(--background)] px-6 py-14 sm:px-10">
+    <div ref={ref} className="relative overflow-hidden bg-[var(--f1-carbon)]/40 px-6 py-14 sm:px-10">
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
-      {/* Blurred so the scenery sits back a step and feels atmospheric rather than a crisp layer
-          competing with the text on top of it. */}
-      <div className="pointer-events-none absolute inset-0 blur-[2px]">
+      <div className="pointer-events-none absolute inset-0">
         {size && roadPath && (
           <svg viewBox={`0 0 ${size.width} ${size.height}`} className="h-full w-full opacity-80" aria-hidden>
             {TREE_SPOTS.map(([fx, fy, scale], i) => (
