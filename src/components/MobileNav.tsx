@@ -8,6 +8,7 @@ import { seasonHref } from "@/lib/routes";
 const baseLinks = [
   { href: seasonHref(2026), label: "Season" },
   { href: "/circuits", label: "Circuits" },
+  { href: "/archive", label: "Archive" },
 ];
 
 export function MobileNav({ showAdmin = false, showNav = false }: { showAdmin?: boolean; showNav?: boolean }) {

@@ -17,3 +17,11 @@ export function seasonHref(year: number): string {
 export function circuitHref(circuit: string): string {
   return `/circuits?circuit=${encodeURIComponent(circuit)}`;
 }
+
+export function archiveSeasonHref(year: number): string {
+  return `/archive?year=${year}`;
+}
+
+export function archiveRaceHref(year: number, round: number): string {
+  return `/archive?year=${year}&round=${round}`;
+}
