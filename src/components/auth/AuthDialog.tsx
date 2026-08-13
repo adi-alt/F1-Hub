@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -202,8 +203,16 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const inputClass =
     "w-full rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none";
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4" onClick={onClose}>
+  // Rendered straight into document.body via a portal - inline (no portal) leaves position:fixed
+  // exposed to any ancestor that happens to establish its own containing block (a transform, a
+  // filter, plenty of other CSS a page can pick up over time), which is exactly what made this
+  // render pinned to wherever its parent was instead of centered in the viewport. A portal makes
+  // that whole category of bug structurally impossible rather than tracking down one ancestor.
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-6 shadow-2xl"
@@ -388,6 +397,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
