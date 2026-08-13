@@ -10,7 +10,7 @@ const fadeUp: Variants = {
 
 export function Hero() {
   return (
-    <section className="relative h-[78vh] min-h-[560px] w-full overflow-hidden border-b border-[var(--f1-line)]">
+    <section className="relative h-[78vh] min-h-[560px] w-full overflow-hidden">
       <HeroCar />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-[var(--background)]/40" />
       <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-end px-4 pb-14 sm:px-6">

@@ -10,7 +10,10 @@ const EXPLORE_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="bg-[var(--background)]">
+    <footer
+      className="bg-[var(--f1-carbon)]"
+      style={{ backgroundImage: "linear-gradient(to bottom, var(--background), var(--f1-carbon) 100px)" }}
+    >
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
