@@ -4,7 +4,25 @@ import { motion } from "framer-motion";
 
 const INK = "#c9a668"; // aged-map ink: warm gold, for labels only now that the route itself is tarmac
 const TARMAC = "#33333a";
-const CONE_ORANGE = "#ff6a00";
+const CROWD = ["#c9c9d0", "#9a9aa2", "#e8e8ec", "var(--f1-red)", "#9a9aa2", "#c9c9d0"];
+
+// A handful of fixed positions flanking the winding road, alternating sides down its length -
+// purely decorative scenery, not tied to any waypoint.
+const TREE_SPOTS: [number, number, number][] = [
+  [40, 60, 1],
+  [365, 130, 0.8],
+  [30, 240, 0.9],
+  [370, 340, 1.1],
+  [45, 430, 0.85],
+  [355, 500, 1],
+  [35, 610, 1.05],
+  [368, 700, 0.9],
+  [40, 790, 1],
+  [360, 880, 0.85],
+  [35, 970, 1.1],
+  [365, 1060, 0.9],
+  [50, 1140, 1],
+];
 
 const BEATS = [
   {
@@ -59,20 +77,50 @@ function CompassRose({ className = "" }: { className?: string }) {
   );
 }
 
-// A traffic cone, not a plain pin - orange body, reflective stripe, dark base - with the
-// waypoint number on a small badge at its foot rather than replacing the cone shape entirely.
-function Cone({ number }: { number: number }) {
+// Tiered seating, a crowd of small dots, a red roof canopy - a grandstand alongside the track,
+// not a cone marking it. The waypoint number sits on a badge at the foot, same as before.
+function Grandstand({ number }: { number: number }) {
+  const rows = [
+    { y: 34, x: 4, w: 42 },
+    { y: 26, x: 7, w: 36 },
+    { y: 18, x: 10, w: 30 },
+  ];
   return (
-    <div className="relative flex h-14 w-11 shrink-0 items-center justify-center">
-      <svg viewBox="0 0 40 50" className="h-14 w-11" aria-hidden>
-        <rect x="3" y="43" width="34" height="6" rx="1.5" fill="#111114" />
-        <path d="M 6 46 L 34 46 L 22 10 L 18 10 Z" fill={CONE_ORANGE} />
-        <path d="M 11.3 30 L 28.7 30 L 30.7 36 L 9.3 36 Z" fill="#f5f5f5" />
+    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 50 56" className="h-14 w-14" aria-hidden>
+        <rect x="8" y="42" width="3" height="10" fill="#3a3a40" />
+        <rect x="39" y="42" width="3" height="10" fill="#3a3a40" />
+        <path d="M 2 18 L 25 5 L 48 18 Z" fill="var(--f1-red)" />
+        {rows.map((row, r) => (
+          <g key={r}>
+            <rect x={row.x} y={row.y} width={row.w} height={8} fill={r % 2 === 0 ? "#4a4a52" : "#3e3e46"} />
+            {Array.from({ length: 6 }, (_, i) => (
+              <circle
+                key={i}
+                cx={row.x + 4 + i * ((row.w - 8) / 5)}
+                cy={row.y + 4}
+                r={1.4}
+                fill={CROWD[(r + i) % CROWD.length]}
+              />
+            ))}
+          </g>
+        ))}
       </svg>
       <span className="absolute -bottom-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--f1-carbon)] text-[10px] font-bold text-white ring-1 ring-white/40">
         {number}
       </span>
     </div>
+  );
+}
+
+function Tree({ x, y, scale }: { x: number; y: number; scale: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`} opacity={0.5}>
+      <rect x="-2" y="10" width="4" height="10" fill="#4a3b2f" />
+      <circle cx="0" cy="2" r="9" fill="#3f5a44" />
+      <circle cx="-6" cy="7" r="6" fill="#3a5340" />
+      <circle cx="6" cy="7" r="6" fill="#3a5340" />
+    </g>
   );
 }
 
@@ -114,6 +162,10 @@ export function TreasureMapSection() {
         className="pointer-events-none absolute inset-0 h-full w-full opacity-80"
         aria-hidden
       >
+        {TREE_SPOTS.map(([x, y, scale], i) => (
+          <Tree key={i} x={x} y={y} scale={scale} />
+        ))}
+
         {/* The road surface itself - a real track, not an ink line: wide tarmac stroke, then a
             dashed white centerline drawn in on scroll like lane markings being painted. */}
         <path
@@ -150,7 +202,7 @@ export function TreasureMapSection() {
               className={`flex ${fromLeft ? "md:justify-start" : "md:justify-end"}`}
             >
               <div className={`flex items-start gap-4 ${fromLeft ? "" : "md:flex-row-reverse"}`}>
-                <Cone number={i + 1} />
+                <Grandstand number={i + 1} />
                 <CloudCallout stat={beat.stat} title={beat.title} body={beat.body} />
               </div>
             </motion.div>
@@ -159,17 +211,27 @@ export function TreasureMapSection() {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.6 }}
-        whileInView={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.5 }}
         className="relative mt-16 flex flex-col items-center gap-2 text-center"
       >
-        <svg viewBox="0 0 40 40" className="h-8 w-8" aria-hidden>
-          <line x1="6" y1="6" x2="34" y2="34" stroke={INK} strokeWidth="4" strokeLinecap="round" />
-          <line x1="34" y1="6" x2="6" y2="34" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+        <svg viewBox="0 0 120 74" className="h-16 w-24" aria-hidden>
+          <rect x="4" y="34" width="32" height="34" fill="#6b6b74" />
+          <text x="20" y="55" textAnchor="middle" fontSize="16" fontWeight="700" fill="white">
+            2
+          </text>
+          <rect x="44" y="12" width="32" height="56" fill="var(--f1-red)" />
+          <text x="60" y="45" textAnchor="middle" fontSize="18" fontWeight="700" fill="white">
+            1
+          </text>
+          <rect x="84" y="42" width="32" height="26" fill="#4a4a52" />
+          <text x="100" y="60" textAnchor="middle" fontSize="14" fontWeight="700" fill="white">
+            3
+          </text>
         </svg>
-        <p className="text-sm text-neutral-400">You are here.</p>
+        <p className="text-sm text-neutral-400">That&apos;s the whole lap.</p>
       </motion.div>
     </div>
   );
