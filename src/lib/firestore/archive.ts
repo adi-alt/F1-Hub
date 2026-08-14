@@ -57,6 +57,25 @@ export type ArchivePitStopEntry = {
 export type ArchiveLapTiming = { driverId: string; time: string | null; position: number | null };
 export type ArchiveLapEntry = { lap: number; timings: ArchiveLapTiming[] };
 
+// Raw WMO weather code, not a pre-decoded label — see lib/weatherCodes.ts for the one place that
+// mapping lives, so it's not duplicated between this Python-written data and its TS reader.
+export type ArchiveWeather = {
+  tempMaxC: number;
+  tempMinC: number;
+  precipitationMm: number;
+  windMaxKph: number;
+  weatherCode: number;
+};
+
+export type ArchiveCircuit = {
+  circuitId: string;
+  name: string | null;
+  wikipediaUrl: string | null;
+  imageUrl: string | null;
+  lat: number | null;
+  long: number | null;
+};
+
 export type ArchiveRaceDoc = {
   id: string;
   year: number;
@@ -67,13 +86,15 @@ export type ArchiveRaceDoc = {
   country: string | null;
   raceDate: string | null;
   results: ArchiveResultEntry[];
-  // All added by pipeline/enrich_archive.py / enrich_archive_laps.py — undefined on any doc from
-  // the original backfill that hasn't been through the enrichment pass yet, so every read site
-  // treats them as optional rather than assuming they exist.
+  // All added by pipeline/enrich_archive.py / enrich_archive_laps.py / enrich_archive_circuits.py
+  // — undefined on any doc that hasn't been through that particular enrichment pass yet, so every
+  // read site treats them as optional rather than assuming they exist.
   wikipediaUrl?: string | null;
   qualifying?: ArchiveQualifyingEntry[];
   pitStops?: ArchivePitStopEntry[];
   lapsBackfilled?: boolean;
+  circuitId?: string | null;
+  weather?: ArchiveWeather | null;
 };
 
 /** A season's races — no `.orderBy("round")` on purpose, same reasoning as `calendar` in
@@ -101,6 +122,19 @@ export const getArchiveRace = unstable_cache(
     return { id: snap.docs[0].id, ...(snap.docs[0].data() as Omit<ArchiveRaceDoc, "id">) };
   },
   ["get-archive-race"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** One doc per unique circuit (~70-75 total across the whole archive), not per race — a Wikipedia
+ * track image and the circuit's own Wikipedia link, written once by
+ * pipeline/enrich_archive_circuits.py the first time it sees that circuitId. Null if that pass
+ * hasn't reached this circuit yet, same optional-everything pattern as the rest of archive. */
+export const getArchiveCircuit = unstable_cache(
+  async (circuitId: string): Promise<ArchiveCircuit | null> => {
+    const snap = await adminDb.collection("archive_circuits").doc(circuitId).get();
+    return snap.exists ? (snap.data() as ArchiveCircuit) : null;
+  },
+  ["get-archive-circuit"],
   { revalidate: REVALIDATE_SECONDS },
 );
 

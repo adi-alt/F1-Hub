@@ -33,7 +33,7 @@ see each file's own docstring.
 A separate, one-off vertical: `/archive` on the site reads pre-2018 seasons from their own
 `archive_races` Firestore collection, sourced from Ergast/Jolpi (`fastf1.ergast.Ergast()`, the
 same dependency `fetch_races.py` doesn't need — FastF1 itself has no data before 2018) rather than
-FastF1. Three scripts, run in this order, each idempotent and safe to interrupt/resume:
+FastF1. Four scripts, run in this order, each idempotent and safe to interrupt/resume:
 
 - **`fetch_archive.py`** — the base backfill (race name, circuit, date, final classification).
   Already ran to completion once; not something you need to run again unless a genuinely new
@@ -48,14 +48,26 @@ FastF1. Three scripts, run in this order, each idempotent and safe to interrupt/
   rows for a single race means ~14 paginated requests (Jolpi caps every page at 100 rows) versus
   1-2 for everything else combined — a very different runtime profile. Marks each doc
   `lapsBackfilled` once done.
+- **`enrich_archive_circuits.py`** — adds `circuitId` + race-day weather to each race doc
+  (weather via Open-Meteo's free historical archive API, no key needed — confirmed working back
+  to 1950), and builds a separate `archive_circuits` collection (one doc per unique circuit,
+  ~70-75 total, not per race) with a real track image sourced from that circuit's Wikipedia page.
+  Two services `enrich_archive.py`/`enrich_archive_laps.py` never touch, so this only shares
+  Jolpi's rate limit, not Open-Meteo's or Wikipedia's — still run after the other two finish
+  rather than alongside them, to avoid piling a third Jolpi-touching pass on top.
 
 ```bash
 export FIREBASE_SERVICE_ACCOUNT_JSON='<same service account JSON the app itself uses>'
 python3 enrich_archive.py                 # every un-enriched race, 1950-2017
 python3 enrich_archive_laps.py            # every race missing lap data, 1996-2017
+python3 enrich_archive_circuits.py        # every race missing circuit/weather data, 1950-2017
 ```
 
-Both accept the same `[start_year]` / `[start_year] [end_year]` arguments as `fetch_archive.py`.
-Given the combined call volume (~11,000+ requests against a rate-limited public API), a full run
-of both realistically takes multiple hours and may need to be resumed across more than one
-sitting — each script's own idempotency flag makes that safe.
+All three accept the same `[start_year]` / `[start_year] [end_year]` arguments as
+`fetch_archive.py`. Given the combined call volume (~13,000+ requests against a rate-limited
+public API), a full run realistically takes multiple hours and may need to be resumed across more
+than one sitting — each script's own idempotency flag makes that safe. `pipeline/ergast_utils.py`
+holds the shared retry logic, including a dedicated (generous, since it's routine at this call
+volume, not rare) backoff for fastf1's own client-side "500 calls/hour" cap
+(`fastf1.req.RateLimitExceededError`) — that one's tracked in-memory per process, not something
+the server tells you how long to wait for, unlike a normal "Too Many Requests" response.

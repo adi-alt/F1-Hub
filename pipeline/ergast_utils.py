@@ -13,29 +13,62 @@ import time
 import firebase_admin
 import pandas as pd
 import requests
+from fastf1.req import RateLimitExceededError
 from firebase_admin import credentials, firestore
 from google.api_core.exceptions import GoogleAPICallError
 
 MAX_RETRIES = 5
+# fastf1's own client-side hard cap (see fastf1/req.py's _CallsPerIntervalLimitRaise: "any API:
+# 500 calls/h") is tracked in-memory per process, not something the server tells us how long to
+# wait for — a bulk run making thousands of calls hits this routinely, not as a rare failure, so
+# it gets many more attempts than a genuine error would, with a fixed generous pause each time.
+MAX_RATE_LIMIT_RETRIES = 12
+RATE_LIMIT_WAIT_SEC = 360
+# Jolpi's own server-side "Too Many Requests" — also routine at this call volume, not rare. Caps
+# at 480s rather than growing forever, but gets many more attempts at that ceiling than a genuine
+# error would (each one of these several-thousand-request runs previously died outright once it
+# exhausted 5 total attempts here, which — at this call volume — was reliably not enough).
+MAX_TOO_MANY_REQUESTS_RETRIES = 15
+TOO_MANY_REQUESTS_MAX_BACKOFF_SEC = 480
 
 
 def with_retry(fn):
-    """Same three failure modes fetch_archive.py already found in practice: Jolpi's hard rate
-    limit (needs a real multi-minute wait — a few extra seconds never clears an hourly-scale
-    limit), plain network read timeouts, and Firestore going briefly unavailable/slow."""
-    for attempt in range(MAX_RETRIES):
+    """Three failure modes seen in practice on a several-thousand-request run: fastf1's own
+    client-side rate cap (RateLimitExceededError — see above), Jolpi's own server-side "Too Many
+    Requests" response (needs a real multi-minute wait — a few extra seconds never clears an
+    hourly-scale limit), and plain network read timeouts / Firestore going briefly unavailable."""
+    rate_limit_attempts = 0
+    too_many_requests_attempts = 0
+    attempt = 0
+    while True:
         try:
             return fn()
-        except (requests.exceptions.RequestException, GoogleAPICallError):
-            if attempt == MAX_RETRIES - 1:
+        except RateLimitExceededError:
+            rate_limit_attempts += 1
+            if rate_limit_attempts >= MAX_RATE_LIMIT_RETRIES:
                 raise
-            print(f"    transient error, retrying in 5s ({attempt + 1}/{MAX_RETRIES})")
+            print(
+                f"    fastf1's 500-calls/hour cap hit, waiting {RATE_LIMIT_WAIT_SEC}s "
+                f"({rate_limit_attempts}/{MAX_RATE_LIMIT_RETRIES})"
+            )
+            time.sleep(RATE_LIMIT_WAIT_SEC)
+        except (requests.exceptions.RequestException, GoogleAPICallError):
+            attempt += 1
+            if attempt >= MAX_RETRIES:
+                raise
+            print(f"    transient error, retrying in 5s ({attempt}/{MAX_RETRIES})")
             time.sleep(5)
         except Exception as exc:
-            if "Too Many Requests" not in str(exc) or attempt == MAX_RETRIES - 1:
+            if "Too Many Requests" not in str(exc):
                 raise
-            backoff = 60 * (2**attempt)  # 60s, 120s, 240s, 480s
-            print(f"    rate limited, retrying in {backoff}s ({attempt + 1}/{MAX_RETRIES})")
+            too_many_requests_attempts += 1
+            if too_many_requests_attempts >= MAX_TOO_MANY_REQUESTS_RETRIES:
+                raise
+            backoff = min(TOO_MANY_REQUESTS_MAX_BACKOFF_SEC, 60 * (2 ** (too_many_requests_attempts - 1)))
+            print(
+                f"    rate limited, retrying in {backoff}s "
+                f"({too_many_requests_attempts}/{MAX_TOO_MANY_REQUESTS_RETRIES})"
+            )
             time.sleep(backoff)
 
 

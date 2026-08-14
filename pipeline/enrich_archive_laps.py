@@ -54,6 +54,7 @@ def fetch_all_laps(year: int, round_num: int):
         current = resp
         resp = with_retry(lambda: current.get_next_result_page())
         pages.append(resp.content[0])
+        time.sleep(REQUEST_DELAY_SEC)
     return pd.concat(pages, ignore_index=True)
 
 

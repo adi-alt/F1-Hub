@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArchiveRaceList } from "./components/ArchiveRaceList";
-import { ArchiveResultsTable } from "./components/ArchiveResultsTable";
 import { ArchiveSeasonGrid } from "./components/ArchiveSeasonGrid";
+import { CircuitCard } from "./components/CircuitCard";
 import { LapChart } from "./components/LapChart";
-import { PitStopsList } from "./components/PitStopsList";
-import { QualifyingTable } from "./components/QualifyingTable";
+import { PitStopsTimeline } from "./components/PitStopsTimeline";
+import { QualifyingBarChart } from "./components/QualifyingBarChart";
+import { ResultsBoard } from "./components/ResultsBoard";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
+  getArchiveCircuitData,
   getArchiveRaceData,
   getArchiveSeasonData,
   getArchiveYears,
@@ -61,6 +63,8 @@ async function ArchiveRace({ year, round }: { year: number; round: number }) {
   const race = await getArchiveRaceData(year, round);
   if (!race) notFound();
 
+  const circuit = race.circuitId ? await getArchiveCircuitData(race.circuitId) : null;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <Link href={archiveSeasonHref(year)} className="text-sm text-neutral-500 hover:text-neutral-300">
@@ -81,21 +85,28 @@ async function ArchiveRace({ year, round }: { year: number; round: number }) {
           </>
         )}
       </p>
+
+      {circuit && (
+        <div className="mt-6">
+          <CircuitCard circuit={circuit} weather={race.weather} />
+        </div>
+      )}
+
       <div className="mt-8">
-        <ArchiveResultsTable results={race.results} />
+        <ResultsBoard results={race.results} qualifying={race.qualifying} pitStops={race.pitStops} />
       </div>
 
       {!!race.qualifying?.length && (
         <div className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-white">Qualifying</h2>
-          <QualifyingTable qualifying={race.qualifying} />
+          <QualifyingBarChart qualifying={race.qualifying} />
         </div>
       )}
 
       {!!race.pitStops?.length && (
         <div className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-white">Pit stops</h2>
-          <PitStopsList pitStops={race.pitStops} results={race.results} />
+          <PitStopsTimeline pitStops={race.pitStops} results={race.results} />
         </div>
       )}
 

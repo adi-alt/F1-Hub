@@ -1,6 +1,7 @@
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
+  getArchiveCircuit,
   getArchiveRace,
   getArchiveRaceLaps,
   getArchiveSeason,
@@ -22,4 +23,8 @@ export async function getArchiveRaceData(year: number, round: number) {
 
 export async function getArchiveRaceLapsData(year: number, round: number) {
   return getArchiveRaceLaps(year, round);
+}
+
+export async function getArchiveCircuitData(circuitId: string) {
+  return getArchiveCircuit(circuitId);
 }
