@@ -13,6 +13,7 @@ import time
 import firebase_admin
 import pandas as pd
 import requests
+from fastf1.ergast.interface import ErgastInvalidRequestError
 from fastf1.req import RateLimitExceededError
 from firebase_admin import credentials, firestore
 from google.api_core.exceptions import GoogleAPICallError
@@ -24,21 +25,23 @@ MAX_RETRIES = 5
 # it gets many more attempts than a genuine error would, with a fixed generous pause each time.
 MAX_RATE_LIMIT_RETRIES = 12
 RATE_LIMIT_WAIT_SEC = 360
-# Jolpi's own server-side "Too Many Requests" — also routine at this call volume, not rare. Caps
-# at 480s rather than growing forever, but gets many more attempts at that ceiling than a genuine
-# error would (each one of these several-thousand-request runs previously died outright once it
-# exhausted 5 total attempts here, which — at this call volume — was reliably not enough).
-MAX_TOO_MANY_REQUESTS_RETRIES = 15
-TOO_MANY_REQUESTS_MAX_BACKOFF_SEC = 480
+# fastf1 wraps *every* non-200 HTTP response from Ergast/Jolpi in this one exception type, keyed
+# only by the HTTP reason phrase in its message — 429 Too Many Requests, 502 Bad Gateway, 503
+# Service Unavailable, 504 Gateway Timeout have all actually been seen on this run. All of them
+# are routine at this call volume, not rare, so this gets the same generous capped-backoff
+# treatment as the rate limit above instead of pattern-matching one specific message string (which
+# is exactly what let "Bad Gateway" slip through uncaught and crash the whole run before this).
+MAX_HTTP_ERROR_RETRIES = 15
+HTTP_ERROR_MAX_BACKOFF_SEC = 480
 
 
 def with_retry(fn):
-    """Three failure modes seen in practice on a several-thousand-request run: fastf1's own
-    client-side rate cap (RateLimitExceededError — see above), Jolpi's own server-side "Too Many
-    Requests" response (needs a real multi-minute wait — a few extra seconds never clears an
-    hourly-scale limit), and plain network read timeouts / Firestore going briefly unavailable."""
+    """Failure modes seen in practice on a several-thousand-request run: fastf1's own client-side
+    rate cap (RateLimitExceededError — see above), any non-200 HTTP response from Ergast/Jolpi
+    itself (ErgastInvalidRequestError — see above), and plain network read timeouts / Firestore
+    going briefly unavailable."""
     rate_limit_attempts = 0
-    too_many_requests_attempts = 0
+    http_error_attempts = 0
     attempt = 0
     while True:
         try:
@@ -52,24 +55,22 @@ def with_retry(fn):
                 f"({rate_limit_attempts}/{MAX_RATE_LIMIT_RETRIES})"
             )
             time.sleep(RATE_LIMIT_WAIT_SEC)
+        except ErgastInvalidRequestError as exc:
+            http_error_attempts += 1
+            if http_error_attempts >= MAX_HTTP_ERROR_RETRIES:
+                raise
+            backoff = min(HTTP_ERROR_MAX_BACKOFF_SEC, 60 * (2 ** (http_error_attempts - 1)))
+            print(
+                f"    Ergast/Jolpi HTTP error ({exc}), retrying in {backoff}s "
+                f"({http_error_attempts}/{MAX_HTTP_ERROR_RETRIES})"
+            )
+            time.sleep(backoff)
         except (requests.exceptions.RequestException, GoogleAPICallError):
             attempt += 1
             if attempt >= MAX_RETRIES:
                 raise
             print(f"    transient error, retrying in 5s ({attempt}/{MAX_RETRIES})")
             time.sleep(5)
-        except Exception as exc:
-            if "Too Many Requests" not in str(exc):
-                raise
-            too_many_requests_attempts += 1
-            if too_many_requests_attempts >= MAX_TOO_MANY_REQUESTS_RETRIES:
-                raise
-            backoff = min(TOO_MANY_REQUESTS_MAX_BACKOFF_SEC, 60 * (2 ** (too_many_requests_attempts - 1)))
-            print(
-                f"    rate limited, retrying in {backoff}s "
-                f"({too_many_requests_attempts}/{MAX_TOO_MANY_REQUESTS_RETRIES})"
-            )
-            time.sleep(backoff)
 
 
 def init_firestore():
