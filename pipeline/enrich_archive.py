@@ -24,7 +24,7 @@ from fastf1.ergast import Ergast
 from ergast_utils import clean, format_timedelta, init_firestore, timedelta_seconds, with_retry
 
 EARLIEST_YEAR = 1950
-LATEST_YEAR = 2017
+LATEST_YEAR = datetime.now().year - 1
 REQUEST_DELAY_SEC = 0.5
 
 ergast = Ergast()

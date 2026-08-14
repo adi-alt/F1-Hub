@@ -25,3 +25,11 @@ export function archiveSeasonHref(year: number): string {
 export function archiveRaceHref(year: number, round: number): string {
   return `/archive?year=${year}&round=${round}`;
 }
+
+export function archiveCircuitHref(circuitId: string): string {
+  return `/archive?circuit=${encodeURIComponent(circuitId)}`;
+}
+
+export function archiveDriverHref(driverId: string): string {
+  return `/archive?driver=${encodeURIComponent(driverId)}`;
+}

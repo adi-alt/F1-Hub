@@ -6,9 +6,12 @@ const COLLECTION = "archive_races";
 // number, and a day is close enough to forever for a page nobody expects to update live.
 const REVALIDATE_SECONDS = 86400;
 
-// fetch_archive.py's backfill range — the boundary where FastF1-native `races` data begins.
+// fetch_archive.py's backfill range — 1950 is F1's first season; the upper bound is always
+// "last year" (the current season isn't over yet, so it's deliberately never "archived"), not a
+// fixed year, so this needs no code change at a year boundary — same reasoning as fetch_races.py
+// never hardcoding a year.
 export const ARCHIVE_EARLIEST_YEAR = 1950;
-export const ARCHIVE_LATEST_YEAR = 2017;
+export const ARCHIVE_LATEST_YEAR = new Date().getFullYear() - 1;
 
 export type ArchiveFastestLap = {
   rank: number;
@@ -76,6 +79,15 @@ export type ArchiveCircuit = {
   long: number | null;
 };
 
+export type ArchiveDriver = {
+  driverId: string;
+  name: string;
+  code: string | null;
+  firstYear: number;
+  lastYear: number;
+  raceCount: number;
+};
+
 export type ArchiveRaceDoc = {
   id: string;
   year: number;
@@ -95,6 +107,10 @@ export type ArchiveRaceDoc = {
   lapsBackfilled?: boolean;
   circuitId?: string | null;
   weather?: ArchiveWeather | null;
+  // Written by pipeline/enrich_archive_drivers.py — a flat mirror of results[].driverId, purely
+  // so "every race this driver ran" can be a real `array-contains` query (see
+  // getArchiveRacesByDriver) instead of scanning every doc's nested results array by hand.
+  driverIds?: string[];
 };
 
 /** A season's races — no `.orderBy("round")` on purpose, same reasoning as `calendar` in
@@ -135,6 +151,60 @@ export const getArchiveCircuit = unstable_cache(
     return snap.exists ? (snap.data() as ArchiveCircuit) : null;
   },
   ["get-archive-circuit"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** Every circuit that's been through pipeline/enrich_archive_circuits.py — a small collection
+ * (~100-150 once the archive covers 1950-last year), so listing all of it for the "browse by
+ * track" landing grid is cheap. No stable order in Firestore — sorted by name here. */
+export const getAllArchiveCircuits = unstable_cache(
+  async (): Promise<ArchiveCircuit[]> => {
+    const snap = await adminDb.collection("archive_circuits").get();
+    return snap.docs
+      .map((d) => d.data() as ArchiveCircuit)
+      .sort((a, b) => (a.name ?? a.circuitId).localeCompare(b.name ?? b.circuitId));
+  },
+  ["get-all-archive-circuits"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** A circuit's full history — every race with this `circuitId`, oldest first. Only ever returns
+ * races the circuits/weather enrichment pass has actually reached (see `circuitId`'s own comment
+ * on ArchiveRaceDoc) — grows as that pass completes, same as everywhere else this field appears. */
+export const getArchiveRacesByCircuitId = unstable_cache(
+  async (circuitId: string): Promise<ArchiveRaceDoc[]> => {
+    const snap = await adminDb.collection(COLLECTION).where("circuitId", "==", circuitId).get();
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<ArchiveRaceDoc, "id">) }))
+      .sort((a, b) => a.year - b.year || a.round - b.round);
+  },
+  ["get-archive-races-by-circuit"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** Every driver who's been through pipeline/enrich_archive_drivers.py — for the "browse by
+ * racer" landing grid. Sorted by most recent first, since a fresh visitor is more likely
+ * recognize recent names than a 1950s one. */
+export const getAllArchiveDrivers = unstable_cache(
+  async (): Promise<ArchiveDriver[]> => {
+    const snap = await adminDb.collection("archive_drivers").get();
+    return snap.docs.map((d) => d.data() as ArchiveDriver).sort((a, b) => b.lastYear - a.lastYear);
+  },
+  ["get-all-archive-drivers"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** A driver's career — every race with this driverId in its flat `driverIds` mirror, oldest
+ * first. `array-contains` is the only Firestore-native way to query a value inside a nested
+ * array of objects, which is why that flat mirror field exists at all. */
+export const getArchiveRacesByDriver = unstable_cache(
+  async (driverId: string): Promise<ArchiveRaceDoc[]> => {
+    const snap = await adminDb.collection(COLLECTION).where("driverIds", "array-contains", driverId).get();
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<ArchiveRaceDoc, "id">) }))
+      .sort((a, b) => a.year - b.year || a.round - b.round);
+  },
+  ["get-archive-races-by-driver"],
   { revalidate: REVALIDATE_SECONDS },
 );
 

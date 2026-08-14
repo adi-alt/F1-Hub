@@ -22,6 +22,7 @@ Run:
 
 import sys
 import time
+from datetime import datetime
 
 import requests
 from fastf1.ergast import Ergast
@@ -29,7 +30,7 @@ from fastf1.ergast import Ergast
 from ergast_utils import clean, init_firestore, with_retry
 
 EARLIEST_YEAR = 1950
-LATEST_YEAR = 2017
+LATEST_YEAR = datetime.now().year - 1
 REQUEST_DELAY_SEC = 0.5
 WEATHER_URL = "https://archive-api.open-meteo.com/v1/archive"
 WEATHER_DAILY_FIELDS = "temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,weathercode"

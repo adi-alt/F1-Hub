@@ -25,6 +25,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime
 import unicodedata
 
 import pandas as pd
@@ -35,7 +36,10 @@ from fastf1.ergast import Ergast
 from google.api_core.exceptions import GoogleAPICallError
 
 EARLIEST_YEAR = 1950
-LATEST_YEAR = 2017  # fetch_races.py takes over from 2018 onward
+# Last year, not a fixed year — this season isn't over yet, so it's never "archived." Dynamic so
+# this needs no code change at a year boundary, same reasoning fetch_races.py already documents
+# for never hardcoding a year.
+LATEST_YEAR = datetime.now().year - 1
 REQUEST_DELAY_SEC = 0.5  # a free, community-run API — no need to hammer it for a one-time backfill
 MAX_RETRIES = 5
 

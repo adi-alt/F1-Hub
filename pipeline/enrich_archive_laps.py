@@ -25,6 +25,7 @@ Run:
 
 import sys
 import time
+from datetime import datetime
 
 import pandas as pd
 from fastf1.ergast import Ergast
@@ -32,7 +33,7 @@ from fastf1.ergast import Ergast
 from ergast_utils import clean, format_timedelta, init_firestore, with_retry
 
 EARLIEST_YEAR = 1996  # confirmed via direct API check — nothing before this
-LATEST_YEAR = 2017
+LATEST_YEAR = datetime.now().year - 1
 REQUEST_DELAY_SEC = 0.5
 PAGE_SIZE = 100  # Jolpi's hard cap regardless of what's requested
 
