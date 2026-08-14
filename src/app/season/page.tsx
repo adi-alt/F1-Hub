@@ -1,7 +1,7 @@
-import { CalendarList } from "@/components/season/CalendarList";
-import { ConstructorStandingsTable, DriverStandingsTable } from "@/components/season/StandingsTables";
+import { CalendarList } from "./components/CalendarList";
+import { ConstructorStandingsTable, DriverStandingsTable } from "./components/StandingsTables";
+import { getSeasonPageData } from "./services/season.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getSeasonPageData } from "@/season/services/season.service";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function SeasonPage({

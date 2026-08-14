@@ -1,8 +1,8 @@
+import { UserManagement } from "./components/UserManagement";
+import { listUsers } from "./services/users.service";
 import { NotAuthorized } from "@/components/NotAuthorized";
-import { UserManagement } from "@/components/users/UserManagement";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
-import { listUsers } from "@/users/services/users.service";
 import { ServiceError } from "@/services/errors";
 
 export default async function UsersPage() {

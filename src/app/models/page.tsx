@@ -1,9 +1,9 @@
-import { BenchmarksTable } from "@/components/models/BenchmarksTable";
-import { PipelineOpsPanel } from "@/components/models/PipelineOpsPanel";
+import { BenchmarksTable } from "./components/BenchmarksTable";
+import { PipelineOpsPanel } from "./components/PipelineOpsPanel";
+import { getModelsPageData } from "./services/models.service";
 import { NotAuthorized } from "@/components/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
-import { getModelsPageData } from "@/models/services/models.service";
 import { ServiceError } from "@/services/errors";
 
 export default async function ModelsPage() {

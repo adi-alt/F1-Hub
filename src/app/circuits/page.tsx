@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import { CircuitGrid } from "@/components/CircuitGrid";
-import { CircuitTrendChart } from "@/components/charts/CircuitTrendChart";
-import { PastWinnersList } from "@/components/circuit/PastWinnersList";
+import { CircuitGrid } from "./components/CircuitGrid";
+import { CircuitTrendChart } from "./components/CircuitTrendChart";
+import { PastWinnersList } from "./components/PastWinnersList";
+import { getCircuitDetailData, getCircuitsIndexData } from "./services/circuits.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getCircuitDetailData, getCircuitsIndexData } from "@/circuits/services/circuits.service";
 import { raceTitle } from "@/lib/format";
 import { getSession } from "@/lib/session/getSession";
 

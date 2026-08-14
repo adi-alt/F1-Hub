@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useUserSearch, useUsersList, useSetUserRole } from "@/users/queries/useUsers";
+import { useUserSearch, useUsersList, useSetUserRole } from "../queries/useUsers";
 import type { UserProfile } from "@/lib/firestore/users";
 
 type Props = {

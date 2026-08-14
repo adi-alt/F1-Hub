@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
-import { triggerPipelineRun } from "@/models/services/models.service";
+import { triggerPipelineRun } from "@/app/models/services/models.service";
 import { ServiceError } from "@/services/errors";
 
 export async function POST(request: Request) {

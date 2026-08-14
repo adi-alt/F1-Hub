@@ -1,7 +1,7 @@
 "use client";
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { chart, tooltipStyle } from "./chartTheme";
+import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 
 export function CircuitTrendChart({ data }: { data: { year: number; poleTimeSec: number }[] }) {
   return (

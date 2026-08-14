@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArchiveRaceList } from "@/components/archive/ArchiveRaceList";
-import { ArchiveResultsTable } from "@/components/archive/ArchiveResultsTable";
-import { ArchiveSeasonGrid } from "@/components/archive/ArchiveSeasonGrid";
-import { SignInGate } from "@/components/auth/SignInGate";
+import { ArchiveRaceList } from "./components/ArchiveRaceList";
+import { ArchiveResultsTable } from "./components/ArchiveResultsTable";
+import { ArchiveSeasonGrid } from "./components/ArchiveSeasonGrid";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
   getArchiveRaceData,
   getArchiveSeasonData,
   getArchiveYears,
-} from "@/archive/services/archive.service";
+} from "./services/archive.service";
+import { SignInGate } from "@/components/auth/SignInGate";
 import { archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
