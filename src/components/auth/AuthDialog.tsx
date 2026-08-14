@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -11,13 +11,14 @@ import {
   type User,
 } from "firebase/auth";
 import { auth, githubProvider, googleProvider } from "@/lib/firebase/client";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { Skeleton } from "@/components/Skeleton";
+import { useCountdown } from "@/hooks/useCountdown";
+import { useSignupOptions } from "@/queries/useSignupOptions";
+import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
 import type { Role } from "@/lib/rbac";
 
 type Step = "method" | "otp" | "profile";
-
-type SignupOptions = { drivers: { code: string; name: string; team: string }[]; teams: string[]; tracks: string[] };
 
 // Matches the backend's own resend cooldown (lib/otp.ts) so the button's countdown never
 // disagrees with what the server would actually accept.
@@ -190,6 +191,65 @@ function requestOtp(idToken: string) {
   });
 }
 
+// Split out so useCountdown's 1-second ticker only ever runs while the OTP step is actually
+// mounted, not for the dialog's entire lifetime.
+function OtpStep({
+  verifiedEmail,
+  code,
+  setCode,
+  resendAvailableAt,
+  busy,
+  info,
+  error,
+  onSubmit,
+  onResend,
+}: {
+  verifiedEmail: string;
+  code: string;
+  setCode: (v: string) => void;
+  resendAvailableAt: number;
+  busy: boolean;
+  info: string | null;
+  error: string | null;
+  onSubmit: () => void;
+  onResend: () => void;
+}) {
+  const secondsUntilResend = useCountdown(resendAvailableAt);
+
+  return (
+    <motion.div
+      key="otp"
+      initial={{ opacity: 0, x: 12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -12 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-4"
+    >
+      <h2 className="text-lg font-bold text-white">Check your email</h2>
+      <p className="text-sm text-neutral-400">
+        We sent a 6-digit code to <span className="text-white">{verifiedEmail}</span>.
+      </p>
+      <OtpInput value={code} onChange={setCode} />
+      <button
+        disabled={busy || code.length !== 6}
+        onClick={onSubmit}
+        className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+      >
+        {busy ? "Verifying…" : "Verify"}
+      </button>
+      <button
+        disabled={secondsUntilResend > 0}
+        onClick={onResend}
+        className="w-full text-center text-xs text-neutral-500 transition hover:text-neutral-300 disabled:hover:text-neutral-500"
+      >
+        {secondsUntilResend > 0 ? `Resend code in ${secondsUntilResend}s` : "Resend code"}
+      </button>
+      {info && <InfoBanner message={info} />}
+      {error && <ErrorBanner message={error} />}
+    </motion.div>
+  );
+}
+
 // The caller mounts this only while it should be open (`{open && <AuthDialog .../>}`) rather
 // than always rendering it with an `open` prop — a fresh mount every time it opens is what gives
 // it fresh state for free, no reset-on-open effect required.
@@ -206,56 +266,16 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const [code, setCode] = useState("");
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
-  const [now, setNow] = useState(() => Date.now());
 
-  const [options, setOptions] = useState<SignupOptions | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
-  // "idle" is derived (short username, nothing worth checking yet) rather than stored, so the
-  // debounce effect below only ever needs to set the states an actual check produces.
-  const [checkedStatus, setCheckedStatus] = useState<"checking" | "available" | "taken" | null>(null);
-  const usernameStatus = username.trim().length < 3 ? "idle" : checkedStatus ?? "idle";
-  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [favoriteDriver, setFavoriteDriver] = useState("");
   const [favoriteTeam, setFavoriteTeam] = useState("");
   const [favoriteTrack, setFavoriteTrack] = useState("");
 
-  useEffect(() => {
-    if (step !== "profile" || options) return;
-    fetch("/api/auth/signup-options")
-      .then((res) => res.json())
-      .then(setOptions)
-      .catch(() => setOptions({ drivers: [], teams: [], tracks: [] }));
-  }, [step, options]);
-
-  // Debounced live availability check as the user types a username. "checking" is set inside
-  // the timeout callback, not synchronously in the effect body, so typing itself never
-  // triggers a same-tick re-render — only the debounced check does.
-  useEffect(() => {
-    if (username.trim().length < 3) return;
-    const handle = setTimeout(() => {
-      setCheckedStatus("checking");
-      fetch(`/api/username/check?u=${encodeURIComponent(username.trim())}`)
-        .then((res) => res.json())
-        .then((body: { available: boolean; suggestions?: string[] }) => {
-          setCheckedStatus(body.available ? "available" : "taken");
-          setUsernameSuggestions(body.suggestions ?? []);
-        })
-        .catch(() => setCheckedStatus(null));
-    }, 400);
-    return () => clearTimeout(handle);
-  }, [username]);
-
-  // Ticks once a second only while the OTP screen is actually showing something time-sensitive -
-  // no point running a timer the rest of the dialog's lifetime.
-  useEffect(() => {
-    if (step !== "otp") return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [step]);
-
-  const secondsUntilResend = Math.max(0, Math.ceil((resendAvailableAt - now) / 1000));
+  const { data: options } = useSignupOptions(step === "profile");
+  const { status: usernameStatus, suggestions: usernameSuggestions } = useUsernameAvailability(username);
 
   // Instant, on purpose: getIdToken() resolves near-immediately for an already-signed-in user
   // (the token is cached client-side), so this switches to the OTP screen right away rather than
@@ -271,7 +291,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function handleResend() {
-    if (!idToken || secondsUntilResend > 0) return;
+    if (!idToken) return;
     setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
     setInfo("New code sent.");
     setError(null);
@@ -490,36 +510,17 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {step === "otp" && (
-          <motion.div
-            key="otp"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-4"
-          >
-            <h2 className="text-lg font-bold text-white">Check your email</h2>
-            <p className="text-sm text-neutral-400">
-              We sent a 6-digit code to <span className="text-white">{verifiedEmail}</span>.
-            </p>
-            <OtpInput value={code} onChange={setCode} />
-            <button
-              disabled={busy || code.length !== 6}
-              onClick={() => void handleOtpSubmit()}
-              className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-            >
-              {busy ? "Verifying…" : "Verify"}
-            </button>
-            <button
-              disabled={secondsUntilResend > 0}
-              onClick={() => void handleResend()}
-              className="w-full text-center text-xs text-neutral-500 transition hover:text-neutral-300 disabled:hover:text-neutral-500"
-            >
-              {secondsUntilResend > 0 ? `Resend code in ${secondsUntilResend}s` : "Resend code"}
-            </button>
-            {info && <InfoBanner message={info} />}
-            {error && <ErrorBanner message={error} />}
-          </motion.div>
+          <OtpStep
+            verifiedEmail={verifiedEmail}
+            code={code}
+            setCode={setCode}
+            resendAvailableAt={resendAvailableAt}
+            busy={busy}
+            info={info}
+            error={error}
+            onSubmit={() => void handleOtpSubmit()}
+            onResend={() => void handleResend()}
+          />
         )}
 
         {step === "profile" && (

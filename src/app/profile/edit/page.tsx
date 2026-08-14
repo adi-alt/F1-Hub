@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { updateProfile } from "firebase/auth";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { auth } from "@/lib/firebase/client";
 
 export default function EditProfilePage() {

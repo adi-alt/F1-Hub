@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
+import { useAdminUserSearch, useAdminUsersList, useSetUserRole } from "@/queries/useAdminUsers";
 import type { UserProfile } from "@/lib/firestore/users";
 
 type Props = {
@@ -22,70 +23,25 @@ function RoleBadge({ role }: { role: UserProfile["role"] }) {
 }
 
 export function UserManagement({ initialUsers, initialCursor, currentUid, canManageRoles }: Props) {
-  const [users, setUsers] = useState(initialUsers);
-  const [cursor, setCursor] = useState(initialCursor);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [searchResult, setSearchResult] = useState<UserProfile[] | null>(null);
-  const [searching, setSearching] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
 
-  async function setRole(uid: string, role: "admin" | "moderator" | null) {
+  const usersList = useAdminUsersList(initialUsers, initialCursor);
+  const searchQuery = useAdminUserSearch(search);
+  const setRole = useSetUserRole();
+
+  const users = usersList.data?.pages.flatMap((p) => p.users) ?? initialUsers;
+  const searchResult = search.trim() ? (searchQuery.data ?? null) : null;
+  const rows = searchResult ?? users;
+
+  async function changeRole(uid: string, role: "admin" | "moderator" | null) {
     setPending(uid);
-    setError(null);
     try {
-      const res = await fetch(`/api/admin/users/${uid}/role`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const apply = (list: UserProfile[]) => list.map((u) => (u.uid === uid ? { ...u, role: role ?? undefined } : u));
-      setUsers(apply);
-      setSearchResult((prev) => (prev ? apply(prev) : prev));
-    } catch {
-      setError("Failed to update role.");
+      await setRole.mutateAsync({ uid, role });
     } finally {
       setPending(null);
     }
   }
-
-  async function loadMore() {
-    if (!cursor) return;
-    setLoadingMore(true);
-    try {
-      const res = await fetch(`/api/admin/users?cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) throw new Error(`${res.status}`);
-      const body = (await res.json()) as { users: UserProfile[]; nextCursor: string | null };
-      setUsers((prev) => [...prev, ...body.users]);
-      setCursor(body.nextCursor);
-    } catch {
-      setError("Failed to load more users.");
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
-  const runSearch = useCallback(async (email: string) => {
-    if (!email.trim()) {
-      setSearchResult(null);
-      return;
-    }
-    setSearching(true);
-    try {
-      const res = await fetch(`/api/admin/users?email=${encodeURIComponent(email.trim())}`);
-      if (!res.ok) throw new Error(`${res.status}`);
-      const body = (await res.json()) as { users: UserProfile[] };
-      setSearchResult(body.users);
-    } catch {
-      setError("Search failed.");
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  const rows = searchResult ?? users;
 
   function renderRow(user: UserProfile) {
     return (
@@ -104,7 +60,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
               {user.role === "admin" ? (
                 user.uid !== currentUid && (
                   <button
-                    onClick={() => void setRole(user.uid, null)}
+                    onClick={() => void changeRole(user.uid, null)}
                     disabled={pending === user.uid}
                     className="rounded-full border border-[var(--f1-line)] px-3 py-1 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
                   >
@@ -114,14 +70,14 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
               ) : (
                 <>
                   <button
-                    onClick={() => void setRole(user.uid, "moderator")}
+                    onClick={() => void changeRole(user.uid, "moderator")}
                     disabled={pending === user.uid}
                     className="rounded-full border border-[var(--f1-line)] px-3 py-1 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
                   >
                     {pending === user.uid ? "…" : user.role === "moderator" ? "Remove mod" : "Make moderator"}
                   </button>
                   <button
-                    onClick={() => void setRole(user.uid, "admin")}
+                    onClick={() => void changeRole(user.uid, "admin")}
                     disabled={pending === user.uid}
                     className="rounded-full border border-[var(--f1-line)] px-3 py-1 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
                   >
@@ -141,28 +97,27 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
       <input
         type="email"
         value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          void runSearch(e.target.value);
-        }}
+        onChange={(e) => setSearch(e.target.value)}
         placeholder="Find a user by exact email…"
         className="w-full rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-white/30 focus:outline-none"
       />
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      {searching && <p className="text-xs text-neutral-500">Searching…</p>}
-      {searchResult !== null && searchResult.length === 0 && !searching && (
+      {(setRole.isError || usersList.isError || searchQuery.isError) && (
+        <p className="text-sm text-red-400">Something went wrong. Try again.</p>
+      )}
+      {searchQuery.isFetching && <p className="text-xs text-neutral-500">Searching…</p>}
+      {searchResult !== null && searchResult.length === 0 && !searchQuery.isFetching && (
         <p className="text-xs text-neutral-500">No user with that exact email.</p>
       )}
 
       <div className="space-y-2">{rows.map(renderRow)}</div>
 
-      {searchResult === null && cursor && (
+      {searchResult === null && usersList.hasNextPage && (
         <button
-          onClick={() => void loadMore()}
-          disabled={loadingMore}
+          onClick={() => void usersList.fetchNextPage()}
+          disabled={usersList.isFetchingNextPage}
           className="w-full rounded-lg border border-[var(--f1-line)] py-2 text-sm text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
         >
-          {loadingMore ? "Loading…" : "Load more"}
+          {usersList.isFetchingNextPage ? "Loading…" : "Load more"}
         </button>
       )}
     </div>

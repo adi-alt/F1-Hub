@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { permissionsForRole } from "@/lib/rbac";

@@ -2,13 +2,13 @@ import Link from "next/link";
 import { NotAuthorized } from "@/components/admin/NotAuthorized";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { listUsersPage } from "@/lib/firestore/users";
-import { permissionsForRole } from "@/lib/rbac";
-import { requireSessionAndRole } from "@/lib/session/requireSessionAndRole";
+import { getSession } from "@/lib/session/getSession";
+import { listUsers } from "@/services/admin.service";
+import { ServiceError } from "@/services/errors";
 
 export default async function AdminUsersPage() {
-  const auth = await requireSessionAndRole();
-  if (auth.status === "signed-out") {
+  const session = await getSession();
+  if (!session.uid) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <SignInGate label="user management" />
@@ -16,10 +16,15 @@ export default async function AdminUsersPage() {
     );
   }
 
-  const permissions = permissionsForRole(auth.role);
-  if (!permissions.canViewUsers) return <NotAuthorized what="user management" />;
-
-  const { users, nextCursor } = await listUsersPage(null);
+  let users, nextCursor, permissions;
+  try {
+    // listUsers throws ServiceError itself if this uid can't view users — nothing left to
+    // re-check here.
+    ({ users, nextCursor, permissions } = await listUsers(session.uid, null));
+  } catch (err) {
+    if (err instanceof ServiceError) return <NotAuthorized what="user management" />;
+    throw err;
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -31,7 +36,7 @@ export default async function AdminUsersPage() {
         <UserManagement
           initialUsers={users}
           initialCursor={nextCursor}
-          currentUid={auth.uid}
+          currentUid={session.uid}
           canManageRoles={permissions.canManageRoles}
         />
       </div>

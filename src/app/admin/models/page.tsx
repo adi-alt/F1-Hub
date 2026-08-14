@@ -2,22 +2,27 @@ import Link from "next/link";
 import { BenchmarksTable } from "@/components/admin/BenchmarksTable";
 import { NotAuthorized } from "@/components/admin/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getModelBenchmarks } from "@/lib/firestore/admin";
-import { permissionsForRole } from "@/lib/rbac";
-import { requireSessionAndRole } from "@/lib/session/requireSessionAndRole";
+import { getSession } from "@/lib/session/getSession";
+import { getBenchmarks } from "@/services/admin.service";
+import { ServiceError } from "@/services/errors";
 
 export default async function AdminModelsPage() {
-  const auth = await requireSessionAndRole();
-  if (auth.status === "signed-out") {
+  const session = await getSession();
+  if (!session.uid) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <SignInGate label="model benchmarks" />
       </div>
     );
   }
-  if (!permissionsForRole(auth.role).canAccessAdmin) return <NotAuthorized what="model benchmarks" />;
 
-  const benchmarks = await getModelBenchmarks();
+  let benchmarks;
+  try {
+    benchmarks = await getBenchmarks(session.uid);
+  } catch (err) {
+    if (err instanceof ServiceError) return <NotAuthorized what="model benchmarks" />;
+    throw err;
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">

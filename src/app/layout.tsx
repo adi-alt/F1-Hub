@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider } from "@/components/auth/AuthProvider";
+import { AuthDialogHost } from "@/components/auth/AuthDialogHost";
 import { Header } from "@/components/Header";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
+import { AppProviders } from "@/providers/AppProviders";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,10 +32,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
-        <AuthProvider>
+        <AppProviders>
           <Header />
           <SmoothScroll>{children}</SmoothScroll>
-        </AuthProvider>
+          <AuthDialogHost />
+        </AppProviders>
       </body>
     </html>
   );

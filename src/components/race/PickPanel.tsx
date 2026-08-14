@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 type Status = "idle" | "loading" | "saving" | "saved" | "error";

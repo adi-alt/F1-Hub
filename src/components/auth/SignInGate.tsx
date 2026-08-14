@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { AuthDialog } from "./AuthDialog";
+import { useAuthDialogStore } from "@/store/useAuthDialogStore";
 
 /** Drop-in replacement for any section that requires a signed-in session; opens the same
- * sign-in/sign-up dialog the header uses. */
+ * shared sign-in/sign-up dialog the header uses (see store/useAuthDialogStore). */
 export function SignInGate({ label = "this" }: { label?: string }) {
-  const [open, setOpen] = useState(false);
+  const open = useAuthDialogStore((s) => s.open);
 
   return (
     <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-10 text-center">
@@ -15,12 +14,11 @@ export function SignInGate({ label = "this" }: { label?: string }) {
         Predictions, results, and standings are for signed-in users only.
       </p>
       <button
-        onClick={() => setOpen(true)}
+        onClick={open}
         className="mt-5 rounded-full bg-[var(--f1-red)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 active:brightness-95"
       >
         Sign in
       </button>
-      {open && <AuthDialog onClose={() => setOpen(false)} />}
     </div>
   );
 }

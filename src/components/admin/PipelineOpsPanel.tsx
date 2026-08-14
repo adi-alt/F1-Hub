@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { usePipelineRuns, useTriggerPipelineRun } from "@/queries/usePipelineRuns";
 import type { WorkflowRun } from "@/lib/github";
-
-type RunsResponse = { workflow: string; runs: WorkflowRun[] }[];
 
 const WORKFLOW_LABELS: Record<string, string> = {
   "fetch-races.yml": "Fetch race data and predict",
@@ -21,60 +19,25 @@ function statusColor(run: WorkflowRun): string {
 }
 
 export function PipelineOpsPanel() {
-  const [data, setData] = useState<RunsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [triggering, setTriggering] = useState<string | null>(null);
+  const { data, isError } = usePipelineRuns();
+  const trigger = useTriggerPipelineRun();
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/runs");
-      if (!res.ok) throw new Error(`${res.status}`);
-      const body = (await res.json()) as { runs: RunsResponse };
-      setData(body.runs);
-      setError(null);
-    } catch {
-      setError("Couldn't load recent runs.");
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function trigger(workflow: string) {
-    setTriggering(workflow);
-    try {
-      const res = await fetch("/api/admin/trigger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workflow }),
-      });
-      if (!res.ok) throw new Error(`${res.status}`);
-      // GitHub takes a moment to register a dispatched run before it shows up in the list.
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await load();
-    } catch {
-      setError(`Failed to trigger ${workflow}.`);
-    } finally {
-      setTriggering(null);
-    }
-  }
-
-  if (error) return <p className="text-sm text-red-400">{error}</p>;
+  if (isError) return <p className="text-sm text-red-400">Couldn&apos;t load recent runs.</p>;
   if (!data) return <p className="text-sm text-neutral-500">Loading recent runs…</p>;
 
   return (
     <div className="space-y-6">
+      {trigger.isError && <p className="text-sm text-red-400">Failed to trigger {trigger.variables}.</p>}
       {data.map(({ workflow, runs }) => (
         <div key={workflow}>
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-medium text-neutral-200">{WORKFLOW_LABELS[workflow] ?? workflow}</h4>
             <button
-              onClick={() => void trigger(workflow)}
-              disabled={triggering !== null}
+              onClick={() => trigger.mutate(workflow)}
+              disabled={trigger.isPending}
               className="rounded-full border border-[var(--f1-line)] px-3 py-1 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
             >
-              {triggering === workflow ? "Triggering…" : "Run now"}
+              {trigger.isPending && trigger.variables === workflow ? "Triggering…" : "Run now"}
             </button>
           </div>
           {runs.length === 0 ? (

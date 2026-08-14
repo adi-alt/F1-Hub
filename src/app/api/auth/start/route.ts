@@ -1,41 +1,26 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
-import { adminAuth } from "@/lib/firebase/admin";
-import { deliverOtp, prepareOtp } from "@/lib/otp";
+import { deliverOtp } from "@/lib/otp";
+import { startSignIn } from "@/services/auth.service";
+import { ServiceError } from "@/services/errors";
 
-/**
- * Step 1 of sign-in/sign-up, for every provider alike (Google, GitHub, email/password): the
- * client has already completed the Firebase-side auth and holds a real ID token by the time it
- * calls this - this route verifies that token, then sends an OTP to the account's email. Whether
- * the account is new or returning isn't decided here; otp/verify branches on that once the code
- * comes back.
- */
 export async function POST(request: Request) {
   const { idToken } = await request.json();
   if (typeof idToken !== "string" || !idToken) {
     return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
   }
 
-  let decoded;
   try {
-    decoded = await adminAuth.verifyIdToken(idToken);
-  } catch {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-  }
-  if (!decoded.email) {
-    return NextResponse.json({ error: "This account has no email address to verify." }, { status: 400 });
-  }
-
-  // "cooldown" just means a still-valid code was already sent a moment ago (e.g. the client
-  // retried /start) - not an error, the user can still use that one.
-  const prepared = await prepareOtp(decoded.email);
-  if (prepared !== "cooldown") {
-    const email = decoded.email;
-    const { code } = prepared;
+    const { email, code } = await startSignIn(idToken);
     // after() runs once this response has already gone out - the actual SMTP round trip (a
     // second or more) would otherwise be the entire reason the OTP screen took a moment to show
     // up, for no benefit: nothing about showing that screen depends on the email having sent yet.
-    after(() => deliverOtp(email, code));
+    // code is null when a still-valid one was already sent a moment ago (cooldown) — not an
+    // error, the user can still use that one.
+    if (code) after(() => deliverOtp(email, code));
+    return NextResponse.json({ ok: true, email });
+  } catch (err) {
+    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    throw err;
   }
-  return NextResponse.json({ ok: true, email: decoded.email });
 }

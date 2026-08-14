@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useAuth } from "./AuthProvider";
+import { useAuth } from "@/providers/AuthProvider";
+import { useOnClickOutside } from "@/hooks/useOnClickOutside";
 
 const ITEMS = [
   { href: "/profile/personalization", label: "Personalisation" },
@@ -17,14 +18,7 @@ export function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
+  useOnClickOutside(rootRef, open, () => setOpen(false));
 
   // Only ever rendered from SignInButton's isAuthorized branch, but checked directly here too —
   // a menu implying "you're signed in" is exactly the wrong thing to show from any other caller
