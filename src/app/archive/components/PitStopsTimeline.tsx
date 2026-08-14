@@ -5,7 +5,7 @@ import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/firestore/archive";
 
-type Point = { driverName: string; lap: number; durationSec: number | null; color: string };
+type Point = { driverName: string; lap: number; durationSec: number | null; color: string; order: number };
 
 // Longer stops get a visibly bigger dot — clamped so one freak 60s stop-and-retire doesn't make
 // every normal ~2.5s stop invisible by comparison.
@@ -36,12 +36,19 @@ export function PitStopsTimeline({
 
   const driverOrder = results.map((r) => r.driverId).filter((id) => pitStops.some((p) => p.driverId === id));
 
-  const data: Point[] = pitStops.map((p) => ({
-    driverName: nameFor(p.driverId),
-    lap: p.lap,
-    durationSec: p.durationSec,
-    color: colorFor(p.driverId),
-  }));
+  // Recharts derives a category axis's row order from first-appearance in `data`, not from
+  // alphabetical or any other implicit rule — sorting by finishing position here (rather than
+  // pit-stop order, which is what this produced before the fix) is what makes the chart read as
+  // an ordered comparison instead of a seemingly-random diagonal scatter.
+  const data: Point[] = pitStops
+    .map((p) => ({
+      driverName: nameFor(p.driverId),
+      lap: p.lap,
+      durationSec: p.durationSec,
+      color: colorFor(p.driverId),
+      order: driverOrder.indexOf(p.driverId),
+    }))
+    .sort((a, b) => a.order - b.order);
 
   return (
     <ResponsiveContainer width="100%" height={Math.max(280, driverOrder.length * 26)}>

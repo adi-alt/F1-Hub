@@ -40,9 +40,18 @@ const KNOWN_TEAM_COLORS: Record<string, string> = {
 };
 
 function hashColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return `hsl(${hash % 360}, 55%, 55%)`;
+  // FNV-1a — its avalanche behavior (a one-character difference flips roughly half the output
+  // bits) spreads unrelated short names across the hue wheel much better than a naive
+  // hash*31+char polynomial did in practice: every backmarker team from the early-2010s grid
+  // (Virgin, HRT, Lotus, ...) landed within the same narrow teal band under the old hash, because
+  // short, similarly-structured strings produced similarly-clustered sums.
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 58%, 56%)`;
 }
 
 export function teamColor(constructor: string): string {
