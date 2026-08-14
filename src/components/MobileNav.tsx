@@ -11,9 +11,21 @@ const baseLinks = [
   { href: "/archive", label: "Archive" },
 ];
 
-export function MobileNav({ showAdmin = false, showNav = false }: { showAdmin?: boolean; showNav?: boolean }) {
+export function MobileNav({
+  showUsers = false,
+  showModels = false,
+  showNav = false,
+}: {
+  showUsers?: boolean;
+  showModels?: boolean;
+  showNav?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const links = showAdmin ? [...baseLinks, { href: "/admin", label: "Admin" }] : baseLinks;
+  const links = [
+    ...baseLinks,
+    ...(showUsers ? [{ href: "/users", label: "Users" }] : []),
+    ...(showModels ? [{ href: "/models", label: "Models" }] : []),
+  ];
 
   if (!showNav) return null;
 

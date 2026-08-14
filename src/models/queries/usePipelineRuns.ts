@@ -6,7 +6,7 @@ type RunsResponse = { workflow: string; runs: WorkflowRun[] }[];
 const RUNS_KEY = ["pipeline-runs"] as const;
 
 async function fetchRuns(): Promise<RunsResponse> {
-  const res = await fetch("/api/admin/runs");
+  const res = await fetch("/api/models/runs");
   if (!res.ok) throw new Error(`${res.status}`);
   const body = (await res.json()) as { runs: RunsResponse };
   return body.runs;
@@ -17,7 +17,7 @@ export function usePipelineRuns() {
 }
 
 async function postTrigger(workflow: string): Promise<void> {
-  const res = await fetch("/api/admin/trigger", {
+  const res = await fetch("/api/models/trigger", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ workflow }),

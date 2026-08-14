@@ -1,12 +1,11 @@
-import Link from "next/link";
-import { NotAuthorized } from "@/components/admin/NotAuthorized";
-import { UserManagement } from "@/components/admin/UserManagement";
+import { NotAuthorized } from "@/components/NotAuthorized";
+import { UserManagement } from "@/components/users/UserManagement";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
-import { listUsers } from "@/services/admin.service";
+import { listUsers } from "@/users/services/users.service";
 import { ServiceError } from "@/services/errors";
 
-export default async function AdminUsersPage() {
+export default async function UsersPage() {
   const session = await getSession();
   if (!session.uid) {
     return (
@@ -28,10 +27,7 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <Link href="/admin" className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← Admin
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold text-white">Users</h1>
+      <h1 className="text-3xl font-bold text-white">Users</h1>
       <div className="mt-8">
         <UserManagement
           initialUsers={users}

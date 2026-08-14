@@ -9,7 +9,9 @@ import { seasonHref } from "@/lib/routes";
 
 export function Header() {
   const { isAuthorized, role } = useAuth();
-  const admin = !!role && permissionsForRole(role).canAccessAdmin;
+  const permissions = role ? permissionsForRole(role) : null;
+  const showUsers = !!permissions?.canViewUsers;
+  const showModels = !!permissions?.canAccessAdmin;
 
   return (
     <header className="relative z-50 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
@@ -33,15 +35,20 @@ export function Header() {
             <Link href="/archive" className="transition hover:text-white">
               Archive
             </Link>
-            {admin && (
-              <Link href="/admin" className="transition hover:text-white">
-                Admin
+            {showUsers && (
+              <Link href="/users" className="transition hover:text-white">
+                Users
+              </Link>
+            )}
+            {showModels && (
+              <Link href="/models" className="transition hover:text-white">
+                Models
               </Link>
             )}
           </nav>
         )}
         <div className="flex items-center gap-3">
-          <MobileNav showAdmin={admin} showNav={isAuthorized} />
+          <MobileNav showUsers={showUsers} showModels={showModels} showNav={isAuthorized} />
           <SignInButton />
         </div>
       </div>

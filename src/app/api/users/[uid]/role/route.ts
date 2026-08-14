@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
-import { updateUserRole } from "@/services/admin.service";
+import { updateUserRole } from "@/users/services/users.service";
 import { ServiceError } from "@/services/errors";
 
 export async function POST(request: Request, { params }: { params: Promise<{ uid: string }> }) {

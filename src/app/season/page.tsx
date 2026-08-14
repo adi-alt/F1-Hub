@@ -1,9 +1,8 @@
 import { CalendarList } from "@/components/season/CalendarList";
 import { ConstructorStandingsTable, DriverStandingsTable } from "@/components/season/StandingsTables";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getRacesByYear } from "@/lib/firestore/races";
+import { getSeasonPageData } from "@/season/services/season.service";
 import { getSession } from "@/lib/session/getSession";
-import { computeStandings } from "@/lib/standings";
 
 export default async function SeasonPage({
   searchParams,
@@ -21,8 +20,7 @@ export default async function SeasonPage({
 
   const { year: yearParam } = await searchParams;
   const year = Number(yearParam) || new Date().getFullYear();
-  const races = await getRacesByYear(year);
-  const standings = computeStandings(races);
+  const { races, standings } = await getSeasonPageData(year);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">

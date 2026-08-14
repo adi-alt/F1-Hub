@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminUserSearch, useAdminUsersList, useSetUserRole } from "@/queries/useAdminUsers";
+import { useUserSearch, useUsersList, useSetUserRole } from "@/users/queries/useUsers";
 import type { UserProfile } from "@/lib/firestore/users";
 
 type Props = {
@@ -26,8 +26,8 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState<string | null>(null);
 
-  const usersList = useAdminUsersList(initialUsers, initialCursor);
-  const searchQuery = useAdminUserSearch(search);
+  const usersList = useUsersList(initialUsers, initialCursor);
+  const searchQuery = useUserSearch(search);
   const setRole = useSetUserRole();
 
   const users = usersList.data?.pages.flatMap((p) => p.users) ?? initialUsers;

@@ -3,13 +3,13 @@ import { CircuitGrid } from "@/components/CircuitGrid";
 import { CircuitTrendChart } from "@/components/charts/CircuitTrendChart";
 import { PastWinnersList } from "@/components/circuit/PastWinnersList";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getRacesByCircuit, getRacesByYear } from "@/lib/firestore/races";
+import { getCircuitDetailData, getCircuitsIndexData } from "@/circuits/services/circuits.service";
 import { raceTitle } from "@/lib/format";
 import { getSession } from "@/lib/session/getSession";
 
 async function CircuitsIndex() {
   const year = new Date().getFullYear();
-  const races = await getRacesByYear(year);
+  const { races } = await getCircuitsIndexData(year);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -21,14 +21,9 @@ async function CircuitsIndex() {
 }
 
 async function CircuitDetail({ circuit }: { circuit: string }) {
-  const races = await getRacesByCircuit(circuit);
-  if (races.length === 0) notFound();
-
-  const completed = races.filter((r) => r.status === "completed" && r.poleTimeSec !== undefined);
-  const trend = completed
-    .map((r) => ({ year: r.year, poleTimeSec: r.poleTimeSec as number }))
-    .sort((a, b) => a.year - b.year);
-  const avgPole = trend.length ? trend.reduce((sum, d) => sum + d.poleTimeSec, 0) / trend.length : null;
+  const data = await getCircuitDetailData(circuit);
+  if (!data) notFound();
+  const { completed, trend, avgPole } = data;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">

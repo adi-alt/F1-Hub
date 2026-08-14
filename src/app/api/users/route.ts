@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
-import { listUsers } from "@/services/admin.service";
+import { listUsers } from "@/users/services/users.service";
 import { ServiceError } from "@/services/errors";
 
 export async function GET(request: Request) {

@@ -5,7 +5,7 @@ import type { Role } from "@/lib/rbac";
 // bootstraps the *first* admin, see the users/{uid} creation logic in
 // api/auth/session/route.ts). Firestore rules deny all client writes to this doc (see
 // firestore.rules), so the only way `role` is ever set is server-side, here or via
-// /api/admin/users/[uid]/role. Always a fresh Firestore read — the session's own cached
+// /api/users/[uid]/role. Always a fresh Firestore read — the session's own cached
 // `role` field exists only so the client UI can react instantly; every real permission
 // decision goes through this function, never the cached value, so a demotion takes effect
 // on the very next server check rather than waiting for a new sign-in.

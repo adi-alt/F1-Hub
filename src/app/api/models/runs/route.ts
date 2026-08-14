@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
-import { listPipelineRuns } from "@/services/admin.service";
+import { listPipelineRuns } from "@/models/services/models.service";
 import { ServiceError } from "@/services/errors";
 
 export async function GET() {

@@ -7,17 +7,15 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
-  getArchiveRace,
-  getArchiveSeason,
-} from "@/lib/firestore/archive";
+  getArchiveRaceData,
+  getArchiveSeasonData,
+  getArchiveYears,
+} from "@/archive/services/archive.service";
 import { archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 function ArchiveIndex() {
-  const years = Array.from(
-    { length: ARCHIVE_LATEST_YEAR - ARCHIVE_EARLIEST_YEAR + 1 },
-    (_, i) => ARCHIVE_LATEST_YEAR - i,
-  );
+  const years = getArchiveYears();
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <h1 className="text-3xl font-bold text-white">Archive</h1>
@@ -31,7 +29,7 @@ function ArchiveIndex() {
 }
 
 async function ArchiveSeason({ year }: { year: number }) {
-  const races = await getArchiveSeason(year);
+  const races = await getArchiveSeasonData(year);
   if (races.length === 0) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
@@ -57,7 +55,7 @@ async function ArchiveSeason({ year }: { year: number }) {
 }
 
 async function ArchiveRace({ year, round }: { year: number; round: number }) {
-  const race = await getArchiveRace(year, round);
+  const race = await getArchiveRaceData(year, round);
   if (!race) notFound();
 
   return (
