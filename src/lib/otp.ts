@@ -1,5 +1,12 @@
+import { setDefaultResultOrder } from "dns";
 import nodemailer from "nodemailer";
 import { adminDb } from "@/lib/firebase/admin";
+
+// Some networks route Gmail's SMTP endpoint over a broken IPv6 path (seen locally as
+// ESOCKET/EHOSTUNREACH) - nodemailer/smtp-connection has no per-transport option for this, DNS
+// resolution order is process-wide. Preferring IPv4 first is the standard fix and is harmless
+// wherever IPv6 already works fine.
+setDefaultResultOrder("ipv4first");
 
 const COLLECTION = "otp_codes";
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes to enter the code
@@ -20,6 +27,50 @@ function docRef(email: string) {
   // Firestore doc IDs can't contain "/" — email addresses never do, but this is the one
   // character that would break it, so normalize defensively rather than assume.
   return adminDb.collection(COLLECTION).doc(email.toLowerCase().replace(/\//g, "_"));
+}
+
+// Table-based layout with inline styles throughout - the only markup that survives Gmail/
+// Outlook's habit of stripping <style> blocks and ignoring flex/grid in HTML email.
+function buildOtpEmailHtml(code: string): string {
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0c;padding:40px 16px;font-family:Arial,Helvetica,sans-serif;">
+  <tr><td align="center">
+    <table width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#17171a;border:1px solid #2c2c31;border-radius:16px;overflow:hidden;">
+      <tr>
+        <td style="padding:28px 32px 0 32px;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="width:6px;height:20px;background-color:#e10600;border-radius:3px;"></td>
+            <td style="padding-left:10px;font-size:18px;font-weight:700;color:#f2f2f3;letter-spacing:0.5px;">F1 HUB</td>
+          </tr></table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:28px 32px 8px 32px;font-size:20px;font-weight:700;color:#f2f2f3;">
+          Verify it&rsquo;s you
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 32px 24px 32px;font-size:14px;line-height:1.6;color:#9a9aa2;">
+          Enter this code to finish signing in to F1 Hub. It expires in 10 minutes.
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 32px 28px 32px;">
+          <table cellpadding="0" cellspacing="0" width="100%" style="background-color:#0a0a0c;border:1px solid #2c2c31;border-radius:10px;">
+            <tr><td align="center" style="padding:20px 0;font-size:32px;font-weight:700;letter-spacing:10px;color:#f2f2f3;font-family:'Courier New',monospace;">
+              ${code}
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 32px 32px 32px;font-size:12px;line-height:1.6;color:#63636c;border-top:1px solid #2c2c31;padding-top:20px;">
+          Didn&rsquo;t request this? You can safely ignore this email &mdash; no account changes were made.
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>`.trim();
 }
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
@@ -57,7 +108,7 @@ export async function sendOtp(email: string): Promise<"sent" | "cooldown"> {
     to: email,
     subject: `${code} is your F1 Hub verification code`,
     text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes.`,
-    html: `<p>Your F1 Hub verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
+    html: buildOtpEmailHtml(code),
   });
 
   return "sent";

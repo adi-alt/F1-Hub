@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -10,6 +11,7 @@ import {
 } from "firebase/auth";
 import { auth, githubProvider, googleProvider } from "@/lib/firebase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Skeleton } from "@/components/Skeleton";
 import type { Role } from "@/lib/rbac";
 
 type Step = "method" | "otp" | "profile";
@@ -99,6 +101,54 @@ function GitHubIcon() {
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
       <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .3.21.66.79.55A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
     </svg>
+  );
+}
+
+// Six single-digit boxes rather than one text field - types forward automatically, backspace on
+// an empty box steps back, and pasting a full code anywhere fills all six at once.
+function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = Array.from({ length: 6 }, (_, i) => value[i] ?? "");
+
+  function setDigit(i: number, raw: string) {
+    const d = raw.replace(/\D/g, "").slice(-1);
+    const next = digits.slice();
+    next[i] = d;
+    onChange(next.join(""));
+    if (d && i < 5) refs.current[i + 1]?.focus();
+  }
+
+  function handleKeyDown(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !digits[i] && i > 0) refs.current[i - 1]?.focus();
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+    e.preventDefault();
+    onChange(pasted);
+    refs.current[Math.min(pasted.length, 5)]?.focus();
+  }
+
+  return (
+    <div className="flex justify-center gap-2">
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={d}
+          onChange={(e) => setDigit(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          className="h-12 w-10 rounded-lg border border-[var(--f1-line)] bg-black/20 text-center text-lg font-bold text-white focus:border-white/30 focus:outline-none"
+        />
+      ))}
+    </div>
   );
 }
 
@@ -277,12 +327,12 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   // that whole category of bug structurally impossible rather than tracking down one ancestor.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 backdrop-blur-[1.5px]"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative grid min-h-[560px] w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl md:max-w-3xl md:grid-cols-2"
+        className="relative grid min-h-[560px] w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl md:max-w-4xl md:grid-cols-2"
       >
         <button
           onClick={onClose}
@@ -298,9 +348,17 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
           <FormulaScene />
         </div>
 
-        <div className="flex flex-col justify-center p-6">
+        <div className="flex flex-col justify-center overflow-hidden p-6">
+        <AnimatePresence mode="wait">
         {step === "method" && (
-          <div className="space-y-3">
+          <motion.div
+            key="method"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-3"
+          >
             <h2 className="text-lg font-bold text-white">Sign in or sign up</h2>
             <p className="text-sm text-neutral-400">One account either way — we&apos;ll figure out which.</p>
             <input
@@ -348,24 +406,23 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               Continue with GitHub
             </button>
             {error && <p className="text-sm text-red-400">{error}</p>}
-          </div>
+          </motion.div>
         )}
 
         {step === "otp" && (
-          <div className="space-y-3">
+          <motion.div
+            key="otp"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
             <h2 className="text-lg font-bold text-white">Check your email</h2>
             <p className="text-sm text-neutral-400">
               We sent a 6-digit code to <span className="text-white">{verifiedEmail}</span>.
             </p>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              className={`${inputClass} text-center text-lg tracking-[0.3em]`}
-            />
+            <OtpInput value={code} onChange={setCode} />
             <button
               disabled={busy || code.length !== 6}
               onClick={() => void handleOtpSubmit()}
@@ -374,11 +431,17 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               {busy ? "Verifying…" : "Verify"}
             </button>
             {error && <p className="text-sm text-red-400">{error}</p>}
-          </div>
+          </motion.div>
         )}
 
         {step === "profile" && (
-          <div className="max-h-[70vh] space-y-3 overflow-y-auto">
+          <motion.div
+            key="profile"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.2 }}
+            className="max-h-[70vh] space-y-3 overflow-y-auto">
             <h2 className="text-lg font-bold text-white">Tell us a bit about you</h2>
             <div className="flex gap-2">
               <input
@@ -425,30 +488,40 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               {usernameStatus === "available" && <p className="mt-1 text-xs text-green-400">Available.</p>}
             </div>
 
-            <select value={favoriteDriver} onChange={(e) => setFavoriteDriver(e.target.value)} className={inputClass}>
-              <option value="">Favorite driver (optional)</option>
-              {(options?.drivers ?? []).map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-            <select value={favoriteTeam} onChange={(e) => setFavoriteTeam(e.target.value)} className={inputClass}>
-              <option value="">Favorite team (optional)</option>
-              {(options?.teams ?? []).map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <select value={favoriteTrack} onChange={(e) => setFavoriteTrack(e.target.value)} className={inputClass}>
-              <option value="">Favorite track (optional)</option>
-              {(options?.tracks ?? []).map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            {options ? (
+              <>
+                <select value={favoriteDriver} onChange={(e) => setFavoriteDriver(e.target.value)} className={inputClass}>
+                  <option value="">Favorite driver (optional)</option>
+                  {options.drivers.map((d) => (
+                    <option key={d.code} value={d.code}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <select value={favoriteTeam} onChange={(e) => setFavoriteTeam(e.target.value)} className={inputClass}>
+                  <option value="">Favorite team (optional)</option>
+                  {options.teams.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <select value={favoriteTrack} onChange={(e) => setFavoriteTrack(e.target.value)} className={inputClass}>
+                  <option value="">Favorite track (optional)</option>
+                  {options.tracks.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-9 w-full" />
+              </>
+            )}
 
             <button
               disabled={
@@ -464,8 +537,9 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               {busy ? "Creating account…" : "Create account"}
             </button>
             {error && <p className="text-sm text-red-400">{error}</p>}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
         </div>
       </div>
     </div>,
