@@ -58,22 +58,27 @@ with no code change needed. Five scripts, each idempotent and safe to interrupt/
   Two services `enrich_archive.py`/`enrich_archive_laps.py` never touch, so this only shares
   Jolpi's rate limit, not Open-Meteo's or Wikipedia's — still run after the other two finish
   rather than alongside them, to avoid piling a third Jolpi-touching pass on top.
-- **`enrich_archive_drivers.py`** — pure Firestore-to-Firestore, no external API calls at all, so
-  it can run anytime, including concurrently with the other four. Writes a flat `driverIds:
-  string[]` mirror field onto every race doc (Firestore can't `array-contains` query inside
-  nested `results[].driverId` objects directly, so this is what makes "every race a driver ran" a
-  real query instead of a full-collection scan), and rebuilds the small `archive_drivers`
-  collection (`{ driverId, name, code, firstYear, lastYear, raceCount }` per driver) from a full
-  scan of `archive_races` every run — deliberately ignores any `[start_year] [end_year]` range for
-  that rebuild step, so a partial-range run never truncates the driver index down to just that
-  range's drivers. The per-race `driverIds` write is still range-scoped and skip-if-already-set.
+- **`enrich_archive_entities.py`** (renamed from `enrich_archive_drivers.py` once it grew a
+  second entity type) — pure Firestore-to-Firestore, no external API calls at all, so it can run
+  anytime, including concurrently with the other four. Writes flat `driverIds: string[]` /
+  `teamIds: string[]` mirror fields onto every race doc (Firestore can't `array-contains` query
+  inside nested `results[].driverId`/`.constructor` objects directly, so this is what makes
+  "every race a driver/team was in" a real query instead of a full-collection scan), and rebuilds
+  the small `archive_drivers` (`{ driverId, name, code, firstYear, lastYear, raceCount,
+  constructors }`) and `archive_teams` (`{ teamId, name, firstYear, lastYear, raceCount, drivers
+  }`) collections from a full scan of `archive_races` every run — deliberately ignores any
+  `[start_year] [end_year]` range for that rebuild step, so a partial-range run never truncates
+  either index down to just that range. The per-race `driverIds`/`teamIds` write is still
+  range-scoped and skip-if-already-set. A team's `teamId` is a slug of its constructor display
+  name, not a stable Ergast id (never captured) — real rebrands (Lotus → Renault → Alpine) end up
+  as separate teams, which is arguably correct for a historical archive anyway.
 
 ```bash
 export FIREBASE_SERVICE_ACCOUNT_JSON='<same service account JSON the app itself uses>'
 python3 enrich_archive.py                 # every un-enriched race, 1950-<last year>
 python3 enrich_archive_laps.py            # every race missing lap data, 1996-<last year>
 python3 enrich_archive_circuits.py        # every race missing circuit/weather data, 1950-<last year>
-python3 enrich_archive_drivers.py         # rebuilds archive_drivers + driverIds, any time
+python3 enrich_archive_entities.py        # rebuilds archive_drivers/archive_teams, any time
 ```
 
 The first three accept the same `[start_year]` / `[start_year] [end_year]` arguments as

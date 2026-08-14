@@ -35,15 +35,16 @@ export default async function PersonalizationPage() {
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-white">Personalization</h1>
       <p className="mt-2 text-sm text-neutral-400">
-        Pick a favorite driver and team — used to highlight them across the site.
+        Pick your favorite drivers and teams — used to highlight them across the site. (Favorite
+        tracks are managed from the archive&apos;s &ldquo;By track&rdquo; tab.)
       </p>
       <div className="mt-8">
         <PersonalizationForm
           entrants={entrants}
           driverStandings={standings.drivers}
           constructorStandings={standings.constructors}
-          initialFavoriteDriver={profile?.favoriteDriver}
-          initialFavoriteTeam={profile?.favoriteTeam}
+          initialFavoriteDrivers={profile?.favoriteDrivers}
+          initialFavoriteTeams={profile?.favoriteTeams}
         />
       </div>
     </div>

@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { completeSignup } from "@/services/auth.service";
 import { ServiceError } from "@/services/errors";
 
+function stringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((v) => typeof v === "string") ? value : undefined;
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
-  const { idToken, firstName, lastName, username, favoriteDriver, favoriteTeam, favoriteTrack } = body;
+  const { idToken, firstName, lastName, username, favoriteDrivers, favoriteTeams, favoriteTracks } = body;
 
   if (typeof idToken !== "string") return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
   if (typeof firstName !== "string" || typeof lastName !== "string" || typeof username !== "string") {
@@ -16,9 +20,9 @@ export async function POST(request: Request) {
       firstName,
       lastName,
       username,
-      favoriteDriver: typeof favoriteDriver === "string" ? favoriteDriver : undefined,
-      favoriteTeam: typeof favoriteTeam === "string" ? favoriteTeam : undefined,
-      favoriteTrack: typeof favoriteTrack === "string" ? favoriteTrack : undefined,
+      favoriteDrivers: stringArray(favoriteDrivers),
+      favoriteTeams: stringArray(favoriteTeams),
+      favoriteTracks: stringArray(favoriteTracks),
     });
     return NextResponse.json(result);
   } catch (err) {

@@ -11,24 +11,32 @@ export type UserProfile = {
   firstName?: string;
   lastName?: string;
   username?: string;
-  favoriteDriver?: string;
-  favoriteTeam?: string;
-  favoriteTrack?: string;
+  // One shared favorites concept, not two: personalization (signup form, PersonalizationForm) and
+  // /archive's heart icons both read and write these same three arrays — there's no separate
+  // "archive favorites" field. The two surfaces do push different identifier schemes into them
+  // though, since this app never unified driver/team/track identity across current-season data
+  // (FastF1 codes like "VER", free-text team/track names) and archive/Ergast data (driverId slugs
+  // like "max_verstappen", circuitId slugs, constructor names) — see pipeline/README.md. That's
+  // safe to mix in one array: the two schemes never collide syntactically, and each surface only
+  // ever checks membership using its own kind of id, so there's no false-positive risk.
+  favoriteDrivers?: string[];
+  favoriteTeams?: string[];
+  favoriteTracks?: string[];
   notifyBeforeQualifying?: boolean;
   notifyOnResults?: boolean;
 };
 
 export type PreferencesPatch = Partial<
-  Pick<UserProfile, "favoriteDriver" | "favoriteTeam" | "notifyBeforeQualifying" | "notifyOnResults">
+  Pick<UserProfile, "favoriteDrivers" | "favoriteTeams" | "favoriteTracks" | "notifyBeforeQualifying" | "notifyOnResults">
 >;
 
 export type NewProfileInput = {
   firstName: string;
   lastName: string;
   username: string;
-  favoriteDriver?: string;
-  favoriteTeam?: string;
-  favoriteTrack?: string;
+  favoriteDrivers?: string[];
+  favoriteTeams?: string[];
+  favoriteTracks?: string[];
 };
 
 /** Creates users/{uid} once, at the end of the OTP-gated signup flow — never called for a
@@ -57,9 +65,9 @@ export async function createUserProfile(
     firstName: input.firstName,
     lastName: input.lastName,
     username: input.username,
-    ...(input.favoriteDriver ? { favoriteDriver: input.favoriteDriver } : {}),
-    ...(input.favoriteTeam ? { favoriteTeam: input.favoriteTeam } : {}),
-    ...(input.favoriteTrack ? { favoriteTrack: input.favoriteTrack } : {}),
+    ...(input.favoriteDrivers?.length ? { favoriteDrivers: input.favoriteDrivers } : {}),
+    ...(input.favoriteTeams?.length ? { favoriteTeams: input.favoriteTeams } : {}),
+    ...(input.favoriteTracks?.length ? { favoriteTracks: input.favoriteTracks } : {}),
     ...(isBootstrapAdmin ? { role: "admin" as const } : {}),
   };
   await adminDb.collection("users").doc(uid).set(doc);
@@ -129,4 +137,20 @@ export async function setUserRole(uid: string, role: Exclude<Role, "user"> | nul
  * this function via /api/users/me. */
 export async function updateUserPreferences(uid: string, patch: PreferencesPatch): Promise<void> {
   await adminDb.collection("users").doc(uid).update(patch);
+}
+
+/** Adds/removes one id from a favorites array — the one-at-a-time counterpart to
+ * updateUserPreferences's whole-array replace above, used by /archive's heart icons (click once,
+ * toggle one entry) rather than the personalization form (edit the whole list, then Save). Same
+ * "client can't write users/{uid} directly" reasoning. See /api/archive/favorites. */
+export async function setArchiveFavorite(
+  uid: string,
+  field: "favoriteDrivers" | "favoriteTeams" | "favoriteTracks",
+  id: string,
+  favorited: boolean,
+): Promise<void> {
+  await adminDb
+    .collection("users")
+    .doc(uid)
+    .update({ [field]: favorited ? FieldValue.arrayUnion(id) : FieldValue.arrayRemove(id) });
 }

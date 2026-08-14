@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getUserProfile, updateUserPreferences, type PreferencesPatch } from "@/lib/firestore/users";
 import { getSession } from "@/lib/session/getSession";
 
-const ALLOWED_KEYS = new Set(["favoriteDriver", "favoriteTeam", "notifyBeforeQualifying", "notifyOnResults"]);
+const ARRAY_KEYS = new Set(["favoriteDrivers", "favoriteTeams", "favoriteTracks"]);
+const BOOLEAN_KEYS = new Set(["notifyBeforeQualifying", "notifyOnResults"]);
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
 
 export async function GET() {
   const session = await getSession();
@@ -13,7 +18,9 @@ export async function GET() {
 }
 
 // Always the caller's own uid — there is no uid in the request body, so there's nothing to spoof.
-// Only the four preference fields are writable; role and everything else stays admin-route-only.
+// Only the fields below are writable; role and everything else stays admin-route-only. This is a
+// whole-array *replace* for the favorite lists (PersonalizationForm sends its full current
+// selection) — /api/archive/favorites is the one-item-at-a-time toggle for the heart icons.
 export async function PATCH(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -21,9 +28,16 @@ export async function PATCH(request: Request) {
   const body = (await request.json()) as Record<string, unknown>;
   const patch: PreferencesPatch = {};
   for (const key of Object.keys(body)) {
-    if (ALLOWED_KEYS.has(key)) (patch as Record<string, unknown>)[key] = body[key];
+    if (ARRAY_KEYS.has(key) && isStringArray(body[key])) {
+      (patch as Record<string, unknown>)[key] = body[key];
+    } else if (BOOLEAN_KEYS.has(key) && typeof body[key] === "boolean") {
+      (patch as Record<string, unknown>)[key] = body[key];
+    }
   }
 
-  await updateUserPreferences(session.uid, patch);
+  // Firestore's .update() throws ("at least one field must be updated") given an empty object —
+  // a body with no recognized/valid keys would otherwise crash this route instead of just being
+  // a no-op.
+  if (Object.keys(patch).length > 0) await updateUserPreferences(session.uid, patch);
   return NextResponse.json({ ok: true });
 }

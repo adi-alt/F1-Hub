@@ -77,6 +77,12 @@ export type ArchiveCircuit = {
   imageUrl: string | null;
   lat: number | null;
   long: number | null;
+  // Merged in by getAllArchiveCircuits from a full archive_races scan (getArchiveCircuitStats
+  // below) — undefined for callers that only read the bare archive_circuits doc (getArchiveCircuit).
+  raceCount?: number;
+  firstYear?: number | null;
+  lastYear?: number | null;
+  country?: string | null;
 };
 
 export type ArchiveDriver = {
@@ -86,6 +92,19 @@ export type ArchiveDriver = {
   firstYear: number;
   lastYear: number;
   raceCount: number;
+  // Written by pipeline/enrich_archive_entities.py alongside everything else above — every unique
+  // constructor name this driver's results ever carried, sorted. Absent on any archive_drivers
+  // doc written before that field existed, so read sites default it to [].
+  constructors?: string[];
+};
+
+export type ArchiveTeam = {
+  teamId: string;
+  name: string;
+  firstYear: number;
+  lastYear: number;
+  raceCount: number;
+  drivers: string[];
 };
 
 export type ArchiveRaceDoc = {
@@ -107,10 +126,12 @@ export type ArchiveRaceDoc = {
   lapsBackfilled?: boolean;
   circuitId?: string | null;
   weather?: ArchiveWeather | null;
-  // Written by pipeline/enrich_archive_drivers.py — a flat mirror of results[].driverId, purely
-  // so "every race this driver ran" can be a real `array-contains` query (see
-  // getArchiveRacesByDriver) instead of scanning every doc's nested results array by hand.
+  // Written by pipeline/enrich_archive_entities.py — flat mirrors of results[].driverId /
+  // .constructor, purely so "every race this driver/team was in" can be a real `array-contains`
+  // query (see getArchiveRacesByDriver/getArchiveRacesByTeam) instead of scanning every doc's
+  // nested results array by hand.
   driverIds?: string[];
+  teamIds?: string[];
 };
 
 /** A season's races — no `.orderBy("round")` on purpose, same reasoning as `calendar` in
@@ -154,14 +175,62 @@ export const getArchiveCircuit = unstable_cache(
   { revalidate: REVALIDATE_SECONDS },
 );
 
+type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; country: string | null };
+
+/** One full (but field-projected) scan of archive_races, grouped by circuitId — the race-count/
+ * year-span/country "key info" shown on each track tile. Computed here in TS rather than baked
+ * into archive_circuits by the Python pipeline: that collection's own model is "write once, the
+ * first time a circuit is seen" (see enrich_archive_circuits.py), which doesn't fit stats that
+ * change every time a new race at an existing circuit gets backfilled — and at ~1,300-2,000 docs,
+ * cached for a day like everything else here, a full scan is cheap enough not to bother. */
+const getArchiveCircuitStats = unstable_cache(
+  async (): Promise<Record<string, CircuitStats>> => {
+    const snap = await adminDb.collection(COLLECTION).select("circuitId", "year", "country").get();
+    const stats: Record<string, CircuitStats> = {};
+    for (const doc of snap.docs) {
+      const { circuitId, year, country } = doc.data() as {
+        circuitId?: string;
+        year: number;
+        country?: string | null;
+      };
+      if (!circuitId) continue;
+      const s = stats[circuitId];
+      if (!s) {
+        stats[circuitId] = { raceCount: 1, firstYear: year, lastYear: year, country: country ?? null };
+      } else {
+        s.raceCount += 1;
+        s.firstYear = Math.min(s.firstYear, year);
+        s.lastYear = Math.max(s.lastYear, year);
+        if (!s.country && country) s.country = country;
+      }
+    }
+    return stats;
+  },
+  ["get-archive-circuit-stats"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
 /** Every circuit that's been through pipeline/enrich_archive_circuits.py — a small collection
  * (~100-150 once the archive covers 1950-last year), so listing all of it for the "browse by
  * track" landing grid is cheap. No stable order in Firestore — sorted by name here. */
 export const getAllArchiveCircuits = unstable_cache(
   async (): Promise<ArchiveCircuit[]> => {
-    const snap = await adminDb.collection("archive_circuits").get();
+    const [snap, stats] = await Promise.all([
+      adminDb.collection("archive_circuits").get(),
+      getArchiveCircuitStats(),
+    ]);
     return snap.docs
-      .map((d) => d.data() as ArchiveCircuit)
+      .map((d) => {
+        const circuit = d.data() as ArchiveCircuit;
+        const s = stats[circuit.circuitId];
+        return {
+          ...circuit,
+          raceCount: s?.raceCount ?? 0,
+          firstYear: s?.firstYear ?? null,
+          lastYear: s?.lastYear ?? null,
+          country: s?.country ?? null,
+        };
+      })
       .sort((a, b) => (a.name ?? a.circuitId).localeCompare(b.name ?? b.circuitId));
   },
   ["get-all-archive-circuits"],
@@ -182,7 +251,7 @@ export const getArchiveRacesByCircuitId = unstable_cache(
   { revalidate: REVALIDATE_SECONDS },
 );
 
-/** Every driver who's been through pipeline/enrich_archive_drivers.py — for the "browse by
+/** Every driver who's been through pipeline/enrich_archive_entities.py — for the "browse by
  * racer" landing grid. Sorted by most recent first, since a fresh visitor is more likely
  * recognize recent names than a 1950s one. */
 export const getAllArchiveDrivers = unstable_cache(
@@ -205,6 +274,38 @@ export const getArchiveRacesByDriver = unstable_cache(
       .sort((a, b) => a.year - b.year || a.round - b.round);
   },
   ["get-archive-races-by-driver"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+export const getArchiveTeam = unstable_cache(
+  async (teamId: string): Promise<ArchiveTeam | null> => {
+    const snap = await adminDb.collection("archive_teams").doc(teamId).get();
+    return snap.exists ? (snap.data() as ArchiveTeam) : null;
+  },
+  ["get-archive-team"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** Every team who's been through pipeline/enrich_archive_entities.py — for the "browse by team"
+ * landing grid, same shape/sort as getAllArchiveDrivers. */
+export const getAllArchiveTeams = unstable_cache(
+  async (): Promise<ArchiveTeam[]> => {
+    const snap = await adminDb.collection("archive_teams").get();
+    return snap.docs.map((d) => d.data() as ArchiveTeam).sort((a, b) => b.lastYear - a.lastYear);
+  },
+  ["get-all-archive-teams"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** A team's history — every race with this teamId in its flat `teamIds` mirror, oldest first. */
+export const getArchiveRacesByTeam = unstable_cache(
+  async (teamId: string): Promise<ArchiveRaceDoc[]> => {
+    const snap = await adminDb.collection(COLLECTION).where("teamIds", "array-contains", teamId).get();
+    return snap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<ArchiveRaceDoc, "id">) }))
+      .sort((a, b) => a.year - b.year || a.round - b.round);
+  },
+  ["get-archive-races-by-team"],
   { revalidate: REVALIDATE_SECONDS },
 );
 

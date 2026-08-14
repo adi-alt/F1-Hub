@@ -33,3 +33,7 @@ export function archiveCircuitHref(circuitId: string): string {
 export function archiveDriverHref(driverId: string): string {
   return `/archive?driver=${encodeURIComponent(driverId)}`;
 }
+
+export function archiveTeamHref(teamId: string): string {
+  return `/archive?team=${encodeURIComponent(teamId)}`;
+}

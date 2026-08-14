@@ -3,12 +3,15 @@ import {
   ARCHIVE_LATEST_YEAR,
   getAllArchiveCircuits,
   getAllArchiveDrivers,
+  getAllArchiveTeams,
   getArchiveCircuit,
   getArchiveRace,
   getArchiveRaceLaps,
   getArchiveRacesByCircuitId,
   getArchiveRacesByDriver,
+  getArchiveRacesByTeam,
   getArchiveSeason,
+  getArchiveTeam,
 } from "@/lib/firestore/archive";
 
 export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
@@ -47,4 +50,16 @@ export async function getAllArchiveDriversData() {
 
 export async function getArchiveDriverHistoryData(driverId: string) {
   return getArchiveRacesByDriver(driverId);
+}
+
+export async function getAllArchiveTeamsData() {
+  return getAllArchiveTeams();
+}
+
+export async function getArchiveTeamData(teamId: string) {
+  return getArchiveTeam(teamId);
+}
+
+export async function getArchiveTeamHistoryData(teamId: string) {
+  return getArchiveRacesByTeam(teamId);
 }

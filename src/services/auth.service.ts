@@ -60,9 +60,9 @@ export type CompleteSignupInput = {
   firstName: string;
   lastName: string;
   username: string;
-  favoriteDriver?: string;
-  favoriteTeam?: string;
-  favoriteTrack?: string;
+  favoriteDrivers?: string[];
+  favoriteTeams?: string[];
+  favoriteTracks?: string[];
 };
 
 /** Step 3, new accounts only: requires verifyOtpAndLogin's code check to have actually passed for
@@ -96,9 +96,9 @@ export async function completeSignup(
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
     username: input.username,
-    favoriteDriver: input.favoriteDriver,
-    favoriteTeam: input.favoriteTeam,
-    favoriteTrack: input.favoriteTrack,
+    favoriteDrivers: input.favoriteDrivers,
+    favoriteTeams: input.favoriteTeams,
+    favoriteTracks: input.favoriteTracks,
   });
   await clearOtp(decoded.email);
 

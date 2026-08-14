@@ -393,7 +393,18 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/auth/complete-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, firstName, lastName, username, favoriteDriver, favoriteTeam, favoriteTrack }),
+        body: JSON.stringify({
+          idToken,
+          firstName,
+          lastName,
+          username,
+          // Signup only ever offers one pick each (a quick default, not the full multi-favorite
+          // editor) — wrapped into arrays here since that's the shape the profile actually
+          // stores. Add more later via Personalization or the archive's heart icons.
+          favoriteDrivers: favoriteDriver ? [favoriteDriver] : [],
+          favoriteTeams: favoriteTeam ? [favoriteTeam] : [],
+          favoriteTracks: favoriteTrack ? [favoriteTrack] : [],
+        }),
       });
       const body = (await res.json()) as { status?: "logged-in"; role?: Role; error?: string };
       if (!res.ok) {

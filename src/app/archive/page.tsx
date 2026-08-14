@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArchiveCircuitGrid } from "./components/ArchiveCircuitGrid";
-import { ArchiveDriverGrid } from "./components/ArchiveDriverGrid";
+import { ArchiveExplorer } from "./components/ArchiveExplorer";
 import { ArchiveRaceList } from "./components/ArchiveRaceList";
-import { ArchiveSeasonGrid } from "./components/ArchiveSeasonGrid";
 import { CircuitCard } from "./components/CircuitCard";
 import { LapChart } from "./components/LapChart";
 import { PitStopsTimeline } from "./components/PitStopsTimeline";
@@ -14,56 +12,48 @@ import {
   ARCHIVE_LATEST_YEAR,
   getAllArchiveCircuitsData,
   getAllArchiveDriversData,
+  getAllArchiveTeamsData,
   getArchiveCircuitData,
   getArchiveCircuitHistoryData,
   getArchiveDriverHistoryData,
   getArchiveRaceData,
   getArchiveSeasonData,
+  getArchiveTeamData,
+  getArchiveTeamHistoryData,
   getArchiveYears,
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
+import { getUserProfile } from "@/lib/firestore/users";
 import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
-type Facet = "year" | "track" | "driver";
+type Facet = "year" | "track" | "driver" | "team";
 
-function FacetTabs({ active }: { active: Facet }) {
-  const tabs: { key: Facet; label: string; href: string }[] = [
-    { key: "year", label: "By year", href: "/archive" },
-    { key: "track", label: "By track", href: "/archive?by=track" },
-    { key: "driver", label: "By driver", href: "/archive?by=driver" },
-  ];
-  return (
-    <div className="mt-6 flex gap-2">
-      {tabs.map((t) => (
-        <Link
-          key={t.key}
-          href={t.href}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-            t.key === active
-              ? "bg-[var(--f1-red)] text-white"
-              : "border border-[var(--f1-line)] text-neutral-300 hover:border-white/30 hover:text-white"
-          }`}
-        >
-          {t.label}
-        </Link>
-      ))}
-    </div>
-  );
-}
+async function ArchiveIndex({ by, uid }: { by: Facet; uid: string }) {
+  const [circuits, drivers, teams, profile] = await Promise.all([
+    getAllArchiveCircuitsData(),
+    getAllArchiveDriversData(),
+    getAllArchiveTeamsData(),
+    getUserProfile(uid),
+  ]);
 
-async function ArchiveIndex({ by }: { by: Facet }) {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <h1 className="text-3xl font-bold text-white">Archive</h1>
       <p className="mt-1 text-sm text-neutral-500">
         Every season from {ARCHIVE_EARLIEST_YEAR} to {ARCHIVE_LATEST_YEAR} — results only, sourced
         from the Ergast/Jolpi historical database.
       </p>
-      <FacetTabs active={by} />
-      {by === "track" && <ArchiveCircuitGrid circuits={await getAllArchiveCircuitsData()} />}
-      {by === "driver" && <ArchiveDriverGrid drivers={await getAllArchiveDriversData()} />}
-      {by === "year" && <ArchiveSeasonGrid years={getArchiveYears()} />}
+      <ArchiveExplorer
+        initialBy={by}
+        years={getArchiveYears()}
+        circuits={circuits}
+        drivers={drivers}
+        teams={teams}
+        favoriteTracks={profile?.favoriteTracks ?? []}
+        favoriteDrivers={profile?.favoriteDrivers ?? []}
+        favoriteTeams={profile?.favoriteTeams ?? []}
+      />
     </div>
   );
 }
@@ -72,7 +62,7 @@ async function ArchiveSeason({ year }: { year: number }) {
   const races = await getArchiveSeasonData(year);
   if (races.length === 0) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
           ← Archive
         </Link>
@@ -83,7 +73,7 @@ async function ArchiveSeason({ year }: { year: number }) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
         ← Archive
       </Link>
@@ -101,7 +91,7 @@ async function ArchiveRace({ year, round }: { year: number; round: number }) {
   const circuit = race.circuitId ? await getArchiveCircuitData(race.circuitId) : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <Link href={archiveSeasonHref(year)} className="text-sm text-neutral-500 hover:text-neutral-300">
         ← {year}
       </Link>
@@ -163,7 +153,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
   if (!circuit) notFound();
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <Link href="/archive?by=track" className="text-sm text-neutral-500 hover:text-neutral-300">
         ← Archive
       </Link>
@@ -209,7 +199,7 @@ async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
   const years = races.map((r) => r.year);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <Link href="/archive?by=driver" className="text-sm text-neutral-500 hover:text-neutral-300">
         ← Archive
       </Link>
@@ -244,21 +234,70 @@ async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
   );
 }
 
+async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
+  const [team, races] = await Promise.all([getArchiveTeamData(teamId), getArchiveTeamHistoryData(teamId)]);
+  if (!team) notFound();
+
+  const years = races.map((r) => r.year);
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <Link href="/archive?by=team" className="text-sm text-neutral-500 hover:text-neutral-300">
+        ← Archive
+      </Link>
+      <h1 className="mt-2 text-3xl font-bold text-white">{team.name}</h1>
+      <p className="mt-1 text-sm text-neutral-500">
+        {Math.min(...years)}–{Math.max(...years)} · {races.length} race{races.length === 1 ? "" : "s"}
+      </p>
+      <div className="mt-6 space-y-2">
+        {races.map((r) => {
+          const winner = r.results.find((res) => res.position === 1);
+          return (
+            <Link
+              key={r.id}
+              href={archiveRaceHref(r.year, r.round)}
+              className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-5 py-4 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
+            >
+              <div>
+                <p className="text-xs text-neutral-500">{r.year}</p>
+                <p className="font-semibold text-white">{r.raceName}</p>
+              </div>
+              {winner && (
+                <div className="text-right">
+                  <p className="text-xs text-neutral-500">Winner</p>
+                  <p className="text-sm font-medium text-white">{winner.driverName}</p>
+                </div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default async function ArchivePage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; round?: string; by?: string; circuit?: string; driver?: string }>;
+  searchParams: Promise<{
+    year?: string;
+    round?: string;
+    by?: string;
+    circuit?: string;
+    driver?: string;
+    team?: string;
+  }>;
 }) {
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <SignInGate label="the historical archive" />
       </div>
     );
   }
 
-  const { year: yearParam, round: roundParam, by, circuit, driver } = await searchParams;
+  const { year: yearParam, round: roundParam, by, circuit, driver, team } = await searchParams;
   const year = yearParam ? Number(yearParam) : null;
   const round = roundParam ? Number(roundParam) : null;
 
@@ -266,5 +305,7 @@ export default async function ArchivePage({
   if (year) return <ArchiveSeason year={year} />;
   if (circuit) return <ArchiveCircuitHistory circuitId={circuit} />;
   if (driver) return <ArchiveDriverHistory driverId={driver} />;
-  return <ArchiveIndex by={by === "track" || by === "driver" ? by : "year"} />;
+  if (team) return <ArchiveTeamHistory teamId={team} />;
+  const facet: Facet = by === "track" || by === "driver" || by === "team" ? by : "year";
+  return <ArchiveIndex by={facet} uid={session.uid} />;
 }
