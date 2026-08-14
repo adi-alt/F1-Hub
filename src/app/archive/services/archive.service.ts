@@ -1,4 +1,10 @@
-import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR, getArchiveRace, getArchiveSeason } from "@/lib/firestore/archive";
+import {
+  ARCHIVE_EARLIEST_YEAR,
+  ARCHIVE_LATEST_YEAR,
+  getArchiveRace,
+  getArchiveRaceLaps,
+  getArchiveSeason,
+} from "@/lib/firestore/archive";
 
 export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
 
@@ -12,4 +18,8 @@ export async function getArchiveSeasonData(year: number) {
 
 export async function getArchiveRaceData(year: number, round: number) {
   return getArchiveRace(year, round);
+}
+
+export async function getArchiveRaceLapsData(year: number, round: number) {
+  return getArchiveRaceLaps(year, round);
 }

@@ -10,6 +10,13 @@ const REVALIDATE_SECONDS = 86400;
 export const ARCHIVE_EARLIEST_YEAR = 1950;
 export const ARCHIVE_LATEST_YEAR = 2017;
 
+export type ArchiveFastestLap = {
+  rank: number;
+  lap: number;
+  time: string;
+  avgSpeedKph: number | null;
+};
+
 export type ArchiveResultEntry = {
   position: number;
   positionText: string;
@@ -20,7 +27,35 @@ export type ArchiveResultEntry = {
   driverId: string;
   driverName: string;
   constructor: string;
+  // Added by pipeline/enrich_archive.py, alongside the base backfill fields above — absent
+  // (undefined, not just null-valued) on any doc that hasn't been enriched yet.
+  time?: string | null;
+  driverCode?: string | null;
+  fastestLap?: ArchiveFastestLap | null;
 };
+
+export type ArchiveQualifyingEntry = {
+  position: number;
+  driverId: string;
+  driverName: string;
+  constructor: string;
+  // Nullable, not just absent when unavailable — eras before the Q1/Q2/Q3 split only ever have a
+  // single time (usually stored in q1) or none at all.
+  q1: string | null;
+  q2: string | null;
+  q3: string | null;
+};
+
+export type ArchivePitStopEntry = {
+  driverId: string;
+  stop: number;
+  lap: number;
+  time: string | null;
+  durationSec: number | null;
+};
+
+export type ArchiveLapTiming = { driverId: string; time: string | null; position: number | null };
+export type ArchiveLapEntry = { lap: number; timings: ArchiveLapTiming[] };
 
 export type ArchiveRaceDoc = {
   id: string;
@@ -32,6 +67,13 @@ export type ArchiveRaceDoc = {
   country: string | null;
   raceDate: string | null;
   results: ArchiveResultEntry[];
+  // All added by pipeline/enrich_archive.py / enrich_archive_laps.py — undefined on any doc from
+  // the original backfill that hasn't been through the enrichment pass yet, so every read site
+  // treats them as optional rather than assuming they exist.
+  wikipediaUrl?: string | null;
+  qualifying?: ArchiveQualifyingEntry[];
+  pitStops?: ArchivePitStopEntry[];
+  lapsBackfilled?: boolean;
 };
 
 /** A season's races — no `.orderBy("round")` on purpose, same reasoning as `calendar` in
@@ -59,5 +101,27 @@ export const getArchiveRace = unstable_cache(
     return { id: snap.docs[0].id, ...(snap.docs[0].data() as Omit<ArchiveRaceDoc, "id">) };
   },
   ["get-archive-race"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
+/** Lap-by-lap timing, read on demand (LapChart's "Show lap chart" click, via
+ * /api/archive/laps) rather than as part of getArchiveRace — a `laps` subcollection, not a field
+ * on the race doc, specifically so this stays a separate, optional read (see
+ * pipeline/enrich_archive_laps.py's module docstring for why it's split out: ~1,300 rows for a
+ * single race vs. a few dozen for everything else). Empty array, not an error, for any race
+ * that's `!lapsBackfilled` or predates 1996 (Ergast has no lap data before then). */
+export const getArchiveRaceLaps = unstable_cache(
+  async (year: number, round: number): Promise<ArchiveLapEntry[]> => {
+    const raceSnap = await adminDb
+      .collection(COLLECTION)
+      .where("year", "==", year)
+      .where("round", "==", round)
+      .limit(1)
+      .get();
+    if (raceSnap.empty) return [];
+    const lapsSnap = await raceSnap.docs[0].ref.collection("laps").get();
+    return lapsSnap.docs.map((d) => d.data() as ArchiveLapEntry).sort((a, b) => a.lap - b.lap);
+  },
+  ["get-archive-race-laps"],
   { revalidate: REVALIDATE_SECONDS },
 );

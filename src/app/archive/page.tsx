@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { ArchiveRaceList } from "./components/ArchiveRaceList";
 import { ArchiveResultsTable } from "./components/ArchiveResultsTable";
 import { ArchiveSeasonGrid } from "./components/ArchiveSeasonGrid";
+import { LapChart } from "./components/LapChart";
+import { PitStopsList } from "./components/PitStopsList";
+import { QualifyingTable } from "./components/QualifyingTable";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
@@ -69,10 +72,39 @@ async function ArchiveRace({ year, round }: { year: number; round: number }) {
         {race.locality ? `, ${race.locality}` : ""}
         {race.country ? `, ${race.country}` : ""}
         {race.raceDate ? ` — ${race.raceDate}` : ""}
+        {race.wikipediaUrl && (
+          <>
+            {" · "}
+            <a href={race.wikipediaUrl} target="_blank" rel="noreferrer" className="text-[var(--f1-red)] hover:underline">
+              Full race report on Wikipedia →
+            </a>
+          </>
+        )}
       </p>
       <div className="mt-8">
         <ArchiveResultsTable results={race.results} />
       </div>
+
+      {!!race.qualifying?.length && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-white">Qualifying</h2>
+          <QualifyingTable qualifying={race.qualifying} />
+        </div>
+      )}
+
+      {!!race.pitStops?.length && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-white">Pit stops</h2>
+          <PitStopsList pitStops={race.pitStops} results={race.results} />
+        </div>
+      )}
+
+      {race.lapsBackfilled && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-white">Race progress</h2>
+          <LapChart year={year} round={round} results={race.results} />
+        </div>
+      )}
     </div>
   );
 }
