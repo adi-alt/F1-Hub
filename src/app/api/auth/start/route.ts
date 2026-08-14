@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
-import { sendOtp } from "@/lib/otp";
+import { deliverOtp, prepareOtp } from "@/lib/otp";
 
 /**
  * Step 1 of sign-in/sign-up, for every provider alike (Google, GitHub, email/password): the
@@ -27,6 +28,14 @@ export async function POST(request: Request) {
 
   // "cooldown" just means a still-valid code was already sent a moment ago (e.g. the client
   // retried /start) - not an error, the user can still use that one.
-  await sendOtp(decoded.email);
+  const prepared = await prepareOtp(decoded.email);
+  if (prepared !== "cooldown") {
+    const email = decoded.email;
+    const { code } = prepared;
+    // after() runs once this response has already gone out - the actual SMTP round trip (a
+    // second or more) would otherwise be the entire reason the OTP screen took a moment to show
+    // up, for no benefit: nothing about showing that screen depends on the email having sent yet.
+    after(() => deliverOtp(email, code));
+  }
   return NextResponse.json({ ok: true, email: decoded.email });
 }

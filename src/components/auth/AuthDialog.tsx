@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   type User,
@@ -17,6 +18,31 @@ import type { Role } from "@/lib/rbac";
 type Step = "method" | "otp" | "profile";
 
 type SignupOptions = { drivers: { code: string; name: string; team: string }[]; teams: string[]; tracks: string[] };
+
+// Matches the backend's own resend cooldown (lib/otp.ts) so the button's countdown never
+// disagrees with what the server would actually accept.
+const RESEND_COOLDOWN_MS = 60_000;
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
+      <svg viewBox="0 0 20 20" className="mt-0.5 h-4 w-4 shrink-0" fill="currentColor" aria-hidden>
+        <path
+          fillRule="evenodd"
+          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.28 11.18c.75 1.334-.213 2.98-1.742 2.98H3.72c-1.53 0-2.492-1.646-1.743-2.98l6.28-11.18ZM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-.25-6.5a.75.75 0 0 0-1.5 0v3a.75.75 0 0 0 1.5 0v-3Z"
+          clipRule="evenodd"
+        />
+      </svg>
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function InfoBanner({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-neutral-300">{message}</div>
+  );
+}
 
 function errorCode(err: unknown): string {
   return typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : "";
@@ -152,16 +178,16 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
-async function startOtpFlow(user: User): Promise<{ idToken: string; email: string }> {
-  const idToken = await user.getIdToken();
-  const res = await fetch("/api/auth/start", {
+// Fire-and-forget on purpose - the actual SMTP send is the slow part (a second or more, and
+// /api/auth/start itself defers it via next/server's after() so the response comes back fast
+// too), and nothing about showing the OTP screen should wait on either. If this particular call
+// fails outright, the resend button is still there once its cooldown clears.
+function requestOtp(idToken: string) {
+  void fetch("/api/auth/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
   });
-  if (!res.ok) throw new Error("Couldn't send a verification code. Try again.");
-  const body = (await res.json()) as { email: string };
-  return { idToken, email: body.email };
 }
 
 // The caller mounts this only while it should be open (`{open && <AuthDialog .../>}`) rather
@@ -172,12 +198,15 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("method");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [idToken, setIdToken] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const [code, setCode] = useState("");
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const [options, setOptions] = useState<SignupOptions | null>(null);
   const [firstName, setFirstName] = useState("");
@@ -218,20 +247,58 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
     return () => clearTimeout(handle);
   }, [username]);
 
+  // Ticks once a second only while the OTP screen is actually showing something time-sensitive -
+  // no point running a timer the rest of the dialog's lifetime.
+  useEffect(() => {
+    if (step !== "otp") return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [step]);
+
+  const secondsUntilResend = Math.max(0, Math.ceil((resendAvailableAt - now) / 1000));
+
+  // Instant, on purpose: getIdToken() resolves near-immediately for an already-signed-in user
+  // (the token is cached client-side), so this switches to the OTP screen right away rather than
+  // waiting on the OTP email's own SMTP round trip, which is the actually slow part and has
+  // nothing to do with whether this screen should be showing yet.
   async function afterProviderAuth(user: User) {
-    try {
-      const result = await startOtpFlow(user);
-      setIdToken(result.idToken);
-      setVerifiedEmail(result.email);
-      setStep("otp");
-    } catch {
-      setError("Couldn't send a verification code. Try again.");
+    const token = await user.getIdToken();
+    setIdToken(token);
+    setVerifiedEmail(user.email ?? "");
+    setStep("otp");
+    setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
+    requestOtp(token);
+  }
+
+  async function handleResend() {
+    if (!idToken || secondsUntilResend > 0) return;
+    setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
+    setInfo("New code sent.");
+    setError(null);
+    requestOtp(idToken);
+  }
+
+  async function handleForgotPassword() {
+    setError(null);
+    setInfo(null);
+    if (!email.trim()) {
+      setError("Enter your email above first.");
+      return;
     }
+    // Same message whether or not the account exists - not revealing which emails are
+    // registered is the same email-enumeration protection Firebase's own SDK defaults to.
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch {
+      // fall through to the same generic message
+    }
+    setInfo("If an account exists for that email, a reset link is on its way.");
   }
 
   async function handleProvider(provider: typeof googleProvider | typeof githubProvider) {
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       const result = await signInWithPopup(auth, provider);
       await afterProviderAuth(result.user);
@@ -246,6 +313,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   async function handleEmailContinue() {
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       let user: User;
       try {
@@ -273,6 +341,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
     if (!idToken) return;
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       const res = await fetch("/api/auth/otp/verify", {
         method: "POST",
@@ -299,6 +368,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
     if (!idToken) return;
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
       const res = await fetch("/api/auth/complete-signup", {
         method: "POST",
@@ -375,6 +445,15 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
             />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void handleForgotPassword()}
+                className="text-xs text-neutral-500 transition hover:text-neutral-300"
+              >
+                Forgot password?
+              </button>
+            </div>
             <button
               disabled={busy || !email || password.length < 6}
               onClick={() => void handleEmailContinue()}
@@ -405,7 +484,8 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               <GitHubIcon />
               Continue with GitHub
             </button>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {info && <InfoBanner message={info} />}
+            {error && <ErrorBanner message={error} />}
           </motion.div>
         )}
 
@@ -430,7 +510,15 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
             >
               {busy ? "Verifying…" : "Verify"}
             </button>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            <button
+              disabled={secondsUntilResend > 0}
+              onClick={() => void handleResend()}
+              className="w-full text-center text-xs text-neutral-500 transition hover:text-neutral-300 disabled:hover:text-neutral-500"
+            >
+              {secondsUntilResend > 0 ? `Resend code in ${secondsUntilResend}s` : "Resend code"}
+            </button>
+            {info && <InfoBanner message={info} />}
+            {error && <ErrorBanner message={error} />}
           </motion.div>
         )}
 
@@ -536,7 +624,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
             >
               {busy ? "Creating account…" : "Create account"}
             </button>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <ErrorBanner message={error} />}
           </motion.div>
         )}
         </AnimatePresence>
