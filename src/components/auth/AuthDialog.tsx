@@ -12,7 +12,7 @@ import { auth, githubProvider, googleProvider } from "@/lib/firebase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { Role } from "@/lib/rbac";
 
-type Step = "method" | "email" | "otp" | "profile";
+type Step = "method" | "otp" | "profile";
 
 type SignupOptions = { drivers: { code: string; name: string; team: string }[]; teams: string[]; tracks: string[] };
 
@@ -71,6 +71,34 @@ function FormulaScene() {
         <p className="mt-2 text-sm text-neutral-400">Predictions, a race simulator, and a full archive back to 1950.</p>
       </div>
     </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+      <path
+        fill="#4285F4"
+        d="M23.52 12.27c0-.85-.08-1.67-.22-2.46H12v4.66h6.47c-.28 1.5-1.13 2.78-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.83Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.26v3.11C3.24 21.3 7.29 24 12 24Z"
+      />
+      <path fill="#FBBC05" d="M5.27 14.29A7.2 7.2 0 0 1 4.9 12c0-.79.14-1.56.37-2.29V6.6H1.26A11.98 11.98 0 0 0 0 12c0 1.94.46 3.77 1.26 5.4l4.01-3.11Z" />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.18 15.24 0 12 0 7.29 0 3.24 2.7 1.26 6.6l4.01 3.11C6.22 6.86 8.87 4.75 12 4.75Z"
+      />
+    </svg>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+      <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .3.21.66.79.55A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
   );
 }
 
@@ -249,12 +277,12 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   // that whole category of bug structurally impossible rather than tracking down one ancestor.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative grid w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl md:max-w-3xl md:grid-cols-2"
+        className="relative grid min-h-[560px] w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl md:max-w-3xl md:grid-cols-2"
       >
         <button
           onClick={onClose}
@@ -270,46 +298,11 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
           <FormulaScene />
         </div>
 
-        <div className="p-6">
+        <div className="flex flex-col justify-center p-6">
         {step === "method" && (
           <div className="space-y-3">
             <h2 className="text-lg font-bold text-white">Sign in or sign up</h2>
             <p className="text-sm text-neutral-400">One account either way — we&apos;ll figure out which.</p>
-            <button
-              disabled={busy}
-              onClick={() => void handleProvider(googleProvider)}
-              className="w-full rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
-            >
-              Continue with Google
-            </button>
-            <button
-              disabled={busy}
-              onClick={() => void handleProvider(githubProvider)}
-              className="w-full rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
-            >
-              Continue with GitHub
-            </button>
-            <div className="flex items-center gap-2 py-1 text-xs text-neutral-500">
-              <div className="h-px flex-1 bg-[var(--f1-line)]" />
-              or
-              <div className="h-px flex-1 bg-[var(--f1-line)]" />
-            </div>
-            <button
-              onClick={() => setStep("email")}
-              className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
-            >
-              Continue with email
-            </button>
-            {error && <p className="text-sm text-red-400">{error}</p>}
-          </div>
-        )}
-
-        {step === "email" && (
-          <div className="space-y-3">
-            <button onClick={() => setStep("method")} className="text-sm text-neutral-500 hover:text-neutral-300">
-              ← Back
-            </button>
-            <h2 className="text-lg font-bold text-white">Continue with email</h2>
             <input
               type="email"
               placeholder="Email"
@@ -330,6 +323,29 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
               className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
             >
               {busy ? "Please wait…" : "Continue"}
+            </button>
+
+            <div className="flex items-center gap-2 py-1 text-xs text-neutral-500">
+              <div className="h-px flex-1 bg-[var(--f1-line)]" />
+              or
+              <div className="h-px flex-1 bg-[var(--f1-line)]" />
+            </div>
+
+            <button
+              disabled={busy}
+              onClick={() => void handleProvider(googleProvider)}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => void handleProvider(githubProvider)}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+            >
+              <GitHubIcon />
+              Continue with GitHub
             </button>
             {error && <p className="text-sm text-red-400">{error}</p>}
           </div>

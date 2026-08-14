@@ -8,7 +8,7 @@ import { permissionsForRole } from "@/lib/rbac";
 import { seasonHref } from "@/lib/routes";
 
 export function Header() {
-  const { user, role } = useAuth();
+  const { isAuthorized, role } = useAuth();
   const admin = !!role && permissionsForRole(role).canAccessAdmin;
 
   return (
@@ -18,9 +18,11 @@ export function Header() {
           <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
           F1 HUB
         </Link>
-        {/* Signed-out visitors get no nav options — every one of these pages immediately shows a
-            sign-in gate anyway, so a link to them is a dead end, not a shortcut. */}
-        {user && (
+        {/* Gated on isAuthorized, not raw Firebase auth state — someone mid-way through the OTP
+            dialog shouldn't see nav links light up before they've actually cleared it. Every one
+            of these pages immediately shows a sign-in gate anyway, so a link to them for a
+            genuinely signed-out visitor is a dead end, not a shortcut. */}
+        {isAuthorized && (
           <nav className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
             <Link href={seasonHref(2026)} className="transition hover:text-white">
               Season
@@ -39,7 +41,7 @@ export function Header() {
           </nav>
         )}
         <div className="flex items-center gap-3">
-          <MobileNav showAdmin={admin} showNav={!!user} />
+          <MobileNav showAdmin={admin} showNav={isAuthorized} />
           <SignInButton />
         </div>
       </div>

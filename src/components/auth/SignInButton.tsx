@@ -6,14 +6,17 @@ import { ProfileMenu } from "./ProfileMenu";
 import { AuthDialog } from "./AuthDialog";
 
 export function SignInButton() {
-  const { user, loading } = useAuth();
+  const { isAuthorized, loading } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   if (loading) {
     return <div className="h-9 w-24 animate-pulse rounded-full bg-white/10" />;
   }
 
-  if (user) return <ProfileMenu />;
+  // Gated on isAuthorized, not the raw Firebase user - Firebase's own auth state goes truthy the
+  // instant the popup/email-password call resolves, well before OTP, and this must not show a
+  // signed-in profile menu for someone who hasn't cleared that step yet.
+  if (isAuthorized) return <ProfileMenu />;
 
   // Both buttons open the same dialog — the flow itself works out whether this is a returning
   // account or a new one, so there's nothing left for the two buttons to actually diverge on.

@@ -13,12 +13,13 @@ function toFormState(data: UserPick) {
 }
 
 export function PickPanel({ race }: { race: RaceDoc }) {
-  const { user, loading } = useAuth();
+  const { user, isAuthorized, loading } = useAuth();
   const [pick, setPick] = useState({ p1: "", p2: "", p3: "" });
   const [status, setStatus] = useState<Status>("idle");
 
   useEffect(() => {
-    if (!user) return;
+    // isAuthorized, not raw user — Firebase auth resolving mid-OTP-flow isn't a real session yet.
+    if (!isAuthorized) return;
     setStatus("loading");
     // Goes through the session-aware /api/picks endpoint (iron-session + Admin SDK), not a direct
     // client Firestore read — see api/picks/route.ts for why this is a separate small endpoint
@@ -30,11 +31,11 @@ export function PickPanel({ race }: { race: RaceDoc }) {
         setStatus("idle");
       })
       .catch(() => setStatus("error"));
-  }, [user, race.id]);
+  }, [isAuthorized, race.id]);
 
   if (loading) return null;
 
-  if (!user) {
+  if (!isAuthorized) {
     return (
       <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5 text-sm text-neutral-400">
         Sign in to make your own podium pick for this race.

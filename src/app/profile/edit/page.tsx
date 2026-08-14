@@ -8,14 +8,14 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { auth } from "@/lib/firebase/client";
 
 export default function EditProfilePage() {
-  const { user, loading } = useAuth();
+  const { user, isAuthorized, loading } = useAuth();
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (loading) return null;
-  if (!user) {
+  if (!isAuthorized || !user) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
         <SignInGate label="your profile" />

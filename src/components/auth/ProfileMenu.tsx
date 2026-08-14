@@ -13,7 +13,7 @@ const ITEMS = [
 ];
 
 export function ProfileMenu() {
-  const { user, signOut } = useAuth();
+  const { user, isAuthorized, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -26,7 +26,10 @@ export function ProfileMenu() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  if (!user) return null;
+  // Only ever rendered from SignInButton's isAuthorized branch, but checked directly here too —
+  // a menu implying "you're signed in" is exactly the wrong thing to show from any other caller
+  // that forgets that distinction.
+  if (!isAuthorized || !user) return null;
 
   return (
     <div ref={rootRef} className="relative">

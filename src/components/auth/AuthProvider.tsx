@@ -12,14 +12,19 @@ import { auth } from "@/lib/firebase/client";
 import type { Role } from "@/lib/rbac";
 
 type AuthContextValue = {
+  // Firebase's own client-side auth state — becomes truthy the instant signInWithPopup/
+  // signInWithEmailAndPassword resolves, well before OTP runs. Never use this to decide whether
+  // to show signed-in UI; that's what isAuthorized is for. This exists for the auth dialog itself
+  // (it needs the Firebase user to get an ID token) and for display fields once isAuthorized is
+  // true (by then Firebase auth has necessarily already succeeded too).
   user: User | null;
-  // Cached from /api/auth/me (an existing-session read, not a fresh sign-in) for instant
-  // client-side nav/UI reactivity — see the same caveat on SessionData.role in
-  // lib/session/config.ts. `null` here means "not signed in", not "no role".
+  // True only once a real server session exists — set the moment otp/verify or complete-signup
+  // actually mints one (AuthDialog calls setRole directly), or hydrated from an existing session
+  // on page load via /api/auth/me. A signed-in-to-Firebase-but-not-yet-OTP-verified user is
+  // *not* authorized, on purpose: nothing sensitive should render for them until this flips true.
   role: Role | null;
+  isAuthorized: boolean;
   loading: boolean;
-  // AuthDialog calls this directly once its own flow actually finishes (OTP verified, session
-  // minted server-side) — nothing else should set this.
   setRole: (role: Role | null) => void;
   signOut: () => Promise<void>;
 };
@@ -29,12 +34,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [firebaseChecked, setFirebaseChecked] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useEffect(() => {
     return onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
-      setLoading(false);
+      setFirebaseChecked(true);
     });
   }, []);
 
@@ -49,13 +55,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((body: { signedIn: boolean; role?: Role }) => {
         if (body.signedIn) setRole(body.role ?? "user");
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSessionChecked(true));
   }, []);
 
   const value: AuthContextValue = {
     user,
     role,
-    loading,
+    isAuthorized: role !== null,
+    // Waits on both checks, not just Firebase's — a returning user whose Firebase auth resolves
+    // first would otherwise flash signed-out UI for a moment before /api/auth/me catches up.
+    loading: !firebaseChecked || !sessionChecked,
     setRole,
     signOut: async () => {
       await fetch("/api/auth/session", { method: "DELETE" });
