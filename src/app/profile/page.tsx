@@ -33,6 +33,40 @@ const CURRENT_SEASON_TEAM_ALIASES: Record<string, string> = {
   alpine: "alpine_f1_team",
 };
 
+// The current season's own `location` field is the host CITY ("Melbourne"), while archive's own
+// circuit name is the track itself ("Albert Park Grand Prix Circuit") — an exact-name match never
+// hits, so every circuit on the calendar was showing up as a second, near-empty row instead of
+// extending the real one (confirmed: none of this year's 11 locations-so-far matched by name).
+// Maps straight to the archive's own circuitId (checked against archive_circuits), not a
+// re-derived slug.
+//
+// Three current tracks — Miami, Las Vegas, Losail/Qatar — aren't in archive_circuits at all yet
+// (enrich_archive_circuits.py hasn't reached 2018+), so they're deliberately left unmapped and
+// show as new for now; that's a real, separate, self-resolving gap, not a naming mismatch.
+// "Kuala Lumpur" (2026 calendar round 16, labeled "Bahrain Grand Prix") looks like a genuine data
+// bug in the calendar collection itself — country says Bahrain, location says Malaysia — left
+// unmapped rather than guessed at; worth checking calendar's own source data separately.
+const CURRENT_SEASON_CIRCUIT_ALIASES: Record<string, string> = {
+  melbourne: "albert_park",
+  shanghai: "shanghai",
+  suzuka: "suzuka",
+  montréal: "villeneuve",
+  "monte carlo": "monaco",
+  barcelona: "catalunya",
+  spielberg: "red_bull_ring",
+  silverstone: "silverstone",
+  "spa-francorchamps": "spa",
+  budapest: "hungaroring",
+  zandvoort: "zandvoort",
+  monza: "monza",
+  baku: "baku",
+  "marina bay": "marina_bay",
+  austin: "americas",
+  "mexico city": "rodriguez",
+  "são paulo": "interlagos",
+  "yas marina": "yas_marina",
+};
+
 /** Same aliasing as CURRENT_SEASON_TEAM_ALIASES, but for display: a driver's Companies list
  * should say "Red Bull" for every year they drove there, not "Red Bull, Red Bull Racing" just
  * because this year's data uses the live season's own name for it. */
@@ -129,9 +163,12 @@ async function mergeCurrentSeason(
     }
   }
 
+  const circuitsById = new Map(circuitItems.map((c) => [c.id, c]));
   const circuitsByName = new Map(circuitItems.map((c) => [c.name.trim().toLowerCase(), c]));
   for (const [location, raceCount] of circuitRaceCount) {
-    const existing = circuitsByName.get(location.trim().toLowerCase());
+    const key = location.trim().toLowerCase();
+    const aliasId = CURRENT_SEASON_CIRCUIT_ALIASES[key];
+    const existing = (aliasId ? circuitsById.get(aliasId) : undefined) ?? circuitsByName.get(key);
     if (existing) {
       existing.lastYear = year;
       existing.raceCount += raceCount;
@@ -147,6 +184,7 @@ async function mergeCurrentSeason(
         href: archiveCircuitHref(id),
       };
       circuitItems.push(item);
+      circuitsById.set(id, item);
       circuitsByName.set(location.trim().toLowerCase(), item);
     }
   }
