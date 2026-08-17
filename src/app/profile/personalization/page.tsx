@@ -1,4 +1,5 @@
-import { FavoriteEntityList, type FavoriteEntity } from "@/components/profile/FavoriteEntityList";
+import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
+import { PersonalizationTabs } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams } from "@/lib/firestore/archive";
 import { getUserProfile } from "@/lib/firestore/users";
@@ -56,21 +57,12 @@ export default async function PersonalizationPage() {
         up first; everything else follows most-recent-first.
       </p>
 
-      <div className="mt-8 space-y-10">
-        <section>
-          <h2 className="mb-3 text-lg font-semibold text-white">Players</h2>
-          <FavoriteEntityList type="driver" items={driverItems} favoriteIds={profile?.favoriteDrivers ?? []} />
-        </section>
-
-        <section>
-          <h2 className="mb-3 text-lg font-semibold text-white">Teams</h2>
-          <FavoriteEntityList type="team" items={teamItems} favoriteIds={profile?.favoriteTeams ?? []} />
-        </section>
-
-        <section>
-          <h2 className="mb-3 text-lg font-semibold text-white">Circuits</h2>
-          <FavoriteEntityList type="track" items={circuitItems} favoriteIds={profile?.favoriteTracks ?? []} />
-        </section>
+      <div className="mt-6">
+        <PersonalizationTabs
+          players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}
+          teams={{ items: teamItems, favoriteIds: profile?.favoriteTeams ?? [] }}
+          circuits={{ items: circuitItems, favoriteIds: profile?.favoriteTracks ?? [] }}
+        />
       </div>
     </div>
   );

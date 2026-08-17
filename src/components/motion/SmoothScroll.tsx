@@ -32,7 +32,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
           Lenis thinks is scrollable. */}
       <div className="flex min-h-full flex-col">
         <main className="flex-1">{children}</main>
-        <Footer />
+        {pathname === "/" && <Footer />}
       </div>
     </div>
   );
