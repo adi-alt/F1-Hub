@@ -177,26 +177,33 @@ export const getArchiveCircuit = unstable_cache(
 
 type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; country: string | null };
 
-/** One full (but field-projected) scan of archive_races, grouped by circuitId — the race-count/
- * year-span/country "key info" shown on each track tile. Computed here in TS rather than baked
- * into archive_circuits by the Python pipeline: that collection's own model is "write once, the
- * first time a circuit is seen" (see enrich_archive_circuits.py), which doesn't fit stats that
- * change every time a new race at an existing circuit gets backfilled — and at ~1,300-2,000 docs,
- * cached for a day like everything else here, a full scan is cheap enough not to bother. */
+/** One full (but field-projected) scan of archive_races, grouped by `circuitName` — the race-
+ * count/year-span/country "key info" shown on each track tile. Grouped by name rather than
+ * `circuitId` deliberately: `circuitId` only exists on however many races
+ * pipeline/enrich_archive_circuits.py has reached so far (a small, slowly-growing slice of the
+ * archive), while `circuitName` has been on every race doc since the very first fetch — same
+ * circuit, same name, every year (verified: 77 distinct names across the whole archive, none of
+ * them ever splitting across two different `circuitId`s), so this gets the real, complete
+ * year-span/race-count/country immediately instead of only what's been enriched so far.
+ * Computed here in TS rather than baked into archive_circuits by the Python pipeline: that
+ * collection's own model is "write once, the first time a circuit is seen", which doesn't fit
+ * stats that change every time a new race at an existing circuit gets backfilled — and at
+ * ~1,300-2,000 docs, cached for a day like everything else here, a full scan is cheap enough not
+ * to bother. */
 const getArchiveCircuitStats = unstable_cache(
   async (): Promise<Record<string, CircuitStats>> => {
-    const snap = await adminDb.collection(COLLECTION).select("circuitId", "year", "country").get();
+    const snap = await adminDb.collection(COLLECTION).select("circuitName", "year", "country").get();
     const stats: Record<string, CircuitStats> = {};
     for (const doc of snap.docs) {
-      const { circuitId, year, country } = doc.data() as {
-        circuitId?: string;
+      const { circuitName, year, country } = doc.data() as {
+        circuitName?: string | null;
         year: number;
         country?: string | null;
       };
-      if (!circuitId) continue;
-      const s = stats[circuitId];
+      if (!circuitName) continue;
+      const s = stats[circuitName];
       if (!s) {
-        stats[circuitId] = { raceCount: 1, firstYear: year, lastYear: year, country: country ?? null };
+        stats[circuitName] = { raceCount: 1, firstYear: year, lastYear: year, country: country ?? null };
       } else {
         s.raceCount += 1;
         s.firstYear = Math.min(s.firstYear, year);
@@ -222,7 +229,7 @@ export const getAllArchiveCircuits = unstable_cache(
     return snap.docs
       .map((d) => {
         const circuit = d.data() as ArchiveCircuit;
-        const s = stats[circuit.circuitId];
+        const s = stats[circuit.name ?? ""];
         return {
           ...circuit,
           raceCount: s?.raceCount ?? 0,
@@ -308,31 +315,27 @@ export const getAllArchiveTeams = unstable_cache(
 
 /** Each team's "home circuit" — not a real-world fact this app tracks anywhere (Ergast has no
  * team-headquarters field), so this is a derived proxy instead: whichever circuit that team has
- * actually raced at the most, computed from the same `teamIds`/`circuitId` mirror fields the
- * rest of archive already relies on. One full (field-projected) scan of archive_races, same cost
- * class as getArchiveCircuitStats above. */
+ * actually raced at the most, computed from `teamIds` + `circuitName` (not `circuitId` — see
+ * getArchiveCircuitStats above for why `circuitName` is the far-more-complete key to group by).
+ * One full (field-projected) scan of archive_races, same cost class as getArchiveCircuitStats. */
 export const getArchiveTeamHomeCircuits = unstable_cache(
   async (): Promise<Record<string, string>> => {
-    const [racesSnap, circuits] = await Promise.all([
-      adminDb.collection(COLLECTION).select("teamIds", "circuitId").get(),
-      getAllArchiveCircuits(),
-    ]);
-    const circuitNames = new Map(circuits.map((c) => [c.circuitId, c.name ?? c.circuitId]));
+    const racesSnap = await adminDb.collection(COLLECTION).select("teamIds", "circuitName").get();
 
     const counts: Record<string, Record<string, number>> = {};
     for (const doc of racesSnap.docs) {
-      const { teamIds, circuitId } = doc.data() as { teamIds?: string[]; circuitId?: string };
-      if (!circuitId || !teamIds) continue;
+      const { teamIds, circuitName } = doc.data() as { teamIds?: string[]; circuitName?: string | null };
+      if (!circuitName || !teamIds) continue;
       for (const teamId of teamIds) {
         const byCircuit = (counts[teamId] ??= {});
-        byCircuit[circuitId] = (byCircuit[circuitId] ?? 0) + 1;
+        byCircuit[circuitName] = (byCircuit[circuitName] ?? 0) + 1;
       }
     }
 
     const result: Record<string, string> = {};
     for (const [teamId, byCircuit] of Object.entries(counts)) {
-      const [topCircuitId] = Object.entries(byCircuit).sort((a, b) => b[1] - a[1])[0];
-      result[teamId] = circuitNames.get(topCircuitId) ?? topCircuitId;
+      const [topCircuitName] = Object.entries(byCircuit).sort((a, b) => b[1] - a[1])[0];
+      result[teamId] = topCircuitName;
     }
     return result;
   },
