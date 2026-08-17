@@ -67,43 +67,47 @@ export function ArchiveDriverTable({
 
   return (
     <div className="mt-8">
-      <div className="overflow-x-auto rounded-xl border border-[var(--f1-line)]">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-[var(--f1-line)] bg-white/[0.03] text-xs uppercase tracking-wide text-neutral-500">
-            <tr>
-              <th className="w-10 px-3 py-2.5" aria-hidden />
-              <th className="cursor-pointer select-none px-3 py-2.5" onClick={() => toggleSort("name")}>
-                Driver{sortIndicator("name")}
-              </th>
-              <th className="px-3 py-2.5">Years active</th>
-              <th className="cursor-pointer select-none px-3 py-2.5" onClick={() => toggleSort("races")}>
-                Races{sortIndicator("races")}
-              </th>
-              <th className="px-3 py-2.5">Constructor(s)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((d) => (
-              <tr key={d.driverId} className="border-b border-[var(--f1-line)]/60 transition hover:bg-white/[0.03]">
-                <td className="px-3 py-2.5">
-                  <FavoriteButton favorited={favoriteIds.has(d.driverId)} onToggle={() => onToggleFavorite(d.driverId)} />
-                </td>
-                <td className="px-3 py-2.5">
-                  <Link href={archiveDriverHref(d.driverId)} className="font-medium text-white hover:text-[var(--f1-red)]">
-                    {d.name}
-                  </Link>
-                </td>
-                <td className="px-3 py-2.5 text-neutral-400">
-                  {d.firstYear === d.lastYear ? d.firstYear : `${d.firstYear}–${d.lastYear}`}
-                </td>
-                <td className="px-3 py-2.5 text-neutral-400">{d.raceCount}</td>
-                <td className="max-w-xs truncate px-3 py-2.5 text-neutral-500" title={d.constructors?.join(", ")}>
-                  {d.constructors?.length ? d.constructors.join(", ") : "—"}
-                </td>
+      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        {/* Bounded height + its own scroll, not the page's — a full 20-row page fits in a fixed
+            box, with the header pinned via sticky rather than scrolling out of view. */}
+        <div className="max-h-[420px] overflow-auto">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
+              <tr>
+                <th className="w-10 px-3 py-2.5" aria-hidden />
+                <th className="cursor-pointer select-none px-3 py-2.5" onClick={() => toggleSort("name")}>
+                  Driver{sortIndicator("name")}
+                </th>
+                <th className="px-3 py-2.5">Years active</th>
+                <th className="cursor-pointer select-none px-3 py-2.5" onClick={() => toggleSort("races")}>
+                  Races{sortIndicator("races")}
+                </th>
+                <th className="px-3 py-2.5">Constructor(s)</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pageItems.map((d) => (
+                <tr key={d.driverId} className="border-b border-[var(--f1-line)]/60 transition hover:bg-white/[0.03]">
+                  <td className="px-3 py-2.5">
+                    <FavoriteButton favorited={favoriteIds.has(d.driverId)} onToggle={() => onToggleFavorite(d.driverId)} />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <Link href={archiveDriverHref(d.driverId)} className="font-medium text-white hover:text-[var(--f1-red)]">
+                      {d.name}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2.5 text-neutral-400">
+                    {d.firstYear === d.lastYear ? d.firstYear : `${d.firstYear}–${d.lastYear}`}
+                  </td>
+                  <td className="px-3 py-2.5 text-neutral-400">{d.raceCount}</td>
+                  <td className="max-w-xs truncate px-3 py-2.5 text-neutral-500" title={d.constructors?.join(", ")}>
+                    {d.constructors?.length ? d.constructors.join(", ") : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm text-neutral-500">

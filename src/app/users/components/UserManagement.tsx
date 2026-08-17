@@ -45,18 +45,17 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
 
   function renderRow(user: UserProfile) {
     return (
-      <div
-        key={user.uid}
-        className="flex items-center justify-between gap-4 rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-2.5"
-      >
-        <div>
+      <tr key={user.uid} className="border-b border-[var(--f1-line)]/60 transition hover:bg-white/[0.03]">
+        <td className="px-4 py-2.5">
           <p className="text-sm font-medium text-white">{user.displayName ?? user.email ?? user.uid}</p>
           <p className="text-xs text-neutral-500">{user.email}</p>
-        </div>
-        <div className="flex items-center gap-2">
+        </td>
+        <td className="px-4 py-2.5">
           <RoleBadge role={user.role} />
+        </td>
+        <td className="px-4 py-2.5">
           {canManageRoles && (
-            <>
+            <div className="flex items-center gap-2">
               {user.role === "admin" ? (
                 user.uid !== currentUid && (
                   <button
@@ -85,10 +84,10 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                   </button>
                 </>
               )}
-            </>
+            </div>
           )}
-        </div>
-      </div>
+        </td>
+      </tr>
     );
   }
 
@@ -109,7 +108,22 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
         <p className="text-xs text-neutral-500">No user with that exact email.</p>
       )}
 
-      <div className="space-y-2">{rows.map(renderRow)}</div>
+      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        {/* Bounded height + its own scroll, not the page's — the header stays pinned via sticky
+            rather than scrolling out of view as more pages load in. */}
+        <div className="max-h-[420px] overflow-auto">
+          <table className="w-full min-w-[480px] text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
+              <tr>
+                <th className="px-4 py-2.5">User</th>
+                <th className="px-4 py-2.5">Role</th>
+                <th className="px-4 py-2.5">Actions</th>
+              </tr>
+            </thead>
+            <tbody>{rows.map(renderRow)}</tbody>
+          </table>
+        </div>
+      </div>
 
       {searchResult === null && usersList.hasNextPage && (
         <button
