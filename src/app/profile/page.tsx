@@ -16,16 +16,21 @@ function teamSlug(name: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-// A handful of current-season teams are the exact same real-world entity as an archive row, just
-// under a different display name (Ergast's archive calls it "Red Bull"; the current season's own
-// data calls it "Red Bull Racing") — teamSlug() alone doesn't catch that, so without this it'd
-// show up as a second, near-empty "Red Bull Racing" row instead of extending the real one.
-// Deliberately a short explicit list rather than fuzzy name matching: a genuine rebrand (Toro
-// Rosso -> Racing Bulls, Renault -> Alpine, Sauber -> Audi) is a real editorial call about
-// whether to treat it as "the same team", not a spelling variant, so those are left as their own
-// rows unless asked to merge them too.
+// A handful of current-season teams are the exact same real-world entity, same era, as an
+// existing archive row — just under a different display string: Ergast's archive calls them
+// "Red Bull" / "RB F1 Team" / "Alpine F1 Team", the current season's own live data calls the same
+// teams "Red Bull Racing" / "Racing Bulls" / "Alpine". teamSlug() alone can't catch that, so
+// without this each would show up as a second, near-empty row instead of extending the real one.
+// Deliberately a short explicit list rather than fuzzy name matching: a genuine rebrand into a
+// *new* era (Toro Rosso -> AlphaTauri -> RB F1 Team, Renault -> Alpine F1 Team, Sauber -> Audi)
+// is a real editorial call about whether to treat it as "the same team" across time, not a same-
+// era spelling variant — those stay their own rows in the archive itself (see
+// enrich_archive_entities.py's EARLY_ERA_OVERRIDES for the reverse problem: names *reused* across
+// unrelated eras, like "Mercedes" 1954-55 vs. today).
 const CURRENT_SEASON_TEAM_ALIASES: Record<string, string> = {
   "red bull racing": "red_bull",
+  "racing bulls": "rb_f1_team",
+  alpine: "alpine_f1_team",
 };
 
 /** Same aliasing as CURRENT_SEASON_TEAM_ALIASES, but for display: a driver's Companies list

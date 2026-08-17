@@ -2,9 +2,13 @@ import { unstable_cache } from "next/cache";
 import { adminDb } from "@/lib/firebase/admin";
 
 const COLLECTION = "archive_races";
-// Historical results never change — this is really "cache forever," but unstable_cache needs a
-// number, and a day is close enough to forever for a page nobody expects to update live.
-const REVALIDATE_SECONDS = 86400;
+// Historical results themselves never change once fetched, but the *aggregate* views built from
+// them (team/driver/circuit stats) absolutely do — every time a backfill pass runs. unstable_cache
+// keys on the function's own code, not its data, so editing Python/Firestore data alone (no TS
+// change) doesn't bust this on its own; an hour keeps that lag bounded without needing a manual
+// cache-key bump after every pipeline run (which the archive.ts history around
+// "get-all-archive-teams" etc. has needed before this shortened window existed).
+const REVALIDATE_SECONDS = 3600;
 
 // fetch_archive.py's backfill range — 1950 is F1's first season; the upper bound is always
 // "last year" (the current season isn't over yet, so it's deliberately never "archived"), not a
@@ -213,7 +217,7 @@ const getArchiveCircuitStats = unstable_cache(
     }
     return stats;
   },
-  ["get-archive-circuit-stats"],
+  ["get-archive-circuit-stats-v2"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
@@ -240,7 +244,7 @@ export const getAllArchiveCircuits = unstable_cache(
       })
       .sort((a, b) => (a.name ?? a.circuitId).localeCompare(b.name ?? b.circuitId));
   },
-  ["get-all-archive-circuits"],
+  ["get-all-archive-circuits-v2"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
@@ -275,7 +279,7 @@ export const getAllArchiveDrivers = unstable_cache(
     const snap = await adminDb.collection("archive_drivers").get();
     return snap.docs.map((d) => d.data() as ArchiveDriver).sort((a, b) => b.lastYear - a.lastYear);
   },
-  ["get-all-archive-drivers"],
+  ["get-all-archive-drivers-v2"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
@@ -309,7 +313,7 @@ export const getAllArchiveTeams = unstable_cache(
     const snap = await adminDb.collection("archive_teams").get();
     return snap.docs.map((d) => d.data() as ArchiveTeam).sort((a, b) => b.lastYear - a.lastYear);
   },
-  ["get-all-archive-teams"],
+  ["get-all-archive-teams-v2"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
@@ -339,7 +343,7 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
     }
     return result;
   },
-  ["get-archive-team-home-circuits"],
+  ["get-archive-team-home-circuits-v2"],
   { revalidate: REVALIDATE_SECONDS },
 );
 

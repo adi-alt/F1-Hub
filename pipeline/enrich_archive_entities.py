@@ -20,7 +20,10 @@ A team's identity here is a slug of its constructor display name (e.g. "Red Bull
 — not a stable Ergast constructorId, since that field was never captured by fetch_archive.py.
 Real team renames/rebrands (Lotus -> Renault -> Alpine, etc.) end up as separate entries, which
 for a historical archive is arguably more correct anyway: those were legally/competitively
-distinct entrants, not the same thing wearing a new coat of paint.
+distinct entrants, not the same thing wearing a new coat of paint. The reverse case — the same
+display name reused decades later for a genuinely different team ("Mercedes" 1954-55 vs. the
+2010-on Brackley team, "Alfa Romeo" 1950/79-85 vs. Sauber's 2019-23 title sponsorship, etc.) —
+gets a small explicit carve-out instead: see EARLY_ERA_OVERRIDES below.
 
 Run:
   python enrich_archive_entities.py             # every race missing driverIds/teamIds, full range
@@ -33,8 +36,33 @@ import sys
 
 from ergast_utils import init_firestore, with_retry
 
+# A handful of display names have been reused, decades apart, for a genuinely different
+# real-world team — not a rename of the same outfit, just the same name coming back. team_slug()
+# alone can't tell "Mercedes" 1954-55 (their own works team) from "Mercedes" 2010-on (the
+# Brackley team, ex-Tyrrell/BAR/Honda/Brawn, Mercedes-badged since buying in) apart; same story
+# for the other four below. Found by scanning the whole archive for any display name with a
+# >=10-year gap between appearances — a small, explicit list of *confirmed* real-world collisions,
+# not a general year-gap heuristic, since misclassifying an actual same-team multi-year hiatus
+# would be worse than leaving a rare footnote team merged.
+#
+# Each entry only carves out the early, unrelated era under its own id; the current/better-known
+# era keeps the plain slug so nothing downstream (personalization's current-season merge, archive
+# hrefs) needs to know this table exists.
+EARLY_ERA_OVERRIDES = [
+    # (display name, last year of the early era, id for that early era)
+    ("Alfa Romeo", 1985, "alfa_romeo_works"),  # 1950/51/63/65, 79-85 factory team; 2019-23 is Sauber's title sponsorship
+    ("Aston Martin", 1960, "aston_martin_1959"),  # 1959-60 works cars; 2021-on is the Force India/Racing Point lineage
+    ("Mercedes", 1955, "mercedes_1954"),  # 1954-55 works team; 2010-on is the Tyrrell/BAR/Honda/Brawn lineage
+    ("Honda", 1968, "honda_1964"),  # 1964-68 works team; 2006-08 inherited BAR's chassis/staff, not a revival of this
+    ("Renault", 1985, "renault_1977"),  # 1977-85 French works team; 2002-on is the Benetton-bought Enstone team
+]
+COLLISION_NAMES = {name for name, _, _ in EARLY_ERA_OVERRIDES}
 
-def team_slug(name: str) -> str:
+
+def team_slug(name: str, year: int) -> str:
+    for ctor_name, cutoff_year, early_id in EARLY_ERA_OVERRIDES:
+        if name == ctor_name and year <= cutoff_year:
+            return early_id
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
@@ -47,12 +75,21 @@ def write_entity_ids(db, start, end):
     # "teamIds" is the field that matters here, not "driverIds" — every doc already got
     # driverIds from this script's previous incarnation (enrich_archive_drivers.py), so gating on
     # that alone would skip every race and never backfill the new teamIds field onto anything.
-    docs = [d for d in query.stream() if "teamIds" not in d.to_dict()]
+    # Also force a recompute for any race carrying one of the EARLY_ERA_OVERRIDES names, even if
+    # teamIds was already written before that table existed — otherwise an old, wrongly-merged id
+    # would stick around on the race doc forever even after archive_teams itself gets fixed below.
+    def needs_write(data):
+        if "teamIds" not in data:
+            return True
+        return any(r.get("constructor") in COLLISION_NAMES for r in data.get("results", []))
+
+    docs = [d for d in query.stream() if needs_write(d.to_dict())]
     print(f"{len(docs)} races need driverIds/teamIds written")
     for i, doc in enumerate(docs):
-        results = doc.to_dict().get("results", [])
+        data = doc.to_dict()
+        results = data.get("results", [])
         driver_ids = [r["driverId"] for r in results if r.get("driverId")]
-        team_ids = sorted({team_slug(r["constructor"]) for r in results if r.get("constructor")})
+        team_ids = sorted({team_slug(r["constructor"], data["year"]) for r in results if r.get("constructor")})
         with_retry(lambda ref=doc.reference, d=driver_ids, t=team_ids: ref.update({"driverIds": d, "teamIds": t}))
         if (i + 1) % 100 == 0:
             print(f"  ...{i + 1}/{len(docs)}")
@@ -97,7 +134,7 @@ def rebuild_indexes(db):
                     entry["constructors"].add(constructor)
 
             if constructor:
-                team_id = team_slug(constructor)
+                team_id = team_slug(constructor, year)
                 team_entry = teams.setdefault(
                     team_id,
                     {
