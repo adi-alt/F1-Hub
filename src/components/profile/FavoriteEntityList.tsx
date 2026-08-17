@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
@@ -17,7 +17,10 @@ export type FavoriteEntity = {
 };
 type FavoriteType = "driver" | "team" | "track";
 
-const PAGE_SIZE = 25;
+// A reasonable guess for the very first paint, before anything's been measured — corrected
+// (usually before the browser even gets to paint it, via useLayoutEffect) the moment real
+// heights are available.
+const INITIAL_PAGE_SIZE_GUESS = 14;
 
 /** One favorites list per entity type (drivers/teams/tracks) — same list whether an entry got
  * favorited here, from the archive's own heart icons, or picked at signup: there's exactly one
@@ -28,11 +31,11 @@ const PAGE_SIZE = 25;
  * `items` spans the full archive (1950-last year) plus the current season, merged in by the
  * page — so a fan of a retired driver or a long-gone team, and a fan of this year's rookie, can
  * both find and favorite who they're after. Favorited entries always sort to the top; everything
- * else follows most-recent-first. 25 per page, real pagination (no infinite scroll).
+ * else follows most-recent-first.
  *
- * Fills whatever height its parent gives it (h-full) rather than a fixed pixel cap — the parent
- * page is a flex column sized to the viewport, so this table's own body is what scrolls, not the
- * page around it. */
+ * Page size isn't fixed — it's however many whole rows actually fit the available height (no
+ * partial row, no leftover scroll inside the box), measured from the real rendered thead/row
+ * heights via ResizeObserver so it stays correct if the window/viewport height changes. */
 export function FavoriteEntityList({
   type,
   nameLabel,
@@ -50,6 +53,28 @@ export function FavoriteEntityList({
 }) {
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(INITIAL_PAGE_SIZE_GUESS);
+
+  const boxRef = useRef<HTMLDivElement>(null);
+  const theadRef = useRef<HTMLTableSectionElement>(null);
+  const firstRowRef = useRef<HTMLTableRowElement>(null);
+
+  useLayoutEffect(() => {
+    function recompute() {
+      const box = boxRef.current;
+      const thead = theadRef.current;
+      const row = firstRowRef.current;
+      if (!box || !thead || !row || row.clientHeight === 0) return;
+      const available = box.clientHeight - thead.clientHeight;
+      const fit = Math.max(1, Math.floor(available / row.clientHeight));
+      setPageSize((prev) => (prev === fit ? prev : fit));
+    }
+    recompute();
+    if (!boxRef.current) return;
+    const observer = new ResizeObserver(recompute);
+    observer.observe(boxRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -64,10 +89,10 @@ export function FavoriteEntityList({
     return list;
   }, [items, favorites, search]);
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
-  const pageStart = (pageSafe - 1) * PAGE_SIZE;
-  const pageItems = sorted.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageStart = (pageSafe - 1) * pageSize;
+  const pageItems = sorted.slice(pageStart, pageStart + pageSize);
 
   function toggleFavorite(id: string) {
     const willFavorite = !favorites.has(id);
@@ -100,12 +125,16 @@ export function FavoriteEntityList({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-[var(--f1-line)]">
-        {/* This scrolls, not the page — the page is height-bound to the viewport, and this box
-            fills whatever's left of it, with the thead pinned via sticky. */}
+      <div ref={boxRef} className="min-h-0 flex-1 overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        {/* Sized to fit exactly `pageSize` rows, not stretched to fill this box — that's what
+            makes the row count follow the available height instead of the other way around.
+            overflow-y-auto here is just a safety margin if the measurement is ever a hair off. */}
         <div className="h-full overflow-y-auto">
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
+            <thead
+              ref={theadRef}
+              className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500"
+            >
               <tr>
                 <th className="w-12 px-4 py-2.5">S.No</th>
                 <th className="px-4 py-2.5">{nameLabel}</th>
@@ -123,7 +152,7 @@ export function FavoriteEntityList({
               className="divide-y divide-[var(--f1-line)]"
             >
               {pageItems.map((item, i) => (
-                <motion.tr key={item.id} variants={staggerItem}>
+                <motion.tr key={item.id} ref={i === 0 ? firstRowRef : undefined} variants={staggerItem}>
                   <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
                   <td className="px-4 py-2.5">
                     <Link href={item.href} className="truncate font-medium text-white hover:text-[var(--f1-red)]">

@@ -9,7 +9,7 @@ export type Tab = "players" | "teams" | "circuits";
 
 const TABS: { key: Tab; label: string; type: "driver" | "team" | "track"; nameLabel: string; extraLabel: string }[] = [
   { key: "players", label: "Players", type: "driver", nameLabel: "Driver", extraLabel: "Companies" },
-  { key: "teams", label: "Teams", type: "team", nameLabel: "Team", extraLabel: "Drivers" },
+  { key: "teams", label: "Teams", type: "team", nameLabel: "Team", extraLabel: "Home Circuit" },
   { key: "circuits", label: "Circuits", type: "track", nameLabel: "Circuit", extraLabel: "Country" },
 ];
 

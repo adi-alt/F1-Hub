@@ -1,7 +1,7 @@
 import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
 import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams } from "@/lib/firestore/archive";
+import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/firestore/archive";
 import { getCurrentEntrants, getRacesByYear } from "@/lib/firestore/races";
 import { getUserProfile } from "@/lib/firestore/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
@@ -31,28 +31,26 @@ async function mergeCurrentSeason(
   const completed = races.filter((r) => r.status === "completed");
 
   const driverStats = new Map<string, { name: string; raceCount: number; teams: Set<string> }>();
-  const teamStats = new Map<string, { name: string; raceCount: number; drivers: Set<string> }>();
+  const teamStats = new Map<string, { name: string; raceCount: number }>();
   for (const race of completed) {
-    const teamsThisRace = new Map<string, Set<string>>();
+    const teamsThisRace = new Set<string>();
     for (const result of race.results ?? []) {
       const d = driverStats.get(result.driver) ?? { name: result.driverName, raceCount: 0, teams: new Set() };
       d.raceCount += 1;
       d.teams.add(result.team);
       driverStats.set(result.driver, d);
 
-      if (!teamsThisRace.has(result.team)) teamsThisRace.set(result.team, new Set());
-      teamsThisRace.get(result.team)!.add(result.driverName);
+      teamsThisRace.add(result.team);
     }
-    for (const [team, drivers] of teamsThisRace) {
-      const t = teamStats.get(team) ?? { name: team, raceCount: 0, drivers: new Set() };
+    for (const team of teamsThisRace) {
+      const t = teamStats.get(team) ?? { name: team, raceCount: 0 };
       t.raceCount += 1;
-      drivers.forEach((d) => t.drivers.add(d));
       teamStats.set(team, t);
     }
   }
   for (const e of entrants) {
     if (!driverStats.has(e.driver)) driverStats.set(e.driver, { name: e.driverName, raceCount: 0, teams: new Set([e.team]) });
-    if (!teamStats.has(e.team)) teamStats.set(e.team, { name: e.team, raceCount: 0, drivers: new Set() });
+    if (!teamStats.has(e.team)) teamStats.set(e.team, { name: e.team, raceCount: 0 });
   }
 
   const circuitRaceCount = new Map<string, number>();
@@ -80,6 +78,8 @@ async function mergeCurrentSeason(
     }
   }
 
+  // Home circuit (this team's most-raced circuit historically) is archive-derived and doesn't
+  // need updating from one extra current-season race — only year span/race count change here.
   const teamsBySlug = new Map(teamItems.map((t) => [t.id, t]));
   for (const [name, stats] of teamStats) {
     const slug = teamSlug(name);
@@ -87,7 +87,6 @@ async function mergeCurrentSeason(
     if (existing) {
       existing.lastYear = year;
       existing.raceCount += stats.raceCount;
-      existing.extra = [...new Set([...(existing.extra ? existing.extra.split(", ") : []), ...stats.drivers])].join(", ");
     } else {
       const item: FavoriteEntity = {
         id: slug,
@@ -95,7 +94,7 @@ async function mergeCurrentSeason(
         firstYear: year,
         lastYear: year,
         raceCount: stats.raceCount,
-        extra: [...stats.drivers].join(", "),
+        extra: "",
         href: archiveTeamHref(slug),
       };
       teamItems.push(item);
@@ -146,11 +145,12 @@ export default async function ProfilePage({
   const { tab } = await searchParams;
   const initialTab: Tab = VALID_TABS.includes(tab as Tab) ? (tab as Tab) : "players";
 
-  const [profile, drivers, teams, circuits] = await Promise.all([
+  const [profile, drivers, teams, circuits, teamHomeCircuits] = await Promise.all([
     getUserProfile(session.uid),
     getAllArchiveDrivers(),
     getAllArchiveTeams(),
     getAllArchiveCircuits(),
+    getArchiveTeamHomeCircuits(),
   ]);
 
   // One list per entity type, spanning the full archive (1950-last year) plus this year's own
@@ -173,7 +173,7 @@ export default async function ProfilePage({
     firstYear: t.firstYear,
     lastYear: t.lastYear,
     raceCount: t.raceCount,
-    extra: t.drivers?.join(", ") ?? "",
+    extra: teamHomeCircuits[t.teamId] ?? "",
     href: archiveTeamHref(t.teamId),
   }));
   const circuitItems: FavoriteEntity[] = circuits.map((c) => ({

@@ -306,6 +306,40 @@ export const getAllArchiveTeams = unstable_cache(
   { revalidate: REVALIDATE_SECONDS },
 );
 
+/** Each team's "home circuit" — not a real-world fact this app tracks anywhere (Ergast has no
+ * team-headquarters field), so this is a derived proxy instead: whichever circuit that team has
+ * actually raced at the most, computed from the same `teamIds`/`circuitId` mirror fields the
+ * rest of archive already relies on. One full (field-projected) scan of archive_races, same cost
+ * class as getArchiveCircuitStats above. */
+export const getArchiveTeamHomeCircuits = unstable_cache(
+  async (): Promise<Record<string, string>> => {
+    const [racesSnap, circuits] = await Promise.all([
+      adminDb.collection(COLLECTION).select("teamIds", "circuitId").get(),
+      getAllArchiveCircuits(),
+    ]);
+    const circuitNames = new Map(circuits.map((c) => [c.circuitId, c.name ?? c.circuitId]));
+
+    const counts: Record<string, Record<string, number>> = {};
+    for (const doc of racesSnap.docs) {
+      const { teamIds, circuitId } = doc.data() as { teamIds?: string[]; circuitId?: string };
+      if (!circuitId || !teamIds) continue;
+      for (const teamId of teamIds) {
+        const byCircuit = (counts[teamId] ??= {});
+        byCircuit[circuitId] = (byCircuit[circuitId] ?? 0) + 1;
+      }
+    }
+
+    const result: Record<string, string> = {};
+    for (const [teamId, byCircuit] of Object.entries(counts)) {
+      const [topCircuitId] = Object.entries(byCircuit).sort((a, b) => b[1] - a[1])[0];
+      result[teamId] = circuitNames.get(topCircuitId) ?? topCircuitId;
+    }
+    return result;
+  },
+  ["get-archive-team-home-circuits"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
 /** A team's history — every race with this teamId in its flat `teamIds` mirror, oldest first. */
 export const getArchiveRacesByTeam = unstable_cache(
   async (teamId: string): Promise<ArchiveRaceDoc[]> => {
