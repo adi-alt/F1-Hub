@@ -2,9 +2,19 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
+import { staggerContainer, staggerItem } from "@/components/motion/variants";
 
-export type FavoriteEntity = { id: string; name: string; lastYear: number; raceCount: number; href: string };
+export type FavoriteEntity = {
+  id: string;
+  name: string;
+  firstYear: number;
+  lastYear: number;
+  raceCount: number;
+  extra: string;
+  href: string;
+};
 type FavoriteType = "driver" | "team" | "track";
 
 const PAGE_SIZE = 25;
@@ -15,9 +25,9 @@ const PAGE_SIZE = 25;
  * /api/archive/favorites, the same route the archive page uses. No separate "marked as favorite"
  * copy anywhere.
  *
- * `items` is the full history (current season through 1950, via the archive's own driver/team/
- * circuit index) — not just this year's grid — so a fan of a retired driver or a long-defunct
- * team can still find and favorite them. Favorited entries always sort to the top; everything
+ * `items` spans the full archive (1950-last year) plus the current season, merged in by the
+ * page — so a fan of a retired driver or a long-gone team, and a fan of this year's rookie, can
+ * both find and favorite who they're after. Favorited entries always sort to the top; everything
  * else follows most-recent-first. 25 per page, real pagination (no infinite scroll).
  *
  * Fills whatever height its parent gives it (h-full) rather than a fixed pixel cap — the parent
@@ -25,11 +35,15 @@ const PAGE_SIZE = 25;
  * page around it. */
 export function FavoriteEntityList({
   type,
+  nameLabel,
+  extraLabel,
   items,
   favoriteIds,
   search,
 }: {
   type: FavoriteType;
+  nameLabel: string;
+  extraLabel: string;
   items: FavoriteEntity[];
   favoriteIds: string[];
   search: string;
@@ -52,7 +66,8 @@ export function FavoriteEntityList({
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const pageSafe = Math.min(page, totalPages);
-  const pageItems = sorted.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const pageStart = (pageSafe - 1) * PAGE_SIZE;
+  const pageItems = sorted.slice(pageStart, pageStart + PAGE_SIZE);
 
   function toggleFavorite(id: string) {
     const willFavorite = !favorites.has(id);
@@ -77,7 +92,7 @@ export function FavoriteEntityList({
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-neutral-500">Nothing indexed yet — check back once the archive catches up.</p>;
+    return <p className="text-sm text-neutral-500">Nothing indexed yet, check back once the archive catches up.</p>;
   }
   if (sorted.length === 0) {
     return <p className="text-sm text-neutral-500">No matches for &ldquo;{search}&rdquo;.</p>;
@@ -92,28 +107,42 @@ export function FavoriteEntityList({
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
               <tr>
-                <th className="w-10 px-4 py-2.5" aria-hidden />
-                <th className="px-4 py-2.5">Name</th>
-                <th className="px-4 py-2.5 text-right">Years · Races</th>
+                <th className="w-12 px-4 py-2.5">S.No</th>
+                <th className="px-4 py-2.5">{nameLabel}</th>
+                <th className="px-4 py-2.5 text-right">Races</th>
+                <th className="px-4 py-2.5 text-right">Years</th>
+                <th className="px-4 py-2.5">{extraLabel}</th>
+                <th className="w-12 px-4 py-2.5 text-center">Favorite</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--f1-line)]">
-              {pageItems.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-4 py-2.5">
-                    <FavoriteButton favorited={favorites.has(item.id)} onToggle={() => toggleFavorite(item.id)} />
-                  </td>
+            <motion.tbody
+              key={`${type}-${pageSafe}-${search}`}
+              initial="hidden"
+              animate="show"
+              variants={staggerContainer}
+              className="divide-y divide-[var(--f1-line)]"
+            >
+              {pageItems.map((item, i) => (
+                <motion.tr key={item.id} variants={staggerItem}>
+                  <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
                   <td className="px-4 py-2.5">
                     <Link href={item.href} className="truncate font-medium text-white hover:text-[var(--f1-red)]">
                       {item.name}
                     </Link>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs text-neutral-500">
-                    {item.lastYear || "—"} · {item.raceCount} race{item.raceCount === 1 ? "" : "s"}
+                  <td className="px-4 py-2.5 text-right text-neutral-400">{item.raceCount}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right text-neutral-400">
+                    {item.firstYear === item.lastYear ? item.firstYear || "N/A" : `${item.firstYear}–${item.lastYear}`}
                   </td>
-                </tr>
+                  <td className="max-w-xs truncate px-4 py-2.5 text-neutral-500" title={item.extra}>
+                    {item.extra || "N/A"}
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <FavoriteButton favorited={favorites.has(item.id)} onToggle={() => toggleFavorite(item.id)} className="mx-auto" />
+                  </td>
+                </motion.tr>
               ))}
-            </tbody>
+            </motion.tbody>
           </table>
         </div>
       </div>
@@ -127,7 +156,7 @@ export function FavoriteEntityList({
           ← Prev
         </button>
         <span>
-          Page {pageSafe} of {totalPages} · {sorted.length} total
+          Page {pageSafe} of {totalPages}, {sorted.length} total
         </span>
         <button
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

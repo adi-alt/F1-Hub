@@ -14,8 +14,8 @@ export function Header() {
   const showModels = !!permissions?.canAccessAdmin;
 
   return (
-    <header className="relative z-50 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
-      <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+    <header className="relative z-50 h-16 shrink-0 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
+      <div className="relative mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight transition hover:opacity-80">
           <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
           F1 HUB

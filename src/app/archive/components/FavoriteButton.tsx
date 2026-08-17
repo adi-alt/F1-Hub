@@ -22,17 +22,14 @@ export function FavoriteButton({
       }}
       aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={favorited}
-      className={`shrink-0 transition hover:scale-110 ${className}`}
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 active:scale-90 ${className}`}
     >
-      <svg
-        viewBox="0 0 24 24"
-        className="h-5 w-5"
-        fill={favorited ? "var(--f1-red)" : "none"}
-        stroke={favorited ? "var(--f1-red)" : "currentColor"}
-        strokeWidth="2"
-      >
+      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill={favorited ? "var(--f1-red)" : "none"}>
         <path
-          d="M12 21s-6.7-4.35-9.3-8.1C.8 9.8 1.7 6 5 5c2-.6 3.8.3 5 2 1.2-1.7 3-2.6 5-2 3.3 1 4.2 4.8 2.3 7.9C18.7 16.65 12 21 12 21z"
+          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
+          stroke={favorited ? "var(--f1-red)" : "currentColor"}
+          strokeWidth="1.6"
+          strokeLinecap="round"
           strokeLinejoin="round"
         />
       </svg>

@@ -2,20 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { FavoriteEntityList, type FavoriteEntity } from "./FavoriteEntityList";
 
 export type Tab = "players" | "teams" | "circuits";
 
-const TABS: { key: Tab; label: string; type: "driver" | "team" | "track" }[] = [
-  { key: "players", label: "Players", type: "driver" },
-  { key: "teams", label: "Teams", type: "team" },
-  { key: "circuits", label: "Circuits", type: "track" },
+const TABS: { key: Tab; label: string; type: "driver" | "team" | "track"; nameLabel: string; extraLabel: string }[] = [
+  { key: "players", label: "Players", type: "driver", nameLabel: "Driver", extraLabel: "Companies" },
+  { key: "teams", label: "Teams", type: "team", nameLabel: "Team", extraLabel: "Drivers" },
+  { key: "circuits", label: "Circuits", type: "track", nameLabel: "Circuit", extraLabel: "Country" },
 ];
 
 const PLACEHOLDER: Record<Tab, string> = {
-  players: "Search players…",
-  teams: "Search teams…",
-  circuits: "Search circuits…",
+  players: "Search players...",
+  teams: "Search teams...",
+  circuits: "Search circuits...",
 };
 
 /** One tab at a time, not all three stacked — the same switch-instantly pattern the archive's own
@@ -38,7 +39,7 @@ export function PersonalizationTabs({
   const [tab, setTabState] = useState<Tab>(initialTab);
   const [search, setSearch] = useState("");
   const data = { players, teams, circuits }[tab];
-  const type = TABS.find((t) => t.key === tab)!.type;
+  const active = TABS.find((t) => t.key === tab)!;
 
   function switchTo(next: Tab) {
     setTabState(next);
@@ -47,7 +48,7 @@ export function PersonalizationTabs({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
           {TABS.map((t) => (
@@ -72,9 +73,25 @@ export function PersonalizationTabs({
           className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
         />
       </div>
-      <div className="mt-4 flex-1 overflow-hidden">
-        <FavoriteEntityList type={type} items={data.items} favoriteIds={data.favoriteIds} search={search} />
-      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="mt-4 min-h-0 flex-1 overflow-hidden"
+        >
+          <FavoriteEntityList
+            type={active.type}
+            nameLabel={active.nameLabel}
+            extraLabel={active.extraLabel}
+            items={data.items}
+            favoriteIds={data.favoriteIds}
+            search={search}
+          />
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
