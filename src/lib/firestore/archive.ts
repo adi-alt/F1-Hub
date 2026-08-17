@@ -217,7 +217,7 @@ const getArchiveCircuitStats = unstable_cache(
     }
     return stats;
   },
-  ["get-archive-circuit-stats-v2"],
+  ["get-archive-circuit-stats-v3"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
@@ -244,7 +244,7 @@ export const getAllArchiveCircuits = unstable_cache(
       })
       .sort((a, b) => (a.name ?? a.circuitId).localeCompare(b.name ?? b.circuitId));
   },
-  ["get-all-archive-circuits-v2"],
+  ["get-all-archive-circuits-v3"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
@@ -343,7 +343,7 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
     }
     return result;
   },
-  ["get-archive-team-home-circuits-v2"],
+  ["get-archive-team-home-circuits-v3"],
   { revalidate: REVALIDATE_SECONDS },
 );
 
