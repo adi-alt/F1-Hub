@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -254,7 +255,8 @@ function OtpStep({
 // than always rendering it with an `open` prop — a fresh mount every time it opens is what gives
 // it fresh state for free, no reset-on-open effect required.
 export function AuthDialog({ onClose }: { onClose: () => void }) {
-  const { setRole } = useAuth();
+  const { setRole, setDisplayName } = useAuth();
+  const router = useRouter();
   const [step, setStep] = useState<Step>("method");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -368,7 +370,12 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken, code }),
       });
-      const body = (await res.json()) as { status?: "logged-in" | "needs-profile"; role?: Role; error?: string };
+      const body = (await res.json()) as {
+        status?: "logged-in" | "needs-profile";
+        role?: Role;
+        displayName?: string | null;
+        error?: string;
+      };
       if (!res.ok) {
         setError(body.error ?? "Verification failed.");
         return;
@@ -377,6 +384,11 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
         setStep("profile");
       } else {
         setRole(body.role ?? "user");
+        setDisplayName(body.displayName ?? null);
+        // Every Server Component below the header reads the session cookie at request time —
+        // without this, signed-in content stays stuck on the signed-out render until a hard
+        // reload.
+        router.refresh();
         onClose();
       }
     } finally {
@@ -406,12 +418,19 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
           favoriteTracks: favoriteTrack ? [favoriteTrack] : [],
         }),
       });
-      const body = (await res.json()) as { status?: "logged-in"; role?: Role; error?: string };
+      const body = (await res.json()) as {
+        status?: "logged-in";
+        role?: Role;
+        displayName?: string | null;
+        error?: string;
+      };
       if (!res.ok) {
         setError(body.error ?? "Couldn't create your account.");
         return;
       }
       setRole(body.role ?? "user");
+      setDisplayName(body.displayName ?? null);
+      router.refresh();
       onClose();
     } finally {
       setBusy(false);

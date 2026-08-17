@@ -30,7 +30,9 @@ export async function startSignIn(idToken: string): Promise<{ email: string; cod
   return { email: decoded.email, code: prepared === "cooldown" ? null : prepared.code };
 }
 
-export type OtpLoginResult = { status: "logged-in"; role: Role } | { status: "needs-profile" };
+export type OtpLoginResult =
+  | { status: "logged-in"; role: Role; displayName: string | null }
+  | { status: "needs-profile" };
 
 /** Step 2: checks the code against what startSignIn sent. On success, branches on whether this
  * uid already has a profile - existing users are logged in immediately; new ones get a
@@ -52,8 +54,8 @@ export async function verifyOtpAndLogin(idToken: string, code: string): Promise<
   const profile = await getUserProfile(decoded.uid);
   if (!profile) return { status: "needs-profile" };
 
-  const role = await createSessionFor(decoded);
-  return { status: "logged-in", role };
+  const role = await createSessionFor(decoded, profile.firstName ?? null);
+  return { status: "logged-in", role, displayName: profile.firstName ?? null };
 }
 
 export type CompleteSignupInput = {
@@ -72,7 +74,7 @@ export type CompleteSignupInput = {
 export async function completeSignup(
   idToken: string,
   input: CompleteSignupInput,
-): Promise<{ status: "logged-in"; role: Role }> {
+): Promise<{ status: "logged-in"; role: Role; displayName: string | null }> {
   if (!input.firstName.trim()) throw new ServiceError("First name is required.", 400);
   if (!input.lastName.trim()) throw new ServiceError("Last name is required.", 400);
   if (!USERNAME_RE.test(input.username)) {
@@ -102,6 +104,7 @@ export async function completeSignup(
   });
   await clearOtp(decoded.email);
 
-  const role = await createSessionFor(decoded);
-  return { status: "logged-in", role };
+  const firstName = input.firstName.trim();
+  const role = await createSessionFor(decoded, firstName);
+  return { status: "logged-in", role, displayName: firstName };
 }

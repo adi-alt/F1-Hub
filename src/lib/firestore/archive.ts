@@ -254,6 +254,15 @@ export const getArchiveRacesByCircuitId = unstable_cache(
 /** Every driver who's been through pipeline/enrich_archive_entities.py — for the "browse by
  * racer" landing grid. Sorted by most recent first, since a fresh visitor is more likely
  * recognize recent names than a 1950s one. */
+export const getArchiveDriver = unstable_cache(
+  async (driverId: string): Promise<ArchiveDriver | null> => {
+    const snap = await adminDb.collection("archive_drivers").doc(driverId).get();
+    return snap.exists ? (snap.data() as ArchiveDriver) : null;
+  },
+  ["get-archive-driver"],
+  { revalidate: REVALIDATE_SECONDS },
+);
+
 export const getAllArchiveDrivers = unstable_cache(
   async (): Promise<ArchiveDriver[]> => {
     const snap = await adminDb.collection("archive_drivers").get();

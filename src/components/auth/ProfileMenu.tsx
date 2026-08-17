@@ -14,7 +14,7 @@ const ITEMS = [
 ];
 
 export function ProfileMenu() {
-  const { user, isAuthorized, signOut } = useAuth();
+  const { user, displayName, isAuthorized, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -24,6 +24,10 @@ export function ProfileMenu() {
   // a menu implying "you're signed in" is exactly the wrong thing to show from any other caller
   // that forgets that distinction.
   if (!isAuthorized || !user) return null;
+
+  // The profile's own firstName (session-cached), not Firebase's user.displayName — that's only
+  // set for OAuth providers, null for every email/password account.
+  const name = displayName ?? user.displayName ?? user.email ?? "Account";
 
   return (
     <div ref={rootRef} className="relative">
@@ -36,10 +40,11 @@ export function ProfileMenu() {
         {user.photoURL ? (
           <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
         ) : (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
-            {(user.displayName ?? user.email ?? "?").charAt(0).toUpperCase()}
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
+            {name.charAt(0).toUpperCase()}
           </span>
         )}
+        <span className="max-w-[9rem] truncate font-medium text-white">{name}</span>
       </button>
 
       <AnimatePresence>
@@ -52,7 +57,7 @@ export function ProfileMenu() {
             className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] shadow-xl"
           >
             <div className="border-b border-[var(--f1-line)] px-4 py-3">
-              <p className="truncate text-sm font-medium text-white">{user.displayName ?? "Signed in"}</p>
+              <p className="truncate text-sm font-medium text-white">{name}</p>
               <p className="truncate text-xs text-neutral-500">{user.email}</p>
             </div>
             <nav className="py-1">
