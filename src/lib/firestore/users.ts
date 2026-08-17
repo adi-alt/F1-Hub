@@ -11,14 +11,14 @@ export type UserProfile = {
   firstName?: string;
   lastName?: string;
   username?: string;
-  // One shared favorites concept, not two: personalization (signup form, PersonalizationForm) and
-  // /archive's heart icons both read and write these same three arrays — there's no separate
-  // "archive favorites" field. The two surfaces do push different identifier schemes into them
-  // though, since this app never unified driver/team/track identity across current-season data
-  // (FastF1 codes like "VER", free-text team/track names) and archive/Ergast data (driverId slugs
-  // like "max_verstappen", circuitId slugs, constructor names) — see pipeline/README.md. That's
-  // safe to mix in one array: the two schemes never collide syntactically, and each surface only
-  // ever checks membership using its own kind of id, so there's no false-positive risk.
+  // One shared favorites concept, not two: signup's quick pick, Personalization's browsable
+  // lists, and /archive's heart icons all read and write these same three arrays — there's no
+  // separate "archive favorites" field anywhere. Signup pushes current-season ids (FastF1 codes,
+  // free-text team/track names); Personalization/archive push archive/Ergast ids (driverId slugs
+  // like "max_verstappen", circuitId slugs, constructor names) — see pipeline/README.md for why
+  // this app has no unified identity across those two data sources. Mixing both schemes in one
+  // array is safe: they never collide syntactically, and every reader only ever checks membership
+  // using its own kind of id.
   favoriteDrivers?: string[];
   favoriteTeams?: string[];
   favoriteTracks?: string[];

@@ -19,8 +19,8 @@ export async function GET() {
 
 // Always the caller's own uid — there is no uid in the request body, so there's nothing to spoof.
 // Only the fields below are writable; role and everything else stays admin-route-only. This is a
-// whole-array *replace* for the favorite lists (PersonalizationForm sends its full current
-// selection) — /api/archive/favorites is the one-item-at-a-time toggle for the heart icons.
+// whole-array *replace* for the favorite lists — /api/archive/favorites is the one-item-at-a-time
+// toggle used everywhere favoriting actually happens now (Personalization, archive heart icons).
 export async function PATCH(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
