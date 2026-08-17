@@ -8,7 +8,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useOnClickOutside } from "@/hooks/useOnClickOutside";
 
 const ITEMS = [
-  { href: "/profile/personalization", label: "Personalisation" },
+  { href: "/profile?section=personalisation", label: "Personalisation" },
   { href: "/profile/notifications", label: "Notifications" },
   { href: "/profile/edit", label: "Edit profile" },
 ];

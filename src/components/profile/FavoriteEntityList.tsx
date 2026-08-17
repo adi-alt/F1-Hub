@@ -18,21 +18,29 @@ const PAGE_SIZE = 25;
  * `items` is the full history (current season through 1950, via the archive's own driver/team/
  * circuit index) — not just this year's grid — so a fan of a retired driver or a long-defunct
  * team can still find and favorite them. Favorited entries always sort to the top; everything
- * else follows most-recent-first. 25 per page, real pagination (no infinite scroll). */
+ * else follows most-recent-first. 25 per page, real pagination (no infinite scroll).
+ *
+ * Fills whatever height its parent gives it (h-full) rather than a fixed pixel cap — the parent
+ * page is a flex column sized to the viewport, so this table's own body is what scrolls, not the
+ * page around it. */
 export function FavoriteEntityList({
   type,
   items,
   favoriteIds,
+  search,
 }: {
   type: FavoriteType;
   items: FavoriteEntity[];
   favoriteIds: string[];
+  search: string;
 }) {
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [page, setPage] = useState(1);
 
   const sorted = useMemo(() => {
-    const list = [...items];
+    const q = search.trim().toLowerCase();
+    const filtered = q ? items.filter((i) => i.name.toLowerCase().includes(q)) : items;
+    const list = [...filtered];
     list.sort((a, b) => {
       const af = favorites.has(a.id);
       const bf = favorites.has(b.id);
@@ -40,7 +48,7 @@ export function FavoriteEntityList({
       return b.lastYear - a.lastYear;
     });
     return list;
-  }, [items, favorites]);
+  }, [items, favorites, search]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const pageSafe = Math.min(page, totalPages);
@@ -71,13 +79,16 @@ export function FavoriteEntityList({
   if (items.length === 0) {
     return <p className="text-sm text-neutral-500">Nothing indexed yet — check back once the archive catches up.</p>;
   }
+  if (sorted.length === 0) {
+    return <p className="text-sm text-neutral-500">No matches for &ldquo;{search}&rdquo;.</p>;
+  }
 
   return (
-    <div>
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-        {/* Bounded height + its own scroll, not the page's — a 25-row page fits on screen as a
-            fixed box, with the thead pinned via sticky rather than scrolling out of view. */}
-        <div className="max-h-[420px] overflow-y-auto">
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        {/* This scrolls, not the page — the page is height-bound to the viewport, and this box
+            fills whatever's left of it, with the thead pinned via sticky. */}
+        <div className="h-full overflow-y-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
               <tr>
@@ -107,7 +118,7 @@ export function FavoriteEntityList({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-sm text-neutral-500">
+      <div className="mt-3 flex shrink-0 items-center justify-between text-sm text-neutral-500">
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={pageSafe === 1}

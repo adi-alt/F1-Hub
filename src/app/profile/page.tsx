@@ -1,20 +1,32 @@
 import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
-import { PersonalizationTabs } from "@/components/profile/PersonalizationTabs";
+import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams } from "@/lib/firestore/archive";
 import { getUserProfile } from "@/lib/firestore/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
-export default async function PersonalizationPage() {
+const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
+
+// Only "personalisation" is implemented as a section here — notifications/edit-profile stay at
+// their own /profile/notifications and /profile/edit routes for now. Defaults to it when no
+// section is given at all, since it's the only thing this route currently renders.
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string; tab?: string }>;
+}) {
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+      <div className="mx-auto flex h-full max-w-4xl flex-col px-4 py-6 sm:px-6">
         <SignInGate label="personalization" />
       </div>
     );
   }
+
+  const { tab } = await searchParams;
+  const initialTab: Tab = VALID_TABS.includes(tab as Tab) ? (tab as Tab) : "players";
 
   const [profile, drivers, teams, circuits] = await Promise.all([
     getUserProfile(session.uid),
@@ -50,15 +62,16 @@ export default async function PersonalizationPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
-      <h1 className="text-3xl font-bold text-white">Personalization</h1>
-      <p className="mt-2 text-sm text-neutral-400">
+    <div className="mx-auto flex h-full max-w-4xl flex-col px-4 py-6 sm:px-6">
+      <h1 className="shrink-0 text-3xl font-bold text-white">Personalization</h1>
+      <p className="mt-2 shrink-0 text-sm text-neutral-400">
         Favorite any driver, team, or circuit — current or historical. Favorited ones always show
         up first; everything else follows most-recent-first.
       </p>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-1 flex-col overflow-hidden">
         <PersonalizationTabs
+          initialTab={initialTab}
           players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}
           teams={{ items: teamItems, favoriteIds: profile?.favoriteTeams ?? [] }}
           circuits={{ items: circuitItems, favoriteIds: profile?.favoriteTracks ?? [] }}

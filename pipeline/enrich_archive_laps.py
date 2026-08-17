@@ -28,6 +28,7 @@ import time
 from datetime import datetime
 
 import pandas as pd
+import requests
 from fastf1.ergast import Ergast
 
 from ergast_utils import clean, format_timedelta, init_firestore, with_retry
@@ -36,8 +37,46 @@ EARLIEST_YEAR = 1996  # confirmed via direct API check — nothing before this
 LATEST_YEAR = datetime.now().year - 1
 REQUEST_DELAY_SEC = 0.5
 PAGE_SIZE = 100  # Jolpi's hard cap regardless of what's requested
+BASE_URL = "https://api.jolpi.ca/ergast/f1"
 
 ergast = Ergast(limit=PAGE_SIZE)
+
+
+def _parse_lap_time(time_str):
+    if not time_str:
+        return None
+    minutes, seconds = time_str.split(":")
+    return pd.Timedelta(minutes=int(minutes), seconds=float(seconds))
+
+
+def fetch_page_raw(year: int, round_num: int, offset: int, limit: int):
+    """Manual fallback for a page fastf1's own parser can't build a DataFrame from — confirmed
+    real cause (not a bug in this pipeline): Ergast/Jolpi's historical data sometimes omits a
+    field entirely for one lap/driver (e.g. 2008 Spanish GP, lap 6, Bourdais has a Timings entry
+    with no `position` at all — verified by fetching this exact page directly). fastf1 builds
+    per-column arrays internally and can't handle that row being short one field; a plain
+    list-of-dicts DataFrame tolerates a missing key fine (it just becomes NaN), so this refetches
+    the same page and builds an equivalent frame by hand instead of going through fastf1 at all."""
+    resp = with_retry(lambda: requests.get(
+        f"{BASE_URL}/{year}/{round_num}/laps.json",
+        params={"limit": limit, "offset": offset},
+        timeout=30,
+    ))
+    resp.raise_for_status()
+    races = resp.json()["MRData"]["RaceTable"]["Races"]
+    if not races:
+        return pd.DataFrame(columns=["number", "driverId", "position", "time"])
+    rows = [
+        {
+            "number": int(lap["number"]),
+            "driverId": timing.get("driverId"),
+            "position": int(timing["position"]) if timing.get("position") is not None else None,
+            "time": _parse_lap_time(timing.get("time")),
+        }
+        for lap in races[0].get("Laps", [])
+        for timing in lap.get("Timings", [])
+    ]
+    return pd.DataFrame(rows)
 
 
 def fetch_all_laps(year: int, round_num: int):
@@ -46,15 +85,33 @@ def fetch_all_laps(year: int, round_num: int):
     resp = with_retry(lambda: ergast.get_lap_times(season=year, round=round_num))
     if not resp.content:
         return None
+    headers = resp._response_headers
+    offset, limit, total = (int(headers.get(k, 0)) for k in ("offset", "limit", "total"))
     pages = [resp.content[0]]
-    while True:
-        headers = resp._response_headers
-        offset, limit, total = (int(headers.get(k, 0)) for k in ("offset", "limit", "total"))
-        if offset + limit >= total:
-            break
-        current = resp
-        resp = with_retry(lambda: current.get_next_result_page())
-        pages.append(resp.content[0])
+    # Once fastf1's own parser fails once for this race, its response object never advances past
+    # that page (get_next_result_page() computes its next offset from *its own* stale headers) —
+    # retrying it again next loop would just fail on the exact same page forever. Switch to the
+    # raw fallback permanently for the rest of this race instead of fighting that.
+    use_raw_fallback = False
+    while offset + limit < total:
+        next_offset = offset + limit
+        if not use_raw_fallback:
+            try:
+                current = resp
+                resp = with_retry(lambda: current.get_next_result_page())
+                pages.append(resp.content[0])
+                headers = resp._response_headers
+                offset, limit, total = (int(headers.get(k, 0)) for k in ("offset", "limit", "total"))
+                time.sleep(REQUEST_DELAY_SEC)
+                continue
+            except ValueError as e:
+                print(
+                    f"    page at offset {next_offset} failed fastf1's own parser ({e}); "
+                    f"switching to raw fetching for the rest of this race"
+                )
+                use_raw_fallback = True
+        pages.append(fetch_page_raw(year, round_num, next_offset, limit))
+        offset = next_offset
         time.sleep(REQUEST_DELAY_SEC)
     return pd.concat(pages, ignore_index=True)
 
