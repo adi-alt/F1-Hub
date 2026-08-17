@@ -10,7 +10,7 @@ export default async function PersonalizationPage() {
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
         <SignInGate label="personalization" />
       </div>
     );
@@ -50,14 +50,14 @@ export default async function PersonalizationPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
       <h1 className="text-3xl font-bold text-white">Personalization</h1>
       <p className="mt-2 text-sm text-neutral-400">
         Favorite any driver, team, or circuit — current or historical. Favorited ones always show
         up first; everything else follows most-recent-first.
       </p>
 
-      <div className="mt-6">
+      <div className="mt-4">
         <PersonalizationTabs
           players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}
           teams={{ items: teamItems, favoriteIds: profile?.favoriteTeams ?? [] }}

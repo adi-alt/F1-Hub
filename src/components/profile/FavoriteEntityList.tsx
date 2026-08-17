@@ -74,18 +74,37 @@ export function FavoriteEntityList({
 
   return (
     <div>
-      <div className="divide-y divide-[var(--f1-line)] rounded-xl border border-[var(--f1-line)]">
-        {pageItems.map((item) => (
-          <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-            <FavoriteButton favorited={favorites.has(item.id)} onToggle={() => toggleFavorite(item.id)} />
-            <Link href={item.href} className="flex-1 truncate font-medium text-white hover:text-[var(--f1-red)]">
-              {item.name}
-            </Link>
-            <span className="shrink-0 text-xs text-neutral-500">
-              {item.lastYear || "—"} · {item.raceCount} race{item.raceCount === 1 ? "" : "s"}
-            </span>
-          </div>
-        ))}
+      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        {/* Bounded height + its own scroll, not the page's — a 25-row page fits on screen as a
+            fixed box, with the thead pinned via sticky rather than scrolling out of view. */}
+        <div className="max-h-[420px] overflow-y-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
+              <tr>
+                <th className="w-10 px-4 py-2.5" aria-hidden />
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5 text-right">Years · Races</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--f1-line)]">
+              {pageItems.map((item) => (
+                <tr key={item.id}>
+                  <td className="px-4 py-2.5">
+                    <FavoriteButton favorited={favorites.has(item.id)} onToggle={() => toggleFavorite(item.id)} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Link href={item.href} className="truncate font-medium text-white hover:text-[var(--f1-red)]">
+                      {item.name}
+                    </Link>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right text-xs text-neutral-500">
+                    {item.lastYear || "—"} · {item.raceCount} race{item.raceCount === 1 ? "" : "s"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="mt-3 flex items-center justify-between text-sm text-neutral-500">
