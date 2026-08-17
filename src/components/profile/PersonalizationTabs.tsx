@@ -50,19 +50,24 @@ export function PersonalizationTabs({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
+        <div className="flex gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
           {TABS.map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => switchTo(t.key)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                t.key === tab
-                  ? "bg-[var(--f1-red)] text-white"
-                  : "border border-[var(--f1-line)] text-neutral-300 hover:border-white/30 hover:text-white"
-              }`}
+              className="relative rounded-full px-4 py-1.5 text-sm font-medium transition"
             >
-              {t.label}
+              {t.key === tab && (
+                <motion.div
+                  layoutId="personalization-tab-capsule"
+                  className="absolute inset-0 rounded-full bg-[var(--f1-red)]"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                />
+              )}
+              <span className={`relative z-10 ${t.key === tab ? "text-white" : "text-neutral-300 hover:text-white"}`}>
+                {t.label}
+              </span>
             </button>
           ))}
         </div>
