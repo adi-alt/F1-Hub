@@ -447,7 +447,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   // that whole category of bug structurally impossible rather than tracking down one ancestor.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4 backdrop-blur-[1px]"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4"
       onClick={onClose}
     >
       <div
