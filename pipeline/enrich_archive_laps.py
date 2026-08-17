@@ -56,16 +56,22 @@ def fetch_page_raw(year: int, round_num: int, offset: int, limit: int):
     with no `position` at all — verified by fetching this exact page directly). fastf1 builds
     per-column arrays internally and can't handle that row being short one field; a plain
     list-of-dicts DataFrame tolerates a missing key fine (it just becomes NaN), so this refetches
-    the same page and builds an equivalent frame by hand instead of going through fastf1 at all."""
+    the same page and builds an equivalent frame by hand instead of going through fastf1 at all.
+
+    Returns (df, offset, limit, total) — the pagination fields come from this same response's own
+    `MRData`, not the caller's request params, so a caller can keep paginating from here exactly
+    like it would off fastf1's `._response_headers` on the normal path."""
     resp = with_retry(lambda: requests.get(
         f"{BASE_URL}/{year}/{round_num}/laps.json",
         params={"limit": limit, "offset": offset},
         timeout=30,
     ))
     resp.raise_for_status()
-    races = resp.json()["MRData"]["RaceTable"]["Races"]
+    mrdata = resp.json()["MRData"]
+    page_offset, page_limit, page_total = int(mrdata["offset"]), int(mrdata["limit"]), int(mrdata["total"])
+    races = mrdata["RaceTable"]["Races"]
     if not races:
-        return pd.DataFrame(columns=["number", "driverId", "position", "time"])
+        return pd.DataFrame(columns=["number", "driverId", "position", "time"]), page_offset, page_limit, page_total
     rows = [
         {
             "number": int(lap["number"]),
@@ -76,23 +82,36 @@ def fetch_page_raw(year: int, round_num: int, offset: int, limit: int):
         for lap in races[0].get("Laps", [])
         for timing in lap.get("Timings", [])
     ]
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows), page_offset, page_limit, page_total
 
 
 def fetch_all_laps(year: int, round_num: int):
     """Pages through /laps until every row is collected — see the module docstring for why this
     can't just check `.is_complete`."""
-    resp = with_retry(lambda: ergast.get_lap_times(season=year, round=round_num))
-    if not resp.content:
-        return None
-    headers = resp._response_headers
-    offset, limit, total = (int(headers.get(k, 0)) for k in ("offset", "limit", "total"))
-    pages = [resp.content[0]]
+    # The very first page can hit the exact same "fastf1 can't build a DataFrame from this
+    # response" failure as any later page (confirmed live: 2014's first race after 2013 hit this
+    # on fastf1's initial ergast.get_lap_times() call, not a get_next_result_page() follow-up) —
+    # so it needs the same raw-fallback escape hatch the rest of this function already has.
+    try:
+        resp = with_retry(lambda: ergast.get_lap_times(season=year, round=round_num))
+        if not resp.content:
+            return None
+        headers = resp._response_headers
+        offset, limit, total = (int(headers.get(k, 0)) for k in ("offset", "limit", "total"))
+        pages = [resp.content[0]]
+        use_raw_fallback = False
+    except ValueError as e:
+        print(f"    first page failed fastf1's own parser ({e}); using raw fetching for this whole race")
+        df, offset, limit, total = fetch_page_raw(year, round_num, 0, PAGE_SIZE)
+        if total == 0:
+            return None
+        pages = [df]
+        use_raw_fallback = True
+
     # Once fastf1's own parser fails once for this race, its response object never advances past
     # that page (get_next_result_page() computes its next offset from *its own* stale headers) —
     # retrying it again next loop would just fail on the exact same page forever. Switch to the
     # raw fallback permanently for the rest of this race instead of fighting that.
-    use_raw_fallback = False
     while offset + limit < total:
         next_offset = offset + limit
         if not use_raw_fallback:
@@ -110,8 +129,8 @@ def fetch_all_laps(year: int, round_num: int):
                     f"switching to raw fetching for the rest of this race"
                 )
                 use_raw_fallback = True
-        pages.append(fetch_page_raw(year, round_num, next_offset, limit))
-        offset = next_offset
+        df, offset, limit, total = fetch_page_raw(year, round_num, next_offset, limit)
+        pages.append(df)
         time.sleep(REQUEST_DELAY_SEC)
     return pd.concat(pages, ignore_index=True)
 

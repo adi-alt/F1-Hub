@@ -16,6 +16,26 @@ function teamSlug(name: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+// A handful of current-season teams are the exact same real-world entity as an archive row, just
+// under a different display name (Ergast's archive calls it "Red Bull"; the current season's own
+// data calls it "Red Bull Racing") — teamSlug() alone doesn't catch that, so without this it'd
+// show up as a second, near-empty "Red Bull Racing" row instead of extending the real one.
+// Deliberately a short explicit list rather than fuzzy name matching: a genuine rebrand (Toro
+// Rosso -> Racing Bulls, Renault -> Alpine, Sauber -> Audi) is a real editorial call about
+// whether to treat it as "the same team", not a spelling variant, so those are left as their own
+// rows unless asked to merge them too.
+const CURRENT_SEASON_TEAM_ALIASES: Record<string, string> = {
+  "red bull racing": "red_bull",
+};
+
+/** Same aliasing as CURRENT_SEASON_TEAM_ALIASES, but for display: a driver's Companies list
+ * should say "Red Bull" for every year they drove there, not "Red Bull, Red Bull Racing" just
+ * because this year's data uses the live season's own name for it. */
+function canonicalTeamName(rawName: string, teamItems: FavoriteEntity[]): string {
+  const slug = CURRENT_SEASON_TEAM_ALIASES[rawName.trim().toLowerCase()] ?? teamSlug(rawName);
+  return teamItems.find((t) => t.id === slug)?.name ?? rawName;
+}
+
 /** The archive only covers seasons through last year by design (this one isn't over yet, so it's
  * never "archived") — but someone personalizing today obviously wants this year's names pickable
  * too. Merges the current season's entrants/teams/circuits into the archive-sourced lists: an
@@ -37,7 +57,7 @@ async function mergeCurrentSeason(
     for (const result of race.results ?? []) {
       const d = driverStats.get(result.driver) ?? { name: result.driverName, raceCount: 0, teams: new Set() };
       d.raceCount += 1;
-      d.teams.add(result.team);
+      d.teams.add(canonicalTeamName(result.team, teamItems));
       driverStats.set(result.driver, d);
 
       teamsThisRace.add(result.team);
@@ -49,7 +69,9 @@ async function mergeCurrentSeason(
     }
   }
   for (const e of entrants) {
-    if (!driverStats.has(e.driver)) driverStats.set(e.driver, { name: e.driverName, raceCount: 0, teams: new Set([e.team]) });
+    if (!driverStats.has(e.driver)) {
+      driverStats.set(e.driver, { name: e.driverName, raceCount: 0, teams: new Set([canonicalTeamName(e.team, teamItems)]) });
+    }
     if (!teamStats.has(e.team)) teamStats.set(e.team, { name: e.team, raceCount: 0 });
   }
 
@@ -82,7 +104,7 @@ async function mergeCurrentSeason(
   // need updating from one extra current-season race — only year span/race count change here.
   const teamsBySlug = new Map(teamItems.map((t) => [t.id, t]));
   for (const [name, stats] of teamStats) {
-    const slug = teamSlug(name);
+    const slug = CURRENT_SEASON_TEAM_ALIASES[name.trim().toLowerCase()] ?? teamSlug(name);
     const existing = teamsBySlug.get(slug);
     if (existing) {
       existing.lastYear = year;
