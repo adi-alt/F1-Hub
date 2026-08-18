@@ -38,22 +38,24 @@ async function ArchiveIndex({ by, uid }: { by: Facet; uid: string }) {
   ]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-bold text-white">Archive</h1>
-      <p className="mt-1 text-sm text-neutral-500">
+    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <h1 className="shrink-0 text-3xl font-bold text-white">Archive</h1>
+      <p className="mt-1 shrink-0 text-sm text-neutral-500">
         Every season from {ARCHIVE_EARLIEST_YEAR} to {ARCHIVE_LATEST_YEAR} — results only, sourced
         from the Ergast/Jolpi historical database.
       </p>
-      <ArchiveExplorer
-        initialBy={by}
-        years={getArchiveYears()}
-        circuits={circuits}
-        drivers={drivers}
-        teams={teams}
-        favoriteTracks={profile?.favoriteTracks ?? []}
-        favoriteDrivers={profile?.favoriteDrivers ?? []}
-        favoriteTeams={profile?.favoriteTeams ?? []}
-      />
+      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ArchiveExplorer
+          initialBy={by}
+          years={getArchiveYears()}
+          circuits={circuits}
+          drivers={drivers}
+          teams={teams}
+          favoriteTracks={profile?.favoriteTracks ?? []}
+          favoriteDrivers={profile?.favoriteDrivers ?? []}
+          favoriteTeams={profile?.favoriteTeams ?? []}
+        />
+      </div>
     </div>
   );
 }

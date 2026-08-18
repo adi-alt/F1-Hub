@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 
 export type FavoriteEntity = {
   id: string;
@@ -16,14 +17,6 @@ export type FavoriteEntity = {
   href: string;
 };
 type FavoriteType = "driver" | "team" | "track";
-
-// A reasonable guess for the very first paint, before anything's been measured — corrected
-// (usually before the browser even gets to paint it, via useLayoutEffect) the moment real
-// heights are available.
-const INITIAL_PAGE_SIZE_GUESS = 14;
-// Rounds down already (see recompute) — this is just a little extra slack on top, so a row
-// that's a pixel or two taller than the one measured never tips the last row into overflow.
-const SAFETY_MARGIN_PX = 8;
 
 /** One favorites list per entity type (drivers/teams/tracks) — same list whether an entry got
  * favorited here, from the archive's own heart icons, or picked at signup: there's exactly one
@@ -60,31 +53,12 @@ export function FavoriteEntityList({
 }) {
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(INITIAL_PAGE_SIZE_GUESS);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const firstRowRef = useRef<HTMLTableRowElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    function recompute() {
-      const root = rootRef.current;
-      const thead = theadRef.current;
-      const row = firstRowRef.current;
-      const footer = footerRef.current;
-      if (!root || !thead || !row || row.clientHeight === 0) return;
-      const footerSpace = footer ? footer.offsetHeight + 12 : 0; // 12px = the footer's own mt-3
-      const available = root.clientHeight - thead.clientHeight - footerSpace - SAFETY_MARGIN_PX;
-      const fit = Math.max(1, Math.floor(available / row.clientHeight));
-      setPageSize((prev) => (prev === fit ? prev : fit));
-    }
-    recompute();
-    if (!rootRef.current) return;
-    const observer = new ResizeObserver(recompute);
-    observer.observe(rootRef.current);
-    return () => observer.disconnect();
-  }, []);
+  const pageSize = useRowFitPageSize(rootRef, theadRef, firstRowRef, footerRef);
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();

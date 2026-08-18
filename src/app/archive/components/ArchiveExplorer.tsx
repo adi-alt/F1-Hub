@@ -89,8 +89,8 @@ export function ArchiveExplorer({
   const filteredYears = search ? years.filter((y) => String(y).includes(search.trim())) : years;
 
   return (
-    <div>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {TABS.map((t) => (
             <button
@@ -122,20 +122,25 @@ export function ArchiveExplorer({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
+          className="mt-4 min-h-0 flex-1 overflow-hidden"
         >
           {by === "year" &&
             (filteredYears.length === 0 ? (
-              <p className="mt-8 text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
+              <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
             ) : (
-              <ArchiveSeasonGrid years={filteredYears} />
+              <div className="h-full overflow-y-auto">
+                <ArchiveSeasonGrid years={filteredYears} />
+              </div>
             ))}
           {by === "track" && (
-            <ArchiveCircuitGrid
-              circuits={circuits}
-              search={search}
-              favoriteIds={favoriteTracks}
-              onToggleFavorite={(id) => toggleFavorite("track", id)}
-            />
+            <div className="h-full overflow-y-auto">
+              <ArchiveCircuitGrid
+                circuits={circuits}
+                search={search}
+                favoriteIds={favoriteTracks}
+                onToggleFavorite={(id) => toggleFavorite("track", id)}
+              />
+            </div>
           )}
           {by === "driver" && (
             <ArchiveDriverTable
