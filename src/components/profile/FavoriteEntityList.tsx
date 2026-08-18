@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
+import { useUrlPage } from "@/hooks/useUrlPage";
 
 export type FavoriteEntity = {
   id: string;
@@ -52,7 +53,7 @@ export function FavoriteEntityList({
   search: string;
 }) {
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useUrlPage();
 
   const rootRef = useRef<HTMLDivElement>(null);
   const theadRef = useRef<HTMLTableSectionElement>(null);
@@ -155,24 +156,30 @@ export function FavoriteEntityList({
         </table>
       </div>
 
-      <div ref={footerRef} className="mt-3 flex shrink-0 items-center justify-between text-sm text-neutral-500">
-        <button
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={pageSafe === 1}
-          className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white disabled:opacity-40 disabled:hover:border-[var(--f1-line)] disabled:hover:text-neutral-500"
-        >
-          ← Prev
-        </button>
-        <span>
+      <div ref={footerRef} className="mt-3 grid shrink-0 grid-cols-3 items-center text-sm text-neutral-500">
+        <div>
+          {pageSafe > 1 && (
+            <button
+              onClick={() => setPage(pageSafe - 1)}
+              className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white"
+            >
+              ← Prev
+            </button>
+          )}
+        </div>
+        <span className="text-center">
           Page {pageSafe} of {totalPages}, {sorted.length} total
         </span>
-        <button
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={pageSafe === totalPages}
-          className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white disabled:opacity-40 disabled:hover:border-[var(--f1-line)] disabled:hover:text-neutral-500"
-        >
-          Next →
-        </button>
+        <div className="text-right">
+          {pageSafe < totalPages && (
+            <button
+              onClick={() => setPage(pageSafe + 1)}
+              className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white"
+            >
+              Next →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
@@ -27,10 +28,10 @@ const PLACEHOLDER: Record<Facet, string> = {
 
 /** Owns tab + search + favorites state client-side so switching facets is instant (no
  * navigation/refetch — all four datasets are already small enough to have been fetched once by
- * the server) and a favorite toggle survives leaving and returning to a tab. The `by=` URL param
- * still picks the *initial* tab (deep links from archiveCircuitHref/history pages' "← Archive"
- * links keep working), it just isn't kept in sync on every client-side tab click — ponytail: that
- * would need shallow-routing plumbing this page doesn't otherwise need. */
+ * the server) and a favorite toggle survives leaving and returning to a tab. The active facet is
+ * also reflected in the URL (/archive?by=...) via router.replace, same switch-instantly-then-sync
+ * pattern as personalization's own tabs — switching tabs also drops any `page` param, since a
+ * page number from the previous facet's table doesn't mean anything for the new one. */
 export function ArchiveExplorer({
   initialBy,
   years,
@@ -50,6 +51,7 @@ export function ArchiveExplorer({
   favoriteDrivers: string[];
   favoriteTeams: string[];
 }) {
+  const router = useRouter();
   const [by, setBy] = useState<Facet>(initialBy);
   const [search, setSearch] = useState("");
   const [favoriteTracks, setFavoriteTracks] = useState(() => new Set(initialFavoriteTracks));
@@ -84,6 +86,7 @@ export function ArchiveExplorer({
   function switchTo(next: Facet) {
     setBy(next);
     setSearch("");
+    router.replace(`/archive?by=${next}`, { scroll: false });
   }
 
   const filteredYears = search ? years.filter((y) => String(y).includes(search.trim())) : years;
@@ -91,19 +94,24 @@ export function ArchiveExplorer({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
           {TABS.map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => switchTo(t.key)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                t.key === by
-                  ? "bg-[var(--f1-red)] text-white"
-                  : "border border-[var(--f1-line)] text-neutral-300 hover:border-white/30 hover:text-white"
-              }`}
+              className="relative rounded-full px-4 py-1.5 text-sm font-medium transition"
             >
-              {t.label}
+              {t.key === by && (
+                <motion.div
+                  layoutId="archive-tab-capsule"
+                  className="absolute inset-0 rounded-full bg-[var(--f1-red)]"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                />
+              )}
+              <span className={`relative z-10 ${t.key === by ? "text-white" : "text-neutral-300 hover:text-white"}`}>
+                {t.label}
+              </span>
             </button>
           ))}
         </div>
