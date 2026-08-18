@@ -313,7 +313,7 @@ export const getAllArchiveTeams = unstable_cache(
     const snap = await adminDb.collection("archive_teams").get();
     return snap.docs.map((d) => d.data() as ArchiveTeam).sort((a, b) => b.lastYear - a.lastYear);
   },
-  ["get-all-archive-teams-v2"],
+  ["get-all-archive-teams-v3"],
   { revalidate: REVALIDATE_SECONDS },
 );
 

@@ -58,8 +58,42 @@ EARLY_ERA_OVERRIDES = [
 ]
 COLLISION_NAMES = {name for name, _, _ in EARLY_ERA_OVERRIDES}
 
+# The opposite problem: several classic-era constructors have their engine supplier tacked onto
+# the display name for only *some* seasons (Ergast's own inconsistency, not a real team change) —
+# e.g. plain "Brabham" for most of 1962-92, but "Brabham-Ford"/"-Climax"/"-Repco"/"-BRM"/"-Alfa
+# Romeo" for the in-between years an engine name got appended. Left alone, this fragments what's
+# really one continuous constructor across several archive_teams rows — confirmed against real
+# numbers: McLaren (still racing today) showed only 952 races from 1968, missing 59 more from
+# 1966-70 under three engine-suffixed names, and a two-year-late debut year. Canonicalizing to the
+# base name here also matches how the FIA's own Constructors' Championship has always credited
+# entries: by chassis (or chassis+engine at the time), not by which specific season's records
+# happened to spell out the engine too.
+CONSTRUCTOR_CANONICALIZATION = {
+    "McLaren-Ford": "McLaren", "McLaren-Serenissima": "McLaren", "McLaren-BRM": "McLaren", "McLaren-Alfa Romeo": "McLaren",
+    "Brabham-Climax": "Brabham", "Brabham-BRM": "Brabham", "Brabham-Ford": "Brabham",
+    "Brabham-Repco": "Brabham", "Brabham-Alfa Romeo": "Brabham",
+    "Cooper-Climax": "Cooper", "Cooper-Maserati": "Cooper", "Cooper-Borgward": "Cooper", "Cooper-OSCA": "Cooper",
+    "Cooper-Castellotti": "Cooper", "Cooper-Alfa Romeo": "Cooper", "Cooper-Ferrari": "Cooper",
+    "Cooper-ATS": "Cooper", "Cooper-BRM": "Cooper",
+    "BRM-Ford": "BRM",
+    "March-Ford": "March", "March-Alfa Romeo": "March",
+    "Shadow-Ford": "Shadow", "Shadow-Matra": "Shadow",
+    "Eagle-Climax": "Eagle", "Eagle-Weslake": "Eagle",  # no bare "Eagle" ever appears; this is the real-world name
+    "Matra-Ford": "Matra",
+    "De Tomaso-Osca": "De Tomaso", "De Tomaso-Alfa Romeo": "De Tomaso",
+    "LDS-Alfa Romeo": "LDS", "LDS-Climax": "LDS",
+    # Ergast recorded Colin Chapman's works team as "Team Lotus" for most of 1958-94, but as a
+    # bare chassis+engine "Lotus-X" name for several 1960s seasons — canonicalizing those to
+    # "Team Lotus" specifically, NOT bare "Lotus", since that string already belongs (correctly,
+    # as its own separate row) to the unrelated 2010-11 revival team.
+    "Lotus-Climax": "Team Lotus", "Lotus-Maserati": "Team Lotus", "Lotus-BRM": "Team Lotus",
+    "Lotus-Borgward": "Team Lotus", "Lotus-Ford": "Team Lotus",
+    "Lotus-Pratt &amp; Whitney": "Team Lotus",  # exact raw string, incl. the unescaped &amp; from the original fetch
+}
+
 
 def team_slug(name: str, year: int) -> str:
+    name = CONSTRUCTOR_CANONICALIZATION.get(name, name)
     for ctor_name, cutoff_year, early_id in EARLY_ERA_OVERRIDES:
         if name == ctor_name and year <= cutoff_year:
             return early_id
@@ -81,7 +115,10 @@ def write_entity_ids(db, start, end):
     def needs_write(data):
         if "teamIds" not in data:
             return True
-        return any(r.get("constructor") in COLLISION_NAMES for r in data.get("results", []))
+        return any(
+            r.get("constructor") in COLLISION_NAMES or r.get("constructor") in CONSTRUCTOR_CANONICALIZATION
+            for r in data.get("results", [])
+        )
 
     docs = [d for d in query.stream() if needs_write(d.to_dict())]
     print(f"{len(docs)} races need driverIds/teamIds written")
@@ -109,6 +146,8 @@ def rebuild_indexes(db):
         for r in data.get("results", []):
             driver_id = r.get("driverId")
             constructor = r.get("constructor")
+            if constructor:
+                constructor = CONSTRUCTOR_CANONICALIZATION.get(constructor, constructor)
 
             if driver_id:
                 entry = drivers.setdefault(
@@ -173,6 +212,27 @@ def rebuild_indexes(db):
             with_retry(lambda b=batch: b.commit())
             batch = db.batch()
     with_retry(lambda b=batch: b.commit())
+
+    # These collections are meant to be a full overwrite every run (see module docstring), but
+    # .set() on a computed id only ever adds/updates — it never removes a doc whose id this run
+    # no longer produces. That happened for real: adding CONSTRUCTOR_CANONICALIZATION made ids
+    # like "mclaren_ford" stop being generated, but the old docs kept sitting in Firestore until
+    # deleted by hand. Deleting anything not in this run's own id set closes that gap for good.
+    stale_drivers = [
+        doc.reference for doc in db.collection("archive_drivers").select([]).stream() if doc.id not in drivers
+    ]
+    stale_teams = [doc.reference for doc in db.collection("archive_teams").select([]).stream() if doc.id not in teams]
+    if stale_drivers or stale_teams:
+        print(f"removing {len(stale_drivers)} stale driver docs, {len(stale_teams)} stale team docs")
+        batch = db.batch()
+        count = 0
+        for ref in stale_drivers + stale_teams:
+            batch.delete(ref)
+            count += 1
+            if count % 400 == 0:
+                with_retry(lambda b=batch: b.commit())
+                batch = db.batch()
+        with_retry(lambda b=batch: b.commit())
 
 
 def main():
