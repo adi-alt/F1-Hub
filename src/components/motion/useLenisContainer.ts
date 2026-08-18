@@ -44,6 +44,13 @@ export function useLenisContainer(
           touchMultiplier: options?.touchMultiplier ?? 1.2,
           orientation: options?.orientation ?? "vertical",
           gestureOrientation: options?.gestureOrientation ?? "vertical",
+          // Without this, Lenis hijacks every wheel event on its wrapper for its own smooth-scroll
+          // simulation, including ones happening over a nested `overflow-y-auto` region (the
+          // archive/personalization card grids and tables) — the nested element structurally can
+          // scroll (confirmed: scrollHeight > clientHeight) but never visibly does, since the
+          // wheel event never reaches its native scroll handling. This makes Lenis check for a
+          // scrollable ancestor under the cursor first and defer to it natively when found.
+          allowNestedScroll: options?.allowNestedScroll ?? true,
         });
         lenisRef.current = lenis;
 
