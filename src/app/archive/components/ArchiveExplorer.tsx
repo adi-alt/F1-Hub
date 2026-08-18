@@ -29,11 +29,11 @@ const PLACEHOLDER: Record<Facet, string> = {
 /** Owns tab + search + favorites state client-side so switching facets is instant (no
  * navigation/refetch — all four datasets are already small enough to have been fetched once by
  * the server) and a favorite toggle survives leaving and returning to a tab. The active facet is
- * also reflected in the URL (/archive?by=...) via router.replace, same switch-instantly-then-sync
- * pattern as personalization's own tabs — switching tabs also drops any `page` param, since a
- * page number from the previous facet's table doesn't mean anything for the new one. */
+ * also reflected in the URL (/archive?section=...) via router.replace, same switch-instantly-
+ * then-sync pattern as personalization's own tabs — switching tabs also drops any `page` param,
+ * since a page number from the previous facet's table doesn't mean anything for the new one. */
 export function ArchiveExplorer({
-  initialBy,
+  initialSection,
   years,
   circuits,
   drivers,
@@ -42,7 +42,7 @@ export function ArchiveExplorer({
   favoriteDrivers: initialFavoriteDrivers,
   favoriteTeams: initialFavoriteTeams,
 }: {
-  initialBy: Facet;
+  initialSection: Facet;
   years: number[];
   circuits: ArchiveCircuit[];
   drivers: ArchiveDriver[];
@@ -52,7 +52,7 @@ export function ArchiveExplorer({
   favoriteTeams: string[];
 }) {
   const router = useRouter();
-  const [by, setBy] = useState<Facet>(initialBy);
+  const [section, setSection] = useState<Facet>(initialSection);
   const [search, setSearch] = useState("");
   const [favoriteTracks, setFavoriteTracks] = useState(() => new Set(initialFavoriteTracks));
   const [favoriteDrivers, setFavoriteDrivers] = useState(() => new Set(initialFavoriteDrivers));
@@ -84,9 +84,9 @@ export function ArchiveExplorer({
   }
 
   function switchTo(next: Facet) {
-    setBy(next);
+    setSection(next);
     setSearch("");
-    router.replace(`/archive?by=${next}`, { scroll: false });
+    router.replace(`/archive?section=${next}`, { scroll: false });
   }
 
   const filteredYears = search ? years.filter((y) => String(y).includes(search.trim())) : years;
@@ -102,14 +102,14 @@ export function ArchiveExplorer({
               onClick={() => switchTo(t.key)}
               className="relative rounded-full px-4 py-1.5 text-sm font-medium transition"
             >
-              {t.key === by && (
+              {t.key === section && (
                 <motion.div
                   layoutId="archive-tab-capsule"
                   className="absolute inset-0 rounded-full bg-[var(--f1-red)]"
                   transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                 />
               )}
-              <span className={`relative z-10 ${t.key === by ? "text-white" : "text-neutral-300 hover:text-white"}`}>
+              <span className={`relative z-10 ${t.key === section ? "text-white" : "text-neutral-300 hover:text-white"}`}>
                 {t.label}
               </span>
             </button>
@@ -118,21 +118,21 @@ export function ArchiveExplorer({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={PLACEHOLDER[by]}
+          placeholder={PLACEHOLDER[section]}
           className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
         />
       </div>
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={by}
+          key={section}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="mt-4 min-h-0 flex-1 overflow-hidden"
         >
-          {by === "year" &&
+          {section === "year" &&
             (filteredYears.length === 0 ? (
               <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
             ) : (
@@ -140,7 +140,7 @@ export function ArchiveExplorer({
                 <ArchiveSeasonGrid years={filteredYears} />
               </div>
             ))}
-          {by === "track" && (
+          {section === "track" && (
             <div className="h-full overflow-y-auto">
               <ArchiveCircuitGrid
                 circuits={circuits}
@@ -150,7 +150,7 @@ export function ArchiveExplorer({
               />
             </div>
           )}
-          {by === "driver" && (
+          {section === "driver" && (
             <ArchiveDriverTable
               drivers={drivers}
               search={search}
@@ -158,7 +158,7 @@ export function ArchiveExplorer({
               onToggleFavorite={(id) => toggleFavorite("driver", id)}
             />
           )}
-          {by === "team" && (
+          {section === "team" && (
             <ArchiveTeamTable
               teams={teams}
               search={search}

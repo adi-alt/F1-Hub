@@ -29,7 +29,7 @@ import { getSession } from "@/lib/session/getSession";
 
 type Facet = "year" | "track" | "driver" | "team";
 
-async function ArchiveIndex({ by, uid }: { by: Facet; uid: string }) {
+async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   const [circuits, drivers, teams, profile] = await Promise.all([
     getAllArchiveCircuitsData(),
     getAllArchiveDriversData(),
@@ -46,7 +46,7 @@ async function ArchiveIndex({ by, uid }: { by: Facet; uid: string }) {
       </p>
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
         <ArchiveExplorer
-          initialBy={by}
+          initialSection={section}
           years={getArchiveYears()}
           circuits={circuits}
           drivers={drivers}
@@ -156,7 +156,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive?by=track" className="text-sm text-neutral-500 hover:text-neutral-300">
+      <Link href="/archive?section=track" className="text-sm text-neutral-500 hover:text-neutral-300">
         ← Archive
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-white">{circuit.name ?? circuit.circuitId}</h1>
@@ -202,7 +202,7 @@ async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive?by=driver" className="text-sm text-neutral-500 hover:text-neutral-300">
+      <Link href="/archive?section=driver" className="text-sm text-neutral-500 hover:text-neutral-300">
         ← Archive
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-white">{name}</h1>
@@ -244,7 +244,7 @@ async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive?by=team" className="text-sm text-neutral-500 hover:text-neutral-300">
+      <Link href="/archive?section=team" className="text-sm text-neutral-500 hover:text-neutral-300">
         ← Archive
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-white">{team.name}</h1>
@@ -284,7 +284,7 @@ export default async function ArchivePage({
   searchParams: Promise<{
     year?: string;
     round?: string;
-    by?: string;
+    section?: string;
     circuit?: string;
     driver?: string;
     team?: string;
@@ -299,7 +299,7 @@ export default async function ArchivePage({
     );
   }
 
-  const { year: yearParam, round: roundParam, by, circuit, driver, team } = await searchParams;
+  const { year: yearParam, round: roundParam, section, circuit, driver, team } = await searchParams;
   const year = yearParam ? Number(yearParam) : null;
   const round = roundParam ? Number(roundParam) : null;
 
@@ -308,6 +308,6 @@ export default async function ArchivePage({
   if (circuit) return <ArchiveCircuitHistory circuitId={circuit} />;
   if (driver) return <ArchiveDriverHistory driverId={driver} />;
   if (team) return <ArchiveTeamHistory teamId={team} />;
-  const facet: Facet = by === "track" || by === "driver" || by === "team" ? by : "year";
-  return <ArchiveIndex by={facet} uid={session.uid} />;
+  const facet: Facet = section === "track" || section === "driver" || section === "team" ? section : "year";
+  return <ArchiveIndex section={facet} uid={session.uid} />;
 }
