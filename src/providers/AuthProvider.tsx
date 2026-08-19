@@ -1,37 +1,32 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { onAuthStateChanged, signOut as firebaseSignOut, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { supabase } from "@/lib/supabase/client";
 import type { Role } from "@/lib/rbac";
 
+// Deliberately not the Supabase `User` type - just the three fields anything here actually reads
+// (ProfileMenu's avatar/email, PickPanel's uid for its own picks). Sourced from the session
+// (iron-session), not a live Supabase object, so it's available the instant a session exists
+// with no separate client-side Supabase call needed.
+export type SessionUser = { uid: string; email: string | null; photoURL: string | null };
+
 type AuthContextValue = {
-  // Firebase's own client-side auth state — becomes truthy the instant signInWithPopup/
-  // signInWithEmailAndPassword resolves, well before OTP runs. Never use this to decide whether
-  // to show signed-in UI; that's what isAuthorized is for. This exists for the auth dialog itself
-  // (it needs the Firebase user to get an ID token) and for display fields once isAuthorized is
-  // true (by then Firebase auth has necessarily already succeeded too).
-  user: User | null;
+  user: SessionUser | null;
   // True only once a real server session exists — set the moment otp/verify or complete-signup
   // actually mints one (AuthDialog calls setRole directly), or hydrated from an existing session
-  // on page load via /api/auth/me. A signed-in-to-Firebase-but-not-yet-OTP-verified user is
+  // on page load via /api/auth/me. Being signed in to Supabase but not yet past the OTP step is
   // *not* authorized, on purpose: nothing sensitive should render for them until this flips true.
   role: Role | null;
-  // The profile's own firstName (session-cached — see createSession.ts), not Firebase's
-  // `user.displayName`: that's only ever set by an OAuth provider, so it's null for every
-  // email/password account. This is the reliable "what do we call this person" source.
+  // The profile's own firstName (session-cached — see createSession.ts), not whatever name an
+  // OAuth provider supplied: that's only ever set for a Google/GitHub account, so it's null for
+  // every email/password account. This is the reliable "what do we call this person" source.
   displayName: string | null;
   isAuthorized: boolean;
   loading: boolean;
   setRole: (role: Role | null) => void;
   setDisplayName: (name: string | null) => void;
+  setUser: (user: SessionUser | null) => void;
   signOut: () => Promise<void>;
 };
 
@@ -39,32 +34,23 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
-  const [firebaseChecked, setFirebaseChecked] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
-      setFirebaseChecked(true);
-    });
-  }, []);
-
-  // Hydrates `role`/`displayName` from whatever server session already exists (a normal
-  // persisted cookie) — deliberately not tied to Firebase's auth state, since re-checking on
-  // every auth-state change would mean re-verifying on every tab focus/reload. The real sign-in
-  // flow (AuthDialog) sets these directly from its own response once OTP + (for new accounts)
-  // the profile step finish; this fetch is just the fallback for "I already have a valid
-  // session, who am I."
+  // Hydrates from whatever server session already exists (a normal persisted cookie) on first
+  // load. The real sign-in flow (AuthDialog) sets these directly from its own response once OTP +
+  // (for new accounts) the profile step finish; this fetch is just the fallback for "I already
+  // have a valid session, who am I."
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((body: { signedIn: boolean; role?: Role; displayName?: string | null }) => {
+      .then((body: { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null }) => {
         if (body.signedIn) {
           setRole(body.role ?? "user");
           setDisplayName(body.displayName ?? null);
+          if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
         }
       })
       .catch(() => {})
@@ -76,16 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role,
     displayName,
     isAuthorized: role !== null,
-    // Waits on both checks, not just Firebase's — a returning user whose Firebase auth resolves
-    // first would otherwise flash signed-out UI for a moment before /api/auth/me catches up.
-    loading: !firebaseChecked || !sessionChecked,
+    loading: !sessionChecked,
     setRole,
     setDisplayName,
+    setUser,
     signOut: async () => {
       await fetch("/api/auth/session", { method: "DELETE" });
-      await firebaseSignOut(auth);
+      await supabase.auth.signOut();
       setRole(null);
       setDisplayName(null);
+      setUser(null);
       // The rest of the current route (everything below the header, which reacts to `role`
       // directly) is Server-Component-rendered from the session cookie at request time — without
       // this, signed-in-only content stays visible/stale until a hard reload clears it.

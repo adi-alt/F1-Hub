@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { setArchiveFavorite } from "@/lib/firestore/users";
+import { setArchiveFavorite } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
 
 /** Toggles a track/driver into or out of the signed-in user's archive favorites. /archive itself

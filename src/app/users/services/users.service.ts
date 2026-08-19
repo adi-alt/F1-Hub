@@ -1,4 +1,4 @@
-import { getUserByEmail, listUsersPage, setUserRole, type UserProfile } from "@/lib/firestore/users";
+import { getUserByEmail, listUsersPage, setUserRole, type UserProfile } from "@/lib/supabase/users";
 import type { Role } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session/requirePermission";
 

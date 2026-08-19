@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { NotificationsForm } from "@/components/profile/NotificationsForm";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getUserProfile } from "@/lib/firestore/users";
+import { getUserProfile } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function NotificationsPage() {

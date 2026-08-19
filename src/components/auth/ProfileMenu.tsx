@@ -25,9 +25,9 @@ export function ProfileMenu() {
   // that forgets that distinction.
   if (!isAuthorized || !user) return null;
 
-  // The profile's own firstName (session-cached), not Firebase's user.displayName — that's only
-  // set for OAuth providers, null for every email/password account.
-  const name = displayName ?? user.displayName ?? user.email ?? "Account";
+  // The profile's own firstName (session-cached) — always set by the time this renders (getting
+  // here at all requires a completed profile), email is just the last-resort fallback.
+  const name = displayName ?? user.email ?? "Account";
 
   return (
     <div ref={rootRef} className="relative">

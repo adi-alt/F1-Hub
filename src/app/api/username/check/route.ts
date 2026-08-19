@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isUsernameTaken, suggestUsernames } from "@/lib/firestore/users";
+import { isUsernameTaken, suggestUsernames } from "@/lib/supabase/users";
 
 export async function GET(request: Request) {
   const username = new URL(request.url).searchParams.get("u")?.trim() ?? "";

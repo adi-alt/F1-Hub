@@ -8,15 +8,14 @@ function stringArray(value: unknown): string[] | undefined {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { idToken, firstName, lastName, username, favoriteDrivers, favoriteTeams, favoriteTracks } = body;
+  const { firstName, lastName, username, favoriteDrivers, favoriteTeams, favoriteTracks } = body;
 
-  if (typeof idToken !== "string") return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
   if (typeof firstName !== "string" || typeof lastName !== "string" || typeof username !== "string") {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
   try {
-    const result = await completeSignup(idToken, {
+    const result = await completeSignup({
       firstName,
       lastName,
       username,

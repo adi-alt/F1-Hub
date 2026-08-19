@@ -23,18 +23,23 @@ import {
   getArchiveYears,
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getUserProfile } from "@/lib/firestore/users";
+import { getUserProfile } from "@/lib/supabase/users";
+import { safeRead } from "@/lib/firestore/safeRead";
 import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 type Facet = "year" | "track" | "driver" | "team";
 
+// A Firestore outage (quota, transient error, anything) degrades this page to empty
+// tabs/favorites instead of crashing it outright — the same "temporarily nothing here" empty
+// states these components already show when a pipeline pass genuinely hasn't reached this data
+// yet double as the degraded view; nothing new to build for that.
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   const [circuits, drivers, teams, profile] = await Promise.all([
-    getAllArchiveCircuitsData(),
-    getAllArchiveDriversData(),
-    getAllArchiveTeamsData(),
-    getUserProfile(uid),
+    safeRead(() => getAllArchiveCircuitsData(), []),
+    safeRead(() => getAllArchiveDriversData(), []),
+    safeRead(() => getAllArchiveTeamsData(), []),
+    safeRead(() => getUserProfile(uid), null),
   ]);
 
   return (

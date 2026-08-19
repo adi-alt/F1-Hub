@@ -1,6 +1,6 @@
 import { setDefaultResultOrder } from "dns";
 import nodemailer from "nodemailer";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 // Some networks route Gmail's SMTP endpoint over a broken IPv6 path (seen locally as
 // ESOCKET/EHOSTUNREACH) - nodemailer/smtp-connection has no per-transport option for this, DNS
@@ -8,25 +8,30 @@ import { adminDb } from "@/lib/firebase/admin";
 // wherever IPv6 already works fine.
 setDefaultResultOrder("ipv4first");
 
-const COLLECTION = "otp_codes";
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes to enter the code
 const VERIFIED_TTL_MS = 10 * 60 * 1000; // then 10 more minutes for complete-signup to use it
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
-type OtpDoc = {
+type OtpRow = {
   code: string;
-  expiresAt: number;
-  sentAt: number;
+  expires_at: string;
+  sent_at: string;
   attempts: number;
   verified: boolean;
-  verifiedAt?: number;
+  verified_at: string | null;
 };
 
-function docRef(email: string) {
-  // Firestore doc IDs can't contain "/" — email addresses never do, but this is the one
-  // character that would break it, so normalize defensively rather than assume.
-  return adminDb.collection(COLLECTION).doc(email.toLowerCase().replace(/\//g, "_"));
+// No id-format constraint here the way Firestore doc ids had (email is just a text primary key
+// column now) — normalizing to lowercase still matters so "Foo@x.com" and "foo@x.com" hit the
+// same row.
+function normalizeEmail(email: string): string {
+  return email.toLowerCase();
+}
+
+async function getRow(email: string): Promise<OtpRow | null> {
+  const { data } = await supabaseAdmin.from("otp_codes").select("*").eq("email", normalizeEmail(email)).maybeSingle();
+  return data;
 }
 
 // Table-based layout with inline styles throughout - the only markup that survives Gmail/
@@ -112,17 +117,20 @@ function getTransporter() {
  * or more), and there's no reason the client should sit on the sign-in dialog waiting for it when
  * all it actually needs to move on is the code existing in Firestore. */
 export async function prepareOtp(email: string): Promise<{ code: string } | "cooldown"> {
-  const ref = docRef(email);
-  const existing = await ref.get();
+  const existing = await getRow(email);
   const now = Date.now();
-  if (existing.exists) {
-    const data = existing.data() as OtpDoc;
-    if (now - data.sentAt < RESEND_COOLDOWN_MS) return "cooldown";
-  }
+  if (existing && now - new Date(existing.sent_at).getTime() < RESEND_COOLDOWN_MS) return "cooldown";
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  const doc: OtpDoc = { code, expiresAt: now + CODE_TTL_MS, sentAt: now, attempts: 0, verified: false };
-  await ref.set(doc);
+  await supabaseAdmin.from("otp_codes").upsert({
+    email: normalizeEmail(email),
+    code,
+    expires_at: new Date(now + CODE_TTL_MS).toISOString(),
+    sent_at: new Date(now).toISOString(),
+    attempts: 0,
+    verified: false,
+    verified_at: null,
+  });
   return { code };
 }
 
@@ -141,20 +149,21 @@ export async function deliverOtp(email: string, code: string): Promise<void> {
 /** One attempt per call, counted against MAX_ATTEMPTS regardless of outcome — a fixed code that
  * never locks out after wrong guesses is just a 6-digit password with extra steps. */
 export async function verifyOtp(email: string, code: string): Promise<"ok" | "expired" | "wrong" | "too-many"> {
-  const ref = docRef(email);
-  const snap = await ref.get();
-  if (!snap.exists) return "expired";
-  const data = snap.data() as OtpDoc;
+  const data = await getRow(email);
+  if (!data) return "expired";
 
   if (data.attempts >= MAX_ATTEMPTS) return "too-many";
-  if (Date.now() > data.expiresAt) return "expired";
+  if (Date.now() > new Date(data.expires_at).getTime()) return "expired";
 
   if (data.code !== code) {
-    await ref.update({ attempts: data.attempts + 1 });
+    await supabaseAdmin.from("otp_codes").update({ attempts: data.attempts + 1 }).eq("email", normalizeEmail(email));
     return "wrong";
   }
 
-  await ref.update({ verified: true, verifiedAt: Date.now() });
+  await supabaseAdmin
+    .from("otp_codes")
+    .update({ verified: true, verified_at: new Date().toISOString() })
+    .eq("email", normalizeEmail(email));
   return "ok";
 }
 
@@ -162,12 +171,11 @@ export async function verifyOtp(email: string, code: string): Promise<"ok" | "ex
  * verified flag has its own short-lived window so a stale verification from an hour ago can't
  * be replayed to skip the step entirely. */
 export async function isOtpVerified(email: string): Promise<boolean> {
-  const snap = await docRef(email).get();
-  if (!snap.exists) return false;
-  const data = snap.data() as OtpDoc;
-  return !!data.verified && !!data.verifiedAt && Date.now() - data.verifiedAt < VERIFIED_TTL_MS;
+  const data = await getRow(email);
+  if (!data || !data.verified || !data.verified_at) return false;
+  return Date.now() - new Date(data.verified_at).getTime() < VERIFIED_TTL_MS;
 }
 
 export async function clearOtp(email: string): Promise<void> {
-  await docRef(email).delete();
+  await supabaseAdmin.from("otp_codes").delete().eq("email", normalizeEmail(email));
 }

@@ -2,7 +2,12 @@ import { create } from "zustand";
 
 type AuthDialogStore = {
   isOpen: boolean;
+  // True when the dialog should mount straight onto the OTP step (the OAuth redirect round trip
+  // already sent the code by the time this fires — see /auth/callback and AuthDialogHost.tsx) —
+  // false for the normal "method" step every other entry point opens on.
+  resumeAtOtp: boolean;
   open: () => void;
+  openAtOtp: () => void;
   close: () => void;
 };
 
@@ -13,6 +18,8 @@ type AuthDialogStore = {
  * trigger was clicked. */
 export const useAuthDialogStore = create<AuthDialogStore>((set) => ({
   isOpen: false,
-  open: () => set({ isOpen: true }),
-  close: () => set({ isOpen: false }),
+  resumeAtOtp: false,
+  open: () => set({ isOpen: true, resumeAtOtp: false }),
+  openAtOtp: () => set({ isOpen: true, resumeAtOtp: true }),
+  close: () => set({ isOpen: false, resumeAtOtp: false }),
 }));

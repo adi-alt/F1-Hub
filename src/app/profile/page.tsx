@@ -3,7 +3,8 @@ import { PersonalizationTabs, type Tab } from "@/components/profile/Personalizat
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/firestore/archive";
 import { getCurrentEntrants, getRacesByYear } from "@/lib/firestore/races";
-import { getUserProfile } from "@/lib/firestore/users";
+import { safeRead } from "@/lib/firestore/safeRead";
+import { getUserProfile } from "@/lib/supabase/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
@@ -75,6 +76,29 @@ function canonicalTeamName(rawName: string, teamItems: FavoriteEntity[]): string
   return teamItems.find((t) => t.id === slug)?.name ?? rawName;
 }
 
+// Strips accents/diacritics and case so "Montréal" and "Montreal" compare equal without needing
+// an alias entry for every future spelling variant a data source happens to use.
+function normalizeText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // combining diacritical marks, once NFD has split them out
+    .toLowerCase()
+    .trim();
+}
+
+/** A circuit's own display name changes with sponsorship ("Red Bull Ring" could become anything
+ * next); its host city almost never does. Matching the current season's `location` against
+ * archive's own `locality` (both are just "what city is this in") catches most future renames on
+ * its own — CURRENT_SEASON_CIRCUIT_ALIASES above only exists for the handful of cases even this
+ * can't resolve (Yas Marina's own locality is recorded as "Abu Dhabi", a real exception, not a
+ * spelling variant). Substring containment (not just equality) is what makes "Miami Gardens"
+ * resolve against an archive locality of "Miami", or "Spa-Francorchamps" against "Spa". */
+function localityMatches(currentLocation: string, archiveLocality: string): boolean {
+  const a = normalizeText(currentLocation);
+  const b = normalizeText(archiveLocality);
+  return a === b || a.includes(b) || b.includes(a);
+}
+
 /** The archive only covers seasons through last year by design (this one isn't over yet, so it's
  * never "archived") — but someone personalizing today obviously wants this year's names pickable
  * too. Merges the current season's entrants/teams/circuits into the archive-sourced lists: an
@@ -84,6 +108,7 @@ async function mergeCurrentSeason(
   driverItems: FavoriteEntity[],
   teamItems: FavoriteEntity[],
   circuitItems: FavoriteEntity[],
+  circuitLocalities: Map<string, string>,
 ) {
   const year = new Date().getFullYear();
   const [races, entrants] = await Promise.all([getRacesByYear(year), getCurrentEntrants(year)]);
@@ -168,7 +193,14 @@ async function mergeCurrentSeason(
   for (const [location, raceCount] of circuitRaceCount) {
     const key = location.trim().toLowerCase();
     const aliasId = CURRENT_SEASON_CIRCUIT_ALIASES[key];
-    const existing = (aliasId ? circuitsById.get(aliasId) : undefined) ?? circuitsByName.get(key);
+    // Alias table first (explicit, human-verified) — then locality matching, which is what
+    // actually catches a *future* rename automatically instead of needing a new alias entry —
+    // then the plain exact-name fallback that was already here.
+    const localityMatchId = [...circuitLocalities.entries()].find(([, locality]) => localityMatches(location, locality))?.[0];
+    const existing =
+      (aliasId ? circuitsById.get(aliasId) : undefined) ??
+      (localityMatchId ? circuitsById.get(localityMatchId) : undefined) ??
+      circuitsByName.get(key);
     if (existing) {
       existing.lastYear = year;
       existing.raceCount += raceCount;
@@ -209,13 +241,16 @@ export default async function ProfilePage({
 
   const { tab } = await searchParams;
   const initialTab: Tab = VALID_TABS.includes(tab as Tab) ? (tab as Tab) : "players";
+  const uid = session.uid;
 
+  // A Firestore outage (quota, transient error, anything) degrades this page to empty tabs
+  // instead of crashing it outright — same reasoning as archive/page.tsx's ArchiveIndex.
   const [profile, drivers, teams, circuits, teamHomeCircuits] = await Promise.all([
-    getUserProfile(session.uid),
-    getAllArchiveDrivers(),
-    getAllArchiveTeams(),
-    getAllArchiveCircuits(),
-    getArchiveTeamHomeCircuits(),
+    safeRead(() => getUserProfile(uid), null),
+    safeRead(() => getAllArchiveDrivers(), []),
+    safeRead(() => getAllArchiveTeams(), []),
+    safeRead(() => getAllArchiveCircuits(), []),
+    safeRead(() => getArchiveTeamHomeCircuits(), {}),
   ]);
 
   // One list per entity type, spanning the full archive (1950-last year) plus this year's own
@@ -250,8 +285,15 @@ export default async function ProfilePage({
     extra: c.country ?? "",
     href: archiveCircuitHref(c.circuitId),
   }));
+  const circuitLocalities = new Map(circuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
 
-  await mergeCurrentSeason(driverItems, teamItems, circuitItems);
+  // Best-effort: if the current season's own data can't be read right now, the page still shows
+  // the full archive-only lists rather than crashing over one extra merge step.
+  try {
+    await mergeCurrentSeason(driverItems, teamItems, circuitItems, circuitLocalities);
+  } catch (error) {
+    console.error("ProfilePage: current-season merge failed, showing archive-only data:", error);
+  }
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">

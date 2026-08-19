@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useUserSearch, useUsersList, useSetUserRole } from "../queries/useUsers";
-import type { UserProfile } from "@/lib/firestore/users";
+import type { UserProfile } from "@/lib/supabase/users";
 
 type Props = {
   initialUsers: UserProfile[];

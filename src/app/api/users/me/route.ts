@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { getUserProfile, updateUserPreferences, type PreferencesPatch } from "@/lib/firestore/users";
+import { getUserProfile, updateUserPreferences, type PreferencesPatch } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
 
 const ARRAY_KEYS = new Set(["favoriteDrivers", "favoriteTeams", "favoriteTracks"]);
 const BOOLEAN_KEYS = new Set(["notifyBeforeQualifying", "notifyOnResults"]);
+const STRING_KEYS = new Set(["firstName"]);
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
@@ -32,12 +33,12 @@ export async function PATCH(request: Request) {
       (patch as Record<string, unknown>)[key] = body[key];
     } else if (BOOLEAN_KEYS.has(key) && typeof body[key] === "boolean") {
       (patch as Record<string, unknown>)[key] = body[key];
+    } else if (STRING_KEYS.has(key) && typeof body[key] === "string") {
+      (patch as Record<string, unknown>)[key] = body[key];
     }
   }
 
-  // Firestore's .update() throws ("at least one field must be updated") given an empty object —
-  // a body with no recognized/valid keys would otherwise crash this route instead of just being
-  // a no-op.
+  // A body with no recognized/valid keys is just a no-op, not an error.
   if (Object.keys(patch).length > 0) await updateUserPreferences(session.uid, patch);
   return NextResponse.json({ ok: true });
 }

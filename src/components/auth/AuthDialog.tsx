@@ -1,17 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  type User,
-} from "firebase/auth";
-import { auth, githubProvider, googleProvider } from "@/lib/firebase/client";
+import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { Skeleton } from "@/components/Skeleton";
 import { useCountdown } from "@/hooks/useCountdown";
@@ -44,25 +37,6 @@ function InfoBanner({ message }: { message: string }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-neutral-300">{message}</div>
   );
-}
-
-function errorCode(err: unknown): string {
-  return typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : "";
-}
-
-/** Firebase's default is one account per email address — trying a second provider against an
- * email that already has one throws this rather than silently merging them. Full account
- * linking (re-auth with the original provider, then link the new credential) is real work this
- * doesn't attempt yet; for now this just tells people which method to use instead. */
-function friendlyAuthError(err: unknown): string {
-  const code = errorCode(err);
-  if (code === "auth/account-exists-with-different-credential") {
-    return "An account already exists for this email with a different sign-in method. Use that one instead.";
-  }
-  if (code === "auth/popup-closed-by-user") return "";
-  if (code === "auth/weak-password") return "Password must be at least 6 characters.";
-  if (code === "auth/invalid-email") return "That doesn't look like a valid email address.";
-  return "Something went wrong. Try again.";
 }
 
 // A lightweight 2D illustration, not another WebGL canvas - a modal that opens and closes
@@ -183,13 +157,10 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
 // Fire-and-forget on purpose - the actual SMTP send is the slow part (a second or more, and
 // /api/auth/start itself defers it via next/server's after() so the response comes back fast
 // too), and nothing about showing the OTP screen should wait on either. If this particular call
-// fails outright, the resend button is still there once its cooldown clears.
-function requestOtp(idToken: string) {
-  void fetch("/api/auth/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
-  });
+// fails outright, the resend button is still there once its cooldown clears. No token to pass
+// anymore — the Supabase session already lives in this request's cookies.
+function requestOtp() {
+  void fetch("/api/auth/start", { method: "POST" });
 }
 
 // Split out so useCountdown's 1-second ticker only ever runs while the OTP step is actually
@@ -228,7 +199,13 @@ function OtpStep({
     >
       <h2 className="text-lg font-bold text-white">Check your email</h2>
       <p className="text-sm text-neutral-400">
-        We sent a 6-digit code to <span className="text-white">{verifiedEmail}</span>.
+        {verifiedEmail ? (
+          <>
+            We sent a 6-digit code to <span className="text-white">{verifiedEmail}</span>.
+          </>
+        ) : (
+          "We sent a 6-digit code to your email."
+        )}
       </p>
       <OtpInput value={code} onChange={setCode} />
       <button
@@ -253,18 +230,19 @@ function OtpStep({
 
 // The caller mounts this only while it should be open (`{open && <AuthDialog .../>}`) rather
 // than always rendering it with an `open` prop — a fresh mount every time it opens is what gives
-// it fresh state for free, no reset-on-open effect required.
-export function AuthDialog({ onClose }: { onClose: () => void }) {
-  const { setRole, setDisplayName } = useAuth();
+// it fresh state for free, no reset-on-open effect required. `resumeAtOtp` is the one exception:
+// set when this mount is the OAuth-redirect round trip resuming (see AuthDialogHost.tsx) rather
+// than a normal open, so it starts straight on the OTP step instead of "method".
+export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => void; resumeAtOtp?: boolean }) {
+  const { setRole, setDisplayName, setUser } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<Step>("method");
+  const [step, setStep] = useState<Step>(resumeAtOtp ? "otp" : "method");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [idToken, setIdToken] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const [code, setCode] = useState("");
   const [resendAvailableAt, setResendAvailableAt] = useState(0);
@@ -279,25 +257,35 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const { data: options } = useSignupOptions(step === "profile");
   const { status: usernameStatus, suggestions: usernameSuggestions } = useUsernameAvailability(username);
 
-  // Instant, on purpose: getIdToken() resolves near-immediately for an already-signed-in user
-  // (the token is cached client-side), so this switches to the OTP screen right away rather than
-  // waiting on the OTP email's own SMTP round trip, which is the actually slow part and has
-  // nothing to do with whether this screen should be showing yet.
-  async function afterProviderAuth(user: User) {
-    const token = await user.getIdToken();
-    setIdToken(token);
-    setVerifiedEmail(user.email ?? "");
+  // /auth/callback already exchanged the OAuth code and sent the OTP by the time this mounts —
+  // this just needs to find out *whose* email that was, since the callback redirect deliberately
+  // doesn't put it in the URL. Re-POSTing /api/auth/start is safe (its own cooldown means no
+  // second email goes out) and is also how the response carries the email back to us.
+  useEffect(() => {
+    if (!resumeAtOtp) return;
+    fetch("/api/auth/start", { method: "POST" })
+      .then((res) => res.json())
+      .then((body: { email?: string }) => {
+        setVerifiedEmail(body.email ?? "");
+        setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
+      })
+      .catch(() => {});
+    // Only ever runs once, on the mount that resumed this way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function afterSignIn(signedInEmail: string) {
+    setVerifiedEmail(signedInEmail);
     setStep("otp");
     setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
-    requestOtp(token);
+    requestOtp();
   }
 
-  async function handleResend() {
-    if (!idToken) return;
+  function handleResend() {
     setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
     setInfo("New code sent.");
     setError(null);
-    requestOtp(idToken);
+    requestOtp();
   }
 
   async function handleForgotPassword() {
@@ -308,26 +296,28 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       return;
     }
     // Same message whether or not the account exists - not revealing which emails are
-    // registered is the same email-enumeration protection Firebase's own SDK defaults to.
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-    } catch {
-      // fall through to the same generic message
-    }
+    // registered is the same email-enumeration protection Supabase's own defaults follow too.
+    await supabase.auth
+      .resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/auth/reset-password` })
+      .catch(() => {});
     setInfo("If an account exists for that email, a reset link is on its way.");
   }
 
-  async function handleProvider(provider: typeof googleProvider | typeof githubProvider) {
+  // Redirect-based, not a popup (Supabase has no popup flow the way Firebase's signInWithPopup
+  // did) - the whole tab navigates to the provider and back to /auth/callback, which does the
+  // rest (see that route + AuthDialogHost.tsx's resume watcher). Nothing left to do here once the
+  // redirect kicks off; only a genuine failure to even start it (provider not configured yet)
+  // leaves this dialog open to show something.
+  async function handleProvider(provider: "google" | "github") {
     setBusy(true);
     setError(null);
     setInfo(null);
-    try {
-      const result = await signInWithPopup(auth, provider);
-      await afterProviderAuth(result.user);
-    } catch (err) {
-      const message = friendlyAuthError(err);
-      if (message) setError(message);
-    } finally {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) {
+      setError("That sign-in method isn't set up yet.");
       setBusy(false);
     }
   }
@@ -337,30 +327,26 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
     setError(null);
     setInfo(null);
     try {
-      let user: User;
-      try {
-        user = (await signInWithEmailAndPassword(auth, email, password)).user;
-      } catch (signInErr) {
-        try {
-          user = (await createUserWithEmailAndPassword(auth, email, password)).user;
-        } catch (createErr) {
-          if (errorCode(createErr) === "auth/email-already-in-use") {
-            throw new Error("That password doesn't match this email. Try again.");
-          }
-          void signInErr;
-          throw createErr;
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+        if (signUpError) throw signUpError;
+        // Supabase's anti-enumeration behavior: signing up again against an email that already
+        // has a confirmed account "succeeds" with an empty identities array instead of a clear
+        // error the way Firebase's auth/email-already-in-use did - this is the only way to tell.
+        if (data.user && data.user.identities?.length === 0) {
+          throw new Error("That password doesn't match this email. Try again.");
         }
       }
-      await afterProviderAuth(user);
+      await afterSignIn(email);
     } catch (err) {
-      setError(err instanceof Error ? err.message : friendlyAuthError(err));
+      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleOtpSubmit() {
-    if (!idToken) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -368,12 +354,15 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/auth/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, code }),
+        body: JSON.stringify({ code }),
       });
       const body = (await res.json()) as {
         status?: "logged-in" | "needs-profile";
         role?: Role;
         displayName?: string | null;
+        uid?: string;
+        email?: string;
+        photoURL?: string | null;
         error?: string;
       };
       if (!res.ok) {
@@ -385,6 +374,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       } else {
         setRole(body.role ?? "user");
         setDisplayName(body.displayName ?? null);
+        if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
         // Every Server Component below the header reads the session cookie at request time —
         // without this, signed-in content stays stuck on the signed-out render until a hard
         // reload.
@@ -397,7 +387,6 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function handleProfileSubmit() {
-    if (!idToken) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -406,7 +395,6 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          idToken,
           firstName,
           lastName,
           username,
@@ -423,6 +411,9 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
         status?: "logged-in";
         role?: Role;
         displayName?: string | null;
+        uid?: string;
+        email?: string;
+        photoURL?: string | null;
         error?: string;
       };
       if (!res.ok) {
@@ -431,6 +422,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
       }
       setRole(body.role ?? "user");
       setDisplayName(body.displayName ?? null);
+      if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
       router.refresh();
       onClose();
     } finally {
@@ -521,7 +513,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
 
             <button
               disabled={busy}
-              onClick={() => void handleProvider(googleProvider)}
+              onClick={() => void handleProvider("google")}
               className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
             >
               <GoogleIcon />
@@ -529,7 +521,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
             </button>
             <button
               disabled={busy}
-              onClick={() => void handleProvider(githubProvider)}
+              onClick={() => void handleProvider("github")}
               className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
             >
               <GitHubIcon />
@@ -550,7 +542,7 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
             info={info}
             error={error}
             onSubmit={() => void handleOtpSubmit()}
-            onResend={() => void handleResend()}
+            onResend={handleResend}
           />
         )}
 

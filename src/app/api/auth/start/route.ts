@@ -4,14 +4,12 @@ import { deliverOtp } from "@/lib/otp";
 import { startSignIn } from "@/services/auth.service";
 import { ServiceError } from "@/services/errors";
 
-export async function POST(request: Request) {
-  const { idToken } = await request.json();
-  if (typeof idToken !== "string" || !idToken) {
-    return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
-  }
-
+// No idToken in the body anymore — the Supabase session lives in this request's cookies (set by
+// the browser client after password sign-in, or by /auth/callback after an OAuth redirect), so
+// startSignIn() can just ask "who does this request say is signed in" itself.
+export async function POST() {
   try {
-    const { email, code } = await startSignIn(idToken);
+    const { email, code } = await startSignIn();
     // after() runs once this response has already gone out - the actual SMTP round trip (a
     // second or more) would otherwise be the entire reason the OTP screen took a moment to show
     // up, for no benefit: nothing about showing that screen depends on the email having sent yet.

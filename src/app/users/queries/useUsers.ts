@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { UserProfile } from "@/lib/firestore/users";
+import type { UserProfile } from "@/lib/supabase/users";
 
 type UsersPage = { users: UserProfile[]; nextCursor: string | null };
 

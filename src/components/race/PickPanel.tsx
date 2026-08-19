@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -18,9 +16,8 @@ export function PickPanel({ race }: { race: RaceDoc }) {
   const [status, setStatus] = useState<Status>("idle");
 
   useEffect(() => {
-    // isAuthorized, not raw user — Firebase auth resolving mid-OTP-flow isn't a real session yet.
+    // isAuthorized, not raw user — a session mid-OTP-flow isn't a real one yet.
     if (!isAuthorized) return;
-    setStatus("loading");
     // Goes through the session-aware /api/picks endpoint (iron-session + Admin SDK), not a direct
     // client Firestore read — see api/picks/route.ts for why this is a separate small endpoint
     // rather than reading cookies() in the (ISR-cached) race page itself.
@@ -62,13 +59,12 @@ export function PickPanel({ race }: { race: RaceDoc }) {
     }
     setStatus("saving");
     try {
-      const data: UserPick = {
-        raceId: race.id,
-        predictedWinner: pick.p1,
-        predictedPodium: [pick.p1, pick.p2, pick.p3],
-        submittedAt: new Date().toISOString(),
-      };
-      await setDoc(doc(db, "users", user.uid, "picks", race.id), data);
+      const res = await fetch("/api/picks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raceId: race.id, predictedWinner: pick.p1, predictedPodium: [pick.p1, pick.p2, pick.p3] }),
+      });
+      if (!res.ok) throw new Error("save failed");
       setStatus("saved");
     } catch {
       setStatus("error");

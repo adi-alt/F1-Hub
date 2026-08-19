@@ -48,3 +48,4 @@ next-env.d.ts
 # agent instructions (local only)
 AGENTS.md
 CLAUDE.md
+pipeline/migration_data/
