@@ -7,12 +7,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { Skeleton } from "@/components/Skeleton";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useSignupOptions } from "@/queries/useSignupOptions";
 import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
 import type { Role } from "@/lib/rbac";
 
 type Step = "method" | "otp" | "profile";
+type OAuthProvider = "google" | "github" | "discord" | "gitlab";
 
 // Matches the backend's own resend cooldown (lib/otp.ts) so the button's countdown never
 // disagrees with what the server would actually accept.
@@ -102,6 +104,25 @@ function GitHubIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
       <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .3.21.66.79.55A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
+  );
+}
+
+function DiscordIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+      <path
+        fill="#5865F2"
+        d="M20.317 4.369a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037 19.736 19.736 0 0 0-4.885 1.515.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.056 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.2 13.2 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.246.195.373.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.04.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.96 19.96 0 0 0 6.002-2.98.076.076 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.028ZM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.078 2.157 2.38 0 1.312-.956 2.38-2.157 2.38Zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.078 2.157 2.38 0 1.312-.946 2.38-2.157 2.38Z"
+      />
+    </svg>
+  );
+}
+
+function GitLabIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+      <path fill="#FC6D26" d="M12 21 4 9h5l3-7 3 7h5l-8 12Z" />
     </svg>
   );
 }
@@ -308,7 +329,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
   // rest (see that route + AuthDialogHost.tsx's resume watcher). Nothing left to do here once the
   // redirect kicks off; only a genuine failure to even start it (provider not configured yet)
   // leaves this dialog open to show something.
-  async function handleProvider(provider: "google" | "github") {
+  async function handleProvider(provider: OAuthProvider) {
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -527,6 +548,22 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
               <GitHubIcon />
               Continue with GitHub
             </button>
+            <button
+              disabled={busy}
+              onClick={() => void handleProvider("discord")}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+            >
+              <DiscordIcon />
+              Continue with Discord
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => void handleProvider("gitlab")}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+            >
+              <GitLabIcon />
+              Continue with GitLab
+            </button>
             {info && <InfoBanner message={info} />}
             {error && <ErrorBanner message={error} />}
           </motion.div>
@@ -602,30 +639,27 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
 
             {options ? (
               <>
-                <select value={favoriteDriver} onChange={(e) => setFavoriteDriver(e.target.value)} className={inputClass}>
-                  <option value="">Favorite driver (optional)</option>
-                  {options.drivers.map((d) => (
-                    <option key={d.code} value={d.code}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-                <select value={favoriteTeam} onChange={(e) => setFavoriteTeam(e.target.value)} className={inputClass}>
-                  <option value="">Favorite team (optional)</option>
-                  {options.teams.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <select value={favoriteTrack} onChange={(e) => setFavoriteTrack(e.target.value)} className={inputClass}>
-                  <option value="">Favorite track (optional)</option>
-                  {options.tracks.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={favoriteDriver}
+                  onChange={setFavoriteDriver}
+                  placeholder="Favorite driver (optional)"
+                  className={inputClass}
+                  options={options.drivers.map((d) => ({ value: d.code, label: d.name }))}
+                />
+                <SearchableSelect
+                  value={favoriteTeam}
+                  onChange={setFavoriteTeam}
+                  placeholder="Favorite team (optional)"
+                  className={inputClass}
+                  options={options.teams.map((t) => ({ value: t, label: t }))}
+                />
+                <SearchableSelect
+                  value={favoriteTrack}
+                  onChange={setFavoriteTrack}
+                  placeholder="Favorite track (optional)"
+                  className={inputClass}
+                  options={options.tracks.map((t) => ({ value: t, label: t }))}
+                />
               </>
             ) : (
               <>
