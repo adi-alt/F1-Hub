@@ -11,6 +11,12 @@ Run:
   python3 migrate_export.py
 """
 
+# `X | None` annotations (below) are evaluated at runtime as-is without this - PEP 604's `|`
+# between subscripted generics isn't supported until Python 3.10, and this pipeline's venv is
+# pinned to 3.9. With this import, annotations are just strings until something actually inspects
+# them, which nothing here does.
+from __future__ import annotations
+
 import json
 import os
 import time
