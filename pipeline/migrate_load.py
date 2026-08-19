@@ -56,6 +56,18 @@ def upsert(cur, table: str, rows: list[dict], conflict_cols: list[str], batch_si
     if not rows:
         print(f"  {table}: nothing to load")
         return
+    # Postgres can't ON CONFLICT-resolve two rows in the *same* insert statement that target the
+    # same key ("cannot affect row a second time") - confirmed live on archive_results: some
+    # historical race genuinely has the same driver_id appear twice in its results (real messiness
+    # in 70+ years of Ergast data, not a transform bug). Deduping here, last-one-wins, protects
+    # every caller rather than each one having to know to do this itself.
+    deduped: dict[tuple, dict] = {}
+    for r in rows:
+        deduped[tuple(r[c] for c in conflict_cols)] = r
+    if len(deduped) != len(rows):
+        print(f"  {table}: {len(rows) - len(deduped)} duplicate {conflict_cols} row(s) collapsed (last one wins)")
+    rows = list(deduped.values())
+
     cols = list(rows[0].keys())
     update_cols = [c for c in cols if c not in conflict_cols]
     query = (
