@@ -1,4 +1,4 @@
-import type { ModelBenchmark } from "@/lib/firestore/admin";
+import type { ModelBenchmark } from "@/lib/supabase/modelBenchmarks";
 
 /** `aggregate`'s keys vary per model — shown as whatever's there, not a fixed column set, since
  * hardcoding e.g. Pace's MAE/R2/Spearman would silently drop the simulator's Brier-score fields. */

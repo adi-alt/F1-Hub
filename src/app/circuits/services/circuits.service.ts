@@ -1,4 +1,4 @@
-import { getRacesByCircuit, getRacesByYear } from "@/lib/firestore/races";
+import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
 
 export async function getCircuitsIndexData(year: number) {
   const races = await getRacesByYear(year);

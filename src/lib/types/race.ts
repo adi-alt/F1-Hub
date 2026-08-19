@@ -108,7 +108,7 @@ export type TireStint = {
 
 /**
  * The shape every page/component actually consumes — an adapted view over the raw FastF1-native
- * Firestore document (see FirestoreRaceDoc in lib/firestore/races.ts), not a direct mirror of it.
+ * Firestore document (see FirestoreRaceDoc in lib/supabase/races.ts), not a direct mirror of it.
  * Field names deliberately match what this app has always called them (`name`, `circuit`, `grid`,
  * `results`), even though the raw document calls them `eventName`/`location`/`gridPosition`/
  * `race.results` — the adapter in races.ts is the one place that translation happens, so this

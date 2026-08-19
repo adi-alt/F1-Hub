@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ArchiveLapEntry } from "@/lib/firestore/archive";
+import type { ArchiveLapEntry } from "@/lib/supabase/archive";
 
 async function fetchLaps(year: number, round: number): Promise<ArchiveLapEntry[]> {
   const res = await fetch(`/api/archive/laps?year=${year}&round=${round}`);

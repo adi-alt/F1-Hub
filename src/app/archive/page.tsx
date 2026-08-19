@@ -24,7 +24,7 @@ import {
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getUserProfile } from "@/lib/supabase/users";
-import { safeRead } from "@/lib/firestore/safeRead";
+import { safeRead } from "@/lib/safeRead";
 import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 

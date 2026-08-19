@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { describeWeatherCode } from "@/lib/weatherCodes";
-import type { ArchiveCircuit, ArchiveWeather } from "@/lib/firestore/archive";
+import type { ArchiveCircuit, ArchiveWeather } from "@/lib/supabase/archive";
 
 export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; weather?: ArchiveWeather | null }) {
   const conditions = weather ? describeWeatherCode(weather.weatherCode) : null;

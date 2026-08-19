@@ -3,7 +3,7 @@
 import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
-import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/firestore/archive";
+import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 
 type Point = { driverName: string; lap: number; durationSec: number | null; color: string; order: number };
 

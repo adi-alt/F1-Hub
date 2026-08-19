@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentEntrants, getRacesByYear } from "@/lib/firestore/races";
+import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
 
 /** Public (no session needed — this is shown on the signup form before anyone's authenticated
  * yet). Same current-grid derivation the personalization page uses, so a new signer-upper picks

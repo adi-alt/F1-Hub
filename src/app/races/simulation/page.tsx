@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getRace } from "@/lib/firestore/races";
+import { getRace } from "@/lib/supabase/races";
 import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 

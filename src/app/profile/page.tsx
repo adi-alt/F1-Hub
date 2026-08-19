@@ -1,9 +1,9 @@
 import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
 import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/firestore/archive";
-import { getCurrentEntrants, getRacesByYear } from "@/lib/firestore/races";
-import { safeRead } from "@/lib/firestore/safeRead";
+import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/supabase/archive";
+import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
+import { safeRead } from "@/lib/safeRead";
 import { getUserProfile } from "@/lib/supabase/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";

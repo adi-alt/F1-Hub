@@ -1,4 +1,4 @@
-import { getRacesByYear } from "@/lib/firestore/races";
+import { getRacesByYear } from "@/lib/supabase/races";
 import { computeStandings } from "@/lib/standings";
 
 /** No permission tier here (unlike users/models) — every signed-in user sees the same season

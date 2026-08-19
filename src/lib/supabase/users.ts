@@ -1,8 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/rbac";
 
-// Same shape as the old Firestore lib/firestore/users.ts UserProfile — callers migrate by
-// changing one import path, nothing else.
+// Same shape the old Firestore-backed UserProfile always had.
 export type UserProfile = {
   uid: string;
   email: string | null;

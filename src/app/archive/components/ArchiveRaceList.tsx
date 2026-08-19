@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveRaceHref } from "@/lib/routes";
-import type { ArchiveRaceDoc } from "@/lib/firestore/archive";
+import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 
 export function ArchiveRaceList({ year, races }: { year: number; races: ArchiveRaceDoc[] }) {
   return (

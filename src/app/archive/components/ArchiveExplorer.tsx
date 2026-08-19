@@ -7,7 +7,7 @@ import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
 import { ArchiveDriverTable } from "./ArchiveDriverTable";
 import { ArchiveSeasonGrid } from "./ArchiveSeasonGrid";
 import { ArchiveTeamTable } from "./ArchiveTeamTable";
-import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam } from "@/lib/firestore/archive";
+import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam } from "@/lib/supabase/archive";
 
 type Facet = "year" | "track" | "driver" | "team";
 type FavoriteType = "track" | "driver" | "team";

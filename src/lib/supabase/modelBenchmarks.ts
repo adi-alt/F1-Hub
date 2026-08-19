@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { adminDb } from "@/lib/firebase/admin";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 // Written by pipeline/evaluate_*_benchmark.py (see pipeline/PROGRESS.md's benchmark-infrastructure
 // section) — `aggregate`'s exact keys vary per model (MAE/Spearman for Pace, Brier for the
@@ -11,16 +11,15 @@ export type ModelBenchmark = {
   aggregate: Record<string, unknown>;
 };
 
+type ModelBenchmarkRow = { id: string; generated_at: string; metrics: { aggregate?: Record<string, unknown> } | null };
+
 const REVALIDATE_SECONDS = 60; // admin data should feel fresher than the public 300s pages
 
 export const getModelBenchmarks = unstable_cache(
   async (): Promise<ModelBenchmark[]> => {
-    const snap = await adminDb.collection("modelBenchmarks").get();
-    return snap.docs
-      .map((d) => {
-        const data = d.data() as { evaluatedAt: string; aggregate: Record<string, unknown> };
-        return { id: d.id, evaluatedAt: data.evaluatedAt, aggregate: data.aggregate };
-      })
+    const { data } = await supabaseAdmin.from("model_benchmarks").select("id, generated_at, metrics");
+    return ((data ?? []) as ModelBenchmarkRow[])
+      .map((row) => ({ id: row.id, evaluatedAt: row.generated_at, aggregate: row.metrics?.aggregate ?? {} }))
       .sort((a, b) => b.evaluatedAt.localeCompare(a.evaluatedAt));
   },
   ["get-model-benchmarks"],

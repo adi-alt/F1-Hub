@@ -8,7 +8,7 @@ import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { archiveDriverHref } from "@/lib/routes";
 import { FavoriteButton } from "./FavoriteButton";
-import type { ArchiveDriver } from "@/lib/firestore/archive";
+import type { ArchiveDriver } from "@/lib/supabase/archive";
 
 type SortKey = "name" | "races";
 

@@ -2,12 +2,12 @@ import { AboutSection } from "@/components/home/AboutSection";
 import { Hero } from "@/components/home/Hero";
 import { NextRaceCard } from "@/components/home/NextRaceCard";
 import { SeasonStrip } from "@/components/home/SeasonStrip";
-import { getNextUpcomingRace, getRacesByYear } from "@/lib/firestore/races";
+import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
 
 // Reading the session cookie below makes this route inherently dynamic (no route-level
 // `revalidate` possible), but the underlying Firestore reads are still cached for 300s via
-// `unstable_cache` in lib/firestore/races.ts, so signed-in visits don't hit Firestore every time.
+// `unstable_cache` in lib/supabase/races.ts, so signed-in visits don't hit Firestore every time.
 
 export default async function HomePage() {
   const session = await getSession();

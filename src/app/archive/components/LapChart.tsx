@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { useArchiveLaps } from "../queries/useArchiveLaps";
-import type { ArchiveResultEntry } from "@/lib/firestore/archive";
+import type { ArchiveResultEntry } from "@/lib/supabase/archive";
 
 // The shared chartTheme only defines a couple of data colors (built for single/dual-series
 // charts like CircuitTrendChart) — a full grid's worth of drivers needs one distinct color each,

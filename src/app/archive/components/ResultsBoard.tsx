@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { teamColor } from "@/lib/teamColors";
-import type { ArchivePitStopEntry, ArchiveQualifyingEntry, ArchiveResultEntry } from "@/lib/firestore/archive";
+import type { ArchivePitStopEntry, ArchiveQualifyingEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 
 function statusColor(status: string): string {
   if (status === "Finished" || /^\+\d+ Lap/.test(status)) return "text-neutral-400";

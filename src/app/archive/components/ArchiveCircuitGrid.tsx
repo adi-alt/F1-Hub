@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveCircuitHref } from "@/lib/routes";
 import { FavoriteButton } from "./FavoriteButton";
-import type { ArchiveCircuit } from "@/lib/firestore/archive";
+import type { ArchiveCircuit } from "@/lib/supabase/archive";
 
 export function ArchiveCircuitGrid({
   circuits,

@@ -15,15 +15,15 @@ export const ARCHIVE_LATEST_YEAR = new Date().getFullYear() - 1;
 export type ArchiveFastestLap = { rank: number; lap: number; time: string; avgSpeedKph: number | null };
 
 export type ArchiveResultEntry = {
-  position: number | null;
-  positionText: string | null;
+  position: number;
+  positionText: string;
   grid: number | null;
   laps: number | null;
-  status: string | null;
-  points: number | null;
+  status: string;
+  points: number;
   driverId: string;
   driverName: string;
-  constructor: string | null;
+  constructor: string;
   time?: string | null;
   driverCode?: string | null;
   fastestLap?: ArchiveFastestLap | null;
@@ -33,7 +33,7 @@ export type ArchiveQualifyingEntry = {
   position: number;
   driverId: string;
   driverName: string;
-  constructor: string | null;
+  constructor: string;
   q1: string | null;
   q2: string | null;
   q3: string | null;
@@ -156,16 +156,20 @@ function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
     weather: row.weather,
     circuitId: row.circuit_id,
     lapsBackfilled: row.laps_backfilled,
+    // position/positionText/status/points/constructor are non-null in ArchiveResultEntry - a
+    // classified result always has them, same "nothing optional-chained defensively" stance
+    // races.ts already takes. The DB columns stay nullable (defensive schema), these asserts are
+    // just trusting real data the same way the Firestore version always implicitly did.
     results: row.archive_results.map((r) => ({
-      position: r.position,
-      positionText: r.position_text,
+      position: r.position!,
+      positionText: r.position_text!,
       grid: r.grid,
       laps: r.laps,
-      status: r.status,
-      points: r.points,
+      status: r.status!,
+      points: r.points!,
       driverId: r.driver_id,
       driverName: r.driver_name,
-      constructor: r.constructor,
+      constructor: r.constructor!,
       time: r.time,
       driverCode: r.driver_code,
       fastestLap: r.fastest_lap,
@@ -175,7 +179,7 @@ function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
           position: q.position,
           driverId: q.driver_id,
           driverName: q.driver_name,
-          constructor: q.constructor,
+          constructor: q.constructor!,
           q1: q.q1,
           q2: q.q2,
           q3: q.q3,

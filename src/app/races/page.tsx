@@ -10,7 +10,7 @@ import { PredictionPanel } from "@/components/race/PredictionPanel";
 import { ResultsTable } from "@/components/race/ResultsTable";
 import { MovementChart } from "@/components/charts/MovementChart";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getRace } from "@/lib/firestore/races";
+import { getRace } from "@/lib/supabase/races";
 import { computeHighlights } from "@/lib/highlights";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { circuitHref, raceSimulationHref, seasonHref } from "@/lib/routes";

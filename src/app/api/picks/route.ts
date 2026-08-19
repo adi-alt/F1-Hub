@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserPick, saveUserPick } from "@/lib/firestore/picks";
+import { getUserPick, saveUserPick } from "@/lib/supabase/picks";
 import { getSession } from "@/lib/session/getSession";
 
 /**

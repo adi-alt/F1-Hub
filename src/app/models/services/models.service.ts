@@ -1,5 +1,5 @@
 import { listRecentRuns, triggerWorkflow, type WorkflowRun } from "@/lib/github";
-import { getModelBenchmarks, type ModelBenchmark } from "@/lib/firestore/admin";
+import { getModelBenchmarks, type ModelBenchmark } from "@/lib/supabase/modelBenchmarks";
 import { requirePermission } from "@/lib/session/requirePermission";
 import { ServiceError } from "@/services/errors";
 

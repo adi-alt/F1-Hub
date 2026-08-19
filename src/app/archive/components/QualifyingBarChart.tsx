@@ -4,7 +4,7 @@ import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YA
 import { tooltipStyle } from "@/components/charts/chartTheme";
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import { teamColor } from "@/lib/teamColors";
-import type { ArchiveQualifyingEntry } from "@/lib/firestore/archive";
+import type { ArchiveQualifyingEntry } from "@/lib/supabase/archive";
 
 // Every qualifying entry is a real lap time on one shared scale — unlike race results (where a
 // car "+2 Laps" isn't comparable in seconds to one "+24.065s"), a gap-to-pole bar chart here is

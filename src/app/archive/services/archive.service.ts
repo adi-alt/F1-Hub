@@ -12,7 +12,7 @@ import {
   getArchiveRacesByTeam,
   getArchiveSeason,
   getArchiveTeam,
-} from "@/lib/firestore/archive";
+} from "@/lib/supabase/archive";
 
 export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
 

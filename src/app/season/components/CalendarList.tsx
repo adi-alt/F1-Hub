@@ -27,7 +27,7 @@ export function CalendarList({ races }: { races: RaceDoc[] }) {
             <span className="text-sm text-neutral-400">{raceStatusLabel(race)}</span>
           </div>
         );
-        // "scheduled" (see toCalendarPlaceholder in lib/firestore/races.ts) has no race doc to
+        // "scheduled" (see toCalendarPlaceholder in lib/supabase/races.ts) has no race doc to
         // view yet, but the track itself has history — link there instead of a dead end.
         const href = race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round);
         return (

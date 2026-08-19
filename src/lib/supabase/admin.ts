@@ -12,10 +12,10 @@ function loadServiceKey() {
   return key;
 }
 
-// Service-role client: bypasses RLS entirely, same trust level as firebase-admin's adminDb. Every
-// real data read/write goes through this, never through a user's own cookie-bound session client
-// — same "client never talks to the DB directly" model this app already had (see the comment atop
-// lib/firestore/users.ts), just backed by Postgres instead of Firestore now.
+// Service-role client: bypasses RLS entirely, same trust level firebase-admin's adminDb used to
+// have. Every real data read/write goes through this, never through a user's own cookie-bound
+// session client — the client never talks to the DB directly, same model this app always had,
+// just backed by Postgres now.
 export const supabaseAdmin = createClient(loadUrl(), loadServiceKey(), {
   auth: { autoRefreshToken: false, persistSession: false },
 });
