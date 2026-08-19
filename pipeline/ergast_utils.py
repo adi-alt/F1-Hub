@@ -1,9 +1,6 @@
-"""Shared helpers for the archive-enrichment scripts (enrich_archive.py, enrich_archive_laps.py).
-
-fetch_archive.py isn't touched to use this — it already ran successfully once and works; this
-exists only because the two *new* scripts need the same retry/init/formatting logic, and two real
-call sites is exactly the point past which duplicating it stops being the lazier option.
-"""
+"""Shared helpers for every pipeline script: Ergast retry/formatting logic, and (since the
+Firebase -> Supabase migration) the Postgres read/write primitives every script that used to
+talk to Firestore now uses instead."""
 
 import datetime
 import json
