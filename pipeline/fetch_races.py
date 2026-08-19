@@ -344,6 +344,7 @@ def build_and_push(cur, year: int, round_num: int):
         "name": event_name,
         "circuit": str(calendar_event["Location"]),
         "country": str(calendar_event["Country"]),
+        "race_date": calendar_event["EventDate"].strftime("%Y-%m-%d"),
         "status": "completed" if (race or keep_old_race) else ("upcoming" if qualifying else "scheduled"),
         "practice": json.dumps(merged_practice) if merged_practice else None,
         "updated_at": datetime.now(timezone.utc).isoformat(),
