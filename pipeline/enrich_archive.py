@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, format_timedelta, init_firestore, timedelta_seconds, with_retry
+from ergast_utils import clean, format_timedelta, init_firestore, timedelta_seconds, trigger_revalidation, with_retry
 
 EARLIEST_YEAR = 1950
 LATEST_YEAR = datetime.now().year - 1
@@ -151,6 +151,7 @@ def main():
     for doc_snap in docs:
         enrich_race(db, doc_snap)
         time.sleep(REQUEST_DELAY_SEC)
+    trigger_revalidation()
     print("Done.")
 
 

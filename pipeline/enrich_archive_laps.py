@@ -31,7 +31,7 @@ import pandas as pd
 import requests
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, format_timedelta, init_firestore, with_retry
+from ergast_utils import clean, format_timedelta, init_firestore, trigger_revalidation, with_retry
 
 EARLIEST_YEAR = 1996  # confirmed via direct API check — nothing before this
 LATEST_YEAR = datetime.now().year - 1
@@ -183,6 +183,7 @@ def main():
     for doc_snap in docs:
         enrich_laps(db, doc_snap)
         time.sleep(REQUEST_DELAY_SEC)
+    trigger_revalidation()
     print("Done.")
 
 

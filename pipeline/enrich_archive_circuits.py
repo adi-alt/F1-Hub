@@ -27,7 +27,7 @@ from datetime import datetime
 import requests
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, init_firestore, with_retry
+from ergast_utils import clean, init_firestore, trigger_revalidation, with_retry
 
 EARLIEST_YEAR = 1950
 LATEST_YEAR = datetime.now().year - 1
@@ -162,6 +162,7 @@ def main():
     for doc_snap in docs:
         enrich_circuit_and_weather(db, doc_snap, seen_circuits)
         time.sleep(REQUEST_DELAY_SEC)
+    trigger_revalidation()
     print("Done.")
 
 

@@ -35,6 +35,8 @@ from firebase_admin import credentials, firestore
 from fastf1.ergast import Ergast
 from google.api_core.exceptions import GoogleAPICallError
 
+from ergast_utils import trigger_revalidation
+
 EARLIEST_YEAR = 1950
 # Last year, not a fixed year — this season isn't over yet, so it's never "archived." Dynamic so
 # this needs no code change at a year boundary, same reasoning fetch_races.py already documents
@@ -166,6 +168,7 @@ def main():
         for race_row in rounds:
             build_and_push(db, year, race_row)
             time.sleep(REQUEST_DELAY_SEC)
+    trigger_revalidation()
     print("Done.")
 
 

@@ -123,3 +123,27 @@ def timedelta_seconds(td):
     if td is None or pd.isna(td):
         return None
     return round(td.total_seconds(), 3)
+
+
+def trigger_revalidation(tag: str = "archive-data") -> None:
+    """Tells the deployed app "real data changed" the moment a backfill run actually finishes,
+    instead of leaving every page to notice on its own next timed cache check — see
+    src/app/api/admin/revalidate/route.ts. Best-effort and silent on failure: a missing secret or
+    a network hiccup here shouldn't fail a backfill run that otherwise succeeded, it just means
+    that pass's freshness falls back to the (now 24h) timer instead of showing up immediately.
+    """
+    secret = os.environ.get("CRON_SECRET")
+    if not secret:
+        print("  (skipping cache revalidation: CRON_SECRET not set in this environment)")
+        return
+    base_url = os.environ.get("APP_BASE_URL", "https://apex-chi-inky.vercel.app")
+    try:
+        resp = requests.post(
+            f"{base_url}/api/admin/revalidate",
+            json={"tag": tag},
+            headers={"x-cron-secret": secret},
+            timeout=10,
+        )
+        print(f"  cache revalidation: {resp.status_code}")
+    except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"  (cache revalidation call failed, non-fatal: {e})")

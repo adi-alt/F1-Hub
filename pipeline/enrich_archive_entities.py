@@ -34,7 +34,7 @@ Run:
 import re
 import sys
 
-from ergast_utils import init_firestore, with_retry
+from ergast_utils import init_firestore, trigger_revalidation, with_retry
 
 # A handful of display names have been reused, decades apart, for a genuinely different
 # real-world team — not a rename of the same outfit, just the same name coming back. team_slug()
@@ -247,6 +247,7 @@ def main():
     db = init_firestore()
     write_entity_ids(db, start, end)
     rebuild_indexes(db)
+    trigger_revalidation()
     print("Done.")
 
 
