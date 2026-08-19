@@ -2,13 +2,16 @@ import { unstable_cache } from "next/cache";
 import { adminDb } from "@/lib/firebase/admin";
 
 const COLLECTION = "archive_races";
-// Historical results themselves never change once fetched, but the *aggregate* views built from
-// them (team/driver/circuit stats) absolutely do — every time a backfill pass runs. unstable_cache
-// keys on the function's own code, not its data, so editing Python/Firestore data alone (no TS
-// change) doesn't bust this on its own; an hour keeps that lag bounded without needing a manual
-// cache-key bump after every pipeline run (which the archive.ts history around
-// "get-all-archive-teams" etc. has needed before this shortened window existed).
-const REVALIDATE_SECONDS = 3600;
+// A day is close enough to "cache forever" for data that changes only when a backfill pass runs
+// — real freshness after a pipeline run comes from revalidateTag("archive-data") via
+// /api/admin/revalidate (called by the pipeline itself once it finishes), not from this timer.
+// This used to be an hour specifically so mid-session pipeline fixes would show up without a
+// manual cache-key bump every time — but that meant a full Firestore rescan on every cache miss,
+// all day long, whether or not anything had actually changed, which is exactly what burned
+// through the daily read quota. The tag-based revalidation below covers the "just changed" case
+// properly; this timer is only a safety net for whenever that call gets missed.
+const REVALIDATE_SECONDS = 86400;
+const ARCHIVE_TAG = "archive-data";
 
 // fetch_archive.py's backfill range — 1950 is F1's first season; the upper bound is always
 // "last year" (the current season isn't over yet, so it's deliberately never "archived"), not a
@@ -87,6 +90,9 @@ export type ArchiveCircuit = {
   firstYear?: number | null;
   lastYear?: number | null;
   country?: string | null;
+  // The host city — see CircuitStats' own comment for why this, not `name`, is what
+  // personalization's current-season merge matches on.
+  locality?: string | null;
 };
 
 export type ArchiveDriver = {
@@ -148,7 +154,7 @@ export const getArchiveSeason = unstable_cache(
       .sort((a, b) => a.round - b.round);
   },
   ["get-archive-season"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 export const getArchiveRace = unstable_cache(
@@ -163,7 +169,7 @@ export const getArchiveRace = unstable_cache(
     return { id: snap.docs[0].id, ...(snap.docs[0].data() as Omit<ArchiveRaceDoc, "id">) };
   },
   ["get-archive-race"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** One doc per unique circuit (~70-75 total across the whole archive), not per race — a Wikipedia
@@ -176,14 +182,24 @@ export const getArchiveCircuit = unstable_cache(
     return snap.exists ? (snap.data() as ArchiveCircuit) : null;
   },
   ["get-archive-circuit"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
-type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; country: string | null };
+type CircuitStats = {
+  raceCount: number;
+  firstYear: number;
+  lastYear: number;
+  country: string | null;
+  // The host city, e.g. "Monza" or "Spa" — unlike a circuit's own display name, this rarely
+  // changes even when the track picks up a new title sponsor, which is what makes it a much more
+  // durable key for matching against the current season's own `location` field (see
+  // matchesLocality below) than the display name ever was.
+  locality: string | null;
+};
 
 /** One full (but field-projected) scan of archive_races, grouped by `circuitName` — the race-
- * count/year-span/country "key info" shown on each track tile. Grouped by name rather than
- * `circuitId` deliberately: `circuitId` only exists on however many races
+ * count/year-span/country/locality "key info" shown on each track tile. Grouped by name rather
+ * than `circuitId` deliberately: `circuitId` only exists on however many races
  * pipeline/enrich_archive_circuits.py has reached so far (a small, slowly-growing slice of the
  * archive), while `circuitName` has been on every race doc since the very first fetch — same
  * circuit, same name, every year (verified: 77 distinct names across the whole archive, none of
@@ -196,29 +212,31 @@ type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; co
  * to bother. */
 const getArchiveCircuitStats = unstable_cache(
   async (): Promise<Record<string, CircuitStats>> => {
-    const snap = await adminDb.collection(COLLECTION).select("circuitName", "year", "country").get();
+    const snap = await adminDb.collection(COLLECTION).select("circuitName", "year", "country", "locality").get();
     const stats: Record<string, CircuitStats> = {};
     for (const doc of snap.docs) {
-      const { circuitName, year, country } = doc.data() as {
+      const { circuitName, year, country, locality } = doc.data() as {
         circuitName?: string | null;
         year: number;
         country?: string | null;
+        locality?: string | null;
       };
       if (!circuitName) continue;
       const s = stats[circuitName];
       if (!s) {
-        stats[circuitName] = { raceCount: 1, firstYear: year, lastYear: year, country: country ?? null };
+        stats[circuitName] = { raceCount: 1, firstYear: year, lastYear: year, country: country ?? null, locality: locality ?? null };
       } else {
         s.raceCount += 1;
         s.firstYear = Math.min(s.firstYear, year);
         s.lastYear = Math.max(s.lastYear, year);
         if (!s.country && country) s.country = country;
+        if (!s.locality && locality) s.locality = locality;
       }
     }
     return stats;
   },
-  ["get-archive-circuit-stats-v3"],
-  { revalidate: REVALIDATE_SECONDS },
+  ["get-archive-circuit-stats"],
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** Every circuit that's been through pipeline/enrich_archive_circuits.py — a small collection
@@ -240,12 +258,13 @@ export const getAllArchiveCircuits = unstable_cache(
           firstYear: s?.firstYear ?? null,
           lastYear: s?.lastYear ?? null,
           country: s?.country ?? null,
+          locality: s?.locality ?? null,
         };
       })
       .sort((a, b) => (a.name ?? a.circuitId).localeCompare(b.name ?? b.circuitId));
   },
-  ["get-all-archive-circuits-v3"],
-  { revalidate: REVALIDATE_SECONDS },
+  ["get-all-archive-circuits"],
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** A circuit's full history — every race with this `circuitId`, oldest first. Only ever returns
@@ -259,7 +278,7 @@ export const getArchiveRacesByCircuitId = unstable_cache(
       .sort((a, b) => a.year - b.year || a.round - b.round);
   },
   ["get-archive-races-by-circuit"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** Every driver who's been through pipeline/enrich_archive_entities.py — for the "browse by
@@ -271,7 +290,7 @@ export const getArchiveDriver = unstable_cache(
     return snap.exists ? (snap.data() as ArchiveDriver) : null;
   },
   ["get-archive-driver"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 export const getAllArchiveDrivers = unstable_cache(
@@ -279,8 +298,8 @@ export const getAllArchiveDrivers = unstable_cache(
     const snap = await adminDb.collection("archive_drivers").get();
     return snap.docs.map((d) => d.data() as ArchiveDriver).sort((a, b) => b.lastYear - a.lastYear);
   },
-  ["get-all-archive-drivers-v2"],
-  { revalidate: REVALIDATE_SECONDS },
+  ["get-all-archive-drivers"],
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** A driver's career — every race with this driverId in its flat `driverIds` mirror, oldest
@@ -294,7 +313,7 @@ export const getArchiveRacesByDriver = unstable_cache(
       .sort((a, b) => a.year - b.year || a.round - b.round);
   },
   ["get-archive-races-by-driver"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 export const getArchiveTeam = unstable_cache(
@@ -303,7 +322,7 @@ export const getArchiveTeam = unstable_cache(
     return snap.exists ? (snap.data() as ArchiveTeam) : null;
   },
   ["get-archive-team"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** Every team who's been through pipeline/enrich_archive_entities.py — for the "browse by team"
@@ -313,8 +332,8 @@ export const getAllArchiveTeams = unstable_cache(
     const snap = await adminDb.collection("archive_teams").get();
     return snap.docs.map((d) => d.data() as ArchiveTeam).sort((a, b) => b.lastYear - a.lastYear);
   },
-  ["get-all-archive-teams-v3"],
-  { revalidate: REVALIDATE_SECONDS },
+  ["get-all-archive-teams"],
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** Each team's "home circuit" — not a real-world fact this app tracks anywhere (Ergast has no
@@ -343,8 +362,8 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
     }
     return result;
   },
-  ["get-archive-team-home-circuits-v3"],
-  { revalidate: REVALIDATE_SECONDS },
+  ["get-archive-team-home-circuits"],
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** A team's history — every race with this teamId in its flat `teamIds` mirror, oldest first. */
@@ -356,7 +375,7 @@ export const getArchiveRacesByTeam = unstable_cache(
       .sort((a, b) => a.year - b.year || a.round - b.round);
   },
   ["get-archive-races-by-team"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
 /** Lap-by-lap timing, read on demand (LapChart's "Show lap chart" click, via
@@ -378,5 +397,5 @@ export const getArchiveRaceLaps = unstable_cache(
     return lapsSnap.docs.map((d) => d.data() as ArchiveLapEntry).sort((a, b) => a.lap - b.lap);
   },
   ["get-archive-race-laps"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
