@@ -75,6 +75,45 @@ create table calendar (
 
 -- ============================================================= archive (pre-2018, Ergast/Jolpi)
 
+-- archive_circuits before archive_races: the latter's circuit_id references this. Kept minimal -
+-- just the raw per-circuit doc (id/name/wiki/image/coords). raceCount/firstYear/lastYear/country/
+-- locality are NOT columns here, on purpose: in the original Firestore model those were computed
+-- at read time by scanning archive_races grouped by *circuit_name* (see the stats query below),
+-- specifically because circuit_id only covers however much of the archive
+-- enrich_archive_circuits.py has reached, while circuit_name has been on every race since the
+-- very first backfill. Baking them into this table would silently narrow that coverage back down
+-- to the enriched subset - keeping them as a query preserves the exact behavior this was for.
+create table archive_circuits (
+  circuit_id text primary key,
+  name text,
+  wikipedia_url text,
+  image_url text,
+  lat numeric,
+  long numeric
+);
+
+-- Ahead of archive_races/archive_results too - both reference these (circuit_id, team_id), and a
+-- forward reference to a table that doesn't exist yet is a DDL error regardless of deferrability
+-- (deferrable only changes when a constraint is *checked*, not whether the table exists yet).
+create table archive_drivers (
+  driver_id text primary key,
+  name text not null,
+  code text,
+  first_year int,
+  last_year int,
+  race_count int,
+  constructors text[]                   -- every constructor name this driver's results ever carried
+);
+
+create table archive_teams (
+  team_id text primary key,
+  name text not null,
+  first_year int,
+  last_year int,
+  race_count int,
+  drivers text[]                        -- every driver_id who's raced for this team
+);
+
 create table archive_races (
   id text primary key,                  -- `${year}_r${round}_{slug}`, same convention as races
   year int not null,
@@ -84,11 +123,19 @@ create table archive_races (
   locality text,
   country text,
   race_date date,
+  wikipedia_url text,                   -- this race's own report page, separate from the circuit's
+  weather jsonb,                        -- ArchiveWeather: raw WMO code + readings, opaque blob
+  circuit_id text references archive_circuits (circuit_id),  -- null until that enrichment pass reaches this race
   laps_backfilled boolean not null default false
 );
 create index archive_races_year_idx on archive_races (year);
 create index archive_races_circuit_name_idx on archive_races (circuit_name);
+create index archive_races_circuit_id_idx on archive_races (circuit_id);
 
+-- team_id is the resolved/canonicalized slug (see pipeline/enrich_archive_entities.py's
+-- team_slug()) - `constructor` alone is just Ergast's display name for that era ("McLaren-Ford"),
+-- not something you can safely group or join on across engine-supplier renames. Null until that
+-- enrichment pass reaches this result row.
 create table archive_results (
   archive_race_id text not null references archive_races (id) on delete cascade,
   driver_id text not null,
@@ -100,7 +147,38 @@ create table archive_results (
   points numeric,
   driver_name text not null,
   constructor text,
+  team_id text references archive_teams (team_id),
+  time text,                            -- display string: winner's total or +gap, exactly as formatted for the UI
+  driver_code text,
+  fastest_lap jsonb,                    -- ArchiveFastestLap: {rank, lap, time, avgSpeedKph} - small optional blob
   primary key (archive_race_id, driver_id)
+);
+create index archive_results_driver_idx on archive_results (driver_id);
+create index archive_results_team_idx on archive_results (team_id);
+
+-- Not on the Firestore version (quali lived as a `qualifying` array field on the race doc) - here
+-- it's its own table for the same reason race_results/race_inputs are split from `races`: real
+-- rows to join/filter, not an array to unpack by hand every read.
+create table archive_qualifying (
+  archive_race_id text not null references archive_races (id) on delete cascade,
+  driver_id text not null,
+  position int not null,
+  driver_name text not null,
+  constructor text,
+  q1 text,
+  q2 text,
+  q3 text,
+  primary key (archive_race_id, driver_id)
+);
+
+create table archive_pit_stops (
+  archive_race_id text not null references archive_races (id) on delete cascade,
+  driver_id text not null,
+  stop int not null,
+  lap int not null,
+  time text,
+  duration_sec numeric,
+  primary key (archive_race_id, driver_id, stop)
 );
 
 create table archive_laps (
@@ -108,36 +186,15 @@ create table archive_laps (
   lap_number int not null,
   driver_id text not null,
   position int,
-  time_ms bigint,
+  time text,                            -- display string ("1:23.456"), not milliseconds - matches
+                                         -- exactly what enrich_archive_laps.py already formats
   primary key (archive_race_id, lap_number, driver_id)
 );
 
-create table archive_circuits (
-  circuit_name text primary key,
-  country text,
-  locality text,
-  first_year int,
-  last_year int,
-  race_count int
-  -- add wiki_image_url etc. once confirmed against the live CircuitStats/ArchiveCircuit type
-);
-
-create table archive_drivers (
-  driver_id text primary key,
-  name text not null,
-  code text,
-  first_year int,
-  last_year int,
-  race_count int
-);
-
-create table archive_teams (
-  team_id text primary key,
-  name text not null,
-  first_year int,
-  last_year int,
-  race_count int
-);
+-- Deliberately no driverIds/teamIds flat-array mirror columns on archive_races (the Firestore
+-- version needed them purely because `array-contains` was the only way to query inside a nested
+-- array - Postgres doesn't have that limitation). "Every race this driver/team was in" is just a
+-- join against archive_results now - see getArchiveRacesByDriver/Team in lib/supabase/archive.ts.
 
 -- ============================================================= ML benchmarks
 
