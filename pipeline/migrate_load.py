@@ -21,11 +21,9 @@ import json
 import sys
 from pathlib import Path
 
-import psycopg2
-import psycopg2.extras
-
 sys.path.insert(0, str(Path(__file__).parent))
 from enrich_archive_entities import team_slug  # noqa: E402 - reuse the exact, already-tested logic
+from ergast_utils import init_postgres, upsert  # noqa: E402 - shared with every other pipeline script now
 
 DATA_DIR = Path(__file__).parent / "migration_data"
 
@@ -50,36 +48,6 @@ def load_json(name: str):
         print(f"  (skip {name}: {path} not found — run migrate_export.py first)")
         return None
     return json.loads(path.read_text())
-
-
-def upsert(cur, table: str, rows: list[dict], conflict_cols: list[str], batch_size: int = 500) -> None:
-    if not rows:
-        print(f"  {table}: nothing to load")
-        return
-    # Postgres can't ON CONFLICT-resolve two rows in the *same* insert statement that target the
-    # same key ("cannot affect row a second time") - confirmed live on archive_results: some
-    # historical race genuinely has the same driver_id appear twice in its results (real messiness
-    # in 70+ years of Ergast data, not a transform bug). Deduping here, last-one-wins, protects
-    # every caller rather than each one having to know to do this itself.
-    deduped: dict[tuple, dict] = {}
-    for r in rows:
-        deduped[tuple(r[c] for c in conflict_cols)] = r
-    if len(deduped) != len(rows):
-        print(f"  {table}: {len(rows) - len(deduped)} duplicate {conflict_cols} row(s) collapsed (last one wins)")
-    rows = list(deduped.values())
-
-    cols = list(rows[0].keys())
-    update_cols = [c for c in cols if c not in conflict_cols]
-    query = (
-        f"insert into {table} ({','.join(cols)}) values %s "
-        f"on conflict ({','.join(conflict_cols)}) do update set "
-        f"{','.join(f'{c}=excluded.{c}' for c in update_cols)}"
-    )
-    for i in range(0, len(rows), batch_size):
-        batch = rows[i : i + batch_size]
-        values = [tuple(r[c] for c in cols) for r in batch]
-        psycopg2.extras.execute_values(cur, query, values)
-    print(f"  {table}: upserted {len(rows)} rows")
 
 
 def jsonb(value):
@@ -266,6 +234,7 @@ def load_races(cur) -> None:
                 "round": d["round"],
                 "name": d.get("eventName"),
                 "circuit": d.get("location"),
+                "country": d.get("country"),
                 "status": d.get("status"),
                 "race_date": None,
                 "pole_sitter": next((g["driver"] for g in qualifying.get("grid", []) if g.get("gridPosition") == 1), None),
@@ -273,6 +242,12 @@ def load_races(cur) -> None:
                 "weather": jsonb(race.get("weather")),
                 "prediction": jsonb(d.get("prediction")),
                 "pole_prediction": jsonb(d.get("polePrediction")),
+                # ML-feature-only, never surfaced by the app's own RaceDoc - train_predict.py /
+                # ml/*.py read these straight back from Postgres now instead of Firestore.
+                "practice": jsonb(d.get("practice")),
+                "traffic_stats": jsonb(race.get("trafficStats")),
+                "safety_car_periods": race.get("safetyCarPeriods"),
+                "tire_compound_pace": jsonb(race.get("tireCompoundPace")),
                 "simulation": jsonb(d.get("simulation")),
                 "updated_at": d.get("fetchedAt"),
             }
@@ -331,6 +306,10 @@ def load_calendar(cur) -> None:
             "round": d["round"],
             "name": d.get("eventName"),
             "circuit": d.get("location"),
+            "country": d.get("country"),
+            "event_format": d.get("eventFormat"),
+            "sessions": jsonb(d.get("sessions")),
+            "weather_forecast": jsonb(d.get("weatherForecast")),
             "race_date": d.get("raceDate"),
             "status": None,
         }
@@ -363,10 +342,7 @@ def load_model_benchmarks(cur) -> None:
 
 def main():
     _load_env_local()
-    import os
-
-    conn = psycopg2.connect(os.environ["DATABASE_URL"])
-    conn.autocommit = True
+    conn = init_postgres()
     with conn.cursor() as cur:
         print("Archive circuits/drivers/teams (parents first, for the FK on archive_results.team_id):")
         load_archive_circuits(cur)

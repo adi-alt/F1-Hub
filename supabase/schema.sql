@@ -16,6 +16,7 @@ create table races (
   round int not null,
   name text not null,
   circuit text not null,                -- FastF1's raw location string, e.g. "Budapest"
+  country text,
   status text not null check (status in ('upcoming', 'completed', 'scheduled')),
   race_date date,
   pole_sitter text,
@@ -24,6 +25,14 @@ create table races (
   prediction jsonb,                     -- RacePrediction (frozen once qualifying exists)
   pole_prediction jsonb,                -- PolePrediction (recomputed pre-quali, then frozen)
   simulation jsonb,                     -- RaceSimulation
+  -- ML-feature-only, never read by the app's own RaceDoc type (fetch_races.py writes these,
+  -- train_predict.py/ml/*.py read them straight back for pole/pace features - the frontend never
+  -- needed them, which is exactly how this got missed on the first schema pass). jsonb since
+  -- nothing ever queries a single field out of these individually.
+  practice jsonb,                       -- {FP1?/FP2?/FP3?: {bestLaps, weather}}
+  traffic_stats jsonb,                  -- [{driver, avgGapAheadSec, pctLapsCloseBehind}] - written, not consumed by a model yet
+  safety_car_periods int,
+  tire_compound_pace jsonb,             -- [{driver, compound, lapCount, avgPaceDeltaSec, degradationSecPerLap}]
   updated_at timestamptz not null default now()
 );
 create index races_year_round_idx on races (year, round);
@@ -69,6 +78,10 @@ create table calendar (
   round int not null,
   name text,
   circuit text,
+  country text,
+  event_format text,                    -- "conventional" | "sprint_qualifying" | ...
+  sessions jsonb,                        -- [{label, date}] - whatever this weekend format actually has
+  weather_forecast jsonb,                -- written by weather_forecast.py, not consumed by a model yet
   race_date date,
   status text
 );

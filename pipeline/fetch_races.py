@@ -1,25 +1,26 @@
-"""Fetch a race weekend entirely from FastF1 and push it to Firestore in a new, FastF1-native
-schema — not the old scraper-shaped RaceDoc. No training/prediction in this pass, fetch+push only.
+"""Fetch a race weekend entirely from FastF1 and push it to Postgres (races/race_results/
+race_inputs/tire_stints - see supabase/schema.sql). No training/prediction in this pass,
+fetch+push only.
 
-Document id: `{year}_r{round:02d}_{event-slug}`, e.g. `2026_r11_hungarian-grand-prix` — readable
-without opening the document, and round-padded so ids sort correctly. Within a document,
-qualifying and race data live under their own clearly-named top-level keys (`qualifying`, `race`)
-rather than sibling fields that read ambiguously out of context.
+Row id: `{year}_r{round:02d}_{event-slug}`, e.g. `2026_r11_hungarian-grand-prix` — readable
+without a lookup, and round-padded so ids sort correctly.
 
 No year or round is hardcoded anywhere — run with no arguments and it processes the current
 year's full schedule (discovered from FastF1 itself), skipping anything already marked
-`completed` in Firestore. This is what makes it safe to run unconditionally on every scheduled
-tick, this season, next season, and every season after that, with no code change required at a
-season boundary.
+`completed`. This is what makes it safe to run unconditionally on every scheduled tick, this
+season, next season, and every season after that, with no code change required at a season
+boundary.
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python pipeline/fetch_races.py                  # current year, full schedule, skips done races
   python pipeline/fetch_races.py 2018              # a specific year, full schedule
   python pipeline/fetch_races.py 2018 1 2 3        # explicit rounds (backfill/manual use)
 """
 
+from __future__ import annotations
+
 import json
-import os
 import re
 import sys
 import unicodedata
@@ -29,21 +30,12 @@ from pathlib import Path
 import fastf1
 import numpy as np
 import pandas as pd
-import firebase_admin
-from firebase_admin import credentials, firestore
+
+from ergast_utils import init_postgres, upsert
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE_DIR))
-
-
-def init_firestore():
-    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not raw:
-        raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
-    return firestore.client()
 
 
 def fetch_qualifying(year: int, round_num: int):
@@ -303,14 +295,20 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", ascii_only.lower()).strip("-")
 
 
-def build_and_push(db, year: int, round_num: int):
+def get_existing_race(cur, race_id: str) -> dict | None:
+    cur.execute("select status, practice from races where id = %s", (race_id,))
+    row = cur.fetchone()
+    return {"status": row[0], "practice": row[1] or {}} if row else None
+
+
+def build_and_push(cur, year: int, round_num: int):
     # Event calendar info exists regardless of whether quali/race have happened yet, so it's
     # fetched independently rather than borrowed from whichever session happened to load — that
     # also means the doc id (which needs the event name) doesn't depend on the race having run.
     calendar_event = fastf1.get_event(year, round_num)
     event_name = str(calendar_event["EventName"])
-    doc_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
-    print(f"  {doc_id}:")
+    race_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
+    print(f"  {race_id}:")
 
     practice = {}
     for label in ("FP1", "FP2", "FP3"):
@@ -323,61 +321,84 @@ def build_and_push(db, year: int, round_num: int):
     if not practice and not qualifying and not race:
         # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
         # "what's coming up"; pushing an empty placeholder here is exactly the clutter this
-        # collection is meant to avoid.
+        # table is meant to avoid.
         print("    nothing available yet, not pushing a placeholder")
         return
 
     # A transient failure (rate limiting, a network blip) on a *re*-fetch must never regress
-    # anything that's already known to have happened — `.set()` overwrites the whole document, so
-    # silently dropping a session here would erase real data that was already stored. This
-    # actually happened once already: Hungary got downgraded and lost its race data this way.
-    missing_practice = [label for label in ("FP1", "FP2", "FP3") if label not in practice]
-    if not race or missing_practice:
-        existing = db.collection("races").document(doc_id).get()
-        existing_data = existing.to_dict() if existing.exists else {}
-        if not race and existing_data.get("race"):
-            print("    race fetch failed but a completed race already exists — keeping it, not overwriting")
-            race = existing_data["race"]
-        for label in missing_practice:
-            existing_session = (existing_data.get("practice") or {}).get(label)
-            if existing_session:
-                practice[label] = existing_session
+    # anything that's already known to have happened. Postgres makes this simpler than the old
+    # whole-document overwrite did: not including a column in this run's upsert leaves whatever
+    # was already there untouched, so there's nothing to read back and merge except `practice`
+    # (one jsonb blob covering all three sessions, so a failed FP3 refetch needs to merge onto
+    # whatever FP1/FP2 already got stored, not just get skipped wholesale like race/qualifying can).
+    existing = get_existing_race(cur, race_id)
+    merged_practice = {**(existing["practice"] if existing else {}), **practice}
+    keep_old_race = not race and bool(existing) and existing["status"] == "completed"
+    if keep_old_race:
+        print("    race fetch failed but a completed race already exists — keeping it, not overwriting")
 
-    doc = {
+    race_row = {
+        "id": race_id,
         "year": year,
         "round": round_num,
-        "status": "completed" if race else ("upcoming" if qualifying else "scheduled"),
-        "fetchedAt": datetime.now(timezone.utc).isoformat(),
-        "eventName": event_name,
-        "location": str(calendar_event["Location"]),
+        "name": event_name,
+        "circuit": str(calendar_event["Location"]),
         "country": str(calendar_event["Country"]),
-        "practice": practice or None,
-        "qualifying": (
-            {"session": "Q", "grid": qualifying["grid"], "poleTimeSec": qualifying["poleTimeSec"]}
-            if qualifying
-            else None
-        ),
-        "race": (
-            {
-                "session": "R",
-                "results": race["results"],
-                "weather": race["weather"],
-                "tireStints": race["tireStints"],
-                "trafficStats": race["trafficStats"],
-                "safetyCarPeriods": race["safetyCarPeriods"],
-                "tireCompoundPace": race["tireCompoundPace"],
-            }
-            if race
-            else None
-        ),
+        "status": "completed" if (race or keep_old_race) else ("upcoming" if qualifying else "scheduled"),
+        "practice": json.dumps(merged_practice) if merged_practice else None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    if qualifying:
+        race_row["pole_sitter"] = next((g["driver"] for g in qualifying["grid"] if g["gridPosition"] == 1), None)
+        race_row["pole_time_sec"] = qualifying["poleTimeSec"]
+    if race:
+        race_row["weather"] = json.dumps(race["weather"])
+        race_row["traffic_stats"] = json.dumps(race["trafficStats"])
+        race_row["safety_car_periods"] = race["safetyCarPeriods"]
+        race_row["tire_compound_pace"] = json.dumps(race["tireCompoundPace"])
+    upsert(cur, "races", [race_row], ["id"])
 
-    db.collection("races").document(doc_id).set(doc)
+    if qualifying:
+        input_rows = [
+            {
+                "race_id": race_id,
+                "driver": g["driver"],
+                "driver_name": g["driverName"],
+                "team": g["team"],
+                "grid": g["gridPosition"],
+                "qualifying_gap_sec": g["qualifyingGapSec"],
+            }
+            for g in qualifying["grid"]
+        ]
+        upsert(cur, "race_inputs", input_rows, ["race_id", "driver"])
+    if race:
+        result_rows = [
+            {
+                "race_id": race_id,
+                "driver": r["driver"],
+                "driver_name": r["driverName"],
+                "team": r["team"],
+                "grid": r["gridPosition"],
+                "finish_position": r["finishPosition"],
+                "finish_gap_sec": r["finishGapSec"],
+                "status": r["status"],
+                "fastest_lap_sec": r["fastestLapSec"],
+                "points": r["points"],
+            }
+            for r in race["results"]
+        ]
+        upsert(cur, "race_results", result_rows, ["race_id", "driver"])
+        stint_rows = [
+            {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
+            for t in race["tireStints"]
+        ]
+        upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"])
+
     quali_rows = len(qualifying["grid"]) if qualifying else 0
-    race_rows = len(race["results"]) if race else 0
+    race_rows_n = len(race["results"]) if race else 0
     print(
-        f"    pushed: status={doc['status']}, practice={sorted(practice.keys())}, "
-        f"qualifying.grid={quali_rows} rows, race.results={race_rows} rows"
+        f"    pushed: status={race_row['status']}, practice={sorted(merged_practice.keys())}, "
+        f"qualifying.grid={quali_rows} rows, race.results={race_rows_n} rows"
     )
 
 
@@ -389,13 +410,12 @@ def discover_rounds(year: int) -> list[int]:
     return sorted(int(r) for r in rounds)
 
 
-def is_already_completed(db, year: int, round_num: int) -> bool:
+def is_already_completed(cur, year: int, round_num: int) -> bool:
     """Race results never change after the fact — once a round is `completed`, re-fetching it
     is pure waste, which matters once this runs on every scheduled tick rather than by hand."""
-    docs = list(
-        db.collection("races").where("year", "==", year).where("round", "==", round_num).limit(1).stream()
-    )
-    return bool(docs) and docs[0].to_dict().get("status") == "completed"
+    cur.execute("select status from races where year = %s and round = %s limit 1", (year, round_num))
+    row = cur.fetchone()
+    return bool(row) and row[0] == "completed"
 
 
 def main():
@@ -403,13 +423,15 @@ def main():
     year = int(args[0]) if args else datetime.now().year
     rounds = [int(r) for r in args[1:]] if len(args) > 1 else discover_rounds(year)
 
-    db = init_firestore()
+    conn = init_postgres()
     print(f"Processing {len(rounds)} round(s) for {year}: {rounds}")
-    for round_num in rounds:
-        if is_already_completed(db, year, round_num):
-            print(f"  round {round_num}: already completed, skipping")
-            continue
-        build_and_push(db, year, round_num)
+    with conn.cursor() as cur:
+        for round_num in rounds:
+            if is_already_completed(cur, year, round_num):
+                print(f"  round {round_num}: already completed, skipping")
+                continue
+            build_and_push(cur, year, round_num)
+    conn.close()
     print("Done.")
 
 

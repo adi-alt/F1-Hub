@@ -17,7 +17,6 @@ Run:
 """
 
 import json
-import os
 import re
 import sys
 import unicodedata
@@ -25,9 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import fastf1
-import firebase_admin
-from firebase_admin import credentials, firestore
 
+from ergast_utils import fetch_completed_race_docs, init_postgres, upsert
 from ml.circuit_stats import build_circuit_records
 from weather_forecast import fetch_weather_forecast
 
@@ -41,15 +39,6 @@ def slugify(name: str) -> str:
     # the character entirely, which plain regex-stripping would do.
     ascii_only = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", "-", ascii_only.lower()).strip("-")
-
-
-def init_firestore():
-    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not raw:
-        raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
-    return firestore.client()
 
 
 def all_sessions(row):
@@ -68,23 +57,22 @@ def all_sessions(row):
     return sessions
 
 
-def sync_year(db, year: int):
+def sync_year(conn, cur, year: int):
     schedule = fastf1.get_event_schedule(year)
     events = schedule[schedule["RoundNumber"] > 0]  # excludes pre-season testing entries
     print(f"{year}: {len(events)} rounds")
 
     # Cross-season on purpose (see ml/circuit_stats.py) — a forecast fallback for an upcoming
     # race needs every prior completed race, not just this season's.
-    circuit_records = build_circuit_records(
-        [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
-    )
+    circuit_records = build_circuit_records(fetch_completed_race_docs(conn))
     now = datetime.now(timezone.utc)
 
+    rows = []
     for _, row in events.iterrows():
         round_num = int(row["RoundNumber"])
         event_name = str(row["EventName"])
         location = str(row["Location"])
-        doc_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
+        row_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
         sessions = all_sessions(row)
         race_session = next((s for s in sessions if s["label"] == "Race"), None)
         race_date_str = race_session["date"] if race_session else None
@@ -101,28 +89,34 @@ def sync_year(db, year: int):
                     circuit_records, event_name, location, year, round_num, race_date
                 )
 
-        doc = {
-            "year": year,
-            "round": round_num,
-            "eventName": event_name,
-            "location": location,
-            "country": str(row["Country"]),
-            "eventFormat": str(row["EventFormat"]),
-            "sessions": sessions,
-            # Convenience copy of the one session every weekend definitely has, so "next race in
-            # N days" sorting/display doesn't need to dig into the sessions list.
-            "raceDate": race_date_str,
-            "weatherForecast": weather_forecast,
-        }
-        db.collection("calendar").document(doc_id).set(doc)
-        print(f"  {doc_id}: {len(sessions)} sessions, race={doc['raceDate']}, forecast={weather_forecast}")
+        rows.append(
+            {
+                "id": row_id,
+                "year": year,
+                "round": round_num,
+                "name": event_name,
+                "circuit": location,
+                "country": str(row["Country"]),
+                "event_format": str(row["EventFormat"]),
+                "sessions": json.dumps(sessions),
+                # Convenience copy of the one session every weekend definitely has, so "next race
+                # in N days" sorting/display doesn't need to dig into the sessions list.
+                "race_date": race_date_str,
+                "weather_forecast": json.dumps(weather_forecast) if weather_forecast else None,
+            }
+        )
+        print(f"  {row_id}: {len(sessions)} sessions, race={race_date_str}, forecast={weather_forecast}")
+
+    upsert(cur, "calendar", rows, ["id"])
 
 
 def main():
     years = [int(y) for y in sys.argv[1:]] or [datetime.now().year]
-    db = init_firestore()
-    for year in years:
-        sync_year(db, year)
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        for year in years:
+            sync_year(conn, cur, year)
+    conn.close()
     print("Done.")
 
 

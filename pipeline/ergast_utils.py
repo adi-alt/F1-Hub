@@ -12,6 +12,8 @@ import time
 
 import firebase_admin
 import pandas as pd
+import psycopg2
+import psycopg2.extras
 import requests
 from fastf1.ergast.interface import ErgastInvalidRequestError
 from fastf1.req import RateLimitExceededError
@@ -74,12 +76,103 @@ def with_retry(fn):
 
 
 def init_firestore():
+    """Only migrate_export.py still needs this — everything else that used to write here writes
+    to Postgres now (see init_postgres below)."""
     raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
     if not raw:
         raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
     if not firebase_admin._apps:
         firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
     return firestore.client()
+
+
+def init_postgres():
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise SystemExit("DATABASE_URL is not set.")
+    conn = psycopg2.connect(url)
+    conn.autocommit = True
+    return conn
+
+
+def fetch_completed_race_docs(conn):
+    """Reconstructs the old Firestore-doc-shaped dict ({eventName, year, round, race: {results,
+    tireStints, safetyCarPeriods, weather, tireCompoundPace}}) for every completed race - an
+    adapter so the ml/*.py feature-engineering code (which expects that exact nested shape, built
+    back when races lived in Firestore) doesn't need touching just because storage moved to
+    Postgres. One extra query per race (results, tire stints) rather than a single clever join:
+    a join across both child tables fans out and needs de-duplicating carefully to avoid losing
+    per-stint granularity (e.g. a driver's *count* of stints, used as a pit-stop-count proxy) -
+    not worth the risk when completed-race counts are in the low hundreds, not the kind of volume
+    that N+1 queries would actually hurt."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            'select id, name as "eventName", year, round, safety_car_periods, weather, tire_compound_pace '
+            "from races where status = 'completed'"
+        )
+        races = cur.fetchall()
+        docs = []
+        for r in races:
+            cur.execute(
+                'select driver, driver_name as "driverName", team, grid as "gridPosition", '
+                'finish_position as "finishPosition", status, points, finish_gap_sec as "finishGapSec", '
+                'fastest_lap_sec as "fastestLapSec" from race_results where race_id = %s',
+                (r["id"],),
+            )
+            results = [dict(row) for row in cur.fetchall()]
+            cur.execute(
+                'select driver, stint_number as "stintNumber", compound, lap_count as "lapCount" '
+                "from tire_stints where race_id = %s",
+                (r["id"],),
+            )
+            tire_stints = [dict(row) for row in cur.fetchall()]
+            docs.append(
+                {
+                    "eventName": r["eventName"],
+                    "year": r["year"],
+                    "round": r["round"],
+                    "race": {
+                        "results": results,
+                        "tireStints": tire_stints,
+                        "safetyCarPeriods": r["safety_car_periods"],
+                        "weather": r["weather"],
+                        "tireCompoundPace": r["tire_compound_pace"],
+                    },
+                }
+            )
+        return docs
+
+
+def upsert(cur, table, rows, conflict_cols, batch_size=500):
+    """Insert-or-update by real primary key — the one write primitive every pipeline script uses
+    now, same idempotent-rerun discipline each already has for its own external API calls,
+    extended to its own writes too. Dedupes input rows on the conflict key first: Postgres can't
+    ON CONFLICT-resolve two rows in the *same* insert statement that target the same key ("cannot
+    affect row a second time") - hit live during the one-time migration (some historical race
+    genuinely has one driver_id twice in its own results) and just as possible from a normal
+    pipeline run reprocessing overlapping data."""
+    if not rows:
+        print(f"  {table}: nothing to load")
+        return
+    deduped = {}
+    for r in rows:
+        deduped[tuple(r[c] for c in conflict_cols)] = r
+    if len(deduped) != len(rows):
+        print(f"  {table}: {len(rows) - len(deduped)} duplicate {conflict_cols} row(s) collapsed (last one wins)")
+    rows = list(deduped.values())
+
+    cols = list(rows[0].keys())
+    update_cols = [c for c in cols if c not in conflict_cols]
+    query = (
+        f"insert into {table} ({','.join(cols)}) values %s "
+        f"on conflict ({','.join(conflict_cols)}) do update set "
+        f"{','.join(f'{c}=excluded.{c}' for c in update_cols)}"
+    )
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i : i + batch_size]
+        values = [tuple(r[c] for c in cols) for r in batch]
+        psycopg2.extras.execute_values(cur, query, values)
+    print(f"  {table}: upserted {len(rows)} rows")
 
 
 def clean(value):
@@ -136,7 +229,7 @@ def trigger_revalidation(tag: str = "archive-data") -> None:
     if not secret:
         print("  (skipping cache revalidation: CRON_SECRET not set in this environment)")
         return
-    base_url = os.environ.get("APP_BASE_URL", "https://apex-chi-inky.vercel.app")
+    base_url = os.environ.get("APP_BASE_URL", "https://apexf1hub.vercel.app")
     try:
         resp = requests.post(
             f"{base_url}/api/admin/revalidate",
