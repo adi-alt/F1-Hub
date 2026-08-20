@@ -1,8 +1,8 @@
 """Trains and freezes predictions once qualifying data exists for a race — a separate pass from
 fetch_races.py (which owns qualifying/race/weather/tire data), writing only `prediction`/
-`polePrediction` via partial update, never touching anything fetch_races.py owns. That separation
-matters for the same reason the safe-merge fix in fetch_races.py did: two things writing to one
-document must never be able to clobber each other's fields.
+`pole_prediction`/`simulation` via partial UPDATE, never touching anything fetch_races.py owns.
+That separation matters for the same reason the safe-merge fix in fetch_races.py did: two things
+writing to one row must never be able to clobber each other's columns.
 
 Freeze rules, ported unchanged from the deleted refreshSeason.ts:
   - A pole prediction stays "live" (recomputed every run, using only same-season prior rounds)
@@ -13,6 +13,7 @@ Freeze rules, ported unchanged from the deleted refreshSeason.ts:
     accuracy tracking against the eventual result is never retroactively flattering.
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python pipeline/train_predict.py            # current year
   python pipeline/train_predict.py 2026        # explicit year
 """
@@ -20,13 +21,10 @@ Run:
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime, timezone
 
-import firebase_admin
-from firebase_admin import credentials, firestore
-
+from ergast_utils import init_postgres
 from ml.calibrate_probabilities import (
     apply_p1_calibrator,
     apply_podium_calibrator,
@@ -54,14 +52,10 @@ from ml.tyre_features import (
 SIMULATION_MODEL_VERSION = "simulator-v2"
 DNF_WARMUP_ROWS = 50
 
-
-def init_firestore():
-    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not raw:
-        raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
-    return firestore.client()
+# Firestore-shaped key -> real races column, used only by update_race() below — every read/
+# transform function in this module still speaks the old camelCase doc shape (`prediction`,
+# `polePrediction`, `simulation`), so only the one place that writes needs to know the column names.
+_COLUMNS = {"prediction": "prediction", "polePrediction": "pole_prediction", "simulation": "simulation"}
 
 
 def _quali_lookup(qualifying: dict | None) -> dict[str, dict]:
@@ -290,177 +284,250 @@ def build_pole_prediction(
     }
 
 
-def process_year(db, year: int):
-    docs = list(db.collection("races").where("year", "==", year).order_by("round").stream())
-
-    # Cross-season on purpose (see ml/tyre_features.py) — unlike the season-scoped Elo features
-    # below, tyre-management traits are built from every completed race regardless of year, one
-    # query, done once per run rather than once per race. `build_tyre_trait_history` is itself a
-    # strictly-chronological builder (keyed by (year, round, driver)), so it's leakage-safe to pull
-    # from even though `all_completed_docs` spans every season, including ones later than `year`.
-    all_completed_docs = [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
-    all_tyre_rows: list[TyreRaceRow] = []
-    for completed_doc in all_completed_docs:
-        all_tyre_rows.extend(to_tyre_rows(completed_doc))
-    trait_history = build_tyre_trait_history(all_tyre_rows)
-    driver_tyre_traits, team_tyre_traits, tyre_global = current_tyre_traits(all_tyre_rows)
-
-    # DNF history and the simulation calibration pool are NOT leakage-safe the same easy way —
-    # unlike tyre traits, there's no chronological builder doing the filtering internally, so this
-    # must explicitly use only strictly-earlier *seasons* (`< year`, not `!= year`: every season
-    # 2018-2026 already exists as "completed" in Firestore, this isn't backfilled incrementally
-    # over real time). Same-season-so-far rows are threaded through the loop below, exactly like
-    # `pace_rows`/`training_rows` already are.
-    dnf_rows_other_seasons = [r for d in all_completed_docs if d["year"] < year for r in to_dnf_rows(d)]
-    dnf_rows_this_season: list[DnfResultRow] = []
-    p1_probs, p1_actuals, podium_probs, podium_actuals = build_simulation_calibration_pool(
-        [d for d in all_completed_docs if d["year"] < year]
+def load_race_docs(cur, where_clause: str, params: tuple) -> list[dict]:
+    """Reconstructs the Firestore-doc shape ({id, year, round, status, practice, qualifying, race,
+    prediction, polePrediction, simulation}) every function above was written against, from
+    `races` joined against its two real child tables (`race_inputs` = the old qualifying.grid
+    array, `race_results` = the old race.results array) — the read-side counterpart of the
+    partial UPDATEs update_race() does below. One extra pair of queries per race rather than a
+    single join, same tradeoff ergast_utils.fetch_completed_race_docs already made (a season is a
+    few dozen races, cross-season history a few hundred — not the volume N+1 would actually hurt).
+    Not reused from that adapter directly: this needs qualifying/status/prediction/polePrediction/
+    simulation too, fields that one deliberately leaves out since sync_calendar.py never needs them.
+    """
+    cur.execute(
+        f"select id, year, round, status, practice, tire_compound_pace, prediction, "
+        f"pole_prediction, simulation from races where {where_clause} order by year, round",
+        params,
     )
+    races = cur.fetchall()
+    docs = []
+    for race_id, year, round_num, status, practice, tire_compound_pace, prediction, pole_prediction, simulation in races:
+        cur.execute(
+            "select driver, driver_name, team, grid, qualifying_gap_sec from race_inputs where race_id = %s",
+            (race_id,),
+        )
+        grid = [
+            {"driver": d, "driverName": dn, "team": t, "gridPosition": g, "qualifyingGapSec": qg}
+            for d, dn, t, g, qg in cur.fetchall()
+        ]
+        cur.execute(
+            "select driver, driver_name, team, grid, finish_position, status, fastest_lap_sec "
+            "from race_results where race_id = %s",
+            (race_id,),
+        )
+        results = [
+            {
+                "driver": d,
+                "driverName": dn,
+                "team": t,
+                "gridPosition": g,
+                "finishPosition": fp,
+                "status": st,
+                "fastestLapSec": fl,
+            }
+            for d, dn, t, g, fp, st, fl in cur.fetchall()
+        ]
+        docs.append(
+            {
+                "id": race_id,
+                "year": year,
+                "round": round_num,
+                "status": status,
+                "practice": practice,
+                "qualifying": {"grid": grid} if grid else None,
+                "race": {"results": results, "tireCompoundPace": tire_compound_pace or []} if results else None,
+                "prediction": prediction,
+                "polePrediction": pole_prediction,
+                "simulation": simulation,
+            }
+        )
+    return docs
 
-    training_rows: list[TrainingResultRow] = []
-    pace_rows: list[PaceResultRow] = []
-    completed_docs: list[dict] = []
-    practice_by_round: dict[int, dict | None] = {}
 
-    for doc in docs:
-        data = doc.to_dict()
-        round_num = data["round"]
+def update_race(cur, race_id: str, fields: dict) -> None:
+    """Partial UPDATE — same convention every other converted pipeline script uses for existing
+    rows. Only the passed columns change, mirroring the old Firestore `doc.reference.update({...})`
+    partial-write semantics this module depends on throughout: prediction/polePrediction/simulation
+    each freeze once written, so a later run must never touch a column it didn't just (re)compute."""
+    set_clause = ", ".join(f"{_COLUMNS[k]} = %s" for k in fields)
+    values = [json.dumps(v) for v in fields.values()]
+    cur.execute(f"update races set {set_clause} where id = %s", (*values, race_id))
 
-        if data.get("status") == "completed":
-            # Whatever prediction/polePrediction this race already has (frozen while it was still
-            # upcoming) is left exactly as-is — this is what makes later accuracy comparisons
-            # honest, not retroactively flattering. `simulation` is backfilled here the first time
-            # any run sees this race lacking it — computed *before* this round's own rows join
-            # pace_rows/dnf_rows_this_season/the calibration pool below, so it never leaks into its
-            # own inputs.
-            if "simulation" not in data and len(dnf_rows_other_seasons) + len(dnf_rows_this_season) >= DNF_WARMUP_ROWS:
-                quali = _quali_lookup(data.get("qualifying"))
-                entrants_real = []
-                for r in data["race"]["results"]:
-                    q = quali["get"](r["driver"])
-                    trait = trait_history.get(
-                        (year, round_num, r["driver"]),
-                        {
-                            "driverTyrePaceDelta": GLOBAL_PACE_DELTA_DEFAULT,
-                            "driverTyreDegradation": GLOBAL_DEGRADATION_DEFAULT,
-                            "teamTyrePaceDelta": GLOBAL_PACE_DELTA_DEFAULT,
-                            "teamTyreDegradation": GLOBAL_DEGRADATION_DEFAULT,
-                        },
+
+def process_year(conn, year: int):
+    with conn.cursor() as cur:
+        docs = load_race_docs(cur, "year = %s", (year,))
+
+        # Cross-season on purpose (see ml/tyre_features.py) — unlike the season-scoped Elo features
+        # below, tyre-management traits are built from every completed race regardless of year, one
+        # query, done once per run rather than once per race. `build_tyre_trait_history` is itself a
+        # strictly-chronological builder (keyed by (year, round, driver)), so it's leakage-safe to pull
+        # from even though `all_completed_docs` spans every season, including ones later than `year`.
+        all_completed_docs = load_race_docs(cur, "status = 'completed'", ())
+        all_tyre_rows: list[TyreRaceRow] = []
+        for completed_doc in all_completed_docs:
+            all_tyre_rows.extend(to_tyre_rows(completed_doc))
+        trait_history = build_tyre_trait_history(all_tyre_rows)
+        driver_tyre_traits, team_tyre_traits, tyre_global = current_tyre_traits(all_tyre_rows)
+
+        # DNF history and the simulation calibration pool are NOT leakage-safe the same easy way —
+        # unlike tyre traits, there's no chronological builder doing the filtering internally, so this
+        # must explicitly use only strictly-earlier *seasons* (`< year`, not `!= year`: every season
+        # 2018-2026 already exists as "completed" in Postgres, this isn't backfilled incrementally
+        # over real time). Same-season-so-far rows are threaded through the loop below, exactly like
+        # `pace_rows`/`training_rows` already are.
+        dnf_rows_other_seasons = [r for d in all_completed_docs if d["year"] < year for r in to_dnf_rows(d)]
+        dnf_rows_this_season: list[DnfResultRow] = []
+        p1_probs, p1_actuals, podium_probs, podium_actuals = build_simulation_calibration_pool(
+            [d for d in all_completed_docs if d["year"] < year]
+        )
+
+        training_rows: list[TrainingResultRow] = []
+        pace_rows: list[PaceResultRow] = []
+        completed_docs: list[dict] = []
+        practice_by_round: dict[int, dict | None] = {}
+
+        for data in docs:
+            round_num = data["round"]
+            race_id = data["id"]
+
+            if data.get("status") == "completed":
+                # Whatever prediction/polePrediction this race already has (frozen while it was still
+                # upcoming) is left exactly as-is — this is what makes later accuracy comparisons
+                # honest, not retroactively flattering. `simulation` is backfilled here the first time
+                # any run sees this race lacking it — computed *before* this round's own rows join
+                # pace_rows/dnf_rows_this_season/the calibration pool below, so it never leaks into its
+                # own inputs.
+                if data.get("simulation") is None and len(dnf_rows_other_seasons) + len(dnf_rows_this_season) >= DNF_WARMUP_ROWS:
+                    quali = _quali_lookup(data.get("qualifying"))
+                    entrants_real = []
+                    for r in data["race"]["results"]:
+                        q = quali["get"](r["driver"])
+                        trait = trait_history.get(
+                            (year, round_num, r["driver"]),
+                            {
+                                "driverTyrePaceDelta": GLOBAL_PACE_DELTA_DEFAULT,
+                                "driverTyreDegradation": GLOBAL_DEGRADATION_DEFAULT,
+                                "teamTyrePaceDelta": GLOBAL_PACE_DELTA_DEFAULT,
+                                "teamTyreDegradation": GLOBAL_DEGRADATION_DEFAULT,
+                            },
+                        )
+                        entrants_real.append(
+                            {
+                                "driver": r["driver"],
+                                "team": r["team"],
+                                "grid": r["gridPosition"] or 20,
+                                "qualifyingGapSec": q["qualifyingGapSec"] if q["qualifyingGapSec"] is not None else 2.0,
+                                **trait,
+                            }
+                        )
+                    simulation = compute_race_simulation(
+                        entrants_real,
+                        prior_pace_rows=pace_rows,
+                        prior_dnf_rows=dnf_rows_other_seasons + dnf_rows_this_season,
+                        calibration_pool=(p1_probs, p1_actuals, podium_probs, podium_actuals),
                     )
-                    entrants_real.append(
-                        {
-                            "driver": r["driver"],
-                            "team": r["team"],
-                            "grid": r["gridPosition"] or 20,
-                            "qualifyingGapSec": q["qualifyingGapSec"] if q["qualifyingGapSec"] is not None else 2.0,
-                            **trait,
-                        }
-                    )
-                simulation = compute_race_simulation(
-                    entrants_real,
+                    update_race(cur, race_id, {"simulation": simulation})
+                    data["simulation"] = simulation
+                    print(f"  round {round_num}: simulation backfilled")
+
+                if data.get("simulation"):
+                    actual_by_driver = {r["driver"]: r["finishPosition"] for r in data["race"]["results"]}
+                    for row in data["simulation"]["drivers"]:
+                        actual_pos = actual_by_driver.get(row["driver"])
+                        if actual_pos is None:
+                            continue
+                        p1_probs.append(row["p1Raw"])
+                        p1_actuals.append(1 if actual_pos == 1 else 0)
+                        podium_probs.append(row["podiumRaw"])
+                        podium_actuals.append(1 if actual_pos <= 3 else 0)
+
+                training_rows.extend(to_training_rows(data))
+                pace_rows.extend(to_pace_rows(data, trait_history))
+                dnf_rows_this_season.extend(to_dnf_rows(data))
+                completed_docs.append(data)
+                practice_by_round[round_num] = data.get("practice")
+                print(f"  round {round_num}: completed, added to training history ({len(training_rows)} rows so far)")
+                continue
+
+            qualifying = data.get("qualifying")
+            entrants = derive_entrants(completed_docs)
+            current_practice = data.get("practice")
+
+            if not qualifying:
+                pole_prediction = build_pole_prediction(training_rows, entrants, practice_by_round, current_practice)
+                if pole_prediction:
+                    update_race(cur, race_id, {"polePrediction": pole_prediction})
+                    print(f"  round {round_num}: polePrediction updated (live, {len(training_rows)} training rows)")
+                else:
+                    print(f"  round {round_num}: no history yet, nothing to predict")
+                continue
+
+            # Qualifying just became available (or already was) — freeze whatever pole prediction
+            # exists right now; from this point there's nothing left to guess about pole.
+            pole_prediction = data.get("polePrediction") or build_pole_prediction(
+                training_rows, entrants, practice_by_round, current_practice
+            )
+
+            if data.get("prediction"):
+                print(f"  round {round_num}: prediction already frozen, leaving it alone")
+                continue
+
+            update: dict = {}
+            if pole_prediction and not data.get("polePrediction"):
+                update["polePrediction"] = pole_prediction
+
+            if not training_rows:
+                # Season's first race, before it's run — nothing to train the finish model on yet.
+                if update:
+                    update_race(cur, race_id, update)
+                print(f"  round {round_num}: no same-season history yet, skipping finish prediction")
+                continue
+
+            inputs = [
+                {
+                    "driver": q["driver"],
+                    "team": q["team"],
+                    "grid": q["gridPosition"],
+                    "qualifyingGapSec": q["qualifyingGapSec"],
+                    "driverTyrePaceDelta": driver_tyre_traits.get(q["driver"], {}).get("driverTyrePaceDelta", tyre_global["pace"]),
+                    "driverTyreDegradation": driver_tyre_traits.get(q["driver"], {}).get("driverTyreDegradation", tyre_global["degradation"]),
+                    "teamTyrePaceDelta": team_tyre_traits.get(q["team"], {}).get("teamTyrePaceDelta", tyre_global["pace"]),
+                    "teamTyreDegradation": team_tyre_traits.get(q["team"], {}).get("teamTyreDegradation", tyre_global["degradation"]),
+                }
+                for q in qualifying["grid"]
+            ]
+            finish = predict_finish_order(training_rows, inputs)
+
+            update["prediction"] = {
+                "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "modelVersion": FINISH_MODEL_VERSION,
+                "finishOrder": finish["order"],
+                "finishFeatureImportance": finish["featureImportance"],
+                "predictedPaceGapSec": predict_pace_gaps(pace_rows, inputs),
+                "backtest": chronological_backtest(training_rows),
+            }
+            # Same freeze point as `prediction` — qualifying exists, there's same-season history to
+            # train on, and this hasn't been frozen yet. `inputs` is already entrant-shaped (driver/
+            # team/grid/qualifyingGapSec/4 tyre keys), same as every other model call above.
+            if len(dnf_rows_other_seasons) + len(dnf_rows_this_season) >= DNF_WARMUP_ROWS:
+                update["simulation"] = compute_race_simulation(
+                    inputs,
                     prior_pace_rows=pace_rows,
                     prior_dnf_rows=dnf_rows_other_seasons + dnf_rows_this_season,
                     calibration_pool=(p1_probs, p1_actuals, podium_probs, podium_actuals),
                 )
-                doc.reference.update({"simulation": simulation})
-                data["simulation"] = simulation
-                print(f"  round {round_num}: simulation backfilled")
-
-            if data.get("simulation"):
-                actual_by_driver = {r["driver"]: r["finishPosition"] for r in data["race"]["results"]}
-                for row in data["simulation"]["drivers"]:
-                    actual_pos = actual_by_driver.get(row["driver"])
-                    if actual_pos is None:
-                        continue
-                    p1_probs.append(row["p1Raw"])
-                    p1_actuals.append(1 if actual_pos == 1 else 0)
-                    podium_probs.append(row["podiumRaw"])
-                    podium_actuals.append(1 if actual_pos <= 3 else 0)
-
-            training_rows.extend(to_training_rows(data))
-            pace_rows.extend(to_pace_rows(data, trait_history))
-            dnf_rows_this_season.extend(to_dnf_rows(data))
-            completed_docs.append(data)
-            practice_by_round[round_num] = data.get("practice")
-            print(f"  round {round_num}: completed, added to training history ({len(training_rows)} rows so far)")
-            continue
-
-        qualifying = data.get("qualifying")
-        entrants = derive_entrants(completed_docs)
-        current_practice = data.get("practice")
-
-        if not qualifying:
-            pole_prediction = build_pole_prediction(training_rows, entrants, practice_by_round, current_practice)
-            if pole_prediction:
-                doc.reference.update({"polePrediction": pole_prediction})
-                print(f"  round {round_num}: polePrediction updated (live, {len(training_rows)} training rows)")
-            else:
-                print(f"  round {round_num}: no history yet, nothing to predict")
-            continue
-
-        # Qualifying just became available (or already was) — freeze whatever pole prediction
-        # exists right now; from this point there's nothing left to guess about pole.
-        pole_prediction = data.get("polePrediction") or build_pole_prediction(
-            training_rows, entrants, practice_by_round, current_practice
-        )
-
-        if data.get("prediction"):
-            print(f"  round {round_num}: prediction already frozen, leaving it alone")
-            continue
-
-        update: dict = {}
-        if pole_prediction and not data.get("polePrediction"):
-            update["polePrediction"] = pole_prediction
-
-        if not training_rows:
-            # Season's first race, before it's run — nothing to train the finish model on yet.
-            if update:
-                doc.reference.update(update)
-            print(f"  round {round_num}: no same-season history yet, skipping finish prediction")
-            continue
-
-        inputs = [
-            {
-                "driver": q["driver"],
-                "team": q["team"],
-                "grid": q["gridPosition"],
-                "qualifyingGapSec": q["qualifyingGapSec"],
-                "driverTyrePaceDelta": driver_tyre_traits.get(q["driver"], {}).get("driverTyrePaceDelta", tyre_global["pace"]),
-                "driverTyreDegradation": driver_tyre_traits.get(q["driver"], {}).get("driverTyreDegradation", tyre_global["degradation"]),
-                "teamTyrePaceDelta": team_tyre_traits.get(q["team"], {}).get("teamTyrePaceDelta", tyre_global["pace"]),
-                "teamTyreDegradation": team_tyre_traits.get(q["team"], {}).get("teamTyreDegradation", tyre_global["degradation"]),
-            }
-            for q in qualifying["grid"]
-        ]
-        finish = predict_finish_order(training_rows, inputs)
-
-        update["prediction"] = {
-            "generatedAt": datetime.now(timezone.utc).isoformat(),
-            "modelVersion": FINISH_MODEL_VERSION,
-            "finishOrder": finish["order"],
-            "finishFeatureImportance": finish["featureImportance"],
-            "predictedPaceGapSec": predict_pace_gaps(pace_rows, inputs),
-            "backtest": chronological_backtest(training_rows),
-        }
-        # Same freeze point as `prediction` — qualifying exists, there's same-season history to
-        # train on, and this hasn't been frozen yet. `inputs` is already entrant-shaped (driver/
-        # team/grid/qualifyingGapSec/4 tyre keys), same as every other model call above.
-        if len(dnf_rows_other_seasons) + len(dnf_rows_this_season) >= DNF_WARMUP_ROWS:
-            update["simulation"] = compute_race_simulation(
-                inputs,
-                prior_pace_rows=pace_rows,
-                prior_dnf_rows=dnf_rows_other_seasons + dnf_rows_this_season,
-                calibration_pool=(p1_probs, p1_actuals, podium_probs, podium_actuals),
-            )
-        doc.reference.update(update)
-        print(f"  round {round_num}: prediction frozen ({len(training_rows)} training rows)")
+            update_race(cur, race_id, update)
+            print(f"  round {round_num}: prediction frozen ({len(training_rows)} training rows)")
 
 
 def main():
     year = int(sys.argv[1]) if len(sys.argv) > 1 else datetime.now().year
-    db = init_firestore()
+    conn = init_postgres()
     print(f"Training/predicting for {year}...")
-    process_year(db, year)
+    process_year(conn, year)
+    conn.close()
     print("Done.")
 
 
