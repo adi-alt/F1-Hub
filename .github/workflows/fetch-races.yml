@@ -24,7 +24,7 @@ jobs:
       - name: Fetch current season (no year/round hardcoded — always "whatever's current")
         run: python pipeline/fetch_races.py
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # Deliberately a second step in the same job, not a separate workflow: predictions are
       # meaningless without this run's freshly-fetched data, and running both in one job on one
@@ -32,4 +32,4 @@ jobs:
       - name: Train and freeze predictions for anything newly ready
         run: python pipeline/train_predict.py
         env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
