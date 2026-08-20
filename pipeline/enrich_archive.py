@@ -1,27 +1,29 @@
-"""Enriches existing archive_races docs (see fetch_archive.py, which already ran the base
+"""Enriches existing archive_races rows (see fetch_archive.py, which already ran the base
 1950-2017 backfill once and isn't touched here) with data the original run either dropped
 (finish time, driver code, fastest lap, Wikipedia report URL — all sitting in the same /results
 response already fetched the first time, just not selected) or never fetched at all (qualifying,
 pit stops — two genuinely new per-race calls). Sprint results aren't fetched: sprints didn't
 exist until 2021, well past this archive's 2017 cutoff, so every call would come back empty.
 
-Idempotent via an `enrichedAt` field on each doc — safe to interrupt and resume, same "field
-already there, skip" convention fetch_archive.py uses (there via doc existence, here via a field
-on a doc that already exists).
+Idempotent via archive_races.enriched_at — safe to interrupt and resume, same "already have it,
+skip" convention fetch_archive.py uses (there via row existence, here via a timestamp column on a
+row that already exists).
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python enrich_archive.py                 # every un-enriched race, 1950-2017
   python enrich_archive.py 1994             # a single season
   python enrich_archive.py 1994 2000        # an inclusive year range
 """
 
+import json
 import sys
 import time
 from datetime import datetime, timezone
 
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, format_timedelta, init_firestore, timedelta_seconds, trigger_revalidation, with_retry
+from ergast_utils import clean, format_timedelta, init_postgres, timedelta_seconds, trigger_revalidation, upsert, with_retry
 
 EARLIEST_YEAR = 1950
 LATEST_YEAR = datetime.now().year - 1
@@ -96,13 +98,10 @@ def fetch_pit_stops(year: int, round_num: int) -> list[dict]:
     ]
 
 
-def enrich_race(db, doc_snap):
-    data = doc_snap.to_dict()
-    year, round_num, doc_id = data["year"], data["round"], doc_snap.id
-
+def enrich_race(cur, race_id: str, year: int, round_num: int):
     extra_by_driver, wikipedia_url = fetch_results_enrichment(year, round_num)
     if not extra_by_driver:
-        print(f"  {doc_id}: no results on re-fetch, skipping")
+        print(f"  {race_id}: no results on re-fetch, skipping")
         return
     time.sleep(REQUEST_DELAY_SEC)
 
@@ -110,25 +109,52 @@ def enrich_race(db, doc_snap):
     time.sleep(REQUEST_DELAY_SEC)
     pit_stops = fetch_pit_stops(year, round_num)
 
-    empty_extra = {"time": None, "driverCode": None, "fastestLap": None}
-    enriched_results = [
-        {**r, **extra_by_driver.get(r["driverId"], empty_extra)} for r in data["results"]
-    ]
-
-    with_retry(
-        lambda: doc_snap.reference.update(
-            {
-                "results": enriched_results,
-                "qualifying": qualifying,
-                "pitStops": pit_stops,
-                "wikipediaUrl": wikipedia_url,
-                "enrichedAt": datetime.now(timezone.utc).isoformat(),
-            }
+    # Partial UPDATEs onto rows fetch_archive.py already inserted (not upsert() - those rows
+    # already have their other required columns filled in; this only ever adds the three fields
+    # the original backfill dropped).
+    for driver_id, extra in extra_by_driver.items():
+        cur.execute(
+            "update archive_results set time = %s, driver_code = %s, fastest_lap = %s "
+            "where archive_race_id = %s and driver_id = %s",
+            (extra["time"], extra["driverCode"], json.dumps(extra["fastestLap"]) if extra["fastestLap"] else None, race_id, driver_id),
         )
+
+    quali_rows = [
+        {
+            "archive_race_id": race_id,
+            "driver_id": q["driverId"],
+            "position": q["position"],
+            "driver_name": q["driverName"],
+            "constructor": q["constructor"],
+            "q1": q["q1"],
+            "q2": q["q2"],
+            "q3": q["q3"],
+        }
+        for q in qualifying
+    ]
+    upsert(cur, "archive_qualifying", quali_rows, ["archive_race_id", "driver_id"])
+
+    pitstop_rows = [
+        {
+            "archive_race_id": race_id,
+            "driver_id": p["driverId"],
+            "stop": p["stop"],
+            "lap": p["lap"],
+            "time": p["time"],
+            "duration_sec": p["durationSec"],
+        }
+        for p in pit_stops
+    ]
+    upsert(cur, "archive_pit_stops", pitstop_rows, ["archive_race_id", "driver_id", "stop"])
+
+    cur.execute(
+        "update archive_races set wikipedia_url = %s, enriched_at = %s where id = %s",
+        (wikipedia_url, datetime.now(timezone.utc), race_id),
     )
-    has_fastest_lap = any(r["fastestLap"] for r in enriched_results)
+
+    has_fastest_lap = any(e["fastestLap"] for e in extra_by_driver.values())
     print(
-        f"  {doc_id}: enriched (qualifying={len(qualifying)}, pitStops={len(pit_stops)}, "
+        f"  {race_id}: enriched (qualifying={len(qualifying)}, pitStops={len(pit_stops)}, "
         f"fastestLap={'yes' if has_fastest_lap else 'no'})"
     )
 
@@ -142,15 +168,19 @@ def main():
     else:
         start, end = int(args[0]), int(args[1])
 
-    db = init_firestore()
-    docs = list(
-        db.collection("archive_races").where("year", ">=", start).where("year", "<=", end).stream()
-    )
-    docs = [d for d in docs if "enrichedAt" not in d.to_dict()]
-    print(f"{len(docs)} races to enrich (year {start}-{end})")
-    for doc_snap in docs:
-        enrich_race(db, doc_snap)
-        time.sleep(REQUEST_DELAY_SEC)
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        cur.execute(
+            "select id, year, round from archive_races where year >= %s and year <= %s and enriched_at is null "
+            "order by year, round",
+            (start, end),
+        )
+        rows = cur.fetchall()
+        print(f"{len(rows)} races to enrich (year {start}-{end})")
+        for race_id, year, round_num in rows:
+            enrich_race(cur, race_id, year, round_num)
+            time.sleep(REQUEST_DELAY_SEC)
+    conn.close()
     trigger_revalidation()
     print("Done.")
 

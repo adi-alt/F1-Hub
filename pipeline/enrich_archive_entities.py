@@ -1,20 +1,21 @@
 """Builds driver and team indexes for archive's "browse by racer"/"browse by team" facets — pure
-Firestore aggregation, no Ergast/Wikipedia/weather calls at all, since driverId/driverName/
-constructor are already sitting in every race doc's results[]. Safe to run anytime, including
+Postgres aggregation, no Ergast/Wikipedia/weather calls at all, since driver_id/driver_name/
+constructor already live on every archive_results row. Safe to run anytime, including
 concurrently with the other three archive enrichment scripts — it touches none of their external
 APIs, so there's no shared rate limit to worry about.
 
 (Renamed from enrich_archive_drivers.py once this also started building archive_teams — same
 script, wider scope, not two.)
 
-Writes flat `driverIds: string[]` / `teamIds: string[]` fields onto each archive_races doc — the
-only way to make "every race this driver/team appears in" a real Firestore query
-(`array-contains`) instead of scanning every doc's nested results array by hand — and (re)builds
-the small archive_drivers / archive_teams collections from the *entire* archive every run,
-regardless of what year range was passed for the driverIds/teamIds write. That split matters: the
-per-race write is naturally incremental/resumable (same as every other archive enrichment pass),
-but the aggregate indexes have to see every race to be correct — rebuilding them from just
-whatever range happens to have been requested would silently truncate them down to that range.
+The old Firestore version also wrote flat `driverIds: string[]` / `teamIds: string[]` fields onto
+each archive_races doc — the only way to make "every race this driver/team appears in" a real
+Firestore query (`array-contains`) instead of scanning every doc's nested results array by hand.
+Postgres never needed that workaround: `getArchiveRacesByDriver`/`getArchiveRacesByTeam` are real
+joins against archive_results, so that whole function is gone, not ported. What's still genuinely
+needed from this script is archive_results.team_id itself (the resolved slug the FK from
+archive_results to archive_teams depends on) and the archive_drivers/archive_teams tables — both
+rebuilt from the *entire* archive every run, not just whatever range was requested: the aggregate
+indexes have to see every race to be correct.
 
 A team's identity here is a slug of its constructor display name (e.g. "Red Bull" -> "red_bull")
 — not a stable Ergast constructorId, since that field was never captured by fetch_archive.py.
@@ -26,15 +27,13 @@ display name reused decades later for a genuinely different team ("Mercedes" 195
 gets a small explicit carve-out instead: see EARLY_ERA_OVERRIDES below.
 
 Run:
-  python enrich_archive_entities.py             # every race missing driverIds/teamIds, full range
-  python enrich_archive_entities.py 1994        # a single season
-  python enrich_archive_entities.py 1994 2000   # an inclusive year range
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
+  python enrich_archive_entities.py
 """
 
 import re
-import sys
 
-from ergast_utils import init_firestore, trigger_revalidation, with_retry
+from ergast_utils import init_postgres, trigger_revalidation, upsert
 
 # A handful of display names have been reused, decades apart, for a genuinely different
 # real-world team — not a rename of the same outfit, just the same name coming back. team_slug()
@@ -100,153 +99,139 @@ def team_slug(name: str, year: int) -> str:
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
-def write_entity_ids(db, start, end):
-    query = db.collection("archive_races")
-    if start is not None:
-        query = query.where("year", ">=", start)
-    if end is not None:
-        query = query.where("year", "<=", end)
-    # "teamIds" is the field that matters here, not "driverIds" — every doc already got
-    # driverIds from this script's previous incarnation (enrich_archive_drivers.py), so gating on
-    # that alone would skip every race and never backfill the new teamIds field onto anything.
-    # Also force a recompute for any race carrying one of the EARLY_ERA_OVERRIDES names, even if
-    # teamIds was already written before that table existed — otherwise an old, wrongly-merged id
-    # would stick around on the race doc forever even after archive_teams itself gets fixed below.
-    def needs_write(data):
-        if "teamIds" not in data:
-            return True
-        return any(
-            r.get("constructor") in COLLISION_NAMES or r.get("constructor") in CONSTRUCTOR_CANONICALIZATION
-            for r in data.get("results", [])
-        )
-
-    docs = [d for d in query.stream() if needs_write(d.to_dict())]
-    print(f"{len(docs)} races need driverIds/teamIds written")
-    for i, doc in enumerate(docs):
-        data = doc.to_dict()
-        results = data.get("results", [])
-        driver_ids = [r["driverId"] for r in results if r.get("driverId")]
-        team_ids = sorted({team_slug(r["constructor"], data["year"]) for r in results if r.get("constructor")})
-        with_retry(lambda ref=doc.reference, d=driver_ids, t=team_ids: ref.update({"driverIds": d, "teamIds": t}))
-        if (i + 1) % 100 == 0:
-            print(f"  ...{i + 1}/{len(docs)}")
-
-
-def rebuild_indexes(db):
+def rebuild_indexes(cur):
     print("Rebuilding archive_drivers/archive_teams from the full archive...")
-    all_docs = list(db.collection("archive_races").stream())
+    cur.execute(
+        "select ar.id, ar.year, res.driver_id, res.driver_name, res.driver_code, res.constructor "
+        "from archive_results res join archive_races ar on ar.id = res.archive_race_id"
+    )
     drivers = {}
     teams = {}
-    for doc in all_docs:
-        data = doc.to_dict()
-        year = data["year"]
-        # A race has ~2 result rows per team (one per car) — teams_seen_this_race dedupes so a
-        # team's raceCount below counts races entered, not result rows/cars entered.
-        teams_seen_this_race = set()
-        for r in data.get("results", []):
-            driver_id = r.get("driverId")
-            constructor = r.get("constructor")
-            if constructor:
-                constructor = CONSTRUCTOR_CANONICALIZATION.get(constructor, constructor)
+    # A race has ~2 result rows per team (one per car) - dedupes so a team's raceCount counts
+    # races entered, not result rows/cars entered. One set for the whole run, keyed on
+    # (team_id, archive_race_id) - rows here are flat, not grouped by race the way the Firestore
+    # nested results array naturally was, so there's no per-race loop to reset it between.
+    team_races_seen = set()
+    for archive_race_id, year, driver_id, driver_name, driver_code, constructor in cur.fetchall():
+        if constructor:
+            constructor = CONSTRUCTOR_CANONICALIZATION.get(constructor, constructor)
 
-            if driver_id:
-                entry = drivers.setdefault(
-                    driver_id,
-                    {
-                        "driverId": driver_id,
-                        "name": r.get("driverName"),
-                        "code": None,
-                        "firstYear": year,
-                        "lastYear": year,
-                        "raceCount": 0,
-                        "constructors": set(),  # sorted into a list below — no Firestore set type
-                    },
-                )
-                entry["firstYear"] = min(entry["firstYear"], year)
-                entry["lastYear"] = max(entry["lastYear"], year)
-                entry["raceCount"] += 1
-                if r.get("driverCode"):
-                    entry["code"] = r["driverCode"]
-                if r.get("driverName"):
-                    entry["name"] = r["driverName"]
-                if constructor:
-                    entry["constructors"].add(constructor)
-
+        if driver_id:
+            entry = drivers.setdefault(
+                driver_id,
+                {
+                    "driverId": driver_id,
+                    "name": driver_name,
+                    "code": None,
+                    "firstYear": year,
+                    "lastYear": year,
+                    "raceCount": 0,
+                    "constructors": set(),
+                },
+            )
+            entry["firstYear"] = min(entry["firstYear"], year)
+            entry["lastYear"] = max(entry["lastYear"], year)
+            entry["raceCount"] += 1
+            if driver_code:
+                entry["code"] = driver_code
+            if driver_name:
+                entry["name"] = driver_name
             if constructor:
-                team_id = team_slug(constructor, year)
-                team_entry = teams.setdefault(
-                    team_id,
-                    {
-                        "teamId": team_id,
-                        "name": constructor,
-                        "firstYear": year,
-                        "lastYear": year,
-                        "raceCount": 0,
-                        "drivers": set(),
-                    },
-                )
-                team_entry["firstYear"] = min(team_entry["firstYear"], year)
-                team_entry["lastYear"] = max(team_entry["lastYear"], year)
-                if team_id not in teams_seen_this_race:
-                    team_entry["raceCount"] += 1
-                    teams_seen_this_race.add(team_id)
-                if r.get("driverName"):
-                    team_entry["drivers"].add(r["driverName"])
-                team_entry["name"] = constructor  # keep the most-recently-seen display spelling
+                entry["constructors"].add(constructor)
+
+        if constructor:
+            team_id = team_slug(constructor, year)
+            team_entry = teams.setdefault(
+                team_id,
+                {"teamId": team_id, "name": constructor, "firstYear": year, "lastYear": year, "raceCount": 0, "drivers": set()},
+            )
+            team_entry["firstYear"] = min(team_entry["firstYear"], year)
+            team_entry["lastYear"] = max(team_entry["lastYear"], year)
+            race_key = (team_id, archive_race_id)
+            if race_key not in team_races_seen:
+                team_entry["raceCount"] += 1
+                team_races_seen.add(race_key)
+            if driver_name:
+                team_entry["drivers"].add(driver_name)
+            team_entry["name"] = constructor  # keep the most-recently-seen display spelling
 
     print(f"{len(drivers)} unique drivers, {len(teams)} unique teams found; writing indexes")
-    batch = db.batch()
-    count = 0
-    for driver_id, entry in drivers.items():
-        entry["constructors"] = sorted(entry["constructors"])
-        batch.set(db.collection("archive_drivers").document(driver_id), entry)
-        count += 1
-        if count % 400 == 0:
-            with_retry(lambda b=batch: b.commit())
-            batch = db.batch()
-    for team_id, entry in teams.items():
-        entry["drivers"] = sorted(entry["drivers"])
-        batch.set(db.collection("archive_teams").document(team_id), entry)
-        count += 1
-        if count % 400 == 0:
-            with_retry(lambda b=batch: b.commit())
-            batch = db.batch()
-    with_retry(lambda b=batch: b.commit())
 
-    # These collections are meant to be a full overwrite every run (see module docstring), but
-    # .set() on a computed id only ever adds/updates — it never removes a doc whose id this run
-    # no longer produces. That happened for real: adding CONSTRUCTOR_CANONICALIZATION made ids
-    # like "mclaren_ford" stop being generated, but the old docs kept sitting in Firestore until
-    # deleted by hand. Deleting anything not in this run's own id set closes that gap for good.
-    stale_drivers = [
-        doc.reference for doc in db.collection("archive_drivers").select([]).stream() if doc.id not in drivers
+    driver_rows = [
+        {
+            "driver_id": d["driverId"],
+            "name": d["name"],
+            "code": d["code"],
+            "first_year": d["firstYear"],
+            "last_year": d["lastYear"],
+            "race_count": d["raceCount"],
+            "constructors": sorted(d["constructors"]),
+        }
+        for d in drivers.values()
     ]
-    stale_teams = [doc.reference for doc in db.collection("archive_teams").select([]).stream() if doc.id not in teams]
-    if stale_drivers or stale_teams:
-        print(f"removing {len(stale_drivers)} stale driver docs, {len(stale_teams)} stale team docs")
-        batch = db.batch()
-        count = 0
-        for ref in stale_drivers + stale_teams:
-            batch.delete(ref)
-            count += 1
-            if count % 400 == 0:
-                with_retry(lambda b=batch: b.commit())
-                batch = db.batch()
-        with_retry(lambda b=batch: b.commit())
+    upsert(cur, "archive_drivers", driver_rows, ["driver_id"])
+
+    team_rows = [
+        {
+            "team_id": t["teamId"],
+            "name": t["name"],
+            "first_year": t["firstYear"],
+            "last_year": t["lastYear"],
+            "race_count": t["raceCount"],
+            "drivers": sorted(t["drivers"]),
+        }
+        for t in teams.values()
+    ]
+    upsert(cur, "archive_teams", team_rows, ["team_id"])
+
+    # Full-overwrite semantics every run (see module docstring): upsert only adds/updates, it never
+    # removes a row this run no longer produces - the exact bug that let stale "mclaren_ford"-style
+    # rows linger in Firestore after CONSTRUCTOR_CANONICALIZATION stopped generating them. Deleting
+    # anything not in this run's own id set closes that gap for good.
+    cur.execute("select driver_id from archive_drivers")
+    stale_drivers = [row[0] for row in cur.fetchall() if row[0] not in drivers]
+    cur.execute("select team_id from archive_teams")
+    stale_teams = [row[0] for row in cur.fetchall() if row[0] not in teams]
+    if stale_drivers:
+        print(f"removing {len(stale_drivers)} stale driver rows")
+        cur.execute("delete from archive_drivers where driver_id = any(%s)", (stale_drivers,))
+    if stale_teams:
+        print(f"removing {len(stale_teams)} stale team rows")
+        cur.execute("delete from archive_teams where team_id = any(%s)", (stale_teams,))
+
+    return teams
+
+
+def update_team_ids(cur, known_team_ids):
+    """archive_results.team_id itself - the resolved slug the FK to archive_teams depends on.
+    Recomputes from today's team_slug() logic rather than only filling in nulls, so a newly added
+    CONSTRUCTOR_CANONICALIZATION/EARLY_ERA_OVERRIDES entry corrects rows that already had a
+    (now-stale) team_id, not just ones that never got one."""
+    cur.execute(
+        "select res.archive_race_id, res.driver_id, res.constructor, res.team_id, ar.year "
+        "from archive_results res join archive_races ar on ar.id = res.archive_race_id "
+        "where res.constructor is not null"
+    )
+    to_update = []
+    for archive_race_id, driver_id, constructor, current_team_id, year in cur.fetchall():
+        new_team_id = team_slug(constructor, year)
+        if new_team_id != current_team_id and new_team_id in known_team_ids:
+            to_update.append((new_team_id, archive_race_id, driver_id))
+
+    print(f"{len(to_update)} archive_results rows need team_id recomputed")
+    for new_team_id, archive_race_id, driver_id in to_update:
+        cur.execute(
+            "update archive_results set team_id = %s where archive_race_id = %s and driver_id = %s",
+            (new_team_id, archive_race_id, driver_id),
+        )
 
 
 def main():
-    args = sys.argv[1:]
-    if len(args) == 0:
-        start, end = None, None
-    elif len(args) == 1:
-        start = end = int(args[0])
-    else:
-        start, end = int(args[0]), int(args[1])
-
-    db = init_firestore()
-    write_entity_ids(db, start, end)
-    rebuild_indexes(db)
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        known_team_ids = rebuild_indexes(cur)
+        update_team_ids(cur, known_team_ids)
+    conn.close()
     trigger_revalidation()
     print("Done.")
 

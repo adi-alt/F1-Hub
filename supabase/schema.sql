@@ -139,7 +139,8 @@ create table archive_races (
   wikipedia_url text,                   -- this race's own report page, separate from the circuit's
   weather jsonb,                        -- ArchiveWeather: raw WMO code + readings, opaque blob
   circuit_id text references archive_circuits (circuit_id),  -- null until that enrichment pass reaches this race
-  laps_backfilled boolean not null default false
+  laps_backfilled boolean not null default false,
+  enriched_at timestamptz  -- set once enrich_archive.py has added qualifying/pit stops/wiki/fastest lap for this race
 );
 create index archive_races_year_idx on archive_races (year);
 create index archive_races_circuit_name_idx on archive_races (circuit_name);
