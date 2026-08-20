@@ -1,13 +1,13 @@
-"""Backfills the archive_races/{id}/laps subcollection (lap-by-lap position + time per driver),
-available from Ergast/Jolpi starting in 1996 (confirmed directly: present for 1996, absent for
-1995 — nothing to fetch before that year).
+"""Backfills the archive_laps table (lap-by-lap position + time per driver), available from
+Ergast/Jolpi starting in 1996 (confirmed directly: present for 1996, absent for 1995 — nothing to
+fetch before that year).
 
 A separate, much heavier script from enrich_archive.py: ~1,300 timing rows for a single 66-lap
 race means ~14 paginated requests per race (Jolpi caps every response at 100 rows regardless of
 what's requested), versus 1-2 requests total for everything enrich_archive.py adds. Deliberately
-its own run with its own idempotency flag (`lapsBackfilled` on the race doc) rather than folded
-into that script — different runtime profile, different failure surface (many subcollection
-writes per race instead of one field update).
+its own run with its own idempotency flag (`laps_backfilled` on the race row) rather than folded
+into that script — different runtime profile, different failure surface (many child-table rows
+per race instead of one field update).
 
 IMPORTANT: fastf1's Ergast response `.is_complete` property checks the *original* request's
 limit against the total (`limit >= total`), not cumulative offset+rows-returned — so for any
@@ -18,6 +18,7 @@ offset+limit vs total instead of trusting that property — trusting it would ha
 dropped every race's final partial page.
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python enrich_archive_laps.py             # every un-backfilled race, 1996-2017
   python enrich_archive_laps.py 2010        # a single season
   python enrich_archive_laps.py 2010 2015   # an inclusive year range
@@ -31,7 +32,7 @@ import pandas as pd
 import requests
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, format_timedelta, init_firestore, trigger_revalidation, with_retry
+from ergast_utils import clean, format_timedelta, init_postgres, trigger_revalidation, upsert, with_retry
 
 EARLIEST_YEAR = 1996  # confirmed via direct API check — nothing before this
 LATEST_YEAR = datetime.now().year - 1
@@ -135,33 +136,28 @@ def fetch_all_laps(year: int, round_num: int):
     return pd.concat(pages, ignore_index=True)
 
 
-def enrich_laps(db, doc_snap):
-    data = doc_snap.to_dict()
-    year, round_num, doc_id = data["year"], data["round"], doc_snap.id
-
+def enrich_laps(cur, race_id: str, year: int, round_num: int):
     df = fetch_all_laps(year, round_num)
     if df is None or df.empty:
-        print(f"  {doc_id}: no lap data available, marking backfilled")
-        with_retry(lambda: doc_snap.reference.update({"lapsBackfilled": True}))
+        print(f"  {race_id}: no lap data available, marking backfilled")
+        cur.execute("update archive_races set laps_backfilled = true where id = %s", (race_id,))
         return
 
-    laps_ref = doc_snap.reference.collection("laps")
-    batch = db.batch()
-    lap_count = 0
-    for lap_number, group in df.groupby("number"):
-        timings = [
-            {
-                "driverId": clean(row.get("driverId")),
-                "time": format_timedelta(row.get("time")),
-                "position": clean(row.get("position")),
-            }
-            for row in group.to_dict("records")
-        ]
-        batch.set(laps_ref.document(str(int(lap_number))), {"lap": int(lap_number), "timings": timings})
-        lap_count += 1
-    batch.update(doc_snap.reference, {"lapsBackfilled": True})
-    with_retry(lambda: batch.commit())
-    print(f"  {doc_id}: wrote {lap_count} laps ({len(df)} total timing rows)")
+    rows = [
+        {
+            "archive_race_id": race_id,
+            "lap_number": int(lap_number),
+            "driver_id": clean(row.get("driverId")),
+            "position": clean(row.get("position")),
+            "time": format_timedelta(row.get("time")),
+        }
+        for lap_number, group in df.groupby("number")
+        for row in group.to_dict("records")
+        if clean(row.get("driverId"))
+    ]
+    upsert(cur, "archive_laps", rows, ["archive_race_id", "lap_number", "driver_id"])
+    cur.execute("update archive_races set laps_backfilled = true where id = %s", (race_id,))
+    print(f"  {race_id}: wrote {len(rows)} lap timing rows across {df['number'].nunique()} laps")
 
 
 def main():
@@ -174,15 +170,19 @@ def main():
         start, end = int(args[0]), int(args[1])
     start = max(start, EARLIEST_YEAR)
 
-    db = init_firestore()
-    docs = list(
-        db.collection("archive_races").where("year", ">=", start).where("year", "<=", end).stream()
-    )
-    docs = [d for d in docs if not d.to_dict().get("lapsBackfilled")]
-    print(f"{len(docs)} races need lap data (year {start}-{end})")
-    for doc_snap in docs:
-        enrich_laps(db, doc_snap)
-        time.sleep(REQUEST_DELAY_SEC)
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        cur.execute(
+            "select id, year, round from archive_races where year >= %s and year <= %s "
+            "and not laps_backfilled order by year, round",
+            (start, end),
+        )
+        rows = cur.fetchall()
+        print(f"{len(rows)} races need lap data (year {start}-{end})")
+        for race_id, year, round_num in rows:
+            enrich_laps(cur, race_id, year, round_num)
+            time.sleep(REQUEST_DELAY_SEC)
+    conn.close()
     trigger_revalidation()
     print("Done.")
 
