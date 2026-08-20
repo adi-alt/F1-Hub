@@ -299,10 +299,19 @@ alter publication supabase_realtime add table races;
 create table groups (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  avatar_url text,                      -- Supabase Storage url, once Storage is wired up (later phase)
+  avatar_url text,                      -- Supabase Storage url (see the group-avatars bucket below)
   created_by uuid not null references profiles (id),
   created_at timestamptz not null default now()
 );
+
+-- Storage is wired up: one public bucket, since a group avatar is exactly as sensitive as the
+-- OAuth-provider avatars ProfileMenu.tsx already renders unauthenticated (a public image URL).
+-- Uploaded through /api/groups/[id]/avatar via supabaseAdmin (service role), same trust model as
+-- every other write in this app — no storage.objects RLS policy needed, since the browser never
+-- talks to Storage directly. 2MB cap, 3 mime types, enforced by the bucket itself as a backstop
+-- behind the route handler's own checks.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('group-avatars', 'group-avatars', true, 2097152, array['image/png', 'image/jpeg', 'image/webp']);
 
 create table group_members (
   group_id uuid not null references groups (id) on delete cascade,
@@ -337,10 +346,13 @@ create table group_race_scores (
 alter table groups enable row level security;
 alter table group_members enable row level security;
 alter table group_race_scores enable row level security;
--- Select-only policies for now — a user can see a group, its membership, and its scoreboard only
--- if they're actually a member. Renaming a group, changing its avatar, promoting/removing a
--- member: no policy yet, deliberately, since that UI doesn't exist yet either. Noting that here
--- so it reads as "not built yet" rather than "forgotten" next time this file is read.
+-- A user can see a group, its membership, and its scoreboard only if they're actually a member.
+-- These policies are defense-in-depth, not the actual enforcement mechanism — every real read/
+-- write goes through supabaseAdmin (service role, bypasses RLS), which re-checks membership
+-- itself (src/lib/supabase/groups.ts's requireMember) the same way it always has for every other
+-- table. Promoting/removing a member still has no policy, deliberately - that UI doesn't exist
+-- yet either. Noting that here so it reads as "not built yet" rather than "forgotten" next time
+-- this file is read.
 create policy "members can view their groups" on groups for select
   using (id in (select group_id from group_members where user_id = auth.uid()));
 create policy "members can view group membership" on group_members for select
@@ -349,3 +361,12 @@ create policy "members can view their group's scores" on group_race_scores for s
   using (group_id in (select group_id from group_members where user_id = auth.uid()));
 create policy "creating a group" on groups for insert with check (auth.uid() = created_by);
 create policy "joining a group" on group_members for insert with check (auth.uid() = user_id);
+create policy "admins can update their group" on groups for update
+  using (id in (select group_id from group_members where user_id = auth.uid() and role = 'admin'));
+
+-- Lets GroupRealtimeWatcher (src/components/GroupRealtimeWatcher.tsx) push a group's page live the
+-- moment compute_group_scores.py writes a new score or another member joins via the invite link -
+-- same idea as the `races` publication above, just declared down here since these two tables don't
+-- exist yet at that earlier point in this file (alter publication needs the table to already exist).
+alter publication supabase_realtime add table group_race_scores;
+alter publication supabase_realtime add table group_members;

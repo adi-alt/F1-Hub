@@ -206,3 +206,11 @@ export async function getCurrentEntrants(year: number): Promise<{ driver: string
     ? withEntrants.results.map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team }))
     : (withEntrants.inputs ?? []).map((i) => ({ driver: i.driver, driverName: i.driverName, team: i.team }));
 }
+
+/** Deliberately not the `unstable_cache`-wrapped `getRace` — this exists only to enforce the pick
+ * lock server-side (saveUserPick, src/lib/supabase/picks.ts), where a stale up-to-300s-old
+ * "still upcoming" reading would let someone sneak a pick in after the race actually started. */
+export async function getRaceStatus(raceId: string): Promise<RaceDoc["status"] | null> {
+  const { data } = await supabaseAdmin.from("races").select("status").eq("id", raceId).maybeSingle();
+  return (data?.status as RaceDoc["status"] | undefined) ?? null;
+}

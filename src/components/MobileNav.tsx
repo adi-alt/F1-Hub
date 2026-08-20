@@ -9,6 +9,7 @@ const baseLinks = [
   { href: seasonHref(2026), label: "Season" },
   { href: "/circuits", label: "Circuits" },
   { href: "/archive", label: "Archive" },
+  { href: "/groups", label: "Groups" },
 ];
 
 export function MobileNav({

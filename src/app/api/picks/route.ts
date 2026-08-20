@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserPick, saveUserPick } from "@/lib/supabase/picks";
 import { getSession } from "@/lib/session/getSession";
+import { ServiceError } from "@/services/errors";
 
 /**
  * Deliberately a separate dynamic endpoint rather than reading the session in the race page
@@ -40,11 +41,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid pick" }, { status: 400 });
   }
 
-  await saveUserPick(session.uid, {
-    raceId,
-    predictedWinner,
-    predictedPodium: predictedPodium as [string, string, string],
-    submittedAt: new Date().toISOString(),
-  });
+  try {
+    await saveUserPick(session.uid, {
+      raceId,
+      predictedWinner,
+      predictedPodium: predictedPodium as [string, string, string],
+      submittedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    throw err;
+  }
   return NextResponse.json({ ok: true });
 }

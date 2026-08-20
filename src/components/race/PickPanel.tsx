@@ -6,6 +6,8 @@ import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 type Status = "idle" | "loading" | "saving" | "saved" | "error";
 
+const DEFAULT_ERROR = "Pick 3 different drivers.";
+
 function toFormState(data: UserPick) {
   return { p1: data.predictedPodium[0], p2: data.predictedPodium[1], p3: data.predictedPodium[2] };
 }
@@ -14,6 +16,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
   const { user, isAuthorized, loading } = useAuth();
   const [pick, setPick] = useState({ p1: "", p2: "", p3: "" });
   const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState(DEFAULT_ERROR);
 
   useEffect(() => {
     // isAuthorized, not raw user — a session mid-OTP-flow isn't a real one yet.
@@ -54,6 +57,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
   async function submit() {
     if (!user) return;
     if (!pick.p1 || !pick.p2 || !pick.p3 || new Set([pick.p1, pick.p2, pick.p3]).size !== 3) {
+      setErrorMessage(DEFAULT_ERROR);
       setStatus("error");
       return;
     }
@@ -64,7 +68,11 @@ export function PickPanel({ race }: { race: RaceDoc }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ raceId: race.id, predictedWinner: pick.p1, predictedPodium: [pick.p1, pick.p2, pick.p3] }),
       });
-      if (!res.ok) throw new Error("save failed");
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErrorMessage(body?.error ?? DEFAULT_ERROR);
+        throw new Error("save failed");
+      }
       setStatus("saved");
     } catch {
       setStatus("error");
@@ -109,7 +117,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
         </button>
       )}
       {status === "saved" && <p className="mt-2 text-xs text-neutral-500">Saved.</p>}
-      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">Pick 3 different drivers.</p>}
+      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">{errorMessage}</p>}
 
       {actualPodium && (
         <p className="mt-4 text-xs text-neutral-500">

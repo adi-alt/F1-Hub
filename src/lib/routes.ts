@@ -37,3 +37,9 @@ export function archiveDriverHref(driverId: string): string {
 export function archiveTeamHref(teamId: string): string {
   return `/archive?team=${encodeURIComponent(teamId)}`;
 }
+
+// Not query-param routed, unlike the above — a group is a real resource with its own id-scoped
+// page, same style as /profile or /models, not a filtered view over a shared collection.
+export function groupHref(id: string): string {
+  return `/groups/${id}`;
+}

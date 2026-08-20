@@ -33,3 +33,10 @@ jobs:
         run: python pipeline/train_predict.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # Depends only on the results this same run's first step just fetched, not on train_predict's
+      # ML output — ordered after it anyway since there's no reason to run before results exist.
+      - name: Score group picks for any race that now has a real result
+        run: python pipeline/compute_group_scores.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
