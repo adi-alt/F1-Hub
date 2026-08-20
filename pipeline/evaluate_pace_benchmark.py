@@ -1,44 +1,34 @@
-"""Computes and freezes the Pace model's benchmark in Firestore (`modelBenchmarks/{modelVersion}`)
-and a local reproducibility manifest (`benchmarks/pace/{modelVersion}.json`) — see
-ml/predict_pace.py's pace_chronological_backtest for the per-race mechanics. Run on demand (when
-the model or underlying data changes), not on a schedule, same as evaluate_pole_benchmark.py.
+"""Computes and freezes the Pace model's benchmark in the `model_benchmarks` table and a local
+reproducibility manifest (`benchmarks/pace/{modelVersion}.json`) — see ml/predict_pace.py's
+pace_chronological_backtest for the per-race mechanics. Run on demand (when the model or underlying
+data changes), not on a schedule, same as evaluate_pole_benchmark.py.
 
 This is the first *permanent* Pace benchmark harness — the original v2 (no-tyre) 0.903 MAE number
 came from a one-off script that was deleted after use, and a later reconstruction attempt landed on
 a different, unreconcilable number. Never overwrite a benchmark this script produces: if the model
 changes again, bump MODEL_VERSION in ml/predict_pace.py first, so the new run writes a new
-Firestore doc and a new manifest file instead of replacing this one.
+model_benchmarks row and a new manifest file instead of replacing this one.
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python pipeline/evaluate_pace_benchmark.py
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
 
-import firebase_admin
-from firebase_admin import credentials, firestore
 from scipy.stats import spearmanr
 
+from ergast_utils import init_postgres, upsert
 from ml.pace_features import PACE_FEATURE_ORDER
 from ml.predict_pace import MODEL_VERSION, MONOTONIC_CST, pace_chronological_backtest
 from ml.tyre_features import build_tyre_trait_history
-from train_predict import to_pace_rows, to_tyre_rows
-
-
-def init_firestore():
-    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not raw:
-        raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
-    return firestore.client()
+from train_predict import load_race_docs, to_pace_rows, to_tyre_rows
 
 
 def _git_commit() -> str:
@@ -51,8 +41,9 @@ def _git_commit() -> str:
 
 
 def main():
-    db = init_firestore()
-    docs = [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        docs = load_race_docs(cur, "status = 'completed'", ())
     docs.sort(key=lambda d: (d["year"], d["round"]))
 
     all_tyre_rows = []
@@ -110,14 +101,21 @@ def main():
     }
 
     evaluated_at = datetime.now(timezone.utc).isoformat()
-    db.collection("modelBenchmarks").document(MODEL_VERSION).set(
-        {
-            "modelVersion": MODEL_VERSION,
-            "evaluatedAt": evaluated_at,
-            "aggregate": aggregate,
-            "perRace": per_race,
-        }
-    )
+    with conn.cursor() as cur:
+        upsert(
+            cur,
+            "model_benchmarks",
+            [
+                {
+                    "id": MODEL_VERSION,
+                    "model": "pace",
+                    "generated_at": evaluated_at,
+                    "metrics": json.dumps({"aggregate": aggregate, "perRace": per_race}),
+                }
+            ],
+            ["id"],
+        )
+    conn.close()
 
     manifest = {
         "model": "pace",
@@ -137,7 +135,7 @@ def main():
         "targetDefinition": "fastest_lap_sec minus that race's fastest lap (paceGapSec)",
         "dnfHandling": "excluded from target — a DNF driver's fastest lap before retiring isn't a race-pace measurement",
         "randomSeed": 42,
-        "firestoreDoc": f"modelBenchmarks/{MODEL_VERSION}",
+        "modelBenchmarksRow": f"model_benchmarks/{MODEL_VERSION}",
         "metrics": aggregate,
     }
     manifest_path = Path(__file__).resolve().parent / "benchmarks" / "pace" / f"{MODEL_VERSION}.json"
@@ -147,7 +145,7 @@ def main():
     print(f"Benchmark for {MODEL_VERSION}:")
     for key, value in aggregate.items():
         print(f"  {key}: {value}")
-    print(f"Wrote modelBenchmarks/{MODEL_VERSION} ({len(per_race)} per-race records) and {manifest_path}")
+    print(f"Wrote model_benchmarks/{MODEL_VERSION} ({len(per_race)} per-race records) and {manifest_path}")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 {
   "model": "finish",
   "version": "sklearn-rf-v2-elo",
-  "gitCommit": "6f310420e5cfe40d18879422f75e057df95a0cdd",
-  "evaluatedAt": "2026-08-11T07:35:24.554445+00:00",
+  "gitCommit": "ddc872e78b0712d82fd51305172581c2799db5b3",
+  "evaluatedAt": "2026-08-20T06:06:09.553628+00:00",
   "evaluationPopulation": "2018-2026",
   "raceCount": 175,
   "warmupRule": "first round of each season excluded (no prior same-season data); no other minimum",
@@ -27,7 +27,7 @@
   "targetDefinition": "classified finish position, blended with a grid-baseline shrink while same-season training data is small (see _blend_with_grid)",
   "dnfHandling": "included \u2014 DNF drivers keep their classified finish position",
   "randomSeed": 42,
-  "firestoreDoc": "modelBenchmarks/sklearn-rf-v2-elo",
+  "modelBenchmarksRow": "model_benchmarks/sklearn-rf-v2-elo",
   "metrics": {
     "mae": 3.453,
     "gridBaselineMae": 3.615,

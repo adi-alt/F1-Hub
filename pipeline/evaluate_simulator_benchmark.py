@@ -1,6 +1,6 @@
 """Computes and freezes the Monte Carlo simulator's benchmark (Pace + DNF + simulate_race +
-walk-forward calibration) in Firestore (`modelBenchmarks/{modelVersion}`) and a local
-reproducibility manifest (`benchmarks/simulator/{modelVersion}.json`).
+walk-forward calibration) in the `model_benchmarks` table and a local reproducibility manifest
+(`benchmarks/simulator/{modelVersion}.json`).
 
 This is the first *permanent* simulator benchmark harness — previous validations (v1, v1.1, v1.2,
 the Step-5 tyre-vs-simulator comparison) all lived in one-off scripts that were deleted after use,
@@ -11,23 +11,22 @@ simulator's mechanics change (this file currently reflects `simulator-v2`, ml/si
 correlated race/team/individual noise decomposition — see that module's docstring).
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python pipeline/evaluate_simulator_benchmark.py
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
 
-import firebase_admin
 import numpy as np
-from firebase_admin import credentials, firestore
 from scipy.stats import spearmanr
 
+from ergast_utils import init_postgres, upsert
 from ml.calibrate_probabilities import (
     apply_p1_calibrator,
     apply_podium_calibrator,
@@ -46,21 +45,12 @@ from ml.simulate_race import (
     simulate_race,
 )
 from ml.tyre_features import build_tyre_trait_history, current_tyre_traits
-from train_predict import _quali_lookup, to_dnf_rows, to_pace_rows, to_tyre_rows
+from train_predict import _quali_lookup, load_race_docs, to_dnf_rows, to_pace_rows, to_tyre_rows
 
 MODEL_VERSION = "simulator-v2"
 DNF_WARMUP_ROWS = 50
 N_SIMULATIONS = 10_000
 WARMUP_ROUNDS_PER_SEASON = 8  # Step 4/4.1/4.2's own validations used this; kept for continuity.
-
-
-def init_firestore():
-    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not raw:
-        raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
-    return firestore.client()
 
 
 def _git_commit() -> str:
@@ -73,8 +63,9 @@ def _git_commit() -> str:
 
 
 def main():
-    db = init_firestore()
-    docs = [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        docs = load_race_docs(cur, "status = 'completed'", ())
     docs.sort(key=lambda d: (d["year"], d["round"]))
     print(f"{len(docs)} completed races")
 
@@ -211,9 +202,21 @@ def main():
     }
 
     evaluated_at = datetime.now(timezone.utc).isoformat()
-    db.collection("modelBenchmarks").document(MODEL_VERSION).set(
-        {"modelVersion": MODEL_VERSION, "evaluatedAt": evaluated_at, "aggregate": aggregate}
-    )
+    with conn.cursor() as cur:
+        upsert(
+            cur,
+            "model_benchmarks",
+            [
+                {
+                    "id": MODEL_VERSION,
+                    "model": "simulator",
+                    "generated_at": evaluated_at,
+                    "metrics": json.dumps({"aggregate": aggregate}),
+                }
+            ],
+            ["id"],
+        )
+    conn.close()
 
     manifest = {
         "model": "simulator",
@@ -244,7 +247,7 @@ def main():
         },
         "safetyCarRate": GLOBAL_SC_RATE,
         "randomSeed": 42,
-        "firestoreDoc": f"modelBenchmarks/{MODEL_VERSION}",
+        "modelBenchmarksRow": f"model_benchmarks/{MODEL_VERSION}",
         "metrics": aggregate,
     }
     manifest_path = Path(__file__).resolve().parent / "benchmarks" / "simulator" / f"{MODEL_VERSION}.json"
@@ -254,7 +257,7 @@ def main():
     print(f"Benchmark for {MODEL_VERSION}:")
     for key, value in aggregate.items():
         print(f"  {key}: {value}")
-    print(f"Wrote modelBenchmarks/{MODEL_VERSION} and {manifest_path}")
+    print(f"Wrote model_benchmarks/{MODEL_VERSION} and {manifest_path}")
 
 
 if __name__ == "__main__":

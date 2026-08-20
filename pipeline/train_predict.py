@@ -285,8 +285,9 @@ def build_pole_prediction(
 
 
 def load_race_docs(cur, where_clause: str, params: tuple) -> list[dict]:
-    """Reconstructs the Firestore-doc shape ({id, year, round, status, practice, qualifying, race,
-    prediction, polePrediction, simulation}) every function above was written against, from
+    """Reconstructs the Firestore-doc shape ({id, year, round, eventName, status, practice,
+    qualifying, race, prediction, polePrediction, simulation}) every function above (and the
+    evaluate_*_benchmark.py scripts, which import this directly) was written against, from
     `races` joined against its two real child tables (`race_inputs` = the old qualifying.grid
     array, `race_results` = the old race.results array) — the read-side counterpart of the
     partial UPDATEs update_race() does below. One extra pair of queries per race rather than a
@@ -296,19 +297,25 @@ def load_race_docs(cur, where_clause: str, params: tuple) -> list[dict]:
     simulation too, fields that one deliberately leaves out since sync_calendar.py never needs them.
     """
     cur.execute(
-        f"select id, year, round, status, practice, tire_compound_pace, prediction, "
+        f"select id, year, round, name, status, practice, tire_compound_pace, prediction, "
         f"pole_prediction, simulation from races where {where_clause} order by year, round",
         params,
     )
     races = cur.fetchall()
     docs = []
-    for race_id, year, round_num, status, practice, tire_compound_pace, prediction, pole_prediction, simulation in races:
+    for race_id, year, round_num, event_name, status, practice, tire_compound_pace, prediction, pole_prediction, simulation in races:
         cur.execute(
             "select driver, driver_name, team, grid, qualifying_gap_sec from race_inputs where race_id = %s",
             (race_id,),
         )
+        # `numeric` columns come back from psycopg2 as decimal.Decimal, not float (Postgres has no
+        # native IEEE-double column type the way Firestore stored every number) — every ml/*.py
+        # function downstream does plain Python arithmetic assuming float (confirmed the hard way:
+        # Decimal survives silently through sklearn/numpy, which auto-casts on the way in, but
+        # crashes the instant it hits raw Python arithmetic, e.g. predict_pace.py's own MAE calc).
+        # Cast at this one read boundary rather than chase it through every consumer.
         grid = [
-            {"driver": d, "driverName": dn, "team": t, "gridPosition": g, "qualifyingGapSec": qg}
+            {"driver": d, "driverName": dn, "team": t, "gridPosition": g, "qualifyingGapSec": float(qg) if qg is not None else None}
             for d, dn, t, g, qg in cur.fetchall()
         ]
         cur.execute(
@@ -324,7 +331,7 @@ def load_race_docs(cur, where_clause: str, params: tuple) -> list[dict]:
                 "gridPosition": g,
                 "finishPosition": fp,
                 "status": st,
-                "fastestLapSec": fl,
+                "fastestLapSec": float(fl) if fl is not None else None,
             }
             for d, dn, t, g, fp, st, fl in cur.fetchall()
         ]
@@ -333,6 +340,7 @@ def load_race_docs(cur, where_clause: str, params: tuple) -> list[dict]:
                 "id": race_id,
                 "year": year,
                 "round": round_num,
+                "eventName": event_name,
                 "status": status,
                 "practice": practice,
                 "qualifying": {"grid": grid} if grid else None,

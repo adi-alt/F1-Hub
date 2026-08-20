@@ -1,7 +1,7 @@
-"""Computes and freezes the Finish model's benchmark in Firestore (`modelBenchmarks/{modelVersion}`)
-and a local reproducibility manifest (`benchmarks/finish/{modelVersion}.json`) — see
-ml/predict_finish.py's chronological_backtest for the per-race mechanics. Run on demand, not on a
-schedule, same as evaluate_pole_benchmark.py.
+"""Computes and freezes the Finish model's benchmark in the `model_benchmarks` table and a local
+reproducibility manifest (`benchmarks/finish/{modelVersion}.json`) — see ml/predict_finish.py's
+chronological_backtest for the per-race mechanics. Run on demand, not on a schedule, same as
+evaluate_pole_benchmark.py.
 
 The frozen 3.453 MAE figure quoted elsewhere in this project predates this script — it came from a
 one-off validation run that was never persisted this way. This script doesn't assume that number is
@@ -10,33 +10,22 @@ benchmark this script produces: if the model changes again, bump MODEL_VERSION i
 ml/predict_finish.py first.
 
 Run:
+  export DATABASE_URL='<the pooled connection string, see .env.local>'
   python pipeline/evaluate_finish_benchmark.py
 """
 
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
 
-import firebase_admin
-from firebase_admin import credentials, firestore
-
+from ergast_utils import init_postgres, upsert
 from ml.features import FEATURE_ORDER
 from ml.predict_finish import MODEL_VERSION, MONOTONIC_CST, chronological_backtest
-from train_predict import to_training_rows
-
-
-def init_firestore():
-    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if not raw:
-        raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
-    return firestore.client()
+from train_predict import load_race_docs, to_training_rows
 
 
 def _git_commit() -> str:
@@ -49,8 +38,9 @@ def _git_commit() -> str:
 
 
 def main():
-    db = init_firestore()
-    docs = [d.to_dict() for d in db.collection("races").where("status", "==", "completed").stream()]
+    conn = init_postgres()
+    with conn.cursor() as cur:
+        docs = load_race_docs(cur, "status = 'completed'", ())
     docs.sort(key=lambda d: (d["year"], d["round"]))
 
     by_year: dict[int, list[dict]] = {}
@@ -87,14 +77,21 @@ def main():
     }
 
     evaluated_at = datetime.now(timezone.utc).isoformat()
-    db.collection("modelBenchmarks").document(MODEL_VERSION).set(
-        {
-            "modelVersion": MODEL_VERSION,
-            "evaluatedAt": evaluated_at,
-            "aggregate": aggregate,
-            "perRace": per_race,
-        }
-    )
+    with conn.cursor() as cur:
+        upsert(
+            cur,
+            "model_benchmarks",
+            [
+                {
+                    "id": MODEL_VERSION,
+                    "model": "finish",
+                    "generated_at": evaluated_at,
+                    "metrics": json.dumps({"aggregate": aggregate, "perRace": per_race}),
+                }
+            ],
+            ["id"],
+        )
+    conn.close()
 
     manifest = {
         "model": "finish",
@@ -111,7 +108,7 @@ def main():
         "targetDefinition": "classified finish position, blended with a grid-baseline shrink while same-season training data is small (see _blend_with_grid)",
         "dnfHandling": "included — DNF drivers keep their classified finish position",
         "randomSeed": 42,
-        "firestoreDoc": f"modelBenchmarks/{MODEL_VERSION}",
+        "modelBenchmarksRow": f"model_benchmarks/{MODEL_VERSION}",
         "metrics": aggregate,
     }
     manifest_path = Path(__file__).resolve().parent / "benchmarks" / "finish" / f"{MODEL_VERSION}.json"
@@ -121,7 +118,7 @@ def main():
     print(f"Benchmark for {MODEL_VERSION}:")
     for key, value in aggregate.items():
         print(f"  {key}: {value}")
-    print(f"Wrote modelBenchmarks/{MODEL_VERSION} ({len(per_race)} per-race records) and {manifest_path}")
+    print(f"Wrote model_benchmarks/{MODEL_VERSION} ({len(per_race)} per-race records) and {manifest_path}")
 
 
 if __name__ == "__main__":

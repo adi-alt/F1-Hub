@@ -1,8 +1,8 @@
 {
   "model": "pace",
   "version": "sklearn-rf-v3-pace-tyre",
-  "gitCommit": "6f310420e5cfe40d18879422f75e057df95a0cdd",
-  "evaluatedAt": "2026-08-11T07:32:36.781582+00:00",
+  "gitCommit": "ddc872e78b0712d82fd51305172581c2799db5b3",
+  "evaluatedAt": "2026-08-20T06:17:40.656567+00:00",
   "evaluationPopulation": "2018-2026",
   "raceCount": 175,
   "warmupRule": "len(train) >= 10 rows per season \u2014 mirrors predict_pace_gaps' own production fallback threshold, not a fixed round-count warmup",
@@ -31,13 +31,13 @@
   "targetDefinition": "fastest_lap_sec minus that race's fastest lap (paceGapSec)",
   "dnfHandling": "excluded from target \u2014 a DNF driver's fastest lap before retiring isn't a race-pace measurement",
   "randomSeed": 42,
-  "firestoreDoc": "modelBenchmarks/sklearn-rf-v3-pace-tyre",
+  "modelBenchmarksRow": "model_benchmarks/sklearn-rf-v3-pace-tyre",
   "metrics": {
     "mae": 0.865,
     "naiveMae": 1.323,
-    "spearman": 0.67,
-    "pooledSpearman": 0.585,
-    "r2": 0.002,
+    "spearman": 0.672,
+    "pooledSpearman": 0.586,
+    "r2": -0.003,
     "evaluatedRounds": 175,
     "totalDriverRows": 2990,
     "seasons": [
