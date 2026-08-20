@@ -31,7 +31,7 @@ import fastf1
 import numpy as np
 import pandas as pd
 
-from ergast_utils import init_postgres, upsert
+from ergast_utils import init_postgres, trigger_revalidation, upsert
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -433,6 +433,10 @@ def main():
                 continue
             build_and_push(cur, year, round_num)
     conn.close()
+    # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
+    # with the race page or home page open right now sees this run's data the moment their
+    # RaceRealtimeWatcher notices the row changed, not up to 300s later.
+    trigger_revalidation("races")
     print("Done.")
 
 

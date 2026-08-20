@@ -144,13 +144,16 @@ async function withCalendarPlaceholders(year: number, races: RaceDoc[]): Promise
 }
 
 /** A single race by (year, round) — round, not a slug, is the stable key a URL can carry. */
+// Tagged "races" (not per-race) so one trigger_revalidation("races") call from the pipeline
+// busts every one of these caches together — see RaceRealtimeWatcher's docstring for why a
+// realtime refresh does nothing on its own without this.
 export const getRace = unstable_cache(
   async (year: number, round: number): Promise<RaceDoc | null> => {
     const { data } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).eq("round", round).maybeSingle();
     return data ? toRaceDoc(data as RaceRow) : null;
   },
   ["get-race"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
 );
 
 /** A season's races in calendar order, including rounds `races` has no row for yet (see
@@ -162,7 +165,7 @@ export const getRacesByYear = unstable_cache(
     return withCalendarPlaceholders(year, races);
   },
   ["get-races-by-year"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
 );
 
 /**
@@ -177,7 +180,7 @@ export const getRacesByCircuit = unstable_cache(
     return ((data ?? []) as RaceRow[]).map(toRaceDoc);
   },
   ["get-races-by-circuit"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
 );
 
 /** The next race on the calendar that isn't marked completed yet, for the home page's hero card —
@@ -189,7 +192,7 @@ export const getNextUpcomingRace = unstable_cache(
     return races.find((r) => r.status !== "completed") ?? null;
   },
   ["get-next-upcoming-race"],
-  { revalidate: REVALIDATE_SECONDS },
+  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
 );
 
 /** The current grid — driver/team pairs from the most recent race with real results or a real

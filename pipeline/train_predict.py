@@ -24,7 +24,7 @@ import json
 import sys
 from datetime import datetime, timezone
 
-from ergast_utils import init_postgres
+from ergast_utils import init_postgres, trigger_revalidation
 from ml.calibrate_probabilities import (
     apply_p1_calibrator,
     apply_podium_calibrator,
@@ -536,6 +536,9 @@ def main():
     print(f"Training/predicting for {year}...")
     process_year(conn, year)
     conn.close()
+    # Same reasoning as fetch_races.py's call — a frozen prediction/pole/simulation is exactly
+    # the kind of change RaceRealtimeWatcher exists to surface immediately.
+    trigger_revalidation("races")
     print("Done.")
 
 

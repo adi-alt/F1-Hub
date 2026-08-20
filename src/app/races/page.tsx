@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { HighlightsPanel } from "@/components/race/HighlightsPanel";
 import { ModelInfo } from "@/components/race/ModelInfo";
 import { PickPanel } from "@/components/race/PickPanel";
@@ -42,6 +43,7 @@ export default async function RacePage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <RaceRealtimeWatcher raceId={race.id} />
       <Link href={seasonHref(race.year)} className="text-sm text-neutral-500 hover:text-neutral-300">
         ← {race.year} season
       </Link>

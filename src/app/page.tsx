@@ -1,3 +1,4 @@
+import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { AboutSection } from "@/components/home/AboutSection";
 import { Hero } from "@/components/home/Hero";
 import { NextRaceCard } from "@/components/home/NextRaceCard";
@@ -31,6 +32,7 @@ export default async function HomePage() {
   return (
     <>
       <Hero />
+      <RaceRealtimeWatcher />
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <NextRaceCard race={nextRace} />
       </section>

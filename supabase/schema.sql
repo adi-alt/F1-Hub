@@ -278,6 +278,17 @@ create policy "public read" on races for select using (true);
 -- (repeat "public read" policies for race_results, race_inputs, tire_stints, archive_*, calendar,
 --  model_benchmarks — omitted here for brevity, same one-liner each)
 
+-- ============================================================= realtime
+
+-- Lets RaceRealtimeWatcher (src/components/RaceRealtimeWatcher.tsx) push the race page and home
+-- page live the moment the pipeline writes something, instead of waiting for a manual reload or
+-- the next 300s ISR window. Just `races` is enough signal: every pipeline write that matters
+-- (qualifying landing, results landing, prediction/pole/simulation freezing) always upserts this
+-- same row too (see fetch_races.py/train_predict.py), so a separate race_results/race_inputs
+-- subscription would be redundant. Respects the "public read" policy above the same way any other
+-- select does — no separate grant needed.
+alter publication supabase_realtime add table races;
+
 -- ============================================================= groups
 
 -- Deliberately no separate group_picks table: a member's prediction is their existing row in
