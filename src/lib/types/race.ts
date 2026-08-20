@@ -126,12 +126,18 @@ export type RaceDoc = {
   poleSitter?: string;
   poleTimeSec?: number;
   inputs?: RaceInputEntry[];
-  prediction?: RacePrediction; // not yet populated — Phase 1
-  polePrediction?: PolePrediction; // not yet populated — Phase 1
+  // Freeze rules (train_predict.py): polePrediction stays live until this race's own qualifying
+  // exists, then freezes; prediction is computed once, the first run after qualifying exists and
+  // there's same-season history to train on, then never recomputed. Every already-completed race
+  // as of the Postgres cutover predates that pipeline running against Postgres, so both are still
+  // null there by construction, not a bug — they start populating going forward.
+  prediction?: RacePrediction;
+  polePrediction?: PolePrediction;
   simulation?: RaceSimulation;
   weather?: SessionWeather;
   tireStints?: TireStint[];
   raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
+  photoUrl?: string; // best-effort Wikipedia race-report photo, re-hosted in Storage — see fetch_races.py
 };
 
 export type UserPick = {

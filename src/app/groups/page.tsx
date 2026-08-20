@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { CreateGroupForm } from "./components/CreateGroupForm";
-import { GroupAvatar } from "./components/GroupAvatar";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import { JoinGroupForm } from "./components/JoinGroupForm";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
@@ -45,7 +45,7 @@ export default async function GroupsPage() {
                   className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-4 transition hover:border-white/30"
                 >
                   <div className="flex items-center gap-3">
-                    <GroupAvatar avatarUrl={g.avatarUrl} name={g.name} />
+                    <EntityAvatar imageUrl={g.avatarUrl} name={g.name} />
                     <div>
                       <p className="font-semibold text-white">{g.name}</p>
                       <p className="text-xs text-neutral-500">

@@ -4,35 +4,12 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/supabase/archive";
 import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
 import { safeRead } from "@/lib/safeRead";
+import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
-
-function teamSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-// A handful of current-season teams are the exact same real-world entity, same era, as an
-// existing archive row — just under a different display string: Ergast's archive calls them
-// "Red Bull" / "RB F1 Team" / "Alpine F1 Team", the current season's own live data calls the same
-// teams "Red Bull Racing" / "Racing Bulls" / "Alpine". teamSlug() alone can't catch that, so
-// without this each would show up as a second, near-empty row instead of extending the real one.
-// Deliberately a short explicit list rather than fuzzy name matching: a genuine rebrand into a
-// *new* era (Toro Rosso -> AlphaTauri -> RB F1 Team, Renault -> Alpine F1 Team, Sauber -> Audi)
-// is a real editorial call about whether to treat it as "the same team" across time, not a same-
-// era spelling variant — those stay their own rows in the archive itself (see
-// enrich_archive_entities.py's EARLY_ERA_OVERRIDES for the reverse problem: names *reused* across
-// unrelated eras, like "Mercedes" 1954-55 vs. today).
-const CURRENT_SEASON_TEAM_ALIASES: Record<string, string> = {
-  "red bull racing": "red_bull",
-  "racing bulls": "rb_f1_team",
-  alpine: "alpine_f1_team",
-};
 
 // The current season's own `location` field is the host CITY ("Melbourne"), while archive's own
 // circuit name is the track itself ("Albert Park Grand Prix Circuit") — an exact-name match never
@@ -72,7 +49,7 @@ const CURRENT_SEASON_CIRCUIT_ALIASES: Record<string, string> = {
  * should say "Red Bull" for every year they drove there, not "Red Bull, Red Bull Racing" just
  * because this year's data uses the live season's own name for it. */
 function canonicalTeamName(rawName: string, teamItems: FavoriteEntity[]): string {
-  const slug = CURRENT_SEASON_TEAM_ALIASES[rawName.trim().toLowerCase()] ?? teamSlug(rawName);
+  const slug = archiveSlugForCurrentTeam(rawName);
   return teamItems.find((t) => t.id === slug)?.name ?? rawName;
 }
 
@@ -168,7 +145,7 @@ async function mergeCurrentSeason(
   // need updating from one extra current-season race — only year span/race count change here.
   const teamsBySlug = new Map(teamItems.map((t) => [t.id, t]));
   for (const [name, stats] of teamStats) {
-    const slug = CURRENT_SEASON_TEAM_ALIASES[name.trim().toLowerCase()] ?? teamSlug(name);
+    const slug = archiveSlugForCurrentTeam(name);
     const existing = teamsBySlug.get(slug);
     if (existing) {
       existing.lastYear = year;

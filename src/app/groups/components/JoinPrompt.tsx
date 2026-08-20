@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GroupAvatar } from "./GroupAvatar";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import type { GroupPreview } from "@/lib/supabase/groups";
 
 /** Shown when a signed-in visitor opens an invite link for a group they're not in yet — just
@@ -28,7 +28,7 @@ export function JoinPrompt({ group }: { group: GroupPreview }) {
   return (
     <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-8 text-center">
       <div className="flex justify-center">
-        <GroupAvatar avatarUrl={group.avatarUrl} name={group.name} size={64} />
+        <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={64} />
       </div>
       <h1 className="mt-4 text-2xl font-bold text-white">{group.name}</h1>
       <p className="mt-1 text-sm text-neutral-500">

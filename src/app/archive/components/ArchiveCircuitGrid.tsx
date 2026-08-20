@@ -48,7 +48,7 @@ export function ArchiveCircuitGrid({
             className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40"
           >
             <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
-              {c.imageUrl && <Image src={c.imageUrl} alt="" fill unoptimized className="object-contain p-3" />}
+              {c.imageUrl && <Image src={c.imageUrl} alt={`${c.name ?? c.circuitId} layout`} fill className="object-contain p-3" />}
               <FavoriteButton
                 favorited={favoriteIds.has(c.circuitId)}
                 onToggle={() => onToggleFavorite(c.circuitId)}

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { AvatarUpload } from "../components/AvatarUpload";
-import { GroupAvatar } from "../components/GroupAvatar";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import { InviteLink } from "../components/InviteLink";
 import { JoinPrompt } from "../components/JoinPrompt";
 import { getGroupDetail, getGroupLeaderboard, getGroupPreview, getMemberRole } from "@/lib/supabase/groups";
@@ -41,7 +41,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
       </Link>
 
       <div className="mt-2 flex items-center gap-4">
-        <GroupAvatar avatarUrl={group.avatarUrl} name={group.name} size={56} />
+        <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={56} />
         <div>
           <h1 className="text-2xl font-bold text-white">{group.name}</h1>
           <p className="text-xs text-neutral-500">

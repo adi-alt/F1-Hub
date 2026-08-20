@@ -9,14 +9,14 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] sm:flex">
       {circuit.imageUrl && (
         <div className="relative h-48 w-full shrink-0 bg-black/30 sm:h-auto sm:w-56">
-          {/* Sourced from Wikipedia's own lead image for this circuit — usually the actual track
-              layout, sometimes just a locator photo (see pipeline/enrich_archive_circuits.py).
-              Not necessarily the exact configuration this specific historical year raced on. */}
+          {/* Sourced from Wikipedia's own lead image for this circuit, re-hosted in Supabase
+              Storage — usually the actual track layout, sometimes just a locator photo (see
+              pipeline/enrich_archive_circuits.py). Not necessarily the exact configuration this
+              specific historical year raced on. */}
           <Image
             src={circuit.imageUrl}
             alt={`${circuit.name ?? "Circuit"} layout`}
             fill
-            unoptimized
             className="object-contain p-3"
           />
         </div>
