@@ -25,6 +25,11 @@ jobs:
         run: python pipeline/fetch_races.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Needed now: driver headshots/team logos/race photos get re-hosted into Supabase
+          # Storage as part of this step (see ergast_utils.fetch_and_upload_media), which talks
+          # to Storage's REST API directly, not through DATABASE_URL.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
 
       # Deliberately a second step in the same job, not a separate workflow: predictions are
       # meaningless without this run's freshly-fetched data, and running both in one job on one

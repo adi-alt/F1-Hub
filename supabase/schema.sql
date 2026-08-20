@@ -33,6 +33,11 @@ create table races (
   traffic_stats jsonb,                  -- [{driver, avgGapAheadSec, pctLapsCloseBehind}] - written, not consumed by a model yet
   safety_car_periods int,
   tire_compound_pace jsonb,             -- [{driver, compound, lapCount, avgPaceDeltaSec, degradationSecPerLap}]
+  photo_url text,                       -- best-effort Wikipedia race-report lead image, re-hosted
+                                         -- in Storage (see fetch_races.py's fetch_race_photo) -
+                                         -- often a circuit diagram, not an action/podium photo;
+                                         -- real press photos from the race itself are almost
+                                         -- always copyright-restricted and unavailable on Commons
   updated_at timestamptz not null default now()
 );
 create index races_year_round_idx on races (year, round);
@@ -69,6 +74,46 @@ create table tire_stints (
   lap_count int not null,
   primary key (race_id, driver, stint_number)
 );
+
+-- Current-roster only (not cross-season history like archive_drivers/archive_teams) - one row per
+-- driver/team currently racing, overwritten in place every fetch_races.py run rather than
+-- versioned, since "what does this driver look like right now" has no meaningful history to keep.
+-- driver code is the same 3-letter FastF1 `Abbreviation` race_results.driver already uses, so this
+-- joins onto every existing table with zero new lookup logic; team name is the same free-text
+-- `TeamName` string race_results.team/race_inputs.team already store (no separate id/slug - this
+-- table exists to hang a logo off that same string, not to normalize it).
+--
+-- *_url columns below are always a Supabase Storage `media` bucket URL, never a hotlinked external
+-- one - fetch_races.py/fetch_team_logos.py download the source image (F1's own media CDN,
+-- Wikipedia) and re-upload it, same reasoning group avatars already established: an external host
+-- can rate-limit, add hotlink protection, reorganize its URL scheme, or disappear, and this app
+-- would rather own a copy than find out live. It's also what makes a single next.config.ts
+-- remotePatterns entry (Storage's own host) cover every image in the app, instead of allow-listing
+-- media.formula1.com/upload.wikimedia.org/etc. individually.
+create table drivers (
+  code text primary key,
+  name text not null,
+  team text not null,
+  headshot_url text,
+  updated_at timestamptz not null default now()
+);
+
+create table teams (
+  name text primary key,
+  color text,                           -- FastF1's TeamColor, hex without '#' - already fetched
+                                         -- per-race, never stored until now
+  logo_url text,
+  updated_at timestamptz not null default now()
+);
+
+-- One bucket, path-prefixed (drivers/{code}.png, teams/{slug}.png, circuits/{circuit_id}.png)
+-- rather than one bucket per media type - same trust model as group-avatars (public, uploaded only
+-- via supabaseAdmin/the pipeline's service-role key, never written to by a browser), just shared
+-- since none of these need a different size cap or a different set of allowed types. 10MB, not
+-- 5MB: found live that Wikipedia's own lead image for one circuit (Pescara) is a 7MB PNG -
+-- some circuit diagrams are genuinely that large, this isn't a mistake to clamp down on.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('media', 'media', true, 10485760, array['image/png', 'image/jpeg', 'image/webp']);
 
 -- ============================================================= calendar (pre-FastF1 placeholders)
 
@@ -271,12 +316,17 @@ alter table picks enable row level security;
 create policy "own profile" on profiles for all using (auth.uid() = id);
 create policy "own picks" on picks for all using (auth.uid() = user_id);
 
--- Everything else (races, archive_*, calendar, model_benchmarks) is public read, service-role
--- write only — same trust model as today (Firestore rules already forbid client writes to these).
+-- Everything else (races, archive_*, calendar, model_benchmarks, drivers, teams) is public read,
+-- service-role write only — same trust model as today (Firestore rules already forbid client
+-- writes to these).
 alter table races enable row level security;
 create policy "public read" on races for select using (true);
 -- (repeat "public read" policies for race_results, race_inputs, tire_stints, archive_*, calendar,
 --  model_benchmarks — omitted here for brevity, same one-liner each)
+alter table drivers enable row level security;
+alter table teams enable row level security;
+create policy "public read" on drivers for select using (true);
+create policy "public read" on teams for select using (true);
 
 -- ============================================================= realtime
 

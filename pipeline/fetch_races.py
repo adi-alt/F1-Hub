@@ -30,8 +30,9 @@ from pathlib import Path
 import fastf1
 import numpy as np
 import pandas as pd
+import requests
 
-from ergast_utils import init_postgres, trigger_revalidation, upsert
+from ergast_utils import fetch_and_upload_media, init_postgres, trigger_revalidation, upsert
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -74,6 +75,8 @@ def fetch_qualifying(year: int, round_num: int):
                     "team": row.TeamName,
                     "gridPosition": int(row.Position),
                     "qualifyingGapSec": round(gap, 3) if gap is not None else None,
+                    "headshotUrl": getattr(row, "HeadshotUrl", None),
+                    "teamColor": getattr(row, "TeamColor", None),
                 }
             )
         return {
@@ -178,6 +181,8 @@ def fetch_race(year: int, round_num: int):
                         round(row.Time.total_seconds(), 3) if pd.notna(row.Time) else None
                     ),
                     "fastestLapSec": round(fastest_lap.total_seconds(), 3) if pd.notna(fastest_lap) else None,
+                    "headshotUrl": getattr(row, "HeadshotUrl", None),
+                    "teamColor": getattr(row, "TeamColor", None),
                 }
             )
 
@@ -296,12 +301,79 @@ def slugify(name: str) -> str:
 
 
 def get_existing_race(cur, race_id: str) -> dict | None:
-    cur.execute("select status, practice from races where id = %s", (race_id,))
+    cur.execute("select status, practice, photo_url from races where id = %s", (race_id,))
     row = cur.fetchone()
-    return {"status": row[0], "practice": row[1] or {}} if row else None
+    return {"status": row[0], "practice": row[1] or {}, "photo_url": row[2]} if row else None
 
 
-def build_and_push(cur, year: int, round_num: int):
+def upsize_headshot(url: str | None) -> str | None:
+    """F1's own media CDN serves session.results' HeadshotUrl at a tiny default rendition
+    (.transform/1col/, 93x93) — verified live that swapping the preset to 12col instead (same
+    Scene7-style dynamic-imaging path every size on that CDN uses) returns the same photo at
+    1336x1336, the largest preset that doesn't 400. No new API, no extra request — same URL,
+    different path segment."""
+    return url.replace(".transform/1col/", ".transform/12col/") if url else url
+
+
+def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None:
+    """Upserts `drivers`/`teams` from whichever of this round's qualifying/race sessions
+    succeeded. name/team/color refresh every call (so a mid-season team swap shows up
+    immediately), but a driver's headshot is only fetched-and-reuploaded once — verified
+    unnecessary to repeat (a driver's photo doesn't change race to race) and one more thing this
+    won't do 20 times over on every single scheduled run for the rest of the season.
+
+    Headshot writes are a plain UPDATE, not a second upsert() call, for a real reason: `drivers`
+    has other NOT NULL columns (name/team) with no default, and Postgres's ON CONFLICT DO UPDATE
+    still validates NOT NULL on the *candidate insert row* before it ever checks for a conflict -
+    confirmed live (`null value in column "name" violates not-null constraint`) even though every
+    driver here already has a row from the upsert right above. A plain UPDATE has no such
+    candidate-row step; the row is guaranteed to already exist by this point.
+    """
+    if not entrants:
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+    driver_rows = [{"code": e["driver"], "name": e["driverName"], "team": e["team"], "updated_at": now} for e in entrants]
+    upsert(cur, "drivers", driver_rows, ["code"])
+
+    for e in entrants:
+        if e["driver"] in known_driver_codes or not e.get("headshotUrl"):
+            continue
+        uploaded = fetch_and_upload_media(upsize_headshot(e["headshotUrl"]), "media", f"drivers/{e['driver']}.png")
+        if uploaded:
+            cur.execute("update drivers set headshot_url = %s where code = %s", (uploaded, e["driver"]))
+            known_driver_codes.add(e["driver"])
+
+    team_rows = {e["team"]: {"name": e["team"], "color": e.get("teamColor"), "updated_at": now} for e in entrants}
+    upsert(cur, "teams", list(team_rows.values()), ["name"])
+
+
+def fetch_race_photo(year: int, event_name: str) -> str | None:
+    """Best-effort: this race's own Wikipedia article's lead image, found via the "{year}
+    {EventName}" title every modern F1 race-report article follows (verified live against 2026
+    Hungarian Grand Prix). Deliberately NOT labelled a podium photo anywhere this gets used - an
+    actual press photo from the race itself is almost always copyright-restricted and can't be
+    hosted on Commons, so Wikipedia's own lead image for a recent race is frequently a circuit
+    diagram instead of an action shot. Worth capturing whatever's there regardless; just don't
+    oversell what it is."""
+    title = f"{year}_{event_name.replace(' ', '_')}"
+    try:
+        resp = requests.get(
+            f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
+            headers={"User-Agent": "F1Hub/1.0 (https://apexf1hub.vercel.app; race-photo backfill)"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        image = data.get("originalimage") or data.get("thumbnail")
+        return image.get("source") if image else None
+    except Exception as exc:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"    race photo lookup failed: {exc}")
+        return None
+
+
+def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str]):
     # Event calendar info exists regardless of whether quali/race have happened yet, so it's
     # fetched independently rather than borrowed from whichever session happened to load — that
     # also means the doc id (which needs the event name) doesn't depend on the race having run.
@@ -357,7 +429,18 @@ def build_and_push(cur, year: int, round_num: int):
         race_row["traffic_stats"] = json.dumps(race["trafficStats"])
         race_row["safety_car_periods"] = race["safetyCarPeriods"]
         race_row["tire_compound_pace"] = json.dumps(race["tireCompoundPace"])
+        # Once, not every run - re-hit Wikipedia every 6 hours for a photo that never changes
+        # once found. `existing` (fetched above) already tells us if a prior run already got one.
+        if not (existing and existing.get("photo_url")):
+            photo_source = fetch_race_photo(year, event_name)
+            if photo_source:
+                uploaded = fetch_and_upload_media(photo_source, "media", f"races/{race_id}.png")
+                if uploaded:
+                    race_row["photo_url"] = uploaded
     upsert(cur, "races", [race_row], ["id"])
+
+    roster = race["results"] if race else (qualifying["grid"] if qualifying else [])
+    sync_roster(cur, roster, known_driver_codes)
 
     if qualifying:
         input_rows = [
@@ -427,11 +510,16 @@ def main():
     conn = init_postgres()
     print(f"Processing {len(rounds)} round(s) for {year}: {rounds}")
     with conn.cursor() as cur:
+        # `headshot_url is not null`, not just "has a row" - a row can exist without a photo yet
+        # (a prior run's upload failed, or the driver row was seeded before this backfill ever
+        # ran), and treating that as "already known" would permanently skip it.
+        cur.execute("select code from drivers where headshot_url is not null")
+        known_driver_codes = {r[0] for r in cur.fetchall()}
         for round_num in rounds:
             if is_already_completed(cur, year, round_num):
                 print(f"  round {round_num}: already completed, skipping")
                 continue
-            build_and_push(cur, year, round_num)
+            build_and_push(cur, year, round_num, known_driver_codes)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their

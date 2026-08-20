@@ -29,7 +29,7 @@ from datetime import datetime
 import requests
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, init_postgres, trigger_revalidation, with_retry
+from ergast_utils import clean, fetch_and_upload_media, init_postgres, trigger_revalidation, with_retry
 
 EARLIEST_YEAR = 1950
 LATEST_YEAR = datetime.now().year - 1
@@ -88,7 +88,10 @@ WIKIPEDIA_HEADERS = {
 }
 
 
-def fetch_circuit_image(circuit_url: str):
+def fetch_circuit_image_source(circuit_url: str):
+    """The raw Wikipedia-hosted URL — never stored directly (see fetch_circuit_image below),
+    only ever passed straight into fetch_and_upload_media so the app owns a copy in Storage
+    instead of depending on Wikipedia's hosting staying put."""
     if not circuit_url:
         return None
     title = circuit_url.rstrip("/").rsplit("/", 1)[-1]
@@ -106,6 +109,16 @@ def fetch_circuit_image(circuit_url: str):
     return image.get("source") if image else None
 
 
+def fetch_circuit_image(circuit_id: str, circuit_url: str):
+    """Downloads the Wikipedia source image and re-hosts it in the shared `media` Storage bucket
+    (see ergast_utils.fetch_and_upload_media) — returns the Storage URL that actually gets stored
+    in archive_circuits.image_url, never the Wikipedia one."""
+    source = fetch_circuit_image_source(circuit_url)
+    if not source:
+        return None
+    return fetch_and_upload_media(source, "media", f"circuits/{circuit_id}.png")
+
+
 def enrich_circuit_and_weather(cur, race_id: str, year: int, round_num: int, race_date, seen_circuits: set):
     info = fetch_circuit_info(year, round_num)
     if not info:
@@ -120,7 +133,7 @@ def enrich_circuit_and_weather(cur, race_id: str, year: int, round_num: int, rac
     if circuit_id and circuit_id not in seen_circuits:
         cur.execute("select 1 from archive_circuits where circuit_id = %s", (circuit_id,))
         if cur.fetchone() is None:
-            image_url = fetch_circuit_image(info["circuitUrl"])
+            image_url = fetch_circuit_image(circuit_id, info["circuitUrl"])
             cur.execute(
                 "insert into archive_circuits (circuit_id, name, wikipedia_url, image_url, lat, long) "
                 "values (%s, %s, %s, %s, %s, %s)",

@@ -237,3 +237,59 @@ def trigger_revalidation(tag: str = "archive-data") -> None:
         print(f"  cache revalidation: {resp.status_code}")
     except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
         print(f"  (cache revalidation call failed, non-fatal: {e})")
+
+
+def upload_media(bucket, path, content, content_type):
+    """Pushes `content` into a Supabase Storage bucket via the plain REST API (no supabase-py
+    dependency - every other pipeline script already just uses `requests` directly) and returns
+    the public URL, or None on failure. Best-effort: a missing photo is never worth failing an
+    otherwise-successful fetch run over. Requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SECRET_KEY -
+    the same two vars the Next.js app itself uses for its own service-role client (see
+    src/lib/supabase/admin.ts) - not DATABASE_URL, since Storage is a REST API, not Postgres.
+    """
+    base_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    service_key = os.environ.get("SUPABASE_SECRET_KEY")
+    if not base_url or not service_key:
+        print("    (skipping media upload: NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SECRET_KEY not set)")
+        return None
+    try:
+        resp = with_retry(lambda: requests.post(
+            f"{base_url}/storage/v1/object/{bucket}/{path}",
+            headers={
+                "Authorization": f"Bearer {service_key}",
+                "apikey": service_key,
+                "Content-Type": content_type,
+                "x-upsert": "true",
+            },
+            data=content,
+            timeout=30,
+        ))
+        resp.raise_for_status()
+        return f"{base_url}/storage/v1/object/public/{bucket}/{path}"
+    except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"    media upload failed for {bucket}/{path}: {e}")
+        return None
+
+
+MEDIA_FETCH_HEADERS = {
+    # Wikimedia's image CDN (upload.wikimedia.org), not just its page API, 403s any request with
+    # no identifying User-Agent — confirmed live, the same rule enrich_archive_circuits.py already
+    # discovered for the summary API also applies to the raw image host itself. F1's media CDN
+    # doesn't seem to care either way, but there's no reason to send it a blank one specifically.
+    "User-Agent": "F1Hub-MediaPipeline/1.0 (https://apexf1hub.vercel.app; re-hosting a driver/team/circuit photo)"
+}
+
+
+def fetch_and_upload_media(url, bucket, path):
+    """Downloads an external image and re-hosts it in Supabase Storage - the actual "don't
+    hotlink" step every driver-headshot/team-logo/circuit-image fetch goes through, so the app
+    never depends on F1's or Wikipedia's own hosting staying put. Content-Type comes from the
+    source response (both F1's CDN and Wikipedia set it correctly), not guessed from the URL."""
+    try:
+        resp = with_retry(lambda: requests.get(url, headers=MEDIA_FETCH_HEADERS, timeout=30))
+        resp.raise_for_status()
+        content_type = resp.headers.get("Content-Type", "image/png").split(";")[0]
+        return upload_media(bucket, path, resp.content, content_type)
+    except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"    fetching {url} for re-hosting failed: {e}")
+        return None
