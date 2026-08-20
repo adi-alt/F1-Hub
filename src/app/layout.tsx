@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthDialogHost } from "@/components/auth/AuthDialogHost";
 import { Header } from "@/components/Header";
@@ -37,6 +39,11 @@ export default function RootLayout({
           <SmoothScroll>{children}</SmoothScroll>
           <AuthDialogHost />
         </AppProviders>
+        {/* Zero-config, no dashboard setup needed beyond having the packages installed on a
+            Vercel-hosted project — the closest thing to "monitoring" this app has today (see
+            error.tsx's own note: no dedicated error-tracking service is wired up yet). */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
