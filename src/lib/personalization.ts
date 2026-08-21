@@ -132,6 +132,7 @@ export type TrackTopCurrentTeam = { name: string; wins: number; logoUrl: string 
 
 export type TrackHistory = {
   circuitId: string;
+  circuitImageUrl: string | null;
   totalRaces: number;
   firstYear: number;
   lastYear: number;
@@ -210,8 +211,11 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
     }
   }
 
+  const circuit = await getArchiveCircuit(circuitId);
+
   return {
     circuitId,
+    circuitImageUrl: circuit?.imageUrl ?? null,
     totalRaces: races.length,
     firstYear: races[0].year,
     lastYear: races.at(-1)!.year,
@@ -241,4 +245,80 @@ export async function computeChampionshipProgression(
     }
     return { round: race.round, ...running };
   });
+}
+
+export type Fact = { icon: string; text: string };
+
+/** Every fact here is derived from computeSeasonStandings / getTrackHistory (real
+ * race_results/pole_sitter/archive_results data), never invented copy — an empty array means
+ * there's nothing to compute yet (season hasn't started, no completed races), not a placeholder
+ * to render instead. */
+export function buildFacts(
+  year: number,
+  standings: SeasonStandings,
+  favoriteDriver: FavoriteDriverCard | null,
+  favoriteTeam: FavoriteTeamCard | null,
+  trackHistory: TrackHistory | null,
+): Fact[] {
+  const facts: Fact[] = [];
+
+  const driverLeader = standings.drivers[0];
+  if (driverLeader) {
+    facts.push({
+      icon: "🏆",
+      text: `${driverLeader.driverName} leads the ${year} championship with ${driverLeader.points} points`,
+    });
+  }
+
+  const teamLeader = standings.teams[0];
+  if (teamLeader) {
+    facts.push({ icon: "🏗️", text: `${teamLeader.team} tops the constructors' standings with ${teamLeader.points} points` });
+  }
+
+  const topPole = Object.entries(standings.poleCounts).sort((a, b) => b[1] - a[1])[0];
+  if (topPole) {
+    const [driverCode, count] = topPole;
+    const name = standings.drivers.find((d) => d.driver === driverCode)?.driverName ?? driverCode;
+    facts.push({ icon: "🎯", text: `${name} has the most poles this season (${count})` });
+  }
+
+  if (favoriteDriver?.code) {
+    const rank = standings.drivers.findIndex((d) => d.driver === favoriteDriver.code);
+    if (rank >= 0) {
+      const s = standings.drivers[rank];
+      facts.push({
+        icon: "⭐",
+        text: `Your favorite, ${favoriteDriver.name}, sits P${rank + 1} in the championship with ${s.points} points`,
+      });
+    }
+  }
+
+  if (favoriteTeam?.currentName) {
+    const rank = standings.teams.findIndex((t) => t.team === favoriteTeam.currentName);
+    if (rank >= 0) {
+      const s = standings.teams[rank];
+      facts.push({
+        icon: "🔧",
+        text: `${favoriteTeam.name} sits P${rank + 1} in the constructors' championship with ${s.points} points`,
+      });
+    }
+  }
+
+  // A coincidental crossover between "your favorite" and "who's actually won here the most" -
+  // only fires when they're literally the same person/team, not a fabricated "your favorite has
+  // N wins here" for every driver (that per-track breakdown isn't part of TrackHistory's shape).
+  if (favoriteDriver && trackHistory?.topPerformer?.driverId === favoriteDriver.driverId) {
+    facts.push({
+      icon: "🎉",
+      text: `Your favorite, ${favoriteDriver.name}, is also the winningest driver at the upcoming track — ${trackHistory.topPerformer.wins} wins there`,
+    });
+  }
+  if (favoriteTeam && trackHistory?.topCurrentTeam?.name === favoriteTeam.currentName) {
+    facts.push({
+      icon: "🎉",
+      text: `${favoriteTeam.name} has won more at the upcoming track than any other team still on the grid (${trackHistory.topCurrentTeam.wins} wins)`,
+    });
+  }
+
+  return facts;
 }

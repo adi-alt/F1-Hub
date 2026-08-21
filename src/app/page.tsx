@@ -1,16 +1,15 @@
 import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { AboutSection } from "@/components/home/AboutSection";
-import { FactsSection } from "@/components/home/FactsSection";
 import { FavoritesSection } from "@/components/home/FavoritesSection";
 import { GroupsPreview } from "@/components/home/GroupsPreview";
 import { Hero } from "@/components/home/Hero";
 import { OnboardingTour } from "@/components/home/OnboardingTour";
-import { RaceWeekendDetail } from "@/components/home/RaceWeekendDetail";
-import { StandingsWidget, type StandingsVariant } from "@/components/home/StandingsWidget";
 import { SeasonStrip } from "@/components/home/SeasonStrip";
-import { TrackHistorySection } from "@/components/home/TrackHistorySection";
+import { type StandingsVariant } from "@/components/home/StandingsWidget";
+import { UpcomingRaceCard } from "@/components/home/UpcomingRaceCard";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import {
+  buildFacts,
   computeChampionshipProgression,
   computeSeasonStandings,
   getFavoriteDriverCard,
@@ -75,6 +74,8 @@ export default async function HomePage() {
   const resolvedDrivers = favoriteDrivers.filter((d) => d !== null);
   const resolvedTeams = favoriteTeams.filter((t) => t !== null);
   const resolvedTracks = favoriteTracks.filter((t) => t !== null);
+  const favoriteDriver = resolvedDrivers[0] ?? null;
+  const favoriteTeam = resolvedTeams[0] ?? null;
 
   // The upcoming race's own `circuit` is a raw FastF1 location string ("Zandvoort"), not the
   // archive's circuit_id — same reconciliation profile/page.tsx already needed, reused here
@@ -94,6 +95,7 @@ export default async function HomePage() {
   // component would desync from the server-rendered HTML on hydration (see StandingsWidget's own
   // docstring).
   const standingsVariant = pickStandingsVariant();
+  const facts = buildFacts(year, standings, favoriteDriver, favoriteTeam, trackHistory);
 
   const firstName = profile?.firstName ?? profile?.displayName ?? "there";
   const isReturning = !!profile?.onboardingCompletedAt;
@@ -108,26 +110,19 @@ export default async function HomePage() {
           <h1 className="mt-1 text-3xl font-bold text-white">{firstName}</h1>
         </div>
 
-        {calendarEntry && <RaceWeekendDetail calendar={calendarEntry} />}
-
-        {trackHistory && <TrackHistorySection history={trackHistory} circuitName={nextRace?.circuit ?? trackHistory.circuitId} />}
-
-        {standings.drivers.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold text-white">{year} standings</h2>
-            <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5">
-              <StandingsWidget variant={standingsVariant} drivers={standings.drivers} progression={progression} />
-            </div>
-          </section>
+        {calendarEntry && (
+          <UpcomingRaceCard
+            calendar={calendarEntry}
+            circuitName={nextRace?.circuit ?? calendarEntry.circuit ?? calendarEntry.name ?? "Unknown circuit"}
+            trackHistory={trackHistory}
+            year={year}
+            standings={standings}
+            standingsVariant={standingsVariant}
+            progression={progression}
+            facts={facts}
+          />
         )}
 
-        <FactsSection
-          year={year}
-          standings={standings}
-          favoriteDriver={resolvedDrivers[0] ?? null}
-          favoriteTeam={resolvedTeams[0] ?? null}
-          trackHistory={trackHistory}
-        />
         <FavoritesSection drivers={resolvedDrivers} teams={resolvedTeams} tracks={resolvedTracks} />
         <GroupsPreview uid={session.uid} />
 
