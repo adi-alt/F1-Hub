@@ -187,6 +187,12 @@ create table archive_races (
   country text,
   race_date date,
   wikipedia_url text,                   -- this race's own report page, separate from the circuit's
+  photo_url text,                       -- a real photo (Wikimedia Commons category, not the report
+                                         -- page's own lead image, which is usually a circuit diagram
+                                         -- - see fetch_race_commons_photo), re-hosted in Storage -
+                                         -- see enrich_archive.py's backfill_race_photos(); the
+                                         -- archive-side half of "last N years of real photos per
+                                         -- circuit" (the 2018+ half is races.photo_url)
   weather jsonb,                        -- ArchiveWeather: raw WMO code + readings, opaque blob
   circuit_id text references archive_circuits (circuit_id),  -- null until that enrichment pass reaches this race
   laps_backfilled boolean not null default false,

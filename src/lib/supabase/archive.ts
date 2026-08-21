@@ -97,6 +97,7 @@ export type ArchiveRaceDoc = {
   raceDate: string | null;
   results: ArchiveResultEntry[];
   wikipediaUrl?: string | null;
+  photoUrl?: string | null; // Supabase Storage url — see pipeline/enrich_archive.py's backfill_race_photos()
   qualifying?: ArchiveQualifyingEntry[];
   pitStops?: ArchivePitStopEntry[];
   lapsBackfilled?: boolean;
@@ -115,6 +116,7 @@ type ArchiveRaceRow = {
   country: string | null;
   race_date: string | null;
   wikipedia_url: string | null;
+  photo_url: string | null;
   weather: ArchiveWeather | null;
   circuit_id: string | null;
   laps_backfilled: boolean;
@@ -158,6 +160,7 @@ function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
     country: row.country,
     raceDate: row.race_date,
     wikipediaUrl: row.wikipedia_url,
+    photoUrl: row.photo_url,
     weather: row.weather,
     circuitId: row.circuit_id,
     lapsBackfilled: row.laps_backfilled,

@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { PosterImage } from "./PosterImage";
+import { RotatingBackdrop } from "./RotatingBackdrop";
 import { StandingsWidget, type StandingsVariant } from "./StandingsWidget";
-import type { Fact, SeasonStandings, TrackHistory } from "@/lib/personalization";
+import type { Fact, RecentCircuitPhoto, SeasonStandings, TrackHistory } from "@/lib/personalization";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 
 function formatSessionDate(iso: string): string {
@@ -80,6 +80,7 @@ export function UpcomingRaceCard({
   calendar,
   circuitName,
   trackHistory,
+  recentPhotos,
   year,
   standings,
   standingsVariant,
@@ -89,6 +90,7 @@ export function UpcomingRaceCard({
   calendar: CalendarEntry;
   circuitName: string;
   trackHistory: TrackHistory | null;
+  recentPhotos: RecentCircuitPhoto[];
   year: number;
   standings: SeasonStandings;
   standingsVariant: StandingsVariant;
@@ -99,13 +101,15 @@ export function UpcomingRaceCard({
   const days = raceSession ? daysUntil(raceSession.date) : null;
   const driverPosters = trackHistory ? buildDriverPosters(trackHistory) : [];
   const hasTrackHistory = driverPosters.length > 0 || !!trackHistory?.topCurrentTeam;
+  // Falls back to the circuit's one known image when no recent-season photo has been backfilled
+  // yet (a brand-new track) — RotatingBackdrop itself only rotates once it has 2+ frames, so a
+  // single-photo array here just renders as a still backdrop, same as the old behavior.
+  const backdropPhotos = recentPhotos.length > 0 ? recentPhotos.map((p) => p.url) : trackHistory?.circuitImageUrl ? [trackHistory.circuitImageUrl] : [];
 
   return (
     <section className="overflow-hidden rounded-3xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]">
       <div className="relative flex min-h-[200px] flex-col justify-end overflow-hidden p-6 sm:min-h-[240px] sm:p-8">
-        {trackHistory?.circuitImageUrl && (
-          <Image src={trackHistory.circuitImageUrl} alt="" fill sizes="100vw" className="object-cover opacity-20" />
-        )}
+        <RotatingBackdrop photos={backdropPhotos} />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/75 to-[var(--f1-carbon)]/30" />
         <div className="relative flex flex-wrap items-end justify-between gap-4">
           <div>

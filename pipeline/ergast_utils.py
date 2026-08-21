@@ -280,6 +280,34 @@ MEDIA_FETCH_HEADERS = {
 }
 
 
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # under the media bucket's 10MB file_size_limit, with headroom
+MAX_IMAGE_DIMENSION = 2400  # long edge, px - plenty for a full-bleed website backdrop
+
+
+def _downscale_if_huge(content: bytes, content_type: str):
+    """Commons genuinely hosts multi-ten-megabyte, many-thousand-pixel press photos (verified
+    live: a real 2026 Austrian GP shot at 68MB/68MP) - wildly oversized for a website backdrop,
+    and well past the Storage bucket's file_size_limit. Re-encodes only when actually needed; the
+    huge majority of re-hosted media (headshots, logos, typical circuit photos) is already well
+    under this and passes through untouched, byte-for-byte. Lazy-imports Pillow so nothing outside
+    this one path pays for it."""
+    if len(content) <= MAX_UPLOAD_BYTES:
+        return content, content_type
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        img = Image.open(BytesIO(content))
+        img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
+        buf = BytesIO()
+        img.convert("RGB").save(buf, format="JPEG", quality=85)
+        return buf.getvalue(), "image/jpeg"
+    except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"    downscaling oversized image failed, uploading as-is: {e}")
+        return content, content_type
+
+
 def fetch_and_upload_media(url, bucket, path):
     """Downloads an external image and re-hosts it in Supabase Storage - the actual "don't
     hotlink" step every driver-headshot/team-logo/circuit-image fetch goes through, so the app
@@ -289,7 +317,68 @@ def fetch_and_upload_media(url, bucket, path):
         resp = with_retry(lambda: requests.get(url, headers=MEDIA_FETCH_HEADERS, timeout=30))
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "image/png").split(";")[0]
-        return upload_media(bucket, path, resp.content, content_type)
+        content, content_type = _downscale_if_huge(resp.content, content_type)
+        return upload_media(bucket, path, content, content_type)
     except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
         print(f"    fetching {url} for re-hosting failed: {e}")
+        return None
+
+
+def fetch_race_commons_photo(year, event_name):
+    """A real photo of this specific race, not a circuit diagram - Wikipedia's own per-race
+    article lead image is frequently just a track map (confirmed live: the "2015 Abu Dhabi Grand
+    Prix" article itself leads with a circuit diagram), since actual press photography from a
+    race is almost always copyright-restricted and can't be hosted there. Wikimedia Commons'
+    separate per-race *category* (when one exists) holds real attendee/photographer-contributed
+    photos under a free license instead - verified live across a wide span (1965-2022) that
+    `Category:{year} {event_name}` is the real, consistent naming convention every modern and
+    most historical Commons categories use, the same "{year} {EventName}" pattern the Wikipedia
+    article itself follows.
+
+    Filters to .jpg/.jpeg specifically: a real camera photo is virtually always a JPEG, while
+    circuit diagrams and standings graphics uploaded to the same category are almost always
+    .svg/.png. Returns None if the category doesn't exist or holds no qualifying files - a real,
+    accepted gap for less-documented races (confirmed live: some categories return zero members
+    at all), not an error.
+    """
+    category = f"{year} {event_name}"
+    try:
+        list_resp = with_retry(
+            lambda: requests.get(
+                "https://commons.wikimedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "list": "categorymembers",
+                    "cmtitle": f"Category:{category}",
+                    "cmtype": "file",
+                    "cmlimit": 50,
+                    "format": "json",
+                },
+                headers=MEDIA_FETCH_HEADERS,
+                timeout=15,
+            )
+        )
+        list_resp.raise_for_status()
+        members = list_resp.json().get("query", {}).get("categorymembers", [])
+        photos = [m["title"] for m in members if m["title"].lower().endswith((".jpg", ".jpeg"))]
+        if not photos:
+            return None
+
+        info_resp = with_retry(
+            lambda: requests.get(
+                "https://commons.wikimedia.org/w/api.php",
+                params={"action": "query", "titles": photos[0], "prop": "imageinfo", "iiprop": "url", "format": "json"},
+                headers=MEDIA_FETCH_HEADERS,
+                timeout=15,
+            )
+        )
+        info_resp.raise_for_status()
+        pages = info_resp.json().get("query", {}).get("pages", {})
+        for page in pages.values():
+            imageinfo = page.get("imageinfo")
+            if imageinfo:
+                return imageinfo[0]["url"]
+        return None
+    except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"    Commons photo lookup failed for {category}: {e}")
         return None
