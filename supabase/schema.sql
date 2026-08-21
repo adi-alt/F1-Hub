@@ -160,7 +160,12 @@ create table archive_drivers (
   first_year int,
   last_year int,
   race_count int,
-  constructors text[]                   -- every constructor name this driver's results ever carried
+  constructors text[],                  -- every constructor name this driver's results ever carried
+  date_of_birth date,                   -- Ergast's own get_driver_info(driver=driver_id) - same
+                                         -- per-entity /results.description trick already used for
+                                         -- circuits, not name-guessed (see fetch_archive_driver_media.py)
+  wikipedia_url text,                   -- Ergast's own driverUrl for this driver_id
+  photo_url text                        -- Supabase Storage url, re-hosted from wikipedia_url's lead image
 );
 
 create table archive_teams (
@@ -298,7 +303,9 @@ create table profiles (
   favorite_tracks text[] not null default '{}',
   notify_before_qualifying boolean not null default false,
   notify_on_results boolean not null default false,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  onboarding_completed_at timestamptz    -- null until the homepage tutorial is dismissed; shown
+                                         -- again on every visit until then (see OnboardingTour.tsx)
 );
 
 create table picks (

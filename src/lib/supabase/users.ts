@@ -16,6 +16,7 @@ export type UserProfile = {
   favoriteTracks?: string[];
   notifyBeforeQualifying?: boolean;
   notifyOnResults?: boolean;
+  onboardingCompletedAt?: string; // null until the homepage tutorial is dismissed — see OnboardingTour.tsx
 };
 
 export type PreferencesPatch = Partial<
@@ -50,6 +51,7 @@ type ProfileRow = {
   favorite_tracks: string[];
   notify_before_qualifying: boolean;
   notify_on_results: boolean;
+  onboarding_completed_at: string | null;
 };
 
 function fromRow(row: ProfileRow): UserProfile {
@@ -67,6 +69,7 @@ function fromRow(row: ProfileRow): UserProfile {
     favoriteTracks: row.favorite_tracks?.length ? row.favorite_tracks : undefined,
     notifyBeforeQualifying: row.notify_before_qualifying,
     notifyOnResults: row.notify_on_results,
+    onboardingCompletedAt: row.onboarding_completed_at ?? undefined,
   };
 }
 
@@ -196,4 +199,11 @@ export async function setArchiveFavorite(
   const current = data?.[column] ?? [];
   const next = favorited ? [...new Set([...current, id])] : current.filter((v) => v !== id);
   await supabaseAdmin.from("profiles").update({ [column]: next }).eq("id", uid);
+}
+
+/** The one-way flag OnboardingTour.tsx checks — once set, the tutorial stops showing on every
+ * homepage visit. No "show me again" path yet since nothing asked for one; this is the same kind
+ * of dismiss-once state as any other one-shot product tour. */
+export async function markOnboardingComplete(uid: string): Promise<void> {
+  await supabaseAdmin.from("profiles").update({ onboarding_completed_at: new Date().toISOString() }).eq("id", uid);
 }

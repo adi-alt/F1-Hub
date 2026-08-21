@@ -1,15 +1,17 @@
-import type { FavoriteDriverCard, FavoriteTeamCard, SeasonStandings } from "@/lib/personalization";
+import type { FavoriteDriverCard, FavoriteTeamCard, SeasonStandings, TrackHistory } from "@/lib/personalization";
 
 type Fact = { icon: string; text: string };
 
-/** Every fact here is derived from computeSeasonStandings (real race_results/pole_sitter data),
- * never invented copy — if there's nothing to compute yet (season hasn't started, no completed
- * races), this renders nothing rather than a placeholder. */
+/** Every fact here is derived from computeSeasonStandings / getTrackHistory (real
+ * race_results/pole_sitter/archive_results data), never invented copy — if there's nothing to
+ * compute yet (season hasn't started, no completed races), this renders nothing rather than a
+ * placeholder. */
 function buildFacts(
   year: number,
   standings: SeasonStandings,
   favoriteDriver: FavoriteDriverCard | null,
   favoriteTeam: FavoriteTeamCard | null,
+  trackHistory: TrackHistory | null,
 ): Fact[] {
   const facts: Fact[] = [];
 
@@ -55,6 +57,22 @@ function buildFacts(
     }
   }
 
+  // A coincidental crossover between "your favorite" and "who's actually won here the most" -
+  // only fires when they're literally the same person/team, not a fabricated "your favorite has
+  // N wins here" for every driver (that per-track breakdown isn't part of TrackHistory's shape).
+  if (favoriteDriver && trackHistory?.topPerformer?.driverId === favoriteDriver.driverId) {
+    facts.push({
+      icon: "🎉",
+      text: `Your favorite, ${favoriteDriver.name}, is also the winningest driver at the upcoming track — ${trackHistory.topPerformer.wins} wins there`,
+    });
+  }
+  if (favoriteTeam && trackHistory?.topCurrentTeam?.name === favoriteTeam.currentName) {
+    facts.push({
+      icon: "🎉",
+      text: `${favoriteTeam.name} has won more at the upcoming track than any other team still on the grid (${trackHistory.topCurrentTeam.wins} wins)`,
+    });
+  }
+
   return facts;
 }
 
@@ -63,13 +81,15 @@ export function FactsSection({
   standings,
   favoriteDriver,
   favoriteTeam,
+  trackHistory,
 }: {
   year: number;
   standings: SeasonStandings;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
+  trackHistory: TrackHistory | null;
 }) {
-  const facts = buildFacts(year, standings, favoriteDriver, favoriteTeam);
+  const facts = buildFacts(year, standings, favoriteDriver, favoriteTeam, trackHistory);
   if (facts.length === 0) return null;
 
   return (

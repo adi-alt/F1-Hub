@@ -5,7 +5,7 @@
 // not folded into lib/supabase/* — same role src/lib/highlights.ts and predictionAccuracy.ts
 // already have: a derived view-model layer on top of the data layer, not a data source itself.
 
-import { getArchiveCircuit, getArchiveDriver, getArchiveTeam } from "@/lib/supabase/archive";
+import { getArchiveCircuit, getArchiveDriver, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
@@ -124,4 +124,121 @@ export async function computeSeasonStandings(year: number): Promise<SeasonStandi
     teams: [...teamMap.entries()].map(([team, points]) => ({ team, points })).sort((a, b) => b.points - a.points),
     poleCounts,
   };
+}
+
+export type TrackTopPerformer = { driverId: string; driverName: string; wins: number; photoUrl: string | null; href: string };
+export type TrackYoungestWinner = { driverId: string; driverName: string; year: number; ageYears: number; photoUrl: string | null; href: string };
+export type TrackTopCurrentTeam = { name: string; wins: number; logoUrl: string | null; color: string | null };
+
+export type TrackHistory = {
+  circuitId: string;
+  totalRaces: number;
+  firstYear: number;
+  lastYear: number;
+  topPerformer: TrackTopPerformer | null;
+  youngestWinner: TrackYoungestWinner | null;
+  topCurrentTeam: TrackTopCurrentTeam | null;
+};
+
+function ageInYears(birthDateIso: string, onDateIso: string): number {
+  const birth = new Date(birthDateIso);
+  const on = new Date(onDateIso);
+  let age = on.getFullYear() - birth.getFullYear();
+  const hadBirthdayThisYear = on.getMonth() > birth.getMonth() || (on.getMonth() === birth.getMonth() && on.getDate() >= birth.getDate());
+  if (!hadBirthdayThisYear) age -= 1;
+  return age;
+}
+
+/** Everything the homepage's track-history section needs for the upcoming race's circuit, in one
+ * call. Null if the archive doesn't have this circuit at all yet (a genuinely new-to-the-calendar
+ * track) or has no classified winners on record. driver lookups (getArchiveDriver) are per-race,
+ * not deduplicated by driver first — acceptable at this scale (a circuit's raced at most ~75
+ * times) and each call is `unstable_cache`-backed anyway, so a repeat winner's second lookup
+ * doesn't re-hit Postgres. */
+export async function getTrackHistory(circuitId: string): Promise<TrackHistory | null> {
+  const races = await getArchiveRacesByCircuitId(circuitId);
+  if (races.length === 0) return null;
+
+  const winsByDriver = new Map<string, { driverName: string; wins: number }>();
+  const winsByTeamId = new Map<string, number>();
+  let youngestWinner: TrackYoungestWinner | null = null;
+  let minAgeYears = Infinity;
+
+  for (const race of races) {
+    const winner = race.results.find((r) => r.position === 1);
+    if (!winner) continue;
+
+    const existing = winsByDriver.get(winner.driverId) ?? { driverName: winner.driverName, wins: 0 };
+    existing.wins += 1;
+    winsByDriver.set(winner.driverId, existing);
+
+    if (winner.teamId) winsByTeamId.set(winner.teamId, (winsByTeamId.get(winner.teamId) ?? 0) + 1);
+
+    if (race.raceDate) {
+      const driverInfo = await getArchiveDriver(winner.driverId);
+      if (driverInfo?.dateOfBirth) {
+        const age = ageInYears(driverInfo.dateOfBirth, race.raceDate);
+        if (age < minAgeYears) {
+          minAgeYears = age;
+          youngestWinner = {
+            driverId: winner.driverId,
+            driverName: winner.driverName,
+            year: race.year,
+            ageYears: age,
+            photoUrl: driverInfo.photoUrl,
+            href: archiveDriverHref(winner.driverId),
+          };
+        }
+      }
+    }
+  }
+
+  let topPerformer: TrackTopPerformer | null = null;
+  const topEntry = [...winsByDriver.entries()].sort((a, b) => b[1].wins - a[1].wins)[0];
+  if (topEntry) {
+    const [driverId, info] = topEntry;
+    const driverInfo = await getArchiveDriver(driverId);
+    topPerformer = { driverId, driverName: info.driverName, wins: info.wins, photoUrl: driverInfo?.photoUrl ?? null, href: archiveDriverHref(driverId) };
+  }
+
+  let topCurrentTeam: TrackTopCurrentTeam | null = null;
+  const currentTeams = await getAllCurrentTeams();
+  for (const team of currentTeams) {
+    const wins = winsByTeamId.get(archiveSlugForCurrentTeam(team.name)) ?? 0;
+    if (wins > 0 && (!topCurrentTeam || wins > topCurrentTeam.wins)) {
+      topCurrentTeam = { name: team.name, wins, logoUrl: team.logoUrl, color: team.color };
+    }
+  }
+
+  return {
+    circuitId,
+    totalRaces: races.length,
+    firstYear: races[0].year,
+    lastYear: races.at(-1)!.year,
+    topPerformer,
+    youngestWinner,
+    topCurrentTeam,
+  };
+}
+
+/** Cumulative points per round for a fixed set of drivers — the "curve" half of the homepage's
+ * randomized table-vs-chart fact presentation (computeSeasonStandings is the table/bar half).
+ * One flat object per completed round (`{round, HAM: 45, VER: 60, ...}`) since that's the shape
+ * recharts' own multi-<Line> convention wants — each driver code becomes its own dataKey. */
+export async function computeChampionshipProgression(
+  year: number,
+  driverCodes: string[],
+): Promise<Record<string, number>[]> {
+  const races = await getRacesByYear(year);
+  const completed = races.filter((r) => r.status === "completed").sort((a, b) => a.round - b.round);
+
+  const running: Record<string, number> = {};
+  for (const code of driverCodes) running[code] = 0;
+
+  return completed.map((race) => {
+    for (const r of race.results ?? []) {
+      if (r.driver in running) running[r.driver] += r.points;
+    }
+    return { round: race.round, ...running };
+  });
 }

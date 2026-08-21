@@ -4,14 +4,22 @@ import { FactsSection } from "@/components/home/FactsSection";
 import { FavoritesSection } from "@/components/home/FavoritesSection";
 import { GroupsPreview } from "@/components/home/GroupsPreview";
 import { Hero } from "@/components/home/Hero";
-import { NextRaceCard } from "@/components/home/NextRaceCard";
+import { OnboardingTour } from "@/components/home/OnboardingTour";
+import { RaceWeekendDetail } from "@/components/home/RaceWeekendDetail";
+import { StandingsWidget, type StandingsVariant } from "@/components/home/StandingsWidget";
 import { SeasonStrip } from "@/components/home/SeasonStrip";
+import { TrackHistorySection } from "@/components/home/TrackHistorySection";
+import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import {
+  computeChampionshipProgression,
   computeSeasonStandings,
   getFavoriteDriverCard,
   getFavoriteTeamCard,
   getFavoriteTrackCard,
+  getTrackHistory,
 } from "@/lib/personalization";
+import { getAllArchiveCircuits } from "@/lib/supabase/archive";
+import { getCalendarEntry } from "@/lib/supabase/calendar";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
@@ -23,6 +31,16 @@ import { getSession } from "@/lib/session/getSession";
 // A homepage teaser shows a few, not "all your favorites" (that's what /profile is for) — caps
 // keep the grid readable regardless of how enthusiastically someone's favorited things.
 const FAVORITES_PER_CATEGORY = 3;
+const STANDINGS_VARIANTS: StandingsVariant[] = ["table", "bar", "line"];
+
+// Extracted out of the page component itself: eslint's react-hooks/purity rule flags any impure
+// call (Math.random, Date.now, ...) lexically inside a function it treats as a component - a
+// plain helper sidesteps that, and the *reason* it's fine here still holds regardless: this is a
+// Server Component evaluated once per request, not a client component re-rendering, so a fresh
+// random pick per request is exactly "impure" in the way that's intended, not a bug.
+function pickStandingsVariant(): StandingsVariant {
+  return STANDINGS_VARIANTS[Math.floor(Math.random() * STANDINGS_VARIANTS.length)];
+}
 
 export default async function HomePage() {
   const session = await getSession();
@@ -41,11 +59,12 @@ export default async function HomePage() {
   }
 
   const year = new Date().getFullYear();
-  const [nextRace, races, standings, profile] = await Promise.all([
+  const [nextRace, races, standings, profile, archiveCircuits] = await Promise.all([
     getNextUpcomingRace(year),
     getRacesByYear(year),
     computeSeasonStandings(year),
     getUserProfile(session.uid),
+    getAllArchiveCircuits(),
   ]);
 
   const [favoriteDrivers, favoriteTeams, favoriteTracks] = await Promise.all([
@@ -57,22 +76,66 @@ export default async function HomePage() {
   const resolvedTeams = favoriteTeams.filter((t) => t !== null);
   const resolvedTracks = favoriteTracks.filter((t) => t !== null);
 
+  // The upcoming race's own `circuit` is a raw FastF1 location string ("Zandvoort"), not the
+  // archive's circuit_id — same reconciliation profile/page.tsx already needed, reused here
+  // rather than re-derived (see lib/circuitSlug.ts).
+  const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+  const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
+  const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
+
+  const [calendarEntry, trackHistory] = await Promise.all([
+    nextRace ? getCalendarEntry(nextRace.year, nextRace.round) : null,
+    resolvedCircuitId ? getTrackHistory(resolvedCircuitId) : null,
+  ]);
+
+  const topDriverCodes = standings.drivers.slice(0, 5).map((d) => d.driver);
+  const progression = topDriverCodes.length > 0 ? await computeChampionshipProgression(year, topDriverCodes) : [];
+  // Chosen once per request, server-side, and passed down as a prop — picking it inside a client
+  // component would desync from the server-rendered HTML on hydration (see StandingsWidget's own
+  // docstring).
+  const standingsVariant = pickStandingsVariant();
+
+  const firstName = profile?.firstName ?? profile?.displayName ?? "there";
+  const isReturning = !!profile?.onboardingCompletedAt;
+
   return (
     <>
-      <Hero />
       <RaceRealtimeWatcher />
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <NextRaceCard race={nextRace} />
-      </section>
-      <section className="mx-auto max-w-6xl space-y-12 px-4 pb-16 sm:px-6">
-        <FactsSection year={year} standings={standings} favoriteDriver={resolvedDrivers[0] ?? null} favoriteTeam={resolvedTeams[0] ?? null} />
+      <OnboardingTour initiallyOpen={!isReturning} />
+      <div className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:px-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{isReturning ? "Welcome back" : "Welcome"}</p>
+          <h1 className="mt-1 text-3xl font-bold text-white">{firstName}</h1>
+        </div>
+
+        {calendarEntry && <RaceWeekendDetail calendar={calendarEntry} />}
+
+        {trackHistory && <TrackHistorySection history={trackHistory} circuitName={nextRace?.circuit ?? trackHistory.circuitId} />}
+
+        {standings.drivers.length > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold text-white">{year} standings</h2>
+            <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5">
+              <StandingsWidget variant={standingsVariant} drivers={standings.drivers} progression={progression} />
+            </div>
+          </section>
+        )}
+
+        <FactsSection
+          year={year}
+          standings={standings}
+          favoriteDriver={resolvedDrivers[0] ?? null}
+          favoriteTeam={resolvedTeams[0] ?? null}
+          trackHistory={trackHistory}
+        />
         <FavoritesSection drivers={resolvedDrivers} teams={resolvedTeams} tracks={resolvedTracks} />
         <GroupsPreview uid={session.uid} />
+
         <div>
           <h2 className="mb-4 text-lg font-semibold text-white">{year} Season</h2>
           <SeasonStrip races={races} />
         </div>
-      </section>
+      </div>
     </>
   );
 }

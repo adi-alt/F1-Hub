@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Footer } from "@/components/Footer";
+import { useAuth } from "@/providers/AuthProvider";
 import { useLenisContainer } from "./useLenisContainer";
 
 /**
@@ -16,6 +17,7 @@ import { useLenisContainer } from "./useLenisContainer";
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  const { isAuthorized } = useAuth();
   useLenisContainer(container, undefined, pathname);
 
   // Next.js's built-in "scroll to top on navigation" only touches window scroll — since this
@@ -32,7 +34,10 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
           Lenis thinks is scrollable. */}
       <div className="flex min-h-full flex-col">
         <main className="flex-1">{children}</main>
-        {pathname === "/" && <Footer />}
+        {/* Signed-in visitors get the data-dense homepage now, not the marketing pitch this
+            footer's "Explore"/tagline copy is aimed at — showing it there just repeats nav links
+            already in the header. */}
+        {pathname === "/" && !isAuthorized && <Footer />}
       </div>
     </div>
   );

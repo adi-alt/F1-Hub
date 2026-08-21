@@ -24,6 +24,7 @@ export type ArchiveResultEntry = {
   driverId: string;
   driverName: string;
   constructor: string;
+  teamId: string | null; // resolved/canonicalized slug (team_slug()) — null until enrich_archive_entities.py reaches this row
   time?: string | null;
   driverCode?: string | null;
   fastestLap?: ArchiveFastestLap | null;
@@ -78,6 +79,9 @@ export type ArchiveDriver = {
   lastYear: number;
   raceCount: number;
   constructors?: string[];
+  dateOfBirth: string | null; // ISO date — see pipeline/fetch_archive_driver_media.py
+  wikipediaUrl: string | null;
+  photoUrl: string | null; // Supabase Storage url, re-hosted from wikipediaUrl's lead image
 };
 
 export type ArchiveTeam = { teamId: string; name: string; firstYear: number; lastYear: number; raceCount: number; drivers: string[] };
@@ -124,6 +128,7 @@ type ArchiveRaceRow = {
     points: number | null;
     driver_name: string;
     constructor: string | null;
+    team_id: string | null;
     time: string | null;
     driver_code: string | null;
     fastest_lap: ArchiveFastestLap | null;
@@ -170,6 +175,7 @@ function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
       driverId: r.driver_id,
       driverName: r.driver_name,
       constructor: r.constructor!,
+      teamId: r.team_id,
       time: r.time,
       driverCode: r.driver_code,
       fastestLap: r.fastest_lap,
@@ -309,7 +315,18 @@ export const getArchiveRacesByCircuitId = unstable_cache(
   { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
-type ArchiveDriverRow = { driver_id: string; name: string; code: string | null; first_year: number; last_year: number; race_count: number; constructors: string[] | null };
+type ArchiveDriverRow = {
+  driver_id: string;
+  name: string;
+  code: string | null;
+  first_year: number;
+  last_year: number;
+  race_count: number;
+  constructors: string[] | null;
+  date_of_birth: string | null;
+  wikipedia_url: string | null;
+  photo_url: string | null;
+};
 
 function toArchiveDriver(row: ArchiveDriverRow): ArchiveDriver {
   return {
@@ -320,6 +337,9 @@ function toArchiveDriver(row: ArchiveDriverRow): ArchiveDriver {
     lastYear: row.last_year,
     raceCount: row.race_count,
     constructors: row.constructors ?? undefined,
+    dateOfBirth: row.date_of_birth,
+    wikipediaUrl: row.wikipedia_url,
+    photoUrl: row.photo_url,
   };
 }
 

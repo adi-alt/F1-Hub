@@ -3,6 +3,7 @@ import { PersonalizationTabs, type Tab } from "@/components/profile/Personalizat
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/supabase/archive";
 import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
+import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { safeRead } from "@/lib/safeRead";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
@@ -11,69 +12,12 @@ import { getSession } from "@/lib/session/getSession";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
 
-// The current season's own `location` field is the host CITY ("Melbourne"), while archive's own
-// circuit name is the track itself ("Albert Park Grand Prix Circuit") — an exact-name match never
-// hits, so every circuit on the calendar was showing up as a second, near-empty row instead of
-// extending the real one (confirmed: none of this year's 11 locations-so-far matched by name).
-// Maps straight to the archive's own circuitId (checked against archive_circuits), not a
-// re-derived slug.
-//
-// Three current tracks — Miami, Las Vegas, Losail/Qatar — aren't in archive_circuits at all yet
-// (enrich_archive_circuits.py hasn't reached 2018+), so they're deliberately left unmapped and
-// show as new for now; that's a real, separate, self-resolving gap, not a naming mismatch.
-// "Kuala Lumpur" (2026 calendar round 16, labeled "Bahrain Grand Prix") looks like a genuine data
-// bug in the calendar collection itself — country says Bahrain, location says Malaysia — left
-// unmapped rather than guessed at; worth checking calendar's own source data separately.
-const CURRENT_SEASON_CIRCUIT_ALIASES: Record<string, string> = {
-  melbourne: "albert_park",
-  shanghai: "shanghai",
-  suzuka: "suzuka",
-  montréal: "villeneuve",
-  "monte carlo": "monaco",
-  barcelona: "catalunya",
-  spielberg: "red_bull_ring",
-  silverstone: "silverstone",
-  "spa-francorchamps": "spa",
-  budapest: "hungaroring",
-  zandvoort: "zandvoort",
-  monza: "monza",
-  baku: "baku",
-  "marina bay": "marina_bay",
-  austin: "americas",
-  "mexico city": "rodriguez",
-  "são paulo": "interlagos",
-  "yas marina": "yas_marina",
-};
-
-/** Same aliasing as CURRENT_SEASON_TEAM_ALIASES, but for display: a driver's Companies list
+/** Same aliasing as archiveSlugForCurrentTeam, but for display: a driver's Companies list
  * should say "Red Bull" for every year they drove there, not "Red Bull, Red Bull Racing" just
  * because this year's data uses the live season's own name for it. */
 function canonicalTeamName(rawName: string, teamItems: FavoriteEntity[]): string {
   const slug = archiveSlugForCurrentTeam(rawName);
   return teamItems.find((t) => t.id === slug)?.name ?? rawName;
-}
-
-// Strips accents/diacritics and case so "Montréal" and "Montreal" compare equal without needing
-// an alias entry for every future spelling variant a data source happens to use.
-function normalizeText(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // combining diacritical marks, once NFD has split them out
-    .toLowerCase()
-    .trim();
-}
-
-/** A circuit's own display name changes with sponsorship ("Red Bull Ring" could become anything
- * next); its host city almost never does. Matching the current season's `location` against
- * archive's own `locality` (both are just "what city is this in") catches most future renames on
- * its own — CURRENT_SEASON_CIRCUIT_ALIASES above only exists for the handful of cases even this
- * can't resolve (Yas Marina's own locality is recorded as "Abu Dhabi", a real exception, not a
- * spelling variant). Substring containment (not just equality) is what makes "Miami Gardens"
- * resolve against an archive locality of "Miami", or "Spa-Francorchamps" against "Spa". */
-function localityMatches(currentLocation: string, archiveLocality: string): boolean {
-  const a = normalizeText(currentLocation);
-  const b = normalizeText(archiveLocality);
-  return a === b || a.includes(b) || b.includes(a);
 }
 
 /** The archive only covers seasons through last year by design (this one isn't over yet, so it's
@@ -167,17 +111,11 @@ async function mergeCurrentSeason(
 
   const circuitsById = new Map(circuitItems.map((c) => [c.id, c]));
   const circuitsByName = new Map(circuitItems.map((c) => [c.name.trim().toLowerCase(), c]));
+  const circuitIdsByName = new Map(circuitItems.map((c) => [c.name.trim().toLowerCase(), c.id]));
   for (const [location, raceCount] of circuitRaceCount) {
     const key = location.trim().toLowerCase();
-    const aliasId = CURRENT_SEASON_CIRCUIT_ALIASES[key];
-    // Alias table first (explicit, human-verified) — then locality matching, which is what
-    // actually catches a *future* rename automatically instead of needing a new alias entry —
-    // then the plain exact-name fallback that was already here.
-    const localityMatchId = [...circuitLocalities.entries()].find(([, locality]) => localityMatches(location, locality))?.[0];
-    const existing =
-      (aliasId ? circuitsById.get(aliasId) : undefined) ??
-      (localityMatchId ? circuitsById.get(localityMatchId) : undefined) ??
-      circuitsByName.get(key);
+    const resolvedId = resolveCurrentCircuitToArchiveId(location, circuitLocalities, circuitIdsByName);
+    const existing = (resolvedId ? circuitsById.get(resolvedId) : undefined) ?? circuitsByName.get(key);
     if (existing) {
       existing.lastYear = year;
       existing.raceCount += raceCount;
