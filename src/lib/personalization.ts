@@ -7,7 +7,7 @@
 
 import { getArchiveCircuit, getArchiveDriver, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
-import { getRacesByYear } from "@/lib/supabase/races";
+import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 
@@ -223,6 +223,38 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
     youngestWinner,
     topCurrentTeam,
   };
+}
+
+export type RecentCircuitPhoto = { url: string; year: number };
+
+/** Real photos of this exact circuit from the last ~10 seasons — a rolling window relative to
+ * `year`, not a fixed cutoff, so 2026 shows 2016-2026 and 2027 shows 2017-2027 with no code change
+ * needed as seasons pass. For the homepage's rotating background poster behind the upcoming-race
+ * card. Draws on both halves of "last N years of real photos per circuit": archive_races.photo_url
+ * for seasons the archive covers, races.photo_url once FastF1 coverage starts — both filled in
+ * automatically by the pipeline for every race (current or newly added to the calendar), so a
+ * brand-new track just starts accumulating real photos the moment it's raced, no per-circuit
+ * hardcoding on either side. Photos are real Wikimedia Commons contributor shots, not circuit
+ * diagrams — see ergast_utils.py's fetch_race_commons_photo.
+ *
+ * archive_races and races legitimately overlap in years (the archive's own range was separately
+ * extended through last season, see pipeline/fetch_archive.py) — same race, same id, same
+ * `races/{id}.png` Storage path in both tables, so de-duping by url (not by year) is what keeps a
+ * recent season from showing its own photo twice in the rotation. */
+export async function getRecentCircuitPhotos(
+  circuitId: string | null,
+  currentSeasonCircuit: string | null,
+  year: number,
+): Promise<RecentCircuitPhoto[]> {
+  const earliestYear = year - 10;
+  const [archiveRaces, currentRaces] = await Promise.all([
+    circuitId ? getArchiveRacesByCircuitId(circuitId) : Promise.resolve([]),
+    currentSeasonCircuit ? getRacesByCircuit(currentSeasonCircuit) : Promise.resolve([]),
+  ]);
+  const fromArchive = archiveRaces.filter((r) => r.year >= earliestYear && r.photoUrl).map((r) => ({ url: r.photoUrl!, year: r.year }));
+  const fromCurrent = currentRaces.filter((r) => r.year >= earliestYear && r.photoUrl).map((r) => ({ url: r.photoUrl!, year: r.year }));
+  const seen = new Set<string>();
+  return [...fromArchive, ...fromCurrent].filter((p) => (seen.has(p.url) ? false : seen.add(p.url))).sort((a, b) => a.year - b.year);
 }
 
 /** Cumulative points per round for a fixed set of drivers — the "curve" half of the homepage's

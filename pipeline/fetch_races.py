@@ -30,9 +30,8 @@ from pathlib import Path
 import fastf1
 import numpy as np
 import pandas as pd
-import requests
 
-from ergast_utils import fetch_and_upload_media, init_postgres, trigger_revalidation, upsert
+from ergast_utils import fetch_and_upload_media, fetch_race_commons_photo, init_postgres, trigger_revalidation, upsert
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -348,29 +347,6 @@ def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None
     upsert(cur, "teams", list(team_rows.values()), ["name"])
 
 
-def fetch_race_photo(year: int, event_name: str) -> str | None:
-    """Best-effort: this race's own Wikipedia article's lead image, found via the "{year}
-    {EventName}" title every modern F1 race-report article follows (verified live against 2026
-    Hungarian Grand Prix). Deliberately NOT labelled a podium photo anywhere this gets used - an
-    actual press photo from the race itself is almost always copyright-restricted and can't be
-    hosted on Commons, so Wikipedia's own lead image for a recent race is frequently a circuit
-    diagram instead of an action shot. Worth capturing whatever's there regardless; just don't
-    oversell what it is."""
-    title = f"{year}_{event_name.replace(' ', '_')}"
-    try:
-        resp = requests.get(
-            f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
-            headers={"User-Agent": "F1Hub/1.0 (https://apexf1hub.vercel.app; race-photo backfill)"},
-            timeout=15,
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        image = data.get("originalimage") or data.get("thumbnail")
-        return image.get("source") if image else None
-    except Exception as exc:  # noqa: BLE001 - deliberately broad, this is best-effort
-        print(f"    race photo lookup failed: {exc}")
-        return None
 
 
 def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str]):
@@ -432,7 +408,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         # Once, not every run - re-hit Wikipedia every 6 hours for a photo that never changes
         # once found. `existing` (fetched above) already tells us if a prior run already got one.
         if not (existing and existing.get("photo_url")):
-            photo_source = fetch_race_photo(year, event_name)
+            photo_source = fetch_race_commons_photo(year, event_name)
             if photo_source:
                 uploaded = fetch_and_upload_media(photo_source, "media", f"races/{race_id}.png")
                 if uploaded:
@@ -486,6 +462,30 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
     )
 
 
+def backfill_race_photos(cur):
+    """Separate, independently-idempotent pass (gated on `photo_url is null`, not `status` -
+    completed races are never revisited by the main per-round loop below, `is_already_completed`
+    skips calling build_and_push at all once results are in, correctly avoiding a wasted refetch of
+    data that never changes - but photo_url specifically can still be missing on an old completed
+    row, either because it predates this column, or because no Commons category existed for that
+    race yet the first time it was tried and one's shown up since). Runs every tick regardless of
+    which year/rounds were targeted, same as enrich_archive.py's own backfill_race_photos() for
+    the archive side - cheap once caught up, since it only ever touches rows still missing a photo."""
+    cur.execute("select id, year, name from races where photo_url is null order by year, round")
+    rows = cur.fetchall()
+    if not rows:
+        return
+    print(f"{len(rows)} races (any year) need a re-hosted photo")
+    for race_id, year, name in rows:
+        source = fetch_race_commons_photo(year, name)
+        if not source:
+            continue
+        uploaded = fetch_and_upload_media(source, "media", f"races/{race_id}.png")
+        if uploaded:
+            cur.execute("update races set photo_url = %s where id = %s", (uploaded, race_id))
+            print(f"  {race_id}: photo uploaded")
+
+
 def discover_rounds(year: int) -> list[int]:
     """Every real round FastF1 knows about for this year — excludes pre-season testing entries,
     which carry RoundNumber 0. No hardcoded count: a season can have 17 rounds or 24."""
@@ -520,6 +520,8 @@ def main():
                 print(f"  round {round_num}: already completed, skipping")
                 continue
             build_and_push(cur, year, round_num, known_driver_codes)
+
+        backfill_race_photos(cur)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their

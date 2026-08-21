@@ -15,6 +15,7 @@ import {
   getFavoriteDriverCard,
   getFavoriteTeamCard,
   getFavoriteTrackCard,
+  getRecentCircuitPhotos,
   getTrackHistory,
 } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
@@ -84,9 +85,10 @@ export default async function HomePage() {
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
   const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
 
-  const [calendarEntry, trackHistory] = await Promise.all([
+  const [calendarEntry, trackHistory, recentPhotos] = await Promise.all([
     nextRace ? getCalendarEntry(nextRace.year, nextRace.round) : null,
     resolvedCircuitId ? getTrackHistory(resolvedCircuitId) : null,
+    getRecentCircuitPhotos(resolvedCircuitId, nextRace?.circuit ?? null, year),
   ]);
 
   const topDriverCodes = standings.drivers.slice(0, 5).map((d) => d.driver);
@@ -115,6 +117,7 @@ export default async function HomePage() {
             calendar={calendarEntry}
             circuitName={nextRace?.circuit ?? calendarEntry.circuit ?? calendarEntry.name ?? "Unknown circuit"}
             trackHistory={trackHistory}
+            recentPhotos={recentPhotos}
             year={year}
             standings={standings}
             standingsVariant={standingsVariant}

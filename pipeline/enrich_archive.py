@@ -23,7 +23,17 @@ from datetime import datetime, timezone
 
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, format_timedelta, init_postgres, timedelta_seconds, trigger_revalidation, upsert, with_retry
+from ergast_utils import (
+    clean,
+    fetch_and_upload_media,
+    fetch_race_commons_photo,
+    format_timedelta,
+    init_postgres,
+    timedelta_seconds,
+    trigger_revalidation,
+    upsert,
+    with_retry,
+)
 
 EARLIEST_YEAR = 1950
 LATEST_YEAR = datetime.now().year - 1
@@ -159,6 +169,33 @@ def enrich_race(cur, race_id: str, year: int, round_num: int):
     )
 
 
+def backfill_race_photos(cur):
+    """Separate, independently-idempotent pass (gated on `photo_url is null`, not `enriched_at` -
+    every race is already enriched, so that gate would never fire again) that re-hosts a real
+    photo of each race into Storage. Deliberately NOT the Wikipedia report page's own lead image
+    (fetch_race_commons_photo's docstring has the full reasoning) - uses the Wikimedia Commons
+    category for this exact race instead, keyed off `year`+`race_name` (Ergast's own event name,
+    e.g. "Abu Dhabi Grand Prix"), which is the same "{year} {EventName}" string both the Wikipedia
+    article title and the Commons category name are built from - no need for `wikipedia_url` at
+    all. This is the "last N years of real photos per circuit" feature the homepage's rotating
+    background draws from for the pre-2018 portion of that window - the 2018+ portion already
+    comes from races.photo_url (fetch_races.py), captured automatically for every future season
+    with no code change needed.
+    """
+    cur.execute("select id, year, race_name from archive_races where photo_url is null order by year")
+    rows = cur.fetchall()
+    print(f"{len(rows)} archive races need a re-hosted photo")
+    for race_id, year, race_name in rows:
+        source = fetch_race_commons_photo(year, race_name)
+        if not source:
+            continue
+        uploaded = fetch_and_upload_media(source, "media", f"races/{race_id}.png")
+        if uploaded:
+            cur.execute("update archive_races set photo_url = %s where id = %s", (uploaded, race_id))
+            print(f"  {race_id}: photo uploaded")
+        time.sleep(REQUEST_DELAY_SEC)
+
+
 def main():
     args = sys.argv[1:]
     if len(args) == 0:
@@ -180,6 +217,8 @@ def main():
         for race_id, year, round_num in rows:
             enrich_race(cur, race_id, year, round_num)
             time.sleep(REQUEST_DELAY_SEC)
+
+        backfill_race_photos(cur)
     conn.close()
     trigger_revalidation()
     print("Done.")

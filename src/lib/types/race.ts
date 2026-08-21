@@ -137,7 +137,7 @@ export type RaceDoc = {
   weather?: SessionWeather;
   tireStints?: TireStint[];
   raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
-  photoUrl?: string; // best-effort Wikipedia race-report photo, re-hosted in Storage — see fetch_races.py
+  photoUrl?: string; // best-effort real race photo (Wikimedia Commons category, not a circuit diagram), re-hosted in Storage — see fetch_races.py's fetch_race_commons_photo
 };
 
 export type UserPick = {
