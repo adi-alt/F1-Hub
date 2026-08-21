@@ -227,15 +227,34 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
 
 export type RecentCircuitPhoto = { url: string; year: number };
 
-/** Real photos of this exact circuit from the last ~10 seasons — a rolling window relative to
- * `year`, not a fixed cutoff, so 2026 shows 2016-2026 and 2027 shows 2017-2027 with no code change
- * needed as seasons pass. For the homepage's rotating background poster behind the upcoming-race
- * card. Draws on both halves of "last N years of real photos per circuit": archive_races.photo_url
- * for seasons the archive covers, races.photo_url once FastF1 coverage starts — both filled in
- * automatically by the pipeline for every race (current or newly added to the calendar), so a
- * brand-new track just starts accumulating real photos the moment it's raced, no per-circuit
- * hardcoding on either side. Photos are real Wikimedia Commons contributor shots, not circuit
- * diagrams — see ergast_utils.py's fetch_race_commons_photo.
+// Below this many real photos in the rolling window, there's nothing to meaningfully rotate
+// through - widen to the circuit's full history rather than let the backdrop sit dead on one
+// frame forever (real, verified case: Zandvoort's own last 10 seasons have exactly one race with
+// a Commons category at all, 2024 - the other 4 are genuine gaps).
+const MIN_PHOTOS_FOR_ROTATION = 3;
+
+function dedupeSortedByYear(photos: RecentCircuitPhoto[]): RecentCircuitPhoto[] {
+  const seen = new Set<string>();
+  return photos.filter((p) => (seen.has(p.url) ? false : seen.add(p.url))).sort((a, b) => a.year - b.year);
+}
+
+function withPhoto(races: { year: number; photoUrl?: string | null }[]): RecentCircuitPhoto[] {
+  return races.filter((r) => r.photoUrl).map((r) => ({ url: r.photoUrl!, year: r.year }));
+}
+
+/** Real photos of this exact circuit, preferring the last ~10 seasons — a rolling window relative
+ * to `year`, not a fixed cutoff, so 2026 shows 2016-2026 and 2027 shows 2017-2027 with no code
+ * change needed as seasons pass. For the homepage's rotating background. Draws on both halves of
+ * "real photos per circuit": archive_races.photo_url for seasons the archive covers,
+ * races.photo_url once FastF1 coverage starts — both filled in automatically by the pipeline for
+ * every race (current or newly added to the calendar), so a brand-new track just starts
+ * accumulating real photos the moment it's raced, no per-circuit hardcoding on either side.
+ * Photos are real Wikimedia Commons contributor shots, not circuit diagrams — see
+ * ergast_utils.py's fetch_race_commons_photo.
+ *
+ * Falls back to the circuit's *entire* real-photo history when the recent window alone has fewer
+ * than MIN_PHOTOS_FOR_ROTATION — still real photos, just not all recent, and only when recency
+ * alone would otherwise mean no rotation at all.
  *
  * archive_races and races legitimately overlap in years (the archive's own range was separately
  * extended through last season, see pipeline/fetch_archive.py) — same race, same id, same
@@ -251,10 +270,13 @@ export async function getRecentCircuitPhotos(
     circuitId ? getArchiveRacesByCircuitId(circuitId) : Promise.resolve([]),
     currentSeasonCircuit ? getRacesByCircuit(currentSeasonCircuit) : Promise.resolve([]),
   ]);
-  const fromArchive = archiveRaces.filter((r) => r.year >= earliestYear && r.photoUrl).map((r) => ({ url: r.photoUrl!, year: r.year }));
-  const fromCurrent = currentRaces.filter((r) => r.year >= earliestYear && r.photoUrl).map((r) => ({ url: r.photoUrl!, year: r.year }));
-  const seen = new Set<string>();
-  return [...fromArchive, ...fromCurrent].filter((p) => (seen.has(p.url) ? false : seen.add(p.url))).sort((a, b) => a.year - b.year);
+
+  const recent = dedupeSortedByYear([
+    ...withPhoto(archiveRaces.filter((r) => r.year >= earliestYear)),
+    ...withPhoto(currentRaces.filter((r) => r.year >= earliestYear)),
+  ]);
+  if (recent.length >= MIN_PHOTOS_FOR_ROTATION) return recent;
+  return dedupeSortedByYear([...withPhoto(archiveRaces), ...withPhoto(currentRaces)]);
 }
 
 /** Cumulative points per round for a fixed set of drivers — the "curve" half of the homepage's

@@ -4,6 +4,7 @@ import { FavoritesSection } from "@/components/home/FavoritesSection";
 import { GroupsPreview } from "@/components/home/GroupsPreview";
 import { Hero } from "@/components/home/Hero";
 import { OnboardingTour } from "@/components/home/OnboardingTour";
+import { RotatingBackdrop } from "@/components/home/RotatingBackdrop";
 import { SeasonStrip } from "@/components/home/SeasonStrip";
 import { type StandingsVariant } from "@/components/home/StandingsWidget";
 import { UpcomingRaceCard } from "@/components/home/UpcomingRaceCard";
@@ -101,37 +102,50 @@ export default async function HomePage() {
 
   const firstName = profile?.firstName ?? profile?.displayName ?? "there";
   const isReturning = !!profile?.onboardingCompletedAt;
+  // Falls back to the circuit's one known image when no real recent photo has been backfilled yet
+  // (a brand-new track) — RotatingBackdrop itself only rotates once it has 2+ frames, so a
+  // single-photo array here just renders as a still backdrop.
+  const backdropPhotos = recentPhotos.length > 0 ? recentPhotos.map((p) => p.url) : trackHistory?.circuitImageUrl ? [trackHistory.circuitImageUrl] : [];
 
   return (
     <>
       <RaceRealtimeWatcher />
       <OnboardingTour initiallyOpen={!isReturning} />
-      <div className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:px-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{isReturning ? "Welcome back" : "Welcome"}</p>
-          <h1 className="mt-1 text-3xl font-bold text-white">{firstName}</h1>
+      <div className="relative">
+        {/* The homepage's own background, not any one card's — a fixed-height band pinned to the
+            top that fades into the page's flat background color by the time it ends, so it reads
+            as "this page has a photo backdrop" rather than "this div has a photo". */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[70vh] max-h-[640px] overflow-hidden">
+          <RotatingBackdrop photos={backdropPhotos} />
+          <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
         </div>
 
-        {calendarEntry && (
-          <UpcomingRaceCard
-            calendar={calendarEntry}
-            circuitName={nextRace?.circuit ?? calendarEntry.circuit ?? calendarEntry.name ?? "Unknown circuit"}
-            trackHistory={trackHistory}
-            recentPhotos={recentPhotos}
-            year={year}
-            standings={standings}
-            standingsVariant={standingsVariant}
-            progression={progression}
-            facts={facts}
-          />
-        )}
+        <div className="relative mx-auto max-w-6xl space-y-12 px-4 py-10 sm:px-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{isReturning ? "Welcome back" : "Welcome"}</p>
+            <h1 className="mt-1 text-3xl font-bold text-white">{firstName}</h1>
+          </div>
 
-        <FavoritesSection drivers={resolvedDrivers} teams={resolvedTeams} tracks={resolvedTracks} />
-        <GroupsPreview uid={session.uid} />
+          {calendarEntry && (
+            <UpcomingRaceCard
+              calendar={calendarEntry}
+              circuitName={nextRace?.circuit ?? calendarEntry.circuit ?? calendarEntry.name ?? "Unknown circuit"}
+              trackHistory={trackHistory}
+              year={year}
+              standings={standings}
+              standingsVariant={standingsVariant}
+              progression={progression}
+              facts={facts}
+            />
+          )}
 
-        <div>
-          <h2 className="mb-4 text-lg font-semibold text-white">{year} Season</h2>
-          <SeasonStrip races={races} />
+          <FavoritesSection drivers={resolvedDrivers} teams={resolvedTeams} tracks={resolvedTracks} />
+          <GroupsPreview uid={session.uid} />
+
+          <div>
+            <h2 className="mb-4 text-lg font-semibold text-white">{year} Season</h2>
+            <SeasonStrip races={races} />
+          </div>
         </div>
       </div>
     </>
