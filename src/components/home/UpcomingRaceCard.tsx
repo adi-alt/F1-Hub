@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { PosterImage } from "./PosterImage";
-import { RotatingBackdrop } from "./RotatingBackdrop";
 import { StandingsWidget, type StandingsVariant } from "./StandingsWidget";
-import type { Fact, RecentCircuitPhoto, SeasonStandings, TrackHistory } from "@/lib/personalization";
+import type { Fact, SeasonStandings, TrackHistory } from "@/lib/personalization";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 
 function formatSessionDate(iso: string): string {
@@ -71,16 +70,16 @@ function buildDriverPosters(history: TrackHistory): Poster[] {
 
 /**
  * Everything about the upcoming race weekend, as one card, not four stacked boxes: the session
- * schedule and weather up top (banner backed by the circuit's own photo where one exists), track
- * history posters, the season standings (table/bar/curve, picked once per request — see
- * page.tsx), and a closing strip of real computed facts. One border, one background, internal
- * dividers doing the section-separation work instead of gaps between separate cards.
+ * schedule and weather up top, track history posters, the season standings (table/bar/curve,
+ * picked once per request — see page.tsx), and a closing strip of real computed facts. One
+ * border, one background, internal dividers doing the section-separation work instead of gaps
+ * between separate cards. The rotating circuit-photo backdrop lives one level up now, behind the
+ * whole homepage (see page.tsx / RotatingBackdrop) — this card is plain, not its own photo layer.
  */
 export function UpcomingRaceCard({
   calendar,
   circuitName,
   trackHistory,
-  recentPhotos,
   year,
   standings,
   standingsVariant,
@@ -90,7 +89,6 @@ export function UpcomingRaceCard({
   calendar: CalendarEntry;
   circuitName: string;
   trackHistory: TrackHistory | null;
-  recentPhotos: RecentCircuitPhoto[];
   year: number;
   standings: SeasonStandings;
   standingsVariant: StandingsVariant;
@@ -101,20 +99,10 @@ export function UpcomingRaceCard({
   const days = raceSession ? daysUntil(raceSession.date) : null;
   const driverPosters = trackHistory ? buildDriverPosters(trackHistory) : [];
   const hasTrackHistory = driverPosters.length > 0 || !!trackHistory?.topCurrentTeam;
-  // Falls back to the circuit's one known image when no recent-season photo has been backfilled
-  // yet (a brand-new track) — RotatingBackdrop itself only rotates once it has 2+ frames, so a
-  // single-photo array here just renders as a still backdrop, same as the old behavior.
-  const backdropPhotos = recentPhotos.length > 0 ? recentPhotos.map((p) => p.url) : trackHistory?.circuitImageUrl ? [trackHistory.circuitImageUrl] : [];
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]">
-      {/* Behind the whole card, not just the header banner — the rotating photo and its veil are
-          the section's own background, so every part of the card (track history, standings,
-          facts) sits on the same moody backdrop instead of it cutting off after the header. */}
-      <RotatingBackdrop photos={backdropPhotos} />
-      <div className="absolute inset-0 bg-[var(--f1-carbon)]/70" />
-
-      <div className="relative flex min-h-[200px] flex-col justify-end p-6 sm:min-h-[240px] sm:p-8">
+    <section className="overflow-hidden rounded-3xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]">
+      <div className="flex min-h-[200px] flex-col justify-end p-6 sm:min-h-[240px] sm:p-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">
@@ -133,7 +121,7 @@ export function UpcomingRaceCard({
         </div>
       </div>
 
-      <div className="relative space-y-8 p-6 sm:p-8">
+      <div className="space-y-8 p-6 sm:p-8">
         {calendar.sessions.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {calendar.sessions.map((s) => (
