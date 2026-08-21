@@ -107,11 +107,15 @@ export function UpcomingRaceCard({
   const backdropPhotos = recentPhotos.length > 0 ? recentPhotos.map((p) => p.url) : trackHistory?.circuitImageUrl ? [trackHistory.circuitImageUrl] : [];
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]">
-      <div className="relative flex min-h-[200px] flex-col justify-end overflow-hidden p-6 sm:min-h-[240px] sm:p-8">
-        <RotatingBackdrop photos={backdropPhotos} />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/75 to-[var(--f1-carbon)]/30" />
-        <div className="relative flex flex-wrap items-end justify-between gap-4">
+    <section className="relative overflow-hidden rounded-3xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]">
+      {/* Behind the whole card, not just the header banner — the rotating photo and its veil are
+          the section's own background, so every part of the card (track history, standings,
+          facts) sits on the same moody backdrop instead of it cutting off after the header. */}
+      <RotatingBackdrop photos={backdropPhotos} />
+      <div className="absolute inset-0 bg-[var(--f1-carbon)]/70" />
+
+      <div className="relative flex min-h-[200px] flex-col justify-end p-6 sm:min-h-[240px] sm:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">
               Round {calendar.round}
@@ -129,7 +133,7 @@ export function UpcomingRaceCard({
         </div>
       </div>
 
-      <div className="space-y-8 p-6 sm:p-8">
+      <div className="relative space-y-8 p-6 sm:p-8">
         {calendar.sessions.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {calendar.sessions.map((s) => (
