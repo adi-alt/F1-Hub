@@ -102,10 +102,17 @@ export default async function HomePage() {
 
   const firstName = profile?.firstName ?? profile?.displayName ?? "there";
   const isReturning = !!profile?.onboardingCompletedAt;
-  // Falls back to the circuit's one known image when no real recent photo has been backfilled yet
-  // (a brand-new track) — RotatingBackdrop itself only rotates once it has 2+ frames, so a
+  // Falls back to the circuit's own photos when no real race photo has been backfilled yet (a
+  // brand-new track) — RotatingBackdrop itself only rotates once it has 2+ frames, so a
   // single-photo array here just renders as a still backdrop.
-  const backdropPhotos = recentPhotos.length > 0 ? recentPhotos.map((p) => p.url) : trackHistory?.circuitImageUrl ? [trackHistory.circuitImageUrl] : [];
+  const backdropPhotos =
+    recentPhotos.length > 0
+      ? recentPhotos.map((p) => p.url)
+      : trackHistory?.circuitImageUrls?.length
+        ? trackHistory.circuitImageUrls
+        : trackHistory?.circuitImageUrl
+          ? [trackHistory.circuitImageUrl]
+          : [];
 
   return (
     <>
@@ -115,7 +122,7 @@ export default async function HomePage() {
         {/* The homepage's own background, not any one card's — a fixed-height band pinned to the
             top that fades into the page's flat background color by the time it ends, so it reads
             as "this page has a photo backdrop" rather than "this div has a photo". */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[70vh] max-h-[640px] overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[115vh] max-h-[1080px] overflow-hidden">
           <RotatingBackdrop photos={backdropPhotos} />
           <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
         </div>

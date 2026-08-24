@@ -92,6 +92,21 @@ def init_postgres():
     return conn
 
 
+def reconnect_postgres(dead_conn):
+    """Best-effort recovery for a long-running per-row backfill loop whose connection drops mid-
+    run on a transient network blip - seen live, twice, as `psycopg2.DatabaseError: ... SSL SYSCALL
+    error: Can't assign requested address`, both times moments after an unrelated Wikimedia DNS
+    resolution hiccup (this sandbox's network, not Wikimedia's or Supabase's fault specifically).
+    `with_retry` doesn't cover this - it's scoped to network/API exceptions the fetch side raises,
+    not psycopg2 errors on the write side. Closing the dead connection and opening a fresh one lets
+    a loop recover instead of crashing the whole batch over one write."""
+    try:
+        dead_conn.close()
+    except Exception:  # noqa: BLE001 - the old connection is already broken, closing it is best-effort
+        pass
+    return init_postgres()
+
+
 def fetch_completed_race_docs(conn):
     """Reconstructs the old Firestore-doc-shaped dict ({eventName, year, round, race: {results,
     tireStints, safetyCarPeriods, weather, tireCompoundPace}}) for every completed race - an
@@ -324,24 +339,75 @@ def fetch_and_upload_media(url, bucket, path):
         return None
 
 
-def fetch_race_commons_photo(year, event_name):
-    """A real photo of this specific race, not a circuit diagram - Wikipedia's own per-race
-    article lead image is frequently just a track map (confirmed live: the "2015 Abu Dhabi Grand
-    Prix" article itself leads with a circuit diagram), since actual press photography from a
-    race is almost always copyright-restricted and can't be hosted there. Wikimedia Commons'
-    separate per-race *category* (when one exists) holds real attendee/photographer-contributed
-    photos under a free license instead - verified live across a wide span (1965-2022) that
-    `Category:{year} {event_name}` is the real, consistent naming convention every modern and
-    most historical Commons categories use, the same "{year} {EventName}" pattern the Wikipedia
-    article itself follows.
+COMMONS_MIN_DIMENSION_PX = 500  # below this on the short edge, it reads as a thumbnail/icon/logo,
+                                # not a usable photo - confirmed live: Zandvoort's own category
+                                # holds a 900x900 team-logo jpg right alongside real 4928x3264 shots
 
-    Filters to .jpg/.jpeg specifically: a real camera photo is virtually always a JPEG, while
-    circuit diagrams and standings graphics uploaded to the same category are almost always
-    .svg/.png. Returns None if the category doesn't exist or holds no qualifying files - a real,
-    accepted gap for less-documented races (confirmed live: some categories return zero members
-    at all), not an error.
+
+def resolve_commons_category(wikipedia_title):
+    """The real Commons category for a Wikipedia article, via Wikidata's P373 ("Commons
+    category") property - assuming the category matches the article's own title verbatim (this
+    pipeline's usual shortcut, and it works often enough: Zandvoort, Monaco, Spa and Silverstone
+    all matched literally) fails for a real chunk of circuits whose English Wikipedia title is an
+    anglicized/shortened name while Commons kept the original - confirmed live: "Monza Circuit"'s
+    own Commons category holds nothing, because the real one is "Autodromo Nazionale Monza" (same
+    story for Suzuka, Interlagos, Baku, the Nurburgring - all verified live). Two extra API calls
+    (pageprops for the Wikidata item, then that item's claims) - only worth paying for circuits,
+    not the much higher-volume per-race lookups, where the naive title already has a solid hit
+    rate. Falls back to the literal title on any failure or missing property - never worse than
+    the old behavior, just sometimes not better."""
+    try:
+        pageprops_resp = with_retry(
+            lambda: requests.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={"action": "query", "titles": wikipedia_title, "prop": "pageprops", "format": "json"},
+                headers=MEDIA_FETCH_HEADERS,
+                timeout=15,
+            )
+        )
+        pageprops_resp.raise_for_status()
+        pages = pageprops_resp.json().get("query", {}).get("pages", {})
+        wikibase_item = next((p.get("pageprops", {}).get("wikibase_item") for p in pages.values() if p.get("pageprops")), None)
+        if not wikibase_item:
+            return wikipedia_title
+
+        wikidata_resp = with_retry(
+            lambda: requests.get(
+                "https://www.wikidata.org/w/api.php",
+                params={"action": "wbgetentities", "ids": wikibase_item, "props": "claims", "format": "json"},
+                headers=MEDIA_FETCH_HEADERS,
+                timeout=15,
+            )
+        )
+        wikidata_resp.raise_for_status()
+        claims = wikidata_resp.json().get("entities", {}).get(wikibase_item, {}).get("claims", {})
+        p373 = claims.get("P373")
+        return p373[0]["mainsnak"]["datavalue"]["value"] if p373 else wikipedia_title
+    except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+        print(f"    Commons category resolution failed for {wikipedia_title}: {e}")
+        return wikipedia_title
+
+
+def fetch_commons_photos(category, limit=4):
+    """Real photos from a Wikimedia Commons category - `Category:{category}`, the same naming
+    convention Wikipedia article titles use (a race's "{year} {EventName}", or a circuit's own
+    article title). Wikipedia's own lead/infobox image is frequently just a diagram (a race
+    article leads with the circuit map; a circuit article leads with the track-layout SVG -
+    confirmed live for both), since real photography is almost always copyright-restricted and
+    can't be hosted there. Wikimedia Commons' separate category (when one exists) holds real
+    attendee/photographer-contributed photos under a free license instead - verified live across
+    a wide span (1958-2026) for races, and across several current circuits (Monza, Silverstone,
+    Monaco, Spa, Zandvoort) for circuits too.
+
+    Filters to .jpg/.jpeg (a real camera photo is virtually always a JPEG, while diagrams/graphics
+    in the same category are almost always .svg/.png), excludes filenames containing "logo", and
+    drops anything under COMMONS_MIN_DIMENSION_PX on its short edge (thumbnails/icons that
+    otherwise pass the extension filter). Resolves up to `limit` in ONE batched imageinfo call
+    (MediaWiki's API accepts pipe-separated titles) rather than one call per photo. Returns an
+    empty list if the category doesn't exist or holds no qualifying files - a real, accepted gap
+    for less-documented races/circuits (confirmed live: some categories return zero members at
+    all), not an error.
     """
-    category = f"{year} {event_name}"
     try:
         list_resp = with_retry(
             lambda: requests.get(
@@ -360,25 +426,77 @@ def fetch_race_commons_photo(year, event_name):
         )
         list_resp.raise_for_status()
         members = list_resp.json().get("query", {}).get("categorymembers", [])
-        photos = [m["title"] for m in members if m["title"].lower().endswith((".jpg", ".jpeg"))]
-        if not photos:
-            return None
+        candidates = [m["title"] for m in members if m["title"].lower().endswith((".jpg", ".jpeg")) and "logo" not in m["title"].lower()]
+        if not candidates:
+            return []
 
         info_resp = with_retry(
             lambda: requests.get(
                 "https://commons.wikimedia.org/w/api.php",
-                params={"action": "query", "titles": photos[0], "prop": "imageinfo", "iiprop": "url", "format": "json"},
+                params={"action": "query", "titles": "|".join(candidates), "prop": "imageinfo", "iiprop": "url|size", "format": "json"},
                 headers=MEDIA_FETCH_HEADERS,
                 timeout=15,
             )
         )
         info_resp.raise_for_status()
         pages = info_resp.json().get("query", {}).get("pages", {})
+        photos = []
         for page in pages.values():
             imageinfo = page.get("imageinfo")
-            if imageinfo:
-                return imageinfo[0]["url"]
-        return None
+            if not imageinfo:
+                continue
+            info = imageinfo[0]
+            if min(info.get("width", 0), info.get("height", 0)) < COMMONS_MIN_DIMENSION_PX:
+                continue
+            photos.append(info["url"])
+        return photos[:limit]
     except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
-        print(f"    Commons photo lookup failed for {category}: {e}")
-        return None
+        print(f"    Commons photos lookup failed for {category}: {e}")
+        return []
+
+
+PHOTO_MAX_DIMENSION = 1600  # long edge, px - a website backdrop never needs press-photo-original
+                            # resolution (Commons routinely serves 4000-5000px+ JPEGs); this is
+                            # still sharp at full-bleed on any real display
+PHOTO_JPEG_QUALITY = 78
+
+
+def _resize_photo(content: bytes) -> bytes:
+    """Always resizes+recompresses, unlike _downscale_if_huge's "only if it blows the bucket
+    limit" - this is specifically for fetch_and_upload_media_multi's callers (race/circuit real-
+    photo galleries), where every source is already a filtered-to-.jpg real photo, never a
+    transparent logo/graphic, so flattening to JPEG can't lose anything. Directly caused a real
+    quota incident: 3,729 files / 6.1GB across races+circuits+archive-drivers after the first
+    multi-photo backfill, well past the original-size-only 8MB safety net (_downscale_if_huge) -
+    most real press photos are well under 8MB but still several MB at full resolution, and there
+    were thousands of them. At this target, a typical photo lands in the 150-400KB range instead."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    img = Image.open(BytesIO(content))
+    img.thumbnail((PHOTO_MAX_DIMENSION, PHOTO_MAX_DIMENSION))
+    buf = BytesIO()
+    img.convert("RGB").save(buf, format="JPEG", quality=PHOTO_JPEG_QUALITY)
+    return buf.getvalue()
+
+
+def fetch_and_upload_media_multi(urls, bucket, path_prefix):
+    """Downloads each url, resizes it down to a website-backdrop-appropriate size (see
+    _resize_photo - this is what keeps a real-photo gallery from re-creating the storage-quota
+    incident), and uploads to `{path_prefix}-{i}.png` - returns the Storage URLs that actually
+    succeeded (skips, doesn't abort, on a single failure, same best-effort convention as
+    everything else here)."""
+    uploaded = []
+    for i, url in enumerate(urls):
+        try:
+            resp = with_retry(lambda: requests.get(url, headers=MEDIA_FETCH_HEADERS, timeout=30))
+            resp.raise_for_status()
+            content = _resize_photo(resp.content)
+        except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
+            print(f"    fetching {url} for re-hosting failed: {e}")
+            continue
+        result = upload_media(bucket, f"{path_prefix}-{i}.png", content, "image/jpeg")
+        if result:
+            uploaded.append(result)
+    return uploaded

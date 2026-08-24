@@ -34,6 +34,7 @@ type RaceRow = {
   pole_prediction: PolePrediction | null;
   simulation: RaceSimulation | null;
   photo_url: string | null;
+  photo_urls: string[] | null;
   updated_at: string;
   race_results: {
     driver: string;
@@ -113,6 +114,7 @@ function toRaceDoc(row: RaceRow): RaceDoc {
     polePrediction: row.pole_prediction ?? undefined,
     simulation: row.simulation ?? undefined,
     photoUrl: row.photo_url ?? undefined,
+    photoUrls: row.photo_urls ?? undefined,
   };
 }
 

@@ -21,14 +21,16 @@ import sys
 import time
 from datetime import datetime, timezone
 
+import psycopg2
 from fastf1.ergast import Ergast
 
 from ergast_utils import (
     clean,
-    fetch_and_upload_media,
-    fetch_race_commons_photo,
+    fetch_and_upload_media_multi,
+    fetch_commons_photos,
     format_timedelta,
     init_postgres,
+    reconnect_postgres,
     timedelta_seconds,
     trigger_revalidation,
     upsert,
@@ -170,29 +172,37 @@ def enrich_race(cur, race_id: str, year: int, round_num: int):
 
 
 def backfill_race_photos(cur):
-    """Separate, independently-idempotent pass (gated on `photo_url is null`, not `enriched_at` -
-    every race is already enriched, so that gate would never fire again) that re-hosts a real
-    photo of each race into Storage. Deliberately NOT the Wikipedia report page's own lead image
-    (fetch_race_commons_photo's docstring has the full reasoning) - uses the Wikimedia Commons
-    category for this exact race instead, keyed off `year`+`race_name` (Ergast's own event name,
-    e.g. "Abu Dhabi Grand Prix"), which is the same "{year} {EventName}" string both the Wikipedia
-    article title and the Commons category name are built from - no need for `wikipedia_url` at
-    all. This is the "last N years of real photos per circuit" feature the homepage's rotating
-    background draws from for the pre-2018 portion of that window - the 2018+ portion already
-    comes from races.photo_url (fetch_races.py), captured automatically for every future season
-    with no code change needed.
+    """Separate, independently-idempotent pass (gated on `photo_urls is null`, not `enriched_at` -
+    every race is already enriched, so that gate would never fire again) that re-hosts real photos
+    of each race into Storage. Deliberately NOT the Wikipedia report page's own lead image
+    (fetch_commons_photos's docstring has the full reasoning) - uses the Wikimedia Commons category
+    for this exact race instead, keyed off `year`+`race_name` (Ergast's own event name, e.g. "Abu
+    Dhabi Grand Prix"), which is the same "{year} {EventName}" string both the Wikipedia article
+    title and the Commons category name are built from - no need for `wikipedia_url` at all. This
+    is the "real photos per circuit" feature the homepage's rotating background draws from for the
+    pre-2018 portion - the 2018+ portion already comes from races.photo_urls (fetch_races.py),
+    captured automatically for every future season with no code change needed.
     """
-    cur.execute("select id, year, race_name from archive_races where photo_url is null order by year")
+    cur.execute("select id, year, race_name from archive_races where photo_urls is null order by year")
     rows = cur.fetchall()
-    print(f"{len(rows)} archive races need a re-hosted photo")
+    print(f"{len(rows)} archive races need re-hosted photos")
     for race_id, year, race_name in rows:
-        source = fetch_race_commons_photo(year, race_name)
-        if not source:
+        sources = fetch_commons_photos(f"{year} {race_name}")
+        if not sources:
             continue
-        uploaded = fetch_and_upload_media(source, "media", f"races/{race_id}.png")
-        if uploaded:
-            cur.execute("update archive_races set photo_url = %s where id = %s", (uploaded, race_id))
-            print(f"  {race_id}: photo uploaded")
+        uploaded = fetch_and_upload_media_multi(sources, "media", f"races/{race_id}")
+        if not uploaded:
+            continue
+        try:
+            cur.execute("update archive_races set photo_url = %s, photo_urls = %s where id = %s", (uploaded[0], uploaded, race_id))
+        except psycopg2.Error as exc:
+            # Seen live: a transient network blip can take the whole Postgres connection down
+            # mid-loop (see reconnect_postgres's docstring) - one fresh connection and a single
+            # retry recovers the loop instead of losing the rest of a long backfill to a crash.
+            print(f"  {race_id}: DB write failed ({exc}), reconnecting and retrying once")
+            cur = reconnect_postgres(cur.connection).cursor()
+            cur.execute("update archive_races set photo_url = %s, photo_urls = %s where id = %s", (uploaded[0], uploaded, race_id))
+        print(f"  {race_id}: {len(uploaded)} photo(s) uploaded")
         time.sleep(REQUEST_DELAY_SEC)
 
 

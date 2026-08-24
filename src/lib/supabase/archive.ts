@@ -60,6 +60,7 @@ export type ArchiveCircuit = {
   name: string | null;
   wikipediaUrl: string | null;
   imageUrl: string | null;
+  imageUrls: string[] | null; // real circuit photos (Wikimedia Commons), not the legacy single imageUrl
   lat: number | null;
   long: number | null;
   // Merged in by getAllArchiveCircuits from a full archive_races scan (getArchiveCircuitStats
@@ -97,7 +98,8 @@ export type ArchiveRaceDoc = {
   raceDate: string | null;
   results: ArchiveResultEntry[];
   wikipediaUrl?: string | null;
-  photoUrl?: string | null; // Supabase Storage url — see pipeline/enrich_archive.py's backfill_race_photos()
+  photoUrl?: string | null; // legacy single photo, superseded by photoUrls below
+  photoUrls?: string[] | null; // real photos — see pipeline/enrich_archive.py's backfill_race_photos()
   qualifying?: ArchiveQualifyingEntry[];
   pitStops?: ArchivePitStopEntry[];
   lapsBackfilled?: boolean;
@@ -117,6 +119,7 @@ type ArchiveRaceRow = {
   race_date: string | null;
   wikipedia_url: string | null;
   photo_url: string | null;
+  photo_urls: string[] | null;
   weather: ArchiveWeather | null;
   circuit_id: string | null;
   laps_backfilled: boolean;
@@ -161,6 +164,7 @@ function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
     raceDate: row.race_date,
     wikipediaUrl: row.wikipedia_url,
     photoUrl: row.photo_url,
+    photoUrls: row.photo_urls,
     weather: row.weather,
     circuitId: row.circuit_id,
     lapsBackfilled: row.laps_backfilled,
@@ -230,10 +234,26 @@ export const getArchiveRace = unstable_cache(
   { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
-type ArchiveCircuitRow = { circuit_id: string; name: string | null; wikipedia_url: string | null; image_url: string | null; lat: number | null; long: number | null };
+type ArchiveCircuitRow = {
+  circuit_id: string;
+  name: string | null;
+  wikipedia_url: string | null;
+  image_url: string | null;
+  image_urls: string[] | null;
+  lat: number | null;
+  long: number | null;
+};
 
 function toArchiveCircuit(row: ArchiveCircuitRow): ArchiveCircuit {
-  return { circuitId: row.circuit_id, name: row.name, wikipediaUrl: row.wikipedia_url, imageUrl: row.image_url, lat: row.lat, long: row.long };
+  return {
+    circuitId: row.circuit_id,
+    name: row.name,
+    wikipediaUrl: row.wikipedia_url,
+    imageUrl: row.image_url,
+    imageUrls: row.image_urls,
+    lat: row.lat,
+    long: row.long,
+  };
 }
 
 /** One row per unique circuit (~70-75 total across the whole archive), not per race — a Wikipedia

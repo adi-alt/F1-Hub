@@ -1,6 +1,7 @@
 """Adds `circuit_id` + race-day weather to every archive_races row, and builds a separate
-archive_circuits table (one row per unique circuit, not per race — ~70-75 total) with a real
-track image sourced from the circuit's own Wikipedia page.
+archive_circuits table (one row per unique circuit, not per race — ~70-75 total) with real photos
+of the track (Wikimedia Commons category off the circuit's own Wikipedia title, not that page's
+own infobox image — see fetch_circuit_images's docstring for why).
 
 Two services neither of the other two archive scripts touch, so this is safe to run without
 competing with them for Jolpi's rate limit — well, half safe: `circuit_id`/lat/long still come from
@@ -26,10 +27,20 @@ import sys
 import time
 from datetime import datetime
 
+import psycopg2
 import requests
 from fastf1.ergast import Ergast
 
-from ergast_utils import clean, fetch_and_upload_media, init_postgres, trigger_revalidation, with_retry
+from ergast_utils import (
+    clean,
+    fetch_and_upload_media_multi,
+    fetch_commons_photos,
+    init_postgres,
+    reconnect_postgres,
+    resolve_commons_category,
+    trigger_revalidation,
+    with_retry,
+)
 
 EARLIEST_YEAR = 1950
 LATEST_YEAR = datetime.now().year - 1
@@ -81,42 +92,27 @@ def fetch_weather(lat: float, lon: float, race_date: str):
     }
 
 
-WIKIPEDIA_HEADERS = {
-    # Wikipedia's API rejects (403) any request with no User-Agent identifying the caller — see
-    # https://w.wiki/4wJS — confirmed live, not documented anywhere obvious beforehand.
-    "User-Agent": "F1Hub-ArchiveEnrichment/1.0 (https://apexf1hub.vercel.app; one-off circuit-image backfill)"
-}
-
-
-def fetch_circuit_image_source(circuit_url: str):
-    """The raw Wikipedia-hosted URL — never stored directly (see fetch_circuit_image below),
-    only ever passed straight into fetch_and_upload_media so the app owns a copy in Storage
-    instead of depending on Wikipedia's hosting staying put."""
+def fetch_circuit_images(circuit_id: str, circuit_url: str):
+    """Real photos of the circuit itself, re-hosted in the shared `media` Storage bucket. NOT the
+    Wikipedia article's own infobox image - that's almost always the track-layout diagram, not a
+    photo (confirmed live: Zandvoort's own article leads with its SVG track map), same reasoning
+    fetch_commons_photos's docstring covers for races. Uses the Wikimedia Commons category off the
+    circuit's own Wikipedia title instead (derived from `circuit_url`, already on hand - no new
+    Ergast call), which reliably holds real contributor photos (confirmed live: Zandvoort's
+    "Circuit Zandvoort" category alone has 2 real aerial shots, plus press/crowd photos, once
+    logos are filtered out). Tries the Wikidata-resolved real category name first (see
+    resolve_commons_category - the literal title fails for a real chunk of major circuits, Monza/
+    Suzuka/Interlagos/Baku/the Nurburgring all confirmed live), falling back to the literal title
+    if that comes up empty - covers both circuits resolve_commons_category correctly resolves and
+    ones where the literal title happens to already be right."""
     if not circuit_url:
-        return None
-    title = circuit_url.rstrip("/").rsplit("/", 1)[-1]
-    resp = with_retry(
-        lambda: requests.get(
-            f"https://en.wikipedia.org/api/rest_v1/page/summary/{title}",
-            headers=WIKIPEDIA_HEADERS,
-            timeout=30,
-        )
-    )
-    if resp.status_code != 200:
-        return None
-    data = resp.json()
-    image = data.get("originalimage") or data.get("thumbnail")
-    return image.get("source") if image else None
-
-
-def fetch_circuit_image(circuit_id: str, circuit_url: str):
-    """Downloads the Wikipedia source image and re-hosts it in the shared `media` Storage bucket
-    (see ergast_utils.fetch_and_upload_media) — returns the Storage URL that actually gets stored
-    in archive_circuits.image_url, never the Wikipedia one."""
-    source = fetch_circuit_image_source(circuit_url)
-    if not source:
-        return None
-    return fetch_and_upload_media(source, "media", f"circuits/{circuit_id}.png")
+        return []
+    title = circuit_url.rstrip("/").rsplit("/", 1)[-1].replace("_", " ")
+    resolved = resolve_commons_category(title)
+    sources = fetch_commons_photos(resolved)
+    if not sources and resolved != title:
+        sources = fetch_commons_photos(title)
+    return fetch_and_upload_media_multi(sources, "media", f"circuits/{circuit_id}")
 
 
 def enrich_circuit_and_weather(cur, race_id: str, year: int, round_num: int, race_date, seen_circuits: set):
@@ -133,13 +129,13 @@ def enrich_circuit_and_weather(cur, race_id: str, year: int, round_num: int, rac
     if circuit_id and circuit_id not in seen_circuits:
         cur.execute("select 1 from archive_circuits where circuit_id = %s", (circuit_id,))
         if cur.fetchone() is None:
-            image_url = fetch_circuit_image(circuit_id, info["circuitUrl"])
+            image_urls = fetch_circuit_images(circuit_id, info["circuitUrl"])
             cur.execute(
-                "insert into archive_circuits (circuit_id, name, wikipedia_url, image_url, lat, long) "
-                "values (%s, %s, %s, %s, %s, %s)",
-                (circuit_id, info["circuitName"], info["circuitUrl"], image_url, info["lat"], info["long"]),
+                "insert into archive_circuits (circuit_id, name, wikipedia_url, image_url, image_urls, lat, long) "
+                "values (%s, %s, %s, %s, %s, %s, %s)",
+                (circuit_id, info["circuitName"], info["circuitUrl"], image_urls[0] if image_urls else None, image_urls, info["lat"], info["long"]),
             )
-            print(f"    new circuit {circuit_id}: image={'yes' if image_url else 'no'}")
+            print(f"    new circuit {circuit_id}: {len(image_urls)} image(s)")
         seen_circuits.add(circuit_id)
 
     cur.execute(
@@ -147,6 +143,38 @@ def enrich_circuit_and_weather(cur, race_id: str, year: int, round_num: int, rac
         (circuit_id, json.dumps(weather) if weather else None, race_id),
     )
     print(f"  {race_id}: circuit_id={circuit_id}, weather={'yes' if weather else 'no'}")
+
+
+def backfill_circuit_images(cur):
+    """Separate, independently-idempotent pass (gated on `image_urls is null`) for circuits whose
+    row already exists from an earlier run of the main loop below - that loop only ever fetches an
+    image for a circuit the *first* time it's seen (`seen_circuits`/the existence check), so a
+    circuit inserted before this Commons-based approach existed (with just the old single
+    diagram-prone `image_url`) is never revisited otherwise. Same convention as
+    enrich_archive.py/fetch_races.py's own backfill_race_photos()."""
+    cur.execute("select circuit_id, wikipedia_url from archive_circuits where image_urls is null order by circuit_id")
+    rows = cur.fetchall()
+    print(f"{len(rows)} circuits need re-hosted images")
+    for circuit_id, wikipedia_url in rows:
+        image_urls = fetch_circuit_images(circuit_id, wikipedia_url)
+        if not image_urls:
+            continue
+        try:
+            cur.execute(
+                "update archive_circuits set image_url = %s, image_urls = %s where circuit_id = %s",
+                (image_urls[0], image_urls, circuit_id),
+            )
+        except psycopg2.Error as exc:
+            # Seen live in enrich_archive.py's own version of this loop: a transient network blip
+            # can take the whole Postgres connection down mid-loop - see reconnect_postgres.
+            print(f"  {circuit_id}: DB write failed ({exc}), reconnecting and retrying once")
+            cur = reconnect_postgres(cur.connection).cursor()
+            cur.execute(
+                "update archive_circuits set image_url = %s, image_urls = %s where circuit_id = %s",
+                (image_urls[0], image_urls, circuit_id),
+            )
+        print(f"  {circuit_id}: {len(image_urls)} image(s) uploaded")
+        time.sleep(REQUEST_DELAY_SEC)
 
 
 def main():
@@ -173,6 +201,8 @@ def main():
         for race_id, year, round_num, race_date in rows:
             enrich_circuit_and_weather(cur, race_id, year, round_num, race_date, seen_circuits)
             time.sleep(REQUEST_DELAY_SEC)
+
+        backfill_circuit_images(cur)
     conn.close()
     trigger_revalidation()
     print("Done.")

@@ -137,7 +137,8 @@ export type RaceDoc = {
   weather?: SessionWeather;
   tireStints?: TireStint[];
   raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
-  photoUrl?: string; // best-effort real race photo (Wikimedia Commons category, not a circuit diagram), re-hosted in Storage — see fetch_races.py's fetch_race_commons_photo
+  photoUrl?: string; // legacy single photo, superseded by photoUrls below
+  photoUrls?: string[]; // real race photos (Wikimedia Commons category, not a circuit diagram), re-hosted in Storage — see fetch_races.py / ergast_utils.py's fetch_commons_photos
 };
 
 export type UserPick = {

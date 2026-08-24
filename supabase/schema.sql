@@ -33,11 +33,13 @@ create table races (
   traffic_stats jsonb,                  -- [{driver, avgGapAheadSec, pctLapsCloseBehind}] - written, not consumed by a model yet
   safety_car_periods int,
   tire_compound_pace jsonb,             -- [{driver, compound, lapCount, avgPaceDeltaSec, degradationSecPerLap}]
-  photo_url text,                       -- best-effort Wikipedia race-report lead image, re-hosted
-                                         -- in Storage (see fetch_races.py's fetch_race_photo) -
-                                         -- often a circuit diagram, not an action/podium photo;
-                                         -- real press photos from the race itself are almost
-                                         -- always copyright-restricted and unavailable on Commons
+  photo_url text,                       -- legacy single photo, superseded by photo_urls below -
+                                         -- kept populated (= photo_urls[0]) for anything still
+                                         -- reading it, not written to directly anymore
+  photo_urls text[],                    -- real photos (Wikimedia Commons category, not a circuit
+                                         -- diagram - see ergast_utils.py's fetch_commons_photos),
+                                         -- re-hosted in Storage, up to a handful per race - the
+                                         -- homepage's rotating background draws from this
   updated_at timestamptz not null default now()
 );
 create index races_year_round_idx on races (year, round);
@@ -145,7 +147,11 @@ create table archive_circuits (
   circuit_id text primary key,
   name text,
   wikipedia_url text,
-  image_url text,
+  image_url text,                       -- legacy single image, superseded by image_urls below
+  image_urls text[],                    -- real photos of the circuit itself (Wikimedia Commons
+                                         -- category off wikipedia_url's own title, not that page's
+                                         -- infobox image - which is almost always the track-layout
+                                         -- diagram, not a photo - see fetch_commons_photos)
   lat numeric,
   long numeric
 );
@@ -187,12 +193,13 @@ create table archive_races (
   country text,
   race_date date,
   wikipedia_url text,                   -- this race's own report page, separate from the circuit's
-  photo_url text,                       -- a real photo (Wikimedia Commons category, not the report
-                                         -- page's own lead image, which is usually a circuit diagram
-                                         -- - see fetch_race_commons_photo), re-hosted in Storage -
-                                         -- see enrich_archive.py's backfill_race_photos(); the
-                                         -- archive-side half of "last N years of real photos per
-                                         -- circuit" (the 2018+ half is races.photo_url)
+  photo_url text,                       -- legacy single photo, superseded by photo_urls below
+  photo_urls text[],                    -- real photos (Wikimedia Commons category, not the report
+                                         -- page's own lead image, which is usually a circuit
+                                         -- diagram - see ergast_utils.py's fetch_commons_photos),
+                                         -- re-hosted in Storage - see enrich_archive.py's
+                                         -- backfill_race_photos(); the archive-side half of "real
+                                         -- photos per circuit" (the 2018+ half is races.photo_urls)
   weather jsonb,                        -- ArchiveWeather: raw WMO code + readings, opaque blob
   circuit_id text references archive_circuits (circuit_id),  -- null until that enrichment pass reaches this race
   laps_backfilled boolean not null default false,

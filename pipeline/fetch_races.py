@@ -30,8 +30,17 @@ from pathlib import Path
 import fastf1
 import numpy as np
 import pandas as pd
+import psycopg2
 
-from ergast_utils import fetch_and_upload_media, fetch_race_commons_photo, init_postgres, trigger_revalidation, upsert
+from ergast_utils import (
+    fetch_and_upload_media,
+    fetch_and_upload_media_multi,
+    fetch_commons_photos,
+    init_postgres,
+    reconnect_postgres,
+    trigger_revalidation,
+    upsert,
+)
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -300,9 +309,9 @@ def slugify(name: str) -> str:
 
 
 def get_existing_race(cur, race_id: str) -> dict | None:
-    cur.execute("select status, practice, photo_url from races where id = %s", (race_id,))
+    cur.execute("select status, practice, photo_urls from races where id = %s", (race_id,))
     row = cur.fetchone()
-    return {"status": row[0], "practice": row[1] or {}, "photo_url": row[2]} if row else None
+    return {"status": row[0], "practice": row[1] or {}, "photo_urls": row[2]} if row else None
 
 
 def upsize_headshot(url: str | None) -> str | None:
@@ -405,14 +414,14 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         race_row["traffic_stats"] = json.dumps(race["trafficStats"])
         race_row["safety_car_periods"] = race["safetyCarPeriods"]
         race_row["tire_compound_pace"] = json.dumps(race["tireCompoundPace"])
-        # Once, not every run - re-hit Wikipedia every 6 hours for a photo that never changes
-        # once found. `existing` (fetched above) already tells us if a prior run already got one.
-        if not (existing and existing.get("photo_url")):
-            photo_source = fetch_race_commons_photo(year, event_name)
-            if photo_source:
-                uploaded = fetch_and_upload_media(photo_source, "media", f"races/{race_id}.png")
-                if uploaded:
-                    race_row["photo_url"] = uploaded
+        # Once, not every run - re-hit Commons every 6 hours for photos that never change once
+        # found. `existing` (fetched above) already tells us if a prior run already got them.
+        if not (existing and existing.get("photo_urls")):
+            photo_sources = fetch_commons_photos(f"{year} {event_name}")
+            uploaded = fetch_and_upload_media_multi(photo_sources, "media", f"races/{race_id}")
+            if uploaded:
+                race_row["photo_url"] = uploaded[0]
+                race_row["photo_urls"] = uploaded
     upsert(cur, "races", [race_row], ["id"])
 
     roster = race["results"] if race else (qualifying["grid"] if qualifying else [])
@@ -463,27 +472,35 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
 
 
 def backfill_race_photos(cur):
-    """Separate, independently-idempotent pass (gated on `photo_url is null`, not `status` -
+    """Separate, independently-idempotent pass (gated on `photo_urls is null`, not `status` -
     completed races are never revisited by the main per-round loop below, `is_already_completed`
     skips calling build_and_push at all once results are in, correctly avoiding a wasted refetch of
-    data that never changes - but photo_url specifically can still be missing on an old completed
+    data that never changes - but photo_urls specifically can still be missing on an old completed
     row, either because it predates this column, or because no Commons category existed for that
     race yet the first time it was tried and one's shown up since). Runs every tick regardless of
     which year/rounds were targeted, same as enrich_archive.py's own backfill_race_photos() for
-    the archive side - cheap once caught up, since it only ever touches rows still missing a photo."""
-    cur.execute("select id, year, name from races where photo_url is null order by year, round")
+    the archive side - cheap once caught up, since it only ever touches rows still missing photos."""
+    cur.execute("select id, year, name from races where photo_urls is null order by year, round")
     rows = cur.fetchall()
     if not rows:
         return
-    print(f"{len(rows)} races (any year) need a re-hosted photo")
+    print(f"{len(rows)} races (any year) need re-hosted photos")
     for race_id, year, name in rows:
-        source = fetch_race_commons_photo(year, name)
-        if not source:
+        sources = fetch_commons_photos(f"{year} {name}")
+        if not sources:
             continue
-        uploaded = fetch_and_upload_media(source, "media", f"races/{race_id}.png")
-        if uploaded:
-            cur.execute("update races set photo_url = %s where id = %s", (uploaded, race_id))
-            print(f"  {race_id}: photo uploaded")
+        uploaded = fetch_and_upload_media_multi(sources, "media", f"races/{race_id}")
+        if not uploaded:
+            continue
+        try:
+            cur.execute("update races set photo_url = %s, photo_urls = %s where id = %s", (uploaded[0], uploaded, race_id))
+        except psycopg2.Error as exc:
+            # Seen live in enrich_archive.py's own version of this loop: a transient network blip
+            # can take the whole Postgres connection down mid-loop - see reconnect_postgres.
+            print(f"  {race_id}: DB write failed ({exc}), reconnecting and retrying once")
+            cur = reconnect_postgres(cur.connection).cursor()
+            cur.execute("update races set photo_url = %s, photo_urls = %s where id = %s", (uploaded[0], uploaded, race_id))
+        print(f"  {race_id}: {len(uploaded)} photo(s) uploaded")
 
 
 def discover_rounds(year: int) -> list[int]:

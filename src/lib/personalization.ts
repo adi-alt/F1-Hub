@@ -133,6 +133,7 @@ export type TrackTopCurrentTeam = { name: string; wins: number; logoUrl: string 
 export type TrackHistory = {
   circuitId: string;
   circuitImageUrl: string | null;
+  circuitImageUrls: string[] | null;
   totalRaces: number;
   firstYear: number;
   lastYear: number;
@@ -216,6 +217,7 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
   return {
     circuitId,
     circuitImageUrl: circuit?.imageUrl ?? null,
+    circuitImageUrls: circuit?.imageUrls ?? null,
     totalRaces: races.length,
     firstYear: races[0].year,
     lastYear: races.at(-1)!.year,
@@ -238,19 +240,22 @@ function dedupeSortedByYear(photos: RecentCircuitPhoto[]): RecentCircuitPhoto[] 
   return photos.filter((p) => (seen.has(p.url) ? false : seen.add(p.url))).sort((a, b) => a.year - b.year);
 }
 
-function withPhoto(races: { year: number; photoUrl?: string | null }[]): RecentCircuitPhoto[] {
-  return races.filter((r) => r.photoUrl).map((r) => ({ url: r.photoUrl!, year: r.year }));
+function withPhotos(races: { year: number; photoUrl?: string | null; photoUrls?: string[] | null }[]): RecentCircuitPhoto[] {
+  return races.flatMap((r) => {
+    const urls = r.photoUrls?.length ? r.photoUrls : r.photoUrl ? [r.photoUrl] : [];
+    return urls.map((url) => ({ url, year: r.year }));
+  });
 }
 
 /** Real photos of this exact circuit, preferring the last ~10 seasons — a rolling window relative
  * to `year`, not a fixed cutoff, so 2026 shows 2016-2026 and 2027 shows 2017-2027 with no code
  * change needed as seasons pass. For the homepage's rotating background. Draws on both halves of
- * "real photos per circuit": archive_races.photo_url for seasons the archive covers,
- * races.photo_url once FastF1 coverage starts — both filled in automatically by the pipeline for
- * every race (current or newly added to the calendar), so a brand-new track just starts
- * accumulating real photos the moment it's raced, no per-circuit hardcoding on either side.
- * Photos are real Wikimedia Commons contributor shots, not circuit diagrams — see
- * ergast_utils.py's fetch_race_commons_photo.
+ * "real photos per circuit": archive_races.photo_urls for seasons the archive covers,
+ * races.photo_urls once FastF1 coverage starts — several per race, not just one, both filled in
+ * automatically by the pipeline for every race (current or newly added to the calendar), so a
+ * brand-new track just starts accumulating real photos the moment it's raced, no per-circuit
+ * hardcoding on either side. Photos are real Wikimedia Commons contributor shots, not circuit
+ * diagrams — see ergast_utils.py's fetch_commons_photos.
  *
  * Falls back to the circuit's *entire* real-photo history when the recent window alone has fewer
  * than MIN_PHOTOS_FOR_ROTATION — still real photos, just not all recent, and only when recency
@@ -258,8 +263,8 @@ function withPhoto(races: { year: number; photoUrl?: string | null }[]): RecentC
  *
  * archive_races and races legitimately overlap in years (the archive's own range was separately
  * extended through last season, see pipeline/fetch_archive.py) — same race, same id, same
- * `races/{id}.png` Storage path in both tables, so de-duping by url (not by year) is what keeps a
- * recent season from showing its own photo twice in the rotation. */
+ * `races/{id}-N.png` Storage paths in both tables, so de-duping by url (not by year) is what keeps
+ * a recent season from showing its own photos twice in the rotation. */
 export async function getRecentCircuitPhotos(
   circuitId: string | null,
   currentSeasonCircuit: string | null,
@@ -272,11 +277,11 @@ export async function getRecentCircuitPhotos(
   ]);
 
   const recent = dedupeSortedByYear([
-    ...withPhoto(archiveRaces.filter((r) => r.year >= earliestYear)),
-    ...withPhoto(currentRaces.filter((r) => r.year >= earliestYear)),
+    ...withPhotos(archiveRaces.filter((r) => r.year >= earliestYear)),
+    ...withPhotos(currentRaces.filter((r) => r.year >= earliestYear)),
   ]);
   if (recent.length >= MIN_PHOTOS_FOR_ROTATION) return recent;
-  return dedupeSortedByYear([...withPhoto(archiveRaces), ...withPhoto(currentRaces)]);
+  return dedupeSortedByYear([...withPhotos(archiveRaces), ...withPhotos(currentRaces)]);
 }
 
 /** Cumulative points per round for a fixed set of drivers — the "curve" half of the homepage's
