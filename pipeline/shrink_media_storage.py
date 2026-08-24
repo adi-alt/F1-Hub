@@ -33,7 +33,7 @@ from ergast_utils import _resize_photo, init_postgres
 BASE_URL = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
 SERVICE_KEY = os.environ["SUPABASE_SECRET_KEY"]
 AUTH_HEADERS = {"Authorization": f"Bearer {SERVICE_KEY}", "apikey": SERVICE_KEY}
-KEEP_PER_ROW = 4
+KEEP_PER_ROW = 3
 
 
 def storage_download(bucket: str, path: str) -> bytes:

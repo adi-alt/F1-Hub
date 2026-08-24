@@ -388,7 +388,7 @@ def resolve_commons_category(wikipedia_title):
         return wikipedia_title
 
 
-def fetch_commons_photos(category, limit=4):
+def fetch_commons_photos(category, limit=3):
     """Real photos from a Wikimedia Commons category - `Category:{category}`, the same naming
     convention Wikipedia article titles use (a race's "{year} {EventName}", or a circuit's own
     article title). Wikipedia's own lead/infobox image is frequently just a diagram (a race
@@ -455,10 +455,14 @@ def fetch_commons_photos(category, limit=4):
         return []
 
 
-PHOTO_MAX_DIMENSION = 1600  # long edge, px - a website backdrop never needs press-photo-original
+PHOTO_MAX_DIMENSION = 1280  # long edge, px - a website backdrop never needs press-photo-original
                             # resolution (Commons routinely serves 4000-5000px+ JPEGs); this is
-                            # still sharp at full-bleed on any real display
-PHOTO_JPEG_QUALITY = 78
+                            # still sharp at full-bleed on any real display. Brought down from an
+                            # initial 1600/quality 78 - that alone cut the original 6.1GB incident
+                            # to 1.47GB, still ~30% over the 1.1GB quota, so this + KEEP_PER_ROW
+                            # dropping from 4 to 3 (shrink_media_storage.py) closes the rest of the
+                            # gap with real margin instead of trimming right up to the line.
+PHOTO_JPEG_QUALITY = 70
 
 
 def _resize_photo(content: bytes) -> bytes:
