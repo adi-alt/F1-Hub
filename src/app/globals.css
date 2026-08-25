@@ -9,11 +9,10 @@
   --f1-red-dim: #9a0500;
   --f1-carbon: #18181b;
   --f1-carbon-2: #27272a;
-  /* Every card/table border site-wide runs through this one token — a desaturated, dark version
-     of --f1-red's own hue (not the full-saturation accent itself, which would be far too loud
-     spread across every border on every page) so structural strokes read as warm/branded instead
-     of a generic gray line. */
-  --f1-line: #4a2624;
+  /* Plain neutral — matches chart.gridline. The "red strokes" ask turned out to mean ambient
+     light in the page background (see body::before below), not a red-tinted border on every
+     card/table, so this stays a boring structural gray. */
+  --f1-line: #2c2c31;
 }
 
 @theme inline {
@@ -30,6 +29,40 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Ambient light streaks on the zinc background, referenced from a photo of soft diagonal red-to-
+   blue glow bands over a grainy dark surface — two blurred warm-core/cool-edge blobs per streak,
+   rotated together into a consistent diagonal, not a border/stroke on any component. Fixed (not
+   absolute) so it reads as one continuous backdrop behind the whole page rather than repeating
+   per section, and z-index -1 keeps it strictly behind every real element without needing to
+   touch any of their own stacking. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20% -10%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 32vw 10vw at 28% 70%, rgba(225, 90, 40, 0.16), transparent 70%),
+    radial-gradient(ellipse 30vw 9vw at 20% 82%, rgba(70, 130, 220, 0.1), transparent 70%),
+    radial-gradient(ellipse 34vw 11vw at 82% 22%, rgba(225, 90, 40, 0.15), transparent 70%),
+    radial-gradient(ellipse 32vw 10vw at 90% 12%, rgba(70, 130, 220, 0.1), transparent 70%);
+  filter: blur(30px);
+  transform: rotate(-32deg);
+}
+
+/* Fine grain over the whole viewport (feTurbulence, not a raster asset) — subtle enough at this
+   opacity/blend to sit on top of real content without ever hurting legibility or intercepting
+   clicks. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
 /* Scroll still works (native or Lenis-driven) — this only hides the visible track/thumb, for
