@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0c;
+  /* Zinc, not a plain near-black — Tailwind's own zinc-950/900/800, so surfaces read as a
+     deliberately warm-neutral dark gray rather than an unconsidered "just make it black". */
+  --background: #09090b;
   --foreground: #f2f2f3;
   --f1-red: #e10600;
   --f1-red-dim: #9a0500;
-  --f1-carbon: #17171a;
-  --f1-carbon-2: #222226;
-  --f1-line: #2c2c31;
+  --f1-carbon: #18181b;
+  --f1-carbon-2: #27272a;
+  /* Every card/table border site-wide runs through this one token — a desaturated, dark version
+     of --f1-red's own hue (not the full-saturation accent itself, which would be far too loud
+     spread across every border on every page) so structural strokes read as warm/branded instead
+     of a generic gray line. */
+  --f1-line: #4a2624;
 }
 
 @theme inline {
@@ -24,4 +30,15 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Scroll still works (native or Lenis-driven) — this only hides the visible track/thumb, for
+   regions (standings tables, the calendar strip) where a scrollbar is a distraction rather than a
+   necessary affordance, the content itself already makes it obvious there's more to scroll to. */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, modern Edge */
 }

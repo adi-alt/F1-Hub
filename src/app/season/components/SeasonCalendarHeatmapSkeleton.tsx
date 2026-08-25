@@ -8,6 +8,9 @@ const LEGEND_ITEMS = 6; // "No session" + the 5 real session categories
 export function SeasonCalendarHeatmapSkeleton() {
   return (
     <div className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
+      <div className="mb-3 flex items-center justify-end">
+        <Skeleton className="h-7 w-7 rounded-full" />
+      </div>
       <div className="overflow-x-auto">
         <div className="inline-flex flex-col gap-1">
           <div className="ml-8 h-[10px]" />

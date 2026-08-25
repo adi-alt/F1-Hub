@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
+import { ScrollToSection } from "@/components/ScrollToSection";
 import { HighlightsPanel } from "@/components/race/HighlightsPanel";
 import { ModelInfo } from "@/components/race/ModelInfo";
 import { PickPanel } from "@/components/race/PickPanel";
@@ -22,7 +23,7 @@ import { getSession } from "@/lib/session/getSession";
 export default async function RacePage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; round?: string }>;
+  searchParams: Promise<{ year?: string; round?: string; section?: string }>;
 }) {
   const session = await getSession();
   if (!session.uid) {
@@ -33,7 +34,7 @@ export default async function RacePage({
     );
   }
 
-  const { year, round } = await searchParams;
+  const { year, round, section } = await searchParams;
   if (!year || !round) notFound();
 
   const race = await getRace(Number(year), Number(round));
@@ -46,6 +47,7 @@ export default async function RacePage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <RaceRealtimeWatcher raceId={race.id} />
+      <ScrollToSection id={section} />
       <Link href={seasonHref(race.year)} className="text-sm text-neutral-500 hover:text-neutral-300">
         ← {race.year} season
       </Link>

@@ -4,9 +4,14 @@ import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { ExportMenu } from "@/components/export/ExportMenu";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
+import { tableToCanvas } from "@/lib/export";
 import type { ConstructorStandingRow, DriverStandingRow } from "../services/season.service";
+
+const DRIVER_COLUMNS = ["Pos", "Driver", "Team", "Wins", "Podiums", "Points", "Gap"];
+const CONSTRUCTOR_COLUMNS = ["Pos", "Team", "Wins", "Podiums", "Points", "Gap"];
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
@@ -76,13 +81,21 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
     }
   }
 
+  const driverRows = (): { columns: string[]; rows: (string | number)[][] } => ({
+    columns: DRIVER_COLUMNS,
+    rows: sorted.map((s, i) => [i + 1, s.driverName, s.team, s.wins, s.podiums, s.points, gapLabel(s.points, leaderPoints)]),
+  });
+
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+      <div className="flex items-center justify-end border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1">
+        <ExportMenu filename="drivers-championship" getRows={driverRows} getImage={async () => tableToCanvas(driverRows().columns, driverRows().rows)} />
+      </div>
       {/* Its own Lenis instance (see useNestedLenisScroll) rather than plain native overflow-auto
           scroll or the old data-lenis-prevent — the table gets real Lenis smoothing, and the
           page's own root instance defers to it via the nested-region registry instead of fighting
           it (see nestedLenisRegistry.ts). */}
-      <div ref={scrollRef} className="max-h-[420px] overflow-auto">
+      <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[680px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
@@ -104,19 +117,15 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
               <th className="w-10 px-4 py-3 text-center">Fav</th>
             </tr>
           </thead>
-          <motion.tbody
-            key={`${sortKey}-${sortDir}`}
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer}
-            className="divide-y divide-[var(--f1-line)]"
-          >
+          <motion.tbody initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
             {sorted.map((s, i) => {
               const isFavorited = !!s.favoriteId && favorites.has(s.favoriteId);
               return (
                 <motion.tr
                   key={s.driver}
+                  layout
                   variants={staggerItem}
+                  transition={{ layout: { duration: 0.35, ease: "easeOut" } }}
                   className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
                 >
                   <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
@@ -176,9 +185,21 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
     }
   }
 
+  const constructorRows = (): { columns: string[]; rows: (string | number)[][] } => ({
+    columns: CONSTRUCTOR_COLUMNS,
+    rows: sorted.map((s, i) => [i + 1, s.team, s.wins, s.podiums, s.points, gapLabel(s.points, leaderPoints)]),
+  });
+
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      <div ref={scrollRef} className="max-h-[420px] overflow-auto">
+      <div className="flex items-center justify-end border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1">
+        <ExportMenu
+          filename="constructors-championship"
+          getRows={constructorRows}
+          getImage={async () => tableToCanvas(constructorRows().columns, constructorRows().rows)}
+        />
+      </div>
+      <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[540px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
@@ -200,7 +221,6 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
             </tr>
           </thead>
           <motion.tbody
-            key={`${sortKey}-${sortDir}`}
             initial="hidden"
             animate="show"
             variants={staggerContainer}
@@ -211,7 +231,9 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
               return (
                 <motion.tr
                   key={s.team}
+                  layout
                   variants={staggerItem}
+                  transition={{ layout: { duration: 0.35, ease: "easeOut" } }}
                   className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
                 >
                   <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>

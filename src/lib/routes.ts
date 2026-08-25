@@ -2,8 +2,11 @@
 // centralized here so the URL shape only needs to change in one place.
 // Keyed by round, not a slug: round is a stable field every race document already has, so this
 // avoids any dependency on how (or whether) an event name gets turned into a URL-safe string.
-export function raceHref(year: number, round: number): string {
-  return `/races?year=${year}&round=${round}`;
+// `section` scrolls to that id on the race page once it mounts (see ScrollToSection) — the
+// query-param analog of a `#hash` anchor, kept consistent with this file's query-based routing.
+export function raceHref(year: number, round: number, section?: string): string {
+  const base = `/races?year=${year}&round=${round}`;
+  return section ? `${base}&section=${section}` : base;
 }
 
 export function raceSimulationHref(year: number, round: number): string {

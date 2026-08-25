@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { ExportMenu } from "@/components/export/ExportMenu";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
+import { staggerItem } from "@/components/motion/variants";
+import { tableToCanvas } from "@/lib/export";
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { Top3ByRound } from "../services/season.service";
+
+const CALENDAR_COLUMNS = ["Round", "Event", "Session", "Date"];
 
 type SessionCategory = "practice" | "qualifying" | "sprintQualifying" | "sprint" | "race";
 
@@ -33,13 +39,12 @@ function categorize(label: string): SessionCategory {
   return "race";
 }
 
-// No dedicated qualifying/practice routes exist (see src/app/races/page.tsx) — a hash anchor onto
-// that same round's page is the whole mechanism, so no new href builder is needed in routes.ts.
+// No dedicated qualifying/practice routes exist (see src/app/races/page.tsx) — a `?section=`
+// query param onto that same round's page (scrolled to by ScrollToSection) is the whole mechanism.
 function sessionHref(year: number, round: number, category: SessionCategory): string {
-  const base = raceHref(year, round);
-  if (category === "qualifying" || category === "sprintQualifying") return `${base}#qualifying`;
-  if (category === "practice") return `${base}#practice`;
-  return base;
+  if (category === "qualifying" || category === "sprintQualifying") return raceHref(year, round, "qualifying");
+  if (category === "practice") return raceHref(year, round, "practice");
+  return raceHref(year, round);
 }
 
 function dateKey(d: Date): string {
@@ -122,9 +127,29 @@ export function SeasonCalendarHeatmap({
     return { weeks, monthLabelForWeek };
   }, [year, entries, top3ByRound]);
 
+  const calendarRows = (): { columns: string[]; rows: (string | number)[][] } => ({
+    columns: CALENDAR_COLUMNS,
+    rows: entries.flatMap((entry) =>
+      entry.sessions.map((s) => [entry.round, entry.name ?? `Round ${entry.round}`, s.label, new Date(s.date).toLocaleDateString()]),
+    ),
+  });
+
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
-      <div ref={scrollRef} className="overflow-x-auto">
+    <motion.div
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-80px" }}
+      variants={staggerItem}
+      className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6"
+    >
+      <div className="mb-3 flex items-center justify-end">
+        <ExportMenu
+          filename={`${year}-calendar`}
+          getRows={calendarRows}
+          getImage={async () => tableToCanvas(calendarRows().columns, calendarRows().rows)}
+        />
+      </div>
+      <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
         <div className="inline-flex flex-col gap-1">
           <div className="ml-8 flex gap-[3px]">
             {weeks.map((_, i) => (
@@ -147,7 +172,9 @@ export function SeasonCalendarHeatmap({
                   if (!day.inYear) return <div key={di} className="h-[13px] w-[13px]" />;
                   const primary = day.events[0];
                   const cellClass = "block h-[13px] w-[13px] rounded-[3px] transition hover:ring-1 hover:ring-white/60";
-                  const style = { backgroundColor: primary ? CATEGORY_META[primary.category].color : "var(--f1-line)", opacity: primary ? 1 : 0.35 };
+                  // "No session" cells stay neutral (--f1-carbon-2, not --f1-line) — --f1-line is
+                  // now a deliberately red-tinted stroke color, wrong semantics for "nothing here".
+                  const style = { backgroundColor: primary ? CATEGORY_META[primary.category].color : "var(--f1-carbon-2)", opacity: primary ? 1 : 0.6 };
                   const handlers = {
                     onMouseEnter: (e: React.MouseEvent) => setHovered({ cell: day, x: e.clientX, y: e.clientY }),
                     onMouseMove: (e: React.MouseEvent) => setHovered({ cell: day, x: e.clientX, y: e.clientY }),
@@ -167,7 +194,7 @@ export function SeasonCalendarHeatmap({
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-neutral-500">
         <span className="flex items-center gap-1.5">
-          <span className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: "var(--f1-line)", opacity: 0.35 }} />
+          <span className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: "var(--f1-carbon-2)", opacity: 0.6 }} />
           No session
         </span>
         {(Object.keys(CATEGORY_META) as SessionCategory[]).map((cat) => (
@@ -180,8 +207,8 @@ export function SeasonCalendarHeatmap({
 
       {hovered && hovered.cell.events.length > 0 && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-3 py-2 text-xs shadow-lg"
-          style={{ left: hovered.x + 12, top: hovered.y + 12 }}
+          className="pointer-events-none fixed z-50 max-w-xs rounded-lg border border-[var(--f1-line)] px-3 py-2 text-xs shadow-lg backdrop-blur-md"
+          style={{ left: hovered.x + 12, top: hovered.y + 12, backgroundColor: "rgba(24, 24, 27, 0.72)" }}
         >
           <p className="font-semibold text-white">{hovered.cell.events[0].raceName}</p>
           {hovered.cell.events.map((e, i) =>
@@ -203,6 +230,6 @@ export function SeasonCalendarHeatmap({
           </p>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
