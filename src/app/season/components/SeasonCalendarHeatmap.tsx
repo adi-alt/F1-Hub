@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 
@@ -54,6 +55,7 @@ const WEEKDAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
  * (GitHub's contribution graph) has. */
 export function SeasonCalendarHeatmap({ year, entries }: { year: number; entries: CalendarEntry[] }) {
   const [hovered, setHovered] = useState<{ cell: DayCell; x: number; y: number } | null>(null);
+  const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
 
   const { weeks, monthLabelForWeek } = useMemo(() => {
     const eventsByDate = new Map<string, CellEvent[]>();
@@ -105,7 +107,7 @@ export function SeasonCalendarHeatmap({ year, entries }: { year: number; entries
 
   return (
     <div className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
-      <div className="overflow-x-auto" data-lenis-prevent>
+      <div ref={scrollRef} className="overflow-x-auto">
         <div className="inline-flex flex-col gap-1">
           <div className="ml-8 flex gap-[3px]">
             {weeks.map((_, i) => (

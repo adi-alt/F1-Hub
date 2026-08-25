@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import type { ConstructorStandingRow, DriverStandingRow } from "../services/season.service";
 
 type SortKey = "name" | "wins" | "podiums" | "points";
@@ -42,6 +43,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const scrollRef = useNestedLenisScroll();
 
   const sorted = useMemo(() => {
     const list = [...standings];
@@ -62,12 +64,11 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      {/* data-lenis-prevent: allowNestedScroll (useLenisContainer's default) is a heuristic - it
-          walks a wheel event's composed path checking computed overflow, and it doesn't reliably
-          catch every nested-scroll region. This is Lenis's own documented, deterministic escape
-          hatch instead: it skips this element outright, no heuristic involved, so the table always
-          scrolls on its own rather than the page underneath it. */}
-      <div className="max-h-[420px] overflow-auto" data-lenis-prevent>
+      {/* Its own Lenis instance (see useNestedLenisScroll) rather than plain native overflow-auto
+          scroll or the old data-lenis-prevent — the table gets real Lenis smoothing, and the
+          page's own root instance defers to it via the nested-region registry instead of fighting
+          it (see nestedLenisRegistry.ts). */}
+      <div ref={scrollRef} className="max-h-[420px] overflow-auto">
         <table className="w-full min-w-[620px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
@@ -136,6 +137,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const scrollRef = useNestedLenisScroll();
 
   const sorted = useMemo(() => {
     const list = [...standings];
@@ -156,7 +158,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      <div className="max-h-[420px] overflow-auto" data-lenis-prevent>
+      <div ref={scrollRef} className="max-h-[420px] overflow-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>

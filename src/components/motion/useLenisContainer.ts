@@ -1,7 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Lenis, { type LenisOptions } from "lenis";
+import { isRegisteredNestedLenisRegion, registerNestedLenisRegion } from "./nestedLenisRegistry";
+
+type NestedScrollOptions = {
+  // Set on the page's own root instance (SmoothScroll.tsx): defers to whichever *specific*
+  // nested region a wheel event lands in, rather than `allowNestedScroll`'s own heuristic (a
+  // real DOM-overflow check that in practice didn't reliably catch this app's own nested tables)
+  // or `data-lenis-prevent` (which every instance treats as "never smooth-scroll here", so it
+  // can't distinguish "the root should ignore this" from "but a nested instance still should").
+  deferToNestedRegions?: boolean;
+  // Set on a *nested* instance (a table's own scroll wrapper, say): registers this container so
+  // deferToNestedRegions callers give way to it.
+  registerAsNestedRegion?: boolean;
+};
 
 /**
  * Ported from Nexus-Internal-Platform's `useLenisContainer` (src/app/hooks/useLenis.ts). Nexus
@@ -16,12 +29,14 @@ export function useLenisContainer(
   container?: HTMLElement | null,
   options?: LenisOptions,
   dependencyKey?: unknown,
+  nestedScrollOptions?: NestedScrollOptions,
 ) {
   const lenisRef = useRef<Lenis | null>(null);
   const rafIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let unregister: (() => void) | null = null;
 
     async function initializeWithDelay() {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -33,6 +48,10 @@ export function useLenisContainer(
       const content = (container.querySelector(":scope > *") ?? container.firstElementChild ?? container) as HTMLElement;
 
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+
+      if (nestedScrollOptions?.registerAsNestedRegion) {
+        unregister = registerNestedLenisRegion(container);
+      }
 
       try {
         const lenis = new Lenis({
@@ -51,6 +70,12 @@ export function useLenisContainer(
           // wheel event never reaches its native scroll handling. This makes Lenis check for a
           // scrollable ancestor under the cursor first and defer to it natively when found.
           allowNestedScroll: options?.allowNestedScroll ?? true,
+          // `node !== container` matters: without excluding its own wrapper, a
+          // registerAsNestedRegion instance would see *itself* in the registry and defer to
+          // itself on every event, i.e. never actually scroll.
+          prevent: nestedScrollOptions?.deferToNestedRegions
+            ? (node) => node !== container && isRegisteredNestedLenisRegion(node)
+            : options?.prevent,
         });
         lenisRef.current = lenis;
 
@@ -70,6 +95,7 @@ export function useLenisContainer(
 
     return () => {
       cancelled = true;
+      unregister?.();
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
@@ -87,4 +113,16 @@ export function useLenisContainer(
   }, []);
 
   return { scrollTo };
+}
+
+/** The common case for a self-contained scroll region (a table, a card grid) that wants its own
+ * Lenis-smoothed scroll without fighting the page's root instance — bundles the ref-callback
+ * state and the `registerAsNestedRegion` wiring `useLenisContainer` needs, so a call site is just
+ * `<div ref={useNestedLenisScroll()}>`. `options` is for the rare case that isn't a plain vertical
+ * region (the calendar heatmap's horizontal strip passes `{ orientation: "horizontal",
+ * gestureOrientation: "horizontal" }`). */
+export function useNestedLenisScroll(dependencyKey?: unknown, options?: LenisOptions) {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  useLenisContainer(container, options, dependencyKey, { registerAsNestedRegion: true });
+  return setContainer;
 }

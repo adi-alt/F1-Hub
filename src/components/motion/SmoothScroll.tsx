@@ -18,7 +18,11 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const { isAuthorized } = useAuth();
-  useLenisContainer(container, undefined, pathname);
+  // deferToNestedRegions: lets a specific nested scroll region (a standings table, say) handle
+  // its own Lenis-smoothed scroll instead of this root instance fighting it — see
+  // nestedLenisRegistry.ts's docstring for why this isn't just `allowNestedScroll`/
+  // `data-lenis-prevent` again.
+  useLenisContainer(container, undefined, pathname, { deferToNestedRegions: true });
 
   // Next.js's built-in "scroll to top on navigation" only touches window scroll — since this
   // container owns scroll instead, it has to reset itself on every route change.
