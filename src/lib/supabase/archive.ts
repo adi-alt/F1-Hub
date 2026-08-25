@@ -387,6 +387,33 @@ export const getAllArchiveDrivers = unstable_cache(
   { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
 );
 
+/** Reverse lookup for the current season's 3-letter codes -> archive driver_id, e.g. for
+ * favoriting a driver directly from the current-season standings table (which only has the code,
+ * not the archive id `favoriteDrivers` is actually keyed by). One batched query for a whole
+ * grid's worth of codes rather than one round-trip per row - not `unstable_cache`-wrapped since
+ * the input is a dynamic array (a poor cache key) and this is already a single cheap indexed
+ * lookup, not worth the complexity. Silently omits any code `archive_drivers.code` hasn't been
+ * backfilled for yet (see fetch_archive_driver_media.py) - those rows just can't be favorited from
+ * here until enrichment catches up, same "graceful gap" as everywhere else in the archive.
+ *
+ * 3-letter codes are NOT globally unique across F1 history - confirmed live, "ALB" matches both
+ * Alexander Albon (current) and Christijan Albers (retired ~2007), "VER" matches both Max
+ * Verstappen (current) and Jean-Éric Vergne (retired ~2014). On a collision, keeps whichever
+ * archive row has the latest `last_year` - a currently-active driver's own archive row is always
+ * the most recently-updated one for that code, so this reliably picks the real match instead of
+ * silently keeping whichever row the query happened to return last. */
+export async function getArchiveDriverIdsByCode(codes: string[]): Promise<Map<string, string>> {
+  if (codes.length === 0) return new Map();
+  const { data } = await supabaseAdmin.from("archive_drivers").select("driver_id, code, last_year").in("code", codes);
+  const bestByCode = new Map<string, { driverId: string; lastYear: number }>();
+  for (const row of (data ?? []) as { driver_id: string; code: string | null; last_year: number }[]) {
+    if (!row.code) continue;
+    const existing = bestByCode.get(row.code);
+    if (!existing || row.last_year > existing.lastYear) bestByCode.set(row.code, { driverId: row.driver_id, lastYear: row.last_year });
+  }
+  return new Map([...bestByCode].map(([code, v]) => [code, v.driverId]));
+}
+
 /** A driver's career — every race archive_results has this driver_id in, oldest first. A real
  * join now, not the Firestore version's flat driverIds array-contains workaround (Postgres never
  * needed that limitation in the first place). */

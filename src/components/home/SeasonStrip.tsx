@@ -34,7 +34,7 @@ export function SeasonStrip({ races }: { races: RaceDoc[] }) {
         );
 
         // "scheduled" has no race doc to view yet, but the track has history — link there
-        // instead of a dead end, same fix as CalendarList.tsx.
+        // instead of a dead end.
         const href = race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round);
         return (
           <motion.div key={race.id} variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.97 }}>

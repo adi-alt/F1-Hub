@@ -6,8 +6,10 @@ import { ModelInfo } from "@/components/race/ModelInfo";
 import { PickPanel } from "@/components/race/PickPanel";
 import { PolePredictionComparison } from "@/components/race/PolePredictionComparison";
 import { PoleSection } from "@/components/race/PoleSection";
+import { PracticeSummary } from "@/components/race/PracticeSummary";
 import { PredictionComparison } from "@/components/race/PredictionComparison";
 import { PredictionPanel } from "@/components/race/PredictionPanel";
+import { QualifyingTable } from "@/components/race/QualifyingTable";
 import { ResultsTable } from "@/components/race/ResultsTable";
 import { MovementChart } from "@/components/charts/MovementChart";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -72,45 +74,67 @@ export default async function RacePage({
         </div>
       </div>
 
-      {race.status === "completed" && race.results ? (
-        <div className="mt-8 space-y-10">
-          {highlights && <HighlightsPanel highlights={highlights} />}
-          {(accuracy || poleAccuracy) && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {accuracy && <PredictionComparison accuracy={accuracy} />}
-              {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
+      <div className="mt-8 space-y-10">
+        {/* Practice/qualifying can exist well before the race itself does, so these render
+            unconditionally alongside whatever the race-status branch below shows — a calendar
+            heatmap cell (see SeasonCalendarHeatmap) links straight to these anchors. */}
+        {race.practice && (
+          <div id="practice">
+            <h2 className="mb-3 text-lg font-semibold text-white">Practice</h2>
+            <PracticeSummary practice={race.practice} />
+          </div>
+        )}
+        {race.inputs && race.inputs.length > 0 && (
+          <div id="qualifying">
+            <h2 className="mb-3 text-lg font-semibold text-white">Qualifying</h2>
+            <QualifyingTable inputs={race.inputs} />
+          </div>
+        )}
+
+        {race.status === "completed" && race.results ? (
+          <div id="results" className="space-y-10">
+            {highlights && <HighlightsPanel highlights={highlights} />}
+            {(accuracy || poleAccuracy) && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {accuracy && <PredictionComparison accuracy={accuracy} />}
+                {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
+              </div>
+            )}
+            <div>
+              <h2 className="mb-3 text-lg font-semibold text-white">Results</h2>
+              <ResultsTable results={race.results} />
             </div>
-          )}
-          <div>
-            <h2 className="mb-3 text-lg font-semibold text-white">Results</h2>
-            <ResultsTable results={race.results} />
+            <div>
+              <h2 className="mb-3 text-lg font-semibold text-white">Grid → finish movement</h2>
+              <MovementChart results={race.results} />
+            </div>
           </div>
-          <div>
-            <h2 className="mb-3 text-lg font-semibold text-white">Grid → finish movement</h2>
-            <MovementChart results={race.results} />
+        ) : race.prediction ? (
+          <div className="space-y-8">
+            <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
+            <ModelInfo />
           </div>
-        </div>
-      ) : race.prediction ? (
-        <div className="mt-8 space-y-8">
-          <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
-          <ModelInfo />
-        </div>
-      ) : race.polePrediction ? (
-        <div className="mt-8 space-y-6">
-          <PoleSection polePrediction={race.polePrediction} />
-          <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-6 text-center text-neutral-400">
-            <p>Finishing-order and race-pace predictions unlock once qualifying happens.</p>
+        ) : race.polePrediction ? (
+          <div className="space-y-6">
+            <PoleSection polePrediction={race.polePrediction} />
+            <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-6 text-center text-neutral-400">
+              <p>
+                {race.inputs?.length
+                  ? "Not enough prior-season history yet to predict a finishing order for this race."
+                  : "Finishing-order and race-pace predictions unlock once qualifying happens."}
+              </p>
+            </div>
+            <ModelInfo />
           </div>
-          <ModelInfo />
-        </div>
-      ) : (
-        <div className="mt-8 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-8 text-center text-neutral-400">
-          <p>No prior-season history exists yet to predict from.</p>
-          <p className="mt-1 text-sm text-neutral-500">
-            Nothing to do here — this page updates itself automatically as data becomes available.
-          </p>
-        </div>
-      )}
+        ) : (
+          <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-8 text-center text-neutral-400">
+            <p>No prior-season history exists yet to predict from.</p>
+            <p className="mt-1 text-sm text-neutral-500">
+              Nothing to do here — this page updates itself automatically as data becomes available.
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="mt-10">
         <PickPanel race={race} />

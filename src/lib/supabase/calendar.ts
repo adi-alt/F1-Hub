@@ -64,3 +64,15 @@ export const getCalendarEntry = unstable_cache(
   ["get-calendar-entry"],
   { revalidate: REVALIDATE_SECONDS, tags: ["calendar"] },
 );
+
+/** Every round's full session schedule for a season in one query — the per-year counterpart to
+ * `getCalendarEntry`, for the season page's calendar heatmap (one query covers every cell instead
+ * of one round at a time). */
+export const getCalendarEntriesByYear = unstable_cache(
+  async (year: number): Promise<CalendarEntry[]> => {
+    const { data } = await supabaseAdmin.from("calendar").select("*").eq("year", year).order("round");
+    return ((data ?? []) as CalendarRow[]).map(fromRow);
+  },
+  ["get-calendar-entries-by-year"],
+  { revalidate: REVALIDATE_SECONDS, tags: ["calendar"] },
+);

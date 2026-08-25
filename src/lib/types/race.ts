@@ -106,6 +106,11 @@ export type TireStint = {
   lapCount: number;
 };
 
+export type PracticeBestLap = { driver: string; lapTimeSec: number; deltaToBestSec: number };
+export type PracticeSessionSummary = { session: string; bestLaps: PracticeBestLap[]; weather: SessionWeather | null };
+// Sprint weekends have no FP2/FP3 — always a subset, never all three.
+export type PracticeData = Partial<Record<"FP1" | "FP2" | "FP3", PracticeSessionSummary>>;
+
 /**
  * The shape every page/component actually consumes — an adapted view over the raw FastF1-native
  * Firestore document (see FirestoreRaceDoc in lib/supabase/races.ts), not a direct mirror of it.
@@ -136,6 +141,7 @@ export type RaceDoc = {
   simulation?: RaceSimulation;
   weather?: SessionWeather;
   tireStints?: TireStint[];
+  practice?: PracticeData; // FP1-3 best laps — see pipeline/fetch_races.py's fetch_practice
   raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
   photoUrl?: string; // legacy single photo, superseded by photoUrls below
   photoUrls?: string[]; // real race photos (Wikimedia Commons category, not a circuit diagram), re-hosted in Storage — see fetch_races.py / ergast_utils.py's fetch_commons_photos

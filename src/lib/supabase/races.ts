@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type {
   PolePrediction,
+  PracticeData,
   RaceDoc,
   RaceInputEntry,
   RacePrediction,
@@ -35,6 +36,7 @@ type RaceRow = {
   simulation: RaceSimulation | null;
   photo_url: string | null;
   photo_urls: string[] | null;
+  practice: PracticeData | null;
   updated_at: string;
   race_results: {
     driver: string;
@@ -115,6 +117,7 @@ function toRaceDoc(row: RaceRow): RaceDoc {
     simulation: row.simulation ?? undefined,
     photoUrl: row.photo_url ?? undefined,
     photoUrls: row.photo_urls ?? undefined,
+    practice: row.practice ?? undefined,
   };
 }
 
