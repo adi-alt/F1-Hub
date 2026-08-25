@@ -3,8 +3,16 @@ import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
+import { computeChampionshipProgression } from "@/lib/personalization";
 import { computeStandings, type ConstructorStanding, type DriverStanding } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
+
+const PROGRESSION_TOP_N = 5; // matches StandingsWidget's own top-5 slice — no point computing more
+
+// {round: [1st, 2nd, 3rd finisher names]} for completed races only — the calendar heatmap's own
+// tooltip enrichment (a "Race" tile that already happened shows who actually won, not just the
+// session label + date).
+export type Top3ByRound = Record<number, string[]>;
 
 export type DriverStandingRow = DriverStanding & {
   headshotUrl: string | null;
@@ -44,10 +52,24 @@ export async function getSeasonPageData(year: number, uid: string) {
     favoriteId: archiveSlugForCurrentTeam(c.team),
   }));
 
+  const topDriverCodes = drivers.slice(0, PROGRESSION_TOP_N).map((d) => d.driver);
+  const progression = topDriverCodes.length > 0 ? await computeChampionshipProgression(year, topDriverCodes) : [];
+
+  const top3ByRound: Top3ByRound = {};
+  for (const race of races) {
+    if (race.status !== "completed" || !race.results) continue;
+    top3ByRound[race.round] = race.results
+      .filter((r) => r.finishPosition <= 3)
+      .sort((a, b) => a.finishPosition - b.finishPosition)
+      .map((r) => r.driverName);
+  }
+
   return {
     calendarEntries,
     drivers,
     constructors,
+    progression,
+    top3ByRound,
     favoriteDriverIds: profile?.favoriteDrivers ?? [],
     favoriteTeamIds: profile?.favoriteTeams ?? [],
   };

@@ -5,10 +5,11 @@ import { useMemo, useState } from "react";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
+import type { Top3ByRound } from "../services/season.service";
 
 type SessionCategory = "practice" | "qualifying" | "sprintQualifying" | "sprint" | "race";
 
-type CellEvent = { category: SessionCategory; label: string; raceName: string; href: string };
+type CellEvent = { category: SessionCategory; label: string; raceName: string; href: string; topFinishers?: string[] };
 
 type DayCell = { date: Date; inYear: boolean; events: CellEvent[] };
 
@@ -53,7 +54,15 @@ const WEEKDAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
  * Deliberately the full calendar year (Jan 1 - Dec 31), not just the season's active months — a
  * season's ~24 rounds against 365 days is exactly the sparse, mostly-empty look the reference
  * (GitHub's contribution graph) has. */
-export function SeasonCalendarHeatmap({ year, entries }: { year: number; entries: CalendarEntry[] }) {
+export function SeasonCalendarHeatmap({
+  year,
+  entries,
+  top3ByRound,
+}: {
+  year: number;
+  entries: CalendarEntry[];
+  top3ByRound: Top3ByRound;
+}) {
   const [hovered, setHovered] = useState<{ cell: DayCell; x: number; y: number } | null>(null);
   const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
 
@@ -64,7 +73,15 @@ export function SeasonCalendarHeatmap({ year, entries }: { year: number; entries
         const key = dateKey(new Date(session.date));
         const category = categorize(session.label);
         const list = eventsByDate.get(key) ?? [];
-        list.push({ category, label: session.label, raceName: entry.name ?? `Round ${entry.round}`, href: sessionHref(year, entry.round, category) });
+        list.push({
+          category,
+          label: session.label,
+          raceName: entry.name ?? `Round ${entry.round}`,
+          href: sessionHref(year, entry.round, category),
+          // Only a real race that's already been run has this — a future date, or a session
+          // whose race hasn't happened yet, just won't find anything in top3ByRound.
+          topFinishers: category === "race" ? top3ByRound[entry.round] : undefined,
+        });
         eventsByDate.set(key, list);
       }
     }
@@ -103,7 +120,7 @@ export function SeasonCalendarHeatmap({ year, entries }: { year: number; entries
     });
 
     return { weeks, monthLabelForWeek };
-  }, [year, entries]);
+  }, [year, entries, top3ByRound]);
 
   return (
     <div className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
@@ -167,11 +184,20 @@ export function SeasonCalendarHeatmap({ year, entries }: { year: number; entries
           style={{ left: hovered.x + 12, top: hovered.y + 12 }}
         >
           <p className="font-semibold text-white">{hovered.cell.events[0].raceName}</p>
-          {hovered.cell.events.map((e, i) => (
-            <p key={i} className="text-neutral-400">
-              {e.label}
-            </p>
-          ))}
+          {hovered.cell.events.map((e, i) =>
+            e.topFinishers?.length ? (
+              // A race that's already happened — show who actually won, not just "Race".
+              <ol key={i} className="mt-1 list-decimal space-y-0.5 pl-4 text-neutral-300">
+                {e.topFinishers.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ol>
+            ) : (
+              <p key={i} className="text-neutral-400">
+                {e.label}
+              </p>
+            ),
+          )}
           <p className="mt-1 text-neutral-600">
             {hovered.cell.date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
           </p>

@@ -39,6 +39,9 @@ export function StandingsTableSkeleton({
             <th className="px-4 py-3 text-right">
               <Skeleton className="ml-auto h-3 w-12" />
             </th>
+            <th className="px-4 py-3 text-right">
+              <Skeleton className="ml-auto h-3 w-8" />
+            </th>
             <th className="w-10 px-4 py-3 text-center">
               <Skeleton className="mx-auto h-3 w-6" />
             </th>
@@ -69,6 +72,9 @@ export function StandingsTableSkeleton({
               </td>
               <td className="px-4 py-2.5 text-right">
                 <Skeleton className="ml-auto h-4 w-8" />
+              </td>
+              <td className="px-4 py-2.5 text-right">
+                <Skeleton className="ml-auto h-4 w-6" />
               </td>
               <td className="px-4 py-2.5 text-center">
                 <Skeleton className="mx-auto h-5 w-5 rounded-full" />

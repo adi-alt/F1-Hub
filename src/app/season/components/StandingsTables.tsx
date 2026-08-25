@@ -39,11 +39,25 @@ function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") 
   return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
 }
 
+// Always relative to the real points leader, regardless of the table's current sort — a broadcast
+// standings-graphic convention, not something re-sorting by name/wins should change.
+function gapLabel(points: number, leaderPoints: number): string {
+  return points >= leaderPoints ? "—" : `-${leaderPoints - points}`;
+}
+
+// A colored left border (not a background tint, which would clash with the existing top-3
+// highlight) for whichever rows the user has favorited — kept as a permanent 2px transparent
+// border rather than adding one conditionally, so favoriting/unfavoriting doesn't shift layout.
+function favoriteRowClass(isFavorited: boolean): string {
+  return isFavorited ? "border-l-2 border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.04]" : "border-l-2 border-l-transparent";
+}
+
 export function DriverStandingsTable({ standings, favoriteIds }: { standings: DriverStandingRow[]; favoriteIds: string[] }) {
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const scrollRef = useNestedLenisScroll();
+  const leaderPoints = standings.length ? Math.max(...standings.map((s) => s.points)) : 0;
 
   const sorted = useMemo(() => {
     const list = [...standings];
@@ -69,7 +83,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
           page's own root instance defers to it via the nested-region registry instead of fighting
           it (see nestedLenisRegistry.ts). */}
       <div ref={scrollRef} className="max-h-[420px] overflow-auto">
-        <table className="w-full min-w-[620px] text-sm">
+        <table className="w-full min-w-[680px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
               <th className="px-4 py-3">Pos</th>
@@ -86,6 +100,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
               <th className="cursor-pointer select-none px-4 py-3 text-right" onClick={() => toggleSort("points")}>
                 Points{sortIndicator("points", sortKey, sortDir)}
               </th>
+              <th className="px-4 py-3 text-right">Gap</th>
               <th className="w-10 px-4 py-3 text-center">Fav</th>
             </tr>
           </thead>
@@ -96,36 +111,40 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
             variants={staggerContainer}
             className="divide-y divide-[var(--f1-line)]"
           >
-            {sorted.map((s, i) => (
-              <motion.tr
-                key={s.driver}
-                variants={staggerItem}
-                className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""}`}
-              >
-                <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
-                <td className="whitespace-nowrap px-4 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <EntityAvatar imageUrl={s.headshotUrl} name={s.driverName} size={32} fit="cover" />
-                    <span className="text-white">
-                      {s.driverName} <span className="text-neutral-500">{s.driver}</span>
-                    </span>
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-neutral-400">{s.team}</td>
-                <td className="px-4 py-2.5 text-right text-neutral-400">{s.wins}</td>
-                <td className="px-4 py-2.5 text-right text-neutral-400">{s.podiums}</td>
-                <td className="px-4 py-2.5 text-right font-semibold text-white">{s.points}</td>
-                <td className="px-4 py-2.5 text-center">
-                  {s.favoriteId && (
-                    <FavoriteButton
-                      favorited={favorites.has(s.favoriteId)}
-                      onToggle={() => toggleFavorite(s.favoriteId!, !favorites.has(s.favoriteId!), "driver", setFavorites)}
-                      className="mx-auto"
-                    />
-                  )}
-                </td>
-              </motion.tr>
-            ))}
+            {sorted.map((s, i) => {
+              const isFavorited = !!s.favoriteId && favorites.has(s.favoriteId);
+              return (
+                <motion.tr
+                  key={s.driver}
+                  variants={staggerItem}
+                  className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
+                >
+                  <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <EntityAvatar imageUrl={s.headshotUrl} name={s.driverName} size={32} fit="cover" />
+                      <span className="text-white">
+                        {s.driverName} <span className="text-neutral-500">{s.driver}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-neutral-400">{s.team}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.wins}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.podiums}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-white">{s.points}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-500">{gapLabel(s.points, leaderPoints)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    {s.favoriteId && (
+                      <FavoriteButton
+                        favorited={isFavorited}
+                        onToggle={() => toggleFavorite(s.favoriteId!, !isFavorited, "driver", setFavorites)}
+                        className="mx-auto"
+                      />
+                    )}
+                  </td>
+                </motion.tr>
+              );
+            })}
           </motion.tbody>
         </table>
       </div>
@@ -138,6 +157,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const scrollRef = useNestedLenisScroll();
+  const leaderPoints = standings.length ? Math.max(...standings.map((s) => s.points)) : 0;
 
   const sorted = useMemo(() => {
     const list = [...standings];
@@ -159,7 +179,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
       <div ref={scrollRef} className="max-h-[420px] overflow-auto">
-        <table className="w-full min-w-[480px] text-sm">
+        <table className="w-full min-w-[540px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
               <th className="px-4 py-3">Pos</th>
@@ -175,6 +195,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
               <th className="cursor-pointer select-none px-4 py-3 text-right" onClick={() => toggleSort("points")}>
                 Points{sortIndicator("points", sortKey, sortDir)}
               </th>
+              <th className="px-4 py-3 text-right">Gap</th>
               <th className="w-10 px-4 py-3 text-center">Fav</th>
             </tr>
           </thead>
@@ -185,31 +206,35 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
             variants={staggerContainer}
             className="divide-y divide-[var(--f1-line)]"
           >
-            {sorted.map((s, i) => (
-              <motion.tr
-                key={s.team}
-                variants={staggerItem}
-                className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""}`}
-              >
-                <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
-                <td className="whitespace-nowrap px-4 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <EntityAvatar imageUrl={s.logoUrl} name={s.team} size={28} shape="square" fit="contain" />
-                    <span className="text-white">{s.team}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-2.5 text-right text-neutral-400">{s.wins}</td>
-                <td className="px-4 py-2.5 text-right text-neutral-400">{s.podiums}</td>
-                <td className="px-4 py-2.5 text-right font-semibold text-white">{s.points}</td>
-                <td className="px-4 py-2.5 text-center">
-                  <FavoriteButton
-                    favorited={favorites.has(s.favoriteId)}
-                    onToggle={() => toggleFavorite(s.favoriteId, !favorites.has(s.favoriteId), "team", setFavorites)}
-                    className="mx-auto"
-                  />
-                </td>
-              </motion.tr>
-            ))}
+            {sorted.map((s, i) => {
+              const isFavorited = favorites.has(s.favoriteId);
+              return (
+                <motion.tr
+                  key={s.team}
+                  variants={staggerItem}
+                  className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
+                >
+                  <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <EntityAvatar imageUrl={s.logoUrl} name={s.team} size={28} shape="square" fit="contain" />
+                      <span className="text-white">{s.team}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.wins}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.podiums}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-white">{s.points}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-500">{gapLabel(s.points, leaderPoints)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <FavoriteButton
+                      favorited={isFavorited}
+                      onToggle={() => toggleFavorite(s.favoriteId, !isFavorited, "team", setFavorites)}
+                      className="mx-auto"
+                    />
+                  </td>
+                </motion.tr>
+              );
+            })}
           </motion.tbody>
         </table>
       </div>
