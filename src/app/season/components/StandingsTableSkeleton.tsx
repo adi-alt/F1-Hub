@@ -17,36 +17,36 @@ export function StandingsTableSkeleton({
   return (
     <div className="glass overflow-hidden rounded-xl border border-[var(--f1-line)]">
       <table className="w-full text-sm">
-        <thead className="glass-strong text-left text-xs uppercase tracking-wide text-neutral-500">
+        <thead className="glass-strong text-left text-xs uppercase tracking-wide text-neutral-600">
           <tr>
             <th className="px-4 py-3">
-              <Skeleton className="h-3 w-6" />
+              <Skeleton tone="light" className="h-3 w-6" />
             </th>
             <th className="px-4 py-3">
-              <Skeleton className="h-3 w-16" />
+              <Skeleton tone="light" className="h-3 w-16" />
             </th>
             {hasTeamColumn && (
               <th className="px-4 py-3">
-                <Skeleton className="h-3 w-14" />
+                <Skeleton tone="light" className="h-3 w-14" />
               </th>
             )}
             <th className="px-4 py-3 text-right">
-              <Skeleton className="ml-auto h-3 w-10" />
+              <Skeleton tone="light" className="ml-auto h-3 w-10" />
             </th>
             <th className="px-4 py-3 text-right">
-              <Skeleton className="ml-auto h-3 w-14" />
+              <Skeleton tone="light" className="ml-auto h-3 w-14" />
             </th>
             <th className="px-4 py-3 text-right">
-              <Skeleton className="ml-auto h-3 w-12" />
+              <Skeleton tone="light" className="ml-auto h-3 w-12" />
             </th>
             <th className="px-4 py-3 text-right">
-              <Skeleton className="ml-auto h-3 w-8" />
+              <Skeleton tone="light" className="ml-auto h-3 w-8" />
             </th>
             <th className="w-10 px-4 py-3 text-center">
-              <Skeleton className="mx-auto h-3 w-6" />
+              <Skeleton tone="light" className="mx-auto h-3 w-6" />
             </th>
             <th className="w-10 px-2 py-3 text-center">
-              <Skeleton className="mx-auto h-7 w-7 rounded-full" />
+              <Skeleton tone="light" className="mx-auto h-7 w-7 rounded-full" />
             </th>
           </tr>
         </thead>
@@ -54,33 +54,33 @@ export function StandingsTableSkeleton({
           {Array.from({ length: rows }).map((_, i) => (
             <tr key={i}>
               <td className="px-4 py-2.5">
-                <Skeleton className="h-4 w-4" />
+                <Skeleton tone="light" className="h-4 w-4" />
               </td>
               <td className="px-4 py-2.5">
                 <div className="flex items-center gap-2.5">
-                  <Skeleton className={`h-8 w-8 shrink-0 ${avatarClass}`} />
-                  <Skeleton className="h-4 w-28" />
+                  <Skeleton tone="light" className={`h-8 w-8 shrink-0 ${avatarClass}`} />
+                  <Skeleton tone="light" className="h-4 w-28" />
                 </div>
               </td>
               {hasTeamColumn && (
                 <td className="px-4 py-2.5">
-                  <Skeleton className="h-4 w-24" />
+                  <Skeleton tone="light" className="h-4 w-24" />
                 </td>
               )}
               <td className="px-4 py-2.5 text-right">
-                <Skeleton className="ml-auto h-4 w-6" />
+                <Skeleton tone="light" className="ml-auto h-4 w-6" />
               </td>
               <td className="px-4 py-2.5 text-right">
-                <Skeleton className="ml-auto h-4 w-6" />
+                <Skeleton tone="light" className="ml-auto h-4 w-6" />
               </td>
               <td className="px-4 py-2.5 text-right">
-                <Skeleton className="ml-auto h-4 w-8" />
+                <Skeleton tone="light" className="ml-auto h-4 w-8" />
               </td>
               <td className="px-4 py-2.5 text-right">
-                <Skeleton className="ml-auto h-4 w-6" />
+                <Skeleton tone="light" className="ml-auto h-4 w-6" />
               </td>
               <td className="px-4 py-2.5 text-center">
-                <Skeleton className="mx-auto h-5 w-5 rounded-full" />
+                <Skeleton tone="light" className="mx-auto h-5 w-5 rounded-full" />
               </td>
               <td />
             </tr>

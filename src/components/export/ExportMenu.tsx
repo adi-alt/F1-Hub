@@ -23,10 +23,12 @@ const SUBMENU_WIDTH = 160;
 
 // Same glass treatment as a chart tooltip (chartTheme.ts) / the calendar's own hover tooltip —
 // every floating panel on the site reads consistently instead of one being a flat opaque box.
+// Deliberately its own always-dark token, not the season section's white-glass experiment — this
+// menu shows up on cards across the whole site, most of which aren't sitting on a white card.
 const GLASS_STYLE = {
-  backgroundColor: "var(--glass-surface-strong)",
-  backdropFilter: "blur(var(--glass-blur))",
-  WebkitBackdropFilter: "blur(var(--glass-blur))",
+  backgroundColor: "var(--tooltip-surface-strong)",
+  backdropFilter: "blur(var(--tooltip-blur))",
+  WebkitBackdropFilter: "blur(var(--tooltip-blur))",
 };
 
 type Submenu = "copy-image" | "download-image" | null;
@@ -104,7 +106,10 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
         onClick={() => setOpen((v) => !v)}
         aria-label="Export options"
         aria-expanded={open}
-        className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 transition hover:bg-white/10 hover:text-white"
+        // currentColor (not a hardcoded light/dark text class) so the dot icon reads correctly
+        // whether this sits on a dark card (most of the site) or the season section's white-glass
+        // cards — it just inherits whatever ink color its container already resolved to.
+        className="flex h-7 w-7 items-center justify-center rounded-full opacity-60 transition hover:bg-black/10 hover:opacity-100"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
           <circle cx="10" cy="4" r="1.5" />
@@ -121,7 +126,7 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute right-0 top-full z-30 mt-2 w-48 overflow-visible rounded-xl border border-[var(--f1-line)] py-1 text-sm shadow-xl backdrop-blur-md"
+            className="absolute right-0 top-full z-30 mt-2 w-48 overflow-visible rounded-xl border border-[var(--tooltip-border)] py-1 text-sm shadow-xl backdrop-blur-md"
             style={GLASS_STYLE}
           >
             {status ? (
@@ -164,7 +169,7 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: submenuSide === "right" ? -6 : 6 }}
                   transition={{ duration: 0.12, ease: "easeOut" }}
-                  className={`absolute top-0 w-40 overflow-hidden rounded-xl border border-[var(--f1-line)] py-1 text-sm shadow-xl backdrop-blur-md ${
+                  className={`absolute top-0 w-40 overflow-hidden rounded-xl border border-[var(--tooltip-border)] py-1 text-sm shadow-xl backdrop-blur-md ${
                     submenuSide === "right" ? "left-full ml-2" : "right-full mr-2"
                   }`}
                   style={GLASS_STYLE}

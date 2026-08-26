@@ -15,8 +15,8 @@ function gapLabel(points: number, leaderPoints: number): string {
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</p>
-      <p className="font-mono text-sm tabular-nums text-white">{value}</p>
+      <p className="text-[10px] uppercase tracking-wide text-neutral-600">{label}</p>
+      <p className="font-mono text-sm tabular-nums text-neutral-900">{value}</p>
     </div>
   );
 }
@@ -30,7 +30,7 @@ function RailCard({ label, children }: { label: string; children: ReactNode }) {
       variants={staggerItem}
       className="glass rounded-xl border border-[var(--f1-line)] p-4"
     >
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-600">{label}</p>
       {children}
     </motion.div>
   );
@@ -86,13 +86,13 @@ export function YourSeasonWidget({
     const teamCandidates = constructors.slice(0, 3);
     return (
       <RailCard label="Your season">
-        <p className="mb-3 text-sm text-neutral-400">Pick a favorite to track them here instead of hunting through the table.</p>
+        <p className="mb-3 text-sm text-neutral-600">Pick a favorite to track them here instead of hunting through the table.</p>
         <div className="flex flex-col gap-1">
           {driverCandidates.map((d) => (
             <button
               key={d.driver}
               onClick={() => quickFavoriteDriver(d)}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-white/5 hover:text-white"
+              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 transition hover:bg-black/5 hover:text-neutral-900"
             >
               <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={24} fit="cover" />
               {d.driverName}
@@ -104,7 +104,7 @@ export function YourSeasonWidget({
             <button
               key={c.team}
               onClick={() => quickFavoriteTeam(c)}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-300 transition hover:bg-white/5 hover:text-white"
+              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 transition hover:bg-black/5 hover:text-neutral-900"
             >
               <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={24} shape="square" fit="contain" />
               {c.team}
@@ -122,8 +122,8 @@ export function YourSeasonWidget({
           <div className="flex items-center gap-3">
             <EntityAvatar imageUrl={favoriteDriver.headshotUrl} name={favoriteDriver.driverName} size={40} fit="cover" />
             <div>
-              <p className="font-semibold text-white">{favoriteDriver.driverName}</p>
-              <p className="text-xs text-neutral-500">{favoriteDriver.team}</p>
+              <p className="font-semibold text-neutral-900">{favoriteDriver.driverName}</p>
+              <p className="text-xs text-neutral-600">{favoriteDriver.team}</p>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -138,7 +138,7 @@ export function YourSeasonWidget({
         <RailCard label="Your team">
           <div className="flex items-center gap-3">
             <EntityAvatar imageUrl={favoriteTeam.logoUrl} name={favoriteTeam.team} size={36} shape="square" fit="contain" />
-            <p className="font-semibold text-white">{favoriteTeam.team}</p>
+            <p className="font-semibold text-neutral-900">{favoriteTeam.team}</p>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Stat label="Position" value={`P${constructors.indexOf(favoriteTeam) + 1}`} />
@@ -172,7 +172,7 @@ export function SeasonPulseWidget({ facts, drivers }: { facts: Fact[]; drivers: 
                 <span className="text-base" aria-hidden>
                   {fact.icon}
                 </span>
-                <p className="text-sm text-neutral-300">{fact.text}</p>
+                <p className="text-sm text-neutral-700">{fact.text}</p>
               </li>
             ))}
           </ul>
@@ -185,7 +185,7 @@ export function SeasonPulseWidget({ facts, drivers }: { facts: Fact[]; drivers: 
             <select
               value={aCode}
               onChange={(e) => setACode(e.target.value)}
-              className="w-full rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1.5 text-sm text-white"
+              className="w-full rounded-lg border border-[var(--f1-line)] bg-neutral-100 px-2 py-1.5 text-sm text-neutral-900"
             >
               {drivers.map((d) => (
                 <option key={d.driver} value={d.driver}>
@@ -193,11 +193,11 @@ export function SeasonPulseWidget({ facts, drivers }: { facts: Fact[]; drivers: 
                 </option>
               ))}
             </select>
-            <span className="text-xs text-neutral-500">vs</span>
+            <span className="text-xs text-neutral-600">vs</span>
             <select
               value={bCode}
               onChange={(e) => setBCode(e.target.value)}
-              className="w-full rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1.5 text-sm text-white"
+              className="w-full rounded-lg border border-[var(--f1-line)] bg-neutral-100 px-2 py-1.5 text-sm text-neutral-900"
             >
               {drivers.map((d) => (
                 <option key={d.driver} value={d.driver}>
@@ -209,17 +209,17 @@ export function SeasonPulseWidget({ facts, drivers }: { facts: Fact[]; drivers: 
           {a && b && (
             <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
               <div />
-              <p className="text-[10px] uppercase tracking-wide text-neutral-500">{a.driver}</p>
-              <p className="text-[10px] uppercase tracking-wide text-neutral-500">{b.driver}</p>
+              <p className="text-[10px] uppercase tracking-wide text-neutral-600">{a.driver}</p>
+              <p className="text-[10px] uppercase tracking-wide text-neutral-600">{b.driver}</p>
               {([
                 ["Points", a.points, b.points],
                 ["Wins", a.wins, b.wins],
                 ["Podiums", a.podiums, b.podiums],
               ] as const).map(([label, av, bv]) => (
                 <Fragment key={label}>
-                  <p className="text-left text-neutral-500">{label}</p>
-                  <p className={`font-mono tabular-nums ${av > bv ? "font-semibold text-[var(--f1-red)]" : "text-white"}`}>{av}</p>
-                  <p className={`font-mono tabular-nums ${bv > av ? "font-semibold text-[var(--f1-red)]" : "text-white"}`}>{bv}</p>
+                  <p className="text-left text-neutral-600">{label}</p>
+                  <p className={`font-mono tabular-nums ${av > bv ? "font-semibold text-[var(--f1-red)]" : "text-neutral-900"}`}>{av}</p>
+                  <p className={`font-mono tabular-nums ${bv > av ? "font-semibold text-[var(--f1-red)]" : "text-neutral-900"}`}>{bv}</p>
                 </Fragment>
               ))}
             </div>

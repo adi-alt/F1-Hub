@@ -14,14 +14,23 @@
      card/table, so this stays a boring structural gray. */
   --f1-line: #2c2c31;
 
-  /* Testing a white-tinted glass surface in place of the flat --f1-carbon fill — two intensities
-     (a base surface for row/content-level fills, a stronger one for headers that need to stay
-     legible over whatever's scrolling underneath them) so every card, table, and tooltip in the
-     season section reads as one consistent frosted material instead of some pieces (cards) being
-     translucent and others (table rows) showing the raw, unblurred background straight through. */
-  --glass-surface: rgba(255, 255, 255, 0.05);
-  --glass-surface-strong: rgba(255, 255, 255, 0.1);
-  --glass-blur: 16px;
+  /* Testing an actually-white glass surface (season section only — see .glass/.glass-strong
+     below) in place of the flat --f1-carbon fill: near-opaque white + blur, not a barely-there
+     tint, so it reads as white at a glance instead of just "a bit less dark than before". Text
+     inside flips to dark ink (--glass-ink) to stay legible on it — see the overrides below. */
+  --glass-surface: rgba(255, 255, 255, 0.9);
+  --glass-surface-strong: rgba(255, 255, 255, 0.96);
+  --glass-ink: #18181b;
+  --glass-border: rgba(0, 0, 0, 0.12);
+  --glass-blur: 20px;
+
+  /* Separate from the white-glass tokens above on purpose — chart tooltips and the export menu
+     float over many different (often still-dark) surfaces site-wide, so they keep their own
+     always-dark glass rather than following the season section's white-glass experiment. */
+  --tooltip-surface: rgba(24, 24, 27, 0.72);
+  --tooltip-surface-strong: rgba(24, 24, 27, 0.92);
+  --tooltip-border: rgba(255, 255, 255, 0.08);
+  --tooltip-blur: 10px;
 }
 
 @theme inline {
@@ -58,6 +67,14 @@ body::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
+.glass,
+.glass-strong {
+  /* Redefining --f1-line here (a real custom property, not a fixed value) scopes the lighter
+     border to just this subtree by inheritance — every other border-[var(--f1-line)]/
+     divide-[var(--f1-line)] on the rest of the site keeps reading the :root value untouched. */
+  --f1-line: var(--glass-border);
+  color: var(--glass-ink);
+}
 .glass {
   background-color: var(--glass-surface);
   backdrop-filter: blur(var(--glass-blur));

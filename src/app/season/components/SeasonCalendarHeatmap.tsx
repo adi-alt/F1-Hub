@@ -153,13 +153,13 @@ export function SeasonCalendarHeatmap({
         <div className="inline-flex flex-col gap-1">
           <div className="ml-8 flex gap-[3px]">
             {weeks.map((_, i) => (
-              <div key={i} className="w-[13px] shrink-0 text-[10px] text-neutral-500">
+              <div key={i} className="w-[13px] shrink-0 text-[10px] text-neutral-600">
                 {monthLabelForWeek[i]}
               </div>
             ))}
           </div>
           <div className="flex gap-[3px]">
-            <div className="mr-2 flex w-6 shrink-0 flex-col gap-[3px] text-[10px] text-neutral-500">
+            <div className="mr-2 flex w-6 shrink-0 flex-col gap-[3px] text-[10px] text-neutral-600">
               {WEEKDAY_LABELS.map((label, i) => (
                 <div key={i} className="h-[13px] leading-[13px]">
                   {label}
@@ -192,7 +192,7 @@ export function SeasonCalendarHeatmap({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-neutral-500">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-neutral-600">
         <span className="flex items-center gap-1.5">
           <span className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: "var(--f1-carbon-2)", opacity: 0.6 }} />
           No session
@@ -210,17 +210,17 @@ export function SeasonCalendarHeatmap({
           className="glass-strong pointer-events-none fixed z-50 max-w-xs rounded-lg border border-[var(--f1-line)] px-3 py-2 text-xs shadow-lg"
           style={{ left: hovered.x + 12, top: hovered.y + 12 }}
         >
-          <p className="font-semibold text-white">{hovered.cell.events[0].raceName}</p>
+          <p className="font-semibold text-neutral-900">{hovered.cell.events[0].raceName}</p>
           {hovered.cell.events.map((e, i) =>
             e.topFinishers?.length ? (
               // A race that's already happened — show who actually won, not just "Race".
-              <ol key={i} className="mt-1 list-decimal space-y-0.5 pl-4 text-neutral-300">
+              <ol key={i} className="mt-1 list-decimal space-y-0.5 pl-4 text-neutral-700">
                 {e.topFinishers.map((name) => (
                   <li key={name}>{name}</li>
                 ))}
               </ol>
             ) : (
-              <p key={i} className="text-neutral-400">
+              <p key={i} className="text-neutral-600">
                 {e.label}
               </p>
             ),

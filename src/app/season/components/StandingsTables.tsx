@@ -91,7 +91,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
           it (see nestedLenisRegistry.ts). */}
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[680px] text-sm">
-          <thead className="glass-strong sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="glass-strong sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-600">
             <tr>
               <th className="px-4 py-3">Pos</th>
               <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
@@ -128,22 +128,22 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
                   layout
                   variants={staggerItem}
                   transition={{ layout: { duration: 0.35, ease: "easeOut" } }}
-                  className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
+                  className={`transition hover:bg-black/[0.05] ${i < 3 ? "bg-black/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
                 >
-                  <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
+                  <td className="px-4 py-2.5 font-semibold text-neutral-900">{i + 1}</td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
                       <EntityAvatar imageUrl={s.headshotUrl} name={s.driverName} size={32} fit="cover" />
-                      <span className="text-white">
-                        {s.driverName} <span className="text-neutral-500">{s.driver}</span>
+                      <span className="text-neutral-900">
+                        {s.driverName} <span className="text-neutral-600">{s.driver}</span>
                       </span>
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-2.5 text-neutral-400">{s.team}</td>
-                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.wins}</td>
-                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.podiums}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-white">{s.points}</td>
-                  <td className="px-4 py-2.5 text-right text-neutral-500">{gapLabel(s.points, leaderPoints)}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-neutral-600">{s.team}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-600">{s.wins}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-600">{s.podiums}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">{s.points}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-600">{gapLabel(s.points, leaderPoints)}</td>
                   <td className="px-4 py-2.5 text-center">
                     {s.favoriteId && (
                       <FavoriteButton
@@ -197,7 +197,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
     <div className="glass overflow-hidden rounded-xl border border-[var(--f1-line)]">
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[540px] text-sm">
-          <thead className="glass-strong sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="glass-strong sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-600">
             <tr>
               <th className="px-4 py-3">Pos</th>
               <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
@@ -238,19 +238,19 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
                   layout
                   variants={staggerItem}
                   transition={{ layout: { duration: 0.35, ease: "easeOut" } }}
-                  className={`transition hover:bg-white/[0.05] ${i < 3 ? "bg-white/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
+                  className={`transition hover:bg-black/[0.05] ${i < 3 ? "bg-black/[0.03]" : ""} ${favoriteRowClass(isFavorited)}`}
                 >
-                  <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
+                  <td className="px-4 py-2.5 font-semibold text-neutral-900">{i + 1}</td>
                   <td className="whitespace-nowrap px-4 py-2.5">
                     <div className="flex items-center gap-2.5">
                       <EntityAvatar imageUrl={s.logoUrl} name={s.team} size={28} shape="square" fit="contain" />
-                      <span className="text-white">{s.team}</span>
+                      <span className="text-neutral-900">{s.team}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.wins}</td>
-                  <td className="px-4 py-2.5 text-right text-neutral-400">{s.podiums}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-white">{s.points}</td>
-                  <td className="px-4 py-2.5 text-right text-neutral-500">{gapLabel(s.points, leaderPoints)}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-600">{s.wins}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-600">{s.podiums}</td>
+                  <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">{s.points}</td>
+                  <td className="px-4 py-2.5 text-right text-neutral-600">{gapLabel(s.points, leaderPoints)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <FavoriteButton
                       favorited={isFavorited}

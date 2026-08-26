@@ -5,19 +5,26 @@ import { Skeleton } from "@/components/ui/Skeleton";
 function RailSkeleton() {
   return (
     <div className="glass space-y-4 rounded-xl border border-[var(--f1-line)] p-4">
-      <Skeleton className="mb-3 h-3 w-20" />
-      <Skeleton className="h-16 w-full" />
+      <Skeleton tone="light" className="mb-3 h-3 w-20" />
+      <Skeleton tone="light" className="h-16 w-full" />
     </div>
   );
 }
 
 export default function SeasonLoading() {
+  // Matches page.tsx's own headingSpacer trick — same box as the real first heading, invisible,
+  // so the rails start level with the table skeleton instead of the heading above it.
+  const headingSpacer = (
+    <h2 aria-hidden className="invisible mb-3 h-6 w-64">
+      &nbsp;
+    </h2>
+  );
+
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
-      <Skeleton className="h-9 w-56" />
-
-      <div className="mt-8 xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
+      <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
         <aside className="hidden xl:block">
+          {headingSpacer}
           <RailSkeleton />
         </aside>
 
@@ -40,6 +47,7 @@ export default function SeasonLoading() {
         </div>
 
         <aside className="hidden xl:block">
+          {headingSpacer}
           <RailSkeleton />
         </aside>
       </div>

@@ -27,16 +27,20 @@ export default async function SeasonPage({
     session.uid,
   );
 
+  // Both asides get an invisible copy of the first real heading's own box (same classes, so its
+  // height/margin match exactly) instead of a guessed pixel offset — that's what actually lines
+  // the rails' top up with the table's top rather than the heading above it.
+  const headingSpacer = (
+    <h2 aria-hidden className="invisible mb-3 text-lg font-semibold">
+      &nbsp;
+    </h2>
+  );
+
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-bold text-white">{year} Season</h1>
-
-      {/* The title sits above the grid (not inside the middle column) specifically so the rails'
-          top edge lines up with the table's top edge, not with the title — rails only show up
-          from xl: up; below that, the space they'd use is the main column itself, not real
-          margin, so there's nothing to reclaim without cramping the tables. */}
-      <div className="mt-8 xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
+      <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
         <aside className="hidden xl:sticky xl:top-24 xl:block">
+          {headingSpacer}
           <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
         </aside>
 
@@ -74,6 +78,7 @@ export default async function SeasonPage({
         </div>
 
         <aside className="hidden xl:sticky xl:top-24 xl:block">
+          {headingSpacer}
           <SeasonPulseWidget facts={facts} drivers={drivers} />
         </aside>
       </div>
