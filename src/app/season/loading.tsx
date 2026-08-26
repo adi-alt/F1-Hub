@@ -1,51 +1,38 @@
-import { SeasonCalendarHeatmapSkeleton } from "./components/SeasonCalendarHeatmapSkeleton";
-import { StandingsTableSkeleton } from "./components/StandingsTableSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
-
-function RailSkeleton() {
-  return (
-    <div className="glass backdrop-blur-2xl overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      <div className="bg-[var(--f1-carbon)] px-4 py-2.5">
-        <Skeleton className="h-3 w-20" />
-      </div>
-      <div className="space-y-2 p-4">
-        <Skeleton tone="light" className="h-12 w-full" />
-        <Skeleton tone="light" className="h-12 w-full" />
-      </div>
-    </div>
-  );
-}
 
 export default function SeasonLoading() {
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
-      <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
-        <aside className="hidden space-y-4 xl:block">
-          <RailSkeleton />
-          <RailSkeleton />
-        </aside>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <Skeleton className="h-9 w-56" />
+        <Skeleton className="mt-2 h-4 w-48" />
+      </div>
 
-        <div className="mx-auto w-full max-w-5xl">
-          <div className="space-y-10">
-            <div>
-              <Skeleton className="mb-3 h-6 w-64" />
-              <StandingsTableSkeleton hasTeamColumn />
-            </div>
-            <div>
-              <Skeleton className="mb-3 h-6 w-72" />
-              <StandingsTableSkeleton hasTeamColumn={false} avatarShape="square" />
-            </div>
-          </div>
+      <div className="mb-3 flex items-center justify-between">
+        <Skeleton className="h-9 w-40 rounded-full" />
+        <Skeleton className="h-9 w-52 rounded-full" />
+      </div>
+      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        <Skeleton className="h-10 w-full rounded-none" />
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-11 w-full rounded-none border-t border-[var(--f1-line)]" />
+        ))}
+      </div>
 
-          <div className="mt-10">
-            <Skeleton className="mb-3 h-6 w-40" />
-            <SeasonCalendarHeatmapSkeleton />
-          </div>
+      <div className="mt-6 overflow-hidden rounded-xl border border-[var(--f1-line)]">
+        <Skeleton className="h-11 w-full rounded-none" />
+        <div className="p-4">
+          <Skeleton className="h-48 w-full" />
         </div>
+      </div>
 
-        <aside className="hidden xl:block">
-          <RailSkeleton />
-        </aside>
+      <div className="mt-6">
+        <Skeleton className="mb-2 h-3 w-32" />
+        <div className="flex gap-1.5">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-16 shrink-0 rounded-full" />
+          ))}
+        </div>
       </div>
     </div>
   );

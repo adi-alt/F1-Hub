@@ -14,12 +14,8 @@ export const chart = {
   neutralMidpoint: "#383835",
 };
 
-// Translucent + blurred, not a flat fill — same glass treatment as the calendar heatmap's own
-// tooltip (SeasonCalendarHeatmap.tsx), so every tooltip on the site (a chart's hover tooltip or a
-// static one) reads consistently rather than one being a plain opaque box. Deliberately its own
-// always-dark token (--tooltip-surface-strong), not the season section's white-glass experiment
-// (--glass-surface-strong) — this renders on charts across the whole site, most of which aren't
-// sitting on a white card, so it can't follow that swap.
+// Translucent + blurred, not a flat fill, so every tooltip on the site (a chart's hover tooltip,
+// the export menu's dropdown) reads consistently rather than one being a plain opaque box.
 export const tooltipStyle = {
   background: "var(--tooltip-surface-strong)",
   backdropFilter: "blur(var(--tooltip-blur))",

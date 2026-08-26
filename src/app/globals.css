@@ -14,19 +14,10 @@
      card/table, so this stays a boring structural gray. */
   --f1-line: #2c2c31;
 
-  /* White glass surface (season section only — see .glass/.glass-strong below) in place of the
-     flat --f1-carbon fill. 70-80% band, not 90%+ — opaque enough to read as white at a glance,
-     translucent enough that backdrop-blur-2xl still visibly shows the blurred page behind it
-     instead of looking like a flat, opaque card. Text inside flips to dark ink (--glass-ink) to
-     stay legible on it — see the overrides below. */
-  --glass-surface: rgba(255, 255, 255, 0.75);
-  --glass-surface-strong: rgba(255, 255, 255, 0.82);
-  --glass-ink: #18181b;
-  --glass-border: rgba(0, 0, 0, 0.12);
-
-  /* Separate from the white-glass tokens above on purpose — chart tooltips and the export menu
-     float over many different (often still-dark) surfaces site-wide, so they keep their own
-     always-dark glass rather than following the season section's white-glass experiment. */
+  /* The season section's white-glass cards were a deliberate, disclosed test earlier — reverted
+     back to the site's normal dark surfaces after review (the dark theme read as more cohesive
+     with the rest of the app and didn't wash out the ambient background). tooltip-surface below
+     is what every floating tooltip/menu on the site actually uses, season section included. */
   --tooltip-surface: rgba(24, 24, 27, 0.72);
   --tooltip-surface-strong: rgba(24, 24, 27, 0.92);
   --tooltip-border: rgba(255, 255, 255, 0.08);
@@ -65,21 +56,6 @@ body::after {
   opacity: 0.05;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-}
-
-.glass,
-.glass-strong {
-  /* Redefining --f1-line here (a real custom property, not a fixed value) scopes the lighter
-     border to just this subtree by inheritance — every other border-[var(--f1-line)]/
-     divide-[var(--f1-line)] on the rest of the site keeps reading the :root value untouched. */
-  --f1-line: var(--glass-border);
-  color: var(--glass-ink);
-}
-.glass {
-  background-color: var(--glass-surface);
-}
-.glass-strong {
-  background-color: var(--glass-surface-strong);
 }
 
 /* Scroll still works (native or Lenis-driven) — this only hides the visible track/thumb, for

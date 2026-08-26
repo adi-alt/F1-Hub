@@ -78,8 +78,8 @@ export default async function RacePage({
 
       <div className="mt-8 space-y-10">
         {/* Practice/qualifying can exist well before the race itself does, so these render
-            unconditionally alongside whatever the race-status branch below shows — a calendar
-            heatmap cell (see SeasonCalendarHeatmap) links straight to these anchors. */}
+            unconditionally alongside whatever the race-status branch below shows — raceHref's
+            optional `section` param + ScrollToSection can deep-link straight to either. */}
         {race.practice && (
           <div id="practice">
             <h2 className="mb-3 text-lg font-semibold text-white">Practice</h2>

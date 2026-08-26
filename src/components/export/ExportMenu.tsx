@@ -21,10 +21,8 @@ const IMAGE_FORMATS = [
 
 const SUBMENU_WIDTH = 160;
 
-// Same glass treatment as a chart tooltip (chartTheme.ts) / the calendar's own hover tooltip —
-// every floating panel on the site reads consistently instead of one being a flat opaque box.
-// Deliberately its own always-dark token, not the season section's white-glass experiment — this
-// menu shows up on cards across the whole site, most of which aren't sitting on a white card.
+// Same glass treatment as a chart tooltip (chartTheme.ts) — every floating panel on the site
+// reads consistently instead of one being a flat opaque box.
 const GLASS_STYLE = {
   backgroundColor: "var(--tooltip-surface-strong)",
   backdropFilter: "blur(var(--tooltip-blur))",
@@ -106,10 +104,7 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
         onClick={() => setOpen((v) => !v)}
         aria-label="Export options"
         aria-expanded={open}
-        // currentColor (not a hardcoded light/dark text class) so the dot icon reads correctly
-        // whether this sits on a dark card (most of the site) or the season section's white-glass
-        // cards — it just inherits whatever ink color its container already resolved to.
-        className="flex h-7 w-7 items-center justify-center rounded-full opacity-60 transition hover:bg-black/10 hover:opacity-100"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 opacity-80 transition hover:bg-white/10 hover:text-white hover:opacity-100"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
           <circle cx="10" cy="4" r="1.5" />

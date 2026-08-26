@@ -1,10 +1,10 @@
-import { SeasonCalendarHeatmap } from "./components/SeasonCalendarHeatmap";
+import { AnalysisWorkspace } from "./components/AnalysisWorkspace";
+import { ChampionshipStandings } from "./components/ChampionshipStandings";
+import { SeasonExplorerProvider } from "./components/SeasonExplorerContext";
 import { SeasonFavoritesProvider } from "./components/SeasonFavoritesContext";
-import { NewsWidget, SeasonPulseWidget, YourSeasonWidget } from "./components/SeasonSidebarWidgets";
-import { ConstructorStandingsTable, DriverStandingsTable } from "./components/StandingsTables";
+import { SeasonTimeline } from "./components/SeasonTimeline";
 import { getSeasonPageData } from "./services/season.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { StandingsWidget } from "@/components/home/StandingsWidget";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function SeasonPage({
@@ -23,77 +23,37 @@ export default async function SeasonPage({
 
   const { year: yearParam } = await searchParams;
   const year = Number(yearParam) || new Date().getFullYear();
-  const {
-    calendarEntries,
-    drivers,
-    constructors,
-    progression,
-    progressionDrivers,
-    top3ByRound,
-    trackPerformance,
-    facts,
-    news,
-    favoriteDriverIds,
-    favoriteTeamIds,
-  } = await getSeasonPageData(year, session.uid);
+  const { drivers, constructors, progression, raceSummaries, racesCompleted, racesRemaining, battles, records, favoriteDriverIds, favoriteTeamIds } =
+    await getSeasonPageData(year, session.uid);
+
+  // The favorite driver (if any) is the sensible default Compare selection, per the "subtle
+  // personalization" rule — it changes a default, it doesn't build a whole section of its own.
+  const favoriteDriver = drivers.find((d) => d.favoriteId && favoriteDriverIds.includes(d.favoriteId));
+  const defaultA = favoriteDriver ?? drivers[0];
+  const defaultAIndex = defaultA ? drivers.indexOf(defaultA) : -1;
+  const defaultB = drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
-      {/* One shared favorites store for the whole page (see SeasonFavoritesContext) — the table
-          and the sidebar widgets are siblings below, not parent/child, so this is what makes
-          toggling a favorite in one show up in the other immediately instead of needing a
-          refresh. */}
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <SeasonFavoritesProvider initialDriverIds={favoriteDriverIds} initialTeamIds={favoriteTeamIds}>
-        <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
-          {/* top-10 matches this page's own py-10 exactly — not a round "looks about right"
-              number. The mismatch before (sticky at top-24/96px vs. content starting at
-              py-10/40px) is what made the rail jump away from the table the instant it went
-              sticky: sticky pins at *its own* top offset regardless of where non-sticky content
-              next to it actually sits, so the two only line up when that offset matches the
-              page's real padding. */}
-          <aside className="hidden space-y-4 xl:sticky xl:top-10 xl:block">
-            <YourSeasonWidget drivers={drivers} constructors={constructors} trackPerformance={trackPerformance} />
-            <NewsWidget items={news} />
-          </aside>
-
-          <div className="mx-auto w-full max-w-5xl">
-            <div className="space-y-10">
-              <div>
-                <h2 className="mb-3 text-lg font-semibold text-white">Drivers&apos; Championship</h2>
-                <DriverStandingsTable standings={drivers} />
-              </div>
-              <div>
-                <h2 className="mb-3 text-lg font-semibold text-white">Constructors&apos; Championship</h2>
-                <ConstructorStandingsTable standings={constructors} />
-              </div>
-              {progression.length > 0 && (
-                <div>
-                  <h2 className="mb-3 text-lg font-semibold text-white">Points progression</h2>
-                  <div className="glass backdrop-blur-2xl rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
-                    <StandingsWidget variant="line" drivers={drivers} progression={progression} progressionDrivers={progressionDrivers} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-10">
-              <h2 className="mb-3 text-lg font-semibold text-white">Calendar</h2>
-              <SeasonCalendarHeatmap year={year} entries={calendarEntries} top3ByRound={top3ByRound} />
-            </div>
-
-            {/* Same rail content, stacked below the main column instead of hidden outright once
-                the screen isn't wide enough for a real side rail. */}
-            <div className="mt-10 grid gap-6 xl:hidden sm:grid-cols-2">
-              <YourSeasonWidget drivers={drivers} constructors={constructors} trackPerformance={trackPerformance} />
-              <SeasonPulseWidget facts={facts} drivers={drivers} constructors={constructors} trackPerformance={trackPerformance} />
-              <NewsWidget items={news} />
-            </div>
+        <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-white">{year} Season</h1>
+            <p className="mt-1 text-sm text-neutral-500">
+              {racesCompleted} race{racesCompleted === 1 ? "" : "s"} completed · {racesRemaining} remaining
+            </p>
           </div>
 
-          <aside className="hidden xl:sticky xl:top-10 xl:block">
-            <SeasonPulseWidget facts={facts} drivers={drivers} constructors={constructors} trackPerformance={trackPerformance} />
-          </aside>
-        </div>
+          <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} />
+
+          <div className="mt-6">
+            <AnalysisWorkspace battles={battles} records={records} drivers={drivers} constructors={constructors} progression={progression} raceSummaries={raceSummaries} />
+          </div>
+
+          <div className="mt-6">
+            <SeasonTimeline year={year} raceSummaries={raceSummaries} />
+          </div>
+        </SeasonExplorerProvider>
       </SeasonFavoritesProvider>
     </div>
   );
