@@ -15,9 +15,9 @@ export function StandingsTableSkeleton({
 }) {
   const avatarClass = avatarShape === "circle" ? "rounded-full" : "rounded-lg";
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+    <div className="glass overflow-hidden rounded-xl border border-[var(--f1-line)]">
       <table className="w-full text-sm">
-        <thead className="bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
+        <thead className="glass-strong text-left text-xs uppercase tracking-wide text-neutral-500">
           <tr>
             <th className="px-4 py-3">
               <Skeleton className="h-3 w-6" />

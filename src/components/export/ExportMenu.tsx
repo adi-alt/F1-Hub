@@ -23,7 +23,11 @@ const SUBMENU_WIDTH = 160;
 
 // Same glass treatment as a chart tooltip (chartTheme.ts) / the calendar's own hover tooltip —
 // every floating panel on the site reads consistently instead of one being a flat opaque box.
-const GLASS_STYLE = { backgroundColor: "rgba(24, 24, 27, 0.72)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" };
+const GLASS_STYLE = {
+  backgroundColor: "var(--glass-surface-strong)",
+  backdropFilter: "blur(var(--glass-blur))",
+  WebkitBackdropFilter: "blur(var(--glass-blur))",
+};
 
 type Submenu = "copy-image" | "download-image" | null;
 

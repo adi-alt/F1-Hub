@@ -84,14 +84,14 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+    <div className="glass overflow-hidden rounded-xl border border-[var(--f1-line)]">
       {/* Its own Lenis instance (see useNestedLenisScroll) rather than plain native overflow-auto
           scroll or the old data-lenis-prevent — the table gets real Lenis smoothing, and the
           page's own root instance defers to it via the nested-region registry instead of fighting
           it (see nestedLenisRegistry.ts). */}
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[680px] text-sm">
-          <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="glass-strong sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
               <th className="px-4 py-3">Pos</th>
               <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
@@ -194,10 +194,10 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+    <div className="glass overflow-hidden rounded-xl border border-[var(--f1-line)]">
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[540px] text-sm">
-          <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="glass-strong sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-500">
             <tr>
               <th className="px-4 py-3">Pos</th>
               <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>

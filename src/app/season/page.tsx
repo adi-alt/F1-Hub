@@ -28,18 +28,20 @@ export default async function SeasonPage({
   );
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6">
-      {/* Rails only show up from xl: up — below that, the space they'd use is the main column
-          itself, not real margin, so there's nothing to reclaim without cramping the tables. */}
-      <div className="xl:grid xl:grid-cols-[260px_minmax(0,1fr)_260px] xl:items-start xl:gap-6">
+    <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
+      <h1 className="text-3xl font-bold text-white">{year} Season</h1>
+
+      {/* The title sits above the grid (not inside the middle column) specifically so the rails'
+          top edge lines up with the table's top edge, not with the title — rails only show up
+          from xl: up; below that, the space they'd use is the main column itself, not real
+          margin, so there's nothing to reclaim without cramping the tables. */}
+      <div className="mt-8 xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
         <aside className="hidden xl:sticky xl:top-24 xl:block">
           <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
         </aside>
 
         <div className="mx-auto w-full max-w-5xl">
-          <h1 className="text-3xl font-bold text-white">{year} Season</h1>
-
-          <div className="mt-8 space-y-10">
+          <div className="space-y-10">
             <div>
               <h2 className="mb-3 text-lg font-semibold text-white">Drivers&apos; Championship</h2>
               <DriverStandingsTable standings={drivers} favoriteIds={favoriteDriverIds} />
@@ -51,7 +53,7 @@ export default async function SeasonPage({
             {progression.length > 0 && (
               <div>
                 <h2 className="mb-3 text-lg font-semibold text-white">Points progression</h2>
-                <div className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
+                <div className="glass rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
                   <StandingsWidget variant="line" drivers={drivers} progression={progression} progressionDrivers={drivers.filter((d) => d.points > 0)} />
                 </div>
               </div>

@@ -7,7 +7,7 @@ const LEGEND_ITEMS = 6; // "No session" + the 5 real session categories
  * so the loading state reads as "the calendar is coming" rather than a generic gray block. */
 export function SeasonCalendarHeatmapSkeleton() {
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
+    <div className="glass rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
       <div className="mb-3 flex items-center justify-end">
         <Skeleton className="h-7 w-7 rounded-full" />
       </div>

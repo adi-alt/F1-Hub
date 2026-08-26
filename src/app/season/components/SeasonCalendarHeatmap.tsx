@@ -140,7 +140,7 @@ export function SeasonCalendarHeatmap({
       whileInView="show"
       viewport={{ once: true, margin: "-80px" }}
       variants={staggerItem}
-      className="rounded-xl border border-[var(--f1-line)] p-4 sm:p-6"
+      className="glass rounded-xl border border-[var(--f1-line)] p-4 sm:p-6"
     >
       <div className="mb-3 flex items-center justify-end">
         <ExportMenu
@@ -207,8 +207,8 @@ export function SeasonCalendarHeatmap({
 
       {hovered && hovered.cell.events.length > 0 && (
         <div
-          className="pointer-events-none fixed z-50 max-w-xs rounded-lg border border-[var(--f1-line)] px-3 py-2 text-xs shadow-lg backdrop-blur-md"
-          style={{ left: hovered.x + 12, top: hovered.y + 12, backgroundColor: "rgba(24, 24, 27, 0.72)" }}
+          className="glass-strong pointer-events-none fixed z-50 max-w-xs rounded-lg border border-[var(--f1-line)] px-3 py-2 text-xs shadow-lg"
+          style={{ left: hovered.x + 12, top: hovered.y + 12 }}
         >
           <p className="font-semibold text-white">{hovered.cell.events[0].raceName}</p>
           {hovered.cell.events.map((e, i) =>
