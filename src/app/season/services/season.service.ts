@@ -7,6 +7,17 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { computeChampionshipProgression, type Fact } from "@/lib/personalization";
 import { computeStandings, type ConstructorStanding, type DriverStanding } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
+import type { RaceDoc } from "@/lib/types/race";
+
+// Fisher-Yates — plain array shuffle, no dependency needed for one line of logic.
+function shuffled<T>(items: T[]): T[] {
+  const list = [...items];
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
 
 // {round: [1st, 2nd, 3rd finisher names]} for completed races only — the calendar heatmap's own
 // tooltip enrichment (a "Race" tile that already happened shows who actually won, not just the
@@ -28,9 +39,18 @@ export type ConstructorStandingRow = ConstructorStanding & {
 
 // Real, derived facts for the season page's right-rail widget — same shape/spirit as the
 // homepage's own buildFacts, just computed from this page's own standings/calendar instead of a
-// single favorite entity, since there's no one "subject" here to build facts about.
-function buildSeasonFacts(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[], calendarEntries: CalendarEntry[]): Fact[] {
+// single favorite entity, since there's no one "subject" here to build facts about. Returns every
+// candidate that actually applies (not a fixed top-N) — shuffled, so the same underlying data
+// reads as a different set/order each time the widget picks its visible subset (see
+// SeasonPulseWidget's own shuffle control) instead of the identical list on every visit.
+function buildSeasonFacts(
+  drivers: DriverStandingRow[],
+  constructors: ConstructorStandingRow[],
+  calendarEntries: CalendarEntry[],
+  races: RaceDoc[],
+): Fact[] {
   const facts: Fact[] = [];
+  const completed = races.filter((r) => r.status === "completed" && r.results);
 
   const [leader, second] = drivers;
   if (leader && second && leader.points > second.points) {
@@ -51,9 +71,37 @@ function buildSeasonFacts(drivers: DriverStandingRow[], constructors: Constructo
     facts.push({ icon: "🥇", text: `${mostWinsDriver.driverName} has the most race wins so far this season (${mostWinsDriver.wins})` });
   }
 
-  const topTeam = constructors[0];
+  const mostPodiumsDriver = [...drivers].sort((a, b) => b.podiums - a.podiums)[0];
+  if (mostPodiumsDriver?.podiums > 0) {
+    facts.push({ icon: "🍾", text: `${mostPodiumsDriver.driverName} has been on the podium the most this season (${mostPodiumsDriver.podiums} times)` });
+  }
+
+  const [topTeam, secondTeam] = constructors;
   if (topTeam) {
     facts.push({ icon: "🏗️", text: `${topTeam.team} leads the constructors' championship with ${topTeam.points} points` });
+  }
+  if (topTeam && secondTeam && topTeam.points > secondTeam.points) {
+    facts.push({ icon: "⚙️", text: `${secondTeam.team} trails ${topTeam.team} by ${topTeam.points - secondTeam.points} points in the constructors' fight` });
+  }
+
+  if (leader && completed.length > 0) {
+    const perRace = leader.points / completed.length;
+    facts.push({ icon: "📈", text: `${leader.driverName} is averaging ${perRace.toFixed(1)} points per race this season` });
+  }
+
+  const scored = drivers.filter((d) => d.points > 0);
+  if (leader && scored.length > 1) {
+    const last = scored[scored.length - 1];
+    facts.push({ icon: "📊", text: `${leader.points - last.points} points separate ${leader.driverName} from ${last.driverName} in the standings` });
+  }
+
+  const winners = new Set<string>();
+  for (const race of completed) {
+    const winner = race.results?.find((r) => r.finishPosition === 1);
+    if (winner) winners.add(winner.driverName);
+  }
+  if (winners.size > 1) {
+    facts.push({ icon: "🎲", text: `${winners.size} different drivers have won a race so far this season` });
   }
 
   const now = Date.now();
@@ -65,7 +113,7 @@ function buildSeasonFacts(drivers: DriverStandingRow[], constructors: Constructo
     facts.push({ icon: "📅", text: `${upcoming.name ?? `Round ${upcoming.round}`} is ${days === 0 ? "today" : `in ${days} day${days === 1 ? "" : "s"}`}` });
   }
 
-  return facts;
+  return shuffled(facts);
 }
 
 export async function getSeasonPageData(year: number, uid: string) {
@@ -113,7 +161,7 @@ export async function getSeasonPageData(year: number, uid: string) {
     constructors,
     progression,
     top3ByRound,
-    facts: buildSeasonFacts(drivers, constructors, calendarEntries),
+    facts: buildSeasonFacts(drivers, constructors, calendarEntries, races),
     favoriteDriverIds: profile?.favoriteDrivers ?? [],
     favoriteTeamIds: profile?.favoriteTeams ?? [],
   };

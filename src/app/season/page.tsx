@@ -33,11 +33,12 @@ export default async function SeasonPage({
           Championship" below is now the first thing in the middle column too, so items-start
           already lines every column's top up with it. No spacer needed. */}
       <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
-        {/* Not sticky — this site's smooth-scroll root (Lenis, see SmoothScroll.tsx) drives
-            scrolling via a transform on the page content rather than native scrollTop, which is a
-            well-known way to break position:sticky's own offset math. Plain flow positioning is
-            what actually guarantees this lines up with the table next to it. */}
-        <aside className="hidden xl:block">
+        {/* top-10 matches this page's own py-10 exactly — not a round "looks about right" number.
+            The mismatch before (sticky at top-24/96px vs. content starting at py-10/40px) is what
+            made the rail jump away from the table the instant it went sticky: sticky pins at
+            *its own* top offset regardless of where non-sticky content next to it actually sits,
+            so the two only line up when that offset matches the page's real padding. */}
+        <aside className="hidden xl:sticky xl:top-10 xl:block">
           <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
         </aside>
 
@@ -74,7 +75,7 @@ export default async function SeasonPage({
           </div>
         </div>
 
-        <aside className="hidden xl:block">
+        <aside className="hidden xl:sticky xl:top-10 xl:block">
           <SeasonPulseWidget facts={facts} drivers={drivers} />
         </aside>
       </div>
