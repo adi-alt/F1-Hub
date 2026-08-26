@@ -33,7 +33,11 @@ export default async function SeasonPage({
           Championship" below is now the first thing in the middle column too, so items-start
           already lines every column's top up with it. No spacer needed. */}
       <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
-        <aside className="hidden xl:sticky xl:top-24 xl:block">
+        {/* Not sticky — this site's smooth-scroll root (Lenis, see SmoothScroll.tsx) drives
+            scrolling via a transform on the page content rather than native scrollTop, which is a
+            well-known way to break position:sticky's own offset math. Plain flow positioning is
+            what actually guarantees this lines up with the table next to it. */}
+        <aside className="hidden xl:block">
           <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
         </aside>
 
@@ -50,7 +54,7 @@ export default async function SeasonPage({
             {progression.length > 0 && (
               <div>
                 <h2 className="mb-3 text-lg font-semibold text-white">Points progression</h2>
-                <div className="glass rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
+                <div className="glass backdrop-blur-2xl rounded-xl border border-[var(--f1-line)] p-4 sm:p-6">
                   <StandingsWidget variant="line" drivers={drivers} progression={progression} progressionDrivers={drivers.filter((d) => d.points > 0)} />
                 </div>
               </div>
@@ -70,7 +74,7 @@ export default async function SeasonPage({
           </div>
         </div>
 
-        <aside className="hidden xl:sticky xl:top-24 xl:block">
+        <aside className="hidden xl:block">
           <SeasonPulseWidget facts={facts} drivers={drivers} />
         </aside>
       </div>

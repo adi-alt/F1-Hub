@@ -28,7 +28,7 @@ function RailCard({ label, children }: { label: string; children: ReactNode }) {
       whileInView="show"
       viewport={{ once: true }}
       variants={staggerItem}
-      className="glass rounded-xl border border-[var(--f1-line)] p-4"
+      className="glass backdrop-blur-2xl rounded-xl border border-[var(--f1-line)] p-4"
     >
       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-600">{label}</p>
       {children}

@@ -14,17 +14,14 @@
      card/table, so this stays a boring structural gray. */
   --f1-line: #2c2c31;
 
-  /* Testing a white glass surface (season section only — see .glass/.glass-strong below) in
-     place of the flat --f1-carbon fill. Landed in the middle on purpose: light enough to
-     unambiguously read as white/light-gray glass rather than "barely less dark than before"
-     (the first pass, 5-10%), but translucent enough to still show blurred backdrop through it
-     rather than a flat opaque card (the second pass, 90-96%). Text inside flips to dark ink
-     (--glass-ink) to stay legible on it — see the overrides below. */
-  --glass-surface: rgba(255, 255, 255, 0.5);
-  --glass-surface-strong: rgba(255, 255, 255, 0.65);
+  /* White glass surface (season section only — see .glass/.glass-strong below) in place of the
+     flat --f1-carbon fill. Text inside flips to dark ink (--glass-ink) to stay legible on it —
+     see the overrides below. The blur itself comes from Tailwind's own backdrop-blur-2xl utility
+     class on each element (not a property here) — these two just carry the fill color/border/ink. */
+  --glass-surface: rgba(255, 255, 255, 0.9);
+  --glass-surface-strong: rgba(255, 255, 255, 0.96);
   --glass-ink: #18181b;
   --glass-border: rgba(0, 0, 0, 0.12);
-  --glass-blur: 20px;
 
   /* Separate from the white-glass tokens above on purpose — chart tooltips and the export menu
      float over many different (often still-dark) surfaces site-wide, so they keep their own
@@ -79,13 +76,9 @@ body::after {
 }
 .glass {
   background-color: var(--glass-surface);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 .glass-strong {
   background-color: var(--glass-surface-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 /* Scroll still works (native or Lenis-driven) — this only hides the visible track/thumb, for
