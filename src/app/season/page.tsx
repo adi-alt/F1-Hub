@@ -27,20 +27,13 @@ export default async function SeasonPage({
     session.uid,
   );
 
-  // Both asides get an invisible copy of the first real heading's own box (same classes, so its
-  // height/margin match exactly) instead of a guessed pixel offset — that's what actually lines
-  // the rails' top up with the table's top rather than the heading above it.
-  const headingSpacer = (
-    <h2 aria-hidden className="invisible mb-3 text-lg font-semibold">
-      &nbsp;
-    </h2>
-  );
-
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
+      {/* No heading above this grid anymore (removed per your last message) — "Drivers'
+          Championship" below is now the first thing in the middle column too, so items-start
+          already lines every column's top up with it. No spacer needed. */}
       <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
         <aside className="hidden xl:sticky xl:top-24 xl:block">
-          {headingSpacer}
           <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
         </aside>
 
@@ -78,7 +71,6 @@ export default async function SeasonPage({
         </div>
 
         <aside className="hidden xl:sticky xl:top-24 xl:block">
-          {headingSpacer}
           <SeasonPulseWidget facts={facts} drivers={drivers} />
         </aside>
       </div>

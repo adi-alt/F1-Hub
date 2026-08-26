@@ -14,12 +14,14 @@
      card/table, so this stays a boring structural gray. */
   --f1-line: #2c2c31;
 
-  /* Testing an actually-white glass surface (season section only — see .glass/.glass-strong
-     below) in place of the flat --f1-carbon fill: near-opaque white + blur, not a barely-there
-     tint, so it reads as white at a glance instead of just "a bit less dark than before". Text
-     inside flips to dark ink (--glass-ink) to stay legible on it — see the overrides below. */
-  --glass-surface: rgba(255, 255, 255, 0.9);
-  --glass-surface-strong: rgba(255, 255, 255, 0.96);
+  /* Testing a white glass surface (season section only — see .glass/.glass-strong below) in
+     place of the flat --f1-carbon fill. Landed in the middle on purpose: light enough to
+     unambiguously read as white/light-gray glass rather than "barely less dark than before"
+     (the first pass, 5-10%), but translucent enough to still show blurred backdrop through it
+     rather than a flat opaque card (the second pass, 90-96%). Text inside flips to dark ink
+     (--glass-ink) to stay legible on it — see the overrides below. */
+  --glass-surface: rgba(255, 255, 255, 0.5);
+  --glass-surface-strong: rgba(255, 255, 255, 0.65);
   --glass-ink: #18181b;
   --glass-border: rgba(0, 0, 0, 0.12);
   --glass-blur: 20px;
