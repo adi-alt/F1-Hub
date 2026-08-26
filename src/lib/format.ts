@@ -12,6 +12,12 @@ export function raceTitle(slug: string): string {
     .join(" ");
 }
 
+/** "Zandvoort" -> "ZAN" — a chart-axis-width-sized label derived straight from the one field
+ * every race always has (RaceDoc.circuit), rather than a hand-maintained per-circuit code table. */
+export function trackShortForm(circuit: string): string {
+  return circuit.slice(0, 3).toUpperCase();
+}
+
 export function raceStatusLabel(race: {
   status: "upcoming" | "completed" | "scheduled";
   results?: { finishPosition: number; driverName: string }[];

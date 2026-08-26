@@ -5,10 +5,38 @@ import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getLatestNews } from "@/lib/supabase/news";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
+import { trackShortForm } from "@/lib/format";
 import { computeChampionshipProgression, type Fact } from "@/lib/personalization";
 import { computeStandings, type ConstructorStanding, type DriverStanding } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import type { RaceDoc } from "@/lib/types/race";
+
+const FEATURED_DRIVER_COUNT = 5;
+
+// Every completed race's finishing order, keyed for O(1) per-driver/per-team lookup — the
+// head-to-head widget's "who performed on which track" breakdown joins this against whichever two
+// drivers/teams are selected, entirely client-side, no new fetch per comparison.
+export type TrackPerformance = {
+  round: number;
+  trackShort: string;
+  driverPositions: Record<string, number>;
+  teamBestPositions: Record<string, number>;
+};
+
+function buildTrackPerformance(races: RaceDoc[]): TrackPerformance[] {
+  const completed = races.filter((r) => r.status === "completed" && r.results).sort((a, b) => a.round - b.round);
+  return completed.map((race) => {
+    const driverPositions: Record<string, number> = {};
+    const teamBestPositions: Record<string, number> = {};
+    for (const r of race.results ?? []) {
+      driverPositions[r.driver] = r.finishPosition;
+      if (!(r.team in teamBestPositions) || r.finishPosition < teamBestPositions[r.team]) {
+        teamBestPositions[r.team] = r.finishPosition;
+      }
+    }
+    return { round: race.round, trackShort: trackShortForm(race.circuit), driverPositions, teamBestPositions };
+  });
+}
 
 // Fisher-Yates — plain array shuffle, no dependency needed for one line of logic.
 function shuffled<T>(items: T[]): T[] {
@@ -124,7 +152,7 @@ export async function getSeasonPageData(year: number, uid: string) {
     getAllCurrentDrivers(),
     getAllCurrentTeams(),
     getUserProfile(uid),
-    getLatestNews(5),
+    getLatestNews(10),
   ]);
   const standings = computeStandings(races);
 
@@ -143,10 +171,12 @@ export async function getSeasonPageData(year: number, uid: string) {
     favoriteId: archiveSlugForCurrentTeam(c.team),
   }));
 
-  // Every driver who's actually scored, not just the top few — the season page is the full,
-  // detailed view (unlike the homepage widget's deliberately small top-5 preview).
-  const scoredDriverCodes = drivers.filter((d) => d.points > 0).map((d) => d.driver);
-  const progression = scoredDriverCodes.length > 0 ? await computeChampionshipProgression(year, scoredDriverCodes) : [];
+  // A random 5 of whoever's actually scored (not always literally rank 1-5) — same "not always
+  // the same view every visit" spirit as the homepage's own randomized table/bar/line pick,
+  // reshuffled on every request rather than picked once and cached.
+  const scored = drivers.filter((d) => d.points > 0);
+  const progressionDrivers = shuffled(scored).slice(0, FEATURED_DRIVER_COUNT);
+  const progression = progressionDrivers.length > 0 ? await computeChampionshipProgression(year, progressionDrivers.map((d) => d.driver)) : [];
 
   const top3ByRound: Top3ByRound = {};
   for (const race of races) {
@@ -162,7 +192,9 @@ export async function getSeasonPageData(year: number, uid: string) {
     drivers,
     constructors,
     progression,
+    progressionDrivers,
     top3ByRound,
+    trackPerformance: buildTrackPerformance(races),
     facts: buildSeasonFacts(drivers, constructors, calendarEntries, races),
     news,
     favoriteDriverIds: profile?.favoriteDrivers ?? [],

@@ -148,7 +148,7 @@ export function StandingsWidget({
               ))}
             </defs>
             <CartesianGrid stroke={chart.gridline} vertical={false} />
-            <XAxis dataKey="raceName" tick={{ fill: chart.mutedInk, fontSize: 11 }} axisLine={{ stroke: chart.gridline }} tickLine={false} interval="preserveStartEnd" />
+            <XAxis dataKey="trackShort" tick={{ fill: chart.mutedInk, fontSize: 11 }} axisLine={{ stroke: chart.gridline }} tickLine={false} interval="preserveStartEnd" />
             <YAxis tick={{ fill: chart.mutedInk, fontSize: 12 }} axisLine={{ stroke: chart.gridline }} tickLine={false} width={36} />
             <Tooltip contentStyle={tooltipStyle} />
             {progressionTop.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: chart.mutedInk }} />}

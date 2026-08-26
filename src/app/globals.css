@@ -15,11 +15,12 @@
   --f1-line: #2c2c31;
 
   /* White glass surface (season section only — see .glass/.glass-strong below) in place of the
-     flat --f1-carbon fill. Text inside flips to dark ink (--glass-ink) to stay legible on it —
-     see the overrides below. The blur itself comes from Tailwind's own backdrop-blur-2xl utility
-     class on each element (not a property here) — these two just carry the fill color/border/ink. */
-  --glass-surface: rgba(255, 255, 255, 0.9);
-  --glass-surface-strong: rgba(255, 255, 255, 0.96);
+     flat --f1-carbon fill. 70-80% band, not 90%+ — opaque enough to read as white at a glance,
+     translucent enough that backdrop-blur-2xl still visibly shows the blurred page behind it
+     instead of looking like a flat, opaque card. Text inside flips to dark ink (--glass-ink) to
+     stay legible on it — see the overrides below. */
+  --glass-surface: rgba(255, 255, 255, 0.75);
+  --glass-surface-strong: rgba(255, 255, 255, 0.82);
   --glass-ink: #18181b;
   --glass-border: rgba(0, 0, 0, 0.12);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -8,7 +8,7 @@ import { ExportMenu } from "@/components/export/ExportMenu";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
-import { postFavorite } from "@/lib/favorites";
+import { useSeasonFavorites } from "./SeasonFavoritesContext";
 import type { ConstructorStandingRow, DriverStandingRow } from "../services/season.service";
 
 const DRIVER_COLUMNS = ["Pos", "Driver", "Team", "Wins", "Podiums", "Points", "Gap"];
@@ -16,25 +16,10 @@ const CONSTRUCTOR_COLUMNS = ["Pos", "Team", "Wins", "Podiums", "Points", "Gap"];
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
-// Shared by both tables below — same optimistic-toggle-then-POST-then-revert-on-failure pattern
-// every other favorite control in the app uses (see FavoriteEntityList.tsx), just parameterized
-// on which Set to update since each table owns its own favorited-state.
-function toggleFavorite(id: string, willFavorite: boolean, type: "driver" | "team", setFavorites: Dispatch<SetStateAction<Set<string>>>) {
-  setFavorites((prev) => {
-    const next = new Set(prev);
-    if (willFavorite) next.add(id);
-    else next.delete(id);
-    return next;
-  });
-  postFavorite(type, id, willFavorite).catch(() => {
-    setFavorites((prev) => {
-      const reverted = new Set(prev);
-      if (willFavorite) reverted.delete(id);
-      else reverted.add(id);
-      return reverted;
-    });
-  });
-}
+// Zinc-themed, not white-glass — a deliberately different, opaque material from the rows beneath
+// it (see globals.css's .glass) so a table's header reads as its own distinct strip, same idea as
+// the rail widgets' own header bar (SeasonSidebarWidgets.tsx's RailCard).
+const HEADER_CLASS = "bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-400";
 
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") {
   if (key !== sortKey) return null;
@@ -54,8 +39,8 @@ function favoriteRowClass(isFavorited: boolean): string {
   return isFavorited ? "border-l-2 border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.04]" : "border-l-2 border-l-transparent";
 }
 
-export function DriverStandingsTable({ standings, favoriteIds }: { standings: DriverStandingRow[]; favoriteIds: string[] }) {
-  const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
+export function DriverStandingsTable({ standings }: { standings: DriverStandingRow[] }) {
+  const { favDrivers, toggleDriver } = useSeasonFavorites();
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const scrollRef = useNestedLenisScroll();
@@ -91,7 +76,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
           it (see nestedLenisRegistry.ts). */}
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[680px] text-sm">
-          <thead className="glass-strong backdrop-blur-2xl sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-600">
+          <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`}>
             <tr>
               <th className="px-4 py-3">Pos</th>
               <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
@@ -121,7 +106,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
           </thead>
           <motion.tbody initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
             {sorted.map((s, i) => {
-              const isFavorited = !!s.favoriteId && favorites.has(s.favoriteId);
+              const isFavorited = !!s.favoriteId && favDrivers.has(s.favoriteId);
               return (
                 <motion.tr
                   key={s.driver}
@@ -146,11 +131,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
                   <td className="px-4 py-2.5 text-right text-neutral-600">{gapLabel(s.points, leaderPoints)}</td>
                   <td className="px-4 py-2.5 text-center">
                     {s.favoriteId && (
-                      <FavoriteButton
-                        favorited={isFavorited}
-                        onToggle={() => toggleFavorite(s.favoriteId!, !isFavorited, "driver", setFavorites)}
-                        className="mx-auto"
-                      />
+                      <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(s.favoriteId!)} className="mx-auto" />
                     )}
                   </td>
                   <td />
@@ -164,8 +145,8 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
   );
 }
 
-export function ConstructorStandingsTable({ standings, favoriteIds }: { standings: ConstructorStandingRow[]; favoriteIds: string[] }) {
-  const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
+export function ConstructorStandingsTable({ standings }: { standings: ConstructorStandingRow[] }) {
+  const { favTeams, toggleTeam } = useSeasonFavorites();
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const scrollRef = useNestedLenisScroll();
@@ -197,7 +178,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
     <div className="glass backdrop-blur-2xl overflow-hidden rounded-xl border border-[var(--f1-line)]">
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[540px] text-sm">
-          <thead className="glass-strong backdrop-blur-2xl sticky top-0 z-10 text-left text-xs uppercase tracking-wide text-neutral-600">
+          <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`}>
             <tr>
               <th className="px-4 py-3">Pos</th>
               <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
@@ -224,14 +205,9 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
               </th>
             </tr>
           </thead>
-          <motion.tbody
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer}
-            className="divide-y divide-[var(--f1-line)]"
-          >
+          <motion.tbody initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
             {sorted.map((s, i) => {
-              const isFavorited = favorites.has(s.favoriteId);
+              const isFavorited = favTeams.has(s.favoriteId);
               return (
                 <motion.tr
                   key={s.team}
@@ -252,11 +228,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
                   <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">{s.points}</td>
                   <td className="px-4 py-2.5 text-right text-neutral-600">{gapLabel(s.points, leaderPoints)}</td>
                   <td className="px-4 py-2.5 text-center">
-                    <FavoriteButton
-                      favorited={isFavorited}
-                      onToggle={() => toggleFavorite(s.favoriteId, !isFavorited, "team", setFavorites)}
-                      className="mx-auto"
-                    />
+                    <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(s.favoriteId)} className="mx-auto" />
                   </td>
                   <td />
                 </motion.tr>

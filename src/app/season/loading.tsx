@@ -4,9 +4,14 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 function RailSkeleton() {
   return (
-    <div className="glass backdrop-blur-2xl space-y-4 rounded-xl border border-[var(--f1-line)] p-4">
-      <Skeleton tone="light" className="mb-3 h-3 w-20" />
-      <Skeleton tone="light" className="h-16 w-full" />
+    <div className="glass backdrop-blur-2xl overflow-hidden rounded-xl border border-[var(--f1-line)]">
+      <div className="bg-[var(--f1-carbon)] px-4 py-2.5">
+        <Skeleton className="h-3 w-20" />
+      </div>
+      <div className="space-y-2 p-4">
+        <Skeleton tone="light" className="h-12 w-full" />
+        <Skeleton tone="light" className="h-12 w-full" />
+      </div>
     </div>
   );
 }
