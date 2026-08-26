@@ -15,6 +15,10 @@ none hardcode a year.
 - **`sync_calendar.py`** — the season schedule (names, dates, locations) for races that *haven't*
   happened yet, so the site has something to show for "next race" without predicting anything.
   Writes to the separate `calendar` collection.
+- **`fetch_news.py`** — polls Formula1.com's own RSS feed and upserts any new articles into
+  `news` (Postgres, not Firestore — see `.github/workflows/fetch-news.yml`, every 4 hours). That
+  feed only ever exposes its latest ~10 items with no publish date, so this table is an
+  ever-growing archive built forward from whenever it first ran, not a backfilled history.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate

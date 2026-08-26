@@ -15,7 +15,8 @@ export default function SeasonLoading() {
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6">
       <div className="xl:grid xl:grid-cols-[300px_minmax(0,1fr)_300px] xl:items-start xl:gap-6">
-        <aside className="hidden xl:block">
+        <aside className="hidden space-y-4 xl:block">
+          <RailSkeleton />
           <RailSkeleton />
         </aside>
 

@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { staggerItem } from "@/components/motion/variants";
 import { postFavorite } from "@/lib/favorites";
 import type { Fact } from "@/lib/personalization";
+import type { NewsItem } from "@/lib/supabase/news";
+import { newsHref } from "@/lib/routes";
 import type { ConstructorStandingRow, DriverStandingRow } from "../services/season.service";
 
 const VISIBLE_FACTS = 4;
@@ -284,5 +287,28 @@ export function SeasonPulseWidget({ facts, drivers }: { facts: Fact[]; drivers: 
         </RailCard>
       )}
     </div>
+  );
+}
+
+/** Left rail, alongside "Your season" — just titles (see /news for the full section + detail
+ * view with the actual description and the direct Formula1.com source link). Each title is its
+ * own pointer-card, same as everywhere else in these rails. */
+export function NewsWidget({ items }: { items: NewsItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <RailCard label="F1 news">
+      <ul className="flex flex-col gap-2">
+        {items.map((item) => (
+          <li key={item.guid}>
+            <Link href={newsHref(item.guid)}>
+              <PointerCard className="text-sm text-neutral-700 transition hover:bg-black/[0.06] hover:text-neutral-900">{item.title}</PointerCard>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <Link href="/news" className="mt-3 block text-center text-xs text-neutral-600 transition hover:text-neutral-900">
+        See all news →
+      </Link>
+    </RailCard>
   );
 }

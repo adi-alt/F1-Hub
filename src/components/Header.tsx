@@ -38,6 +38,9 @@ export function Header() {
             <Link href="/groups" className="transition hover:text-white">
               Groups
             </Link>
+            <Link href="/news" className="transition hover:text-white">
+              News
+            </Link>
             {showUsers && (
               <Link href="/users" className="transition hover:text-white">
                 Users

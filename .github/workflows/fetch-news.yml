@@ -1,0 +1,27 @@
+name: Fetch F1 news
+
+# Every few hours, same cadence as fetch-races — news (unlike the calendar) changes often enough
+# that a weekly check would miss most of it, and the feed itself only ever exposes its latest ~10
+# items, so infrequent polling would also mean silently missing articles between runs.
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Poll Formula1.com's RSS feed for anything new
+        run: python pipeline/fetch_news.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

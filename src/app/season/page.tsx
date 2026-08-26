@@ -1,5 +1,5 @@
 import { SeasonCalendarHeatmap } from "./components/SeasonCalendarHeatmap";
-import { SeasonPulseWidget, YourSeasonWidget } from "./components/SeasonSidebarWidgets";
+import { NewsWidget, SeasonPulseWidget, YourSeasonWidget } from "./components/SeasonSidebarWidgets";
 import { ConstructorStandingsTable, DriverStandingsTable } from "./components/StandingsTables";
 import { getSeasonPageData } from "./services/season.service";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -22,7 +22,7 @@ export default async function SeasonPage({
 
   const { year: yearParam } = await searchParams;
   const year = Number(yearParam) || new Date().getFullYear();
-  const { calendarEntries, drivers, constructors, progression, top3ByRound, facts, favoriteDriverIds, favoriteTeamIds } = await getSeasonPageData(
+  const { calendarEntries, drivers, constructors, progression, top3ByRound, facts, news, favoriteDriverIds, favoriteTeamIds } = await getSeasonPageData(
     year,
     session.uid,
   );
@@ -38,8 +38,9 @@ export default async function SeasonPage({
             made the rail jump away from the table the instant it went sticky: sticky pins at
             *its own* top offset regardless of where non-sticky content next to it actually sits,
             so the two only line up when that offset matches the page's real padding. */}
-        <aside className="hidden xl:sticky xl:top-10 xl:block">
+        <aside className="hidden space-y-4 xl:sticky xl:top-10 xl:block">
           <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
+          <NewsWidget items={news} />
         </aside>
 
         <div className="mx-auto w-full max-w-5xl">
@@ -72,6 +73,7 @@ export default async function SeasonPage({
           <div className="mt-10 grid gap-6 xl:hidden sm:grid-cols-2">
             <YourSeasonWidget drivers={drivers} constructors={constructors} favoriteDriverIds={favoriteDriverIds} favoriteTeamIds={favoriteTeamIds} />
             <SeasonPulseWidget facts={facts} drivers={drivers} />
+            <NewsWidget items={news} />
           </div>
         </div>
 

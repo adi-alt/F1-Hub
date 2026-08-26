@@ -46,3 +46,9 @@ export function archiveTeamHref(teamId: string): string {
 export function groupHref(id: string): string {
   return `/groups/${id}`;
 }
+
+// guid is the news item's own permalink URL (see src/lib/supabase/news.ts) — encoded since it's
+// itself a full URL going into a query param.
+export function newsHref(guid: string): string {
+  return `/news?id=${encodeURIComponent(guid)}`;
+}

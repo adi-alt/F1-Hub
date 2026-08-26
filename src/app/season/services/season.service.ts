@@ -2,6 +2,7 @@ import { getArchiveDriverIdsByCode } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
+import { getLatestNews } from "@/lib/supabase/news";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
 import { computeChampionshipProgression, type Fact } from "@/lib/personalization";
@@ -117,12 +118,13 @@ function buildSeasonFacts(
 }
 
 export async function getSeasonPageData(year: number, uid: string) {
-  const [races, calendarEntries, currentDrivers, currentTeams, profile] = await Promise.all([
+  const [races, calendarEntries, currentDrivers, currentTeams, profile, news] = await Promise.all([
     getRacesByYear(year),
     getCalendarEntriesByYear(year),
     getAllCurrentDrivers(),
     getAllCurrentTeams(),
     getUserProfile(uid),
+    getLatestNews(5),
   ]);
   const standings = computeStandings(races);
 
@@ -162,6 +164,7 @@ export async function getSeasonPageData(year: number, uid: string) {
     progression,
     top3ByRound,
     facts: buildSeasonFacts(drivers, constructors, calendarEntries, races),
+    news,
     favoriteDriverIds: profile?.favoriteDrivers ?? [],
     favoriteTeamIds: profile?.favoriteTeams ?? [],
   };

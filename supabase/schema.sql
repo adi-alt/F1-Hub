@@ -440,3 +440,21 @@ create policy "admins can update their group" on groups for update
 -- exist yet at that earlier point in this file (alter publication needs the table to already exist).
 alter publication supabase_realtime add table group_race_scores;
 alter publication supabase_realtime add table group_members;
+
+-- ============================================================= F1 news
+-- Polled from Formula1.com's own RSS feed (pipeline/fetch_news.py, every few hours) - that feed
+-- only ever exposes its latest ~10 items with no publish date, so this table is an ever-growing
+-- archive built forward from whenever ingestion started, not a backfilled history. guid is the
+-- feed's own <guid> (its article permalink) - the natural primary key and dedup key across runs,
+-- since a given poll's 10 items mostly overlap with the previous one. fetched_at only gets set on
+-- a genuinely new guid (see fetch_news.py's own upsert call) - a re-poll of an already-known
+-- article never creeps its "first seen" timestamp forward.
+create table news (
+  guid text primary key,
+  title text not null,
+  description text,
+  link text not null,
+  creator text,
+  fetched_at timestamptz not null default now()
+);
+create index news_fetched_at_idx on news (fetched_at desc);
