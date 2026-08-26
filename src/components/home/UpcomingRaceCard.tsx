@@ -92,7 +92,7 @@ export function UpcomingRaceCard({
   year: number;
   standings: SeasonStandings;
   standingsVariant: StandingsVariant;
-  progression: Record<string, number>[];
+  progression: Record<string, number | string>[];
   facts: Fact[];
 }) {
   const raceSession = calendar.sessions.find((s) => s.label === "Race");

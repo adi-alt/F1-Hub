@@ -16,9 +16,6 @@ export function StandingsTableSkeleton({
   const avatarClass = avatarShape === "circle" ? "rounded-full" : "rounded-lg";
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      <div className="flex items-center justify-end border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1">
-        <Skeleton className="h-7 w-7 rounded-full" />
-      </div>
       <table className="w-full text-sm">
         <thead className="bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
           <tr>
@@ -47,6 +44,9 @@ export function StandingsTableSkeleton({
             </th>
             <th className="w-10 px-4 py-3 text-center">
               <Skeleton className="mx-auto h-3 w-6" />
+            </th>
+            <th className="w-10 px-2 py-3 text-center">
+              <Skeleton className="mx-auto h-7 w-7 rounded-full" />
             </th>
           </tr>
         </thead>
@@ -82,6 +82,7 @@ export function StandingsTableSkeleton({
               <td className="px-4 py-2.5 text-center">
                 <Skeleton className="mx-auto h-5 w-5 rounded-full" />
               </td>
+              <td />
             </tr>
           ))}
         </tbody>

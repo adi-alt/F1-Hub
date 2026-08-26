@@ -286,12 +286,13 @@ export async function getRecentCircuitPhotos(
 
 /** Cumulative points per round for a fixed set of drivers — the "curve" half of the homepage's
  * randomized table-vs-chart fact presentation (computeSeasonStandings is the table/bar half).
- * One flat object per completed round (`{round, HAM: 45, VER: 60, ...}`) since that's the shape
- * recharts' own multi-<Line> convention wants — each driver code becomes its own dataKey. */
+ * One flat object per completed round (`{round, raceName, HAM: 45, VER: 60, ...}`) since that's
+ * the shape recharts' own multi-<Line>/<Area> convention wants — each driver code becomes its own
+ * dataKey; raceName lets the x-axis label the actual event instead of a bare round number. */
 export async function computeChampionshipProgression(
   year: number,
   driverCodes: string[],
-): Promise<Record<string, number>[]> {
+): Promise<Record<string, number | string>[]> {
   const races = await getRacesByYear(year);
   const completed = races.filter((r) => r.status === "completed").sort((a, b) => a.round - b.round);
 
@@ -302,7 +303,7 @@ export async function computeChampionshipProgression(
     for (const r of race.results ?? []) {
       if (r.driver in running) running[r.driver] += r.points;
     }
-    return { round: race.round, ...running };
+    return { round: race.round, raceName: race.name ?? `Round ${race.round}`, ...running };
   });
 }
 

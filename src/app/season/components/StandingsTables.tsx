@@ -8,6 +8,7 @@ import { ExportMenu } from "@/components/export/ExportMenu";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
+import { postFavorite } from "@/lib/favorites";
 import type { ConstructorStandingRow, DriverStandingRow } from "../services/season.service";
 
 const DRIVER_COLUMNS = ["Pos", "Driver", "Team", "Wins", "Podiums", "Points", "Gap"];
@@ -25,11 +26,7 @@ function toggleFavorite(id: string, willFavorite: boolean, type: "driver" | "tea
     else next.delete(id);
     return next;
   });
-  fetch("/api/archive/favorites", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type, id, favorited: willFavorite }),
-  }).catch(() => {
+  postFavorite(type, id, willFavorite).catch(() => {
     setFavorites((prev) => {
       const reverted = new Set(prev);
       if (willFavorite) reverted.delete(id);
@@ -88,9 +85,6 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      <div className="flex items-center justify-end border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1">
-        <ExportMenu filename="drivers-championship" getRows={driverRows} getImage={async () => tableToCanvas(driverRows().columns, driverRows().rows)} />
-      </div>
       {/* Its own Lenis instance (see useNestedLenisScroll) rather than plain native overflow-auto
           scroll or the old data-lenis-prevent — the table gets real Lenis smoothing, and the
           page's own root instance defers to it via the nested-region registry instead of fighting
@@ -115,6 +109,14 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
               </th>
               <th className="px-4 py-3 text-right">Gap</th>
               <th className="w-10 px-4 py-3 text-center">Fav</th>
+              <th className="w-10 px-2 py-3 text-center">
+                <ExportMenu
+                  filename="drivers-championship"
+                  getRows={driverRows}
+                  getImage={async () => tableToCanvas(driverRows().columns, driverRows().rows)}
+                  className="mx-auto"
+                />
+              </th>
             </tr>
           </thead>
           <motion.tbody initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
@@ -151,6 +153,7 @@ export function DriverStandingsTable({ standings, favoriteIds }: { standings: Dr
                       />
                     )}
                   </td>
+                  <td />
                 </motion.tr>
               );
             })}
@@ -192,13 +195,6 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-      <div className="flex items-center justify-end border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] px-2 py-1">
-        <ExportMenu
-          filename="constructors-championship"
-          getRows={constructorRows}
-          getImage={async () => tableToCanvas(constructorRows().columns, constructorRows().rows)}
-        />
-      </div>
       <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
         <table className="w-full min-w-[540px] text-sm">
           <thead className="sticky top-0 z-10 bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-500">
@@ -218,6 +214,14 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
               </th>
               <th className="px-4 py-3 text-right">Gap</th>
               <th className="w-10 px-4 py-3 text-center">Fav</th>
+              <th className="w-10 px-2 py-3 text-center">
+                <ExportMenu
+                  filename="constructors-championship"
+                  getRows={constructorRows}
+                  getImage={async () => tableToCanvas(constructorRows().columns, constructorRows().rows)}
+                  className="mx-auto"
+                />
+              </th>
             </tr>
           </thead>
           <motion.tbody
@@ -254,6 +258,7 @@ export function ConstructorStandingsTable({ standings, favoriteIds }: { standing
                       className="mx-auto"
                     />
                   </td>
+                  <td />
                 </motion.tr>
               );
             })}

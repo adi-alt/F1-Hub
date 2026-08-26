@@ -14,28 +14,39 @@ type ExportMenuProps = {
 };
 
 const IMAGE_FORMATS = [
-  { label: "Copy as PNG", mime: "image/png", ext: "png" },
-  { label: "Copy as JPG", mime: "image/jpeg", ext: "jpg" },
-  { label: "Copy as JPEG", mime: "image/jpeg", ext: "jpeg" },
+  { label: "PNG", mime: "image/png", ext: "png" },
+  { label: "JPG", mime: "image/jpeg", ext: "jpg" },
+  { label: "JPEG", mime: "image/jpeg", ext: "jpeg" },
 ];
 
-/** The ⋮ menu on every table/chart card: copy or download the underlying rows as CSV, or copy a
- * rasterized image of it in a chosen format (falls back to a download if the clipboard image
- * write itself throws — some browsers/permissions contexts refuse it outright). */
+const SUBMENU_WIDTH = 160;
+
+// Same glass treatment as a chart tooltip (chartTheme.ts) / the calendar's own hover tooltip —
+// every floating panel on the site reads consistently instead of one being a flat opaque box.
+const GLASS_STYLE = { backgroundColor: "rgba(24, 24, 27, 0.72)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" };
+
+type Submenu = "copy-image" | "download-image" | null;
+
+/** The ⋮ menu on every table/chart card: copy or download the underlying rows as CSV, or export a
+ * rasterized image in a chosen format via a nested flyout — opened left or right of the main
+ * panel depending on which side actually has room in the viewport. */
 export function ExportMenu({ filename, getRows, getImage, className = "" }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
-  const [imageOpen, setImageOpen] = useState(false);
+  const [submenu, setSubmenu] = useState<Submenu>(null);
+  const [submenuSide, setSubmenuSide] = useState<"left" | "right">("right");
   const [status, setStatus] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   function close() {
     setOpen(false);
-    setImageOpen(false);
+    setSubmenu(null);
   }
   useOnClickOutside(rootRef, open, close);
 
   function flash(message: string) {
     setStatus(message);
+    setSubmenu(null);
     setTimeout(() => setStatus(null), 1400);
   }
 
@@ -51,11 +62,29 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
     close();
   }
 
-  async function handleCopyImage(mime: string, ext: string) {
+  function toggleSubmenu(which: Exclude<Submenu, null>) {
+    if (submenu === which) {
+      setSubmenu(null);
+      return;
+    }
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (rect) {
+      const roomRight = window.innerWidth - rect.right;
+      const roomLeft = rect.left;
+      setSubmenuSide(roomRight >= SUBMENU_WIDTH ? "right" : roomLeft >= SUBMENU_WIDTH ? "left" : roomRight >= roomLeft ? "right" : "left");
+    }
+    setSubmenu(which);
+  }
+
+  async function handleFormat(mime: string, ext: string) {
     const canvas = await getImage();
     if (!canvas) return flash("Nothing to export yet");
     const blob = await canvasToBlob(canvas, mime);
     if (!blob) return flash("Export failed");
+    if (submenu === "download-image") {
+      downloadBlob(`${filename}.${ext}`, blob);
+      return flash("Downloaded");
+    }
     try {
       await copyImageBlob(blob);
       flash("Copied");
@@ -83,12 +112,13 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={panelRef}
             initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-[var(--f1-line)] py-1 text-sm shadow-xl backdrop-blur-md"
-            style={{ backgroundColor: "rgba(24, 24, 27, 0.92)" }}
+            className="absolute right-0 top-full z-30 mt-2 w-48 overflow-visible rounded-xl border border-[var(--f1-line)] py-1 text-sm shadow-xl backdrop-blur-md"
+            style={GLASS_STYLE}
           >
             {status ? (
               <p className="px-4 py-2.5 text-neutral-300">{status}</p>
@@ -107,36 +137,46 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
                   Download raw data
                 </button>
                 <button
-                  onClick={() => setImageOpen((v) => !v)}
-                  aria-expanded={imageOpen}
-                  className="flex w-full items-center justify-between px-4 py-2 text-left text-neutral-300 transition hover:bg-white/5 hover:text-white"
+                  onClick={() => toggleSubmenu("copy-image")}
+                  aria-expanded={submenu === "copy-image"}
+                  className={`flex w-full items-center justify-between px-4 py-2 text-left transition hover:bg-white/5 hover:text-white ${submenu === "copy-image" ? "text-white" : "text-neutral-300"}`}
                 >
-                  Copy as image
-                  <span className={`text-xs transition-transform ${imageOpen ? "rotate-90" : ""}`}>›</span>
+                  Copy as image <span className="text-xs">{submenuSide === "right" ? "›" : "‹"}</span>
                 </button>
-                <AnimatePresence>
-                  {imageOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="overflow-hidden border-t border-[var(--f1-line)]"
-                    >
-                      {IMAGE_FORMATS.map((f) => (
-                        <button
-                          key={f.label}
-                          onClick={() => handleCopyImage(f.mime, f.ext)}
-                          className="block w-full px-6 py-2 text-left text-neutral-400 transition hover:bg-white/5 hover:text-white"
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <button
+                  onClick={() => toggleSubmenu("download-image")}
+                  aria-expanded={submenu === "download-image"}
+                  className={`flex w-full items-center justify-between px-4 py-2 text-left transition hover:bg-white/5 hover:text-white ${submenu === "download-image" ? "text-white" : "text-neutral-300"}`}
+                >
+                  Download image <span className="text-xs">{submenuSide === "right" ? "›" : "‹"}</span>
+                </button>
               </>
             )}
+
+            <AnimatePresence>
+              {submenu && (
+                <motion.div
+                  initial={{ opacity: 0, x: submenuSide === "right" ? -6 : 6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: submenuSide === "right" ? -6 : 6 }}
+                  transition={{ duration: 0.12, ease: "easeOut" }}
+                  className={`absolute top-0 w-40 overflow-hidden rounded-xl border border-[var(--f1-line)] py-1 text-sm shadow-xl backdrop-blur-md ${
+                    submenuSide === "right" ? "left-full ml-2" : "right-full mr-2"
+                  }`}
+                  style={GLASS_STYLE}
+                >
+                  {IMAGE_FORMATS.map((f) => (
+                    <button
+                      key={f.label}
+                      onClick={() => handleFormat(f.mime, f.ext)}
+                      className="block w-full px-4 py-2 text-left text-neutral-300 transition hover:bg-white/5 hover:text-white"
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

@@ -31,27 +31,11 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Ambient light streaks on the zinc background, referenced from a photo of soft diagonal red-to-
-   blue glow bands over a grainy dark surface — two blurred warm-core/cool-edge blobs per streak,
-   rotated together into a consistent diagonal, not a border/stroke on any component. Fixed (not
-   absolute) so it reads as one continuous backdrop behind the whole page rather than repeating
-   per section, and z-index -1 keeps it strictly behind every real element without needing to
-   touch any of their own stacking. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: -20% -10%;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 32vw 10vw at 28% 70%, rgba(225, 90, 40, 0.16), transparent 70%),
-    radial-gradient(ellipse 30vw 9vw at 20% 82%, rgba(70, 130, 220, 0.1), transparent 70%),
-    radial-gradient(ellipse 34vw 11vw at 82% 22%, rgba(225, 90, 40, 0.15), transparent 70%),
-    radial-gradient(ellipse 32vw 10vw at 90% 12%, rgba(70, 130, 220, 0.1), transparent 70%);
-  filter: blur(30px);
-  transform: rotate(-32deg);
-}
+/* The randomized red-to-blue streaks themselves now live in AmbientBackground.tsx (a real random
+   position/rotation per request needs actual DOM elements, not a fixed set of CSS gradients) —
+   this file only keeps the grain layer, which doesn't need to vary.
 
-/* Fine grain over the whole viewport (feTurbulence, not a raster asset) — subtle enough at this
+   Fine grain over the whole viewport (feTurbulence, not a raster asset) — subtle enough at this
    opacity/blend to sit on top of real content without ever hurting legibility or intercepting
    clicks. */
 body::after {

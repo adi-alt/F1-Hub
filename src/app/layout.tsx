@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AmbientBackground } from "@/components/AmbientBackground";
 import { AuthDialogHost } from "@/components/auth/AuthDialogHost";
 import { Header } from "@/components/Header";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
@@ -34,6 +35,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+        <AmbientBackground />
         <AppProviders>
           <Header />
           <SmoothScroll>{children}</SmoothScroll>
