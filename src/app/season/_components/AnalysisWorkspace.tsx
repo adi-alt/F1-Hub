@@ -154,17 +154,23 @@ function BattleRow({ battle, isClosest, onClick }: { battle: Battle; isClosest: 
       <span className="w-24 shrink-0 truncate text-right text-sm font-medium text-white sm:w-32">{battle.aLabel}</span>
       <span className="w-8 shrink-0 text-right font-mono text-sm font-bold tabular-nums text-white">{battle.aValue}</span>
       <span className="flex flex-1 items-center gap-1">
-        <span className="flex h-1 flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.06]">
-          <span
-            className="h-full rounded-l-full transition-all duration-300 ease-out"
-            style={{ width: `${aPct}%`, background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
+        <span className="flex h-1.5 flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.06]">
+          <motion.span
+            className="h-full rounded-l-full"
+            initial={false}
+            animate={{ width: `${aPct}%` }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            style={{ background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
           />
         </span>
         <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
-        <span className="flex h-1 flex-1 overflow-hidden rounded-r-full bg-white/[0.06]">
-          <span
-            className="h-full rounded-r-full transition-all duration-300 ease-out"
-            style={{ width: `${bPct}%`, background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
+        <span className="flex h-1.5 flex-1 overflow-hidden rounded-r-full bg-white/[0.06]">
+          <motion.span
+            className="h-full rounded-r-full"
+            initial={false}
+            animate={{ width: `${bPct}%` }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
           />
         </span>
       </span>
@@ -177,23 +183,31 @@ function BattleRow({ battle, isClosest, onClick }: { battle: Battle; isClosest: 
   );
 }
 
+/** One record's label/name/value row. A dedicated component (not an inline map body) so the
+ * value column's width is defined in exactly one place: `min-w-[3.5ch]` plus `text-right` keeps
+ * its left edge lined up across every row in a column regardless of digit count (a "7" and a
+ * "312" both right-align against the same fixed track) - `justify-between` alone doesn't do that,
+ * since it only pushes the value to the far edge of its *own* row, not to a shared column. */
+function RecordRow({ record }: { record: SeasonRecord }) {
+  return (
+    <motion.div variants={staggerItem} className="flex items-center gap-4 border-b border-white/[0.06] py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{record.label}</p>
+        <p className="mt-0.5 truncate text-sm text-neutral-200">{record.name}</p>
+      </div>
+      <p className="min-w-[3.5ch] shrink-0 text-right font-mono text-lg font-bold tabular-nums text-white">{record.value}</p>
+    </motion.div>
+  );
+}
+
 /** A compact editorial leaderboard instead of seven identical icon cards — a two-column grid of
  * quiet label/name/value rows, the number doing the visual work rather than an emoji. */
 function RecordsPanel({ records }: { records: SeasonRecord[] }) {
   if (records.length === 0) return <EmptyState>Not enough races yet for season records.</EmptyState>;
   return (
-    // Every row the same height/vertical rhythm regardless of column - `first:pt-0` here would
-    // only ever match the very first DOM child (the top-left cell), not its row-mate in the
-    // right column, which is exactly what made the two columns drift out of alignment on row 1.
     <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-1 gap-x-8 gap-y-0 sm:grid-cols-2">
       {records.map((r, i) => (
-        <motion.div key={i} variants={staggerItem} className="flex items-center justify-between gap-4 border-b border-white/[0.06] py-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{r.label}</p>
-            <p className="mt-0.5 truncate text-sm text-neutral-200">{r.name}</p>
-          </div>
-          <p className="shrink-0 font-mono text-lg font-bold tabular-nums text-white">{r.value}</p>
-        </motion.div>
+        <RecordRow key={i} record={r} />
       ))}
     </motion.div>
   );

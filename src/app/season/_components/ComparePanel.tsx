@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
 import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../_utils/seasonStats";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
@@ -21,16 +22,22 @@ function TugRow({ row }: { row: StatRow }) {
         <span className={`w-12 shrink-0 text-right font-mono text-sm tabular-nums ${aWins ? "font-bold text-white" : "text-neutral-400"}`}>{aText}</span>
         <div className="flex flex-1 items-center gap-1">
           <div className="flex h-1.5 flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.05]">
-            <div
-              className="h-full rounded-l-full transition-all duration-300 ease-out"
-              style={{ width: `${aPct}%`, background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
+            <motion.div
+              className="h-full rounded-l-full"
+              initial={false}
+              animate={{ width: `${aPct}%` }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              style={{ background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
             />
           </div>
           <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
           <div className="flex h-1.5 flex-1 overflow-hidden rounded-r-full bg-white/[0.05]">
-            <div
-              className="h-full rounded-r-full transition-all duration-300 ease-out"
-              style={{ width: `${bPct}%`, background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
+            <motion.div
+              className="h-full rounded-r-full"
+              initial={false}
+              animate={{ width: `${bPct}%` }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
             />
           </div>
         </div>
@@ -136,15 +143,37 @@ export function ComparePanel({
     <div>
       {picker}
 
-      <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-end gap-4">
+      <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-end gap-4 overflow-hidden">
         <div className="text-right">
           <p className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-neutral-500">{aName}</p>
-          <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-white">{a.points}</p>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={`${compareA}-${a.points}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="mt-1 font-mono text-3xl font-bold tabular-nums text-white"
+            >
+              {a.points}
+            </motion.p>
+          </AnimatePresence>
         </div>
         <p className="pb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600">vs</p>
         <div className="text-left">
           <p className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-neutral-500">{bName}</p>
-          <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-white">{b.points}</p>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={`${compareB}-${b.points}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="mt-1 font-mono text-3xl font-bold tabular-nums text-white"
+            >
+              {b.points}
+            </motion.p>
+          </AnimatePresence>
         </div>
       </div>
 

@@ -37,10 +37,17 @@ type DaySession = {
 
 const GAP = 3; // px, fixed - only the cell itself scales
 const MIN_CELL = 9; // px - stays a legible square even when many weeks force horizontal scroll
-const MAX_CELL = 14; // px - keeps tiles GitHub-proportioned even on a very wide container; the
-// grid centers (mx-auto) in whatever width is left over rather than stretching to fill it
-const DEFAULT_CELL = 11; // px - server-rendered guess before the client can measure real width
+// 24, not GitHub's own ~11px - a full F1 season is ~40-42 weeks (March-December, see
+// season.service.ts), and this app's own max-w-[1200px] page already caps how wide the container
+// can ever get, so there's no ultrawide-monitor case where this blows tiles up absurdly large.
+// Raw (measured-width / weekCount) for a real season comes out around 23px on this page's actual
+// content width - this ceiling is picked to sit just above that, so the grid's own natural width
+// fills the container instead of being clamped down and centered with dead space on both sides.
+const MAX_CELL = 24; // px
+const DEFAULT_CELL = 14; // px - server-rendered guess before the client can measure real width
 const TOOLTIP_WIDTH = 224; // px, matches the w-56 tooltip below
+const TOOLTIP_BASE_HEIGHT = 70; // px, date + round/race lines + padding, before any session rows
+const TOOLTIP_SESSION_ROW_HEIGHT = 20; // px, per session line
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const VISIBLE_DAY_LABELS = new Set([1, 3, 5]); // Mon/Wed/Fri, GitHub's own convention
 
@@ -85,7 +92,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   const { setHighlightRound } = useSeasonExplorer();
   const favDrivers = useFavDriverIds();
   const [opened, setOpened] = useState<number | null>(null);
-  const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number } | null>(null);
+  const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number; flipBelow: boolean } | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
   const { ref: widthProbeRef, width: availableWidth } = useMeasuredWidth<HTMLDivElement>();
@@ -175,7 +182,15 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
     // or right edge of the grid never pushes the tooltip half off the calendar container.
     const idealLeft = cellRect.left - anchorRect.left + cellRect.width / 2 - TOOLTIP_WIDTH / 2;
     const left = Math.max(4, Math.min(idealLeft, anchorRect.width - TOOLTIP_WIDTH - 4));
-    setHover({ key, date, sessions, top: cellRect.top - anchorRect.top, left });
+    // Same idea vertically: the tooltip's resting position is above the cell (see the render
+    // below), which would clip against the real browser viewport for a cell in the grid's first
+    // couple of rows - flip to below when there isn't enough room above, mirroring
+    // SearchableSelect.tsx's flip-above-when-no-room-below, inverted.
+    const top = cellRect.top - anchorRect.top;
+    const bottom = cellRect.bottom - anchorRect.top;
+    const estimatedHeight = TOOLTIP_BASE_HEIGHT + sessions.length * TOOLTIP_SESSION_ROW_HEIGHT;
+    const flipBelow = cellRect.top - estimatedHeight < 0;
+    setHover({ key, date, sessions, top: flipBelow ? bottom : top, left, flipBelow });
   }
   function hideTooltip(key: string) {
     setHover((prev) => (prev?.key === key ? null : prev));
@@ -237,7 +252,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                             sessions={sessions}
                             isSelected={sessions?.[0]?.round === opened}
                             isFavoritePodium={isFavPodium}
-                            onEnter={(e) => sessions && showTooltip(e, key, day, sessions)}
+                            onEnter={(e) => showTooltip(e, key, day, sessions ?? [])}
                             onLeave={() => hideTooltip(key)}
                             onClick={() => sessions && selectDate(sessions)}
                           />
@@ -256,29 +271,46 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
               // motion.div's own animated y/scale transform below - mixing a fixed CSS transform
               // into the same style object Framer Motion is also writing its animated transform
               // into is what was making the panel (and its backdrop-blur) render unreliably.
-              <div className="pointer-events-none absolute z-30" style={{ top: hover.top - 8, left: hover.left, width: TOOLTIP_WIDTH, transform: "translateY(-100%)" }}>
+              <div
+                className="pointer-events-none absolute z-30"
+                style={{
+                  top: hover.flipBelow ? hover.top + 8 : hover.top - 8,
+                  left: hover.left,
+                  width: TOOLTIP_WIDTH,
+                  transform: hover.flipBelow ? undefined : "translateY(-100%)",
+                }}
+              >
                 <motion.div
-                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                  initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
                   transition={{ duration: 0.12, ease: "easeOut" }}
                   className="glass-surface rounded-lg p-3 backdrop-blur-md"
                 >
                   <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-                  <p className="text-[10px] text-neutral-500">
-                    Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
-                  </p>
-                  <div className="mt-2 flex flex-col gap-1">
-                    {hover.sessions.map((s) => (
-                      <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="flex items-center gap-1.5 text-neutral-300">
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
-                          {s.label}
-                        </span>
-                        <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                  {hover.sessions.length === 0 ? (
+                    <p className="mt-1 text-[10px] text-neutral-500">No F1 session</p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-neutral-500">
+                        Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
+                      </p>
+                      <div className="mt-2 flex flex-col gap-1">
+                        {hover.sessions.map((s) => (
+                          <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="flex items-center gap-1.5 text-neutral-300">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                              {s.label}
+                              {s.state === "upcoming" && (
+                                <span className="rounded-sm bg-white/[0.06] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Upcoming</span>
+                              )}
+                            </span>
+                            <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
                   {hoverWinner && (
                     <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
                       Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
@@ -405,12 +437,10 @@ function DayCell({
   onClick: () => void;
 }) {
   const dayLabel = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-
-  if (!sessions || sessions.length === 0) {
-    return <div aria-hidden style={{ width: size, height: size }} className="rounded-[3px] bg-white/[0.05]" />;
-  }
-
-  const ariaLabel = `${dayLabel}: ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}`;
+  const hasSessions = !!sessions && sessions.length > 0;
+  // Empty days still get the hover tooltip (date + "no F1 session") - just no click action, since
+  // there's nothing to open.
+  const ariaLabel = hasSessions ? `${dayLabel}: ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}` : `${dayLabel}: no F1 session`;
 
   return (
     <button
@@ -420,15 +450,13 @@ function DayCell({
       onMouseLeave={onLeave}
       onFocus={onEnter}
       onBlur={onLeave}
-      onClick={onClick}
+      onClick={hasSessions ? onClick : undefined}
       style={{ width: size, height: size, boxShadow: isFavoritePodium ? "0 0 0 1px rgba(251,191,36,0.65)" : undefined }}
-      className={`flex flex-col overflow-hidden rounded-[3px] transition-transform duration-150 hover:scale-110 focus-visible:scale-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
-        isSelected ? "ring-1 ring-white/70" : ""
-      }`}
+      className={`flex flex-col overflow-hidden rounded-[3px] transition-transform duration-150 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
+        hasSessions ? "cursor-pointer hover:scale-110 focus-visible:scale-110" : "cursor-default"
+      } ${isSelected ? "ring-1 ring-white/70" : ""}`}
     >
-      {sessions.map((s) => (
-        <SessionSlice key={s.label} session={s} />
-      ))}
+      {hasSessions ? sessions.map((s) => <SessionSlice key={s.label} session={s} />) : <span className="h-full w-full bg-white/[0.05]" />}
     </button>
   );
 }
