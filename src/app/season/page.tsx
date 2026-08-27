@@ -50,7 +50,7 @@ export default async function SeasonPage({
             {currentRound && (
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-500">
                 <span className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
-                Round {currentRound.round} — {currentRound.name}
+                Round {currentRound.round} · {currentRound.name}
               </p>
             )}
           </div>

@@ -1,21 +1,13 @@
 "use client";
 
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
-import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults } from "../lib/seasonStats";
+import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../lib/seasonStats";
 import { useSeasonExplorer } from "./SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../services/season.service";
 
 const SELECT_CLASS = "w-full rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white";
 
 type StatRow = { label: string; av: number; bv: number; aText: string; bText: string; lowerIsBetter?: boolean };
-
-/** Winner's bar always reads full-length; the trailing side's bar is drawn to scale against it —
- * "who's ahead, and by how much" as a glance, not a number you have to read and compare yourself. */
-function tugPct(av: number, bv: number): [number, number] {
-  if (av <= 0 && bv <= 0) return [0, 0];
-  if (av >= bv) return [100, av === 0 ? 0 : Math.round((bv / av) * 100)];
-  return [bv === 0 ? 0 : Math.round((av / bv) * 100), 100];
-}
 
 function TugRow({ row }: { row: StatRow }) {
   const { label, av, bv, aText, bText } = row;
@@ -91,7 +83,7 @@ export function ComparePanel({
 
   if (!a || !b) {
     return (
-      <div className="flex h-full flex-col justify-center gap-4">
+      <div className="flex min-h-[180px] flex-col justify-center gap-4">
         {picker}
         <p className="text-center text-sm text-neutral-500">Pick two to compare.</p>
       </div>
@@ -118,12 +110,12 @@ export function ComparePanel({
     label: "Points / race",
     av: pprA ?? 0,
     bv: pprB ?? 0,
-    aText: pprA !== null ? pprA.toFixed(1) : "—",
-    bText: pprB !== null ? pprB.toFixed(1) : "—",
+    aText: pprA !== null ? pprA.toFixed(1) : "-",
+    bText: pprB !== null ? pprB.toFixed(1) : "-",
   });
 
   const plainRows: StatRow[] = [
-    { label: "Avg finish", av: avgA ?? 99, bv: avgB ?? 99, aText: avgA !== null ? `P${avgA.toFixed(1)}` : "—", bText: avgB !== null ? `P${avgB.toFixed(1)}` : "—" },
+    { label: "Avg finish", av: avgA ?? 99, bv: avgB ?? 99, aText: avgA !== null ? `P${avgA.toFixed(1)}` : "-", bText: avgB !== null ? `P${avgB.toFixed(1)}` : "-" },
     { label: "DNFs", av: dnfA, bv: dnfB, aText: String(dnfA), bText: String(dnfB) },
   ];
 
@@ -180,14 +172,14 @@ export function ComparePanel({
                         r.aPos !== undefined && r.bPos !== undefined && r.aPos < r.bPos ? "font-semibold text-white" : "text-neutral-400"
                       }`}
                     >
-                      {r.aPos ?? "—"}
+                      {r.aPos ?? "-"}
                     </td>
                     <td
                       className={`px-3 py-1.5 text-center font-mono tabular-nums ${
                         r.aPos !== undefined && r.bPos !== undefined && r.bPos < r.aPos ? "font-semibold text-white" : "text-neutral-400"
                       }`}
                     >
-                      {r.bPos ?? "—"}
+                      {r.bPos ?? "-"}
                     </td>
                   </tr>
                 ))}

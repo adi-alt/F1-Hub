@@ -75,6 +75,9 @@ export function ProgressionPanel({
   const [metric, setMetric] = useState<Metric>("points");
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const [customCodes, setCustomCodes] = useState<string[]>([]);
+  // Hovering a curve (or its legend entry) emphasizes it and dims the rest — null means "show
+  // everything at full strength", the resting state.
+  const [activeCode, setActiveCode] = useState<string | null>(null);
   const isDrivers = entityType === "drivers";
 
   // A driver-code custom selection means nothing once entityType flips to teams (and vice versa)
@@ -150,7 +153,7 @@ export function ProgressionPanel({
   }
 
   if (allCodes.length === 0) {
-    return <div className="flex h-full items-center justify-center text-sm text-neutral-500">No {isDrivers ? "driver" : "constructor"} has scored yet this season.</div>;
+    return <div className="flex min-h-[180px] items-center justify-center text-sm text-neutral-500">No {isDrivers ? "driver" : "constructor"} has scored yet this season.</div>;
   }
 
   return (
@@ -193,7 +196,7 @@ export function ProgressionPanel({
 
       {activeCodes.length === 0 ? (
         <div className="mt-10 text-center text-sm text-neutral-500">
-          {driverSet === "following" ? "No favorites picked yet — mark one in the standings above." : "Pick at least one to plot."}
+          {driverSet === "following" ? "No favorites picked yet, mark one in the standings above." : "Pick at least one to plot."}
         </div>
       ) : (
         <div className="mt-4">
@@ -221,29 +224,43 @@ export function ProgressionPanel({
               <YAxis reversed={metric === "gap"} tick={{ fill: chart.mutedInk, fontSize: 12 }} axisLine={{ stroke: chart.gridline }} tickLine={false} width={36} />
               {highlightTrack && <ReferenceLine x={highlightTrack} stroke="var(--f1-red)" strokeOpacity={0.55} strokeDasharray="4 4" />}
               <Tooltip content={<ProgressionTooltip labelFor={labelFor} metric={metric} />} cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }} />
-              {curves.length > 1 && <Legend wrapperStyle={{ fontSize: 11, color: chart.mutedInk }} formatter={(value) => labelFor(String(value))} />}
-              {curves.map(({ code, color, dashed }) => (
-                <Area
-                  key={code}
-                  type="natural"
-                  dataKey={code}
-                  name={code}
-                  stroke={color}
-                  strokeWidth={2}
-                  strokeDasharray={dashed ? "5 4" : undefined}
-                  style={{ filter: `url(#progression-glow-${safeId(code)})` }}
-                  fill={`url(#progression-fill-${safeId(code)})`}
-                  dot={(props: { cx?: number; cy?: number; index?: number }) => {
-                    const isLast = props.index === chartData.length - 1;
-                    if (!isLast || props.cx == null || props.cy == null) return <g key={`d-${code}-${props.index}`} />;
-                    return <circle key={`d-${code}-${props.index}`} cx={props.cx} cy={props.cy} r={3.5} fill={color} stroke="#09090b" strokeWidth={1.5} />;
-                  }}
-                  activeDot={{ r: 4, stroke: "#09090b", strokeWidth: 1.5 }}
-                  animationDuration={700}
-                  animationEasing="ease-out"
-                  connectNulls
+              {curves.length > 1 && (
+                <Legend
+                  wrapperStyle={{ fontSize: 11, color: chart.mutedInk, cursor: "pointer" }}
+                  formatter={(value) => labelFor(String(value))}
+                  onMouseEnter={(o) => setActiveCode(String(o.dataKey ?? o.value))}
+                  onMouseLeave={() => setActiveCode(null)}
                 />
-              ))}
+              )}
+              {curves.map(({ code, color, dashed }) => {
+                const dimmed = activeCode !== null && activeCode !== code;
+                return (
+                  <Area
+                    key={code}
+                    type="natural"
+                    dataKey={code}
+                    name={code}
+                    stroke={color}
+                    strokeWidth={2}
+                    strokeOpacity={dimmed ? 0.28 : 1}
+                    fillOpacity={dimmed ? 0.4 : 1}
+                    strokeDasharray={dashed ? "5 4" : undefined}
+                    style={{ filter: `url(#progression-glow-${safeId(code)})`, transition: "opacity 200ms ease, stroke-opacity 200ms ease, fill-opacity 200ms ease" }}
+                    fill={`url(#progression-fill-${safeId(code)})`}
+                    onMouseEnter={() => setActiveCode(code)}
+                    onMouseLeave={() => setActiveCode(null)}
+                    dot={(props: { cx?: number; cy?: number; index?: number }) => {
+                      const isLast = props.index === chartData.length - 1;
+                      if (!isLast || props.cx == null || props.cy == null) return <g key={`d-${code}-${props.index}`} />;
+                      return <circle key={`d-${code}-${props.index}`} cx={props.cx} cy={props.cy} r={3.5} fill={color} stroke="#09090b" strokeWidth={1.5} opacity={dimmed ? 0.4 : 1} />;
+                    }}
+                    activeDot={{ r: 4, stroke: "#09090b", strokeWidth: 1.5 }}
+                    animationDuration={700}
+                    animationEasing="ease-out"
+                    connectNulls
+                  />
+                );
+              })}
             </AreaChart>
           </ResponsiveContainer>
         </div>

@@ -57,3 +57,12 @@ export function bestResult(results: ResultPoint[]): ResultPoint | null {
   if (results.length === 0) return null;
   return results.reduce((best, r) => (r.position < best.position ? r : best));
 }
+
+/** Shared by Compare's stat rows and the Battles list: the winning side's bar always reads
+ * full-length, the trailing side's bar is drawn to scale against it, so "who's ahead, and by how
+ * much" reads at a glance instead of requiring the viewer to compare two numbers themselves. */
+export function tugPct(av: number, bv: number): [number, number] {
+  if (av <= 0 && bv <= 0) return [0, 0];
+  if (av >= bv) return [100, av === 0 ? 0 : Math.round((bv / av) * 100)];
+  return [bv === 0 ? 0 : Math.round((av / bv) * 100), 100];
+}

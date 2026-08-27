@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
 import { useSeasonExplorer } from "./SeasonExplorerContext";
 import { useSeasonFavorites } from "./SeasonFavoritesContext";
-import type { DriverStandingRow, RaceSessionSummary, RaceSummary } from "../services/season.service";
+import type { DriverStandingRow, RaceSummary } from "../services/season.service";
 
 type SessionType = "practice" | "qualifying" | "sprint" | "race";
 
+// Restrained, not a rainbow: one hue family per session type, an F1-red reserved for race day.
 const TYPE_COLOR: Record<SessionType, string> = {
-  practice: "rgba(255,255,255,0.18)",
-  qualifying: "rgba(255,255,255,0.4)",
-  sprint: "#3987e5", // chart.sequentialBlue — the same secondary accent used in the progression chart
+  practice: "#3987e5",
+  qualifying: "#8b5cf6",
+  sprint: "#eab308",
   race: "var(--f1-red)",
 };
 
@@ -23,85 +26,235 @@ function sessionType(code: string): SessionType {
   return "practice";
 }
 
-type MonthGroup = { key: string; label: string; races: RaceSummary[] };
+type DaySession = {
+  round: number;
+  raceName: string;
+  label: string;
+  code: string;
+  date: Date;
+  state: "completed" | "current" | "upcoming";
+};
 
-// raceSummaries already arrives sorted by round, and round order tracks the calendar
-// chronologically, so a plain Map preserves month order for free — no extra sort needed.
-function groupByMonth(raceSummaries: RaceSummary[]): MonthGroup[] {
-  const groups = new Map<string, MonthGroup>();
-  for (const r of raceSummaries) {
-    const d = r.raceDate ? new Date(r.raceDate) : null;
-    const key = d ? `${d.getFullYear()}-${d.getMonth()}` : "tbd";
-    const label = d ? d.toLocaleDateString(undefined, { month: "short" }).toUpperCase() : "TBD";
-    let g = groups.get(key);
-    if (!g) {
-      g = { key, label, races: [] };
-      groups.set(key, g);
-    }
-    g.races.push(r);
-  }
-  return [...groups.values()];
+const CELL = 11; // px
+const GAP = 3; // px
+const COL = CELL + GAP;
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const VISIBLE_DAY_LABELS = new Set([1, 3, 5]); // Mon/Wed/Fri, GitHub's own convention
+
+function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-/** The season at a glance, GitHub/LeetCode-activity-calendar inspired but built at session
- * granularity: every race weekend is its own small row of session cells (practice/qualifying/
- * sprint/race, each with its own color), grouped by month and wrapped so the whole season stays
- * a few compact lines instead of one cell per race. Hovering a session cell shows its own label/
- * date/status via a native title tooltip (120-ish cells is too many for a custom floating one);
- * clicking a race weekend opens the fuller detail panel below — and feeds `highlightRound` into
- * the progression chart above, so the two widgets read as one system. */
+function startOfDay(d: Date): Date {
+  const out = new Date(d);
+  out.setHours(0, 0, 0, 0);
+  return out;
+}
+
+/** The season at a glance, built the way GitHub's contribution graph actually works: the visual
+ * primitive is the DATE, not the race, arranged as week-columns x weekday-rows so the whole
+ * season's real chronology and density read in one glance. A date with a session gets a small
+ * colored cell (hue = session type, fill/border/pulse = completed/upcoming/current); a date with
+ * several sessions (a Friday practice double-header, a sprint Saturday) splits the same cell into
+ * stacked slices instead of cramming text in. Hovering/focusing a cell drives one shared floating
+ * tooltip (not hundreds of individual ones); clicking reuses the same detail panel a race weekend
+ * already had, and feeds `highlightRound` into the progression chart above. */
 export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[] }) {
   const { setHighlightRound } = useSeasonExplorer();
   const { favDrivers } = useSeasonFavorites();
-  const [hovered, setHovered] = useState<number | null>(null);
   const [opened, setOpened] = useState<number | null>(null);
+  const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number } | null>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
 
-  const groups = useMemo(() => groupByMonth(raceSummaries), [raceSummaries]);
+  const allSessions = useMemo<DaySession[]>(
+    () =>
+      raceSummaries.flatMap((r) =>
+        r.sessions.map((s) => ({ round: r.round, raceName: r.name, label: s.label, code: s.code, date: new Date(s.date), state: s.state })),
+      ),
+    [raceSummaries],
+  );
+
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, DaySession[]>();
+    for (const s of allSessions) {
+      const key = dateKey(s.date);
+      const list = map.get(key);
+      if (list) list.push(s);
+      else map.set(key, [s]);
+    }
+    for (const list of map.values()) list.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return map;
+  }, [allSessions]);
 
   const favoriteIdByCode = useMemo(() => new Map(drivers.map((d) => [d.driver, d.favoriteId])), [drivers]);
-  function isFavoritePodium(race: RaceSummary): boolean {
-    return race.results.some((r) => r.finishPosition <= 3 && r.driver && favoriteIdByCode.get(r.driver) && favDrivers.has(favoriteIdByCode.get(r.driver)!));
+  const favoritePodiumRounds = useMemo(() => {
+    const rounds = new Set<number>();
+    for (const r of raceSummaries) {
+      if (r.results.some((res) => res.finishPosition <= 3 && res.driver && favoriteIdByCode.get(res.driver) && favDrivers.has(favoriteIdByCode.get(res.driver)!))) {
+        rounds.add(r.round);
+      }
+    }
+    return rounds;
+  }, [raceSummaries, favoriteIdByCode, favDrivers]);
+
+  // Full weeks (Sunday to Saturday), GitHub's own week-column convention, spanning every session
+  // date the season actually has, plus month labels computed from real dates, not fixed offsets.
+  const { weeks, monthLabels } = useMemo(() => {
+    if (allSessions.length === 0) return { weeks: [] as Date[][], monthLabels: [] as { weekIndex: number; label: string }[] };
+    const times = allSessions.map((s) => s.date.getTime());
+    const start = startOfDay(new Date(Math.min(...times)));
+    start.setDate(start.getDate() - start.getDay());
+    const end = startOfDay(new Date(Math.max(...times)));
+    end.setDate(end.getDate() + (6 - end.getDay()));
+
+    const weeks: Date[][] = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const week: Date[] = [];
+      for (let i = 0; i < 7; i++) {
+        week.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      weeks.push(week);
+    }
+
+    const monthLabels: { weekIndex: number; label: string }[] = [];
+    let lastMonth = -1;
+    weeks.forEach((week, i) => {
+      const month = week[0].getMonth();
+      if (month !== lastMonth) {
+        monthLabels.push({ weekIndex: i, label: week[0].toLocaleDateString(undefined, { month: "short" }) });
+        lastMonth = month;
+      }
+    });
+
+    return { weeks, monthLabels };
+  }, [allSessions]);
+
+  function showTooltip(e: MouseEvent | FocusEvent, key: string, date: Date, sessions: DaySession[]) {
+    const cellRect = e.currentTarget.getBoundingClientRect();
+    const anchorRect = anchorRef.current?.getBoundingClientRect();
+    if (!anchorRect) return;
+    setHover({ key, date, sessions, top: cellRect.top - anchorRect.top, left: cellRect.left - anchorRect.left + cellRect.width / 2 });
+  }
+  function hideTooltip(key: string) {
+    setHover((prev) => (prev?.key === key ? null : prev));
+  }
+  function selectDate(sessions: DaySession[]) {
+    const round = sessions[0]?.round;
+    if (round == null) return;
+    setOpened((prev) => (prev === round ? null : round));
+    setHighlightRound(round);
   }
 
-  const effectiveHighlight = hovered ?? opened;
-  useEffect(() => {
-    setHighlightRound(effectiveHighlight);
-  }, [effectiveHighlight, setHighlightRound]);
-  // Clear the chart highlight when this widget unmounts/navigates away, so it doesn't linger.
-  useEffect(() => () => setHighlightRound(null), [setHighlightRound]);
-
   const openedRace = raceSummaries.find((r) => r.round === opened);
+  const hoverRace = hover ? raceSummaries.find((r) => r.round === hover.sessions[0]?.round) : undefined;
+  const hoverWinner = hoverRace?.results.find((r) => r.finishPosition === 1);
+
+  if (allSessions.length === 0) {
+    return <p className="text-sm text-neutral-500">No calendar data yet for {year}.</p>;
+  }
 
   return (
     <div>
       <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Season calendar</p>
 
-      <div className="space-y-3">
-        {groups.map((g) => (
-          <div key={g.key} className="flex items-start gap-4">
-            <p className="w-8 shrink-0 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{g.label}</p>
-            <div className="flex flex-1 flex-wrap gap-x-6 gap-y-2">
-              {g.races.map((r) => (
-                <RaceBlock
-                  key={r.round}
-                  race={r}
-                  isOpen={opened === r.round}
-                  isFavoritePodium={isFavoritePodium(r)}
-                  onHover={() => setHovered(r.round)}
-                  onLeave={() => setHovered((prev) => (prev === r.round ? null : prev))}
-                  onClick={() => setOpened((prev) => (prev === r.round ? null : r.round))}
-                />
+      <div ref={anchorRef} className="relative flex gap-2">
+        <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
+          {DAY_LABELS.map((label, i) => (
+            <div key={label} style={{ height: CELL }} className="flex items-center text-[9px] leading-none text-neutral-600">
+              {VISIBLE_DAY_LABELS.has(i) ? label.slice(0, 3) : ""}
+            </div>
+          ))}
+        </div>
+
+        <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
+          <div style={{ width: weeks.length * COL - GAP }}>
+            <div className="relative" style={{ height: 18 }}>
+              {monthLabels.map((m) => (
+                <span key={m.weekIndex} className="absolute top-0 text-[10px] text-neutral-600" style={{ left: m.weekIndex * COL }}>
+                  {m.label}
+                </span>
+              ))}
+            </div>
+            <div className="flex" style={{ gap: GAP }}>
+              {weeks.map((week, wi) => (
+                <div key={wi} className="flex flex-col" style={{ gap: GAP }}>
+                  {week.map((day) => {
+                    const key = dateKey(day);
+                    const sessions = sessionsByDate.get(key);
+                    const isFavPodium = sessions?.some((s) => favoritePodiumRounds.has(s.round)) ?? false;
+                    return (
+                      <DayCell
+                        key={key}
+                        date={day}
+                        sessions={sessions}
+                        isSelected={sessions?.[0]?.round === opened}
+                        isFavoritePodium={isFavPodium}
+                        onEnter={(e) => sessions && showTooltip(e, key, day, sessions)}
+                        onLeave={() => hideTooltip(key)}
+                        onClick={() => sessions && selectDate(sessions)}
+                      />
+                    );
+                  })}
+                </div>
               ))}
             </div>
           </div>
-        ))}
+        </div>
+
+        <AnimatePresence>
+          {hover && (
+            <motion.div
+              initial={{ opacity: 0, y: 4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+              transition={{ duration: 0.12, ease: "easeOut" }}
+              className="glass-surface pointer-events-none absolute z-30 w-56 rounded-lg p-3"
+              style={{ top: hover.top - 8, left: hover.left, transform: "translate(-50%, -100%)" }}
+            >
+              <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+              <p className="text-[10px] text-neutral-500">{hover.sessions[0]?.raceName}</p>
+              <div className="mt-2 flex flex-col gap-1">
+                {hover.sessions.map((s) => (
+                  <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="flex items-center gap-1.5 text-neutral-300">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                      {s.label}
+                    </span>
+                    <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                ))}
+              </div>
+              {hoverWinner && (
+                <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
+                  Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[10px] text-neutral-500">
         <span className="flex items-center gap-3">
-          <LegendSwatch className="opacity-100" label="Completed" />
-          <LegendSwatch className="pulse-ring opacity-100 ring-1 ring-white/40" label="Current" />
-          <LegendSwatch className="border border-white/30 bg-transparent opacity-100" label="Upcoming" />
+          <span className="flex items-center gap-1.5">
+            <span className="h-[10px] w-[10px] rounded-[2px] bg-white/[0.05]" />
+            No session
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-[10px] w-[10px] rounded-[2px] border border-neutral-500" />
+            Upcoming
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-[10px] w-[10px] rounded-[2px] bg-neutral-400" />
+            Completed
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="pulse-ring h-[10px] w-[10px] rounded-[2px] bg-[var(--f1-red)]" />
+            Current
+          </span>
         </span>
         <span className="flex items-center gap-3">
           {(["practice", "qualifying", "sprint", "race"] as const).map((t) => (
@@ -111,7 +264,6 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
             </span>
           ))}
         </span>
-        <LegendDot className="bg-amber-400" label="Favorite podium" />
       </div>
 
       {openedRace && (
@@ -121,7 +273,14 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Round {openedRace.round}</p>
               <p className="mt-0.5 text-lg font-semibold text-white">{openedRace.name}</p>
             </div>
-            <button onClick={() => setOpened(null)} aria-label="Close" className="text-neutral-500 transition hover:text-white">
+            <button
+              onClick={() => {
+                setOpened(null);
+                setHighlightRound(null);
+              }}
+              aria-label="Close"
+              className="text-neutral-500 transition hover:text-white"
+            >
               ×
             </button>
           </div>
@@ -130,9 +289,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
             {openedRace.sessions.map((s) => (
               <span key={s.label} className="flex items-center gap-1.5 text-xs text-neutral-400" title={s.label}>
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    s.state === "completed" ? "" : s.state === "current" ? "pulse-ring" : "border border-white/30"
-                  }`}
+                  className={`h-1.5 w-1.5 rounded-full ${s.state === "current" ? "pulse-ring" : s.state === "upcoming" ? "border border-white/30" : ""}`}
                   style={s.state !== "upcoming" ? { background: TYPE_COLOR[sessionType(s.code)] } : undefined}
                 />
                 {s.code}
@@ -174,76 +331,59 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   );
 }
 
-function RaceBlock({
-  race,
-  isOpen,
+function DayCell({
+  date,
+  sessions,
+  isSelected,
   isFavoritePodium,
-  onHover,
+  onEnter,
   onLeave,
   onClick,
 }: {
-  race: RaceSummary;
-  isOpen: boolean;
+  date: Date;
+  sessions: DaySession[] | undefined;
+  isSelected: boolean;
   isFavoritePodium: boolean;
-  onHover: () => void;
+  onEnter: (e: MouseEvent<HTMLButtonElement> | FocusEvent<HTMLButtonElement>) => void;
   onLeave: () => void;
   onClick: () => void;
 }) {
+  const dayLabel = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+  if (!sessions || sessions.length === 0) {
+    return <div aria-hidden style={{ width: CELL, height: CELL }} className="rounded-[2px] bg-white/[0.05]" />;
+  }
+
+  const ariaLabel = `${dayLabel}: ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}`;
+
   return (
     <button
       type="button"
-      onMouseEnter={onHover}
+      aria-label={ariaLabel}
+      onMouseEnter={onEnter}
       onMouseLeave={onLeave}
+      onFocus={onEnter}
+      onBlur={onLeave}
       onClick={onClick}
-      title={race.name}
-      className={`group flex flex-col items-start gap-1 rounded-md px-1.5 py-1 transition-colors duration-150 ${isOpen ? "bg-white/[0.07]" : "hover:bg-white/[0.03]"}`}
+      style={{ width: CELL, height: CELL, boxShadow: isFavoritePodium ? "0 0 0 1px rgba(251,191,36,0.65)" : undefined }}
+      className={`flex flex-col overflow-hidden rounded-[2px] transition-transform duration-150 hover:scale-125 focus-visible:scale-125 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
+        isSelected ? "ring-1 ring-white/70" : ""
+      }`}
     >
-      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 transition-colors group-hover:text-neutral-300">
-        {race.trackShort}
-        {isFavoritePodium && <span className="h-1 w-1 shrink-0 rounded-full bg-amber-400" />}
-      </span>
-      <span className="flex gap-[3px]">
-        {race.sessions.map((s) => (
-          <SessionCell key={s.label} session={s} />
-        ))}
-      </span>
+      {sessions.map((s) => (
+        <SessionSlice key={s.label} session={s} />
+      ))}
     </button>
   );
 }
 
-function SessionCell({ session }: { session: RaceSessionSummary }) {
-  const type = sessionType(session.code);
-  const color = TYPE_COLOR[type];
-  const label = `${session.label} — ${new Date(session.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}${
-    session.state === "current" ? " (up next)" : session.state === "completed" ? " (completed)" : ""
-  }`;
-
-  if (session.state === "upcoming") {
-    return <span title={label} className="h-[11px] w-[11px] rounded-[2.5px] border transition-transform duration-150 group-hover:scale-110" style={{ borderColor: color, opacity: 0.6 }} />;
-  }
+function SessionSlice({ session }: { session: DaySession }) {
+  const color = TYPE_COLOR[sessionType(session.code)];
+  const upcoming = session.state === "upcoming";
   return (
     <span
-      title={label}
-      className={`h-[11px] w-[11px] rounded-[2.5px] transition-transform duration-150 group-hover:scale-110 ${session.state === "current" ? "pulse-ring" : ""}`}
-      style={{ background: color }}
+      className={`flex-1 ${session.state === "current" ? "pulse-ring" : ""}`}
+      style={upcoming ? { border: `1px solid ${color}`, opacity: 0.7 } : { background: color }}
     />
-  );
-}
-
-function LegendSwatch({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={`h-[10px] w-[10px] rounded-[2.5px] bg-white/25 ${className}`} />
-      {label}
-    </span>
-  );
-}
-
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={`h-1.5 w-1.5 rounded-full ${className}`} />
-      {label}
-    </span>
   );
 }

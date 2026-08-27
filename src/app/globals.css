@@ -69,13 +69,10 @@ body::after {
   display: none; /* Chrome, Safari, modern Edge */
 }
 
-/* Restrained frosted-glass surface — reserved for the analysis workspace, contextual detail
-   panels (an expanded standings row, a calendar race-detail overlay), and floating controls.
-   Deliberately NOT applied to the standings table itself, which stays solid/readable per the
-   season page redesign spec ("the standings table should remain relatively solid"). */
 /* The single "current session" cell in the season calendar — a slow, low-amplitude breathing
    ring rather than a hard blink, so exactly one cell reads as "live" without the grid feeling
-   busy. Everything else on the page stays static. */
+   busy. Everything else on the page stays static. Disabled under reduced-motion: the ring itself
+   (not just the animation) still marks the state via a static box-shadow. */
 @keyframes pulse-ring {
   0%,
   100% {
@@ -88,7 +85,17 @@ body::after {
 .pulse-ring {
   animation: pulse-ring 2.2s ease-in-out infinite;
 }
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(225, 6, 0, 0.3);
+  }
+}
 
+/* Restrained frosted-glass surface — reserved for the analysis workspace, contextual detail
+   panels (an expanded standings row, a calendar race-detail overlay), and floating controls.
+   Deliberately NOT applied to the standings table itself, which stays solid/readable per the
+   season page redesign spec ("the standings table should remain relatively solid"). */
 .glass-surface {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
   backdrop-filter: blur(20px);

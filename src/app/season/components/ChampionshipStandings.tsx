@@ -16,10 +16,14 @@ import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
-const HEADER_CLASS = "bg-white/[0.02] text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500";
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+// Sticky headers need real opacity behind that blur, not the table's own near-transparent
+// surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
+// translucent-dark token every other floating/sticky surface on the site already uses.
+const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
 function gapLabel(points: number, leaderPoints: number): string {
-  return points >= leaderPoints ? "—" : `-${leaderPoints - points}`;
+  return points >= leaderPoints ? "-" : `-${leaderPoints - points}`;
 }
 
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") {
@@ -132,7 +136,7 @@ export function ChampionshipStandings({
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
         <div ref={scrollRef} className="max-h-[480px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[680px] text-sm">
-            <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`}>
+            <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
                 <th className="px-4 py-3 font-semibold">Pos</th>
                 <th className="cursor-pointer select-none px-4 py-3 font-semibold" onClick={() => toggleSort("name")}>
@@ -317,7 +321,7 @@ function DriverDetail({
     <div className="glass-surface flex flex-wrap items-center gap-6 rounded-lg px-5 py-4">
       <Metric label="Wins" value={driver.wins} />
       <Metric label="Podiums" value={driver.podiums} />
-      <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "—"} />
+      <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Recent</p>
@@ -375,7 +379,7 @@ function TeamDetail({
     <div className="glass-surface flex flex-wrap items-center gap-6 rounded-lg px-5 py-4">
       <Metric label="Wins" value={team.wins} />
       <Metric label="Podiums" value={team.podiums} />
-      <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "—"} />
+      <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Recent</p>
