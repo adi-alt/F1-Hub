@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -52,6 +52,21 @@ export function EntityMultiSelect({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // createPortal's own container argument (document.body, below) is evaluated unconditionally as a
+  // plain function argument the instant this component renders - `open && rect && <AnimatePresence>`
+  // only gates the portal's *content*, not the createPortal(...) call itself, so document.body still
+  // got referenced during SSR (where `document` doesn't exist) even while closed - a real crash, not
+  // a hypothetical one, confirmed live on /archive (its era filter renders this on the very first,
+  // default facet). useSyncExternalStore's server snapshot (false) defers the whole portal to the
+  // client without ever touching document.body server-side - React's own recommended shape for
+  // exactly this "differs between server and client" case, and unlike a useEffect+setState "mounted"
+  // flag, without an extra render. AnimatePresence itself never unmounts across an open/close toggle
+  // (only its children come and go), so the close animation is unaffected.
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
@@ -168,103 +183,104 @@ export function EntityMultiSelect({
         </svg>
       </button>
 
-      {createPortal(
-        <AnimatePresence>
-          {open && rect && (
-            <motion.div
-              ref={dropdownRef}
-              initial={{ opacity: 0, y: rect.flip ? -4 : 4, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: rect.flip ? -4 : 4, scale: 0.98 }}
-              transition={{ duration: 0.14, ease: "easeOut" }}
-              style={{
-                position: "fixed",
-                top: rect.top,
-                left: rect.left,
-                width: rect.width,
-                transform: rect.flip ? "translateY(-100%)" : undefined,
-              }}
-              // glass-surface (not the sticky-header token) - that one's ~92% opaque on purpose,
-              // to stop table rows bleeding through while scrolling underneath it. Nothing
-              // scrolls behind a popover the same way, so this can actually read as translucent
-              // glass (a faint white gradient + a real 20px blur) instead of a flat dark panel
-              // with a blur that's technically there but invisible behind that much opacity.
-              className="glass-surface z-[200] flex max-h-[360px] flex-col overflow-hidden rounded-lg"
-            >
-              <div className="shrink-0 border-b border-white/[0.08] p-2">
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Escape" && close()}
-                  placeholder="Search..."
-                  className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[var(--f1-red)]/40"
-                />
-              </div>
-              {multiple && (
-                <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-neutral-500">
-                  <button type="button" onClick={selectAll} className="transition hover:text-white">
-                    Select all
-                  </button>
-                  <span className="text-neutral-700">
-                    {count} of {options.length}
-                  </span>
-                  <button type="button" onClick={clearAll} className="transition hover:text-white">
-                    Clear all
-                  </button>
+      {isClient &&
+        createPortal(
+          <AnimatePresence>
+            {open && rect && (
+              <motion.div
+                ref={dropdownRef}
+                initial={{ opacity: 0, y: rect.flip ? -4 : 4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: rect.flip ? -4 : 4, scale: 0.98 }}
+                transition={{ duration: 0.14, ease: "easeOut" }}
+                style={{
+                  position: "fixed",
+                  top: rect.top,
+                  left: rect.left,
+                  width: rect.width,
+                  transform: rect.flip ? "translateY(-100%)" : undefined,
+                }}
+                // glass-surface (not the sticky-header token) - that one's ~92% opaque on purpose,
+                // to stop table rows bleeding through while scrolling underneath it. Nothing
+                // scrolls behind a popover the same way, so this can actually read as translucent
+                // glass (a faint white gradient + a real 20px blur) instead of a flat dark panel
+                // with a blur that's technically there but invisible behind that much opacity.
+                className="glass-surface z-[200] flex max-h-[360px] flex-col overflow-hidden rounded-lg"
+              >
+                <div className="shrink-0 border-b border-white/[0.08] p-2">
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Escape" && close()}
+                    placeholder="Search..."
+                    className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[var(--f1-red)]/40"
+                  />
                 </div>
-              )}
-              <div className="scrollbar-hide flex-1 overflow-y-auto py-1">
-                {groups.length === 0 ? (
-                  <p className="px-3 py-4 text-center text-xs text-neutral-500">No matches</p>
-                ) : (
-                  groups.map((g) => (
-                    <div key={g.heading ?? "_"}>
-                      {g.heading && <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{g.heading}</p>}
-                      {g.options.map((o) => {
-                        const checked = selectedSet.has(o.code);
-                        return (
-                          <button
-                            key={o.code}
-                            type="button"
-                            role={multiple ? "checkbox" : "option"}
-                            aria-checked={multiple ? checked : undefined}
-                            aria-selected={multiple ? undefined : checked}
-                            onClick={() => toggle(o.code)}
-                            className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition ${
-                              checked ? "bg-[var(--f1-red)]/[0.12] text-white" : "text-neutral-300 hover:bg-white/[0.04] hover:text-white"
-                            }`}
-                          >
-                            <span
-                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
-                                checked ? "border-[var(--f1-red)] bg-[var(--f1-red)]" : "border-white/20"
+                {multiple && (
+                  <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-neutral-500">
+                    <button type="button" onClick={selectAll} className="transition hover:text-white">
+                      Select all
+                    </button>
+                    <span className="text-neutral-700">
+                      {count} of {options.length}
+                    </span>
+                    <button type="button" onClick={clearAll} className="transition hover:text-white">
+                      Clear all
+                    </button>
+                  </div>
+                )}
+                <div className="scrollbar-hide flex-1 overflow-y-auto py-1">
+                  {groups.length === 0 ? (
+                    <p className="px-3 py-4 text-center text-xs text-neutral-500">No matches</p>
+                  ) : (
+                    groups.map((g) => (
+                      <div key={g.heading ?? "_"}>
+                        {g.heading && <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{g.heading}</p>}
+                        {g.options.map((o) => {
+                          const checked = selectedSet.has(o.code);
+                          return (
+                            <button
+                              key={o.code}
+                              type="button"
+                              role={multiple ? "checkbox" : "option"}
+                              aria-checked={multiple ? checked : undefined}
+                              aria-selected={multiple ? undefined : checked}
+                              onClick={() => toggle(o.code)}
+                              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition ${
+                                checked ? "bg-[var(--f1-red)]/[0.12] text-white" : "text-neutral-300 hover:bg-white/[0.04] hover:text-white"
                               }`}
                             >
-                              {checked && (
-                                <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                                  <path d="M1 3.5 3.2 5.7 8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </span>
-                            {o.logoUrl !== undefined ? (
-                              <EntityAvatar imageUrl={o.logoUrl} name={o.label} size={18} shape="square" fit="contain" />
-                            ) : o.color ? (
-                              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: o.color }} />
-                            ) : null}
-                            <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                            {o.sublabel && <span className="shrink-0 truncate text-xs text-neutral-500">{o.sublabel}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+                              <span
+                                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                                  checked ? "border-[var(--f1-red)] bg-[var(--f1-red)]" : "border-white/20"
+                                }`}
+                              >
+                                {checked && (
+                                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                                    <path d="M1 3.5 3.2 5.7 8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </span>
+                              {o.logoUrl !== undefined ? (
+                                <EntityAvatar imageUrl={o.logoUrl} name={o.label} size={18} shape="square" fit="contain" />
+                              ) : o.color ? (
+                                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: o.color }} />
+                              ) : null}
+                              <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                              {o.sublabel && <span className="shrink-0 truncate text-xs text-neutral-500">{o.sublabel}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 }
