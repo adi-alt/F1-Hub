@@ -183,9 +183,13 @@ export function EntityMultiSelect({
                 left: rect.left,
                 width: rect.width,
                 transform: rect.flip ? "translateY(-100%)" : undefined,
-                background: "var(--tooltip-surface-strong)",
               }}
-              className="z-[200] flex max-h-[360px] flex-col overflow-hidden rounded-lg border border-[var(--f1-line)] shadow-xl backdrop-blur-md"
+              // glass-surface (not the sticky-header token) - that one's ~92% opaque on purpose,
+              // to stop table rows bleeding through while scrolling underneath it. Nothing
+              // scrolls behind a popover the same way, so this can actually read as translucent
+              // glass (a faint white gradient + a real 20px blur) instead of a flat dark panel
+              // with a blur that's technically there but invisible behind that much opacity.
+              className="glass-surface z-[200] flex max-h-[360px] flex-col overflow-hidden rounded-lg"
             >
               <div className="shrink-0 border-b border-white/[0.08] p-2">
                 <input

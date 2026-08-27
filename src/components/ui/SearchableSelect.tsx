@@ -133,12 +133,12 @@ export function SearchableSelect({
               left: rect.left,
               width: rect.width,
               transform: rect.flip ? "translateY(-100%)" : undefined,
-              background: "var(--tooltip-surface-strong)",
             }}
-            // Same glass-panel treatment as EntityMultiSelect's popover (background/blur/border/
-            // shadow, scrollbar-hide, entrance motion) rather than a flat bg-zinc-900 with no
-            // animation - one consistent dropdown language across the app instead of two.
-            className="z-[200] max-h-56 overflow-y-auto rounded-lg border border-[var(--f1-line)] shadow-xl backdrop-blur-md scrollbar-hide"
+            // Same glass-surface treatment as EntityMultiSelect's popover - a real translucent
+            // blur (a faint white gradient + 20px blur), not the ~92%-opaque sticky-header token,
+            // which is opaque on purpose for a different reason (table rows scrolling underneath
+            // it) that doesn't apply to a popover.
+            className="glass-surface z-[200] max-h-56 overflow-y-auto rounded-lg scrollbar-hide"
           >
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-sm text-neutral-500">No matches</p>
