@@ -21,8 +21,13 @@ import {
   getArchiveTeamData,
   getArchiveTeamHistoryData,
   getArchiveYears,
+  getArchiveYearStatsData,
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
+import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
+import { getAllCurrentTeams } from "@/lib/supabase/media";
+import { getRacesByYear } from "@/lib/supabase/races";
+import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead } from "@/lib/safeRead";
 import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
@@ -34,13 +39,42 @@ type Facet = "year" | "track" | "driver" | "team";
 // tabs/favorites instead of crashing it outright — the same "temporarily nothing here" empty
 // states these components already show when a pipeline pass genuinely hasn't reached this data
 // yet double as the degraded view; nothing new to build for that.
+/** Reconciles the current season's own roster against the archive - the same direction of the
+ * current-season <-> archive matching problem src/app/profile/page.tsx's mergeCurrentSeason
+ * already solves (there: fold this year's names into the archive-sourced favorite lists; here:
+ * flag which existing archive circuits/teams are also this year's), reusing the exact same
+ * resolver functions rather than writing a second matching implementation. Best-effort: if the
+ * current season's own data can't be read right now, every circuit/team just reads as
+ * "historical" rather than crashing the whole Archive page over one extra cross-reference. */
+async function getActiveIds(circuits: Awaited<ReturnType<typeof getAllArchiveCircuitsData>>): Promise<{ circuitIds: string[]; teamIds: string[] }> {
+  try {
+    const year = new Date().getFullYear();
+    const [races, currentTeams] = await Promise.all([getRacesByYear(year), getAllCurrentTeams()]);
+    const circuitLocalities = new Map(circuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+    const circuitIdsByName = new Map(circuits.map((c) => [(c.name ?? c.circuitId).trim().toLowerCase(), c.circuitId]));
+
+    const circuitIds = new Set<string>();
+    for (const race of races) {
+      const resolved = resolveCurrentCircuitToArchiveId(race.circuit, circuitLocalities, circuitIdsByName);
+      if (resolved) circuitIds.add(resolved);
+    }
+    const teamIds = currentTeams.map((t) => archiveSlugForCurrentTeam(t.name));
+    return { circuitIds: [...circuitIds], teamIds };
+  } catch (error) {
+    console.error("ArchiveIndex: current-season reconciliation failed, treating everything as historical:", error);
+    return { circuitIds: [], teamIds: [] };
+  }
+}
+
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
-  const [circuits, drivers, teams, profile] = await Promise.all([
+  const [circuits, drivers, teams, profile, yearStats] = await Promise.all([
     safeRead(() => getAllArchiveCircuitsData(), []),
     safeRead(() => getAllArchiveDriversData(), []),
     safeRead(() => getAllArchiveTeamsData(), []),
     safeRead(() => getUserProfile(uid), null),
+    safeRead(() => getArchiveYearStatsData(), {}),
   ]);
+  const { circuitIds: activeCircuitIds, teamIds: activeTeamIds } = await getActiveIds(circuits);
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
@@ -54,9 +88,13 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
           uid={uid}
           initialSection={section}
           years={getArchiveYears()}
+          yearStats={yearStats}
+          currentYear={new Date().getFullYear()}
           circuits={circuits}
           drivers={drivers}
           teams={teams}
+          activeCircuitIds={activeCircuitIds}
+          activeTeamIds={activeTeamIds}
           favoriteTracks={profile?.favoriteTracks ?? []}
           favoriteDrivers={profile?.favoriteDrivers ?? []}
           favoriteTeams={profile?.favoriteTeams ?? []}

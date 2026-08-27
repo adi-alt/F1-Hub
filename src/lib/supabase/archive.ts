@@ -1,6 +1,13 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/supabase/queryWithRetry";
+
+// The shape fetchAllRows expects a query to resolve to. Mostly needed as an explicit cast target
+// for a PostgREST to-one embed (e.g. archive_races(year) off archive_results) - the untyped client
+// can't verify statically that side is a single object, not an array, without generated schema
+// types, so it infers an array; this is the same through-unknown cast every embed of that shape
+// in this file already needed before fetchAllRows existed.
+type QueryPage<T> = PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null }>;
 
 // Cached forever (revalidate: false at every call site below) — freshness after a pipeline run
 // comes from revalidateTag("archive-data") via /api/admin/revalidate (called by every
@@ -240,6 +247,78 @@ export const getArchiveRace = unstable_cache(
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
+export type ArchiveYearStats = {
+  raceCount: number;
+  mostWinsDriver: { name: string; wins: number } | null;
+  mostWinsTeam: { name: string; wins: number } | null;
+};
+
+type WinnerRow = { driver_name: string; constructor: string | null; archive_races: { year: number } | null };
+
+/** Per-season race count (exact, straight off archive_races) and "most wins" for both driver and
+ * constructor (from archive_results filtered to winners only - ~1,149 rows, not the full 25,701 -
+ * counting P1 finishes is scoring-methodology-agnostic and accurate for every season). Deliberately
+ * not a "champion" - summing archive_results.points per season would be *wrong* for a real chunk
+ * of history (F1 counted only a driver's best N results in various forms from 1950 through 1990,
+ * not a full-season sum, which only became standard from 1991 onward), so this only ever surfaces
+ * facts a scoring-system change can't retroactively make false. Keyed by year, one entry per
+ * season this archive actually has races for. */
+export const getArchiveYearStats = unstable_cache(
+  async (): Promise<Record<number, ArchiveYearStats>> => {
+    // fetchAllRows on both, not a single .range() - this project's 1000-row-per-request cap
+    // applies to any unfiltered request, and archive_races alone already exceeds it (confirmed
+    // live). Without paging past it, race counts and "most wins" would silently be computed from
+    // a partial, arbitrarily-truncated slice of the data instead of the whole archive - see
+    // getArchiveCircuitStats's identical fix/comment for the same bug, found while building this.
+    const [racesResult, winnersResult] = await Promise.all([
+      fetchAllRows<{ year: number }>((from, to) => supabaseAdmin.from("archive_races").select("year").range(from, to)),
+      // archive_races(year) is a to-one embed (each result belongs to exactly one race) but the
+      // untyped client can't verify that statically without generated schema types, so it infers
+      // an array - same through-unknown cast getArchiveTeamHomeCircuits already needed for the
+      // identical shape.
+      fetchAllRows<WinnerRow>(
+        (from, to) =>
+          supabaseAdmin.from("archive_results").select("driver_name, constructor, archive_races(year)").eq("position", 1).range(from, to) as unknown as QueryPage<WinnerRow>,
+      ),
+    ]);
+    if (racesResult.error) throw new Error(`getArchiveYearStats (races): ${racesResult.error.message}`);
+    if (winnersResult.error) throw new Error(`getArchiveYearStats (winners): ${winnersResult.error.message}`);
+
+    const raceCountByYear = new Map<number, number>();
+    for (const row of racesResult.data) {
+      raceCountByYear.set(row.year, (raceCountByYear.get(row.year) ?? 0) + 1);
+    }
+
+    const winsByYear = new Map<number, { driverWins: Map<string, number>; teamWins: Map<string, number> }>();
+    for (const row of winnersResult.data) {
+      const year = row.archive_races?.year;
+      if (year == null) continue;
+      const bucket = winsByYear.get(year) ?? { driverWins: new Map<string, number>(), teamWins: new Map<string, number>() };
+      bucket.driverWins.set(row.driver_name, (bucket.driverWins.get(row.driver_name) ?? 0) + 1);
+      if (row.constructor) bucket.teamWins.set(row.constructor, (bucket.teamWins.get(row.constructor) ?? 0) + 1);
+      winsByYear.set(year, bucket);
+    }
+
+    function topEntry(counts: Map<string, number>): { name: string; wins: number } | null {
+      const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+      return sorted[0] ? { name: sorted[0][0], wins: sorted[0][1] } : null;
+    }
+
+    const result: Record<number, ArchiveYearStats> = {};
+    for (const [year, raceCount] of raceCountByYear) {
+      const wins = winsByYear.get(year);
+      result[year] = {
+        raceCount,
+        mostWinsDriver: wins ? topEntry(wins.driverWins) : null,
+        mostWinsTeam: wins ? topEntry(wins.teamWins) : null,
+      };
+    }
+    return result;
+  },
+  ["get-archive-year-stats"],
+  { revalidate: false, tags: [ARCHIVE_TAG] },
+);
+
 type ArchiveCircuitRow = {
   circuit_id: string;
   name: string | null;
@@ -290,7 +369,14 @@ type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; co
  * scan is cheap enough not to bother standing up a view for. */
 const getArchiveCircuitStats = unstable_cache(
   async (): Promise<Record<string, CircuitStats>> => {
-    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_races").select("circuit_name, year, country, locality"));
+    // fetchAllRows, not a single .range() - PostgREST caps any single request at 1000 rows on
+    // this project (confirmed live - a .range() request past that still comes back truncated),
+    // and archive_races already has more than that. Without paging past it, this scan was
+    // silently missing whichever rows fell outside the first 1000 - real raceCount/firstYear/
+    // lastYear/country/locality drift, not a hypothetical one.
+    const { data, error } = await fetchAllRows<{ circuit_name: string | null; year: number; country: string | null; locality: string | null }>(
+      (from, to) => supabaseAdmin.from("archive_races").select("circuit_name, year, country, locality").range(from, to),
+    );
     if (error) throw new Error(`getArchiveCircuitStats: ${error.message}`);
     const stats: Record<string, CircuitStats> = {};
     for (const row of (data ?? []) as { circuit_name: string | null; year: number; country: string | null; locality: string | null }[]) {
@@ -494,8 +580,16 @@ export const getAllArchiveTeams = unstable_cache(
  * far-more-complete key to group by). */
 export const getArchiveTeamHomeCircuits = unstable_cache(
   async (): Promise<Record<string, string>> => {
-    const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_results").select("team_id, archive_races(circuit_name)").not("team_id", "is", null),
+    // fetchAllRows for the same reason as getArchiveCircuitStats's - archive_results has 25,701
+    // rows, over 25x this project's 1000-row-per-request cap. Without paging past it, a team's
+    // "home circuit" was being computed from whichever ~1000 rows PostgREST happened to return
+    // first, not this team's actual full result history - a real accuracy bug, confirmed live.
+    const { data, error } = await fetchAllRows<{ team_id: string; archive_races: { circuit_name: string | null } | null }>(
+      (from, to) =>
+        supabaseAdmin.from("archive_results").select("team_id, archive_races(circuit_name)").not("team_id", "is", null).range(from, to) as unknown as QueryPage<{
+          team_id: string;
+          archive_races: { circuit_name: string | null } | null;
+        }>,
     );
     if (error) throw new Error(`getArchiveTeamHomeCircuits: ${error.message}`);
 

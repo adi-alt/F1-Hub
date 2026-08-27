@@ -44,3 +44,30 @@ export async function queryWithRetry<R extends { error: SupabaseQueryError | nul
   }
   return result;
 }
+
+const PAGE_SIZE = 1000; // this Supabase project's own server-side max-rows cap - confirmed live
+// against the actual API (a `.range(0, 4999)` request still comes back "content-range: 0-999/*"),
+// not a client-side default that `.range()` alone can raise. A single unfiltered `.select()` on
+// any table with more than 1000 rows silently returns only the first 1000 unless the caller loops
+// past this - archive_races (1,149 rows) and archive_results (25,701) both already exceed it.
+
+/** Fetches every row of a query PostgREST would otherwise truncate at PAGE_SIZE, looping
+ * `.range()` windows until a page comes back short (the real end of the data, not just "no error
+ * this time"). `buildQuery(from, to)` should apply that exact range to the same base query on each
+ * call - e.g. `(from, to) => supabaseAdmin.from("archive_races").select("year").range(from, to)`.
+ * Each page still goes through queryWithRetry individually, so a transient blip mid-scan retries
+ * just that page, not the whole fetch from the start. */
+export async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null }>,
+): Promise<{ data: T[]; error: SupabaseQueryError | null }> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await queryWithRetry(() => buildQuery(from, from + PAGE_SIZE - 1));
+    if (error) return { data: all, error };
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < PAGE_SIZE) return { data: all, error: null };
+    from += PAGE_SIZE;
+  }
+}

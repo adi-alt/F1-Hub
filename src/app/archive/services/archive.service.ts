@@ -12,6 +12,7 @@ import {
   getArchiveRacesByTeam,
   getArchiveSeason,
   getArchiveTeam,
+  getArchiveYearStats,
 } from "@/lib/supabase/archive";
 
 export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
@@ -22,6 +23,10 @@ export function getArchiveYears(): number[] {
 
 export async function getArchiveSeasonData(year: number) {
   return getArchiveSeason(year);
+}
+
+export async function getArchiveYearStatsData() {
+  return getArchiveYearStats();
 }
 
 export async function getArchiveRaceData(year: number, round: number) {
