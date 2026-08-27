@@ -21,7 +21,6 @@ import {
   getArchiveTeamData,
   getArchiveTeamHistoryData,
   getArchiveYears,
-  getArchiveYearStatsData,
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
@@ -67,12 +66,15 @@ async function getActiveIds(circuits: Awaited<ReturnType<typeof getAllArchiveCir
 }
 
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
-  const [circuits, drivers, teams, profile, yearStats] = await Promise.all([
+  // getArchiveYearStatsData exists and is cheap (see src/lib/supabase/archive.ts) but isn't
+  // fetched here - the grid shows a compact year badge, not per-card analytics, so there's
+  // nothing on this page that would read it. Kept available for the season detail view below to
+  // pick up later rather than deleted.
+  const [circuits, drivers, teams, profile] = await Promise.all([
     safeRead(() => getAllArchiveCircuitsData(), []),
     safeRead(() => getAllArchiveDriversData(), []),
     safeRead(() => getAllArchiveTeamsData(), []),
     safeRead(() => getUserProfile(uid), null),
-    safeRead(() => getArchiveYearStatsData(), {}),
   ]);
   const { circuitIds: activeCircuitIds, teamIds: activeTeamIds } = await getActiveIds(circuits);
 
@@ -88,7 +90,6 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
           uid={uid}
           initialSection={section}
           years={getArchiveYears()}
-          yearStats={yearStats}
           currentYear={new Date().getFullYear()}
           circuits={circuits}
           drivers={drivers}

@@ -1,6 +1,23 @@
 "use client";
 
+import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { ERAS } from "@/lib/eras";
+
+const ERA_OPTIONS: MultiSelectOption[] = [{ code: "all", label: "All eras" }, ...ERAS.map((e) => ({ code: e.id, label: e.name }))];
+
+/** Same compact single-select popover Compare's driver/team pickers use
+ * (season/_components/EntityMultiSelect, multiple={false}) instead of a row of always-visible
+ * pills - era filtering is secondary to year browsing, so it shouldn't compete for space with the
+ * thing the page is actually for. Wrapped in a fixed width so it reads as a small control, not a
+ * full-width one (EntityMultiSelect's single-select mode defaults to filling its container, which
+ * is right for Compare's two-column "A vs B" row but not for a standalone filter trigger). */
+export function EraFilterSelect({ value, onChange }: { value: string; onChange: (eraId: string) => void }) {
+  return (
+    <div className="w-44">
+      <EntityMultiSelect multiple={false} options={ERA_OPTIONS} selected={[value]} onChange={(codes) => onChange(codes[0] ?? "all")} placeholder="All eras" />
+    </div>
+  );
+}
 
 function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -17,28 +34,9 @@ function FilterPill({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-/** "[All eras] [Front-Engine Era] ..." - reads era.id/name straight off the centralized config
- * (src/lib/eras.ts), never a hardcoded list of its own. Wraps naturally at narrow widths, same as
- * the tab bar above it - a fixed 9-pill row doesn't need a popover to stay usable on mobile. */
-export function EraFilterPills({ value, onChange }: { value: string; onChange: (eraId: string) => void }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      <FilterPill active={value === "all"} onClick={() => onChange("all")}>
-        All eras
-      </FilterPill>
-      {ERAS.map((era) => (
-        <FilterPill key={era.id} active={value === era.id} onClick={() => onChange(era.id)}>
-          {era.name}
-        </FilterPill>
-      ))}
-    </div>
-  );
-}
-
 /** Driver/team tables' own filter row - just the favorites toggle, no status/country dimension
- * (neither field exists on ArchiveDriver/ArchiveTeam). Kept separate from TrackFilters rather than
- * folding a "favoritesOnly-only" mode into it - the two views' filter needs are different enough
- * that one shared component with half its props unused wouldn't actually be simpler. */
+ * (neither field exists on ArchiveDriver/ArchiveTeam). A single toggle stays a pill (the exact
+ * "select one of two" job a pill is for), unlike era/country's "pick one of many" job above. */
 export function FavoritesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
     <FilterPill active={value} onClick={() => onChange(!value)}>
@@ -53,10 +51,10 @@ const STATUS_OPTIONS: { value: "all" | "active" | "historical"; label: string }[
   { value: "historical", label: "Historical" },
 ];
 
-/** Track view's filter row: active/historical (a small fixed set, pills), country (potentially
- * dozens of values - a native <select> instead of a pill row or a custom combobox; the simplest
- * thing that's already fully accessible and keyboard/touch friendly for "one choice from many"),
- * and a favorites-only toggle. Shows a "Clear filters" action only once something's actually set. */
+/** Track view's filter row: active/historical (3 fixed options - stays pills, the same small,
+ * fixed-choice job the favorites toggle above is for) and country (potentially dozens of values -
+ * the same EntityMultiSelect popover as the era filter, not a native <select>, so every "pick one
+ * from many" control in the app behaves the same way). */
 export function TrackFilters({
   status,
   onStatusChange,
@@ -75,6 +73,7 @@ export function TrackFilters({
   onFavoritesOnlyChange: (v: boolean) => void;
 }) {
   const hasActiveFilters = status !== "all" || country !== "" || favoritesOnly;
+  const countryOptions: MultiSelectOption[] = [{ code: "", label: "All countries" }, ...countries.map((c) => ({ code: c, label: c }))];
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -85,19 +84,15 @@ export function TrackFilters({
           </FilterPill>
         ))}
       </div>
-      <select
-        value={country}
-        onChange={(e) => onCountryChange(e.target.value)}
-        aria-label="Filter by country"
-        className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-neutral-300 focus:border-white/30 focus:outline-none"
-      >
-        <option value="">All countries</option>
-        {countries.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
+      <div className="w-44">
+        <EntityMultiSelect
+          multiple={false}
+          options={countryOptions}
+          selected={[country]}
+          onChange={(codes) => onCountryChange(codes[0] ?? "")}
+          placeholder="All countries"
+        />
+      </div>
       <FilterPill active={favoritesOnly} onClick={() => onFavoritesOnlyChange(!favoritesOnly)}>
         ★ Favorites
       </FilterPill>

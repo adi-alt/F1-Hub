@@ -74,13 +74,6 @@ export function ArchiveCircuitGrid({
             >
               <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
                 {c.imageUrl && <Image src={c.imageUrl} alt={`${c.name ?? c.circuitId} layout`} fill className="object-contain p-3" />}
-                <span
-                  className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide backdrop-blur-sm ${
-                    isActive ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-black/40 text-neutral-400"
-                  }`}
-                >
-                  {isActive ? "Active" : "Historical"}
-                </span>
                 <FavoriteButton
                   favorited={favoriteIds.has(c.circuitId)}
                   onToggle={() => onToggleFavorite(c.circuitId)}
@@ -94,6 +87,8 @@ export function ArchiveCircuitGrid({
                 <p className="mt-1 truncate text-xs text-neutral-500" title={c.country ?? undefined}>
                   {c.country ?? "Country unknown"}
                   {!!c.raceCount && ` · ${c.raceCount} race${c.raceCount === 1 ? "" : "s"}`}
+                  {" · "}
+                  <span className={isActive ? "text-[var(--f1-red)]" : ""}>{isActive ? "Active" : "Historical"}</span>
                 </p>
                 {!!c.firstYear && (
                   <p className="text-xs text-neutral-500">{c.firstYear === c.lastYear ? c.firstYear : `${c.firstYear}–${c.lastYear}`}</p>

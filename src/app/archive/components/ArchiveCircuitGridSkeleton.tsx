@@ -15,7 +15,8 @@ export function ArchiveCircuitGridSkeleton({ count = 12 }: { count?: number }) {
           <Skeleton className="h-32 w-full rounded-none" />
           <div className="px-3.5 py-3">
             <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="mt-2 h-3 w-1/2" />
+            <Skeleton className="mt-2 h-3 w-3/4" />
+            <Skeleton className="mt-1.5 h-3 w-1/3" />
           </div>
         </motion.div>
       ))}

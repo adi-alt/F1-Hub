@@ -9,6 +9,12 @@ import { useUrlParam } from "@/hooks/useUrlParam";
 import { FavoriteButton } from "./FavoriteButton";
 import { Pagination } from "./Pagination";
 
+// The exact same sticky-header treatment ChampionshipStandings.tsx uses (Season's own reference
+// table), not a re-derived version - real opacity behind the blur so rows scrolling underneath
+// don't bleed through, same translucent-dark token every sticky/floating surface in the app uses.
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
+
 export type ArchiveTableColumn<T> = {
   key: string;
   label: string;
@@ -115,9 +121,9 @@ export function ArchiveTable<T>({
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)]">
+      <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead ref={theadRef} className="border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
+          <thead ref={theadRef} className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
             <tr>
               <th scope="col" className="w-12 px-4 py-2.5">
                 S.No

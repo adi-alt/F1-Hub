@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { eraForYear } from "@/lib/eras";
@@ -9,18 +10,18 @@ import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useToggleFavorite } fro
 import { useFavoritesHydration } from "@/queries/favorites/useFavoritesHydration";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
 import { ArchiveDriverTable } from "./ArchiveDriverTable";
-import { EraFilterPills, FavoritesOnlyToggle, TrackFilters } from "./ArchiveFilters";
+import { EraFilterSelect, FavoritesOnlyToggle, TrackFilters } from "./ArchiveFilters";
 import { ArchiveSeasonGrid } from "./ArchiveSeasonGrid";
 import { ArchiveTeamTable } from "./ArchiveTeamTable";
-import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam, ArchiveYearStats } from "@/lib/supabase/archive";
+import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam } from "@/lib/supabase/archive";
 
 type Facet = "year" | "track" | "driver" | "team";
 
-const TABS: { key: Facet; label: string }[] = [
-  { key: "year", label: "By year" },
-  { key: "track", label: "By track" },
-  { key: "driver", label: "By driver" },
-  { key: "team", label: "By team" },
+const TABS: { value: Facet; label: string }[] = [
+  { value: "year", label: "By year" },
+  { value: "track", label: "By track" },
+  { value: "driver", label: "By driver" },
+  { value: "team", label: "By team" },
 ];
 
 const PLACEHOLDER: Record<Facet, string> = {
@@ -40,7 +41,6 @@ export function ArchiveExplorer({
   uid,
   initialSection,
   years,
-  yearStats,
   currentYear,
   circuits,
   drivers,
@@ -54,7 +54,6 @@ export function ArchiveExplorer({
   uid: string;
   initialSection: Facet;
   years: number[];
-  yearStats: Record<number, ArchiveYearStats>;
   currentYear: number;
   circuits: ArchiveCircuit[];
   drivers: ArchiveDriver[];
@@ -99,7 +98,7 @@ export function ArchiveExplorer({
   // this is the one place that gets validated back into the real Facet union; everything below
   // reads `section` (via useUrlParam) expecting it, `facet` for indexing/rendering that needs the
   // narrowed type.
-  const facet: Facet = TABS.some((t) => t.key === section) ? (section as Facet) : "year";
+  const facet: Facet = TABS.some((t) => t.value === section) ? (section as Facet) : "year";
   const trackStatus: "all" | "active" | "historical" = status === "active" || status === "historical" ? status : "all";
 
   function switchTo(next: Facet) {
@@ -130,27 +129,7 @@ export function ArchiveExplorer({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => switchTo(t.key)}
-              className="relative rounded-full px-4 py-1.5 text-sm font-medium transition"
-            >
-              {t.key === facet && (
-                <motion.div
-                  layoutId="archive-tab-capsule"
-                  className="absolute inset-0 rounded-full bg-[var(--f1-red)]"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                />
-              )}
-              <span className={`relative z-10 ${t.key === facet ? "text-white" : "text-neutral-300 hover:text-white"}`}>
-                {t.label}
-              </span>
-            </button>
-          ))}
-        </div>
+        <QuietTabs options={TABS} value={facet} onChange={switchTo} />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -162,7 +141,7 @@ export function ArchiveExplorer({
 
       {facet === "year" && (
         <div className="mt-3 shrink-0">
-          <EraFilterPills value={era} onChange={setEra} />
+          <EraFilterSelect value={era} onChange={setEra} />
         </div>
       )}
       {facet === "track" && (
@@ -198,7 +177,7 @@ export function ArchiveExplorer({
               {filteredYears.length === 0 && !showLiveSeason ? (
                 <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
               ) : (
-                <ArchiveSeasonGrid years={filteredYears} yearStats={yearStats} currentYear={currentYear} showLiveSeason={showLiveSeason} />
+                <ArchiveSeasonGrid years={filteredYears} currentYear={currentYear} showLiveSeason={showLiveSeason} />
               )}
             </div>
           )}

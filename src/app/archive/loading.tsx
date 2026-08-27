@@ -4,9 +4,23 @@ import { useSearchParams } from "next/navigation";
 import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkeleton";
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { TabBarSkeleton, TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
+import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 
 const TABS = ["By year", "By track", "By driver", "By team"];
+
+// Matches QuietTabs' own shape (plain text tabs with a thin underline, no pill/bordered-track
+// background) now that Archive's facet switcher uses that shared component directly instead of a
+// bespoke capsule - not TabBarSkeleton (@/components/ui/TableSkeleton), which is still the right
+// skeleton for personalization's own, still-capsule-styled tabs.
+function QuietTabsSkeleton() {
+  return (
+    <div className="flex items-center gap-5">
+      {TABS.map((label, i) => (
+        <Skeleton key={label} className={`h-4 ${i === 0 ? "w-14" : "w-16"}`} />
+      ))}
+    </div>
+  );
+}
 
 /** A client component (not the original static one) specifically so it can read useSearchParams()
  * and match whichever facet - or detail page - the navigation is actually headed toward, instead
@@ -36,7 +50,10 @@ export default function ArchiveLoading() {
       <Skeleton className="h-9 w-40 shrink-0" />
       <Skeleton className="mt-1 h-4 w-full max-w-lg shrink-0" />
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabBarSkeleton labels={TABS} />
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          <QuietTabsSkeleton />
+          <Skeleton className="h-8 w-full max-w-xs rounded-full" />
+        </div>
         <div className="mt-4 min-h-0 flex-1 overflow-hidden">
           {section === "track" ? (
             <ArchiveCircuitGridSkeleton />
