@@ -1,8 +1,8 @@
 import { AnalysisWorkspace } from "./components/AnalysisWorkspace";
 import { ChampionshipStandings } from "./components/ChampionshipStandings";
+import { SeasonCalendar } from "./components/SeasonCalendar";
 import { SeasonExplorerProvider } from "./components/SeasonExplorerContext";
 import { SeasonFavoritesProvider } from "./components/SeasonFavoritesContext";
-import { SeasonTimeline } from "./components/SeasonTimeline";
 import { getSeasonPageData } from "./services/season.service";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
@@ -32,26 +32,37 @@ export default async function SeasonPage({
   const defaultA = favoriteDriver ?? drivers[0];
   const defaultAIndex = defaultA ? drivers.indexOf(defaultA) : -1;
   const defaultB = drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
+  const currentRound = raceSummaries.find((r) => r.state === "next");
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
       <SeasonFavoritesProvider initialDriverIds={favoriteDriverIds} initialTeamIds={favoriteTeamIds}>
         <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-white">{year} Season</h1>
-            <p className="mt-1 text-sm text-neutral-500">
-              {racesCompleted} race{racesCompleted === 1 ? "" : "s"} completed · {racesRemaining} remaining
+          <div className="mb-8">
+            <h1 className="flex items-baseline gap-3">
+              <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">{year}</span>
+              <span className="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">Season</span>
+            </h1>
+            <p className="mt-3 text-sm text-neutral-500">
+              <span className="font-medium text-neutral-300">{racesCompleted}</span> round{racesCompleted === 1 ? "" : "s"} complete ·{" "}
+              {racesRemaining} remaining
             </p>
+            {currentRound && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-500">
+                <span className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
+                Round {currentRound.round} — {currentRound.name}
+              </p>
+            )}
           </div>
 
           <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} />
 
-          <div className="mt-6">
+          <div className="mt-8">
             <AnalysisWorkspace battles={battles} records={records} drivers={drivers} constructors={constructors} progression={progression} raceSummaries={raceSummaries} />
           </div>
 
-          <div className="mt-6">
-            <SeasonTimeline year={year} raceSummaries={raceSummaries} />
+          <div className="mt-8">
+            <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
           </div>
         </SeasonExplorerProvider>
       </SeasonFavoritesProvider>

@@ -68,3 +68,33 @@ body::after {
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Chrome, Safari, modern Edge */
 }
+
+/* Restrained frosted-glass surface — reserved for the analysis workspace, contextual detail
+   panels (an expanded standings row, a calendar race-detail overlay), and floating controls.
+   Deliberately NOT applied to the standings table itself, which stays solid/readable per the
+   season page redesign spec ("the standings table should remain relatively solid"). */
+/* The single "current session" cell in the season calendar — a slow, low-amplitude breathing
+   ring rather than a hard blink, so exactly one cell reads as "live" without the grid feeling
+   busy. Everything else on the page stays static. */
+@keyframes pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 6, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(225, 6, 0, 0.12);
+  }
+}
+.pulse-ring {
+  animation: pulse-ring 2.2s ease-in-out infinite;
+}
+
+.glass-surface {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 30px rgba(0, 0, 0, 0.28);
+}

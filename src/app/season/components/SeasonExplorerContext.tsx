@@ -18,6 +18,11 @@ type ExplorerState = {
    * up" flow together (a battle, a standings row's "Compare" action) — switches entity type,
    * jumps to the Compare tab, and pre-selects both sides in one call instead of three. */
   openCompare: (type: EntityType, aId: string, bId: string) => void;
+  /** Round currently hovered/selected in the season calendar, or null — read by the progression
+   * chart to draw a reference line, so hovering a race there visibly ties into the chart above
+   * instead of the two staying independent widgets. */
+  highlightRound: number | null;
+  setHighlightRound: (round: number | null) => void;
 };
 
 const SeasonExplorerContext = createContext<ExplorerState | null>(null);
@@ -35,6 +40,7 @@ export function SeasonExplorerProvider({
   const [analysisTab, setAnalysisTab] = useState<AnalysisTab>("battles");
   const [compareA, setCompareA] = useState(defaultCompareA);
   const [compareB, setCompareB] = useState(defaultCompareB);
+  const [highlightRound, setHighlightRound] = useState<number | null>(null);
 
   function openCompare(type: EntityType, aId: string, bId: string) {
     setEntityType(type);
@@ -45,7 +51,19 @@ export function SeasonExplorerProvider({
 
   return (
     <SeasonExplorerContext.Provider
-      value={{ entityType, setEntityType, analysisTab, setAnalysisTab, compareA, compareB, setCompareA, setCompareB, openCompare }}
+      value={{
+        entityType,
+        setEntityType,
+        analysisTab,
+        setAnalysisTab,
+        compareA,
+        compareB,
+        setCompareA,
+        setCompareB,
+        openCompare,
+        highlightRound,
+        setHighlightRound,
+      }}
     >
       {children}
     </SeasonExplorerContext.Provider>

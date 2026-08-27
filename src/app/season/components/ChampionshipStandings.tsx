@@ -9,13 +9,14 @@ import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import { averageFinish, driverResults, recentForm, teamResults } from "../lib/seasonStats";
+import { QuietTabs } from "./QuietTabs";
 import { useSeasonExplorer } from "./SeasonExplorerContext";
 import { useSeasonFavorites } from "./SeasonFavoritesContext";
 import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../services/season.service";
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
-const HEADER_CLASS = "bg-[var(--f1-carbon)] text-left text-xs uppercase tracking-wide text-neutral-400";
+const HEADER_CLASS = "bg-white/[0.02] text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500";
 
 function gapLabel(points: number, leaderPoints: number): string {
   return points >= leaderPoints ? "—" : `-${leaderPoints - points}`;
@@ -26,11 +27,12 @@ function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") 
   return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
 }
 
-/** The one standings table for the whole page — a Drivers/Constructors segmented control swaps
+/** The one standings table for the whole page — a Drivers/Constructors quiet-tab switch swaps
  * its rows in place (see spec: "the same analytical system updates", not two separate tables
  * stacked or two separate pages). Clicking a row expands an inline detail panel instead of
  * navigating away; "Compare"/"Progression" from there jump into the analysis workspace below
- * with this row already loaded, rather than making the user re-select it there. */
+ * with this row already loaded, rather than making the user re-select it there. Kept a solid,
+ * readable surface on purpose — this is the page's visual anchor, not another glass card. */
 export function ChampionshipStandings({
   drivers,
   constructors,
@@ -94,29 +96,30 @@ export function ChampionshipStandings({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1.5 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
-          {(["drivers", "constructors"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => {
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Championship</p>
+          <div className="mt-2.5">
+            <QuietTabs
+              options={[
+                { value: "drivers" as const, label: "Drivers" },
+                { value: "constructors" as const, label: "Constructors" },
+              ]}
+              value={entityType}
+              onChange={(t) => {
                 setEntityType(t);
                 setExpanded(null);
               }}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium capitalize transition ${
-                entityType === t ? "bg-[var(--f1-red)] text-white" : "text-neutral-400 hover:text-white"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+              className="text-[15px]"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isDrivers ? "Search drivers or teams…" : "Search teams…"}
-            className="w-52 rounded-full border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-1.5 text-sm text-white placeholder:text-neutral-500"
+            className="w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
           />
           <ExportMenu
             filename={isDrivers ? "drivers-championship" : "constructors-championship"}
@@ -126,28 +129,28 @@ export function ChampionshipStandings({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
         <div ref={scrollRef} className="max-h-[480px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[680px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`}>
               <tr>
-                <th className="px-4 py-3">Pos</th>
-                <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
+                <th className="px-4 py-3 font-semibold">Pos</th>
+                <th className="cursor-pointer select-none px-4 py-3 font-semibold" onClick={() => toggleSort("name")}>
                   {isDrivers ? "Driver" : "Team"}
                   {sortIndicator("name", sortKey, sortDir)}
                 </th>
-                {isDrivers && <th className="px-4 py-3">Team</th>}
-                <th className="cursor-pointer select-none px-4 py-3 text-right" onClick={() => toggleSort("wins")}>
-                  Wins{sortIndicator("wins", sortKey, sortDir)}
+                {isDrivers && <th className="px-4 py-3 font-semibold">Team</th>}
+                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Wins" onClick={() => toggleSort("wins")}>
+                  W{sortIndicator("wins", sortKey, sortDir)}
                 </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right" onClick={() => toggleSort("podiums")}>
-                  Podiums{sortIndicator("podiums", sortKey, sortDir)}
+                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Podiums" onClick={() => toggleSort("podiums")}>
+                  P{sortIndicator("podiums", sortKey, sortDir)}
                 </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right" onClick={() => toggleSort("points")}>
-                  Points{sortIndicator("points", sortKey, sortDir)}
+                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Points" onClick={() => toggleSort("points")}>
+                  PTS{sortIndicator("points", sortKey, sortDir)}
                 </th>
-                <th className="px-4 py-3 text-right">Gap</th>
-                <th className="w-10 px-4 py-3 text-center">Fav</th>
+                <th className="px-4 py-3 text-right font-semibold" title="Gap to leader">Gap</th>
+                <th className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">Fav</th>
               </tr>
             </thead>
             <motion.tbody initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
@@ -158,30 +161,31 @@ export function ChampionshipStandings({
                     return (
                       <RowGroup
                         key={d.driver}
-                        rowIndex={i}
                         isFavorited={isFavorited}
                         isExpanded={isExpanded}
                         colSpan={8}
                         onRowClick={() => toggleExpanded(d.driver)}
                         cells={
                           <>
-                            <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
-                            <td className="whitespace-nowrap px-4 py-2.5">
+                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
+                            <td className="whitespace-nowrap px-4 py-3">
                               <div className="flex items-center gap-2.5">
-                                <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
-                                <span className="text-white">
-                                  {d.driverName} <span className="text-neutral-500">{d.driver}</span>
+                                <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
+                                  <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
+                                </span>
+                                <span className="font-medium text-white">
+                                  {d.driverName} <span className="font-mono text-xs font-normal text-neutral-500">{d.driver}</span>
                                 </span>
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-2.5 text-neutral-400">{d.team}</td>
-                            <td className="px-4 py-2.5 text-right text-neutral-400">{d.wins}</td>
-                            <td className="px-4 py-2.5 text-right text-neutral-400">{d.podiums}</td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-white">{d.points}</td>
-                            <td className="px-4 py-2.5 text-right text-neutral-500">{gapLabel(d.points, leaderPoints)}</td>
-                            <td className="px-4 py-2.5 text-center">
+                            <td className="whitespace-nowrap px-4 py-3 text-neutral-400">{d.team}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.wins}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.podiums}</td>
+                            <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{d.points}</td>
+                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-neutral-500">{gapLabel(d.points, leaderPoints)}</td>
+                            <td className="px-4 py-3 text-center">
                               {d.favoriteId && (
-                                <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(d.favoriteId!)} className="mx-auto" />
+                                <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(d.favoriteId!)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
                               )}
                             </td>
                           </>
@@ -206,26 +210,27 @@ export function ChampionshipStandings({
                     return (
                       <RowGroup
                         key={c.team}
-                        rowIndex={i}
                         isFavorited={isFavorited}
                         isExpanded={isExpanded}
                         colSpan={7}
                         onRowClick={() => toggleExpanded(c.team)}
                         cells={
                           <>
-                            <td className="px-4 py-2.5 font-semibold text-white">{i + 1}</td>
-                            <td className="whitespace-nowrap px-4 py-2.5">
+                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
+                            <td className="whitespace-nowrap px-4 py-3">
                               <div className="flex items-center gap-2.5">
-                                <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />
-                                <span className="text-white">{c.team}</span>
+                                <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">
+                                  <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />
+                                </span>
+                                <span className="font-medium text-white">{c.team}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-2.5 text-right text-neutral-400">{c.wins}</td>
-                            <td className="px-4 py-2.5 text-right text-neutral-400">{c.podiums}</td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-white">{c.points}</td>
-                            <td className="px-4 py-2.5 text-right text-neutral-500">{gapLabel(c.points, leaderPoints)}</td>
-                            <td className="px-4 py-2.5 text-center">
-                              <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(c.favoriteId)} className="mx-auto" />
+                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.wins}</td>
+                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.podiums}</td>
+                            <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{c.points}</td>
+                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-neutral-500">{gapLabel(c.points, leaderPoints)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(c.favoriteId)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
                             </td>
                           </>
                         }
@@ -252,7 +257,6 @@ export function ChampionshipStandings({
 }
 
 function RowGroup({
-  rowIndex,
   isFavorited,
   isExpanded,
   colSpan,
@@ -260,7 +264,6 @@ function RowGroup({
   cells,
   detail,
 }: {
-  rowIndex: number;
   isFavorited: boolean;
   isExpanded: boolean;
   colSpan: number;
@@ -268,7 +271,6 @@ function RowGroup({
   cells: ReactNode;
   detail: ReactNode;
 }) {
-  const favClass = isFavorited ? "border-l-2 border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.04]" : "border-l-2 border-l-transparent";
   return (
     <>
       <motion.tr
@@ -276,13 +278,16 @@ function RowGroup({
         variants={staggerItem}
         transition={{ layout: { duration: 0.3, ease: "easeOut" } }}
         onClick={onRowClick}
-        className={`cursor-pointer transition hover:bg-white/[0.05] ${rowIndex < 3 ? "bg-white/[0.03]" : ""} ${favClass} ${isExpanded ? "bg-white/[0.06]" : ""}`}
+        className={`group cursor-pointer border-l-2 transition-colors duration-150 hover:bg-white/[0.035] ${
+          isFavorited ? "border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.045]" : "border-l-transparent"
+        } ${isExpanded ? "bg-white/[0.05]" : ""}`}
+        style={isFavorited ? { backgroundImage: "linear-gradient(90deg, rgba(225,6,0,0.055), transparent 55%)" } : undefined}
       >
         {cells}
       </motion.tr>
       {detail && (
         <tr>
-          <td colSpan={colSpan} className="bg-black/20 p-0">
+          <td colSpan={colSpan} className="p-2">
             {detail}
           </td>
         </tr>
@@ -309,7 +314,7 @@ function DriverDetail({
   const form = recentForm(results);
 
   return (
-    <div className="flex flex-wrap items-center gap-6 px-6 py-4">
+    <div className="glass-surface flex flex-wrap items-center gap-6 rounded-lg px-5 py-4">
       <Metric label="Wins" value={driver.wins} />
       <Metric label="Podiums" value={driver.podiums} />
       <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "—"} />
@@ -333,14 +338,14 @@ function DriverDetail({
         {rivalCode && (
           <button
             onClick={() => onCompare(rivalCode)}
-            className="rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/30 hover:text-white"
+            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
           >
             Compare
           </button>
         )}
         <button
           onClick={onProgression}
-          className="rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/30 hover:text-white"
+          className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
         >
           Progression
         </button>
@@ -367,7 +372,7 @@ function TeamDetail({
   const form = recentForm(results);
 
   return (
-    <div className="flex flex-wrap items-center gap-6 px-6 py-4">
+    <div className="glass-surface flex flex-wrap items-center gap-6 rounded-lg px-5 py-4">
       <Metric label="Wins" value={team.wins} />
       <Metric label="Podiums" value={team.podiums} />
       <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "—"} />
@@ -391,14 +396,14 @@ function TeamDetail({
         {rivalId && (
           <button
             onClick={() => onCompare(rivalId)}
-            className="rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/30 hover:text-white"
+            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
           >
             Compare
           </button>
         )}
         <button
           onClick={onProgression}
-          className="rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/30 hover:text-white"
+          className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
         >
           Progression
         </button>
