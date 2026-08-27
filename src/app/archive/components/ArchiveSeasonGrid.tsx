@@ -4,8 +4,8 @@ import type { FocusEvent, MouseEvent } from "react";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerContainer } from "@/components/motion/variants";
-import { groupYearsByEra } from "@/lib/eras";
-import { isVerifiedChampionYear, type ArchiveYearStats, type CurrentLeader } from "@/lib/supabase/archive";
+import { groupYearsByEra, isVerifiedChampionYear } from "@/lib/eras";
+import type { ArchiveYearStats, CurrentLeader } from "@/lib/supabase/archive";
 import { SeasonCard } from "./SeasonCard";
 import { EraSection } from "./EraSection";
 

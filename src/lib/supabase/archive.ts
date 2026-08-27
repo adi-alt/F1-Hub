@@ -267,23 +267,21 @@ export type ArchiveYearStats = {
   teamLeader: YearLeader | null;
 };
 
-// F1 only summed a driver's *entire* season toward the title from 1991 onward - before that it
-// counted just the best N results in various forms, which can (and, in 1988, demonstrably did -
-// Prost outscored Senna on a full-season sum, Senna won the actual title) diverge from a plain
-// points sum. driverLeader/teamLeader below are always a real points sum, for every year - this is
-// the one place that draws the line between "this sum happens to equal the real champion" (1991+,
-// label it "Champion") and "this sum is an approximation, not verified against the real rule"
-// (1950-1990, label it "Most points" instead). No other file should compare a year against 1991
-// directly - call isVerifiedChampionYear.
-export const FULL_SEASON_SCORING_START_YEAR = 1991;
-export function isVerifiedChampionYear(year: number): boolean {
-  return year >= FULL_SEASON_SCORING_START_YEAR;
-}
+// isVerifiedChampionYear (the "Champion" vs "Most Points" label boundary) lives in src/lib/eras.ts,
+// not here - it's a small pure function with zero database dependency, and this file is Archive's
+// server-only Supabase data layer (supabaseAdmin, unstable_cache), imported wholesale - including
+// its module-scope `createClient(...)` side effect - by anything that imports even one runtime
+// value from it. isVerifiedChampionYear used to live here and was imported into ArchiveSeasonGrid
+// (a client component) for the tooltip label - which pulled supabaseAdmin's own initialization
+// into the browser bundle, throwing "SUPABASE_SECRET_KEY is not set" the instant that chunk
+// evaluated (confirmed live, in the browser console, not a hypothetical). Moving the pure check
+// into eras.ts (already safely imported client-side for eraForYear/groupYearsByEra) fixes that at
+// the source instead of working around it per call site.
 
 type ResultLeaderRow = { driver_id: string; driver_name: string; constructor: string | null; points: number | null; position: number | null; archive_races: { year: number } | null };
 
 /** Per-season race count (exact, off archive_races) and the points-sum leader for both driver and
- * constructor (see FULL_SEASON_SCORING_START_YEAR above for how a caller should label this - the
+ * constructor (see eras.ts's isVerifiedChampionYear for how a caller should label this - the
  * number itself is always a real sum, never fabricated). One full scan of archive_results (25,701
  * rows - the same cost class getArchiveTeamHomeCircuits already pays, and cached forever the same
  * way) computes both the points sum and the win count per driver/constructor per year in a single

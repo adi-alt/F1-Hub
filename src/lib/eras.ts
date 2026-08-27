@@ -105,3 +105,20 @@ export function groupYearsByEra(years: number[]): { era: Era; years: number[] }[
     .reverse()
     .map((era) => ({ era, years: (byEraId.get(era.id) ?? []).sort((a, b) => b - a) }));
 }
+
+// A second, unrelated year boundary - not one of the engine eras above. F1 only summed a driver's
+// *entire* season toward the title from 1991 onward; before that it counted just the best N
+// results in various forms, which can (and, in 1988, demonstrably did - Prost outscored Senna on a
+// full-season points sum, Senna won the actual title) diverge from a plain sum. Archive's year-card
+// tooltip (src/lib/supabase/archive.ts's getArchiveYearStats) always computes a real points sum for
+// every year, never a fabricated one - this is the one place that draws the line between "this sum
+// happens to equal the real champion" (1991+, label it "Champion") and "this sum is an
+// approximation, not verified against the real rule" (1950-1990, label it "Most Points" instead).
+// No other file should compare a year against 1991 directly - call isVerifiedChampionYear. Lives
+// here, not in supabase/archive.ts, specifically so it stays safely importable from client
+// components (see that file's own comment on why - a pure function with zero database dependency
+// has no business pulling in supabaseAdmin's initialization).
+export const FULL_SEASON_SCORING_START_YEAR = 1991;
+export function isVerifiedChampionYear(year: number): boolean {
+  return year >= FULL_SEASON_SCORING_START_YEAR;
+}
