@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
-import { useFavDriverIds, useFavTeamIds } from "@/store/useFavoritesStore";
+import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
 import { QuietTabs } from "./QuietTabs";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow } from "../_service/season.service";

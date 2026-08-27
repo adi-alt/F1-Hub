@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 
 export type GroupRole = "admin" | "member";
@@ -54,7 +55,10 @@ type ProfileLite = { id: string; display_name: string | null; username: string |
 
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
-  const { data } = await supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds);
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds),
+  );
+  if (error) throw new Error(`profilesById: ${error.message}`);
   return new Map((data ?? []).map((p) => [p.id as string, p as ProfileLite]));
 }
 
@@ -62,12 +66,10 @@ async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>
  * model as every other table this app touches), so "only members can see this" is an application
  * rule enforced here, not something the database backstops for this service. */
 export async function getMemberRole(groupId: string, uid: string): Promise<GroupRole | null> {
-  const { data } = await supabaseAdmin
-    .from("group_members")
-    .select("role")
-    .eq("group_id", groupId)
-    .eq("user_id", uid)
-    .maybeSingle();
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("role").eq("group_id", groupId).eq("user_id", uid).maybeSingle(),
+  );
+  if (error) throw new Error(`getMemberRole(${groupId}, ${uid}): ${error.message}`);
   return (data?.role as GroupRole | undefined) ?? null;
 }
 
@@ -78,14 +80,19 @@ async function requireMember(groupId: string, uid: string): Promise<GroupRole> {
 }
 
 export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
-  const { data: memberships } = await supabaseAdmin.from("group_members").select("group_id, role").eq("user_id", uid);
+  const { data: memberships, error: membershipsError } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("group_id, role").eq("user_id", uid),
+  );
+  if (membershipsError) throw new Error(`getUserGroups(${uid}): ${membershipsError.message}`);
   if (!memberships?.length) return [];
 
   const groupIds = memberships.map((m) => m.group_id as string);
-  const [{ data: groups }, { data: allMembers }] = await Promise.all([
-    supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", groupIds),
-    supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds),
+  const [{ data: groups, error: groupsError }, { data: allMembers, error: allMembersError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
   ]);
+  if (groupsError) throw new Error(`getUserGroups(${uid}): ${groupsError.message}`);
+  if (allMembersError) throw new Error(`getUserGroups(${uid}): ${allMembersError.message}`);
 
   const memberCounts = new Map<string, number>();
   for (const m of allMembers ?? []) memberCounts.set(m.group_id as string, (memberCounts.get(m.group_id as string) ?? 0) + 1);
@@ -106,9 +113,15 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
  * invite link. The link itself (the group's own uuid) is the access control: nothing here is
  * discoverable without already having it, since `groups` has no public listing anywhere. */
 export async function getGroupPreview(groupId: string): Promise<GroupPreview | null> {
-  const { data: group } = await supabaseAdmin.from("groups").select("id, name, avatar_url").eq("id", groupId).maybeSingle();
+  const { data: group, error: groupError } = await queryWithRetry(() =>
+    supabaseAdmin.from("groups").select("id, name, avatar_url").eq("id", groupId).maybeSingle(),
+  );
+  if (groupError) throw new Error(`getGroupPreview(${groupId}): ${groupError.message}`);
   if (!group) return null;
-  const { count } = await supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId);
+  const { count, error: countError } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId),
+  );
+  if (countError) throw new Error(`getGroupPreview(${groupId}): ${countError.message}`);
   return { id: group.id as string, name: group.name as string, avatarUrl: (group.avatar_url as string | null) ?? null, memberCount: count ?? 0 };
 }
 
@@ -144,10 +157,15 @@ export async function joinGroup(uid: string, groupId: string): Promise<{ id: str
 export async function getGroupDetail(groupId: string, uid: string): Promise<GroupDetail> {
   const myRole = await requireMember(groupId, uid);
 
-  const [{ data: group }, { data: members }] = await Promise.all([
-    supabaseAdmin.from("groups").select("*").eq("id", groupId).single(),
-    supabaseAdmin.from("group_members").select("user_id, role, joined_at").eq("group_id", groupId).order("joined_at"),
+  const [{ data: group, error: groupError }, { data: members, error: membersError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("groups").select("*").eq("id", groupId).single()),
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role, joined_at").eq("group_id", groupId).order("joined_at")),
   ]);
+  // PGRST116 ("no rows") from .single() is the expected shape of "this group doesn't exist" -
+  // not a real failure, so it falls through to the existing 404 below instead of the generic
+  // throw every other error here gets.
+  if (groupError && groupError.code !== "PGRST116") throw new Error(`getGroupDetail(${groupId}): ${groupError.message}`);
+  if (membersError) throw new Error(`getGroupDetail(${groupId}): ${membersError.message}`);
   if (!group) throw new ServiceError("Group not found.", 404);
 
   const profileById = await profilesById((members ?? []).map((m) => m.user_id as string));
@@ -177,7 +195,10 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
 export async function getGroupLeaderboard(groupId: string, uid: string): Promise<LeaderboardRow[]> {
   await requireMember(groupId, uid);
 
-  const { data: scores } = await supabaseAdmin.from("group_race_scores").select("user_id, score").eq("group_id", groupId);
+  const { data: scores, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_race_scores").select("user_id, score").eq("group_id", groupId),
+  );
+  if (error) throw new Error(`getGroupLeaderboard(${groupId}): ${error.message}`);
   if (!scores?.length) return [];
 
   const totals = new Map<string, { totalScore: number; racesScored: number }>();
@@ -210,12 +231,10 @@ export async function getGroupLeaderboard(groupId: string, uid: string): Promise
 
 export async function getGroupRaceScores(groupId: string, raceId: string, uid: string): Promise<RaceScoreRow[]> {
   await requireMember(groupId, uid);
-  const { data: scores } = await supabaseAdmin
-    .from("group_race_scores")
-    .select("user_id, score, rank, breakdown")
-    .eq("group_id", groupId)
-    .eq("race_id", raceId)
-    .order("rank");
+  const { data: scores, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_race_scores").select("user_id, score, rank, breakdown").eq("group_id", groupId).eq("race_id", raceId).order("rank"),
+  );
+  if (error) throw new Error(`getGroupRaceScores(${groupId}, ${raceId}): ${error.message}`);
   if (!scores?.length) return [];
 
   const profileById = await profilesById(scores.map((s) => s.user_id as string));

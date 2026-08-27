@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import type { Role } from "@/lib/rbac";
 
 // Same shape the old Firestore-backed UserProfile always had.
@@ -106,10 +107,10 @@ export async function createUserProfile(
 /** Exact-match, case-insensitive via a lowercased mirror isn't worth the extra column at this
  * scale - usernames are short and this table isn't huge, so a direct query is fine. */
 export async function isUsernameTaken(username: string): Promise<boolean> {
-  const { count } = await supabaseAdmin
-    .from("profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("username", username);
+  const { count, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("username", username),
+  );
+  if (error) throw new Error(`isUsernameTaken(${username}): ${error.message}`);
   return !!count && count > 0;
 }
 
@@ -133,12 +134,23 @@ export async function listUsersPage(
   cursor: string | null,
   pageSize = 50,
 ): Promise<{ users: UserProfile[]; nextCursor: string | null }> {
-  let query = supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(pageSize);
+  let cursorCreatedAt: string | null = null;
   if (cursor) {
-    const { data: cursorRow } = await supabaseAdmin.from("profiles").select("created_at").eq("id", cursor).single();
-    if (cursorRow) query = query.lt("created_at", cursorRow.created_at);
+    const { data: cursorRow, error: cursorError } = await queryWithRetry(() =>
+      supabaseAdmin.from("profiles").select("created_at").eq("id", cursor).single(),
+    );
+    // PGRST116 ("no rows") means the cursor row was deleted between page loads - a rare, harmless
+    // race, not a real failure; falls back to "no cursor filter" the same way this always did.
+    if (cursorError && cursorError.code !== "PGRST116") throw new Error(`listUsersPage: cursor lookup (${cursor}): ${cursorError.message}`);
+    cursorCreatedAt = cursorRow?.created_at ?? null;
   }
-  const { data } = await query;
+
+  const { data, error } = await queryWithRetry(() => {
+    let query = supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(pageSize);
+    if (cursorCreatedAt) query = query.lt("created_at", cursorCreatedAt);
+    return query;
+  });
+  if (error) throw new Error(`listUsersPage: ${error.message}`);
   const rows = (data ?? []) as ProfileRow[];
   const nextCursor = rows.length === pageSize ? rows[rows.length - 1].id : null;
   return { users: rows.map(fromRow), nextCursor };
@@ -147,12 +159,13 @@ export async function listUsersPage(
 /** Exact-match lookup, deliberately not substring/prefix search — same v1-not-a-promise framing
  * as the Firestore version; a real search index isn't warranted at this stage. */
 export async function getUserByEmail(email: string): Promise<UserProfile | null> {
-  const { data } = await supabaseAdmin.from("profiles").select("*").eq("email", email).maybeSingle();
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("*").eq("email", email).maybeSingle());
+  if (error) throw new Error(`getUserByEmail(${email}): ${error.message}`);
   return data ? fromRow(data as ProfileRow) : null;
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", uid).maybeSingle();
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("*").eq("id", uid).maybeSingle());
   if (error) throw new Error(`getUserProfile(${uid}): ${error.message}`);
   return data ? fromRow(data as ProfileRow) : null;
 }

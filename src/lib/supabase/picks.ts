@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getRaceStatus } from "@/lib/supabase/races";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 import type { UserPick } from "@/lib/types/race";
 
@@ -16,7 +17,10 @@ function fromRow(row: PickRow): UserPick {
 
 /** Server-side read so pages can render a signed-in user's existing pick with no client fetch/flash. */
 export async function getUserPick(uid: string, raceId: string): Promise<UserPick | null> {
-  const { data } = await supabaseAdmin.from("picks").select("*").eq("user_id", uid).eq("race_id", raceId).maybeSingle();
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("picks").select("*").eq("user_id", uid).eq("race_id", raceId).maybeSingle(),
+  );
+  if (error) throw new Error(`getUserPick(${uid}, ${raceId}): ${error.message}`);
   return data ? fromRow(data as PickRow) : null;
 }
 
@@ -29,11 +33,13 @@ export async function saveUserPick(uid: string, pick: UserPick): Promise<void> {
   if (status !== "upcoming") {
     throw new ServiceError("Picks are closed for this race.", 403);
   }
-  await supabaseAdmin.from("picks").upsert({
+  const { error } = await supabaseAdmin.from("picks").upsert({
     user_id: uid,
     race_id: pick.raceId,
     predicted_winner: pick.predictedWinner,
     predicted_podium: pick.predictedPodium,
     submitted_at: pick.submittedAt,
   });
+  // Unchecked before this - a failed save looked identical to a successful one to the caller.
+  if (error) throw new Error(`saveUserPick(${uid}, ${pick.raceId}): ${error.message}`);
 }

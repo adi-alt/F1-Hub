@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FavoritesHydrator } from "@/components/FavoritesHydrator";
-import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useFavoritesStore, type FavoriteType } from "@/store/useFavoritesStore";
+import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
+import { useFavoritesHydration } from "@/queries/favorites/useFavoritesHydration";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
 import { ArchiveDriverTable } from "./ArchiveDriverTable";
 import { ArchiveSeasonGrid } from "./ArchiveSeasonGrid";
@@ -58,15 +58,16 @@ export function ArchiveExplorer({
   const [section, setSection] = useState<Facet>(initialSection);
   const [search, setSearch] = useState("");
   // Shared with the season page — favoriting a driver/team here now reflects there immediately
-  // (and vice versa) instead of two independent optimistic-Set implementations that never knew
-  // about each other. See src/store/useFavoritesStore.ts.
+  // (and vice versa), both backed by the same favoritesKeys.all() query cache entry instead of
+  // two independent optimistic-Set implementations that never knew about each other. See
+  // src/queries/favorites/useFavorites.ts. Hydrated directly (not via <FavoritesHydrator>) since
+  // that seeding has to happen before the useFav*Ids() reads immediately below, not in a JSX
+  // child rendered after them.
+  useFavoritesHydration(uid, initialFavoriteDrivers, initialFavoriteTeams, initialFavoriteTracks);
   const favoriteTracks = useFavTrackIds();
   const favoriteDrivers = useFavDriverIds();
   const favoriteTeams = useFavTeamIds();
-
-  function toggleFavorite(type: FavoriteType, id: string) {
-    useFavoritesStore.getState().toggle(type, id);
-  }
+  const toggleFavorite = useToggleFavorite();
 
   function switchTo(next: Facet) {
     setSection(next);
@@ -78,7 +79,6 @@ export function ArchiveExplorer({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <FavoritesHydrator uid={uid} driverIds={initialFavoriteDrivers} teamIds={initialFavoriteTeams} trackIds={initialFavoriteTracks} />
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
           {TABS.map((t) => (

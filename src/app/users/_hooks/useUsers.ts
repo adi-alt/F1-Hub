@@ -4,9 +4,9 @@ import { usersKeys } from "../_queries/usersKeys";
 import { fetchUsersByEmail, fetchUsersPage, postRoleUpdate } from "../_service/users.client";
 
 /** Cursor-paginated user list, seeded from the Server Component's initial page so the first
- * render needs no client fetch at all. staleTime: Infinity — useUsersRealtimeSync is the actual
- * freshness signal now (a profiles change invalidates this directly), so there's no reason for
- * this to also refetch on its own timers/on window focus. */
+ * render needs no client fetch at all. staleTime: Infinity — AppRealtimeSync's admin `profiles`
+ * listener is the actual freshness signal now (a profiles change invalidates this directly), so
+ * there's no reason for this to also refetch on its own timers/on window focus. */
 export function useUsersList(initialUsers: UserProfile[], initialCursor: string | null) {
   return useInfiniteQuery({
     queryKey: usersKeys.list(),

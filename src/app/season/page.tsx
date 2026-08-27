@@ -4,11 +4,7 @@ import { SeasonCalendar } from "./_components/SeasonCalendar";
 import { SeasonExplorerProvider } from "./_context/SeasonExplorerContext";
 import { getSeasonPageData } from "./_service/season.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { CalendarRealtimeWatcher } from "@/components/CalendarRealtimeWatcher";
 import { FavoritesHydrator } from "@/components/FavoritesHydrator";
-import { FavoritesRealtimeWatcher } from "@/components/FavoritesRealtimeWatcher";
-import { MediaRealtimeWatcher } from "@/components/MediaRealtimeWatcher";
-import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function SeasonPage({
@@ -40,10 +36,6 @@ export default async function SeasonPage({
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
-      <RaceRealtimeWatcher />
-      <CalendarRealtimeWatcher />
-      <MediaRealtimeWatcher />
-      <FavoritesRealtimeWatcher uid={session.uid} />
       <FavoritesHydrator uid={session.uid} driverIds={favoriteDriverIds} teamIds={favoriteTeamIds} />
       <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
         <div className="mb-8">

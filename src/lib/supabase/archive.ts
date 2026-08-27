@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 
 // Cached forever (revalidate: false at every call site below) — freshness after a pipeline run
 // comes from revalidateTag("archive-data") via /api/admin/revalidate (called by every
@@ -217,7 +218,10 @@ function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
 /** A season's races, oldest round first. */
 export const getArchiveSeason = unstable_cache(
   async (year: number): Promise<ArchiveRaceDoc[]> => {
-    const { data } = await supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("year", year).order("round");
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("year", year).order("round"),
+    );
+    if (error) throw new Error(`getArchiveSeason(${year}): ${error.message}`);
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-season"],
@@ -226,12 +230,10 @@ export const getArchiveSeason = unstable_cache(
 
 export const getArchiveRace = unstable_cache(
   async (year: number, round: number): Promise<ArchiveRaceDoc | null> => {
-    const { data } = await supabaseAdmin
-      .from("archive_races")
-      .select(ARCHIVE_RACE_SELECT)
-      .eq("year", year)
-      .eq("round", round)
-      .maybeSingle();
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("year", year).eq("round", round).maybeSingle(),
+    );
+    if (error) throw new Error(`getArchiveRace(${year}, ${round}): ${error.message}`);
     return data ? toArchiveRaceDoc(data as ArchiveRaceRow) : null;
   },
   ["get-archive-race"],
@@ -266,7 +268,10 @@ function toArchiveCircuit(row: ArchiveCircuitRow): ArchiveCircuit {
  * hasn't reached this circuit yet. */
 export const getArchiveCircuit = unstable_cache(
   async (circuitId: string): Promise<ArchiveCircuit | null> => {
-    const { data } = await supabaseAdmin.from("archive_circuits").select("*").eq("circuit_id", circuitId).maybeSingle();
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_circuits").select("*").eq("circuit_id", circuitId).maybeSingle(),
+    );
+    if (error) throw new Error(`getArchiveCircuit(${circuitId}): ${error.message}`);
     return data ? toArchiveCircuit(data as ArchiveCircuitRow) : null;
   },
   ["get-archive-circuit"],
@@ -285,7 +290,8 @@ type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; co
  * scan is cheap enough not to bother standing up a view for. */
 const getArchiveCircuitStats = unstable_cache(
   async (): Promise<Record<string, CircuitStats>> => {
-    const { data } = await supabaseAdmin.from("archive_races").select("circuit_name, year, country, locality");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_races").select("circuit_name, year, country, locality"));
+    if (error) throw new Error(`getArchiveCircuitStats: ${error.message}`);
     const stats: Record<string, CircuitStats> = {};
     for (const row of (data ?? []) as { circuit_name: string | null; year: number; country: string | null; locality: string | null }[]) {
       if (!row.circuit_name) continue;
@@ -311,7 +317,11 @@ const getArchiveCircuitStats = unstable_cache(
  * track" landing grid is cheap. */
 export const getAllArchiveCircuits = unstable_cache(
   async (): Promise<ArchiveCircuit[]> => {
-    const [{ data }, stats] = await Promise.all([supabaseAdmin.from("archive_circuits").select("*"), getArchiveCircuitStats()]);
+    const [{ data, error }, stats] = await Promise.all([
+      queryWithRetry(() => supabaseAdmin.from("archive_circuits").select("*")),
+      getArchiveCircuitStats(),
+    ]);
+    if (error) throw new Error(`getAllArchiveCircuits: ${error.message}`);
     return ((data ?? []) as ArchiveCircuitRow[])
       .map((row) => {
         const circuit = toArchiveCircuit(row);
@@ -335,7 +345,10 @@ export const getAllArchiveCircuits = unstable_cache(
  * races the circuits/weather enrichment pass has actually reached. */
 export const getArchiveRacesByCircuitId = unstable_cache(
   async (circuitId: string): Promise<ArchiveRaceDoc[]> => {
-    const { data } = await supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("circuit_id", circuitId).order("year");
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("circuit_id", circuitId).order("year"),
+    );
+    if (error) throw new Error(`getArchiveRacesByCircuitId(${circuitId}): ${error.message}`);
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-races-by-circuit"],
@@ -375,7 +388,10 @@ function toArchiveDriver(row: ArchiveDriverRow): ArchiveDriver {
  * recognize recent names than a 1950s one. */
 export const getArchiveDriver = unstable_cache(
   async (driverId: string): Promise<ArchiveDriver | null> => {
-    const { data } = await supabaseAdmin.from("archive_drivers").select("*").eq("driver_id", driverId).maybeSingle();
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_drivers").select("*").eq("driver_id", driverId).maybeSingle(),
+    );
+    if (error) throw new Error(`getArchiveDriver(${driverId}): ${error.message}`);
     return data ? toArchiveDriver(data as ArchiveDriverRow) : null;
   },
   ["get-archive-driver"],
@@ -384,7 +400,8 @@ export const getArchiveDriver = unstable_cache(
 
 export const getAllArchiveDrivers = unstable_cache(
   async (): Promise<ArchiveDriver[]> => {
-    const { data } = await supabaseAdmin.from("archive_drivers").select("*");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_drivers").select("*"));
+    if (error) throw new Error(`getAllArchiveDrivers: ${error.message}`);
     return ((data ?? []) as ArchiveDriverRow[]).map(toArchiveDriver).sort((a, b) => b.lastYear - a.lastYear);
   },
   ["get-all-archive-drivers"],
@@ -408,7 +425,9 @@ export const getAllArchiveDrivers = unstable_cache(
  * silently keeping whichever row the query happened to return last. */
 export async function getArchiveDriverIdsByCode(codes: string[]): Promise<Map<string, string>> {
   if (codes.length === 0) return new Map();
-  const { data, error } = await supabaseAdmin.from("archive_drivers").select("driver_id, code, last_year").in("code", codes);
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("archive_drivers").select("driver_id, code, last_year").in("code", codes),
+  );
   if (error) throw new Error(`getArchiveDriverIdsByCode: ${error.message}`);
   const bestByCode = new Map<string, { driverId: string; lastYear: number }>();
   for (const row of (data ?? []) as { driver_id: string; code: string | null; last_year: number }[]) {
@@ -424,10 +443,16 @@ export async function getArchiveDriverIdsByCode(codes: string[]): Promise<Map<st
  * needed that limitation in the first place). */
 export const getArchiveRacesByDriver = unstable_cache(
   async (driverId: string): Promise<ArchiveRaceDoc[]> => {
-    const { data: idRows } = await supabaseAdmin.from("archive_results").select("archive_race_id").eq("driver_id", driverId);
+    const { data: idRows, error: idError } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_results").select("archive_race_id").eq("driver_id", driverId),
+    );
+    if (idError) throw new Error(`getArchiveRacesByDriver(${driverId}): ${idError.message}`);
     const raceIds = (idRows ?? []).map((r) => r.archive_race_id as string);
     if (raceIds.length === 0) return [];
-    const { data } = await supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", raceIds).order("year");
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", raceIds).order("year"),
+    );
+    if (error) throw new Error(`getArchiveRacesByDriver(${driverId}): ${error.message}`);
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-races-by-driver"],
@@ -442,7 +467,8 @@ function toArchiveTeam(row: ArchiveTeamRow): ArchiveTeam {
 
 export const getArchiveTeam = unstable_cache(
   async (teamId: string): Promise<ArchiveTeam | null> => {
-    const { data } = await supabaseAdmin.from("archive_teams").select("*").eq("team_id", teamId).maybeSingle();
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_teams").select("*").eq("team_id", teamId).maybeSingle());
+    if (error) throw new Error(`getArchiveTeam(${teamId}): ${error.message}`);
     return data ? toArchiveTeam(data as ArchiveTeamRow) : null;
   },
   ["get-archive-team"],
@@ -453,7 +479,8 @@ export const getArchiveTeam = unstable_cache(
  * landing grid, same shape/sort as getAllArchiveDrivers. */
 export const getAllArchiveTeams = unstable_cache(
   async (): Promise<ArchiveTeam[]> => {
-    const { data } = await supabaseAdmin.from("archive_teams").select("*");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_teams").select("*"));
+    if (error) throw new Error(`getAllArchiveTeams: ${error.message}`);
     return ((data ?? []) as ArchiveTeamRow[]).map(toArchiveTeam).sort((a, b) => b.lastYear - a.lastYear);
   },
   ["get-all-archive-teams"],
@@ -467,10 +494,10 @@ export const getAllArchiveTeams = unstable_cache(
  * far-more-complete key to group by). */
 export const getArchiveTeamHomeCircuits = unstable_cache(
   async (): Promise<Record<string, string>> => {
-    const { data } = await supabaseAdmin
-      .from("archive_results")
-      .select("team_id, archive_races(circuit_name)")
-      .not("team_id", "is", null);
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_results").select("team_id, archive_races(circuit_name)").not("team_id", "is", null),
+    );
+    if (error) throw new Error(`getArchiveTeamHomeCircuits: ${error.message}`);
 
     const counts: Record<string, Record<string, number>> = {};
     // A to-one embed (archive_results -> its one parent archive_races) - PostgREST returns a
@@ -500,10 +527,16 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
  * SQL DISTINCT, which the query builder doesn't expose directly for this shape. */
 export const getArchiveRacesByTeam = unstable_cache(
   async (teamId: string): Promise<ArchiveRaceDoc[]> => {
-    const { data: idRows } = await supabaseAdmin.from("archive_results").select("archive_race_id").eq("team_id", teamId);
+    const { data: idRows, error: idError } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_results").select("archive_race_id").eq("team_id", teamId),
+    );
+    if (idError) throw new Error(`getArchiveRacesByTeam(${teamId}): ${idError.message}`);
     const raceIds = [...new Set((idRows ?? []).map((r) => r.archive_race_id as string))];
     if (raceIds.length === 0) return [];
-    const { data } = await supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", raceIds).order("year");
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", raceIds).order("year"),
+    );
+    if (error) throw new Error(`getArchiveRacesByTeam(${teamId}): ${error.message}`);
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-races-by-team"],
@@ -518,13 +551,15 @@ export const getArchiveRacesByTeam = unstable_cache(
  * that's `!lapsBackfilled` or predates 1996 (Ergast has no lap data before then). */
 export const getArchiveRaceLaps = unstable_cache(
   async (year: number, round: number): Promise<ArchiveLapEntry[]> => {
-    const { data: race } = await supabaseAdmin.from("archive_races").select("id").eq("year", year).eq("round", round).maybeSingle();
+    const { data: race, error: raceError } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select("id").eq("year", year).eq("round", round).maybeSingle(),
+    );
+    if (raceError) throw new Error(`getArchiveRaceLaps(${year}, ${round}): ${raceError.message}`);
     if (!race) return [];
-    const { data } = await supabaseAdmin
-      .from("archive_laps")
-      .select("lap_number, driver_id, position, time")
-      .eq("archive_race_id", race.id)
-      .order("lap_number");
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_laps").select("lap_number, driver_id, position, time").eq("archive_race_id", race.id).order("lap_number"),
+    );
+    if (error) throw new Error(`getArchiveRaceLaps(${year}, ${round}): ${error.message}`);
 
     const byLap = new Map<number, ArchiveLapTiming[]>();
     for (const row of (data ?? []) as { lap_number: number; driver_id: string; position: number | null; time: string | null }[]) {

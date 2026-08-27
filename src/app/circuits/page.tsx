@@ -4,7 +4,6 @@ import { CircuitTrendChart } from "./components/CircuitTrendChart";
 import { PastWinnersList } from "./components/PastWinnersList";
 import { getCircuitDetailData, getCircuitsIndexData } from "./services/circuits.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { raceTitle } from "@/lib/format";
 import { getSession } from "@/lib/session/getSession";
 
@@ -66,7 +65,6 @@ export default async function CircuitsPage({
   const { circuit } = await searchParams;
   return (
     <>
-      <RaceRealtimeWatcher />
       {circuit ? <CircuitDetail circuit={circuit} /> : <CircuitsIndex />}
     </>
   );

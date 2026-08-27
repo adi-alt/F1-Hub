@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 
 export type CalendarSession = { label: string; date: string };
 
@@ -60,7 +61,9 @@ function fromRow(row: CalendarRow): CalendarEntry {
  * uses, and CalendarRealtimeWatcher tells an already-open browser to go pull it. */
 export const getCalendarEntry = unstable_cache(
   async (year: number, round: number): Promise<CalendarEntry | null> => {
-    const { data, error } = await supabaseAdmin.from("calendar").select("*").eq("year", year).eq("round", round).maybeSingle();
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("calendar").select("*").eq("year", year).eq("round", round).maybeSingle(),
+    );
     if (error) throw new Error(`getCalendarEntry(${year}, ${round}): ${error.message}`);
     return data ? fromRow(data as CalendarRow) : null;
   },
@@ -76,7 +79,7 @@ export const getCalendarEntriesByYear = unstable_cache(
     // See getRacesByYear's own comment - a swallowed error here reads as "empty calendar" and
     // gets cached as such until the tag is next busted, instead of surfacing and letting the
     // next request try again fresh.
-    const { data, error } = await supabaseAdmin.from("calendar").select("*").eq("year", year).order("round");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("calendar").select("*").eq("year", year).order("round"));
     if (error) throw new Error(`getCalendarEntriesByYear(${year}): ${error.message}`);
     return ((data ?? []) as CalendarRow[]).map(fromRow);
   },

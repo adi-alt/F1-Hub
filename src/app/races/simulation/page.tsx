@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { getRace } from "@/lib/supabase/races";
 import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
@@ -29,7 +28,6 @@ export default async function RaceSimulationPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <RaceRealtimeWatcher raceId={race.id} />
       <Link href={raceHref(race.year, race.round)} className="text-sm text-neutral-500 hover:text-neutral-300">
         ← {race.name}
       </Link>

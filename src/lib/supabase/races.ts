@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import type {
   PolePrediction,
   PracticeData,
@@ -146,7 +147,8 @@ function toCalendarPlaceholder(row: CalendarRow): RaceDoc {
  * `calendar` is a fallback, never an override. */
 async function withCalendarPlaceholders(year: number, races: RaceDoc[]): Promise<RaceDoc[]> {
   const knownRounds = new Set(races.map((r) => r.round));
-  const { data } = await supabaseAdmin.from("calendar").select("*").eq("year", year);
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("calendar").select("*").eq("year", year));
+  if (error) throw new Error(`withCalendarPlaceholders(${year}): ${error.message}`);
   const placeholders = ((data ?? []) as CalendarRow[])
     .filter((r) => !knownRounds.has(r.round))
     .map(toCalendarPlaceholder);
@@ -159,7 +161,10 @@ async function withCalendarPlaceholders(year: number, races: RaceDoc[]): Promise
 // realtime refresh does nothing on its own without this.
 export const getRace = unstable_cache(
   async (year: number, round: number): Promise<RaceDoc | null> => {
-    const { data } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).eq("round", round).maybeSingle();
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).eq("round", round).maybeSingle(),
+    );
+    if (error) throw new Error(`getRace(${year}, ${round}): ${error.message}`);
     return data ? toRaceDoc(data as RaceRow) : null;
   },
   ["get-race"],
@@ -176,7 +181,7 @@ export const getRacesByYear = unstable_cache(
     // the error here would mean one hiccup renders as (and stays cached as) a wrong, empty season
     // until the next real pipeline write. Throwing instead surfaces it through the app's real
     // error boundary and skips the cache.
-    const { data, error } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).order("round");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).order("round"));
     if (error) throw new Error(`getRacesByYear(${year}): ${error.message}`);
     const races = ((data ?? []) as RaceRow[]).map(toRaceDoc);
     return withCalendarPlaceholders(year, races);
@@ -193,7 +198,8 @@ export const getRacesByYear = unstable_cache(
  */
 export const getRacesByCircuit = unstable_cache(
   async (circuit: string): Promise<RaceDoc[]> => {
-    const { data } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("circuit", circuit).order("year");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select(RACE_SELECT).eq("circuit", circuit).order("year"));
+    if (error) throw new Error(`getRacesByCircuit(${circuit}): ${error.message}`);
     return ((data ?? []) as RaceRow[]).map(toRaceDoc);
   },
   ["get-races-by-circuit"],
@@ -228,6 +234,7 @@ export async function getCurrentEntrants(year: number): Promise<{ driver: string
  * lock server-side (saveUserPick, src/lib/supabase/picks.ts), where a stale up-to-300s-old
  * "still upcoming" reading would let someone sneak a pick in after the race actually started. */
 export async function getRaceStatus(raceId: string): Promise<RaceDoc["status"] | null> {
-  const { data } = await supabaseAdmin.from("races").select("status").eq("id", raceId).maybeSingle();
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select("status").eq("id", raceId).maybeSingle());
+  if (error) throw new Error(`getRaceStatus(${raceId}): ${error.message}`);
   return (data?.status as RaceDoc["status"] | undefined) ?? null;
 }

@@ -5,7 +5,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type Mouse
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
-import { useFavDriverIds } from "@/store/useFavoritesStore";
+import { useFavDriverIds } from "@/queries/favorites/useFavorites";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import type { DriverStandingRow, RaceSummary } from "../_service/season.service";
 

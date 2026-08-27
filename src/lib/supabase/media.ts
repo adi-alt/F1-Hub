@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 
 // Current roster only — see supabase/schema.sql's own comment on why these two tables exist
 // separately from archive_drivers/archive_teams (no cross-season history to keep here, just
@@ -27,7 +28,7 @@ function fromTeamRow(row: TeamRow): CurrentTeam {
 // tells an already-open browser to go pull it.
 export const getAllCurrentDrivers = unstable_cache(
   async (): Promise<CurrentDriver[]> => {
-    const { data, error } = await supabaseAdmin.from("drivers").select("*").order("name");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("drivers").select("*").order("name"));
     if (error) throw new Error(`getAllCurrentDrivers: ${error.message}`);
     return ((data ?? []) as DriverRow[]).map(fromDriverRow);
   },
@@ -37,7 +38,7 @@ export const getAllCurrentDrivers = unstable_cache(
 
 export const getAllCurrentTeams = unstable_cache(
   async (): Promise<CurrentTeam[]> => {
-    const { data, error } = await supabaseAdmin.from("teams").select("*").order("name");
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("teams").select("*").order("name"));
     if (error) throw new Error(`getAllCurrentTeams: ${error.message}`);
     return ((data ?? []) as TeamRow[]).map(fromTeamRow);
   },
@@ -47,7 +48,7 @@ export const getAllCurrentTeams = unstable_cache(
 
 export const getCurrentDriver = unstable_cache(
   async (code: string): Promise<CurrentDriver | null> => {
-    const { data, error } = await supabaseAdmin.from("drivers").select("*").eq("code", code).maybeSingle();
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("drivers").select("*").eq("code", code).maybeSingle());
     if (error) throw new Error(`getCurrentDriver(${code}): ${error.message}`);
     return data ? fromDriverRow(data as DriverRow) : null;
   },
@@ -57,7 +58,7 @@ export const getCurrentDriver = unstable_cache(
 
 export const getCurrentTeam = unstable_cache(
   async (name: string): Promise<CurrentTeam | null> => {
-    const { data, error } = await supabaseAdmin.from("teams").select("*").eq("name", name).maybeSingle();
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("teams").select("*").eq("name", name).maybeSingle());
     if (error) throw new Error(`getCurrentTeam(${name}): ${error.message}`);
     return data ? fromTeamRow(data as TeamRow) : null;
   },

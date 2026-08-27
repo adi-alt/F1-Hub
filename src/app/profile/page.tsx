@@ -1,7 +1,6 @@
 import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
 import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/supabase/archive";
 import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
@@ -213,7 +212,6 @@ export default async function ProfilePage({
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
-      <RaceRealtimeWatcher />
       <h1 className="shrink-0 text-3xl font-bold text-white">Personalization</h1>
       <p className="mt-2 shrink-0 text-sm text-neutral-400">
         Favorite any driver, team, or circuit, current or historical. Favorited ones always show

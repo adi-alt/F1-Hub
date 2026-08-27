@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useUserSearch, useUsersList, useSetUserRole } from "../_hooks/useUsers";
-import { useUsersRealtimeSync } from "../_hooks/useUsersRealtimeSync";
 import type { UserProfile } from "@/lib/supabase/users";
 
 type Props = {
@@ -27,7 +26,8 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState<string | null>(null);
 
-  useUsersRealtimeSync();
+  // Realtime sync for this list is handled app-wide by AppRealtimeSync (its admin `profiles`
+  // listener invalidates usersKeys on any change) — no per-page channel needed here anymore.
   const usersList = useUsersList(initialUsers, initialCursor);
   const searchQuery = useUserSearch(search);
   const setRole = useSetUserRole();
