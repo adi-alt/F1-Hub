@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
-import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
@@ -161,9 +161,10 @@ export function ChampionshipStandings({
                 <th className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">Fav</th>
               </tr>
             </thead>
-            <motion.tbody initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
-              {isDrivers
-                ? sortedDrivers.map((d, i) => {
+            <tbody className="divide-y divide-[var(--f1-line)]">
+              <AnimatePresence initial={false}>
+                {isDrivers
+                  ? sortedDrivers.map((d, i) => {
                     const isFavorited = !!d.favoriteId && favDrivers.has(d.favoriteId);
                     const isExpanded = expanded === d.driver;
                     return (
@@ -261,7 +262,8 @@ export function ChampionshipStandings({
                       />
                     );
                   })}
-            </motion.tbody>
+              </AnimatePresence>
+            </tbody>
           </table>
         </div>
       </div>
@@ -288,8 +290,11 @@ function RowGroup({
     <>
       <motion.tr
         layout
+        initial="hidden"
+        animate="show"
+        exit="hidden"
         variants={staggerItem}
-        transition={{ layout: { duration: 0.3, ease: "easeOut" } }}
+        transition={{ layout: { duration: 0.3, ease: "easeOut" }, opacity: { duration: 0.15 }, y: { duration: 0.15 } }}
         onClick={onRowClick}
         className={`group cursor-pointer border-l-2 transition-colors duration-150 hover:bg-white/[0.035] ${
           isFavorited ? "border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.045]" : "border-l-transparent"

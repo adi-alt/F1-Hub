@@ -92,7 +92,7 @@ export default async function HomePage() {
   ]);
 
   const topDriverCodes = standings.drivers.slice(0, 5).map((d) => d.driver);
-  const progression = topDriverCodes.length > 0 ? await computeChampionshipProgression(year, topDriverCodes) : [];
+  const progression = topDriverCodes.length > 0 ? computeChampionshipProgression(races, topDriverCodes) : [];
   // Chosen once per request, server-side, and passed down as a prop — picking it inside a client
   // component would desync from the server-rendered HTML on hydration (see StandingsWidget's own
   // docstring).

@@ -225,18 +225,25 @@ function buildRecords(drivers: DriverStandingRow[], constructors: ConstructorSta
 }
 
 export async function getSeasonPageData(year: number, uid: string) {
-  const [races, calendarEntries, currentDrivers, currentTeams, profile] = await Promise.all([
+  // getArchiveDriverIdsByCode only needs the current roster's codes, not races/calendar/teams/
+  // profile - chaining it off currentDriversPromise (instead of awaiting the whole Promise.all
+  // first, then making this a second, sequential round trip) overlaps it with whatever's still
+  // in flight below, rather than sitting entirely after it on the critical path.
+  const currentDriversPromise = getAllCurrentDrivers();
+  const archiveIdByCodePromise = currentDriversPromise.then((d) => getArchiveDriverIdsByCode(d.map((x) => x.code)));
+
+  const [races, calendarEntries, currentDrivers, currentTeams, profile, archiveIdByCode] = await Promise.all([
     getRacesByYear(year),
     getCalendarEntriesByYear(year),
-    getAllCurrentDrivers(),
+    currentDriversPromise,
     getAllCurrentTeams(),
     getUserProfile(uid),
+    archiveIdByCodePromise,
   ]);
   const standings = computeStandings(races);
 
   const headshotByCode = new Map(currentDrivers.map((d) => [d.code, d.headshotUrl]));
   const logoByTeam = new Map(currentTeams.map((t) => [t.name, t.logoUrl]));
-  const archiveIdByCode = await getArchiveDriverIdsByCode(standings.drivers.map((d) => d.driver));
 
   const drivers: DriverStandingRow[] = standings.drivers.map((d) => ({
     ...d,
@@ -254,7 +261,7 @@ export async function getSeasonPageData(year: number, uid: string) {
   // standings top 5)/Following/Custom selectors all filter this same, already-fetched dataset
   // client-side, so switching between them is instant, no new request.
   const scoredCodes = drivers.filter((d) => d.points > 0).map((d) => d.driver);
-  const progression = scoredCodes.length > 0 ? await computeChampionshipProgression(year, scoredCodes) : [];
+  const progression = scoredCodes.length > 0 ? computeChampionshipProgression(races, scoredCodes) : [];
 
   const raceSummaries = buildRaceSummaries(races, calendarEntries);
   const completedCount = raceSummaries.filter((r) => r.state === "completed").length;

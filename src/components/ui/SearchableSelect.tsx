@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 
 export type SearchableOption = { value: string; label: string };
 
@@ -121,16 +122,23 @@ export function SearchableSelect({
       {open &&
         rect &&
         createPortal(
-          <div
+          <motion.div
             ref={dropdownRef}
+            initial={{ opacity: 0, y: rect.flip ? -4 : 4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
             style={{
               position: "fixed",
               top: rect.top,
               left: rect.left,
               width: rect.width,
               transform: rect.flip ? "translateY(-100%)" : undefined,
+              background: "var(--tooltip-surface-strong)",
             }}
-            className="z-[200] max-h-56 overflow-y-auto rounded-lg border border-[var(--f1-line)] bg-zinc-900 shadow-xl"
+            // Same glass-panel treatment as EntityMultiSelect's popover (background/blur/border/
+            // shadow, scrollbar-hide, entrance motion) rather than a flat bg-zinc-900 with no
+            // animation - one consistent dropdown language across the app instead of two.
+            className="z-[200] max-h-56 overflow-y-auto rounded-lg border border-[var(--f1-line)] shadow-xl backdrop-blur-md scrollbar-hide"
           >
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-sm text-neutral-500">No matches</p>
@@ -140,13 +148,15 @@ export function SearchableSelect({
                   key={opt.value}
                   type="button"
                   onClick={() => selectOption(opt)}
-                  className="block w-full truncate px-3 py-2 text-left text-sm text-white transition hover:bg-white/10"
+                  className={`block w-full truncate px-3 py-2 text-left text-sm transition ${
+                    opt.value === value ? "bg-[var(--f1-red)]/[0.12] text-white" : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
+                  }`}
                 >
                   {opt.label}
                 </button>
               ))
             )}
-          </div>,
+          </motion.div>,
           document.body,
         )}
     </div>

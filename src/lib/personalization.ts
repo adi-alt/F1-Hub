@@ -11,6 +11,7 @@ import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
 import { trackShortForm } from "@/lib/format";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
+import type { RaceDoc } from "@/lib/types/race";
 
 export type FavoriteDriverCard = {
   driverId: string;
@@ -292,11 +293,13 @@ export async function getRecentCircuitPhotos(
  * becomes its own dataKey; trackShort is what the x-axis actually labels each tick with (a full
  * event name doesn't fit that many ticks legibly), raceName is kept for anything that wants the
  * full name (a tooltip, an export). */
-export async function computeChampionshipProgression(
-  year: number,
-  driverCodes: string[],
-): Promise<Record<string, number | string>[]> {
-  const races = await getRacesByYear(year);
+// Takes the season's races directly instead of fetching them itself - both callers (the homepage,
+// season.service.ts) already have this same year's races in hand from their own Promise.all by
+// the time they call this, so a second getRacesByYear(year) here was a purely redundant fetch
+// (unstable_cache likely absorbed it on a warm cache, but on a cold one it's a real extra
+// round-trip sitting on the critical path for no reason). No longer async now that there's nothing
+// left to await.
+export function computeChampionshipProgression(races: RaceDoc[], driverCodes: string[]): Record<string, number | string>[] {
   const completed = races.filter((r) => r.status === "completed").sort((a, b) => a.round - b.round);
 
   const running: Record<string, number> = {};
