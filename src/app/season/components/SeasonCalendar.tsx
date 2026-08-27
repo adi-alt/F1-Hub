@@ -160,110 +160,115 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
     <div>
       <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Season calendar</p>
 
-      <div ref={anchorRef} className="relative flex gap-2">
-        <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
-          {DAY_LABELS.map((label, i) => (
-            <div key={label} style={{ height: CELL }} className="flex items-center text-[9px] leading-none text-neutral-600">
-              {VISIBLE_DAY_LABELS.has(i) ? label.slice(0, 3) : ""}
-            </div>
-          ))}
-        </div>
-
-        <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
-          <div style={{ width: weeks.length * COL - GAP }}>
-            <div className="relative" style={{ height: 18 }}>
-              {monthLabels.map((m) => (
-                <span key={m.weekIndex} className="absolute top-0 text-[10px] text-neutral-600" style={{ left: m.weekIndex * COL }}>
-                  {m.label}
-                </span>
-              ))}
-            </div>
-            <div className="flex" style={{ gap: GAP }}>
-              {weeks.map((week, wi) => (
-                <div key={wi} className="flex flex-col" style={{ gap: GAP }}>
-                  {week.map((day) => {
-                    const key = dateKey(day);
-                    const sessions = sessionsByDate.get(key);
-                    const isFavPodium = sessions?.some((s) => favoritePodiumRounds.has(s.round)) ?? false;
-                    return (
-                      <DayCell
-                        key={key}
-                        date={day}
-                        sessions={sessions}
-                        isSelected={sessions?.[0]?.round === opened}
-                        isFavoritePodium={isFavPodium}
-                        onEnter={(e) => sessions && showTooltip(e, key, day, sessions)}
-                        onLeave={() => hideTooltip(key)}
-                        onClick={() => sessions && selectDate(sessions)}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+      {/* Same solid, bordered treatment (and full page width) as the standings table above it —
+          the grid's own natural content width is much narrower than that, so without an explicit
+          full-width container here it read as a stray, differently-sized block on the page. */}
+      <div className="w-full rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5">
+        <div ref={anchorRef} className="relative flex gap-2">
+          <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
+            {DAY_LABELS.map((label, i) => (
+              <div key={label} style={{ height: CELL }} className="flex items-center text-[9px] leading-none text-neutral-600">
+                {VISIBLE_DAY_LABELS.has(i) ? label.slice(0, 3) : ""}
+              </div>
+            ))}
           </div>
-        </div>
 
-        <AnimatePresence>
-          {hover && (
-            <motion.div
-              initial={{ opacity: 0, y: 4, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 4, scale: 0.98 }}
-              transition={{ duration: 0.12, ease: "easeOut" }}
-              className="glass-surface pointer-events-none absolute z-30 w-56 rounded-lg p-3"
-              style={{ top: hover.top - 8, left: hover.left, transform: "translate(-50%, -100%)" }}
-            >
-              <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-              <p className="text-[10px] text-neutral-500">{hover.sessions[0]?.raceName}</p>
-              <div className="mt-2 flex flex-col gap-1">
-                {hover.sessions.map((s) => (
-                  <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
-                    <span className="flex items-center gap-1.5 text-neutral-300">
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
-                      {s.label}
-                    </span>
-                    <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+          <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
+            <div style={{ width: weeks.length * COL - GAP }}>
+              <div className="relative" style={{ height: 18 }}>
+                {monthLabels.map((m) => (
+                  <span key={m.weekIndex} className="absolute top-0 text-[10px] text-neutral-600" style={{ left: m.weekIndex * COL }}>
+                    {m.label}
+                  </span>
+                ))}
+              </div>
+              <div className="flex" style={{ gap: GAP }}>
+                {weeks.map((week, wi) => (
+                  <div key={wi} className="flex flex-col" style={{ gap: GAP }}>
+                    {week.map((day) => {
+                      const key = dateKey(day);
+                      const sessions = sessionsByDate.get(key);
+                      const isFavPodium = sessions?.some((s) => favoritePodiumRounds.has(s.round)) ?? false;
+                      return (
+                        <DayCell
+                          key={key}
+                          date={day}
+                          sessions={sessions}
+                          isSelected={sessions?.[0]?.round === opened}
+                          isFavoritePodium={isFavPodium}
+                          onEnter={(e) => sessions && showTooltip(e, key, day, sessions)}
+                          onLeave={() => hideTooltip(key)}
+                          onClick={() => sessions && selectDate(sessions)}
+                        />
+                      );
+                    })}
                   </div>
                 ))}
               </div>
-              {hoverWinner && (
-                <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
-                  Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
-                </p>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            </div>
+          </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[10px] text-neutral-500">
-        <span className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <span className="h-[10px] w-[10px] rounded-[2px] bg-white/[0.05]" />
-            No session
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-[10px] w-[10px] rounded-[2px] border border-neutral-500" />
-            Upcoming
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-[10px] w-[10px] rounded-[2px] bg-neutral-400" />
-            Completed
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="pulse-ring h-[10px] w-[10px] rounded-[2px] bg-[var(--f1-red)]" />
-            Current
-          </span>
-        </span>
-        <span className="flex items-center gap-3">
-          {(["practice", "qualifying", "sprint", "race"] as const).map((t) => (
-            <span key={t} className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-[2px]" style={{ background: TYPE_COLOR[t] }} />
-              <span className="capitalize">{t}</span>
+          <AnimatePresence>
+            {hover && (
+              <motion.div
+                initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
+                className="glass-surface pointer-events-none absolute z-30 w-56 rounded-lg p-3"
+                style={{ top: hover.top - 8, left: hover.left, transform: "translate(-50%, -100%)" }}
+              >
+                <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+                <p className="text-[10px] text-neutral-500">{hover.sessions[0]?.raceName}</p>
+                <div className="mt-2 flex flex-col gap-1">
+                  {hover.sessions.map((s) => (
+                    <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="flex items-center gap-1.5 text-neutral-300">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                        {s.label}
+                      </span>
+                      <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  ))}
+                </div>
+                {hoverWinner && (
+                  <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
+                    Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
+                  </p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[10px] text-neutral-500">
+          <span className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="h-[10px] w-[10px] rounded-[2px] bg-white/[0.05]" />
+              No session
             </span>
-          ))}
-        </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-[10px] w-[10px] rounded-[2px] border border-neutral-500" />
+              Upcoming
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-[10px] w-[10px] rounded-[2px] bg-neutral-400" />
+              Completed
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="pulse-ring h-[10px] w-[10px] rounded-[2px] bg-[var(--f1-red)]" />
+              Current
+            </span>
+          </span>
+          <span className="flex items-center gap-3">
+            {(["practice", "qualifying", "sprint", "race"] as const).map((t) => (
+              <span key={t} className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-[2px]" style={{ background: TYPE_COLOR[t] }} />
+                <span className="capitalize">{t}</span>
+              </span>
+            ))}
+          </span>
+        </div>
       </div>
 
       {openedRace && (

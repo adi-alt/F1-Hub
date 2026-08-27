@@ -12,6 +12,10 @@ import type { RaceDoc } from "@/lib/types/race";
 
 export type DriverStandingRow = DriverStanding & {
   headshotUrl: string | null;
+  // Same lookup the constructors row uses for its own logoUrl — carried here too so a driver row
+  // can show both the driver's headshot and their team's logo at once, instead of the team only
+  // ever appearing as plain text on the Drivers view (and only getting a logo on Constructors).
+  teamLogoUrl: string | null;
   // archive_drivers.driver_id — the id space `profile.favoriteDrivers` is actually keyed by, not
   // this row's own 3-letter code. Null when that driver hasn't been code-matched into the archive
   // yet (see getArchiveDriverIdsByCode) — favoriting is disabled for that row until it has.
@@ -237,6 +241,7 @@ export async function getSeasonPageData(year: number, uid: string) {
   const drivers: DriverStandingRow[] = standings.drivers.map((d) => ({
     ...d,
     headshotUrl: headshotByCode.get(d.driver) ?? null,
+    teamLogoUrl: logoByTeam.get(d.team) ?? null,
     favoriteId: archiveIdByCode.get(d.driver) ?? null,
   }));
   const constructors: ConstructorStandingRow[] = standings.constructors.map((c) => ({

@@ -182,7 +182,12 @@ export function ChampionshipStandings({
                                 </span>
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-neutral-400">{d.team}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-neutral-400">
+                              <div className="flex items-center gap-2">
+                                <EntityAvatar imageUrl={d.teamLogoUrl} name={d.team} size={18} shape="square" fit="contain" />
+                                {d.team}
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.wins}</td>
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.podiums}</td>
                             <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{d.points}</td>
