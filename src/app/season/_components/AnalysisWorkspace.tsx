@@ -3,11 +3,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { tugPct } from "../lib/seasonStats";
+import { tugPct } from "../_utils/seasonStats";
+import { useSeasonExplorer, type AnalysisTab } from "../_context/SeasonExplorerContext";
 import { ComparePanel } from "./ComparePanel";
 import { ProgressionPanel } from "./ProgressionPanel";
-import { useSeasonExplorer, type AnalysisTab } from "./SeasonExplorerContext";
-import type { Battle, ConstructorStandingRow, DriverStandingRow, RaceSummary, SeasonRecord } from "../services/season.service";
+import type { Battle, ConstructorStandingRow, DriverStandingRow, RaceSummary, SeasonRecord } from "../_service/season.service";
 
 const TABS: { key: AnalysisTab; label: string }[] = [
   { key: "battles", label: "Battles" },

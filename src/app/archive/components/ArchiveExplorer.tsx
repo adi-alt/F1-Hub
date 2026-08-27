@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { FavoritesHydrator } from "@/components/FavoritesHydrator";
+import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useFavoritesStore, type FavoriteType } from "@/store/useFavoritesStore";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
 import { ArchiveDriverTable } from "./ArchiveDriverTable";
 import { ArchiveSeasonGrid } from "./ArchiveSeasonGrid";
@@ -10,7 +12,6 @@ import { ArchiveTeamTable } from "./ArchiveTeamTable";
 import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam } from "@/lib/supabase/archive";
 
 type Facet = "year" | "track" | "driver" | "team";
-type FavoriteType = "track" | "driver" | "team";
 
 const TABS: { key: Facet; label: string }[] = [
   { key: "year", label: "By year" },
@@ -33,6 +34,7 @@ const PLACEHOLDER: Record<Facet, string> = {
  * then-sync pattern as personalization's own tabs — switching tabs also drops any `page` param,
  * since a page number from the previous facet's table doesn't mean anything for the new one. */
 export function ArchiveExplorer({
+  uid,
   initialSection,
   years,
   circuits,
@@ -42,6 +44,7 @@ export function ArchiveExplorer({
   favoriteDrivers: initialFavoriteDrivers,
   favoriteTeams: initialFavoriteTeams,
 }: {
+  uid: string;
   initialSection: Facet;
   years: number[];
   circuits: ArchiveCircuit[];
@@ -54,33 +57,15 @@ export function ArchiveExplorer({
   const router = useRouter();
   const [section, setSection] = useState<Facet>(initialSection);
   const [search, setSearch] = useState("");
-  const [favoriteTracks, setFavoriteTracks] = useState(() => new Set(initialFavoriteTracks));
-  const [favoriteDrivers, setFavoriteDrivers] = useState(() => new Set(initialFavoriteDrivers));
-  const [favoriteTeams, setFavoriteTeams] = useState(() => new Set(initialFavoriteTeams));
+  // Shared with the season page — favoriting a driver/team here now reflects there immediately
+  // (and vice versa) instead of two independent optimistic-Set implementations that never knew
+  // about each other. See src/store/useFavoritesStore.ts.
+  const favoriteTracks = useFavTrackIds();
+  const favoriteDrivers = useFavDriverIds();
+  const favoriteTeams = useFavTeamIds();
 
   function toggleFavorite(type: FavoriteType, id: string) {
-    const [current, setCurrent] =
-      type === "track" ? [favoriteTracks, setFavoriteTracks] : type === "team" ? [favoriteTeams, setFavoriteTeams] : [favoriteDrivers, setFavoriteDrivers];
-    const willFavorite = !current.has(id);
-    setCurrent((prev) => {
-      const next = new Set(prev);
-      if (willFavorite) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-    fetch("/api/archive/favorites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, id, favorited: willFavorite }),
-    }).catch(() => {
-      // Revert the optimistic update if the write didn't actually land.
-      setCurrent((prev) => {
-        const reverted = new Set(prev);
-        if (willFavorite) reverted.delete(id);
-        else reverted.add(id);
-        return reverted;
-      });
-    });
+    useFavoritesStore.getState().toggle(type, id);
   }
 
   function switchTo(next: Facet) {
@@ -93,6 +78,7 @@ export function ArchiveExplorer({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <FavoritesHydrator uid={uid} driverIds={initialFavoriteDrivers} teamIds={initialFavoriteTeams} trackIds={initialFavoriteTracks} />
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
           {TABS.map((t) => (

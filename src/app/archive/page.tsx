@@ -51,6 +51,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
       </p>
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
         <ArchiveExplorer
+          uid={uid}
           initialSection={section}
           years={getArchiveYears()}
           circuits={circuits}

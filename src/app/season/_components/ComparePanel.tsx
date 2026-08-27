@@ -1,9 +1,9 @@
 "use client";
 
 import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
-import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../lib/seasonStats";
-import { useSeasonExplorer } from "./SeasonExplorerContext";
-import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../services/season.service";
+import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../_utils/seasonStats";
+import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
 
 const SELECT_CLASS = "w-full rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white";
 

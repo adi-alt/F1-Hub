@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
-import { useArchiveLaps } from "../queries/useArchiveLaps";
+import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import type { ArchiveResultEntry } from "@/lib/supabase/archive";
 
 // The shared chartTheme only defines a couple of data colors (built for single/dual-series

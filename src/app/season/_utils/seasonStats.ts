@@ -2,7 +2,7 @@
 // table's row-expansion panel and the Compare workspace, so "recent form"/"avg finish"/etc. mean
 // exactly the same thing in both places instead of two slightly-different reimplementations.
 
-import type { RaceSummary } from "../services/season.service";
+import type { RaceSummary } from "../_service/season.service";
 
 export type ResultPoint = { round: number; trackShort: string; position: number; points: number; grid: number | null; dnf: boolean };
 

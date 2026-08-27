@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useUserSearch, useUsersList, useSetUserRole } from "../queries/useUsers";
+import { useUserSearch, useUsersList, useSetUserRole } from "../_hooks/useUsers";
 import type { UserProfile } from "@/lib/supabase/users";
 
 type Props = {

@@ -8,11 +8,11 @@ import { ExportMenu } from "@/components/export/ExportMenu";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
-import { averageFinish, driverResults, recentForm, teamResults } from "../lib/seasonStats";
+import { useFavDriverIds, useFavTeamIds, useFavoritesStore } from "@/store/useFavoritesStore";
+import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
 import { QuietTabs } from "./QuietTabs";
-import { useSeasonExplorer } from "./SeasonExplorerContext";
-import { useSeasonFavorites } from "./SeasonFavoritesContext";
-import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../services/season.service";
+import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
@@ -47,7 +47,10 @@ export function ChampionshipStandings({
   raceSummaries: RaceSummary[];
 }) {
   const { entityType, setEntityType, openCompare, setAnalysisTab } = useSeasonExplorer();
-  const { favDrivers, favTeams, toggleDriver, toggleTeam } = useSeasonFavorites();
+  const favDrivers = useFavDriverIds();
+  const favTeams = useFavTeamIds();
+  const toggleDriver = (id: string) => useFavoritesStore.getState().toggle("driver", id);
+  const toggleTeam = (id: string) => useFavoritesStore.getState().toggle("team", id);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");

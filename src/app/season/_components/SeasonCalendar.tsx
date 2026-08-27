@@ -5,9 +5,9 @@ import { useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type Mouse
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
-import { useSeasonExplorer } from "./SeasonExplorerContext";
-import { useSeasonFavorites } from "./SeasonFavoritesContext";
-import type { DriverStandingRow, RaceSummary } from "../services/season.service";
+import { useFavDriverIds } from "@/store/useFavoritesStore";
+import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import type { DriverStandingRow, RaceSummary } from "../_service/season.service";
 
 type SessionType = "practice" | "qualifying" | "sprint" | "race";
 
@@ -83,7 +83,7 @@ function useMeasuredWidth<T extends HTMLElement>() {
  * already had, and feeds `highlightRound` into the progression chart above. */
 export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[] }) {
   const { setHighlightRound } = useSeasonExplorer();
-  const { favDrivers } = useSeasonFavorites();
+  const favDrivers = useFavDriverIds();
   const [opened, setOpened] = useState<number | null>(null);
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number } | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);

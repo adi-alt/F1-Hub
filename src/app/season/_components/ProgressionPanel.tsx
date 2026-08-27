@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
+import { useFavDriverIds, useFavTeamIds } from "@/store/useFavoritesStore";
 import { QuietTabs } from "./QuietTabs";
-import { useSeasonExplorer } from "./SeasonExplorerContext";
-import { useSeasonFavorites } from "./SeasonFavoritesContext";
-import type { ConstructorStandingRow, DriverStandingRow } from "../services/season.service";
+import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import type { ConstructorStandingRow, DriverStandingRow } from "../_service/season.service";
 
 type Metric = "points" | "gap";
 type DriverSet = "top5" | "following" | "custom";
@@ -71,7 +71,8 @@ export function ProgressionPanel({
   progression: Record<string, number | string>[];
 }) {
   const { entityType, highlightRound } = useSeasonExplorer();
-  const { favDrivers, favTeams } = useSeasonFavorites();
+  const favDrivers = useFavDriverIds();
+  const favTeams = useFavTeamIds();
   const [metric, setMetric] = useState<Metric>("points");
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const [customCodes, setCustomCodes] = useState<string[]>([]);

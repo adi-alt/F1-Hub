@@ -1,6 +1,6 @@
 "use client";
 
-import { usePipelineRuns, useTriggerPipelineRun } from "../queries/usePipelineRuns";
+import { usePipelineRuns, useTriggerPipelineRun } from "../_hooks/usePipelineRuns";
 import type { WorkflowRun } from "@/lib/github";
 
 const WORKFLOW_LABELS: Record<string, string> = {
