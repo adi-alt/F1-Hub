@@ -29,6 +29,25 @@ export function SeasonFavoritesProvider({
   const [favDrivers, setFavDrivers] = useState(() => new Set(initialDriverIds));
   const [favTeams, setFavTeams] = useState(() => new Set(initialTeamIds));
 
+  // FavoritesRealtimeWatcher calls router.refresh() when this profile's favorites change
+  // somewhere else (another tab/device, or the Archive/Profile pages) - that re-runs the server
+  // component and passes fresh initial*Ids props in, but doesn't remount this provider, so the
+  // lazy useState initializers above never see them again on their own. Same "adjust state during
+  // render when a prop changes" pattern ProgressionPanel already uses for its own stale-selection
+  // reset, rather than an effect (which would mean an extra, avoidable render pass here). A toggle
+  // made right here on this page never hits this at all - it's already reflected optimistically,
+  // and the props driving this comparison only change on an actual server refresh.
+  const [prevInitialDriverIds, setPrevInitialDriverIds] = useState(initialDriverIds);
+  if (prevInitialDriverIds !== initialDriverIds) {
+    setPrevInitialDriverIds(initialDriverIds);
+    setFavDrivers(new Set(initialDriverIds));
+  }
+  const [prevInitialTeamIds, setPrevInitialTeamIds] = useState(initialTeamIds);
+  if (prevInitialTeamIds !== initialTeamIds) {
+    setPrevInitialTeamIds(initialTeamIds);
+    setFavTeams(new Set(initialTeamIds));
+  }
+
   function toggleDriver(id: string) {
     const willFavorite = !favDrivers.has(id);
     setFavDrivers((prev) => {

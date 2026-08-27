@@ -21,11 +21,17 @@ function TugRow({ row }: { row: StatRow }) {
         <span className={`w-12 shrink-0 text-right font-mono text-sm tabular-nums ${aWins ? "font-bold text-white" : "text-neutral-400"}`}>{aText}</span>
         <div className="flex flex-1 items-center gap-1">
           <div className="flex h-1.5 flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.05]">
-            <div className="h-full rounded-l-full bg-[var(--f1-red)] transition-all duration-300" style={{ width: `${aPct}%` }} />
+            <div
+              className="h-full rounded-l-full transition-all duration-300 ease-out"
+              style={{ width: `${aPct}%`, background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
+            />
           </div>
           <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
           <div className="flex h-1.5 flex-1 overflow-hidden rounded-r-full bg-white/[0.05]">
-            <div className="h-full rounded-r-full bg-white/35 transition-all duration-300" style={{ width: `${bPct}%` }} />
+            <div
+              className="h-full rounded-r-full transition-all duration-300 ease-out"
+              style={{ width: `${bPct}%`, background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
+            />
           </div>
         </div>
         <span className={`w-12 shrink-0 text-left font-mono text-sm tabular-nums ${bWins ? "font-bold text-white" : "text-neutral-400"}`}>{bText}</span>
@@ -156,7 +162,10 @@ export function ComparePanel({
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Race-by-race finishing position</p>
           <div className="max-h-56 overflow-y-auto rounded-lg border border-white/10 scrollbar-hide">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[var(--f1-carbon)] text-[10px] uppercase tracking-wide text-neutral-500">
+              <thead
+                className="sticky top-0 z-10 border-b border-white/[0.08] text-[10px] uppercase tracking-wide text-neutral-500 backdrop-blur-md"
+                style={{ background: "var(--tooltip-surface-strong)" }}
+              >
                 <tr>
                   <th className="px-3 py-1.5 text-left font-semibold">Race</th>
                   <th className="px-3 py-1.5 text-center font-semibold">{aName}</th>

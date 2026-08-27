@@ -5,6 +5,7 @@ import { SeasonExplorerProvider } from "./components/SeasonExplorerContext";
 import { SeasonFavoritesProvider } from "./components/SeasonFavoritesContext";
 import { getSeasonPageData } from "./services/season.service";
 import { SignInGate } from "@/components/auth/SignInGate";
+import { FavoritesRealtimeWatcher } from "@/components/FavoritesRealtimeWatcher";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function SeasonPage({
@@ -36,6 +37,7 @@ export default async function SeasonPage({
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+      <FavoritesRealtimeWatcher uid={session.uid} />
       <SeasonFavoritesProvider initialDriverIds={favoriteDriverIds} initialTeamIds={favoriteTeamIds}>
         <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
           <div className="mb-8">

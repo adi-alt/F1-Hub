@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
@@ -35,9 +35,11 @@ type DaySession = {
   state: "completed" | "current" | "upcoming";
 };
 
-const CELL = 11; // px
-const GAP = 3; // px
-const COL = CELL + GAP;
+const GAP = 3; // px, fixed - only the cell itself scales
+const MIN_CELL = 10; // px - stays a legible square even when many weeks force horizontal scroll
+const MAX_CELL = 24; // px - a ceiling for a short season/very wide screen, not the common case
+const DEFAULT_CELL = 12; // px - server-rendered guess before the client can measure real width
+const TOOLTIP_WIDTH = 224; // px, matches the w-56 tooltip below
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const VISIBLE_DAY_LABELS = new Set([1, 3, 5]); // Mon/Wed/Fri, GitHub's own convention
 
@@ -49,6 +51,25 @@ function startOfDay(d: Date): Date {
   const out = new Date(d);
   out.setHours(0, 0, 0, 0);
   return out;
+}
+
+/** Measures a node's real content width, live, via ResizeObserver - the calendar grid's cell
+ * size is computed from this instead of a fixed pixel value, so the grid actually fills its
+ * container's real width (clamped between MIN_CELL/MAX_CELL) rather than shrink-wrapping to a
+ * small corner of it with dead space on the right. */
+function useMeasuredWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return { ref, width };
 }
 
 /** The season at a glance, built the way GitHub's contribution graph actually works: the visual
@@ -66,6 +87,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number } | null>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
+  const { ref: widthProbeRef, width: availableWidth } = useMeasuredWidth<HTMLDivElement>();
 
   const allSessions = useMemo<DaySession[]>(
     () =>
@@ -132,11 +154,27 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
     return { weeks, monthLabels };
   }, [allSessions]);
 
+  // Fill the measured available width instead of shrink-wrapping to a small, fixed 11px-cell
+  // block - clamped so a season with very few weeks (or a very wide screen) doesn't blow the
+  // tiles up into oversized rectangles, and a season with many weeks (or a narrow screen) still
+  // gets a legible minimum, falling back to horizontal scroll rather than shrinking further.
+  const weekCount = Math.max(weeks.length, 1);
+  const cell = useMemo(() => {
+    if (availableWidth == null) return DEFAULT_CELL;
+    const raw = Math.floor((availableWidth - (weekCount - 1) * GAP) / weekCount);
+    return Math.max(MIN_CELL, Math.min(MAX_CELL, raw));
+  }, [availableWidth, weekCount]);
+  const col = cell + GAP;
+
   function showTooltip(e: MouseEvent | FocusEvent, key: string, date: Date, sessions: DaySession[]) {
     const cellRect = e.currentTarget.getBoundingClientRect();
     const anchorRect = anchorRef.current?.getBoundingClientRect();
     if (!anchorRect) return;
-    setHover({ key, date, sessions, top: cellRect.top - anchorRect.top, left: cellRect.left - anchorRect.left + cellRect.width / 2 });
+    // Clamped to the anchor's own bounds (not just centered on the cell) so a tile near the left
+    // or right edge of the grid never pushes the tooltip half off the calendar container.
+    const idealLeft = cellRect.left - anchorRect.left + cellRect.width / 2 - TOOLTIP_WIDTH / 2;
+    const left = Math.max(4, Math.min(idealLeft, anchorRect.width - TOOLTIP_WIDTH - 4));
+    setHover({ key, date, sessions, top: cellRect.top - anchorRect.top, left });
   }
   function hideTooltip(key: string) {
     setHover((prev) => (prev?.key === key ? null : prev));
@@ -167,43 +205,46 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
         <div ref={anchorRef} className="relative flex gap-2">
           <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
             {DAY_LABELS.map((label, i) => (
-              <div key={label} style={{ height: CELL }} className="flex items-center text-[9px] leading-none text-neutral-600">
+              <div key={label} style={{ height: cell }} className="flex items-center text-[9px] leading-none text-neutral-600">
                 {VISIBLE_DAY_LABELS.has(i) ? label.slice(0, 3) : ""}
               </div>
             ))}
           </div>
 
-          <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
-            <div style={{ width: weeks.length * COL - GAP }}>
-              <div className="relative" style={{ height: 18 }}>
-                {monthLabels.map((m) => (
-                  <span key={m.weekIndex} className="absolute top-0 text-[10px] text-neutral-600" style={{ left: m.weekIndex * COL }}>
-                    {m.label}
-                  </span>
-                ))}
-              </div>
-              <div className="flex" style={{ gap: GAP }}>
-                {weeks.map((week, wi) => (
-                  <div key={wi} className="flex flex-col" style={{ gap: GAP }}>
-                    {week.map((day) => {
-                      const key = dateKey(day);
-                      const sessions = sessionsByDate.get(key);
-                      const isFavPodium = sessions?.some((s) => favoritePodiumRounds.has(s.round)) ?? false;
-                      return (
-                        <DayCell
-                          key={key}
-                          date={day}
-                          sessions={sessions}
-                          isSelected={sessions?.[0]?.round === opened}
-                          isFavoritePodium={isFavPodium}
-                          onEnter={(e) => sessions && showTooltip(e, key, day, sessions)}
-                          onLeave={() => hideTooltip(key)}
-                          onClick={() => sessions && selectDate(sessions)}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
+          <div ref={widthProbeRef} className="min-w-0 flex-1">
+            <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
+              <div className="mx-auto" style={{ width: weeks.length * col - GAP }}>
+                <div className="relative" style={{ height: 18 }}>
+                  {monthLabels.map((m) => (
+                    <span key={m.weekIndex} className="absolute top-0 text-[10px] text-neutral-600" style={{ left: m.weekIndex * col }}>
+                      {m.label}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex" style={{ gap: GAP }}>
+                  {weeks.map((week, wi) => (
+                    <div key={wi} className="flex flex-col" style={{ gap: GAP }}>
+                      {week.map((day) => {
+                        const key = dateKey(day);
+                        const sessions = sessionsByDate.get(key);
+                        const isFavPodium = sessions?.some((s) => favoritePodiumRounds.has(s.round)) ?? false;
+                        return (
+                          <DayCell
+                            key={key}
+                            date={day}
+                            size={cell}
+                            sessions={sessions}
+                            isSelected={sessions?.[0]?.round === opened}
+                            isFavoritePodium={isFavPodium}
+                            onEnter={(e) => sessions && showTooltip(e, key, day, sessions)}
+                            onLeave={() => hideTooltip(key)}
+                            onClick={() => sessions && selectDate(sessions)}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -215,11 +256,13 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 4, scale: 0.98 }}
                 transition={{ duration: 0.12, ease: "easeOut" }}
-                className="glass-surface pointer-events-none absolute z-30 w-56 rounded-lg p-3"
-                style={{ top: hover.top - 8, left: hover.left, transform: "translate(-50%, -100%)" }}
+                className="glass-surface pointer-events-none absolute z-30 rounded-lg p-3"
+                style={{ top: hover.top - 8, left: hover.left, width: TOOLTIP_WIDTH, transform: "translateY(-100%)" }}
               >
                 <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-                <p className="text-[10px] text-neutral-500">{hover.sessions[0]?.raceName}</p>
+                <p className="text-[10px] text-neutral-500">
+                  Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
+                </p>
                 <div className="mt-2 flex flex-col gap-1">
                   {hover.sessions.map((s) => (
                     <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
@@ -338,6 +381,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
 
 function DayCell({
   date,
+  size,
   sessions,
   isSelected,
   isFavoritePodium,
@@ -346,6 +390,7 @@ function DayCell({
   onClick,
 }: {
   date: Date;
+  size: number;
   sessions: DaySession[] | undefined;
   isSelected: boolean;
   isFavoritePodium: boolean;
@@ -356,7 +401,7 @@ function DayCell({
   const dayLabel = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
   if (!sessions || sessions.length === 0) {
-    return <div aria-hidden style={{ width: CELL, height: CELL }} className="rounded-[2px] bg-white/[0.05]" />;
+    return <div aria-hidden style={{ width: size, height: size }} className="rounded-[3px] bg-white/[0.05]" />;
   }
 
   const ariaLabel = `${dayLabel}: ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}`;
@@ -370,8 +415,8 @@ function DayCell({
       onFocus={onEnter}
       onBlur={onLeave}
       onClick={onClick}
-      style={{ width: CELL, height: CELL, boxShadow: isFavoritePodium ? "0 0 0 1px rgba(251,191,36,0.65)" : undefined }}
-      className={`flex flex-col overflow-hidden rounded-[2px] transition-transform duration-150 hover:scale-125 focus-visible:scale-125 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
+      style={{ width: size, height: size, boxShadow: isFavoritePodium ? "0 0 0 1px rgba(251,191,36,0.65)" : undefined }}
+      className={`flex flex-col overflow-hidden rounded-[3px] transition-transform duration-150 hover:scale-110 focus-visible:scale-110 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
         isSelected ? "ring-1 ring-white/70" : ""
       }`}
     >
