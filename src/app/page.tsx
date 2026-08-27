@@ -1,3 +1,4 @@
+import { CalendarRealtimeWatcher } from "@/components/CalendarRealtimeWatcher";
 import { RaceRealtimeWatcher } from "@/components/RaceRealtimeWatcher";
 import { AboutSection } from "@/components/home/AboutSection";
 import { FavoritesSection } from "@/components/home/FavoritesSection";
@@ -117,6 +118,7 @@ export default async function HomePage() {
   return (
     <>
       <RaceRealtimeWatcher />
+      <CalendarRealtimeWatcher />
       <OnboardingTour initiallyOpen={!isReturning} />
       <div className="relative">
         {/* The homepage's own background, not any one card's — a fixed-height band pinned to the

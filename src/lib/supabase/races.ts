@@ -12,11 +12,14 @@ import type {
   TireStint,
 } from "@/lib/types/race";
 
-// Data only changes when the pipeline runs (GitHub Actions, every few hours) — cache reads for a
-// few minutes rather than hitting Postgres on every request. This lives at the data layer (not
-// route-level revalidate) because query-param routes read searchParams, which Next always treats
-// as dynamic — caching here is what keeps those pages fast regardless.
-const REVALIDATE_SECONDS = 300;
+// Data only changes when the pipeline runs (GitHub Actions, every few hours), and the pipeline
+// itself calls trigger_revalidation("races") the moment it finishes writing (see
+// fetch_races.py/train_predict.py and src/app/api/admin/revalidate/route.ts) - that tag-based
+// bust is the real freshness signal, RaceRealtimeWatcher is what tells an already-open browser to
+// go pull it. revalidate: false means "cache forever until that tag is explicitly busted" rather
+// than also refetching on a blind timer regardless of whether anything changed. This lives at the
+// data layer (not route-level revalidate) because query-param routes read searchParams, which
+// Next always treats as dynamic — caching here is what keeps those pages fast regardless.
 
 // One row per table, exactly as supabase/schema.sql defines it — nothing optional-chained
 // defensively; if this shape drifts from the schema, that's a real bug to see at the type level.
@@ -160,7 +163,7 @@ export const getRace = unstable_cache(
     return data ? toRaceDoc(data as RaceRow) : null;
   },
   ["get-race"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
+  { revalidate: false, tags: ["races"] },
 );
 
 /** A season's races in calendar order, including rounds `races` has no row for yet (see
@@ -169,16 +172,17 @@ export const getRacesByYear = unstable_cache(
   async (year: number): Promise<RaceDoc[]> => {
     // A transient query failure (timeout, connection blip) must not silently read as "no races
     // this season" - `data` alone comes back null on error just like it does on a genuinely
-    // empty table, and this result is cached for REVALIDATE_SECONDS, so swallowing the error here
-    // would mean one hiccup renders as (and stays cached as) a wrong, empty season for 5 minutes.
-    // Throwing instead surfaces it through the app's real error boundary and skips the cache.
+    // empty table, and this result is cached until the "races" tag is next busted, so swallowing
+    // the error here would mean one hiccup renders as (and stays cached as) a wrong, empty season
+    // until the next real pipeline write. Throwing instead surfaces it through the app's real
+    // error boundary and skips the cache.
     const { data, error } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).order("round");
     if (error) throw new Error(`getRacesByYear(${year}): ${error.message}`);
     const races = ((data ?? []) as RaceRow[]).map(toRaceDoc);
     return withCalendarPlaceholders(year, races);
   },
   ["get-races-by-year"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
+  { revalidate: false, tags: ["races"] },
 );
 
 /**
@@ -193,7 +197,7 @@ export const getRacesByCircuit = unstable_cache(
     return ((data ?? []) as RaceRow[]).map(toRaceDoc);
   },
   ["get-races-by-circuit"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
+  { revalidate: false, tags: ["races"] },
 );
 
 /** The next race on the calendar that isn't marked completed yet, for the home page's hero card —
@@ -205,7 +209,7 @@ export const getNextUpcomingRace = unstable_cache(
     return races.find((r) => r.status !== "completed") ?? null;
   },
   ["get-next-upcoming-race"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["races"] },
+  { revalidate: false, tags: ["races"] },
 );
 
 /** The current grid — driver/team pairs from the most recent race with real results or a real

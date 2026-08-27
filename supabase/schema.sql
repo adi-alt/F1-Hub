@@ -380,6 +380,15 @@ alter publication supabase_realtime add table races;
 -- both react the moment a profiles row changes, instead of a manual reload.
 alter publication supabase_realtime add table profiles;
 
+-- Lets CalendarRealtimeWatcher (src/components/CalendarRealtimeWatcher.tsx) react the moment
+-- sync_calendar.py writes a schedule/session-time change.
+alter publication supabase_realtime add table calendar;
+
+-- Lets MediaRealtimeWatcher (src/components/MediaRealtimeWatcher.tsx) react the moment
+-- fetch_races.py updates the current-season driver/team roster.
+alter publication supabase_realtime add table drivers;
+alter publication supabase_realtime add table teams;
+
 -- ============================================================= groups
 
 -- Deliberately no separate group_picks table: a member's prediction is their existing row in

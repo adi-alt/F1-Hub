@@ -1,10 +1,14 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-// A day is close enough to "cache forever" for data that changes only when a backfill pass runs
-// — real freshness after a pipeline run comes from revalidateTag("archive-data") via
-// /api/admin/revalidate (called by the pipeline itself once it finishes), not from this timer.
-const REVALIDATE_SECONDS = 86400;
+// Cached forever (revalidate: false at every call site below) — freshness after a pipeline run
+// comes from revalidateTag("archive-data") via /api/admin/revalidate (called by every
+// enrich_archive*.py/fetch_archive.py script once it finishes, see trigger_revalidation() in
+// ergast_utils.py), not from a timer. No dedicated realtime watcher for the archive tables (unlike
+// races/calendar/media) - a backfill is a rare, ad-hoc, manual operation, not a recurring cron,
+// and archive pages aren't typically left open live through one the way season/race pages are; a
+// fresh page load already gets the busted cache's real data without needing to push an update
+// into an already-open tab.
 const ARCHIVE_TAG = "archive-data";
 
 // fetch_archive.py's backfill range — 1950 is F1's first season; the upper bound is always
@@ -217,7 +221,7 @@ export const getArchiveSeason = unstable_cache(
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-season"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 export const getArchiveRace = unstable_cache(
@@ -231,7 +235,7 @@ export const getArchiveRace = unstable_cache(
     return data ? toArchiveRaceDoc(data as ArchiveRaceRow) : null;
   },
   ["get-archive-race"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 type ArchiveCircuitRow = {
@@ -266,7 +270,7 @@ export const getArchiveCircuit = unstable_cache(
     return data ? toArchiveCircuit(data as ArchiveCircuitRow) : null;
   },
   ["get-archive-circuit"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 type CircuitStats = { raceCount: number; firstYear: number; lastYear: number; country: string | null; locality: string | null };
@@ -299,7 +303,7 @@ const getArchiveCircuitStats = unstable_cache(
     return stats;
   },
   ["get-archive-circuit-stats"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** Every circuit that's been through pipeline/enrich_archive_circuits.py — a small table
@@ -324,7 +328,7 @@ export const getAllArchiveCircuits = unstable_cache(
       .sort((a, b) => (a.name ?? a.circuitId).localeCompare(b.name ?? b.circuitId));
   },
   ["get-all-archive-circuits"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** A circuit's full history — every race with this circuit_id, oldest first. Only ever returns
@@ -335,7 +339,7 @@ export const getArchiveRacesByCircuitId = unstable_cache(
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-races-by-circuit"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 type ArchiveDriverRow = {
@@ -375,7 +379,7 @@ export const getArchiveDriver = unstable_cache(
     return data ? toArchiveDriver(data as ArchiveDriverRow) : null;
   },
   ["get-archive-driver"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 export const getAllArchiveDrivers = unstable_cache(
@@ -384,7 +388,7 @@ export const getAllArchiveDrivers = unstable_cache(
     return ((data ?? []) as ArchiveDriverRow[]).map(toArchiveDriver).sort((a, b) => b.lastYear - a.lastYear);
   },
   ["get-all-archive-drivers"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** Reverse lookup for the current season's 3-letter codes -> archive driver_id, e.g. for
@@ -427,7 +431,7 @@ export const getArchiveRacesByDriver = unstable_cache(
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-races-by-driver"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 type ArchiveTeamRow = { team_id: string; name: string; first_year: number; last_year: number; race_count: number; drivers: string[] | null };
@@ -442,7 +446,7 @@ export const getArchiveTeam = unstable_cache(
     return data ? toArchiveTeam(data as ArchiveTeamRow) : null;
   },
   ["get-archive-team"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** Every team who's been through pipeline/enrich_archive_entities.py — for the "browse by team"
@@ -453,7 +457,7 @@ export const getAllArchiveTeams = unstable_cache(
     return ((data ?? []) as ArchiveTeamRow[]).map(toArchiveTeam).sort((a, b) => b.lastYear - a.lastYear);
   },
   ["get-all-archive-teams"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** Each team's "home circuit" — not a real-world fact this app tracks anywhere (Ergast has no
@@ -488,7 +492,7 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
     return result;
   },
   ["get-archive-team-home-circuits"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** A team's history — every race archive_results has this team_id in, oldest first. Deduplicated
@@ -503,7 +507,7 @@ export const getArchiveRacesByTeam = unstable_cache(
     return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
   },
   ["get-archive-races-by-team"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
 /** Lap-by-lap timing, read on demand (LapChart's "Show lap chart" click, via
@@ -531,5 +535,5 @@ export const getArchiveRaceLaps = unstable_cache(
     return [...byLap.entries()].map(([lap, timings]) => ({ lap, timings })).sort((a, b) => a.lap - b.lap);
   },
   ["get-archive-race-laps"],
-  { revalidate: REVALIDATE_SECONDS, tags: [ARCHIVE_TAG] },
+  { revalidate: false, tags: [ARCHIVE_TAG] },
 );

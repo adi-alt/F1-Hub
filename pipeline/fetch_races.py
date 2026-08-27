@@ -544,6 +544,11 @@ def main():
     # with the race page or home page open right now sees this run's data the moment their
     # RaceRealtimeWatcher notices the row changed, not up to 300s later.
     trigger_revalidation("races")
+    # Same idea for drivers/teams (see update_entrants above, called from build_and_push per
+    # round) - busts the `media`-tagged cache (src/lib/supabase/media.ts) so MediaRealtimeWatcher
+    # can pull the fresh roster in the moment it notices, instead of waiting on that cache's own
+    # timer.
+    trigger_revalidation("media")
     print("Done.")
 
 

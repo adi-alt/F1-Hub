@@ -25,8 +25,6 @@ export type CalendarEntry = {
   raceDate: string | null;
 };
 
-const REVALIDATE_SECONDS = 300;
-
 type CalendarRow = {
   id: string;
   year: number;
@@ -55,14 +53,19 @@ function fromRow(row: CalendarRow): CalendarEntry {
 
 /** The full session schedule (practice/qualifying/sprint/race, with real datetimes) + weather
  * forecast for one race weekend — sync_calendar.py's own domain, richer than what `races` itself
- * needs (races.ts only cares about results once a session has actually run). */
+ * needs (races.ts only cares about results once a session has actually run).
+ *
+ * revalidate: false on both of these — sync_calendar.py calls trigger_revalidation("calendar")
+ * the moment it finishes writing, the same tag-based-bust-is-the-real-signal pattern races.ts
+ * uses, and CalendarRealtimeWatcher tells an already-open browser to go pull it. */
 export const getCalendarEntry = unstable_cache(
   async (year: number, round: number): Promise<CalendarEntry | null> => {
-    const { data } = await supabaseAdmin.from("calendar").select("*").eq("year", year).eq("round", round).maybeSingle();
+    const { data, error } = await supabaseAdmin.from("calendar").select("*").eq("year", year).eq("round", round).maybeSingle();
+    if (error) throw new Error(`getCalendarEntry(${year}, ${round}): ${error.message}`);
     return data ? fromRow(data as CalendarRow) : null;
   },
   ["get-calendar-entry"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["calendar"] },
+  { revalidate: false, tags: ["calendar"] },
 );
 
 /** Every round's full session schedule for a season in one query — the per-year counterpart to
@@ -71,12 +74,12 @@ export const getCalendarEntry = unstable_cache(
 export const getCalendarEntriesByYear = unstable_cache(
   async (year: number): Promise<CalendarEntry[]> => {
     // See getRacesByYear's own comment - a swallowed error here reads as "empty calendar" and
-    // gets cached as such for REVALIDATE_SECONDS, instead of surfacing and letting the next
-    // request try again fresh.
+    // gets cached as such until the tag is next busted, instead of surfacing and letting the
+    // next request try again fresh.
     const { data, error } = await supabaseAdmin.from("calendar").select("*").eq("year", year).order("round");
     if (error) throw new Error(`getCalendarEntriesByYear(${year}): ${error.message}`);
     return ((data ?? []) as CalendarRow[]).map(fromRow);
   },
   ["get-calendar-entries-by-year"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["calendar"] },
+  { revalidate: false, tags: ["calendar"] },
 );

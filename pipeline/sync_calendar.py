@@ -25,7 +25,7 @@ from pathlib import Path
 
 import fastf1
 
-from ergast_utils import fetch_completed_race_docs, init_postgres, upsert
+from ergast_utils import fetch_completed_race_docs, init_postgres, trigger_revalidation, upsert
 from ml.circuit_stats import build_circuit_records
 from weather_forecast import fetch_weather_forecast
 
@@ -117,6 +117,10 @@ def main():
         for year in years:
             sync_year(conn, cur, year)
     conn.close()
+    # Busts the `calendar`-tagged unstable_cache entries (see src/lib/supabase/calendar.ts) so
+    # CalendarRealtimeWatcher can pull the fresh schedule/session times in the moment it notices
+    # a row changed, instead of waiting on that cache's own timer.
+    trigger_revalidation("calendar")
     print("Done.")
 
 

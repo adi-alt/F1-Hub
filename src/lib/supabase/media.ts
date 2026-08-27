@@ -9,8 +9,6 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export type CurrentDriver = { code: string; name: string; team: string; headshotUrl: string | null };
 export type CurrentTeam = { name: string; color: string | null; logoUrl: string | null };
 
-const REVALIDATE_SECONDS = 300;
-
 type DriverRow = { code: string; name: string; team: string; headshot_url: string | null };
 type TeamRow = { name: string; color: string | null; logo_url: string | null };
 
@@ -22,9 +20,11 @@ function fromTeamRow(row: TeamRow): CurrentTeam {
   return { name: row.name, color: row.color, logoUrl: row.logo_url };
 }
 
-// Both throw on a real query error rather than falling back to `[]` - a swallowed error here
-// reads exactly like "no current drivers/teams" and would get cached as such for
-// REVALIDATE_SECONDS, same failure mode as getRacesByYear's own (see its comment).
+// All four throw on a real query error rather than falling back to `[]`/null - a swallowed error
+// here reads exactly like "no current drivers/teams", same failure mode as getRacesByYear's own
+// (see its comment). revalidate: false - fetch_races.py calls trigger_revalidation("media") the
+// moment it finishes writing the roster, the real freshness signal, and MediaRealtimeWatcher
+// tells an already-open browser to go pull it.
 export const getAllCurrentDrivers = unstable_cache(
   async (): Promise<CurrentDriver[]> => {
     const { data, error } = await supabaseAdmin.from("drivers").select("*").order("name");
@@ -32,7 +32,7 @@ export const getAllCurrentDrivers = unstable_cache(
     return ((data ?? []) as DriverRow[]).map(fromDriverRow);
   },
   ["get-all-current-drivers"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["media"] },
+  { revalidate: false, tags: ["media"] },
 );
 
 export const getAllCurrentTeams = unstable_cache(
@@ -42,23 +42,25 @@ export const getAllCurrentTeams = unstable_cache(
     return ((data ?? []) as TeamRow[]).map(fromTeamRow);
   },
   ["get-all-current-teams"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["media"] },
+  { revalidate: false, tags: ["media"] },
 );
 
 export const getCurrentDriver = unstable_cache(
   async (code: string): Promise<CurrentDriver | null> => {
-    const { data } = await supabaseAdmin.from("drivers").select("*").eq("code", code).maybeSingle();
+    const { data, error } = await supabaseAdmin.from("drivers").select("*").eq("code", code).maybeSingle();
+    if (error) throw new Error(`getCurrentDriver(${code}): ${error.message}`);
     return data ? fromDriverRow(data as DriverRow) : null;
   },
   ["get-current-driver"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["media"] },
+  { revalidate: false, tags: ["media"] },
 );
 
 export const getCurrentTeam = unstable_cache(
   async (name: string): Promise<CurrentTeam | null> => {
-    const { data } = await supabaseAdmin.from("teams").select("*").eq("name", name).maybeSingle();
+    const { data, error } = await supabaseAdmin.from("teams").select("*").eq("name", name).maybeSingle();
+    if (error) throw new Error(`getCurrentTeam(${name}): ${error.message}`);
     return data ? fromTeamRow(data as TeamRow) : null;
   },
   ["get-current-team"],
-  { revalidate: REVALIDATE_SECONDS, tags: ["media"] },
+  { revalidate: false, tags: ["media"] },
 );
