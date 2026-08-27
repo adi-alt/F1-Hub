@@ -25,7 +25,7 @@ function FilterPill({ active, onClick, children }: { active: boolean; onClick: (
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+      className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
         active ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/15 text-white" : "border-white/10 text-neutral-400 hover:text-white"
       }`}
     >

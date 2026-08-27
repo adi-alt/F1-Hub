@@ -50,7 +50,7 @@ export function Pagination({
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
           aria-label="Previous page"
-          className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+          className="rounded-md border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white disabled:pointer-events-none disabled:opacity-30"
         >
           ← Prev
         </button>
@@ -66,7 +66,7 @@ export function Pagination({
                 type="button"
                 onClick={() => onPageChange(p)}
                 aria-current={p === page ? "page" : undefined}
-                className={`min-w-[1.75rem] rounded-full px-2 py-1 text-center transition ${
+                className={`min-w-[1.75rem] rounded-md px-2 py-1 text-center transition ${
                   p === page ? "bg-[var(--f1-red)] text-white" : "text-neutral-400 hover:text-white"
                 }`}
               >
@@ -79,7 +79,7 @@ export function Pagination({
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
           aria-label="Next page"
-          className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+          className="rounded-md border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white disabled:pointer-events-none disabled:opacity-30"
         >
           Next →
         </button>

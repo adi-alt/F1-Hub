@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveCircuitHref } from "@/lib/routes";
 import { FavoriteButton } from "./FavoriteButton";
+import { StatusBadge } from "./StatusBadge";
 import type { ArchiveCircuit } from "@/lib/supabase/archive";
 
 export function ArchiveCircuitGrid({
@@ -33,7 +34,7 @@ export function ArchiveCircuitGrid({
   if (circuits.length === 0) {
     return (
       <p className="mt-8 text-sm text-neutral-500">
-        No circuits backfilled yet — the circuit/weather enrichment pass is still working through
+        No circuits backfilled yet. The circuit/weather enrichment pass is still working through
         the archive.
       </p>
     );
@@ -81,14 +82,15 @@ export function ArchiveCircuitGrid({
                 />
               </div>
               <div className="px-3.5 py-3">
-                <p className="truncate font-semibold text-white" title={c.name ?? c.circuitId}>
-                  {c.name ?? c.circuitId}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate font-semibold text-white" title={c.name ?? c.circuitId}>
+                    {c.name ?? c.circuitId}
+                  </p>
+                  <StatusBadge active={isActive} />
+                </div>
                 <p className="mt-1 truncate text-xs text-neutral-500" title={c.country ?? undefined}>
                   {c.country ?? "Country unknown"}
                   {!!c.raceCount && ` · ${c.raceCount} race${c.raceCount === 1 ? "" : "s"}`}
-                  {" · "}
-                  <span className={isActive ? "text-[var(--f1-red)]" : ""}>{isActive ? "Active" : "Historical"}</span>
                 </p>
                 {!!c.firstYear && (
                   <p className="text-xs text-neutral-500">{c.firstYear === c.lastYear ? c.firstYear : `${c.firstYear}–${c.lastYear}`}</p>

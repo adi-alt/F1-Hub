@@ -26,6 +26,10 @@ export type ArchiveTableColumn<T> = {
   sortValue?: (row: T) => string | number;
   render: (row: T) => ReactNode;
   widthClassName?: string;
+  /** Hidden below sm - for secondary columns (a driver's constructors, a team's drivers) that
+   * aren't essential to a narrow-viewport read, so the core columns (name, races, years, status)
+   * fit without needing the horizontal scroll overflow-x-auto still provides for the rest. */
+  hideOnMobile?: boolean;
 };
 
 /** The shared table both ArchiveDriverTable and ArchiveTeamTable are now thin wrappers around -
@@ -136,7 +140,7 @@ export function ArchiveTable<T>({
                   onClick={col.sortable ? () => toggleSort(col.key) : undefined}
                   className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
                     col.sortable ? "cursor-pointer select-none" : ""
-                  } ${col.widthClassName ?? ""}`}
+                  } ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${col.widthClassName ?? ""}`}
                 >
                   {col.label}
                   {col.sortable && col.key === sortKey && <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>}
@@ -157,10 +161,15 @@ export function ArchiveTable<T>({
             {pageItems.map((row, i) => {
               const id = getId(row);
               return (
-                <motion.tr key={id} ref={i === 0 ? firstRowRef : undefined} variants={staggerItem}>
+                <motion.tr key={id} ref={i === 0 ? firstRowRef : undefined} variants={staggerItem} className="transition-colors hover:bg-white/[0.03]">
                   <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""}`}>
+                    <td
+                      key={col.key}
+                      className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
+                        col.hideOnMobile ? "hidden sm:table-cell" : ""
+                      }`}
+                    >
                       {col.render(row)}
                     </td>
                   ))}

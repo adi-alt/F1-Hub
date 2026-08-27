@@ -29,7 +29,7 @@ function PodiumCard({ r, rank }: { r: ArchiveResultEntry; rank: 1 | 2 | 3 }) {
       </p>
       <p className="mt-2 truncate font-semibold text-white">{r.driverName}</p>
       <p className="truncate text-xs text-neutral-400">{r.constructor}</p>
-      <p className="mt-2 text-sm text-neutral-300">{r.time ?? "—"}</p>
+      <p className="mt-2 text-sm text-neutral-300">{r.time ?? "–"}</p>
     </div>
   );
 }
@@ -93,7 +93,7 @@ export function ResultsBoard({
                   <span className="block truncate text-[11px] text-neutral-500">{r.constructor}</span>
                 </span>
                 <span className={`hidden shrink-0 text-xs sm:block ${statusColor(r.status)}`}>{r.status}</span>
-                <span className="shrink-0 text-right text-xs text-neutral-400">{r.time ?? "—"}</span>
+                <span className="shrink-0 text-right text-xs text-neutral-400">{r.time ?? "–"}</span>
                 <span className="w-10 shrink-0 text-right text-xs text-neutral-500">{r.points > 0 ? `${r.points} pts` : ""}</span>
                 <svg
                   viewBox="0 0 20 20"
@@ -118,12 +118,12 @@ export function ResultsBoard({
                         <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Qualifying</p>
                         {quali ? (
                           <p className="text-neutral-300">
-                            P{quali.position} — {quali.q3 ?? quali.q2 ?? quali.q1 ?? "no time"}
+                            P{quali.position} – {quali.q3 ?? quali.q2 ?? quali.q1 ?? "no time"}
                           </p>
                         ) : (
                           <p className="text-neutral-500">Not available for this race.</p>
                         )}
-                        <p className="mt-1 text-neutral-500">Grid: {r.grid ?? "—"}</p>
+                        <p className="mt-1 text-neutral-500">Grid: {r.grid ?? "–"}</p>
                       </div>
                       <div>
                         <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">
@@ -135,7 +135,7 @@ export function ResultsBoard({
                               .sort((a, b) => a.stop - b.stop)
                               .map((s) => (
                                 <li key={s.stop}>
-                                  Lap {s.lap} — {s.durationSec !== null ? `${s.durationSec.toFixed(3)}s` : "—"}
+                                  Lap {s.lap} – {s.durationSec !== null ? `${s.durationSec.toFixed(3)}s` : "–"}
                                 </li>
                               ))}
                           </ul>

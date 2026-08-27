@@ -1,24 +1,56 @@
 "use client";
 
+import type { FocusEvent, MouseEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerItem } from "@/components/motion/variants";
 import { archiveSeasonHref } from "@/lib/routes";
 
-/** One season, as a compact selectable badge - the grid's job is scanning decades quickly, not
- * carrying per-card analytics (race count/most-wins already live on the season detail page this
- * links to). `isLive` is the one exception: the in-progress season gets a small pulsing dot and
- * links to /season instead of /archive?year=, since the archive has no data for it yet - same
- * size and treatment as every other card, not a separate hero. */
-export function SeasonCard({ year, isLive = false }: { year: number; isLive?: boolean }) {
+/** One season, as a compact selectable badge - deliberately almost nothing on the card itself
+ * (just the year, plus a very subtle race-count line where that's known): the interesting
+ * historical information (champion/leader) belongs in the hover tooltip ArchiveSeasonGrid owns,
+ * not crammed onto ~76 cards at once as a mini dashboard. `isLive` is the one exception: the
+ * in-progress season gets a small pulsing dot and links to /season instead of /archive?year=,
+ * since the archive has no data for it yet (so no race count either - the card just omits that
+ * line rather than showing something misleadingly precise for an unfinished season) - same size
+ * and treatment as every other card, not a separate hero. `.glass-surface` (not a flat carbon
+ * fill) - genuine frosted glass over the atmospheric background, the same translucent surface the
+ * calendar's own tooltips/panels already use. onHoverStart/onHoverEnd wire the champion/leader
+ * tooltip (mouse *and* focus/blur, same pattern SeasonCalendar's DayCell already uses, so keyboard
+ * users get it too) - this card itself renders nothing else about that data, and deliberately no
+ * driver photo/team logo (see ArchiveSeasonGrid's own comment on why). */
+export function SeasonCard({
+  year,
+  isLive = false,
+  raceCount,
+  onHoverStart,
+  onHoverEnd,
+}: {
+  year: number;
+  isLive?: boolean;
+  raceCount?: number;
+  onHoverStart: (e: MouseEvent<HTMLAnchorElement> | FocusEvent<HTMLAnchorElement>, year: number) => void;
+  onHoverEnd: (year: number) => void;
+}) {
   return (
     <motion.div variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}>
       <Link
         href={isLive ? "/season" : archiveSeasonHref(year)}
-        className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-3 text-center font-semibold text-white transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
+        onMouseEnter={(e) => onHoverStart(e, year)}
+        onMouseLeave={() => onHoverEnd(year)}
+        onFocus={(e) => onHoverStart(e, year)}
+        onBlur={() => onHoverEnd(year)}
+        className="glass-surface flex flex-col items-center justify-center gap-0.5 rounded-xl px-4 py-3 text-center transition hover:border-white/20"
       >
-        {year}
-        {isLive && <span className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" aria-label="Live" />}
+        <span className="flex items-center gap-1.5 font-semibold text-white">
+          {year}
+          {isLive && <span className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" aria-label="Live" />}
+        </span>
+        {typeof raceCount === "number" && (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+            {raceCount} race{raceCount === 1 ? "" : "s"}
+          </span>
+        )}
       </Link>
     </motion.div>
   );

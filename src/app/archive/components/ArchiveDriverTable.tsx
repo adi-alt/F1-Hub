@@ -12,6 +12,10 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     sortable: true,
     defaultDir: "asc",
     sortValue: (d) => d.name,
+    // No photo - Archive is the restrained, statistical/reference counterpart to Season's richer
+    // identity-driven cards (see SeasonCard's own comment); the driver's own name is the entire
+    // identity element here. ArchiveDriver.photoUrl still exists in the data layer, unused by
+    // this table on purpose, not deleted - Season still uses the same field.
     render: (d) => (
       <Link href={archiveDriverHref(d.driverId)} className="truncate font-medium text-white hover:text-[var(--f1-red)]">
         {d.name}
@@ -37,6 +41,7 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
   {
     key: "constructors",
     label: "Constructor(s)",
+    hideOnMobile: true,
     render: (d) => (
       <span className="block max-w-xs truncate text-neutral-500" title={d.constructors?.join(", ")}>
         {d.constructors?.length ? d.constructors.join(", ") : "N/A"}

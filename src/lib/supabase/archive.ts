@@ -247,70 +247,124 @@ export const getArchiveRace = unstable_cache(
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
-export type ArchiveYearStats = {
-  raceCount: number;
-  mostWinsDriver: { name: string; wins: number } | null;
-  mostWinsTeam: { name: string; wins: number } | null;
+export type YearLeader = { name: string; points: number; wins: number };
+
+// The in-progress season's own real points leader (computed in archive/page.tsx from the same
+// pure computeStandings the season page itself uses, not a separate implementation) - the archive
+// has zero rows for this year by design, so the year-card hover tooltip needs a different source
+// for it than yearStats below. Not defined alongside a getter here since it's derived from
+// current-season data (races.ts/media.ts), not archive_* tables - this is just the shared shape
+// so ArchiveExplorer/ArchiveSeasonGrid/page.tsx don't each redeclare their own copy. Name/points
+// only, no headshot/logo - Archive's hover tooltips are text-only by design (see SeasonCard.tsx).
+export type CurrentLeader = {
+  driver: { name: string; points: number } | null;
+  team: { name: string; points: number } | null;
 };
 
-type WinnerRow = { driver_name: string; constructor: string | null; archive_races: { year: number } | null };
+export type ArchiveYearStats = {
+  raceCount: number;
+  driverLeader: (YearLeader & { driverId: string }) | null;
+  teamLeader: YearLeader | null;
+};
 
-/** Per-season race count (exact, straight off archive_races) and "most wins" for both driver and
- * constructor (from archive_results filtered to winners only - ~1,149 rows, not the full 25,701 -
- * counting P1 finishes is scoring-methodology-agnostic and accurate for every season). Deliberately
- * not a "champion" - summing archive_results.points per season would be *wrong* for a real chunk
- * of history (F1 counted only a driver's best N results in various forms from 1950 through 1990,
- * not a full-season sum, which only became standard from 1991 onward), so this only ever surfaces
- * facts a scoring-system change can't retroactively make false. Keyed by year, one entry per
+// F1 only summed a driver's *entire* season toward the title from 1991 onward - before that it
+// counted just the best N results in various forms, which can (and, in 1988, demonstrably did -
+// Prost outscored Senna on a full-season sum, Senna won the actual title) diverge from a plain
+// points sum. driverLeader/teamLeader below are always a real points sum, for every year - this is
+// the one place that draws the line between "this sum happens to equal the real champion" (1991+,
+// label it "Champion") and "this sum is an approximation, not verified against the real rule"
+// (1950-1990, label it "Most points" instead). No other file should compare a year against 1991
+// directly - call isVerifiedChampionYear.
+export const FULL_SEASON_SCORING_START_YEAR = 1991;
+export function isVerifiedChampionYear(year: number): boolean {
+  return year >= FULL_SEASON_SCORING_START_YEAR;
+}
+
+type ResultLeaderRow = { driver_id: string; driver_name: string; constructor: string | null; points: number | null; position: number | null; archive_races: { year: number } | null };
+
+/** Per-season race count (exact, off archive_races) and the points-sum leader for both driver and
+ * constructor (see FULL_SEASON_SCORING_START_YEAR above for how a caller should label this - the
+ * number itself is always a real sum, never fabricated). One full scan of archive_results (25,701
+ * rows - the same cost class getArchiveTeamHomeCircuits already pays, and cached forever the same
+ * way) computes both the points sum and the win count per driver/constructor per year in a single
+ * pass, rather than a separate winners-only query. Grouped by driver_id (stable, always present)
+ * for drivers, by the constructor name string for teams (team_id is null on many rows until
+ * enrichment reaches them; constructor is complete on every row). Keyed by year, one entry per
  * season this archive actually has races for. */
 export const getArchiveYearStats = unstable_cache(
   async (): Promise<Record<number, ArchiveYearStats>> => {
-    // fetchAllRows on both, not a single .range() - this project's 1000-row-per-request cap
-    // applies to any unfiltered request, and archive_races alone already exceeds it (confirmed
-    // live). Without paging past it, race counts and "most wins" would silently be computed from
-    // a partial, arbitrarily-truncated slice of the data instead of the whole archive - see
-    // getArchiveCircuitStats's identical fix/comment for the same bug, found while building this.
-    const [racesResult, winnersResult] = await Promise.all([
+    // fetchAllRows on both - this project's 1000-row-per-request cap applies to any unfiltered
+    // request, and archive_races alone already exceeds it (confirmed live). See
+    // getArchiveCircuitStats's identical comment for the same bug this works around.
+    const [racesResult, resultsResult] = await Promise.all([
       fetchAllRows<{ year: number }>((from, to) => supabaseAdmin.from("archive_races").select("year").range(from, to)),
-      // archive_races(year) is a to-one embed (each result belongs to exactly one race) but the
-      // untyped client can't verify that statically without generated schema types, so it infers
-      // an array - same through-unknown cast getArchiveTeamHomeCircuits already needed for the
-      // identical shape.
-      fetchAllRows<WinnerRow>(
+      // archive_races(year) is a to-one embed but the untyped client infers an array without
+      // generated schema types - same through-unknown cast every embed of this shape needs.
+      fetchAllRows<ResultLeaderRow>(
         (from, to) =>
-          supabaseAdmin.from("archive_results").select("driver_name, constructor, archive_races(year)").eq("position", 1).range(from, to) as unknown as QueryPage<WinnerRow>,
+          supabaseAdmin
+            .from("archive_results")
+            .select("driver_id, driver_name, constructor, points, position, archive_races(year)")
+            .range(from, to) as unknown as QueryPage<ResultLeaderRow>,
       ),
     ]);
     if (racesResult.error) throw new Error(`getArchiveYearStats (races): ${racesResult.error.message}`);
-    if (winnersResult.error) throw new Error(`getArchiveYearStats (winners): ${winnersResult.error.message}`);
+    if (resultsResult.error) throw new Error(`getArchiveYearStats (results): ${resultsResult.error.message}`);
 
     const raceCountByYear = new Map<number, number>();
     for (const row of racesResult.data) {
       raceCountByYear.set(row.year, (raceCountByYear.get(row.year) ?? 0) + 1);
     }
 
-    const winsByYear = new Map<number, { driverWins: Map<string, number>; teamWins: Map<string, number> }>();
-    for (const row of winnersResult.data) {
+    type Tally = { points: number; wins: number };
+    const driverTallyByYear = new Map<number, Map<string, Tally>>(); // year -> driver_id -> tally
+    const driverNameById = new Map<string, string>();
+    const teamTallyByYear = new Map<number, Map<string, Tally>>(); // year -> constructor -> tally
+
+    for (const row of resultsResult.data) {
       const year = row.archive_races?.year;
       if (year == null) continue;
-      const bucket = winsByYear.get(year) ?? { driverWins: new Map<string, number>(), teamWins: new Map<string, number>() };
-      bucket.driverWins.set(row.driver_name, (bucket.driverWins.get(row.driver_name) ?? 0) + 1);
-      if (row.constructor) bucket.teamWins.set(row.constructor, (bucket.teamWins.get(row.constructor) ?? 0) + 1);
-      winsByYear.set(year, bucket);
+      const points = row.points ?? 0;
+      const won = row.position === 1;
+
+      driverNameById.set(row.driver_id, row.driver_name);
+      const driverTallies = driverTallyByYear.get(year) ?? new Map<string, Tally>();
+      const driverTally = driverTallies.get(row.driver_id) ?? { points: 0, wins: 0 };
+      driverTally.points += points;
+      if (won) driverTally.wins += 1;
+      driverTallies.set(row.driver_id, driverTally);
+      driverTallyByYear.set(year, driverTallies);
+
+      if (row.constructor) {
+        const teamTallies = teamTallyByYear.get(year) ?? new Map<string, Tally>();
+        const teamTally = teamTallies.get(row.constructor) ?? { points: 0, wins: 0 };
+        teamTally.points += points;
+        if (won) teamTally.wins += 1;
+        teamTallies.set(row.constructor, teamTally);
+        teamTallyByYear.set(year, teamTallies);
+      }
     }
 
-    function topEntry(counts: Map<string, number>): { name: string; wins: number } | null {
-      const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-      return sorted[0] ? { name: sorted[0][0], wins: sorted[0][1] } : null;
+    function topDriver(tallies: Map<string, Tally> | undefined): (YearLeader & { driverId: string }) | null {
+      if (!tallies) return null;
+      const sorted = [...tallies.entries()].sort((a, b) => b[1].points - a[1].points);
+      const top = sorted[0];
+      if (!top) return null;
+      return { driverId: top[0], name: driverNameById.get(top[0]) ?? top[0], points: top[1].points, wins: top[1].wins };
+    }
+    function topTeam(tallies: Map<string, Tally> | undefined): YearLeader | null {
+      if (!tallies) return null;
+      const sorted = [...tallies.entries()].sort((a, b) => b[1].points - a[1].points);
+      const top = sorted[0];
+      return top ? { name: top[0], points: top[1].points, wins: top[1].wins } : null;
     }
 
     const result: Record<number, ArchiveYearStats> = {};
     for (const [year, raceCount] of raceCountByYear) {
-      const wins = winsByYear.get(year);
       result[year] = {
         raceCount,
-        mostWinsDriver: wins ? topEntry(wins.driverWins) : null,
-        mostWinsTeam: wins ? topEntry(wins.teamWins) : null,
+        driverLeader: topDriver(driverTallyByYear.get(year)),
+        teamLeader: topTeam(teamTallyByYear.get(year)),
       };
     }
     return result;

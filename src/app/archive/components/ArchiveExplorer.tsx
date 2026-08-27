@@ -6,6 +6,7 @@ import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { eraForYear } from "@/lib/eras";
+import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam, ArchiveYearStats, CurrentLeader } from "@/lib/supabase/archive";
 import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { useFavoritesHydration } from "@/queries/favorites/useFavoritesHydration";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
@@ -13,7 +14,6 @@ import { ArchiveDriverTable } from "./ArchiveDriverTable";
 import { EraFilterSelect, FavoritesOnlyToggle, TrackFilters } from "./ArchiveFilters";
 import { ArchiveSeasonGrid } from "./ArchiveSeasonGrid";
 import { ArchiveTeamTable } from "./ArchiveTeamTable";
-import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam } from "@/lib/supabase/archive";
 
 type Facet = "year" | "track" | "driver" | "team";
 
@@ -47,6 +47,8 @@ export function ArchiveExplorer({
   teams,
   activeCircuitIds,
   activeTeamIds,
+  yearStats,
+  currentLeader,
   favoriteTracks: initialFavoriteTracks,
   favoriteDrivers: initialFavoriteDrivers,
   favoriteTeams: initialFavoriteTeams,
@@ -63,6 +65,8 @@ export function ArchiveExplorer({
    * matching logic). */
   activeCircuitIds: string[];
   activeTeamIds: string[];
+  yearStats: Record<number, ArchiveYearStats>;
+  currentLeader: CurrentLeader;
   favoriteTracks: string[];
   favoriteDrivers: string[];
   favoriteTeams: string[];
@@ -135,7 +139,7 @@ export function ArchiveExplorer({
           onChange={(e) => setSearch(e.target.value)}
           placeholder={PLACEHOLDER[facet]}
           aria-label={PLACEHOLDER[facet]}
-          className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
+          className="w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
         />
       </div>
 
@@ -177,7 +181,13 @@ export function ArchiveExplorer({
               {filteredYears.length === 0 && !showLiveSeason ? (
                 <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
               ) : (
-                <ArchiveSeasonGrid years={filteredYears} currentYear={currentYear} showLiveSeason={showLiveSeason} />
+                <ArchiveSeasonGrid
+                  years={filteredYears}
+                  currentYear={currentYear}
+                  showLiveSeason={showLiveSeason}
+                  yearStats={yearStats}
+                  currentLeader={currentLeader}
+                />
               )}
             </div>
           )}

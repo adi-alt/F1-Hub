@@ -7,6 +7,7 @@ import { LapChart } from "./components/LapChart";
 import { PitStopsTimeline } from "./components/PitStopsTimeline";
 import { QualifyingBarChart } from "./components/QualifyingBarChart";
 import { ResultsBoard } from "./components/ResultsBoard";
+import { ArchiveHistoryRaceList } from "./components/ArchiveHistoryRaceList";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
@@ -20,16 +21,19 @@ import {
   getArchiveSeasonData,
   getArchiveTeamData,
   getArchiveTeamHistoryData,
+  getArchiveYearStatsData,
   getArchiveYears,
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
+import type { CurrentLeader } from "@/lib/supabase/archive";
 import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
+import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead } from "@/lib/safeRead";
-import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
+import { archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 type Facet = "year" | "track" | "driver" | "team";
@@ -42,10 +46,17 @@ type Facet = "year" | "track" | "driver" | "team";
  * current-season <-> archive matching problem src/app/profile/page.tsx's mergeCurrentSeason
  * already solves (there: fold this year's names into the archive-sourced favorite lists; here:
  * flag which existing archive circuits/teams are also this year's), reusing the exact same
- * resolver functions rather than writing a second matching implementation. Best-effort: if the
- * current season's own data can't be read right now, every circuit/team just reads as
- * "historical" rather than crashing the whole Archive page over one extra cross-reference. */
-async function getActiveIds(circuits: Awaited<ReturnType<typeof getAllArchiveCircuitsData>>): Promise<{ circuitIds: string[]; teamIds: string[] }> {
+ * resolver functions rather than writing a second matching implementation. Also derives
+ * `currentLeader` from the same current-season fetch, so as not to duplicate it - this year's
+ * points leader, computed with the same pure computeStandings the season page itself uses, for
+ * the year-card hover tooltip on the in-progress season (which the archive has no rows for at
+ * all). Best-effort: if the current season's own data can't be read right now, everything just
+ * degrades to "historical, no leader" rather than crashing the whole Archive page over one extra
+ * cross-reference. */
+async function getActiveIds(
+  circuits: Awaited<ReturnType<typeof getAllArchiveCircuitsData>>,
+): Promise<{ circuitIds: string[]; teamIds: string[]; currentLeader: CurrentLeader }> {
+  const empty = { circuitIds: [], teamIds: [], currentLeader: { driver: null, team: null } };
   try {
     const year = new Date().getFullYear();
     const [races, currentTeams] = await Promise.all([getRacesByYear(year), getAllCurrentTeams()]);
@@ -58,33 +69,41 @@ async function getActiveIds(circuits: Awaited<ReturnType<typeof getAllArchiveCir
       if (resolved) circuitIds.add(resolved);
     }
     const teamIds = currentTeams.map((t) => archiveSlugForCurrentTeam(t.name));
-    return { circuitIds: [...circuitIds], teamIds };
+
+    const standings = computeStandings(races);
+    const topDriver = standings.drivers[0];
+    const topTeam = standings.constructors[0];
+    const currentLeader: CurrentLeader = {
+      driver: topDriver ? { name: topDriver.driverName, points: topDriver.points } : null,
+      team: topTeam ? { name: topTeam.team, points: topTeam.points } : null,
+    };
+
+    return { circuitIds: [...circuitIds], teamIds, currentLeader };
   } catch (error) {
     console.error("ArchiveIndex: current-season reconciliation failed, treating everything as historical:", error);
-    return { circuitIds: [], teamIds: [] };
+    return empty;
   }
 }
 
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
-  // getArchiveYearStatsData exists and is cheap (see src/lib/supabase/archive.ts) but isn't
-  // fetched here - the grid shows a compact year badge, not per-card analytics, so there's
-  // nothing on this page that would read it. Kept available for the season detail view below to
-  // pick up later rather than deleted.
-  const [circuits, drivers, teams, profile] = await Promise.all([
+  const [circuits, drivers, teams, profile, yearStats] = await Promise.all([
     safeRead(() => getAllArchiveCircuitsData(), []),
     safeRead(() => getAllArchiveDriversData(), []),
     safeRead(() => getAllArchiveTeamsData(), []),
     safeRead(() => getUserProfile(uid), null),
+    safeRead(() => getArchiveYearStatsData(), {} as Awaited<ReturnType<typeof getArchiveYearStatsData>>),
   ]);
-  const { circuitIds: activeCircuitIds, teamIds: activeTeamIds } = await getActiveIds(circuits);
+  const { circuitIds: activeCircuitIds, teamIds: activeTeamIds, currentLeader } = await getActiveIds(circuits);
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
-      <h1 className="shrink-0 text-3xl font-bold text-white">Archive</h1>
-      <p className="mt-1 shrink-0 text-sm text-neutral-500">
-        Every season from {ARCHIVE_EARLIEST_YEAR} to {ARCHIVE_LATEST_YEAR} — results only, sourced
-        from the Ergast/Jolpi historical database.
-      </p>
+      <h1 className="flex shrink-0 items-baseline gap-3">
+        <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">Archive</span>
+        <span className="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
+          {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}
+        </span>
+      </h1>
+      <p className="mt-1 shrink-0 text-sm text-neutral-500">Results only, sourced from the Ergast/Jolpi historical database.</p>
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
         <ArchiveExplorer
           uid={uid}
@@ -96,6 +115,8 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
           teams={teams}
           activeCircuitIds={activeCircuitIds}
           activeTeamIds={activeTeamIds}
+          yearStats={yearStats}
+          currentLeader={currentLeader}
           favoriteTracks={profile?.favoriteTracks ?? []}
           favoriteDrivers={profile?.favoriteDrivers ?? []}
           favoriteTeams={profile?.favoriteTeams ?? []}
@@ -147,7 +168,7 @@ async function ArchiveRace({ year, round }: { year: number; round: number }) {
         {race.circuitName}
         {race.locality ? `, ${race.locality}` : ""}
         {race.country ? `, ${race.country}` : ""}
-        {race.raceDate ? ` — ${race.raceDate}` : ""}
+        {race.raceDate ? ` · ${race.raceDate}` : ""}
         {race.wikipediaUrl && (
           <>
             {" · "}
@@ -211,29 +232,17 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
       <p className="mt-6 text-sm text-neutral-500">
         {races.length} race{races.length === 1 ? "" : "s"} on record here
       </p>
-      <div className="mt-3 space-y-2">
-        {races.map((r) => {
-          const winner = r.results.find((res) => res.position === 1);
-          return (
-            <Link
-              key={r.id}
-              href={archiveRaceHref(r.year, r.round)}
-              className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-5 py-4 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
-            >
-              <div>
-                <p className="text-xs text-neutral-500">{r.year}</p>
-                <p className="font-semibold text-white">{r.raceName}</p>
-              </div>
-              {winner && (
-                <div className="text-right">
-                  <p className="text-xs text-neutral-500">Winner</p>
-                  <p className="text-sm font-medium text-white">{winner.driverName}</p>
-                </div>
-              )}
-            </Link>
-          );
-        })}
-      </div>
+      <ArchiveHistoryRaceList
+        className="mt-3 space-y-2"
+        races={races.map((r) => ({
+          id: r.id,
+          year: r.year,
+          round: r.round,
+          raceName: r.raceName,
+          secondaryLabel: "Winner",
+          secondaryValue: r.results.find((res) => res.position === 1)?.driverName ?? null,
+        }))}
+      />
     </div>
   );
 }
@@ -254,29 +263,16 @@ async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
       <p className="mt-1 text-sm text-neutral-500">
         {Math.min(...years)}–{Math.max(...years)} · {races.length} race{races.length === 1 ? "" : "s"}
       </p>
-      <div className="mt-6 space-y-2">
-        {races.map((r) => {
-          const entry = r.results.find((res) => res.driverId === driverId);
-          return (
-            <Link
-              key={r.id}
-              href={archiveRaceHref(r.year, r.round)}
-              className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-5 py-4 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
-            >
-              <div>
-                <p className="text-xs text-neutral-500">{r.year}</p>
-                <p className="font-semibold text-white">{r.raceName}</p>
-              </div>
-              {entry && (
-                <div className="text-right">
-                  <p className="text-xs text-neutral-500">Finished</p>
-                  <p className="text-sm font-medium text-white">{entry.positionText}</p>
-                </div>
-              )}
-            </Link>
-          );
-        })}
-      </div>
+      <ArchiveHistoryRaceList
+        races={races.map((r) => ({
+          id: r.id,
+          year: r.year,
+          round: r.round,
+          raceName: r.raceName,
+          secondaryLabel: "Finished",
+          secondaryValue: r.results.find((res) => res.driverId === driverId)?.positionText ?? null,
+        }))}
+      />
     </div>
   );
 }
@@ -296,29 +292,16 @@ async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
       <p className="mt-1 text-sm text-neutral-500">
         {Math.min(...years)}–{Math.max(...years)} · {races.length} race{races.length === 1 ? "" : "s"}
       </p>
-      <div className="mt-6 space-y-2">
-        {races.map((r) => {
-          const winner = r.results.find((res) => res.position === 1);
-          return (
-            <Link
-              key={r.id}
-              href={archiveRaceHref(r.year, r.round)}
-              className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-5 py-4 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
-            >
-              <div>
-                <p className="text-xs text-neutral-500">{r.year}</p>
-                <p className="font-semibold text-white">{r.raceName}</p>
-              </div>
-              {winner && (
-                <div className="text-right">
-                  <p className="text-xs text-neutral-500">Winner</p>
-                  <p className="text-sm font-medium text-white">{winner.driverName}</p>
-                </div>
-              )}
-            </Link>
-          );
-        })}
-      </div>
+      <ArchiveHistoryRaceList
+        races={races.map((r) => ({
+          id: r.id,
+          year: r.year,
+          round: r.round,
+          raceName: r.raceName,
+          secondaryLabel: "Winner",
+          secondaryValue: r.results.find((res) => res.position === 1)?.driverName ?? null,
+        }))}
+      />
     </div>
   );
 }
