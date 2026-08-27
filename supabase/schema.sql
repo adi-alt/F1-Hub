@@ -336,6 +336,21 @@ alter table picks enable row level security;
 create policy "own profile" on profiles for all using (auth.uid() = id);
 create policy "own picks" on picks for all using (auth.uid() = user_id);
 
+-- security definer bypasses RLS internally when this runs, which is exactly what's needed here -
+-- a plain `exists (select 1 from profiles where id = auth.uid() and role = 'admin')` inside a
+-- profiles policy would recurse into the very table the policy is attached to and fail with
+-- "infinite recursion detected in policy". Lets an admin's browser-side Supabase client (used
+-- only by *RealtimeWatcher components and AuthProvider.signOut, see src/lib/supabase/client.ts)
+-- receive realtime postgres_changes events for every profiles row, not just their own — the same
+-- data an admin already sees on every /users page load via supabaseAdmin (which bypasses RLS
+-- entirely server-side), just extended to the one transport that doesn't: live updates.
+create or replace function is_admin(uid uuid) returns boolean
+language sql security definer stable
+as $$
+  select exists (select 1 from profiles where id = uid and role = 'admin');
+$$;
+create policy "admin read all profiles" on profiles for select using (is_admin(auth.uid()));
+
 -- Everything else (races, archive_*, calendar, model_benchmarks, drivers, teams) is public read,
 -- service-role write only — same trust model as today (Firestore rules already forbid client
 -- writes to these).
@@ -358,6 +373,12 @@ create policy "public read" on teams for select using (true);
 -- subscription would be redundant. Respects the "public read" policy above the same way any other
 -- select does — no separate grant needed.
 alter publication supabase_realtime add table races;
+
+-- Lets FavoritesRealtimeWatcher (src/components/FavoritesRealtimeWatcher.tsx, filtered to the
+-- signed-in user's own row, respects "own profile" above) and the Users admin page's realtime
+-- sync (src/app/users/_hooks/useUsersRealtimeSync.ts, respects "admin read all profiles" above)
+-- both react the moment a profiles row changes, instead of a manual reload.
+alter publication supabase_realtime add table profiles;
 
 -- ============================================================= groups
 
@@ -440,21 +461,3 @@ create policy "admins can update their group" on groups for update
 -- exist yet at that earlier point in this file (alter publication needs the table to already exist).
 alter publication supabase_realtime add table group_race_scores;
 alter publication supabase_realtime add table group_members;
-
--- ============================================================= F1 news
--- Polled from Formula1.com's own RSS feed (pipeline/fetch_news.py, every few hours) - that feed
--- only ever exposes its latest ~10 items with no publish date, so this table is an ever-growing
--- archive built forward from whenever ingestion started, not a backfilled history. guid is the
--- feed's own <guid> (its article permalink) - the natural primary key and dedup key across runs,
--- since a given poll's 10 items mostly overlap with the previous one. fetched_at only gets set on
--- a genuinely new guid (see fetch_news.py's own upsert call) - a re-poll of an already-known
--- article never creeps its "first seen" timestamp forward.
-create table news (
-  guid text primary key,
-  title text not null,
-  description text,
-  link text not null,
-  creator text,
-  fetched_at timestamptz not null default now()
-);
-create index news_fetched_at_idx on news (fetched_at desc);

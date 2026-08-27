@@ -4,7 +4,9 @@ import { usersKeys } from "../_queries/usersKeys";
 import { fetchUsersByEmail, fetchUsersPage, postRoleUpdate } from "../_service/users.client";
 
 /** Cursor-paginated user list, seeded from the Server Component's initial page so the first
- * render needs no client fetch at all. */
+ * render needs no client fetch at all. staleTime: Infinity — useUsersRealtimeSync is the actual
+ * freshness signal now (a profiles change invalidates this directly), so there's no reason for
+ * this to also refetch on its own timers/on window focus. */
 export function useUsersList(initialUsers: UserProfile[], initialCursor: string | null) {
   return useInfiniteQuery({
     queryKey: usersKeys.list(),
@@ -12,16 +14,19 @@ export function useUsersList(initialUsers: UserProfile[], initialCursor: string 
     initialPageParam: initialCursor,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialData: { pages: [{ users: initialUsers, nextCursor: initialCursor }], pageParams: [initialCursor] },
+    staleTime: Infinity,
   });
 }
 
 /** Exact-email search box — fires on every change (no debounce; email search wasn't something
- * asked to change), only enabled once there's something to search for. */
+ * asked to change), only enabled once there's something to search for. Same staleTime: Infinity
+ * reasoning as useUsersList above. */
 export function useUserSearch(email: string) {
   return useQuery({
     queryKey: usersKeys.search(email),
     queryFn: () => fetchUsersByEmail(email),
     enabled: email.trim().length > 0,
+    staleTime: Infinity,
   });
 }
 

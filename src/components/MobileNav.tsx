@@ -10,7 +10,6 @@ const baseLinks = [
   { href: "/circuits", label: "Circuits" },
   { href: "/archive", label: "Archive" },
   { href: "/groups", label: "Groups" },
-  { href: "/news", label: "News" },
 ];
 
 export function MobileNav({

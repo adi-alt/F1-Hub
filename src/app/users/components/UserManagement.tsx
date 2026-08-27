@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useUserSearch, useUsersList, useSetUserRole } from "../_hooks/useUsers";
+import { useUsersRealtimeSync } from "../_hooks/useUsersRealtimeSync";
 import type { UserProfile } from "@/lib/supabase/users";
 
 type Props = {
@@ -26,6 +27,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState<string | null>(null);
 
+  useUsersRealtimeSync();
   const usersList = useUsersList(initialUsers, initialCursor);
   const searchQuery = useUserSearch(search);
   const setRole = useSetUserRole();
