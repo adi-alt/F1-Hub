@@ -36,9 +36,10 @@ type DaySession = {
 };
 
 const GAP = 3; // px, fixed - only the cell itself scales
-const MIN_CELL = 10; // px - stays a legible square even when many weeks force horizontal scroll
-const MAX_CELL = 24; // px - a ceiling for a short season/very wide screen, not the common case
-const DEFAULT_CELL = 12; // px - server-rendered guess before the client can measure real width
+const MIN_CELL = 9; // px - stays a legible square even when many weeks force horizontal scroll
+const MAX_CELL = 14; // px - keeps tiles GitHub-proportioned even on a very wide container; the
+// grid centers (mx-auto) in whatever width is left over rather than stretching to fill it
+const DEFAULT_CELL = 11; // px - server-rendered guess before the client can measure real width
 const TOOLTIP_WIDTH = 224; // px, matches the w-56 tooltip below
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const VISIBLE_DAY_LABELS = new Set([1, 3, 5]); // Mon/Wed/Fri, GitHub's own convention
@@ -251,35 +252,40 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
 
           <AnimatePresence>
             {hover && (
-              <motion.div
-                initial={{ opacity: 0, y: 4, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                transition={{ duration: 0.12, ease: "easeOut" }}
-                className="glass-surface pointer-events-none absolute z-30 rounded-lg p-3"
-                style={{ top: hover.top - 8, left: hover.left, width: TOOLTIP_WIDTH, transform: "translateY(-100%)" }}
-              >
-                <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-                <p className="text-[10px] text-neutral-500">
-                  Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
-                </p>
-                <div className="mt-2 flex flex-col gap-1">
-                  {hover.sessions.map((s) => (
-                    <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="flex items-center gap-1.5 text-neutral-300">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
-                        {s.label}
-                      </span>
-                      <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                  ))}
-                </div>
-                {hoverWinner && (
-                  <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
-                    Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
+              // Static positioning transform lives on this plain wrapper, separate from the
+              // motion.div's own animated y/scale transform below - mixing a fixed CSS transform
+              // into the same style object Framer Motion is also writing its animated transform
+              // into is what was making the panel (and its backdrop-blur) render unreliably.
+              <div className="pointer-events-none absolute z-30" style={{ top: hover.top - 8, left: hover.left, width: TOOLTIP_WIDTH, transform: "translateY(-100%)" }}>
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.12, ease: "easeOut" }}
+                  className="glass-surface rounded-lg p-3 backdrop-blur-md"
+                >
+                  <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+                  <p className="text-[10px] text-neutral-500">
+                    Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
                   </p>
-                )}
-              </motion.div>
+                  <div className="mt-2 flex flex-col gap-1">
+                    {hover.sessions.map((s) => (
+                      <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="flex items-center gap-1.5 text-neutral-300">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                          {s.label}
+                        </span>
+                        <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {hoverWinner && (
+                    <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
+                      Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
+                    </p>
+                  )}
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>
         </div>

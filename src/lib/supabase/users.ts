@@ -152,7 +152,8 @@ export async function getUserByEmail(email: string): Promise<UserProfile | null>
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const { data } = await supabaseAdmin.from("profiles").select("*").eq("id", uid).maybeSingle();
+  const { data, error } = await supabaseAdmin.from("profiles").select("*").eq("id", uid).maybeSingle();
+  if (error) throw new Error(`getUserProfile(${uid}): ${error.message}`);
   return data ? fromRow(data as ProfileRow) : null;
 }
 

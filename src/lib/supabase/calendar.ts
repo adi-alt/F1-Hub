@@ -70,7 +70,11 @@ export const getCalendarEntry = unstable_cache(
  * of one round at a time). */
 export const getCalendarEntriesByYear = unstable_cache(
   async (year: number): Promise<CalendarEntry[]> => {
-    const { data } = await supabaseAdmin.from("calendar").select("*").eq("year", year).order("round");
+    // See getRacesByYear's own comment - a swallowed error here reads as "empty calendar" and
+    // gets cached as such for REVALIDATE_SECONDS, instead of surfacing and letting the next
+    // request try again fresh.
+    const { data, error } = await supabaseAdmin.from("calendar").select("*").eq("year", year).order("round");
+    if (error) throw new Error(`getCalendarEntriesByYear(${year}): ${error.message}`);
     return ((data ?? []) as CalendarRow[]).map(fromRow);
   },
   ["get-calendar-entries-by-year"],

@@ -22,9 +22,13 @@ function fromTeamRow(row: TeamRow): CurrentTeam {
   return { name: row.name, color: row.color, logoUrl: row.logo_url };
 }
 
+// Both throw on a real query error rather than falling back to `[]` - a swallowed error here
+// reads exactly like "no current drivers/teams" and would get cached as such for
+// REVALIDATE_SECONDS, same failure mode as getRacesByYear's own (see its comment).
 export const getAllCurrentDrivers = unstable_cache(
   async (): Promise<CurrentDriver[]> => {
-    const { data } = await supabaseAdmin.from("drivers").select("*").order("name");
+    const { data, error } = await supabaseAdmin.from("drivers").select("*").order("name");
+    if (error) throw new Error(`getAllCurrentDrivers: ${error.message}`);
     return ((data ?? []) as DriverRow[]).map(fromDriverRow);
   },
   ["get-all-current-drivers"],
@@ -33,7 +37,8 @@ export const getAllCurrentDrivers = unstable_cache(
 
 export const getAllCurrentTeams = unstable_cache(
   async (): Promise<CurrentTeam[]> => {
-    const { data } = await supabaseAdmin.from("teams").select("*").order("name");
+    const { data, error } = await supabaseAdmin.from("teams").select("*").order("name");
+    if (error) throw new Error(`getAllCurrentTeams: ${error.message}`);
     return ((data ?? []) as TeamRow[]).map(fromTeamRow);
   },
   ["get-all-current-teams"],

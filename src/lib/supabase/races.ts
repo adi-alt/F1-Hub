@@ -167,7 +167,13 @@ export const getRace = unstable_cache(
  * `withCalendarPlaceholders`) — otherwise the back half of an in-progress season is invisible. */
 export const getRacesByYear = unstable_cache(
   async (year: number): Promise<RaceDoc[]> => {
-    const { data } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).order("round");
+    // A transient query failure (timeout, connection blip) must not silently read as "no races
+    // this season" - `data` alone comes back null on error just like it does on a genuinely
+    // empty table, and this result is cached for REVALIDATE_SECONDS, so swallowing the error here
+    // would mean one hiccup renders as (and stays cached as) a wrong, empty season for 5 minutes.
+    // Throwing instead surfaces it through the app's real error boundary and skips the cache.
+    const { data, error } = await supabaseAdmin.from("races").select(RACE_SELECT).eq("year", year).order("round");
+    if (error) throw new Error(`getRacesByYear(${year}): ${error.message}`);
     const races = ((data ?? []) as RaceRow[]).map(toRaceDoc);
     return withCalendarPlaceholders(year, races);
   },

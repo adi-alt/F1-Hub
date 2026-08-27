@@ -404,7 +404,8 @@ export const getAllArchiveDrivers = unstable_cache(
  * silently keeping whichever row the query happened to return last. */
 export async function getArchiveDriverIdsByCode(codes: string[]): Promise<Map<string, string>> {
   if (codes.length === 0) return new Map();
-  const { data } = await supabaseAdmin.from("archive_drivers").select("driver_id, code, last_year").in("code", codes);
+  const { data, error } = await supabaseAdmin.from("archive_drivers").select("driver_id, code, last_year").in("code", codes);
+  if (error) throw new Error(`getArchiveDriverIdsByCode: ${error.message}`);
   const bestByCode = new Map<string, { driverId: string; lastYear: number }>();
   for (const row of (data ?? []) as { driver_id: string; code: string | null; last_year: number }[]) {
     if (!row.code) continue;
