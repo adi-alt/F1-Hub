@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { teamColor } from "@/lib/teamColors";
 import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
 import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../_utils/seasonStats";
@@ -78,6 +79,10 @@ export function ComparePanel({
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
   const isDrivers = entityType === "drivers";
+  // Without this, a wheel scroll inside the race-by-race table also drags the whole page's own
+  // Lenis scroll along with it - the same nested-region registration ChampionshipStandings'
+  // table already uses, so this table's own scroll stays contained to itself.
+  const scrollRef = useNestedLenisScroll(`${compareA}-${compareB}`);
 
   // Same option shape (grouped by team, real team color/logo) and the same "Favorites" grouping
   // Progression's Custom multi-select uses - one visual/data language for every entity picker in
@@ -211,7 +216,7 @@ export function ComparePanel({
       {raceRows.length > 0 && (
         <div className="mt-5">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Race-by-race finishing position</p>
-          <div className="max-h-56 overflow-y-auto rounded-lg border border-white/10 scrollbar-hide">
+          <div ref={scrollRef} className="max-h-56 overflow-y-auto rounded-lg border border-white/10 scrollbar-hide">
             <table className="w-full text-sm">
               <thead
                 className="sticky top-0 z-10 border-b border-white/[0.08] text-[10px] uppercase tracking-wide text-neutral-500 backdrop-blur-md"

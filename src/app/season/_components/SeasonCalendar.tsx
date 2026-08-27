@@ -37,14 +37,13 @@ type DaySession = {
 
 const GAP = 3; // px, fixed - only the cell itself scales
 const MIN_CELL = 9; // px - stays a legible square even when many weeks force horizontal scroll
-// 24, not GitHub's own ~11px - a full F1 season is ~40-42 weeks (March-December, see
-// season.service.ts), and this app's own max-w-[1200px] page already caps how wide the container
-// can ever get, so there's no ultrawide-monitor case where this blows tiles up absurdly large.
-// Raw (measured-width / weekCount) for a real season comes out around 23px on this page's actual
-// content width - this ceiling is picked to sit just above that, so the grid's own natural width
-// fills the container instead of being clamped down and centered with dead space on both sides.
-const MAX_CELL = 24; // px
-const DEFAULT_CELL = 14; // px - server-rendered guess before the client can measure real width
+// Bigger than GitHub's own ~11px (a full F1 season is ~40-42 weeks, see season.service.ts, and
+// this app's own max-w-[1200px] page already caps how wide the container can get), but pulled
+// back from an earlier pass that filled the *entire* measured width (~23-24px raw) - that read as
+// chunky rather than GitHub-proportioned. This sits below that raw value on purpose, so the clamp
+// still applies and tiles stay a legible-but-compact square instead of stretching edge to edge.
+const MAX_CELL = 18; // px
+const DEFAULT_CELL = 12; // px - server-rendered guess before the client can measure real width
 const TOOLTIP_WIDTH = 224; // px, matches the w-56 tooltip below
 const TOOLTIP_BASE_HEIGHT = 70; // px, date + round/race lines + padding, before any session rows
 const TOOLTIP_SESSION_ROW_HEIGHT = 20; // px, per session line

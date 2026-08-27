@@ -156,7 +156,10 @@ export function EntityMultiSelect({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${multiple ? "" : "w-full"} ${
-          open || count > 0 ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/10 text-white" : "border-white/10 bg-white/[0.02] text-neutral-400 hover:text-white"
+          // Red is an "actively open" state, not a "has a value" one - a single-select trigger
+          // (Compare) almost always has a value, so tying the accent to count>0 left it
+          // permanently red instead of only highlighting while the popover is actually open.
+          open ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/10 text-white" : "border-white/10 bg-white/[0.02] text-neutral-300 hover:text-white"
         }`}
       >
         <span className={`truncate ${count === 0 ? "text-neutral-500" : ""}`}>{triggerLabel}</span>

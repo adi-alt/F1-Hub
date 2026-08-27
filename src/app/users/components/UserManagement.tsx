@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useUserSearch, useUsersList, useSetUserRole } from "../_hooks/useUsers";
 import type { UserProfile } from "@/lib/supabase/users";
 
@@ -31,6 +32,8 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   const usersList = useUsersList(initialUsers, initialCursor);
   const searchQuery = useUserSearch(search);
   const setRole = useSetUserRole();
+  // Without this, scrolling the table also drags the whole page's own Lenis scroll along with it.
+  const scrollRef = useNestedLenisScroll(search);
 
   const users = usersList.data?.pages.flatMap((p) => p.users) ?? initialUsers;
   const searchResult = search.trim() ? (searchQuery.data ?? null) : null;
@@ -113,7 +116,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
         {/* Bounded height + its own scroll, not the page's — the header stays pinned via sticky
             rather than scrolling out of view as more pages load in. */}
-        <div className="max-h-[420px] overflow-auto scrollbar-hide">
+        <div ref={scrollRef} className="max-h-[420px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
               <tr>

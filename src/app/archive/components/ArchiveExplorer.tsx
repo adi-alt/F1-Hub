@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { useFavoritesHydration } from "@/queries/favorites/useFavoritesHydration";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
@@ -68,6 +69,11 @@ export function ArchiveExplorer({
   const favoriteDrivers = useFavDriverIds();
   const favoriteTeams = useFavTeamIds();
   const toggleFavorite = useToggleFavorite();
+  // Year/track are the only two facets with their own inner scroll region (driver/team tables
+  // scroll the page itself) - one nested-region registration covers both since only one of them
+  // is ever mounted at a time. Without this, scrolling either grid also drags the whole page's
+  // own Lenis scroll along with it.
+  const scrollRef = useNestedLenisScroll(section);
 
   function switchTo(next: Facet) {
     setSection(next);
@@ -122,12 +128,12 @@ export function ArchiveExplorer({
             (filteredYears.length === 0 ? (
               <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
             ) : (
-              <div className="h-full overflow-y-auto scrollbar-hide">
+              <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-hide">
                 <ArchiveSeasonGrid years={filteredYears} />
               </div>
             ))}
           {section === "track" && (
-            <div className="h-full overflow-y-auto scrollbar-hide">
+            <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-hide">
               <ArchiveCircuitGrid
                 circuits={circuits}
                 search={search}
