@@ -21,26 +21,30 @@ export type MultiSelectOption = {
 
 type Rect = { top: number; left: number; width: number; flip: boolean };
 
-/** A compact multi-select popover: trigger reads "{n} selected", opens a portaled dropdown with
- * search, select all/clear all, and a grouped, checkable option list. Replaces Progression's old
- * always-visible pill row for Custom mode - the same problem (many options, one control) that
- * SearchableSelect.tsx already solves for a *single* choice, extended here for multiple. Kept as
- * its own component rather than generalizing SearchableSelect itself: ComparePanel depends on that
- * component's single-select behavior, and a purpose-built sibling is less risk than threading a
- * multi-value mode through code something else already relies on. Same portal/position/click-
- * outside pattern as SearchableSelect, so it behaves consistently with the rest of the app. */
+/** A compact select popover: trigger reads "{n} selected" (multi) or the chosen entity's name
+ * (single), opens a portaled dropdown with search and a grouped option list. Built for
+ * Progression's Custom mode (multi, with select all/clear all and checkboxes) and reused by
+ * Compare's driver/team pickers (`multiple={false}` - single click selects and closes, no
+ * checkbox row) so both controls share one visual language instead of this one looking like a
+ * polished popover and Compare's looking like a plain text input with a native focus ring. Kept
+ * as its own component rather than generalizing SearchableSelect.tsx (still used, unmodified in
+ * spirit, by the signup flow): a purpose-built component here is less risk than threading a very
+ * different interaction model through code something else already relies on. Same portal/
+ * position/click-outside pattern as SearchableSelect, so it behaves consistently either way. */
 export function EntityMultiSelect({
   options,
   selected,
   onChange,
   favoriteCodes,
   placeholder = "Select",
+  multiple = true,
 }: {
   options: MultiSelectOption[];
   selected: string[];
   onChange: (codes: string[]) => void;
   favoriteCodes?: Set<string>;
   placeholder?: string;
+  multiple?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -117,6 +121,15 @@ export function EntityMultiSelect({
   }
 
   function toggle(code: string) {
+    if (!multiple) {
+      onChange([code]);
+      // Not close() - that also refocuses the trigger, which fights the click that's already
+      // landing here (Escape's own handler still goes through close() for that same
+      // return-focus-to-trigger behavior, where it's actually wanted).
+      setOpen(false);
+      setQuery("");
+      return;
+    }
     onChange(selectedSet.has(code) ? selected.filter((c) => c !== code) : [...selected, code]);
   }
   function selectAll() {
@@ -128,18 +141,25 @@ export function EntityMultiSelect({
   }
 
   const count = selected.length;
+  const selectedOption = !multiple ? options.find((o) => o.code === selected[0]) : undefined;
+  const triggerLabel = multiple ? (count > 0 ? `${count} selected` : placeholder) : (selectedOption?.label ?? placeholder);
 
   return (
-    <div ref={rootRef} className="relative inline-block">
+    // Progression's Custom trigger stays compact (inline-block, sized to its own label);
+    // Compare's driver/team pickers need to fill their half of the "A vs B" row instead of
+    // shrink-wrapping to whatever name happens to be selected - `multiple` already tells the two
+    // apart (Progression is always multi, Compare is always single), so this doesn't need its own
+    // separate prop.
+    <div ref={rootRef} className={`relative ${multiple ? "inline-block" : "block w-full"}`}>
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+        className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${multiple ? "" : "w-full"} ${
           open || count > 0 ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/10 text-white" : "border-white/10 bg-white/[0.02] text-neutral-400 hover:text-white"
         }`}
       >
-        <span>{count > 0 ? `${count} selected` : placeholder}</span>
+        <span className={`truncate ${count === 0 ? "text-neutral-500" : ""}`}>{triggerLabel}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`shrink-0 transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
           <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -174,17 +194,19 @@ export function EntityMultiSelect({
                   className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[var(--f1-red)]/40"
                 />
               </div>
-              <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-neutral-500">
-                <button type="button" onClick={selectAll} className="transition hover:text-white">
-                  Select all
-                </button>
-                <span className="text-neutral-700">
-                  {count} of {options.length}
-                </span>
-                <button type="button" onClick={clearAll} className="transition hover:text-white">
-                  Clear all
-                </button>
-              </div>
+              {multiple && (
+                <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-neutral-500">
+                  <button type="button" onClick={selectAll} className="transition hover:text-white">
+                    Select all
+                  </button>
+                  <span className="text-neutral-700">
+                    {count} of {options.length}
+                  </span>
+                  <button type="button" onClick={clearAll} className="transition hover:text-white">
+                    Clear all
+                  </button>
+                </div>
+              )}
               <div className="scrollbar-hide flex-1 overflow-y-auto py-1">
                 {groups.length === 0 ? (
                   <p className="px-3 py-4 text-center text-xs text-neutral-500">No matches</p>
@@ -198,8 +220,9 @@ export function EntityMultiSelect({
                           <button
                             key={o.code}
                             type="button"
-                            role="checkbox"
-                            aria-checked={checked}
+                            role={multiple ? "checkbox" : "option"}
+                            aria-checked={multiple ? checked : undefined}
+                            aria-selected={multiple ? undefined : checked}
                             onClick={() => toggle(o.code)}
                             className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition ${
                               checked ? "bg-[var(--f1-red)]/[0.12] text-white" : "text-neutral-300 hover:bg-white/[0.04] hover:text-white"

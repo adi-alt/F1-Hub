@@ -590,7 +590,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
             transition={{ duration: 0.2 }}
-            className="max-h-[70vh] space-y-3 overflow-y-auto">
+            className="max-h-[70vh] space-y-3 overflow-y-auto scrollbar-hide">
             <h2 className="text-lg font-bold text-white">Tell us a bit about you</h2>
             <div className="flex gap-2">
               <input

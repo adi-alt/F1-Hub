@@ -113,7 +113,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
         {/* Bounded height + its own scroll, not the page's — the header stays pinned via sticky
             rather than scrolling out of view as more pages load in. */}
-        <div className="max-h-[420px] overflow-auto">
+        <div className="max-h-[420px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="sticky top-0 z-10 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500">
               <tr>

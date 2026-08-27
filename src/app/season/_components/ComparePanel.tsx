@@ -1,12 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { SearchableSelect, type SearchableOption } from "@/components/ui/SearchableSelect";
+import { teamColor } from "@/lib/teamColors";
+import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
 import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../_utils/seasonStats";
+import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
-
-const SELECT_CLASS = "w-full rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-white";
 
 type StatRow = { label: string; av: number; bv: number; aText: string; bText: string; lowerIsBetter?: boolean };
 
@@ -75,11 +75,19 @@ export function ComparePanel({
   raceSummaries: RaceSummary[];
 }) {
   const { entityType, compareA, compareB, setCompareA, setCompareB } = useSeasonExplorer();
+  const favDrivers = useFavDriverIds();
+  const favTeams = useFavTeamIds();
   const isDrivers = entityType === "drivers";
 
-  const options: SearchableOption[] = isDrivers
-    ? drivers.map((d) => ({ value: d.driver, label: d.driverName }))
-    : constructors.map((c) => ({ value: c.team, label: c.team }));
+  // Same option shape (grouped by team, real team color/logo) and the same "Favorites" grouping
+  // Progression's Custom multi-select uses - one visual/data language for every entity picker in
+  // this workspace instead of Compare's own plainer text-input combobox.
+  const options: MultiSelectOption[] = isDrivers
+    ? drivers.map((d) => ({ code: d.driver, label: d.driverName, sublabel: d.driver, group: d.team, color: teamColor(d.team) }))
+    : constructors.map((c) => ({ code: c.team, label: c.team, logoUrl: c.logoUrl }));
+  const favoriteCodes = isDrivers
+    ? new Set(drivers.filter((d) => d.favoriteId && favDrivers.has(d.favoriteId)).map((d) => d.driver))
+    : new Set(constructors.filter((c) => favTeams.has(c.favoriteId)).map((c) => c.team));
 
   const a = isDrivers ? drivers.find((d) => d.driver === compareA) : constructors.find((c) => c.team === compareA);
   const b = isDrivers ? drivers.find((d) => d.driver === compareB) : constructors.find((c) => c.team === compareB);
@@ -87,10 +95,24 @@ export function ComparePanel({
   const bName = isDrivers ? (b as DriverStandingRow | undefined)?.driverName ?? compareB : compareB;
 
   const picker = (
-    <div className="flex items-center gap-2">
-      <SearchableSelect value={compareA} onChange={setCompareA} options={options} placeholder={isDrivers ? "Driver A" : "Team A"} className={SELECT_CLASS} />
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+      <EntityMultiSelect
+        multiple={false}
+        options={options}
+        selected={compareA ? [compareA] : []}
+        onChange={(codes) => setCompareA(codes[0] ?? "")}
+        favoriteCodes={favoriteCodes}
+        placeholder={isDrivers ? "Driver A" : "Team A"}
+      />
       <span className="text-xs text-neutral-600">vs</span>
-      <SearchableSelect value={compareB} onChange={setCompareB} options={options} placeholder={isDrivers ? "Driver B" : "Team B"} className={SELECT_CLASS} />
+      <EntityMultiSelect
+        multiple={false}
+        options={options}
+        selected={compareB ? [compareB] : []}
+        onChange={(codes) => setCompareB(codes[0] ?? "")}
+        favoriteCodes={favoriteCodes}
+        placeholder={isDrivers ? "Driver B" : "Team B"}
+      />
     </div>
   );
 

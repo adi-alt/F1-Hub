@@ -122,12 +122,12 @@ export function ArchiveExplorer({
             (filteredYears.length === 0 ? (
               <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
             ) : (
-              <div className="h-full overflow-y-auto">
+              <div className="h-full overflow-y-auto scrollbar-hide">
                 <ArchiveSeasonGrid years={filteredYears} />
               </div>
             ))}
           {section === "track" && (
-            <div className="h-full overflow-y-auto">
+            <div className="h-full overflow-y-auto scrollbar-hide">
               <ArchiveCircuitGrid
                 circuits={circuits}
                 search={search}

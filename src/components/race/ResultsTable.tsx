@@ -9,7 +9,7 @@ export function ResultsTable({ results }: { results: RaceResultEntry[] }) {
   const sorted = [...results].sort((a, b) => a.finishPosition - b.finishPosition);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[var(--f1-line)]">
+    <div className="overflow-x-auto rounded-xl border border-[var(--f1-line)] scrollbar-hide">
       <table className="w-full min-w-[680px] text-sm">
         <thead className="bg-black/30 text-left text-xs uppercase tracking-wide text-neutral-500">
           <tr>

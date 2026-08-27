@@ -13,7 +13,7 @@ export function SeasonStrip({ races }: { races: RaceDoc[] }) {
       initial="hidden"
       animate="show"
       variants={staggerContainer}
-      className="flex gap-3 overflow-x-auto pb-2"
+      className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide"
     >
       {races.map((race) => {
         const statusLabel = raceStatusLabel(race);
