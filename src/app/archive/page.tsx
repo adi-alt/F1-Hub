@@ -8,6 +8,7 @@ import { PitStopsTimeline } from "./components/PitStopsTimeline";
 import { QualifyingBarChart } from "./components/QualifyingBarChart";
 import { ResultsBoard } from "./components/ResultsBoard";
 import { ArchiveHistoryRaceList } from "./components/ArchiveHistoryRaceList";
+import { RetryBanner } from "./components/RetryBanner";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
@@ -32,7 +33,7 @@ import { getRacesByYear } from "@/lib/supabase/races";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
-import { safeRead } from "@/lib/safeRead";
+import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
@@ -86,13 +87,19 @@ async function getActiveIds(
 }
 
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
-  const [circuits, drivers, teams, profile, yearStats] = await Promise.all([
-    safeRead(() => getAllArchiveCircuitsData(), []),
-    safeRead(() => getAllArchiveDriversData(), []),
-    safeRead(() => getAllArchiveTeamsData(), []),
+  const [circuitsRead, driversRead, teamsRead, profile, yearStats] = await Promise.all([
+    safeReadTracked(() => getAllArchiveCircuitsData(), []),
+    safeReadTracked(() => getAllArchiveDriversData(), []),
+    safeReadTracked(() => getAllArchiveTeamsData(), []),
     safeRead(() => getUserProfile(uid), null),
     safeRead(() => getArchiveYearStatsData(), {} as Awaited<ReturnType<typeof getArchiveYearStatsData>>),
   ]);
+  const { data: circuits } = circuitsRead;
+  const { data: drivers } = driversRead;
+  const { data: teams } = teamsRead;
+  // Real failure, not "genuinely nothing indexed yet" - safeRead alone can't tell those apart
+  // (both just come back as []), and only the former should read as an error to retry.
+  const hasLoadError = circuitsRead.failed || driversRead.failed || teamsRead.failed;
   const { circuitIds: activeCircuitIds, teamIds: activeTeamIds, currentLeader } = await getActiveIds(circuits);
 
   return (
@@ -105,6 +112,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
       </h1>
       <p className="mt-1 shrink-0 text-sm text-neutral-500">Results only, sourced from the Ergast/Jolpi historical database.</p>
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+        {hasLoadError && <RetryBanner />}
         <ArchiveExplorer
           uid={uid}
           initialSection={section}

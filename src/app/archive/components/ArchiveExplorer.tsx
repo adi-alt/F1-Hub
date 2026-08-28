@@ -139,7 +139,7 @@ export function ArchiveExplorer({
           onChange={(e) => setSearch(e.target.value)}
           placeholder={PLACEHOLDER[facet]}
           aria-label={PLACEHOLDER[facet]}
-          className="w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
+          className="h-9 w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
         />
       </div>
 
@@ -179,7 +179,19 @@ export function ArchiveExplorer({
           {facet === "year" && (
             <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-hide">
               {filteredYears.length === 0 && !showLiveSeason ? (
-                <p className="text-sm text-neutral-500">No years match &ldquo;{search}&rdquo;.</p>
+                <p className="text-sm text-neutral-500">
+                  No years match &ldquo;{search}&rdquo;.{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setEra("all");
+                    }}
+                    className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline"
+                  >
+                    Clear search
+                  </button>
+                </p>
               ) : (
                 <ArchiveSeasonGrid
                   years={filteredYears}
@@ -202,6 +214,12 @@ export function ArchiveExplorer({
                 status={trackStatus}
                 country={country}
                 favoritesOnly={favoritesOnly}
+                onClearFilters={() => {
+                  setSearch("");
+                  setStatus("all");
+                  setCountry("");
+                  setFavParam("");
+                }}
               />
             </div>
           )}
@@ -212,6 +230,10 @@ export function ArchiveExplorer({
               favoriteIds={favoriteDrivers}
               onToggleFavorite={(id) => toggleFavorite("driver", id)}
               favoritesOnly={favoritesOnly}
+              onClearFilters={() => {
+                setSearch("");
+                setFavParam("");
+              }}
             />
           )}
           {facet === "team" && (
@@ -222,6 +244,10 @@ export function ArchiveExplorer({
               onToggleFavorite={(id) => toggleFavorite("team", id)}
               favoritesOnly={favoritesOnly}
               activeTeamIds={activeTeamIdSet}
+              onClearFilters={() => {
+                setSearch("");
+                setFavParam("");
+              }}
             />
           )}
         </motion.div>

@@ -9,11 +9,13 @@ import { archiveSeasonHref } from "@/lib/routes";
 /** One season, as a compact selectable badge - deliberately almost nothing on the card itself
  * (just the year, plus a very subtle race-count line where that's known): the interesting
  * historical information (champion/leader) belongs in the hover tooltip ArchiveSeasonGrid owns,
- * not crammed onto ~76 cards at once as a mini dashboard. `isLive` is the one exception: the
- * in-progress season gets a small pulsing dot and links to /season instead of /archive?year=,
- * since the archive has no data for it yet (so no race count either - the card just omits that
- * line rather than showing something misleadingly precise for an unfinished season) - same size
- * and treatment as every other card, not a separate hero. `.glass-surface` (not a flat carbon
+ * not crammed onto ~76 cards at once as a mini dashboard. Fixed height (h-16), not auto-sized to
+ * whether the race-count line renders - `flex-col justify-center` already centers either one line
+ * (the live/in-progress card, which has no race count yet) or two, so every card is the same
+ * geometry regardless of year/race-count/live-state rather than the live card reading as visibly
+ * shorter. `isLive` is the one exception: the in-progress season gets a small pulsing dot and
+ * links to /season instead of /archive?year=, since the archive has no data for it yet - same
+ * size and treatment as every other card, not a separate hero. `.glass-surface` (not a flat carbon
  * fill) - genuine frosted glass over the atmospheric background, the same translucent surface the
  * calendar's own tooltips/panels already use. onHoverStart/onHoverEnd wire the champion/leader
  * tooltip (mouse *and* focus/blur, same pattern SeasonCalendar's DayCell already uses, so keyboard
@@ -33,14 +35,14 @@ export function SeasonCard({
   onHoverEnd: (year: number) => void;
 }) {
   return (
-    <motion.div variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}>
+    <motion.div layout variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}>
       <Link
         href={isLive ? "/season" : archiveSeasonHref(year)}
         onMouseEnter={(e) => onHoverStart(e, year)}
         onMouseLeave={() => onHoverEnd(year)}
         onFocus={(e) => onHoverStart(e, year)}
         onBlur={() => onHoverEnd(year)}
-        className="glass-surface flex flex-col items-center justify-center gap-0.5 rounded-xl px-4 py-3 text-center transition hover:border-white/20"
+        className="glass-surface flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl px-4 text-center transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
       >
         <span className="flex items-center gap-1.5 font-semibold text-white">
           {year}

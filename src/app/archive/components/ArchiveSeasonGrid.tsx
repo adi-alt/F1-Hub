@@ -1,7 +1,8 @@
 "use client";
 
 import type { FocusEvent, MouseEvent } from "react";
-import { useRef, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerContainer } from "@/components/motion/variants";
 import { groupYearsByEra, isVerifiedChampionYear } from "@/lib/eras";
@@ -20,17 +21,23 @@ type Hover = { year: number; top: number; left: number; flipBelow: boolean };
  * separate hero treatment; SeasonCard's `isLive` just swaps its link to /season and adds a small
  * dot, same size as every other card.
  *
- * Also owns the champion/leader hover tooltip - one lifted hover state plus one absolutely-
- * positioned panel, the exact pattern SeasonCalendar.tsx already uses for its own day tooltip
- * (anchorRef + getBoundingClientRect + flip-above/below), rather than a per-card portal. Text
- * only, deliberately - no driver photo/team logo (Archive is the restrained, statistical/reference
- * counterpart to Season's richer identity-driven cards, not a second place doing the same thing;
- * see SeasonCard's own comment). Content is resolved here, not hardcoded per year:
- * isVerifiedChampionYear(year) is the one place that decides "Champion" (1991+, the real full-
- * season-sum rule) vs "Most Points" (1950-1990, a real sum that isn't guaranteed to match the
- * actual champion under F1's real scoring rule for that span - see src/lib/supabase/archive.ts).
- * The live year never gets a fabricated "champion" - it shows `currentLeader`, this year's real,
- * still-changing points leader. */
+ * Also owns the champion/leader hover tooltip. Portaled straight to document.body (not an
+ * absolutely-positioned child of a local anchor) - the grid lives inside ArchiveExplorer's own
+ * overflow-y-auto scroll region, which was clipping the tooltip whenever it didn't fit inside that
+ * region's own bounds. `position: fixed` + coordinates from the hovered card's own
+ * getBoundingClientRect() escapes that entirely, the same way EntityMultiSelect/SearchableSelect's
+ * own dropdowns already do. useSyncExternalStore (not a useEffect+setState "mounted" flag) defers
+ * the portal to the client without ever touching `document` during SSR - the exact crash fixed
+ * twice already this session for the exact same createPortal(..., document.body) shape; not
+ * repeating it a third time here. Horizontally clamped to the viewport, flips above/below based on
+ * available room, same decision SearchableSelect's own dropdown already makes.
+ *
+ * Content is resolved here, not hardcoded per year: isVerifiedChampionYear(year) is the one place
+ * that decides "Champion" (1991+, the real full-season-sum rule) vs "Most Points" (1950-1990, a
+ * real sum that isn't guaranteed to match the actual champion under F1's real scoring rule for that
+ * span - see src/lib/eras.ts). The live year never gets a fabricated "champion" - it shows
+ * `currentLeader`, this year's real, still-changing points leader. Text only, deliberately - no
+ * driver photo/team logo (see SeasonCard's own comment on why). */
 export function ArchiveSeasonGrid({
   years,
   currentYear,
@@ -45,18 +52,18 @@ export function ArchiveSeasonGrid({
   currentLeader: CurrentLeader;
 }) {
   const [hover, setHover] = useState<Hover | null>(null);
-  const anchorRef = useRef<HTMLDivElement>(null);
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   function showTooltip(e: MouseEvent<HTMLAnchorElement> | FocusEvent<HTMLAnchorElement>, year: number) {
-    const cardRect = e.currentTarget.getBoundingClientRect();
-    const anchorRect = anchorRef.current?.getBoundingClientRect();
-    if (!anchorRect) return;
-    const idealLeft = cardRect.left - anchorRect.left + cardRect.width / 2 - TOOLTIP_WIDTH / 2;
-    const left = Math.max(4, Math.min(idealLeft, anchorRect.width - TOOLTIP_WIDTH - 4));
-    const top = cardRect.top - anchorRect.top;
-    const bottom = cardRect.bottom - anchorRect.top;
-    const flipBelow = cardRect.top - 150 < 0;
-    setHover({ year, top: flipBelow ? bottom : top, left, flipBelow });
+    const r = e.currentTarget.getBoundingClientRect();
+    const idealLeft = r.left + r.width / 2 - TOOLTIP_WIDTH / 2;
+    const left = Math.max(8, Math.min(idealLeft, window.innerWidth - TOOLTIP_WIDTH - 8));
+    const flipBelow = r.top < 160; // not enough room above for the tooltip's own rough height
+    setHover({ year, top: flipBelow ? r.bottom + 8 : r.top - 8, left, flipBelow });
   }
   function hideTooltip(year: number) {
     setHover((prev) => (prev?.year === year ? null : prev));
@@ -68,7 +75,7 @@ export function ArchiveSeasonGrid({
   const hoverStats = hover && !hoverIsLive ? yearStats[hover.year] : undefined;
 
   return (
-    <div ref={anchorRef} className="relative pb-2">
+    <div className="pb-2">
       {/* Single era, single group - the common case when a filter's active - doesn't need its own
           heading repeating what the filter trigger already says. */}
       {groups.length === 1 ? (
@@ -98,78 +105,79 @@ export function ArchiveSeasonGrid({
         ))
       )}
 
-      <AnimatePresence>
-        {hover && (
-          <div
-            className="pointer-events-none absolute z-30"
-            style={{
-              top: hover.flipBelow ? hover.top + 8 : hover.top - 8,
-              left: hover.left,
-              width: TOOLTIP_WIDTH,
-              transform: hover.flipBelow ? undefined : "translateY(-100%)",
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
-              transition={{ duration: 0.12, ease: "easeOut" }}
-              className="glass-surface rounded-lg p-3"
-            >
-              <p className="text-sm font-semibold text-white">{hover.year}</p>
-              {hoverIsLive ? (
-                currentLeader.driver || currentLeader.team ? (
+      {isClient &&
+        createPortal(
+          <AnimatePresence>
+            {hover && (
+              <motion.div
+                initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
+                style={{
+                  position: "fixed",
+                  top: hover.top,
+                  left: hover.left,
+                  width: TOOLTIP_WIDTH,
+                  transform: hover.flipBelow ? undefined : "translateY(-100%)",
+                }}
+                className="pointer-events-none z-[300] glass-surface rounded-lg p-3"
+              >
+                <p className="text-sm font-semibold text-white">{hover.year}</p>
+                {hoverIsLive ? (
+                  currentLeader.driver || currentLeader.team ? (
+                    <>
+                      <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress</p>
+                      <div className="mt-2.5 space-y-2">
+                        {currentLeader.driver && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Drivers&rsquo; Leader</p>
+                            <p className="truncate text-sm text-white">{currentLeader.driver.name}</p>
+                          </div>
+                        )}
+                        {currentLeader.team && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Constructors&rsquo; Leader</p>
+                            <p className="truncate text-sm text-white">{currentLeader.team.name}</p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress. No standings yet.</p>
+                  )
+                ) : hoverStats?.driverLeader || hoverStats?.teamLeader ? (
                   <>
-                    <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress</p>
+                    <p className="mt-0.5 text-[11px] text-neutral-500">
+                      {hoverStats.raceCount} race{hoverStats.raceCount === 1 ? "" : "s"} · Season complete
+                    </p>
                     <div className="mt-2.5 space-y-2">
-                      {currentLeader.driver && (
+                      {hoverStats.driverLeader && (
                         <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Drivers&rsquo; Leader</p>
-                          <p className="truncate text-sm text-white">{currentLeader.driver.name}</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                            {isVerifiedChampionYear(hover.year) ? "Drivers’ Champion" : "Most Points (Driver)"}
+                          </p>
+                          <p className="truncate text-sm text-white">{hoverStats.driverLeader.name}</p>
                         </div>
                       )}
-                      {currentLeader.team && (
+                      {hoverStats.teamLeader && (
                         <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Constructors&rsquo; Leader</p>
-                          <p className="truncate text-sm text-white">{currentLeader.team.name}</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                            {isVerifiedChampionYear(hover.year) ? "Constructors’ Champion" : "Most Points (Team)"}
+                          </p>
+                          <p className="truncate text-sm text-white">{hoverStats.teamLeader.name}</p>
                         </div>
                       )}
                     </div>
                   </>
                 ) : (
-                  <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress. No standings yet.</p>
-                )
-              ) : hoverStats?.driverLeader || hoverStats?.teamLeader ? (
-                <>
-                  <p className="mt-0.5 text-[11px] text-neutral-500">
-                    {hoverStats.raceCount} race{hoverStats.raceCount === 1 ? "" : "s"} · Season complete
-                  </p>
-                  <div className="mt-2.5 space-y-2">
-                    {hoverStats.driverLeader && (
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                          {isVerifiedChampionYear(hover.year) ? "Drivers’ Champion" : "Most Points (Driver)"}
-                        </p>
-                        <p className="truncate text-sm text-white">{hoverStats.driverLeader.name}</p>
-                      </div>
-                    )}
-                    {hoverStats.teamLeader && (
-                      <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                          {isVerifiedChampionYear(hover.year) ? "Constructors’ Champion" : "Most Points (Team)"}
-                        </p>
-                        <p className="truncate text-sm text-white">{hoverStats.teamLeader.name}</p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <p className="mt-0.5 text-[11px] text-neutral-500">No results recorded.</p>
-              )}
-            </motion.div>
-          </div>
+                  <p className="mt-0.5 text-[11px] text-neutral-500">No results recorded.</p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -18,6 +18,7 @@ export function ArchiveCircuitGrid({
   status,
   country,
   favoritesOnly,
+  onClearFilters,
 }: {
   circuits: ArchiveCircuit[];
   search: string;
@@ -30,6 +31,10 @@ export function ArchiveCircuitGrid({
   status: "all" | "active" | "historical";
   country: string;
   favoritesOnly: boolean;
+  /** Resets search + status + country + favorites-only, offered in the "no matches" empty state -
+   * the same reset TrackFilters' own "Clear filters" link already does, just also reachable from
+   * the empty state itself rather than only the filter row above it. */
+  onClearFilters?: () => void;
 }) {
   if (circuits.length === 0) {
     return (
@@ -54,6 +59,14 @@ export function ArchiveCircuitGrid({
     return (
       <p className="mt-8 text-sm text-neutral-500">
         {favoritesOnly ? "You haven't favorited any tracks yet." : `No circuits found${search ? ` for "${search}"` : ""}.`}
+        {onClearFilters && (
+          <>
+            {" "}
+            <button type="button" onClick={onClearFilters} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+              Clear filters
+            </button>
+          </>
+        )}
       </p>
     );
   }
@@ -68,10 +81,10 @@ export function ArchiveCircuitGrid({
       {filtered.map((c) => {
         const isActive = activeCircuitIds.has(c.circuitId);
         return (
-          <motion.div key={c.circuitId} variants={staggerItem} whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }}>
+          <motion.div layout key={c.circuitId} variants={staggerItem} whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }}>
             <Link
               href={archiveCircuitHref(c.circuitId)}
-              className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40"
+              className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
             >
               <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
                 {c.imageUrl && <Image src={c.imageUrl} alt={`${c.name ?? c.circuitId} layout`} fill className="object-contain p-3" />}

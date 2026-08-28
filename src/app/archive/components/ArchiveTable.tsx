@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef, type ReactNode } from "react";
-import { motion } from "framer-motion";
-import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { AnimatePresence, motion } from "framer-motion";
+import { staggerItem } from "@/components/motion/variants";
 import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { useUrlParam } from "@/hooks/useUrlParam";
@@ -25,6 +25,10 @@ export type ArchiveTableColumn<T> = {
   defaultDir?: "asc" | "desc";
   sortValue?: (row: T) => string | number;
   render: (row: T) => ReactNode;
+  /** A real width (e.g. "w-24") - the table is `table-fixed`, so a column's width no longer
+   * depends on the current page/search's specific content (was the actual cause of columns
+   * visibly jumping between pages). Leave unset on exactly one column (conventionally the name/
+   * identity column) so it absorbs whatever width the others don't claim. */
   widthClassName?: string;
   /** Hidden below sm - for secondary columns (a driver's constructors, a team's drivers) that
    * aren't essential to a narrow-viewport read, so the core columns (name, races, years, status)
@@ -51,6 +55,7 @@ export function ArchiveTable<T>({
   favoritesOnly = false,
   itemLabel,
   emptyMessage,
+  onClearFilters,
 }: {
   rows: T[];
   columns: ArchiveTableColumn<T>[];
@@ -63,6 +68,8 @@ export function ArchiveTable<T>({
   favoritesOnly?: boolean;
   itemLabel: string;
   emptyMessage: string;
+  /** Resets search + favorites-only, offered as a button in the "no matches" empty state. */
+  onClearFilters?: () => void;
 }) {
   const [page, setPage] = useUrlPage();
   const defaultCol = columns.find((c) => c.key === defaultSortKey);
@@ -116,9 +123,15 @@ export function ArchiveTable<T>({
   if (sorted.length === 0) {
     return (
       <p className="text-sm text-neutral-500">
-        {favoritesOnly && !search
-          ? `You haven't favorited any ${itemLabel}s yet.`
-          : `No ${itemLabel}s match “${search}”.`}
+        {favoritesOnly && !search ? `You haven't favorited any ${itemLabel}s yet.` : `No ${itemLabel}s match “${search}”.`}
+        {onClearFilters && (
+          <>
+            {" "}
+            <button type="button" onClick={onClearFilters} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+              Clear search
+            </button>
+          </>
+        )}
       </p>
     );
   }
@@ -126,7 +139,7 @@ export function ArchiveTable<T>({
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="w-full min-w-[640px] table-fixed text-left text-sm">
           <thead ref={theadRef} className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
             <tr>
               <th scope="col" className="w-12 px-4 py-2.5">
@@ -151,35 +164,45 @@ export function ArchiveTable<T>({
               </th>
             </tr>
           </thead>
-          <motion.tbody
-            key={`${pageSafe}-${search}-${sortKey}-${sortDir}`}
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer}
-            className="divide-y divide-[var(--f1-line)]"
-          >
-            {pageItems.map((row, i) => {
-              const id = getId(row);
-              return (
-                <motion.tr key={id} ref={i === 0 ? firstRowRef : undefined} variants={staggerItem} className="transition-colors hover:bg-white/[0.03]">
-                  <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                        col.hideOnMobile ? "hidden sm:table-cell" : ""
-                      }`}
-                    >
-                      {col.render(row)}
+          {/* AnimatePresence (not a remounting key) so rows keep their own identity across a sort/
+              search/page change - `layout` on each row animates it sliding to a new position when
+              the same row stays visible but its rank changes (a sort), while rows that actually
+              leave/enter the visible page still get a real exit/enter transition - one mechanism
+              instead of a full stagger-replay on every kind of change. */}
+          <tbody className="divide-y divide-[var(--f1-line)]">
+            <AnimatePresence initial={false}>
+              {pageItems.map((row, i) => {
+                const id = getId(row);
+                return (
+                  <motion.tr
+                    key={id}
+                    layout
+                    ref={i === 0 ? firstRowRef : undefined}
+                    initial="hidden"
+                    animate="show"
+                    exit="hidden"
+                    variants={staggerItem}
+                    className="transition-colors hover:bg-white/[0.03]"
+                  >
+                    <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={`truncate px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
+                          col.hideOnMobile ? "hidden sm:table-cell" : ""
+                        }`}
+                      >
+                        {col.render(row)}
+                      </td>
+                    ))}
+                    <td className="px-4 py-2.5 text-center">
+                      <FavoriteButton favorited={favoriteIds.has(id)} onToggle={() => onToggleFavorite(id)} className="mx-auto" />
                     </td>
-                  ))}
-                  <td className="px-4 py-2.5 text-center">
-                    <FavoriteButton favorited={favoriteIds.has(id)} onToggle={() => onToggleFavorite(id)} className="mx-auto" />
-                  </td>
-                </motion.tr>
-              );
-            })}
-          </motion.tbody>
+                  </motion.tr>
+                );
+              })}
+            </AnimatePresence>
+          </tbody>
         </table>
       </div>
       <div ref={footerRef}>

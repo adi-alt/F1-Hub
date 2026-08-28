@@ -97,7 +97,11 @@ body::after {
    Deliberately NOT applied to the standings table itself, which stays solid/readable per the
    season page redesign spec ("the standings table should remain relatively solid"). */
 .glass-surface {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  /* Dark tint at real opacity (--f1-carbon's own RGB), not a near-clear white sheen - the old
+     rgba(255,255,255,0.045->0.015) let whatever sat behind a popover/tooltip show through almost
+     entirely, which read as illegible over cards/table rows. blur(20px) still does real work on
+     the ~12-18% that isn't opaque, so this stays "frosted glass" rather than a flat panel. */
+  background: linear-gradient(180deg, rgba(24, 24, 27, 0.88), rgba(20, 20, 23, 0.82));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.09);

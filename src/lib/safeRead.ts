@@ -17,3 +17,17 @@ export async function safeRead<T>(read: () => Promise<T>, fallback: T): Promise<
     return fallback;
   }
 }
+
+/** Same degrade-to-fallback behavior as safeRead, but also reports whether the read actually
+ * failed - safeRead alone makes a real outage indistinguishable from genuine "nothing here yet"
+ * (both just render as an empty list), which is the wrong UI for the former: Archive's index page
+ * wants to show "some historical data couldn't be loaded, try again" only on a real failure, not
+ * on every legitimately-empty pipeline-hasn't-reached-it-yet case. */
+export async function safeReadTracked<T>(read: () => Promise<T>, fallback: T): Promise<{ data: T; failed: boolean }> {
+  try {
+    return { data: await read(), failed: false };
+  } catch (error) {
+    console.error("safeReadTracked: read failed, serving fallback instead of crashing:", error);
+    return { data: fallback, failed: true };
+  }
+}

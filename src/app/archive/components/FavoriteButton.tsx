@@ -24,7 +24,7 @@ export function FavoriteButton({
       }}
       aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={favorited}
-      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 ${className}`}
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${className}`}
     >
       {/* key={favorited} replays this tiny spring pop every time the real toggle below actually
           flips - a visual flourish on an already-correct callback, not new wiring of its own. */}

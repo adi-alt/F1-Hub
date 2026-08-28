@@ -24,7 +24,8 @@ export function QuietTabs<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
-            className={`relative pb-1.5 font-medium transition-colors duration-200 ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+            aria-pressed={active}
+            className={`relative rounded-sm pb-1.5 font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
           >
             {o.label}
             <span

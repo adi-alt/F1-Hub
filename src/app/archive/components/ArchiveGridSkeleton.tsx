@@ -17,7 +17,7 @@ export function ArchiveGridSkeleton({ sections = 2, perSection = 12 }: { section
           <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
             {Array.from({ length: perSection }).map((_, i) => (
               <motion.div key={i} variants={staggerItem}>
-                <Skeleton className="h-[46px] rounded-xl" />
+                <Skeleton className="h-16 rounded-xl" />
               </motion.div>
             ))}
           </motion.div>

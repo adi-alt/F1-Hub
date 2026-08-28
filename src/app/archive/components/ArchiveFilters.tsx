@@ -14,18 +14,28 @@ const ERA_OPTIONS: MultiSelectOption[] = [{ code: "all", label: "All eras" }, ..
 export function EraFilterSelect({ value, onChange }: { value: string; onChange: (eraId: string) => void }) {
   return (
     <div className="w-44">
-      <EntityMultiSelect multiple={false} options={ERA_OPTIONS} selected={[value]} onChange={(codes) => onChange(codes[0] ?? "all")} placeholder="All eras" />
+      <EntityMultiSelect
+        multiple={false}
+        options={ERA_OPTIONS}
+        selected={[value]}
+        onChange={(codes) => onChange(codes[0] ?? "all")}
+        placeholder="All eras"
+        triggerClassName="h-9"
+      />
     </div>
   );
 }
 
+// h-9 - the one height every control in a filter row (this pill, the country/era EntityMultiSelect
+// trigger, the search input in ArchiveExplorer.tsx) shares, so All/Active/Historical/All countries/
+// Favorites all line up regardless of their own natural padding/font-size.
 function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+      className={`flex h-9 items-center rounded-md border px-3 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
         active ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/15 text-white" : "border-white/10 text-neutral-400 hover:text-white"
       }`}
     >
@@ -91,6 +101,7 @@ export function TrackFilters({
           selected={[country]}
           onChange={(codes) => onCountryChange(codes[0] ?? "")}
           placeholder="All countries"
+          triggerClassName="h-9"
         />
       </div>
       <FilterPill active={favoritesOnly} onClick={() => onFavoritesOnlyChange(!favoritesOnly)}>
