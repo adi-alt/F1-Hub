@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkeleton";
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 
 const TABS = ["By year", "By track", "By driver", "By team"];
@@ -28,9 +29,13 @@ function QuietTabsSkeleton() {
 export default function ArchiveLoading() {
   const searchParams = useSearchParams();
   const section = searchParams.get("section");
-  const isDetailRoute = ["year", "round", "circuit", "driver", "team"].some((key) => searchParams.has(key));
+  // ?year= (without ?round=, a specific-race lookup that redirects immediately) renders the exact
+  // same SeasonDetail component /season does - same skeleton, not the circuit/driver/team history
+  // list shape below, which is a genuinely different page (ArchiveHistoryRaceList).
+  if (searchParams.has("year") && !searchParams.has("round")) return <SeasonDetailSkeleton />;
 
-  if (isDetailRoute) {
+  const isHistoryRoute = ["round", "circuit", "driver", "team"].some((key) => searchParams.has(key));
+  if (isHistoryRoute) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <Skeleton className="h-4 w-16" />

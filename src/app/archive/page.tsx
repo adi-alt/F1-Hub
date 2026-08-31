@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArchiveExplorer } from "./components/ArchiveExplorer";
+import { ArchiveYearView } from "./components/ArchiveYearView";
 import { CircuitCard } from "./components/CircuitCard";
 import { ArchiveHistoryRaceList } from "./components/ArchiveHistoryRaceList";
 import { RetryBanner } from "./components/RetryBanner";
@@ -28,7 +29,7 @@ import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
-import { archiveSeasonHref, raceHref } from "@/lib/routes";
+import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 type Facet = "year" | "track" | "driver" | "team";
@@ -254,15 +255,16 @@ export default async function ArchivePage({
   const year = yearParam ? Number(yearParam) : null;
   const round = roundParam ? Number(roundParam) : null;
 
-  // Redirect shims - the year/race hierarchy now lives at /archive/<year> and /race/<year>/<slug>
-  // (real routes, not query params); an old ?year=&round= link still lands somewhere real instead
-  // of 404ing.
+  // ?year=&round= is a specific-race lookup by round number - resolve it to that race's real
+  // query-based route (raceHref) rather than rendering it here.
   if (year && round) {
     const race = await getArchiveRaceData(year, round);
     if (!race) notFound();
     redirect(raceHref(year, round, race.raceName));
   }
-  if (year) redirect(archiveSeasonHref(year));
+  // Bare ?year= is the canonical year route (archive is a query-parameterized browsing page, not a
+  // path hierarchy) - rendered inline, not redirected.
+  if (year) return <ArchiveYearView year={year} uid={session.uid} />;
   if (circuit) return <ArchiveCircuitHistory circuitId={circuit} />;
   if (driver) return <ArchiveDriverHistory driverId={driver} />;
   if (team) return <ArchiveTeamHistory teamId={team} />;

@@ -1,9 +1,9 @@
-// Path-based routing for the year -> race hierarchy (Season and Archive both) - a deliberate
-// reversal of this file's own original query-param convention, at the user's explicit request.
-// Every race, from either section, opens at the same /race/<year>/<slug> route - "the race detail
-// page must be identical regardless of where the user came from" - not two parallel route trees.
-// Archive's circuit/driver/team detail views are NOT part of this change - they're a different
-// "pick one of many" browsing pattern, not a year -> race drill-down.
+// Query-parameterized routing for the year -> race hierarchy (Season and Archive both), matching
+// this file's own original convention and every other Archive facet (?circuit=, ?driver=, ?team=)
+// - archive is a browsing page over query params, not a path-segment resource hierarchy. Every
+// race, from either section, still opens at the one shared /race?year=&race= route - "the race
+// detail page must be identical regardless of where the user came from" - just via a query string
+// instead of path segments.
 
 /** Lowercase, non-alphanumeric runs collapsed to a single hyphen, trimmed - "Australian Grand
  * Prix" -> "australian-grand-prix". Race names are unique within a single season (Season's
@@ -17,16 +17,16 @@ export function slugifyRaceName(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** `section` opens that tab on arrival (RaceTabShell reads it) - the path-routing equivalent of
- * the old `#hash`-style scroll-to-anchor `section` param this replaces, same name kept so every
- * existing call site's intent ("send the user straight to Qualifying/Simulation") still reads the
- * same way at the call site even though the destination mechanism changed. One route for every
- * race regardless of source (`round` isn't part of the URL, kept in the signature only so every
- * call site already has it in scope without a lookup - see /race/[year]/[slug]/page.tsx, which
+/** `section` opens that tab on arrival (RaceTabShell reads it via useUrlParam, which preserves
+ * every other param already on the URL, `year`/`race` included) - same name kept from the old
+ * `#hash`-style scroll-to-anchor `section` param this originally replaced, so every existing call
+ * site's intent ("send the user straight to Qualifying/Simulation") still reads the same way. One
+ * route for every race regardless of source (`round` isn't part of the URL, kept in the signature
+ * only so every call site already has it in scope without a lookup - see /race/page.tsx, which
  * re-resolves it from the slug anyway). */
 export function raceHref(year: number, round: number, raceName: string, section?: string): string {
-  const base = `/race/${year}/${slugifyRaceName(raceName)}`;
-  return section ? `${base}?tab=${section}` : base;
+  const base = `/race?year=${year}&race=${slugifyRaceName(raceName)}`;
+  return section ? `${base}&tab=${section}` : base;
 }
 
 export function seasonHref(year: number): string {
@@ -38,7 +38,7 @@ export function circuitHref(circuit: string): string {
 }
 
 export function archiveSeasonHref(year: number): string {
-  return `/archive/${year}`;
+  return `/archive?year=${year}`;
 }
 
 export function archiveCircuitHref(circuitId: string): string {

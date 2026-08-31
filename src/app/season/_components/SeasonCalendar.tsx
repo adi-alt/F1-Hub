@@ -335,6 +335,14 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                           </div>
                         ))}
                       </div>
+                      {/* Archive years only ever store one date per race (the race day itself) -
+                          no separate qualifying/practice session dates exist in that schema, so
+                          this says qualifying results still exist without fabricating a date for
+                          them. Redundant on the live calendar, where Qualifying already shows as
+                          its own dated session above - gated to the single-session case only. */}
+                      {hover.sessions.length === 1 && hoverRace?.hasQualifying && (
+                        <p className="mt-1.5 text-[10px] text-neutral-500">Qualifying results available on the race page</p>
+                      )}
                     </>
                   )}
                   {hoverWinner ? (

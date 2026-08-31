@@ -69,6 +69,12 @@ export type RaceSummary = {
   sessions: RaceSessionSummary[];
   poleSitter: string | null;
   results: RaceResultSummary[]; // [] until the race is actually completed
+  // For archive-backed years, `sessions` only ever has one entry (raceDate is the only date the
+  // schema stores - no per-session dates exist pre-live-season, see getArchiveSeasonDetailData) -
+  // this says whether real qualifying *results* still exist for that same race, so the calendar's
+  // tooltip can say so without fabricating a session date. Always true on the live-season path,
+  // where qualifying already shows as its own dated session tile.
+  hasQualifying: boolean;
 };
 
 function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]): RaceSummary[] {
@@ -119,6 +125,7 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]):
             status: r.status,
           }))
         : [],
+      hasQualifying: entry.sessions.some((s) => s.label.toLowerCase().includes("qualif")),
     };
   });
 }
@@ -312,12 +319,18 @@ function computeArchiveProgression(races: ArchiveRaceDoc[], driverIds: string[])
  * already over (real pit-stops/qualifying/lap data races.ts never has at all), not a fallback.
  * See getSeasonDetailData below for which of the two this actually calls. */
 async function getArchiveSeasonDetailData(year: number, uid: string) {
-  const [races, profile] = await Promise.all([getArchiveSeason(year), getUserProfile(uid)]);
+  const [races, currentTeams, profile] = await Promise.all([getArchiveSeason(year), getAllCurrentTeams(), getUserProfile(uid)]);
   // Only this season's own drivers (~20-40 ids), not every driver the archive has ever had (805
   // rows and growing) - getAllArchiveDrivers() was the wrong tool here, a real slowdown on a page
   // that now loads on every single archive year visit, not just the rare "browse all drivers" one.
   const driverIds = [...new Set(races.flatMap((r) => r.results.map((res) => res.driverId)))];
   const photoByDriverId = await getArchiveDriverPhotosByIds(driverIds);
+  // archive_teams itself has no logo column, but a team that's still on the current grid (Ferrari,
+  // McLaren, Red Bull, ...) has the exact same real logo today as it did that season - reusing the
+  // same archiveSlugForCurrentTeam mapping favoriteId below is already keyed by, not a new lookup.
+  // A defunct team (Tyrrell, Arrows, Brabham, ...) genuinely has no match here and falls back to
+  // the letter-badge, same as before - a real data gap, not a rendering bug.
+  const logoBySlug = new Map(currentTeams.map((t) => [archiveSlugForCurrentTeam(t.name), t.logoUrl]));
 
   const driverMap = new Map<string, DriverStandingRow>();
   const constructorMap = new Map<string, ConstructorStandingRow>();
@@ -331,7 +344,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
         wins: 0,
         podiums: 0,
         headshotUrl: photoByDriverId.get(r.driverId) ?? null,
-        teamLogoUrl: null, // archive_teams has no logo column — a real data gap, not a choice
+        teamLogoUrl: null, // filled in below, once every constructor's own logoUrl is resolved
         favoriteId: r.driverId, // already the id space favoriteDrivers is keyed by, no lookup needed
       };
       driver.team = r.constructor;
@@ -340,13 +353,14 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       if (r.position <= 3) driver.podiums += 1;
       driverMap.set(r.driverId, driver);
 
+      const favoriteId = r.teamId ?? teamSlug(r.constructor);
       const constructor = constructorMap.get(r.constructor) ?? {
         team: r.constructor,
         points: 0,
         wins: 0,
         podiums: 0,
-        logoUrl: null,
-        favoriteId: r.teamId ?? teamSlug(r.constructor),
+        logoUrl: logoBySlug.get(favoriteId) ?? null,
+        favoriteId,
       };
       constructor.points += r.points;
       if (r.position === 1) constructor.wins += 1;
@@ -356,6 +370,8 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
   }
   const drivers = [...driverMap.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
   const constructors = [...constructorMap.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
+  const logoByTeamName = new Map(constructors.map((c) => [c.team, c.logoUrl]));
+  for (const d of drivers) d.teamLogoUrl = logoByTeamName.get(d.team) ?? null;
 
   const raceSummaries: RaceSummary[] = races.map((r) => ({
     round: r.round,
@@ -374,6 +390,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       grid: res.grid,
       status: archiveFinishStatus(res.status),
     })),
+    hasQualifying: !!r.qualifying?.length,
   }));
 
   const scoredIds = drivers.filter((d) => d.points > 0).map((d) => d.driver);
