@@ -1,4 +1,4 @@
-import { getArchiveDriverIdsByCode } from "@/lib/supabase/archive";
+import { getAllArchiveDrivers, getArchiveDriverIdsByCode, getArchiveSeason } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
@@ -6,8 +6,9 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { trackShortForm } from "@/lib/format";
 import { computeChampionshipProgression } from "@/lib/personalization";
 import { computeStandings, type ConstructorStanding, type DriverStanding } from "@/lib/standings";
-import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
+import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
+import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
 
 export type DriverStandingRow = DriverStanding & {
@@ -134,8 +135,10 @@ export type Battle = {
 };
 
 // Adjacent-in-the-standings gaps, drivers and constructors both, tightest first — clicking one
-// (see AnalysisWorkspace.tsx) opens Compare with that exact pair pre-selected.
-function buildBattles(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[]): Battle[] {
+// (see AnalysisWorkspace.tsx) opens Compare with that exact pair pre-selected. Exported — the
+// archive-backed path below (getArchiveSeasonDetailData) reuses this verbatim, since it only ever
+// takes the already-shared DriverStandingRow/ConstructorStandingRow shape, not RaceDoc.
+export function buildBattles(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[]): Battle[] {
   const battles: Battle[] = [];
   for (let i = 0; i < drivers.length - 1; i++) {
     battles.push({
@@ -170,8 +173,9 @@ function buildBattles(drivers: DriverStandingRow[], constructors: ConstructorSta
 export type SeasonRecord = { label: string; name: string; value: string };
 
 // A compact reference grid, not the old rotating "fun facts" widget — deterministic, since this
-// is meant to be looked up, not rediscovered on every visit.
-function buildRecords(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[], raceSummaries: RaceSummary[]): SeasonRecord[] {
+// is meant to be looked up, not rediscovered on every visit. Exported for the same reason as
+// buildBattles above.
+export function buildRecords(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[], raceSummaries: RaceSummary[]): SeasonRecord[] {
   const records: SeasonRecord[] = [];
   const completed = raceSummaries.filter((r) => r.state === "completed");
 
@@ -279,4 +283,126 @@ export async function getSeasonPageData(year: number, uid: string) {
     favoriteDriverIds: profile?.favoriteDrivers ?? [],
     favoriteTeamIds: profile?.favoriteTeams ?? [],
   };
+}
+
+// "Finished" / "+N Lap(s)" / everything else (Retired, Accident, Engine, DNF, ...) — the exact
+// same three-way read ArchiveRaceTabs.tsx's own per-race isRetired check already uses, just
+// applied per season-wide result row here instead of one race's worth.
+function archiveFinishStatus(status: string): RaceResultSummary["status"] {
+  if (status === "Finished") return "finished";
+  if (/^\+\d+ Lap/.test(status)) return "lapped";
+  return "dnf";
+}
+
+// computeChampionshipProgression's exact reduction (cumulative points per round, one column per
+// driver), over ArchiveRaceDoc/driverId instead of RaceDoc/driver-code — kept as its own small
+// function rather than a shared generic across two field-incompatible shapes for one caller each.
+function computeArchiveProgression(races: ArchiveRaceDoc[], driverIds: string[]): Record<string, number | string>[] {
+  const sorted = [...races].sort((a, b) => a.round - b.round);
+  const running: Record<string, number> = {};
+  for (const id of driverIds) running[id] = 0;
+  return sorted.map((race) => {
+    for (const r of race.results) if (r.driverId in running) running[r.driverId] += r.points;
+    return { round: race.round, raceName: race.raceName, trackShort: trackShortForm(race.circuitName ?? race.raceName), ...running };
+  });
+}
+
+/** The archive-backed counterpart to getSeasonPageData, same return shape, for every year that
+ * isn't the live season — archive_races is the richer, complete source for any year that's
+ * already over (real pit-stops/qualifying/lap data races.ts never has at all), not a fallback.
+ * See getSeasonDetailData below for which of the two this actually calls. */
+async function getArchiveSeasonDetailData(year: number, uid: string) {
+  const [races, archiveDrivers, profile] = await Promise.all([getArchiveSeason(year), getAllArchiveDrivers(), getUserProfile(uid)]);
+  const photoByDriverId = new Map(archiveDrivers.map((d) => [d.driverId, d.photoUrl]));
+
+  const driverMap = new Map<string, DriverStandingRow>();
+  const constructorMap = new Map<string, ConstructorStandingRow>();
+  for (const race of races) {
+    for (const r of race.results) {
+      const driver = driverMap.get(r.driverId) ?? {
+        driver: r.driverId,
+        driverName: r.driverName,
+        team: r.constructor,
+        points: 0,
+        wins: 0,
+        podiums: 0,
+        headshotUrl: photoByDriverId.get(r.driverId) ?? null,
+        teamLogoUrl: null, // archive_teams has no logo column — a real data gap, not a choice
+        favoriteId: r.driverId, // already the id space favoriteDrivers is keyed by, no lookup needed
+      };
+      driver.team = r.constructor;
+      driver.points += r.points;
+      if (r.position === 1) driver.wins += 1;
+      if (r.position <= 3) driver.podiums += 1;
+      driverMap.set(r.driverId, driver);
+
+      const constructor = constructorMap.get(r.constructor) ?? {
+        team: r.constructor,
+        points: 0,
+        wins: 0,
+        podiums: 0,
+        logoUrl: null,
+        favoriteId: r.teamId ?? teamSlug(r.constructor),
+      };
+      constructor.points += r.points;
+      if (r.position === 1) constructor.wins += 1;
+      if (r.position <= 3) constructor.podiums += 1;
+      constructorMap.set(r.constructor, constructor);
+    }
+  }
+  const drivers = [...driverMap.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
+  const constructors = [...constructorMap.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
+
+  const raceSummaries: RaceSummary[] = races.map((r) => ({
+    round: r.round,
+    name: r.raceName,
+    trackShort: trackShortForm(r.circuitName ?? r.raceName),
+    raceDate: r.raceDate,
+    state: "completed",
+    sessions: r.raceDate ? [{ label: "Race", code: "R", date: r.raceDate, state: "completed" }] : [],
+    poleSitter: r.qualifying?.find((q) => q.position === 1)?.driverId ?? r.results.find((res) => res.grid === 1)?.driverId ?? null,
+    results: r.results.map((res) => ({
+      driver: res.driverId,
+      driverName: res.driverName,
+      team: res.constructor,
+      finishPosition: res.position,
+      points: res.points,
+      grid: res.grid,
+      status: archiveFinishStatus(res.status),
+    })),
+  }));
+
+  const scoredIds = drivers.filter((d) => d.points > 0).map((d) => d.driver);
+  const progression = scoredIds.length > 0 ? computeArchiveProgression(races, scoredIds) : [];
+
+  return {
+    year,
+    drivers,
+    constructors,
+    progression,
+    raceSummaries,
+    racesCompleted: raceSummaries.length,
+    racesRemaining: 0, // true by construction — archive only ever covers seasons that are already over
+    battles: buildBattles(drivers, constructors),
+    records: buildRecords(drivers, constructors, raceSummaries),
+    favoriteDriverIds: profile?.favoriteDrivers ?? [],
+    favoriteTeamIds: profile?.favoriteTeams ?? [],
+  };
+}
+
+/** "ongoing" for the one live season (races/calendar's FastF1 pipeline — prediction/pole/
+ * simulation data lives only here); "completed" for every other year, current or historical,
+ * which archive_races covers more completely than races.ts ever does once a season is over.
+ * Compares against the computed current year, not a literal — the same non-hardcoded pattern
+ * ARCHIVE_LATEST_YEAR and /season/page.tsx's own redirect already use. */
+export function seasonStatus(year: number): "ongoing" | "completed" {
+  return year === new Date().getFullYear() ? "ongoing" : "completed";
+}
+
+/** The one entry point both /season and /archive/[year] call — same return shape either way, only
+ * the data source differs, picked by seasonStatus, never a per-page assumption. */
+export async function getSeasonDetailData(year: number, uid: string) {
+  const status = seasonStatus(year);
+  const data = status === "ongoing" ? await getSeasonPageData(year, uid) : await getArchiveSeasonDetailData(year, uid);
+  return { ...data, status };
 }

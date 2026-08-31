@@ -28,7 +28,7 @@ import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
-import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
+import { archiveSeasonHref, raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 type Facet = "year" | "track" | "driver" | "team";
@@ -254,12 +254,13 @@ export default async function ArchivePage({
   const year = yearParam ? Number(yearParam) : null;
   const round = roundParam ? Number(roundParam) : null;
 
-  // Redirect shims - the year/race hierarchy now lives at /archive/<year>[/<slug>] (real routes,
-  // not query params); an old ?year=&round= link still lands somewhere real instead of 404ing.
+  // Redirect shims - the year/race hierarchy now lives at /archive/<year> and /race/<year>/<slug>
+  // (real routes, not query params); an old ?year=&round= link still lands somewhere real instead
+  // of 404ing.
   if (year && round) {
     const race = await getArchiveRaceData(year, round);
     if (!race) notFound();
-    redirect(archiveRaceHref(year, round, race.raceName));
+    redirect(raceHref(year, round, race.raceName));
   }
   if (year) redirect(archiveSeasonHref(year));
   if (circuit) return <ArchiveCircuitHistory circuitId={circuit} />;

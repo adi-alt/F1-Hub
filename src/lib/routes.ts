@@ -1,9 +1,9 @@
 // Path-based routing for the year -> race hierarchy (Season and Archive both) - a deliberate
-// reversal of this file's own original query-param convention, at the user's explicit request:
-// every race now opens on its own route (/season/<year>/race/<slug>, /archive/<year>/<slug>)
-// instead of a query-param view over a shared page. Archive's circuit/driver/team detail views
-// are NOT part of this change - they're a different "pick one of many" browsing pattern, not a
-// year -> race drill-down, and the request never asked for them to change.
+// reversal of this file's own original query-param convention, at the user's explicit request.
+// Every race, from either section, opens at the same /race/<year>/<slug> route - "the race detail
+// page must be identical regardless of where the user came from" - not two parallel route trees.
+// Archive's circuit/driver/team detail views are NOT part of this change - they're a different
+// "pick one of many" browsing pattern, not a year -> race drill-down.
 
 /** Lowercase, non-alphanumeric runs collapsed to a single hyphen, trimmed - "Australian Grand
  * Prix" -> "australian-grand-prix". Race names are unique within a single season (Season's
@@ -20,9 +20,12 @@ export function slugifyRaceName(name: string): string {
 /** `section` opens that tab on arrival (RaceTabShell reads it) - the path-routing equivalent of
  * the old `#hash`-style scroll-to-anchor `section` param this replaces, same name kept so every
  * existing call site's intent ("send the user straight to Qualifying/Simulation") still reads the
- * same way at the call site even though the destination mechanism changed. */
+ * same way at the call site even though the destination mechanism changed. One route for every
+ * race regardless of source (`round` isn't part of the URL, kept in the signature only so every
+ * call site already has it in scope without a lookup - see /race/[year]/[slug]/page.tsx, which
+ * re-resolves it from the slug anyway). */
 export function raceHref(year: number, round: number, raceName: string, section?: string): string {
-  const base = `/season/${year}/race/${slugifyRaceName(raceName)}`;
+  const base = `/race/${year}/${slugifyRaceName(raceName)}`;
   return section ? `${base}?tab=${section}` : base;
 }
 
@@ -36,10 +39,6 @@ export function circuitHref(circuit: string): string {
 
 export function archiveSeasonHref(year: number): string {
   return `/archive/${year}`;
-}
-
-export function archiveRaceHref(year: number, round: number, raceName: string): string {
-  return `/archive/${year}/${slugifyRaceName(raceName)}`;
 }
 
 export function archiveCircuitHref(circuitId: string): string {
