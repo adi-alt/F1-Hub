@@ -173,6 +173,24 @@ export const getRace = unstable_cache(
   { revalidate: false, tags: ["races"] },
 );
 
+/** Just the simulation column for one (year, round) - not the full `getRace` fetch, which would
+ * redundantly pull results/inputs/tireStints this caller (Archive's race page) already has from
+ * `archive_races`. Confirmed live: `races.simulation` is populated for effectively every race back
+ * to 2018 (18/21 in 2018 up to 24/24 in 2024-2025) - a real, previously-unsurfaced dataset for
+ * historical races, not a fallback for anything `archive_races` is missing. Null for the small
+ * handful of races the backfill genuinely never reached - not fabricated either way. */
+export const getRaceSimulation = unstable_cache(
+  async (year: number, round: number): Promise<RaceSimulation | null> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("races").select("simulation").eq("year", year).eq("round", round).maybeSingle(),
+    );
+    if (error) throw new Error(`getRaceSimulation(${year}, ${round}): ${error.message}`);
+    return (data as { simulation: RaceSimulation | null } | null)?.simulation ?? null;
+  },
+  ["get-race-simulation"],
+  { revalidate: false, tags: ["races"] },
+);
+
 /** A season's races in calendar order, including rounds `races` has no row for yet (see
  * `withCalendarPlaceholders`) — otherwise the back half of an in-progress season is invisible. */
 export const getRacesByYear = unstable_cache(

@@ -12,12 +12,12 @@ export function PracticeSummary({ practice }: { practice: PracticeData }) {
   if (sessions.length === 0) return null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    <div className="grid items-stretch gap-4 sm:grid-cols-3">
       {sessions.map((key) => {
         const session = practice[key]!;
         const topLaps = [...session.bestLaps].sort((a, b) => a.lapTimeSec - b.lapTimeSec).slice(0, TOP_N);
         return (
-          <div key={key} className="rounded-xl border border-[var(--f1-line)] p-4">
+          <div key={key} className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">{SESSION_LABELS[key]}</p>
             <ol className="space-y-1 text-sm">
               {topLaps.map((lap, i) => (

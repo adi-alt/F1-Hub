@@ -6,7 +6,7 @@ import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { PickPanel } from "@/components/race/PickPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { getRace, getRacesByYear } from "@/lib/supabase/races";
+import { getRace, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
 import { computeHighlights } from "@/lib/highlights";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
@@ -73,7 +73,14 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const races = await getArchiveSeasonData(year);
   const race = races.find((r) => slugifyRaceName(r.raceName) === slug);
   if (!race) notFound();
-  const circuit = race.circuitId ? await getArchiveCircuitData(race.circuitId) : null;
+  const [circuit, simulation] = await Promise.all([
+    race.circuitId ? getArchiveCircuitData(race.circuitId) : Promise.resolve(null),
+    // Real Monte Carlo data for this exact race, sourced from `races` (confirmed live: populated
+    // for effectively every race back to 2018) - additive to archive_races' own results/qualifying/
+    // pit-stops/laps, not a replacement for any of them. Null, not fabricated, where it genuinely
+    // doesn't exist yet.
+    getRaceSimulation(year, race.round),
+  ]);
   const archiveWinner = race.results.find((r) => r.position === 1);
 
   return (
@@ -91,7 +98,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
       <div className="mt-8">
-        <ArchiveRaceDashboard race={race} circuit={circuit} />
+        <ArchiveRaceDashboard race={race} circuit={circuit} simulation={simulation} />
       </div>
     </div>
   );

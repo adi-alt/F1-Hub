@@ -18,7 +18,7 @@ export function StatTiles({ tiles }: { tiles: StatTile[] }) {
           key={t.label}
           variants={staggerItem}
           whileHover={{ y: -3 }}
-          className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-4 transition hover:border-white/20 hover:shadow-lg hover:shadow-black/30"
+          className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 transition hover:border-white/20 hover:shadow-lg hover:shadow-black/30"
         >
           <p className="text-xs uppercase tracking-wide text-neutral-500">{t.label}</p>
           <p className="mt-1 text-lg font-semibold text-white">{t.value}</p>

@@ -11,7 +11,9 @@ import { CircuitCard } from "./CircuitCard";
 import { QualifyingBarChart } from "./QualifyingBarChart";
 import { PitStopsTimeline } from "./PitStopsTimeline";
 import { LapChart } from "./LapChart";
+import { SimulationPanel } from "@/components/race/SimulationPanel";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
+import type { RaceSimulation } from "@/lib/types/race";
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20+ car historical field doesn't turn Results into a wall-length scroll inside its own card.
@@ -43,9 +45,11 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
  * (RaceSectionCard) instead of the old tab shell - a section that genuinely has nothing
  * backfilled yet (qualifying/pit-stops/laps) doesn't render at all, rather than taking up space
  * to say so. Results always renders - final classification isn't optional for a classified
- * historical race. No Simulation section - archive has no simulation data for any historical
- * race, full stop. */
-export function ArchiveRaceDashboard({ race, circuit }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null }) {
+ * historical race. `simulation` comes from `races.simulation` (the current-season table), fetched
+ * separately by the page and passed in here - confirmed live it's populated for effectively every
+ * race back to 2018, a real dataset `archive_races` itself has no equivalent of, not fabricated
+ * for races where it's genuinely absent. */
+export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null; simulation: RaceSimulation | null }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [showAllResults, setShowAllResults] = useState(false);
@@ -183,6 +187,12 @@ export function ArchiveRaceDashboard({ race, circuit }: { race: ArchiveRaceDoc; 
       {race.lapsBackfilled && (
         <RaceSectionCard id="analysis" title="Race Progression" description="Track position, lap by lap.">
           <LapChart year={race.year} round={race.round} results={race.results} />
+        </RaceSectionCard>
+      )}
+
+      {simulation && (
+        <RaceSectionCard id="simulation" title="Simulation">
+          <SimulationPanel simulation={simulation} />
         </RaceSectionCard>
       )}
     </div>

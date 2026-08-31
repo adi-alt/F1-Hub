@@ -31,7 +31,7 @@ function PodiumCard({ entry }: { entry: PodiumEntry }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="flex h-full flex-col justify-between rounded-xl border-t-2 bg-[var(--f1-carbon)]/60 p-4"
+      className="surface-inset flex h-full flex-col justify-between rounded-xl border-t-2 bg-[var(--f1-carbon)]/60 p-4"
       style={{ borderTopColor: accent }}
     >
       <p className={isP1 ? "text-3xl font-black text-white" : "text-2xl font-black text-neutral-300"}>P{entry.position}</p>
