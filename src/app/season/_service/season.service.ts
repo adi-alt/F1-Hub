@@ -293,7 +293,7 @@ export async function getSeasonPageData(year: number, uid: string) {
 }
 
 // "Finished" / "+N Lap(s)" / everything else (Retired, Accident, Engine, DNF, ...) — the exact
-// same three-way read ArchiveRaceTabs.tsx's own per-race isRetired check already uses, just
+// same three-way read ArchiveRaceDashboard.tsx's own per-race isRetired check already uses, just
 // applied per season-wide result row here instead of one race's worth.
 function archiveFinishStatus(status: string): RaceResultSummary["status"] {
   if (status === "Finished") return "finished";

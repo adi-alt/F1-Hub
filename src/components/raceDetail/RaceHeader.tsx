@@ -15,6 +15,7 @@ export function RaceHeader({
   country,
   dateLabel,
   externalLink,
+  resultLabel,
 }: {
   backHref: string;
   backLabel: string;
@@ -25,6 +26,9 @@ export function RaceHeader({
   country?: string | null;
   dateLabel?: string | null;
   externalLink?: { href: string; label: string };
+  // A small, subtle textual result indicator (e.g. "Winner: Lando Norris") - not a badge/color
+  // treatment, matching externalLink's own restraint just below it.
+  resultLabel?: string;
 }) {
   const metaParts = [circuitName, locality, country].filter((p): p is string => !!p);
 
@@ -44,15 +48,15 @@ export function RaceHeader({
             </p>
           )}
         </div>
-        {externalLink && (
-          <a
-            href={externalLink.href}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-sm text-neutral-500 transition hover:text-neutral-300"
-          >
-            {externalLink.label} →
-          </a>
+        {(resultLabel || externalLink) && (
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            {resultLabel && <p className="text-sm text-neutral-400">{resultLabel}</p>}
+            {externalLink && (
+              <a href={externalLink.href} target="_blank" rel="noreferrer" className="text-sm text-neutral-500 transition hover:text-neutral-300">
+                {externalLink.label} →
+              </a>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -30,6 +30,7 @@ type RaceRow = {
   round: number;
   name: string;
   circuit: string;
+  country: string | null;
   status: "upcoming" | "completed" | "scheduled";
   race_date: string | null;
   pole_sitter: string | null;
@@ -108,6 +109,7 @@ function toRaceDoc(row: RaceRow): RaceDoc {
     round: row.round,
     name: row.name,
     circuit: row.circuit,
+    country: row.country ?? undefined,
     status: row.status,
     updatedAt: row.updated_at,
     results,

@@ -17,13 +17,14 @@ export function slugifyRaceName(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** `section` opens that tab on arrival (RaceTabShell reads it via useUrlParam, which preserves
- * every other param already on the URL, `year`/`race` included) - same name kept from the old
- * `#hash`-style scroll-to-anchor `section` param this originally replaced, so every existing call
- * site's intent ("send the user straight to Qualifying/Simulation") still reads the same way. One
- * route for every race regardless of source (`round` isn't part of the URL, kept in the signature
- * only so every call site already has it in scope without a lookup - see /race/page.tsx, which
- * re-resolves it from the slug anyway). */
+/** `section` scrolls to that section on arrival (useScrollToSection reads it, matching an element
+ * `id={section}` on the target page) - same name kept from the old `#hash`-style scroll-to-anchor
+ * `section` param this originally replaced (and later, briefly, a tab-switch param before the race
+ * page dropped its tab shell for a flowing dashboard), so every existing call site's intent ("send
+ * the user straight to Qualifying/Simulation") still reads the same way regardless of how the
+ * destination page actually presents that section. One route for every race regardless of source
+ * (`round` isn't part of the URL, kept in the signature only so every call site already has it in
+ * scope without a lookup - see /race/page.tsx, which re-resolves it from the slug anyway). */
 export function raceHref(year: number, round: number, raceName: string, section?: string): string {
   const base = `/race?year=${year}&race=${slugifyRaceName(raceName)}`;
   return section ? `${base}&tab=${section}` : base;

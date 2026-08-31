@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
+import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { useArchiveLaps } from "../_hooks/useArchiveLaps";
-import type { ArchiveResultEntry } from "@/lib/supabase/archive";
+import type { ArchiveLapEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 
-type DriverSet = "top5" | "top10" | "all";
+type DriverSet = "top5" | "top10" | "all" | "custom";
 
 // The shared chartTheme only defines a couple of data colors (built for single/dual-series
 // charts like CircuitTrendChart) — a full grid's worth of drivers needs one distinct color each,
@@ -17,6 +18,45 @@ type DriverSet = "top5" | "top10" | "all";
 function driverColor(index: number, total: number): string {
   const hue = Math.round((index * 360) / Math.max(total, 1));
   return `hsl(${hue}, 65%, 60%)`;
+}
+
+type Moment = { lap: number; text: string };
+
+/** Every lead change (the P1 driver changing lap over lap - unambiguous) plus the single biggest
+ * one-lap position gain across the whole field - genuinely derivable from real lap-by-lap position
+ * data, nothing invented. Capped so this stays a handful of real highlights, not a lap-by-lap
+ * transcript. */
+function computeMoments(laps: ArchiveLapEntry[], nameFor: (id: string) => string): Moment[] {
+  const moments: Moment[] = [];
+  let prevLeader: string | null = null;
+  let biggestGain: { lap: number; driverId: string; gained: number } | null = null;
+  let prevPositions = new Map<string, number>();
+
+  for (const entry of laps) {
+    const leader = entry.timings.find((t) => t.position === 1)?.driverId ?? null;
+    if (leader && prevLeader && leader !== prevLeader) {
+      moments.push({ lap: entry.lap, text: `${nameFor(leader)} took the lead.` });
+    }
+    if (leader) prevLeader = leader;
+
+    for (const t of entry.timings) {
+      if (t.position === null) continue;
+      const prev = prevPositions.get(t.driverId);
+      if (prev !== undefined) {
+        const gained = prev - t.position;
+        if (gained > 0 && (!biggestGain || gained > biggestGain.gained)) {
+          biggestGain = { lap: entry.lap, driverId: t.driverId, gained };
+        }
+      }
+    }
+    prevPositions = new Map(entry.timings.filter((t) => t.position !== null).map((t) => [t.driverId, t.position!]));
+  }
+
+  if (biggestGain && biggestGain.gained >= 2) {
+    moments.push({ lap: biggestGain.lap, text: `${nameFor(biggestGain.driverId)} gained ${biggestGain.gained} places in a single lap.` });
+  }
+
+  return moments.sort((a, b) => a.lap - b.lap).slice(0, 6);
 }
 
 export function LapChart({
@@ -32,6 +72,7 @@ export function LapChart({
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
+  const [customIds, setCustomIds] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
   const { data: laps, isLoading, isError } = useArchiveLaps(year, round, shown);
 
@@ -65,8 +106,9 @@ export function LapChart({
   // click-lock still work within whichever set is currently visible.
   const visibleDriverIds = useMemo(() => {
     if (driverSet === "all") return driverIds;
+    if (driverSet === "custom") return driverIds.filter((id) => customIds.includes(id));
     return driverIds.slice(0, driverSet === "top5" ? 5 : 10);
-  }, [driverIds, driverSet]);
+  }, [driverIds, driverSet, customIds]);
 
   const chartData = useMemo(
     () =>
@@ -77,6 +119,8 @@ export function LapChart({
       }),
     [laps],
   );
+
+  const moments = useMemo(() => (laps ? computeMoments(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
 
   if (!shown) {
     return (
@@ -94,18 +138,30 @@ export function LapChart({
     return <p className="text-sm text-neutral-500">No lap data available for this race.</p>;
   }
 
+  const multiSelectOptions: MultiSelectOption[] = driverIds.map((id, i) => ({
+    code: id,
+    label: nameFor(id),
+    color: driverColor(i, driverIds.length),
+  }));
+
   return (
     <div ref={rootRef}>
-      <QuietTabs
-        options={[
-          { value: "top5" as const, label: "Top 5" },
-          { value: "top10" as const, label: "Top 10" },
-          { value: "all" as const, label: "All drivers" },
-        ]}
-        value={driverSet}
-        onChange={setDriverSet}
-        className="mb-3 text-xs"
-      />
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <QuietTabs
+          options={[
+            { value: "top5" as const, label: "Top 5" },
+            { value: "top10" as const, label: "Top 10" },
+            { value: "all" as const, label: "All drivers" },
+            { value: "custom" as const, label: "Custom" },
+          ]}
+          value={driverSet}
+          onChange={setDriverSet}
+          className="text-xs"
+        />
+        {driverSet === "custom" && (
+          <EntityMultiSelect options={multiSelectOptions} selected={customIds} onChange={setCustomIds} placeholder="Select drivers" />
+        )}
+      </div>
       {/* A driver's default state is deliberately quiet (every line the same modest weight) -
           hovering (or clicking, to lock it while the mouse moves to the chart itself) picks one
           out and fades the rest, rather than ~20 equally-loud lines competing for attention. */}
@@ -179,6 +235,20 @@ export function LapChart({
           );
         })}
       </div>
+
+      {moments.length > 0 && (
+        <div className="mt-6 border-t border-white/10 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Key race moments</p>
+          <ul className="space-y-1.5">
+            {moments.map((m, i) => (
+              <li key={i} className="flex gap-2 text-sm text-neutral-300">
+                <span className="w-12 shrink-0 font-mono text-xs text-neutral-500">Lap {m.lap}</span>
+                {m.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

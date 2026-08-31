@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { ArchiveRaceTabs } from "@/app/archive/components/ArchiveRaceTabs";
+import { ArchiveRaceDashboard } from "@/app/archive/components/ArchiveRaceDashboard";
 import { getArchiveCircuitData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
 import { seasonStatus } from "@/app/season/_service/season.service";
-import { SeasonRaceTabs } from "@/components/race/SeasonRaceTabs";
+import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { PickPanel } from "@/components/race/PickPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -45,12 +45,21 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const highlights = computeHighlights(race);
     const accuracy = comparePrediction(race);
     const poleAccuracy = comparePolePrediction(race);
+    const winner = race.status === "completed" ? race.results?.find((r) => r.finishPosition === 1) : undefined;
 
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
-        <RaceHeader backHref="/season" backLabel={`${race.year} season`} roundLabel={`Round ${race.round}`} name={race.name} circuitName={race.circuit} />
+        <RaceHeader
+          backHref="/season"
+          backLabel={`${race.year} season`}
+          roundLabel={`Round ${race.round}`}
+          name={race.name}
+          circuitName={race.circuit}
+          country={race.country}
+          resultLabel={winner ? `Winner: ${winner.driverName}` : undefined}
+        />
         <div className="mt-8">
-          <SeasonRaceTabs race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} />
+          <SeasonRaceDashboard race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} />
         </div>
         <div className="mt-8">
           <PickPanel race={race} />
@@ -65,6 +74,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const race = races.find((r) => slugifyRaceName(r.raceName) === slug);
   if (!race) notFound();
   const circuit = race.circuitId ? await getArchiveCircuitData(race.circuitId) : null;
+  const archiveWinner = race.results.find((r) => r.position === 1);
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
@@ -78,9 +88,10 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         country={race.country}
         dateLabel={race.raceDate ?? undefined}
         externalLink={race.wikipediaUrl ? { href: race.wikipediaUrl, label: "Full race report" } : undefined}
+        resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
       <div className="mt-8">
-        <ArchiveRaceTabs race={race} circuit={circuit} />
+        <ArchiveRaceDashboard race={race} circuit={circuit} />
       </div>
     </div>
   );

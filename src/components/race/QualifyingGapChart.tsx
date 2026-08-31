@@ -22,31 +22,56 @@ export function QualifyingGapChart({ inputs }: { inputs: RaceInputEntry[] }) {
     color: teamColor(r.team),
   }));
 
+  // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
+  // usually two midfield cars a fraction apart, not necessarily whoever's nearest pole itself.
+  let closestGap: number | null = null;
+  for (let i = 1; i < data.length; i++) {
+    const diff = data[i].gap - data[i - 1].gap;
+    if (closestGap === null || diff < closestGap) closestGap = diff;
+  }
+
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-      <ResponsiveContainer width="100%" height={Math.max(260, data.length * 28)}>
-        <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 8 }} barCategoryGap="20%">
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="driverName" width={140} tick={{ fill: "#c3c2b7", fontSize: 12 }} axisLine={false} tickLine={false} />
-          <Tooltip
-            contentStyle={tooltipStyle}
-            formatter={(_value, _name, item) => [item.payload.gap === 0 ? "Pole" : `+${item.payload.gap.toFixed(3)}s`, ""]}
-          />
-          <Bar dataKey="gap" radius={[3, 3, 3, 3]} minPointSize={2} maxBarSize={16}>
-            {data.map((d) => (
-              <Cell
-                key={d.driverName}
-                fill={d.color}
-                fillOpacity={hovered === null || hovered === d.driverName ? 0.85 : 0.25}
-                onMouseEnter={() => setHovered(d.driverName)}
-                onMouseLeave={() => setHovered(null)}
-                style={{ transition: "fill-opacity 150ms ease-out" }}
-              />
-            ))}
-            <LabelList dataKey="gap" position="right" formatter={(value: unknown) => (Number(value) === 0 ? "Pole" : `+${Number(value).toFixed(3)}s`)} fill="#898781" fontSize={11} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </motion.div>
+    <div>
+      <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
+        <span>
+          <span className="font-medium text-white">{data[0].driverName}</span> on pole
+        </span>
+        {data[1] && (
+          <span>
+            Margin to P2 <span className="font-medium text-neutral-300">+{data[1].gap.toFixed(3)}s</span>
+          </span>
+        )}
+        {closestGap !== null && (
+          <span>
+            Closest gap <span className="font-medium text-neutral-300">{closestGap.toFixed(3)}s</span>
+          </span>
+        )}
+      </div>
+      <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+        <ResponsiveContainer width="100%" height={Math.max(260, data.length * 28)}>
+          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 8 }} barCategoryGap="20%">
+            <XAxis type="number" hide />
+            <YAxis type="category" dataKey="driverName" width={140} tick={{ fill: "#c3c2b7", fontSize: 12 }} axisLine={false} tickLine={false} />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(_value, _name, item) => [item.payload.gap === 0 ? "Pole" : `+${item.payload.gap.toFixed(3)}s`, ""]}
+            />
+            <Bar dataKey="gap" radius={[3, 3, 3, 3]} minPointSize={2} maxBarSize={16}>
+              {data.map((d) => (
+                <Cell
+                  key={d.driverName}
+                  fill={d.color}
+                  fillOpacity={hovered === null || hovered === d.driverName ? 0.85 : 0.25}
+                  onMouseEnter={() => setHovered(d.driverName)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ transition: "fill-opacity 150ms ease-out" }}
+                />
+              ))}
+              <LabelList dataKey="gap" position="right" formatter={(value: unknown) => (Number(value) === 0 ? "Pole" : `+${Number(value).toFixed(3)}s`)} fill="#898781" fontSize={11} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </motion.div>
+    </div>
   );
 }

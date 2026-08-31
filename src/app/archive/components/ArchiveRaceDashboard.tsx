@@ -1,25 +1,16 @@
 "use client";
 
-import { RaceTabShell, type RaceTab } from "@/components/raceDetail/RaceTabShell";
+import { useState } from "react";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
-import { useUrlParam } from "@/hooks/useUrlParam";
+import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
 import { QualifyingBarChart } from "./QualifyingBarChart";
 import { PitStopsTimeline } from "./PitStopsTimeline";
 import { LapChart } from "./LapChart";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
-import { useState } from "react";
-
-const TABS: RaceTab[] = [
-  { key: "overview", label: "Overview" },
-  { key: "results", label: "Results" },
-  { key: "qualifying", label: "Qualifying" },
-  { key: "strategy", label: "Strategy" },
-  { key: "analysis", label: "Analysis" },
-];
 
 // "Finished" / "+N Lap(s)" classify as having completed the race; anything else (Retired,
 // Accident, Engine, DNF, ...) doesn't - archive's status is free text, not a strict enum, same
@@ -43,16 +34,20 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
   };
 }
 
-/** Owns the race page's tab state (URL-persisted, same useUrlParam convention every other Archive
- * facet/filter already uses - a shared raceHref(..., "tab") link lands directly on the right tab)
- * and maps ArchiveRaceDoc's real fields down to the shared raceDetail primitives' plain shapes.
- * No Simulation tab - archive has no simulation data for any historical race, full stop (see the
- * plan's own data-reality note); showing one that always says "unavailable" would be worse than
- * not having it. */
-export function ArchiveRaceTabs({ race, circuit }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null }) {
-  const [tab, setTab] = useUrlParam("tab", "overview");
+function SectionLabel({ children }: { children: string }) {
+  return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{children}</p>;
+}
+
+/** Archive's race page as a flowing dashboard of always-visible sections instead of the old tab
+ * shell - a section that genuinely has nothing backfilled yet (qualifying/pit-stops/laps) doesn't
+ * render at all, rather than taking up space to say so ("Do not show a meaningless chart if
+ * strategy data is incomplete" - the spec's own rule, extended past just Strategy to every
+ * section here). Results always renders - final classification isn't optional for a classified
+ * historical race. No Simulation section - archive has no simulation data for any historical
+ * race, full stop. */
+export function ArchiveRaceDashboard({ race, circuit }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null }) {
+  useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const activeTab = TABS.some((t) => t.key === tab) ? tab : "overview";
 
   const podium: PodiumEntry[] = race.results
     .filter((r) => r.position <= 3)
@@ -128,40 +123,53 @@ export function ArchiveRaceTabs({ race, circuit }: { race: ArchiveRaceDoc; circu
   }
 
   return (
-    <RaceTabShell tabs={TABS} active={activeTab} onChange={setTab}>
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-          {storyFacts && <RaceStory facts={storyFacts} />}
-          <StatTiles tiles={statTiles} />
-          {circuit ? <CircuitCard circuit={circuit} weather={race.weather} /> : <p className="text-sm text-neutral-500">No circuit details backfilled for this race yet.</p>}
-        </div>
-      )}
+    <div id="overview" className="space-y-10">
+      <section className="glass-surface space-y-6 rounded-2xl p-5">
+        {storyFacts && <RaceStory facts={storyFacts} />}
+        <StatTiles tiles={statTiles} />
+      </section>
 
-      {activeTab === "results" && (
+      <section>
+        {circuit ? (
+          <CircuitCard circuit={circuit} weather={race.weather} />
+        ) : (
+          <>
+            <SectionLabel>Circuit</SectionLabel>
+            <p className="text-sm text-neutral-500">No circuit details backfilled for this race yet.</p>
+          </>
+        )}
+      </section>
+
+      <section id="results">
+        <SectionLabel>Results</SectionLabel>
         <div className="space-y-6">
           <RacePodium entries={podium} />
           {resultRows.length > 0 && (
             <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
           )}
         </div>
+      </section>
+
+      {!!race.qualifying?.length && (
+        <section id="qualifying">
+          <SectionLabel>Qualifying</SectionLabel>
+          <QualifyingBarChart qualifying={race.qualifying} />
+        </section>
       )}
 
-      {activeTab === "qualifying" &&
-        (race.qualifying?.length ? <QualifyingBarChart qualifying={race.qualifying} /> : <p className="text-sm text-neutral-500">No qualifying data backfilled for this race yet.</p>)}
-
-      {activeTab === "strategy" &&
-        (race.pitStops?.length ? (
+      {!!race.pitStops?.length && (
+        <section id="strategy">
+          <SectionLabel>Strategy</SectionLabel>
           <PitStopsTimeline pitStops={race.pitStops} results={race.results} />
-        ) : (
-          <p className="text-sm text-neutral-500">No pit stop data backfilled for this race yet.</p>
-        ))}
+        </section>
+      )}
 
-      {activeTab === "analysis" &&
-        (race.lapsBackfilled ? (
+      {race.lapsBackfilled && (
+        <section id="analysis">
+          <SectionLabel>Race Progression</SectionLabel>
           <LapChart year={race.year} round={race.round} results={race.results} />
-        ) : (
-          <p className="text-sm text-neutral-500">No lap-by-lap data backfilled for this race yet.</p>
-        ))}
-    </RaceTabShell>
+        </section>
+      )}
+    </div>
   );
 }

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { RaceTabShell, type RaceTab } from "@/components/raceDetail/RaceTabShell";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
-import { useUrlParam } from "@/hooks/useUrlParam";
+import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { formatLapTime } from "@/lib/format";
 import { circuitHref } from "@/lib/routes";
 import type { RaceHighlights } from "@/lib/highlights";
@@ -19,6 +18,7 @@ import { PracticeSummary } from "./PracticeSummary";
 import { PredictionComparison } from "./PredictionComparison";
 import { PredictionPanel } from "./PredictionPanel";
 import { QualifyingGapChart } from "./QualifyingGapChart";
+import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
 import { MovementChart } from "@/components/charts/MovementChart";
@@ -37,10 +37,15 @@ function toResultRow(r: RaceResultEntry): RaceResultRow {
   };
 }
 
-/** Season's own tab set - one Simulation tab more than Archive's, and only when this specific
- * race actually has one (race.simulation - see the plan's own data-reality note: this is real for
- * the current season only, never fabricated). */
-export function SeasonRaceTabs({
+function SectionLabel({ children }: { children: string }) {
+  return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{children}</p>;
+}
+
+/** The season race page's actual content, as a flowing dashboard of always-visible sections
+ * instead of the old tab shell - each section gated on exactly the same real-data condition its
+ * old tab was (isCompleted/has-inputs/has-tireStints/has-prediction/has-simulation), just applied
+ * to whether the section renders at all rather than whether a tab appears. */
+export function SeasonRaceDashboard({
   race,
   highlights,
   accuracy,
@@ -51,19 +56,9 @@ export function SeasonRaceTabs({
   accuracy: PredictionAccuracy | null;
   poleAccuracy: PolePredictionAccuracy | null;
 }) {
-  const [tab, setTab] = useUrlParam("tab", "overview");
+  useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const isCompleted = race.status === "completed" && !!race.results;
-
-  const tabs: RaceTab[] = [
-    { key: "overview", label: "Overview" },
-    ...(isCompleted ? [{ key: "results", label: "Results" }] : []),
-    ...(race.inputs?.length ? [{ key: "qualifying", label: "Qualifying" }] : []),
-    ...(race.tireStints?.length ? [{ key: "strategy", label: "Strategy" }] : []),
-    ...(isCompleted || race.prediction || race.polePrediction ? [{ key: "analysis", label: "Analysis" }] : []),
-    ...(race.simulation ? [{ key: "simulation", label: "Simulation" }] : []),
-  ];
-  const activeTab = tabs.some((t) => t.key === tab) ? tab : "overview";
 
   const fastestLapSec = isCompleted && race.results ? Math.min(...race.results.filter((r) => r.fastestLapSec !== null).map((r) => r.fastestLapSec!)) : null;
   const podium: PodiumEntry[] =
@@ -145,54 +140,92 @@ export function SeasonRaceTabs({
     );
   }
 
+  const hasAnalysis = isCompleted || !!accuracy || !!poleAccuracy;
+
   return (
-    <RaceTabShell tabs={tabs} active={activeTab} onChange={setTab}>
-      {activeTab === "overview" && (
-        <div className="space-y-6">
+    <div id="overview" className="space-y-10">
+      {(storyFacts || statTiles) && (
+        <section className="glass-surface space-y-6 rounded-2xl p-5">
           {storyFacts && <RaceStory facts={storyFacts} />}
           {statTiles && <StatTiles tiles={statTiles} />}
-          {race.practice && <PracticeSummary practice={race.practice} />}
-          {!isCompleted &&
-            (race.prediction ? (
-              <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
-            ) : race.polePrediction ? (
-              <PoleSection polePrediction={race.polePrediction} />
-            ) : (
-              <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
-            ))}
-          <Link href={circuitHref(race.circuit)} className="inline-block text-sm text-neutral-500 transition hover:text-neutral-300">
-            Track history →
-          </Link>
-        </div>
+        </section>
       )}
 
-      {activeTab === "results" && (
-        <div className="space-y-6">
-          <RacePodium entries={podium} />
-          {resultRows.length > 0 && (
-            <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
-          )}
-        </div>
+      {!isCompleted &&
+        (race.prediction ? (
+          <section>
+            <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
+          </section>
+        ) : race.polePrediction ? (
+          <section>
+            <PoleSection polePrediction={race.polePrediction} />
+          </section>
+        ) : (
+          <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
+        ))}
+
+      <section>
+        <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} />
+        <Link href={circuitHref(race.circuit)} className="mt-3 inline-block text-sm text-neutral-500 transition hover:text-neutral-300">
+          Track history →
+        </Link>
+      </section>
+
+      {race.practice && (
+        <section>
+          <SectionLabel>Practice</SectionLabel>
+          <PracticeSummary practice={race.practice} />
+        </section>
       )}
 
-      {activeTab === "qualifying" && race.inputs && <QualifyingGapChart inputs={race.inputs} />}
-
-      {activeTab === "strategy" && race.tireStints && <TireStintTimeline stints={race.tireStints} />}
-
-      {activeTab === "analysis" && (
-        <div className="space-y-8">
-          {(accuracy || poleAccuracy) && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {accuracy && <PredictionComparison accuracy={accuracy} />}
-              {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
-            </div>
-          )}
-          {isCompleted && race.results && <MovementChart results={race.results} />}
-          {(race.prediction || race.polePrediction) && <ModelInfo />}
-        </div>
+      {isCompleted && (
+        <section id="results">
+          <SectionLabel>Results</SectionLabel>
+          <div className="space-y-6">
+            <RacePodium entries={podium} />
+            {resultRows.length > 0 && (
+              <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
+            )}
+          </div>
+        </section>
       )}
 
-      {activeTab === "simulation" && race.simulation && <SimulationPanel simulation={race.simulation} />}
-    </RaceTabShell>
+      {!!race.inputs?.length && (
+        <section id="qualifying">
+          <SectionLabel>Qualifying</SectionLabel>
+          <QualifyingGapChart inputs={race.inputs} />
+        </section>
+      )}
+
+      {!!race.tireStints?.length && (
+        <section id="strategy">
+          <SectionLabel>Strategy</SectionLabel>
+          <TireStintTimeline stints={race.tireStints} results={race.results ?? []} />
+        </section>
+      )}
+
+      {hasAnalysis && (
+        <section id="analysis">
+          <SectionLabel>Race Progression</SectionLabel>
+          <div className="space-y-8">
+            {(accuracy || poleAccuracy) && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {accuracy && <PredictionComparison accuracy={accuracy} />}
+                {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
+              </div>
+            )}
+            {isCompleted && race.results && <MovementChart results={race.results} />}
+            {(race.prediction || race.polePrediction) && <ModelInfo />}
+          </div>
+        </section>
+      )}
+
+      {race.simulation && (
+        <section id="simulation">
+          <SectionLabel>Simulation</SectionLabel>
+          <SimulationPanel simulation={race.simulation} />
+        </section>
+      )}
+    </div>
   );
 }

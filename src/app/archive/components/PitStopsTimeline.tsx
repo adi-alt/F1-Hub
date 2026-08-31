@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 
 type Point = { driverName: string; lap: number; durationSec: number | null; color: string; order: number };
+type DriverSet = "top5" | "top10" | "all";
 
 // Longer stops get a visibly bigger dot — clamped so one freak 60s stop-and-retire doesn't make
 // every normal ~2.5s stop invisible by comparison.
@@ -58,19 +60,23 @@ export function PitStopsTimeline({
   results: ArchiveResultEntry[];
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const nameFor = (driverId: string) => results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
   const colorFor = (driverId: string) => {
     const constructor = results.find((r) => r.driverId === driverId)?.constructor;
     return constructor ? teamColor(constructor) : chart.mutedInk;
   };
 
-  const driverOrder = results.map((r) => r.driverId).filter((id) => pitStops.some((p) => p.driverId === id));
+  const rankedIds = results.map((r) => r.driverId).filter((id) => pitStops.some((p) => p.driverId === id));
+  const driverOrder = driverSet === "all" ? rankedIds : rankedIds.slice(0, driverSet === "top5" ? 5 : 10);
+  const visible = new Set(driverOrder);
 
   // Recharts derives a category axis's row order from first-appearance in `data`, not from
   // alphabetical or any other implicit rule — sorting by finishing position here (rather than
   // pit-stop order, which is what this produced before the fix) is what makes the chart read as
   // an ordered comparison instead of a seemingly-random diagonal scatter.
   const data: Point[] = pitStops
+    .filter((p) => visible.has(p.driverId))
     .map((p) => ({
       driverName: nameFor(p.driverId),
       lap: p.lap,
@@ -81,8 +87,19 @@ export function PitStopsTimeline({
     .sort((a, b) => a.order - b.order);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-      <ResponsiveContainer width="100%" height={Math.max(280, driverOrder.length * 26)}>
+    <div>
+      <QuietTabs
+        options={[
+          { value: "top5" as const, label: "Top 5" },
+          { value: "top10" as const, label: "Top 10" },
+          { value: "all" as const, label: "All drivers" },
+        ]}
+        value={driverSet}
+        onChange={setDriverSet}
+        className="mb-3 text-xs"
+      />
+      <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+        <ResponsiveContainer width="100%" height={Math.max(280, driverOrder.length * 26)}>
         <ScatterChart margin={{ left: 8, right: 16, top: 8, bottom: 24 }}>
           <XAxis
             type="number"
@@ -113,7 +130,8 @@ export function PitStopsTimeline({
           />
           <Scatter data={data} shape={<Dot hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)} />} />
         </ScatterChart>
-      </ResponsiveContainer>
-    </motion.div>
+        </ResponsiveContainer>
+      </motion.div>
+    </div>
   );
 }

@@ -125,6 +125,7 @@ export type RaceDoc = {
   round: number;
   name: string; // FastF1's eventName, e.g. "Hungarian Grand Prix"
   circuit: string; // FastF1's location, e.g. "Budapest" — stable per physical track across years
+  country?: string; // FastF1's own Country field — real, written by the pipeline, previously dropped before reaching RaceDoc
   status: RaceStatus;
   updatedAt: string;
   results?: RaceResultEntry[];
