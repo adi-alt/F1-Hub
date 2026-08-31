@@ -147,10 +147,28 @@ export function ArchiveTable<T>({
             that was one more way to force horizontal scroll at a viewport narrower than the floor
             for no benefit. overflow-x-auto above is the genuine-mobile fallback. */}
         <table className="w-full table-fixed text-left text-sm">
+          {/* Column widths declared here, not just as classes on <th> - a <colgroup> is the one
+              CSS-spec-guaranteed way to fix column widths under table-layout:fixed regardless of
+              <thead>/<tbody> content, rather than leaning on whichever row a given browser happens
+              to measure. This is what was actually forcing the horizontal scroll: the bold,
+              uppercase, letter-spaced header *labels* ("FAVORITE" at only 3rem) don't fit their
+              column at that width, and a <th> without an authoritative <col> width can still push
+              the whole table wider to accommodate that overflow even under table-fixed. */}
+          <colgroup>
+            <col className="w-12" />
+            {columns.map((col) => (
+              <col key={col.key} className={col.widthClassName} />
+            ))}
+            <col className="w-16" />
+          </colgroup>
           <thead ref={theadRef} className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
             <tr>
-              <th scope="col" className="w-12 px-4 py-2.5">
-                S.No
+              {/* "#" not "S.No" - the row-index column is only 3rem wide (just enough for a 3-digit
+                  number plus padding), and "S.No" at 11px bold+uppercase+tracked never actually fit
+                  that - truncate above stops it from forcing table overflow, but a label short
+                  enough to actually render in full is the real fix, not just a safety net. */}
+              <th scope="col" title="Row number" className="overflow-hidden truncate whitespace-nowrap px-4 py-2.5">
+                #
               </th>
               {columns.map((col) => (
                 <th
@@ -158,16 +176,18 @@ export function ArchiveTable<T>({
                   scope="col"
                   aria-sort={col.sortable ? (col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
                   onClick={col.sortable ? () => toggleSort(col.key) : undefined}
-                  className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
+                  className={`overflow-hidden truncate whitespace-nowrap px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
                     col.sortable ? "cursor-pointer select-none" : ""
-                  } ${col.hideOnMobile ? "hidden lg:table-cell" : ""} ${col.widthClassName ?? ""}`}
+                  } ${col.hideOnMobile ? "hidden lg:table-cell" : ""}`}
                 >
                   {col.label}
                   {col.sortable && col.key === sortKey && <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>}
                 </th>
               ))}
-              <th scope="col" className="w-12 px-4 py-2.5 text-center">
-                Favorite
+              {/* "Fav" not "Favorite" - same reasoning as "#" above; title= keeps the full word
+                  available on hover for anyone unsure what the abbreviation means. */}
+              <th scope="col" title="Favorite" className="overflow-hidden truncate whitespace-nowrap px-4 py-2.5 text-center">
+                Fav
               </th>
             </tr>
           </thead>
