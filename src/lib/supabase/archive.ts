@@ -536,6 +536,20 @@ export const getArchiveDriver = unstable_cache(
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
+/** Photo lookup for a known, small set of driver ids (one season's worth, ~20-40 drivers) - not
+ * getAllArchiveDrivers(), which pulls every column of every driver in the whole archive (805 rows
+ * and growing) just to read two of them for a handful of ids. Same "not unstable_cache-wrapped,
+ * dynamic array input is a poor cache key, already a single cheap indexed lookup" reasoning as
+ * getArchiveDriverIdsByCode right below. */
+export async function getArchiveDriverPhotosByIds(driverIds: string[]): Promise<Map<string, string | null>> {
+  if (driverIds.length === 0) return new Map();
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("archive_drivers").select("driver_id, photo_url").in("driver_id", driverIds),
+  );
+  if (error) throw new Error(`getArchiveDriverPhotosByIds: ${error.message}`);
+  return new Map(((data ?? []) as { driver_id: string; photo_url: string | null }[]).map((r) => [r.driver_id, r.photo_url]));
+}
+
 export const getAllArchiveDrivers = unstable_cache(
   async (): Promise<ArchiveDriver[]> => {
     const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_drivers").select("*"));

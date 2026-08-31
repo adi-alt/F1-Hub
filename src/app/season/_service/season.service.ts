@@ -1,4 +1,4 @@
-import { getAllArchiveDrivers, getArchiveDriverIdsByCode, getArchiveSeason } from "@/lib/supabase/archive";
+import { getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds, getArchiveSeason } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
@@ -312,8 +312,12 @@ function computeArchiveProgression(races: ArchiveRaceDoc[], driverIds: string[])
  * already over (real pit-stops/qualifying/lap data races.ts never has at all), not a fallback.
  * See getSeasonDetailData below for which of the two this actually calls. */
 async function getArchiveSeasonDetailData(year: number, uid: string) {
-  const [races, archiveDrivers, profile] = await Promise.all([getArchiveSeason(year), getAllArchiveDrivers(), getUserProfile(uid)]);
-  const photoByDriverId = new Map(archiveDrivers.map((d) => [d.driverId, d.photoUrl]));
+  const [races, profile] = await Promise.all([getArchiveSeason(year), getUserProfile(uid)]);
+  // Only this season's own drivers (~20-40 ids), not every driver the archive has ever had (805
+  // rows and growing) - getAllArchiveDrivers() was the wrong tool here, a real slowdown on a page
+  // that now loads on every single archive year visit, not just the rare "browse all drivers" one.
+  const driverIds = [...new Set(races.flatMap((r) => r.results.map((res) => res.driverId)))];
+  const photoByDriverId = await getArchiveDriverPhotosByIds(driverIds);
 
   const driverMap = new Map<string, DriverStandingRow>();
   const constructorMap = new Map<string, ConstructorStandingRow>();
