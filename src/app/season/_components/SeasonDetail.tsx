@@ -3,6 +3,7 @@ import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
 import { SeasonCalendar } from "./SeasonCalendar";
 import { SeasonExplorerProvider } from "../_context/SeasonExplorerContext";
+import { RaceList } from "@/components/raceDetail/RaceList";
 import type { Battle, ConstructorStandingRow, DriverStandingRow, RaceSummary, SeasonRecord } from "../_service/season.service";
 
 /** The one season-detail experience — Season and Archive both render this exact component, never
@@ -84,6 +85,10 @@ export function SeasonDetail({
 
       <div className="mt-8">
         <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
+      </div>
+
+      <div className="mt-8">
+        <RaceList year={year} raceSummaries={raceSummaries} />
       </div>
     </SeasonExplorerProvider>
   );

@@ -4,8 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
+import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import type { ArchiveResultEntry } from "@/lib/supabase/archive";
+
+type DriverSet = "top5" | "top10" | "all";
 
 // The shared chartTheme only defines a couple of data colors (built for single/dual-series
 // charts like CircuitTrendChart) — a full grid's worth of drivers needs one distinct color each,
@@ -28,6 +31,7 @@ export function LapChart({
   const [shown, setShown] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
+  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const rootRef = useRef<HTMLDivElement>(null);
   const { data: laps, isLoading, isError } = useArchiveLaps(year, round, shown);
 
@@ -48,9 +52,21 @@ export function LapChart({
   const driverIds = useMemo(() => {
     const ids = new Set<string>();
     for (const lap of laps ?? []) for (const t of lap.timings) ids.add(t.driverId);
-    // Order by final race position so the legend/line-color order matches the results table.
-    return results.filter((r) => ids.has(r.driverId)).map((r) => r.driverId);
+    // Order by real final race position (not however `results` happened to arrive) so the
+    // legend/line-color order - and the Top 5/Top 10 slice below - matches the results table.
+    return [...results]
+      .filter((r) => ids.has(r.driverId))
+      .sort((a, b) => a.position - b.position)
+      .map((r) => r.driverId);
   }, [laps, results]);
+
+  // A full grid's worth of lines by default is the exact "too many lines, too many colours"
+  // problem the redesign flagged - Top 5 (the sensible default) keeps the chart readable; hover/
+  // click-lock still work within whichever set is currently visible.
+  const visibleDriverIds = useMemo(() => {
+    if (driverSet === "all") return driverIds;
+    return driverIds.slice(0, driverSet === "top5" ? 5 : 10);
+  }, [driverIds, driverSet]);
 
   const chartData = useMemo(
     () =>
@@ -80,6 +96,16 @@ export function LapChart({
 
   return (
     <div ref={rootRef}>
+      <QuietTabs
+        options={[
+          { value: "top5" as const, label: "Top 5" },
+          { value: "top10" as const, label: "Top 10" },
+          { value: "all" as const, label: "All drivers" },
+        ]}
+        value={driverSet}
+        onChange={setDriverSet}
+        className="mb-3 text-xs"
+      />
       {/* A driver's default state is deliberately quiet (every line the same modest weight) -
           hovering (or clicking, to lock it while the mouse moves to the chart itself) picks one
           out and fades the rest, rather than ~20 equally-loud lines competing for attention. */}
@@ -108,15 +134,18 @@ export function LapChart({
               labelFormatter={(lap) => `Lap ${lap}`}
               formatter={(value, name) => [`P${value}`, nameFor(String(name))]}
             />
-            {driverIds.map((driverId, i) => {
+            {visibleDriverIds.map((driverId) => {
               const isHighlighted = highlighted === null || highlighted === driverId;
+              // Color is keyed off the full grid's index, not the visible subset's - so a
+              // driver's line color stays the same one when switching Top 5 -> All, not reshuffled.
+              const colorIndex = driverIds.indexOf(driverId);
               return (
                 <Line
                   key={driverId}
                   type="stepAfter"
                   dataKey={driverId}
                   name={nameFor(driverId)}
-                  stroke={driverColor(i, driverIds.length)}
+                  stroke={driverColor(colorIndex, driverIds.length)}
                   strokeWidth={highlighted === driverId ? 2.5 : 1.5}
                   strokeOpacity={isHighlighted ? 1 : 0.15}
                   dot={false}
@@ -130,8 +159,9 @@ export function LapChart({
       </motion.div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {driverIds.map((driverId, i) => {
+        {visibleDriverIds.map((driverId) => {
           const isActive = highlighted === driverId;
+          const colorIndex = driverIds.indexOf(driverId);
           return (
             <button
               key={driverId}
@@ -143,7 +173,7 @@ export function LapChart({
                 isActive ? "border-white/25 bg-white/[0.06] text-white" : "border-transparent text-neutral-400 hover:text-white"
               }`}
             >
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: driverColor(i, driverIds.length) }} />
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: driverColor(colorIndex, driverIds.length) }} />
               {nameFor(driverId)}
             </button>
           );
