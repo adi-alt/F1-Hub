@@ -5,6 +5,7 @@ import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
+import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { formatLapTime } from "@/lib/format";
@@ -43,9 +44,10 @@ function toResultRow(r: RaceResultEntry): RaceResultRow {
 }
 
 /** The season race page's actual content, as a flowing dashboard of always-visible, individually
- * bounded sections (RaceSectionCard) instead of the old tab shell - each section gated on exactly
- * the same real-data condition its old tab was (isCompleted/has-inputs/has-tireStints/has-
- * prediction/has-simulation), just applied to whether the section renders at all. */
+ * bounded sections instead of the old tab shell. Practice/Qualifying/Strategy live inside one
+ * "Session Analysis" module (RaceSubSection) rather than three separate top-level glass cards -
+ * "related modules should feel grouped," not "card, card, card." Each section/sub-section is
+ * still gated on exactly the same real-data condition its old tab was. */
 export function SeasonRaceDashboard({
   race,
   highlights,
@@ -144,14 +146,16 @@ export function SeasonRaceDashboard({
   }
 
   const hasAnalysis = isCompleted || !!accuracy || !!poleAccuracy;
+  const hasPractice = !!race.practice;
   const hasQualifying = !!race.inputs?.length;
   const hasStrategy = !!race.tireStints?.length;
-  const sideBySide = hasQualifying && hasStrategy;
+  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy;
 
   return (
-    <div id="overview" className="space-y-8">
+    <div id="overview" className="space-y-10">
       {(storyFacts || statTiles) && (
         <section className="glass-surface rounded-2xl p-5 sm:p-6">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
           <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
             {storyFacts && <RaceStory facts={storyFacts} />}
             {statTiles && <StatTiles tiles={statTiles} />}
@@ -179,12 +183,6 @@ export function SeasonRaceDashboard({
         </Link>
       </section>
 
-      {race.practice && (
-        <RaceSectionCard title="Practice">
-          <PracticeSummary practice={race.practice} />
-        </RaceSectionCard>
-      )}
-
       {isCompleted && (
         <RaceSectionCard id="results" title="Results">
           <div className="space-y-6">
@@ -205,23 +203,41 @@ export function SeasonRaceDashboard({
         </RaceSectionCard>
       )}
 
-      {(hasQualifying || hasStrategy) && (
-        <div className={sideBySide ? "grid gap-8 lg:grid-cols-2" : undefined}>
-          {hasQualifying && (
-            <RaceSectionCard id="qualifying" title="Qualifying">
-              <QualifyingGapChart inputs={race.inputs!} />
-            </RaceSectionCard>
+      {hasSessionAnalysis && (
+        <RaceSectionCard title="Session Analysis">
+          {hasPractice && (
+            <RaceSubSection label="Practice" first>
+              <PracticeSummary practice={race.practice!} />
+            </RaceSubSection>
           )}
-          {hasStrategy && (
-            <RaceSectionCard id="strategy" title="Strategy">
-              <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} />
-            </RaceSectionCard>
+          {(hasQualifying || hasStrategy) && (
+            <div className={hasPractice ? "mt-8 border-t border-white/[0.07] pt-8" : ""}>
+              <div className={hasQualifying && hasStrategy ? "grid gap-8 lg:grid-cols-2" : undefined}>
+                {hasQualifying && (
+                  <div id="qualifying">
+                    <RaceSubSection label="Qualifying" first>
+                      <QualifyingGapChart inputs={race.inputs!} />
+                    </RaceSubSection>
+                  </div>
+                )}
+                {hasStrategy && (
+                  <div id="strategy">
+                    {/* `first` unconditionally - Qualifying/Strategy either sit side by side (a
+                        grid, no "above" content on either side) or this is the only one in the
+                        block, never a second item stacked below the other. */}
+                    <RaceSubSection label="Strategy" first>
+                      <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} />
+                    </RaceSubSection>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-        </div>
+        </RaceSectionCard>
       )}
 
       {hasAnalysis && (
-        <RaceSectionCard id="analysis" title="Race Progression" description="Grid position vs. finishing position for every classified driver.">
+        <RaceSectionCard id="analysis" title="Race Analysis" description="Grid position vs. finishing position for every classified driver.">
           <div className="space-y-8">
             {(accuracy || poleAccuracy) && (
               <div className="grid gap-4 sm:grid-cols-2">

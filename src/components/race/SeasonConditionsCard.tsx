@@ -9,7 +9,7 @@ import type { SessionWeather } from "@/lib/types/race";
  * not a temperature range. */
 export function SeasonConditionsCard({ circuit, country, weather }: { circuit: string; country?: string; weather?: SessionWeather }) {
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-4">
+    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
       <p className="text-xs uppercase tracking-wide text-neutral-500">Circuit</p>
       <p className="font-semibold text-white">
         {circuit}

@@ -58,10 +58,10 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           country={race.country}
           resultLabel={winner ? `Winner: ${winner.driverName}` : undefined}
         />
-        <div className="mt-8">
+        <div className="mt-10">
           <SeasonRaceDashboard race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} />
         </div>
-        <div className="mt-8">
+        <div className="mt-10">
           <PickPanel race={race} />
         </div>
       </div>
@@ -97,7 +97,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         externalLink={race.wikipediaUrl ? { href: race.wikipediaUrl, label: "Full race report" } : undefined}
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
-      <div className="mt-8">
+      <div className="mt-10">
         <ArchiveRaceDashboard race={race} circuit={circuit} simulation={simulation} />
       </div>
     </div>

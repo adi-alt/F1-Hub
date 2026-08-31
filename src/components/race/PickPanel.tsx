@@ -37,7 +37,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
 
   if (!isAuthorized) {
     return (
-      <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5 text-sm text-neutral-400">
+      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 text-sm text-neutral-400">
         Sign in to make your own podium pick for this race.
       </div>
     );
@@ -46,7 +46,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
   const entrants = race.inputs ?? [];
   if (entrants.length === 0) {
     return (
-      <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5 text-sm text-neutral-400">
+      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 text-sm text-neutral-400">
         Podium picks open once qualifying happens for this race weekend.
       </div>
     );
@@ -84,7 +84,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
     : null;
 
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5">
+    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5">
       <p className="text-xs uppercase tracking-wide text-neutral-500">Your podium pick</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {(["p1", "p2", "p3"] as const).map((slot, i) => (

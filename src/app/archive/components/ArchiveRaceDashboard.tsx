@@ -5,6 +5,7 @@ import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
+import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
@@ -42,13 +43,15 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
 }
 
 /** Archive's race page as a flowing dashboard of always-visible, individually bounded sections
- * (RaceSectionCard) instead of the old tab shell - a section that genuinely has nothing
- * backfilled yet (qualifying/pit-stops/laps) doesn't render at all, rather than taking up space
- * to say so. Results always renders - final classification isn't optional for a classified
- * historical race. `simulation` comes from `races.simulation` (the current-season table), fetched
- * separately by the page and passed in here - confirmed live it's populated for effectively every
- * race back to 2018, a real dataset `archive_races` itself has no equivalent of, not fabricated
- * for races where it's genuinely absent. */
+ * instead of the old tab shell - a section that genuinely has nothing backfilled yet (qualifying/
+ * pit-stops/laps) doesn't render at all, rather than taking up space to say so. Qualifying and
+ * Strategy live inside one "Session Analysis" module (RaceSubSection), same grouping
+ * SeasonRaceDashboard uses for Practice/Qualifying/Strategy - Archive has no practice data, so
+ * this side's Session Analysis is just the two. Results always renders - final classification
+ * isn't optional for a classified historical race. `simulation` comes from `races.simulation`
+ * (the current-season table), fetched separately by the page and passed in here - confirmed live
+ * it's populated for effectively every race back to 2018, a real dataset `archive_races` itself
+ * has no equivalent of, not fabricated for races where it's genuinely absent. */
 export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null; simulation: RaceSimulation | null }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -130,11 +133,12 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
 
   const hasQualifying = !!race.qualifying?.length;
   const hasStrategy = !!race.pitStops?.length;
-  const sideBySide = hasQualifying && hasStrategy;
+  const hasSessionAnalysis = hasQualifying || hasStrategy;
 
   return (
-    <div id="overview" className="space-y-8">
+    <div id="overview" className="space-y-10">
       <section className="glass-surface rounded-2xl p-5 sm:p-6">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
         <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
           {storyFacts && <RaceStory facts={storyFacts} />}
           <StatTiles tiles={statTiles} />
@@ -169,23 +173,32 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
         </div>
       </RaceSectionCard>
 
-      {(hasQualifying || hasStrategy) && (
-        <div className={sideBySide ? "grid gap-8 lg:grid-cols-2" : undefined}>
-          {hasQualifying && (
-            <RaceSectionCard id="qualifying" title="Qualifying">
-              <QualifyingBarChart qualifying={race.qualifying!} />
-            </RaceSectionCard>
-          )}
-          {hasStrategy && (
-            <RaceSectionCard id="strategy" title="Strategy">
-              <PitStopsTimeline pitStops={race.pitStops!} results={race.results} />
-            </RaceSectionCard>
-          )}
-        </div>
+      {hasSessionAnalysis && (
+        <RaceSectionCard title="Session Analysis">
+          <div className={hasQualifying && hasStrategy ? "grid gap-8 lg:grid-cols-2" : undefined}>
+            {hasQualifying && (
+              <div id="qualifying">
+                <RaceSubSection label="Qualifying" first>
+                  <QualifyingBarChart qualifying={race.qualifying!} />
+                </RaceSubSection>
+              </div>
+            )}
+            {hasStrategy && (
+              <div id="strategy">
+                {/* `first` unconditionally - Qualifying/Strategy either sit side by side (a grid,
+                    no "above" content on either side) or this is the only one in the block, never
+                    a second item stacked below the other. */}
+                <RaceSubSection label="Strategy" first>
+                  <PitStopsTimeline pitStops={race.pitStops!} results={race.results} />
+                </RaceSubSection>
+              </div>
+            )}
+          </div>
+        </RaceSectionCard>
       )}
 
       {race.lapsBackfilled && (
-        <RaceSectionCard id="analysis" title="Race Progression" description="Track position, lap by lap.">
+        <RaceSectionCard id="analysis" title="Race Analysis" description="Track position, lap by lap.">
           <LapChart year={race.year} round={race.round} results={race.results} />
         </RaceSectionCard>
       )}

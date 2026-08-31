@@ -6,7 +6,7 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
   const conditions = weather ? describeWeatherCode(weather.weatherCode) : null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] sm:flex">
+    <div className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 sm:flex">
       {circuit.imageUrl && (
         <div className="relative h-48 w-full shrink-0 bg-black/30 sm:h-auto sm:w-56">
           {/* Sourced from Wikipedia's own lead image for this circuit, re-hosted in Supabase
