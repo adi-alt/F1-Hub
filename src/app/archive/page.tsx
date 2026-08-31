@@ -1,12 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArchiveExplorer } from "./components/ArchiveExplorer";
-import { ArchiveRaceList } from "./components/ArchiveRaceList";
 import { CircuitCard } from "./components/CircuitCard";
-import { LapChart } from "./components/LapChart";
-import { PitStopsTimeline } from "./components/PitStopsTimeline";
-import { QualifyingBarChart } from "./components/QualifyingBarChart";
-import { ResultsBoard } from "./components/ResultsBoard";
 import { ArchiveHistoryRaceList } from "./components/ArchiveHistoryRaceList";
 import { RetryBanner } from "./components/RetryBanner";
 import {
@@ -19,7 +14,6 @@ import {
   getArchiveCircuitHistoryData,
   getArchiveDriverHistoryData,
   getArchiveRaceData,
-  getArchiveSeasonData,
   getArchiveTeamData,
   getArchiveTeamHistoryData,
   getArchiveYearStatsData,
@@ -34,7 +28,7 @@ import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
-import { archiveSeasonHref } from "@/lib/routes";
+import { archiveRaceHref, archiveSeasonHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 
 type Facet = "year" | "track" | "driver" | "team";
@@ -138,93 +132,6 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
           favoriteTeams={profile?.favoriteTeams ?? []}
         />
       </div>
-    </div>
-  );
-}
-
-async function ArchiveSeason({ year }: { year: number }) {
-  const races = await getArchiveSeasonData(year);
-  if (races.length === 0) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-        <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
-          ← Archive
-        </Link>
-        <h1 className="mt-2 text-3xl font-bold text-white">{year}</h1>
-        <p className="mt-4 text-sm text-neutral-500">No results backfilled for this season yet.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← Archive
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold text-white">{year}</h1>
-      <p className="mt-1 text-sm text-neutral-500">{races.length} races</p>
-      <ArchiveRaceList year={year} races={races} />
-    </div>
-  );
-}
-
-async function ArchiveRace({ year, round }: { year: number; round: number }) {
-  const race = await getArchiveRaceData(year, round);
-  if (!race) notFound();
-
-  const circuit = race.circuitId ? await getArchiveCircuitData(race.circuitId) : null;
-
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href={archiveSeasonHref(year)} className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← {year}
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold text-white">{race.raceName}</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        {race.circuitName}
-        {race.locality ? `, ${race.locality}` : ""}
-        {race.country ? `, ${race.country}` : ""}
-        {race.raceDate ? ` · ${race.raceDate}` : ""}
-        {race.wikipediaUrl && (
-          <>
-            {" · "}
-            <a href={race.wikipediaUrl} target="_blank" rel="noreferrer" className="text-[var(--f1-red)] hover:underline">
-              Full race report on Wikipedia →
-            </a>
-          </>
-        )}
-      </p>
-
-      {circuit && (
-        <div className="mt-6">
-          <CircuitCard circuit={circuit} weather={race.weather} />
-        </div>
-      )}
-
-      <div className="mt-8">
-        <ResultsBoard results={race.results} qualifying={race.qualifying} pitStops={race.pitStops} />
-      </div>
-
-      {!!race.qualifying?.length && (
-        <div className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-white">Qualifying</h2>
-          <QualifyingBarChart qualifying={race.qualifying} />
-        </div>
-      )}
-
-      {!!race.pitStops?.length && (
-        <div className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-white">Pit stops</h2>
-          <PitStopsTimeline pitStops={race.pitStops} results={race.results} />
-        </div>
-      )}
-
-      {race.lapsBackfilled && (
-        <div className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold text-white">Race progress</h2>
-          <LapChart year={year} round={round} results={race.results} />
-        </div>
-      )}
     </div>
   );
 }
@@ -347,8 +254,14 @@ export default async function ArchivePage({
   const year = yearParam ? Number(yearParam) : null;
   const round = roundParam ? Number(roundParam) : null;
 
-  if (year && round) return <ArchiveRace year={year} round={round} />;
-  if (year) return <ArchiveSeason year={year} />;
+  // Redirect shims - the year/race hierarchy now lives at /archive/<year>[/<slug>] (real routes,
+  // not query params); an old ?year=&round= link still lands somewhere real instead of 404ing.
+  if (year && round) {
+    const race = await getArchiveRaceData(year, round);
+    if (!race) notFound();
+    redirect(archiveRaceHref(year, round, race.raceName));
+  }
+  if (year) redirect(archiveSeasonHref(year));
   if (circuit) return <ArchiveCircuitHistory circuitId={circuit} />;
   if (driver) return <ArchiveDriverHistory driverId={driver} />;
   if (team) return <ArchiveTeamHistory teamId={team} />;

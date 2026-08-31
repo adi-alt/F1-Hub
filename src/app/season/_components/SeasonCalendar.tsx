@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
 import { useFavDriverIds } from "@/queries/favorites/useFavorites";
-import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import type { DriverStandingRow, RaceSummary } from "../_service/season.service";
 
 type SessionType = "practice" | "qualifying" | "sprint" | "race";
@@ -29,6 +29,7 @@ function sessionType(code: string): SessionType {
 type DaySession = {
   round: number;
   raceName: string;
+  circuit: string;
   label: string;
   code: string;
   date: Date;
@@ -45,8 +46,6 @@ const MIN_CELL = 9; // px - stays a legible square even when many weeks force ho
 const MAX_CELL = 18; // px
 const DEFAULT_CELL = 12; // px - server-rendered guess before the client can measure real width
 const TOOLTIP_WIDTH = 224; // px, matches the w-56 tooltip below
-const TOOLTIP_BASE_HEIGHT = 70; // px, date + round/race lines + padding, before any session rows
-const TOOLTIP_SESSION_ROW_HEIGHT = 20; // px, per session line
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const VISIBLE_DAY_LABELS = new Set([1, 3, 5]); // Mon/Wed/Fri, GitHub's own convention
 
@@ -85,21 +84,28 @@ function useMeasuredWidth<T extends HTMLElement>() {
  * colored cell (hue = session type, fill/border/pulse = completed/upcoming/current); a date with
  * several sessions (a Friday practice double-header, a sprint Saturday) splits the same cell into
  * stacked slices instead of cramming text in. Hovering/focusing a cell drives one shared floating
- * tooltip (not hundreds of individual ones); clicking reuses the same detail panel a race weekend
- * already had, and feeds `highlightRound` into the progression chart above. */
+ * tooltip (not hundreds of individual ones); clicking navigates straight to that race's own
+ * dedicated page - this calendar doesn't expand anything inline anymore (every race opens on its
+ * own route now, current season included, same as Archive). */
 export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[] }) {
-  const { setHighlightRound } = useSeasonExplorer();
+  const router = useRouter();
   const favDrivers = useFavDriverIds();
-  const [opened, setOpened] = useState<number | null>(null);
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number; flipBelow: boolean } | null>(null);
-  const anchorRef = useRef<HTMLDivElement>(null);
   const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
   const { ref: widthProbeRef, width: availableWidth } = useMeasuredWidth<HTMLDivElement>();
+  // Same createPortal(..., document.body) SSR guard as every other floating panel fixed this
+  // session (EntityMultiSelect, the year-card tooltip) - document.body is a real crash during SSR
+  // if this were called unconditionally, not a hypothetical one.
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const allSessions = useMemo<DaySession[]>(
     () =>
       raceSummaries.flatMap((r) =>
-        r.sessions.map((s) => ({ round: r.round, raceName: r.name, label: s.label, code: s.code, date: new Date(s.date), state: s.state })),
+        r.sessions.map((s) => ({ round: r.round, raceName: r.name, circuit: r.trackShort, label: s.label, code: s.code, date: new Date(s.date), state: s.state })),
       ),
     [raceSummaries],
   );
@@ -173,35 +179,27 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   }, [availableWidth, weekCount]);
   const col = cell + GAP;
 
+  // Viewport-fixed coordinates straight from the hovered cell's own getBoundingClientRect() - no
+  // local anchor to measure against, so this can never be clipped by an ancestor's overflow the
+  // way an anchor-relative absolute position could be (the exact fix already applied to the
+  // year-card tooltip, applied here defensively - this calendar sits inside no overflow-hidden
+  // ancestor today, but the mechanism itself is what's now audited/shared, not a per-component guess).
   function showTooltip(e: MouseEvent | FocusEvent, key: string, date: Date, sessions: DaySession[]) {
-    const cellRect = e.currentTarget.getBoundingClientRect();
-    const anchorRect = anchorRef.current?.getBoundingClientRect();
-    if (!anchorRect) return;
-    // Clamped to the anchor's own bounds (not just centered on the cell) so a tile near the left
-    // or right edge of the grid never pushes the tooltip half off the calendar container.
-    const idealLeft = cellRect.left - anchorRect.left + cellRect.width / 2 - TOOLTIP_WIDTH / 2;
-    const left = Math.max(4, Math.min(idealLeft, anchorRect.width - TOOLTIP_WIDTH - 4));
-    // Same idea vertically: the tooltip's resting position is above the cell (see the render
-    // below), which would clip against the real browser viewport for a cell in the grid's first
-    // couple of rows - flip to below when there isn't enough room above, mirroring
-    // SearchableSelect.tsx's flip-above-when-no-room-below, inverted.
-    const top = cellRect.top - anchorRect.top;
-    const bottom = cellRect.bottom - anchorRect.top;
-    const estimatedHeight = TOOLTIP_BASE_HEIGHT + sessions.length * TOOLTIP_SESSION_ROW_HEIGHT;
-    const flipBelow = cellRect.top - estimatedHeight < 0;
-    setHover({ key, date, sessions, top: flipBelow ? bottom : top, left, flipBelow });
+    const r = e.currentTarget.getBoundingClientRect();
+    const idealLeft = r.left + r.width / 2 - TOOLTIP_WIDTH / 2;
+    const left = Math.max(8, Math.min(idealLeft, window.innerWidth - TOOLTIP_WIDTH - 8));
+    const flipBelow = r.top < 160;
+    setHover({ key, date, sessions, top: flipBelow ? r.bottom + 8 : r.top - 8, left, flipBelow });
   }
   function hideTooltip(key: string) {
     setHover((prev) => (prev?.key === key ? null : prev));
   }
-  function selectDate(sessions: DaySession[]) {
-    const round = sessions[0]?.round;
-    if (round == null) return;
-    setOpened((prev) => (prev === round ? null : round));
-    setHighlightRound(round);
+  function goToRace(sessions: DaySession[]) {
+    const first = sessions[0];
+    if (!first) return;
+    router.push(raceHref(year, first.round, first.raceName));
   }
 
-  const openedRace = raceSummaries.find((r) => r.round === opened);
   const hoverRace = hover ? raceSummaries.find((r) => r.round === hover.sessions[0]?.round) : undefined;
   const hoverWinner = hoverRace?.results.find((r) => r.finishPosition === 1);
 
@@ -217,7 +215,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
           the grid's own natural content width is much narrower than that, so without an explicit
           full-width container here it read as a stray, differently-sized block on the page. */}
       <div className="w-full rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5">
-        <div ref={anchorRef} className="relative flex gap-2">
+        <div className="flex gap-2">
           <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
             {DAY_LABELS.map((label, i) => (
               <div key={label} style={{ height: cell }} className="flex items-center text-[9px] leading-none text-neutral-600">
@@ -249,11 +247,10 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                             date={day}
                             size={cell}
                             sessions={sessions}
-                            isSelected={sessions?.[0]?.round === opened}
                             isFavoritePodium={isFavPodium}
                             onEnter={(e) => showTooltip(e, key, day, sessions ?? [])}
                             onLeave={() => hideTooltip(key)}
-                            onClick={() => sessions && selectDate(sessions)}
+                            onClick={() => sessions && goToRace(sessions)}
                           />
                         );
                       })}
@@ -263,62 +260,6 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
               </div>
             </div>
           </div>
-
-          <AnimatePresence>
-            {hover && (
-              // Static positioning transform lives on this plain wrapper, separate from the
-              // motion.div's own animated y/scale transform below - mixing a fixed CSS transform
-              // into the same style object Framer Motion is also writing its animated transform
-              // into is what was making the panel (and its backdrop-blur) render unreliably.
-              <div
-                className="pointer-events-none absolute z-30"
-                style={{
-                  top: hover.flipBelow ? hover.top + 8 : hover.top - 8,
-                  left: hover.left,
-                  width: TOOLTIP_WIDTH,
-                  transform: hover.flipBelow ? undefined : "translateY(-100%)",
-                }}
-              >
-                <motion.div
-                  initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
-                  transition={{ duration: 0.12, ease: "easeOut" }}
-                  className="glass-surface rounded-lg p-3 backdrop-blur-md"
-                >
-                  <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-                  {hover.sessions.length === 0 ? (
-                    <p className="mt-1 text-[10px] text-neutral-500">No F1 session</p>
-                  ) : (
-                    <>
-                      <p className="text-[10px] text-neutral-500">
-                        Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
-                      </p>
-                      <div className="mt-2 flex flex-col gap-1">
-                        {hover.sessions.map((s) => (
-                          <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
-                            <span className="flex items-center gap-1.5 text-neutral-300">
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
-                              {s.label}
-                              {s.state === "upcoming" && (
-                                <span className="rounded-sm bg-white/[0.06] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Upcoming</span>
-                              )}
-                            </span>
-                            <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {hoverWinner && (
-                    <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
-                      Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
-                    </p>
-                  )}
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[10px] text-neutral-500">
@@ -351,67 +292,68 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
         </div>
       </div>
 
-      {openedRace && (
-        <div className="glass-surface mt-4 rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Round {openedRace.round}</p>
-              <p className="mt-0.5 text-lg font-semibold text-white">{openedRace.name}</p>
-            </div>
-            <button
-              onClick={() => {
-                setOpened(null);
-                setHighlightRound(null);
-              }}
-              aria-label="Close"
-              className="text-neutral-500 transition hover:text-white"
-            >
-              ×
-            </button>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-            {openedRace.sessions.map((s) => (
-              <span key={s.label} className="flex items-center gap-1.5 text-xs text-neutral-400" title={s.label}>
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${s.state === "current" ? "pulse-ring" : s.state === "upcoming" ? "border border-white/30" : ""}`}
-                  style={s.state !== "upcoming" ? { background: TYPE_COLOR[sessionType(s.code)] } : undefined}
-                />
-                {s.code}
-              </span>
-            ))}
-          </div>
-
-          {openedRace.results.length > 0 ? (
-            <>
-              <div className="mt-4 flex flex-col gap-1.5">
-                {openedRace.results
-                  .filter((r) => r.finishPosition <= 3)
-                  .sort((a, b) => a.finishPosition - b.finishPosition)
-                  .map((r) => (
-                    <div key={r.driver} className="flex items-center justify-between text-sm">
-                      <span className={r.finishPosition === 1 ? "font-semibold text-white" : "text-neutral-300"}>
-                        P{r.finishPosition} {r.driverName}
-                      </span>
-                      <span className="font-mono tabular-nums text-neutral-500">+{r.points}</span>
-                    </div>
-                  ))}
-              </div>
-              <Link
-                href={raceHref(year, openedRace.round)}
-                className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400 transition hover:text-white"
+      {isClient &&
+        createPortal(
+          <AnimatePresence>
+            {hover && (
+              <div
+                className="pointer-events-none fixed z-[300]"
+                style={{
+                  top: hover.top,
+                  left: hover.left,
+                  width: TOOLTIP_WIDTH,
+                  transform: hover.flipBelow ? undefined : "translateY(-100%)",
+                }}
               >
-                View race →
-              </Link>
-            </>
-          ) : (
-            <p className="mt-3 text-sm text-neutral-500">
-              {openedRace.state === "next" ? "Coming up next." : "Not yet run."}
-              {openedRace.raceDate && ` ${new Date(openedRace.raceDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.`}
-            </p>
-          )}
-        </div>
-      )}
+                <motion.div
+                  initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
+                  transition={{ duration: 0.12, ease: "easeOut" }}
+                  className="glass-surface rounded-lg p-3"
+                >
+                  <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+                  {hover.sessions.length === 0 ? (
+                    <p className="mt-1 text-[10px] text-neutral-500">No F1 session</p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-neutral-500">
+                        Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
+                      </p>
+                      <p className="text-[10px] text-neutral-600">{hover.sessions[0]?.circuit}</p>
+                      <div className="mt-2 flex flex-col gap-1">
+                        {hover.sessions.map((s) => (
+                          <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="flex items-center gap-1.5 text-neutral-300">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                              {s.label}
+                              {s.state === "upcoming" && (
+                                <span className="rounded-sm bg-white/[0.06] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Upcoming</span>
+                              )}
+                            </span>
+                            <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {hoverWinner ? (
+                    <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-300">
+                      Winner: <span className="font-medium text-white">{hoverWinner.driverName}</span>
+                    </p>
+                  ) : (
+                    hover.sessions.length > 0 && (
+                      <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-500">
+                        {hover.sessions.some((s) => s.state === "upcoming") ? "Upcoming, not yet run" : "Results not in yet"}
+                      </p>
+                    )
+                  )}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -420,7 +362,6 @@ function DayCell({
   date,
   size,
   sessions,
-  isSelected,
   isFavoritePodium,
   onEnter,
   onLeave,
@@ -429,7 +370,6 @@ function DayCell({
   date: Date;
   size: number;
   sessions: DaySession[] | undefined;
-  isSelected: boolean;
   isFavoritePodium: boolean;
   onEnter: (e: MouseEvent<HTMLButtonElement> | FocusEvent<HTMLButtonElement>) => void;
   onLeave: () => void;
@@ -453,7 +393,7 @@ function DayCell({
       style={{ width: size, height: size, boxShadow: isFavoritePodium ? "0 0 0 1px rgba(251,191,36,0.65)" : undefined }}
       className={`flex flex-col overflow-hidden rounded-[3px] transition-transform duration-150 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
         hasSessions ? "cursor-pointer hover:scale-110 focus-visible:scale-110" : "cursor-default"
-      } ${isSelected ? "ring-1 ring-white/70" : ""}`}
+      }`}
     >
       {hasSessions ? sessions.map((s) => <SessionSlice key={s.label} session={s} />) : <span className="h-full w-full bg-white/[0.05]" />}
     </button>

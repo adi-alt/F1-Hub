@@ -10,7 +10,7 @@ export function NextRaceCard({ race }: { race: RaceDoc | null }) {
   if (!race) {
     return (
       <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-6 text-neutral-400">
-        No upcoming race scheduled — the season is complete.
+        No upcoming race scheduled. The season is complete.
       </div>
     );
   }
@@ -30,7 +30,7 @@ export function NextRaceCard({ race }: { race: RaceDoc | null }) {
           <h2 className="mt-1 text-2xl font-bold text-white">{race.name}</h2>
         </div>
         <Link
-          href={race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round)}
+          href={race.status === "scheduled" ? circuitHref(race.circuit) : raceHref(race.year, race.round, race.name)}
           className="group inline-block"
         >
           <motion.span
@@ -46,7 +46,7 @@ export function NextRaceCard({ race }: { race: RaceDoc | null }) {
       {race.status === "scheduled" ? (
         <p className="mt-6 rounded-lg bg-black/30 px-4 py-3 text-sm text-neutral-400">
           {race.raceDate
-            ? `On the calendar for ${new Date(race.raceDate).toLocaleDateString(undefined, { month: "long", day: "numeric" })} — nothing to predict yet, this fills in once practice/qualifying data exists.`
+            ? `On the calendar for ${new Date(race.raceDate).toLocaleDateString(undefined, { month: "long", day: "numeric" })}. Nothing to predict yet, this fills in once practice/qualifying data exists.`
             : "On the calendar — nothing to predict yet, this fills in once practice/qualifying data exists."}
         </p>
       ) : race.prediction ? (

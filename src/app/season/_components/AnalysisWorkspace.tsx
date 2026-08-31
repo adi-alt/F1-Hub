@@ -1,8 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { tugPct } from "../_utils/seasonStats";
 import { useSeasonExplorer, type AnalysisTab } from "../_context/SeasonExplorerContext";
 import { ComparePanel } from "./ComparePanel";
@@ -20,25 +20,6 @@ const TABS: { key: AnalysisTab; label: string }[] = [
 // picker before two are chosen) get centered inside this instead of collapsing to nothing;
 // taller views (Progression's chart, a full battle list) grow past it freely, animated.
 const MIN_CONTENT_HEIGHT = 220;
-
-/** Measures a content node's real height and keeps it in state, live, via ResizeObserver — the
- * container that renders it can then animate `height` to real pixel values on every change
- * instead of snapping, and (because it's a real height, not a transform) content that follows
- * on the page reflows in step with the animation rather than jumping once it ends. */
-function useMeasuredHeight<T extends HTMLElement>(dep: unknown) {
-  const ref = useRef<T>(null);
-  const [height, setHeight] = useState<number | undefined>(undefined);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const update = () => setHeight(el.offsetHeight);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [dep]);
-  return { ref, height };
-}
 
 /** The single workspace below the standings — one of four analyses shows at a time, swapped by
  * an in-surface tab strip (sliding red underline, not pill buttons), with the content itself

@@ -21,7 +21,7 @@ export function ArchiveHistoryRaceList({ races, className = "mt-6 space-y-2" }: 
       {races.map((r) => (
         <motion.div key={r.id} variants={staggerItem}>
           <Link
-            href={archiveRaceHref(r.year, r.round)}
+            href={archiveRaceHref(r.year, r.round, r.raceName)}
             className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-5 py-4 transition hover:border-white/30 hover:shadow-lg hover:shadow-black/30"
           >
             <div>

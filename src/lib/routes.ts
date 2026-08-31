@@ -1,16 +1,29 @@
-// Query-param routing by design (a deliberate stylistic choice, not a technical requirement) —
-// centralized here so the URL shape only needs to change in one place.
-// Keyed by round, not a slug: round is a stable field every race document already has, so this
-// avoids any dependency on how (or whether) an event name gets turned into a URL-safe string.
-// `section` scrolls to that id on the race page once it mounts (see ScrollToSection) — the
-// query-param analog of a `#hash` anchor, kept consistent with this file's query-based routing.
-export function raceHref(year: number, round: number, section?: string): string {
-  const base = `/races?year=${year}&round=${round}`;
-  return section ? `${base}&section=${section}` : base;
+// Path-based routing for the year -> race hierarchy (Season and Archive both) - a deliberate
+// reversal of this file's own original query-param convention, at the user's explicit request:
+// every race now opens on its own route (/season/<year>/race/<slug>, /archive/<year>/<slug>)
+// instead of a query-param view over a shared page. Archive's circuit/driver/team detail views
+// are NOT part of this change - they're a different "pick one of many" browsing pattern, not a
+// year -> race drill-down, and the request never asked for them to change.
+
+/** Lowercase, non-alphanumeric runs collapsed to a single hyphen, trimmed - "Australian Grand
+ * Prix" -> "australian-grand-prix". Race names are unique within a single season (Season's
+ * `RaceDoc.name` and Archive's `ArchiveRaceDoc.raceName` alike), so slugifying the name and
+ * matching it back against that year's own race list is a safe, simple resolve - no id/round
+ * needs to live in the URL itself. */
+export function slugifyRaceName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-export function raceSimulationHref(year: number, round: number): string {
-  return `/races/simulation?year=${year}&round=${round}`;
+/** `section` opens that tab on arrival (RaceTabShell reads it) - the path-routing equivalent of
+ * the old `#hash`-style scroll-to-anchor `section` param this replaces, same name kept so every
+ * existing call site's intent ("send the user straight to Qualifying/Simulation") still reads the
+ * same way at the call site even though the destination mechanism changed. */
+export function raceHref(year: number, round: number, raceName: string, section?: string): string {
+  const base = `/season/${year}/race/${slugifyRaceName(raceName)}`;
+  return section ? `${base}?tab=${section}` : base;
 }
 
 export function seasonHref(year: number): string {
@@ -22,11 +35,11 @@ export function circuitHref(circuit: string): string {
 }
 
 export function archiveSeasonHref(year: number): string {
-  return `/archive?year=${year}`;
+  return `/archive/${year}`;
 }
 
-export function archiveRaceHref(year: number, round: number): string {
-  return `/archive?year=${year}&round=${round}`;
+export function archiveRaceHref(year: number, round: number, raceName: string): string {
+  return `/archive/${year}/${slugifyRaceName(raceName)}`;
 }
 
 export function archiveCircuitHref(circuitId: string): string {
