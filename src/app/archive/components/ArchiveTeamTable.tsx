@@ -27,7 +27,7 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       key: "status",
       label: "Status",
       align: "center",
-      widthClassName: "w-24",
+      widthClassName: "w-20",
       // Derived by reconciling the current season's roster against the archive (see
       // archive/page.tsx) - not stored on ArchiveTeam itself, and not a guess.
       render: (t) => <StatusBadge active={activeTeamIds.has(t.teamId)} />,
@@ -38,7 +38,7 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       align: "right",
       sortable: true,
       defaultDir: "desc",
-      widthClassName: "w-20",
+      widthClassName: "w-16",
       sortValue: (t) => t.raceCount,
       render: (t) => <span className="text-neutral-400">{t.raceCount}</span>,
     },
@@ -46,7 +46,7 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       key: "years",
       label: "Years",
       align: "right",
-      widthClassName: "w-28",
+      widthClassName: "w-24",
       render: (t) => <span className="whitespace-nowrap text-neutral-400">{t.firstYear === t.lastYear ? t.firstYear : `${t.firstYear}–${t.lastYear}`}</span>,
     },
     {

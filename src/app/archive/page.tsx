@@ -87,19 +87,27 @@ async function getActiveIds(
 }
 
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
+  // Circuits and year-stats are unconditionally eager: circuits because getActiveIds' active/
+  // historical reconciliation needs the full list regardless of which tab is open (and its own
+  // fetch is far cheaper than drivers/teams anyway), year-stats because "By year" - the default -
+  // needs it immediately. Drivers (805 rows) and teams (171 rows) are each only eager-fetched here
+  // when they're the *initial* facet - a direct load of ?section=driver still paints with real data
+  // on first byte - otherwise left undefined and picked up client-side the first time that tab is
+  // actually visited (see ArchiveExplorer's useArchiveDrivers/useArchiveTeams). Previously all four
+  // facets' data was fetched on every load no matter which one was being looked at.
   const [circuitsRead, driversRead, teamsRead, profile, yearStats] = await Promise.all([
     safeReadTracked(() => getAllArchiveCircuitsData(), []),
-    safeReadTracked(() => getAllArchiveDriversData(), []),
-    safeReadTracked(() => getAllArchiveTeamsData(), []),
+    section === "driver" ? safeReadTracked(() => getAllArchiveDriversData(), []) : Promise.resolve(null),
+    section === "team" ? safeReadTracked(() => getAllArchiveTeamsData(), []) : Promise.resolve(null),
     safeRead(() => getUserProfile(uid), null),
     safeRead(() => getArchiveYearStatsData(), {} as Awaited<ReturnType<typeof getArchiveYearStatsData>>),
   ]);
   const { data: circuits } = circuitsRead;
-  const { data: drivers } = driversRead;
-  const { data: teams } = teamsRead;
   // Real failure, not "genuinely nothing indexed yet" - safeRead alone can't tell those apart
-  // (both just come back as []), and only the former should read as an error to retry.
-  const hasLoadError = circuitsRead.failed || driversRead.failed || teamsRead.failed;
+  // (both just come back as []), and only the former should read as an error to retry. A facet
+  // that wasn't eager-fetched here (driversRead/teamsRead null) hasn't failed - it hasn't been
+  // attempted yet, that's the client query's job.
+  const hasLoadError = circuitsRead.failed || driversRead?.failed || teamsRead?.failed;
   const { circuitIds: activeCircuitIds, teamIds: activeTeamIds, currentLeader } = await getActiveIds(circuits);
 
   return (
@@ -119,8 +127,8 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
           years={getArchiveYears()}
           currentYear={new Date().getFullYear()}
           circuits={circuits}
-          drivers={drivers}
-          teams={teams}
+          initialDrivers={driversRead?.data}
+          initialTeams={teamsRead?.data}
           activeCircuitIds={activeCircuitIds}
           activeTeamIds={activeTeamIds}
           yearStats={yearStats}

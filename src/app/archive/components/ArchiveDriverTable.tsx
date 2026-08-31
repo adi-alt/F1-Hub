@@ -30,7 +30,7 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     align: "right",
     sortable: true,
     defaultDir: "desc",
-    widthClassName: "w-20",
+    widthClassName: "w-16",
     sortValue: (d) => d.raceCount,
     render: (d) => <span className="text-neutral-400">{d.raceCount}</span>,
   },
@@ -38,7 +38,7 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     key: "years",
     label: "Years",
     align: "right",
-    widthClassName: "w-28",
+    widthClassName: "w-24",
     render: (d) => <span className="whitespace-nowrap text-neutral-400">{d.firstYear === d.lastYear ? d.firstYear : `${d.firstYear}–${d.lastYear}`}</span>,
   },
   {

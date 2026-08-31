@@ -4,11 +4,14 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
+import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { eraForYear } from "@/lib/eras";
 import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam, ArchiveYearStats, CurrentLeader } from "@/lib/supabase/archive";
 import { useFavDriverIds, useFavTeamIds, useFavTrackIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { useFavoritesHydration } from "@/queries/favorites/useFavoritesHydration";
+import { useArchiveDrivers } from "../_hooks/useArchiveDrivers";
+import { useArchiveTeams } from "../_hooks/useArchiveTeams";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
 import { ArchiveDriverTable } from "./ArchiveDriverTable";
 import { EraFilterSelect, FavoritesOnlyToggle, TrackFilters } from "./ArchiveFilters";
@@ -31,20 +34,23 @@ const PLACEHOLDER: Record<Facet, string> = {
   team: "Search teams…",
 };
 
-/** Owns tab + search + filter + favorites state so switching facets is instant (no navigation/
- * refetch, all four datasets are already small enough to have been fetched once by the server)
- * and a favorite toggle survives leaving and returning to a tab. Section, search, and every filter
- * are URL-backed (useUrlParam/useUrlPage) so a refresh or a shared link preserves them - switching
- * facets explicitly resets the others, since an era filter or a track status filter doesn't mean
- * anything on a different facet's data. */
+/** Owns tab + search + filter + favorites state so switching facets is instant once a facet's data
+ * is actually in hand, and a favorite toggle survives leaving and returning to a tab. Circuits/
+ * year-stats/currentLeader are eager (server-provided, always present); drivers/teams are lazy -
+ * useArchiveDrivers/useArchiveTeams only fetch once the user actually visits that tab (see their
+ * own comments), `initialDrivers`/`initialTeams` covering the one case the server already fetched
+ * one of them (a direct `?section=driver` load). Section, search, and every filter are URL-backed
+ * (useUrlParam/useUrlPage) so a refresh or a shared link preserves them - switching facets
+ * explicitly resets the others, since an era filter or a track status filter doesn't mean anything
+ * on a different facet's data. */
 export function ArchiveExplorer({
   uid,
   initialSection,
   years,
   currentYear,
   circuits,
-  drivers,
-  teams,
+  initialDrivers,
+  initialTeams,
   activeCircuitIds,
   activeTeamIds,
   yearStats,
@@ -58,8 +64,8 @@ export function ArchiveExplorer({
   years: number[];
   currentYear: number;
   circuits: ArchiveCircuit[];
-  drivers: ArchiveDriver[];
-  teams: ArchiveTeam[];
+  initialDrivers?: ArchiveDriver[];
+  initialTeams?: ArchiveTeam[];
   /** Circuit/team ids that resolve to the current season's roster - see archive/page.tsx for how
    * these are derived (reusing resolveCurrentCircuitToArchiveId/archiveSlugForCurrentTeam, not new
    * matching logic). */
@@ -104,6 +110,8 @@ export function ArchiveExplorer({
   // narrowed type.
   const facet: Facet = TABS.some((t) => t.value === section) ? (section as Facet) : "year";
   const trackStatus: "all" | "active" | "historical" = status === "active" || status === "historical" ? status : "all";
+  const driversQuery = useArchiveDrivers(facet === "driver", initialDrivers);
+  const teamsQuery = useArchiveTeams(facet === "team", initialTeams);
 
   function switchTo(next: Facet) {
     // Each setter below also calls router.replace on its own (see useUrlParam) - redundant with
@@ -223,33 +231,59 @@ export function ArchiveExplorer({
               />
             </div>
           )}
-          {facet === "driver" && (
-            <ArchiveDriverTable
-              drivers={drivers}
-              search={search}
-              favoriteIds={favoriteDrivers}
-              onToggleFavorite={(id) => toggleFavorite("driver", id)}
-              favoritesOnly={favoritesOnly}
-              onClearFilters={() => {
-                setSearch("");
-                setFavParam("");
-              }}
-            />
-          )}
-          {facet === "team" && (
-            <ArchiveTeamTable
-              teams={teams}
-              search={search}
-              favoriteIds={favoriteTeams}
-              onToggleFavorite={(id) => toggleFavorite("team", id)}
-              favoritesOnly={favoritesOnly}
-              activeTeamIds={activeTeamIdSet}
-              onClearFilters={() => {
-                setSearch("");
-                setFavParam("");
-              }}
-            />
-          )}
+          {facet === "driver" &&
+            (driversQuery.isError ? (
+              <p className="text-sm text-neutral-500">
+                Couldn&apos;t load drivers.{" "}
+                <button type="button" onClick={() => driversQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+                  Try again
+                </button>
+              </p>
+            ) : !driversQuery.data ? (
+              <div className="flex h-full flex-col">
+                <TableRowsSkeleton />
+                <TableFooterSkeleton />
+              </div>
+            ) : (
+              <ArchiveDriverTable
+                drivers={driversQuery.data}
+                search={search}
+                favoriteIds={favoriteDrivers}
+                onToggleFavorite={(id) => toggleFavorite("driver", id)}
+                favoritesOnly={favoritesOnly}
+                onClearFilters={() => {
+                  setSearch("");
+                  setFavParam("");
+                }}
+              />
+            ))}
+          {facet === "team" &&
+            (teamsQuery.isError ? (
+              <p className="text-sm text-neutral-500">
+                Couldn&apos;t load teams.{" "}
+                <button type="button" onClick={() => teamsQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+                  Try again
+                </button>
+              </p>
+            ) : !teamsQuery.data ? (
+              <div className="flex h-full flex-col">
+                <TableRowsSkeleton />
+                <TableFooterSkeleton />
+              </div>
+            ) : (
+              <ArchiveTeamTable
+                teams={teamsQuery.data}
+                search={search}
+                favoriteIds={favoriteTeams}
+                onToggleFavorite={(id) => toggleFavorite("team", id)}
+                favoritesOnly={favoritesOnly}
+                activeTeamIds={activeTeamIdSet}
+                onClearFilters={() => {
+                  setSearch("");
+                  setFavParam("");
+                }}
+              />
+            ))}
         </motion.div>
       </AnimatePresence>
     </div>

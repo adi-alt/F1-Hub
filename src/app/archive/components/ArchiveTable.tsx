@@ -30,9 +30,12 @@ export type ArchiveTableColumn<T> = {
    * visibly jumping between pages). Leave unset on exactly one column (conventionally the name/
    * identity column) so it absorbs whatever width the others don't claim. */
   widthClassName?: string;
-  /** Hidden below sm - for secondary columns (a driver's constructors, a team's drivers) that
-   * aren't essential to a narrow-viewport read, so the core columns (name, races, years, status)
-   * fit without needing the horizontal scroll overflow-x-auto still provides for the rest. */
+  /** Hidden below lg - for secondary columns (a driver's constructors, a team's drivers) that
+   * aren't essential to a narrow-viewport read. Was `sm` (640px) - too eager: that wide a column
+   * turning on well before there's actually room for it alongside name/races/years/status was
+   * forcing the whole table wider than its container at ordinary desktop/laptop widths, not just
+   * genuinely narrow ones. `lg` only turns it on once there's real room; overflow-x-auto below
+   * stays the fallback for anything narrower still. */
   hideOnMobile?: boolean;
 };
 
@@ -40,9 +43,9 @@ export type ArchiveTableColumn<T> = {
  * they were previously two byte-for-byte-identical implementations differing only in field names.
  * Owns search/sort/pagination (URL-backed via useUrlPage/useUrlParam, so a refresh or a shared
  * link preserves them), the same dynamic row-fit page sizing (useRowFitPageSize) the original
- * tables used, and favoriting. Wrapped in overflow-x-auto scrollbar-hide with a min-w on the table
- * itself - the one real gap the original tables had: zero responsive handling at all, so a table
- * this wide simply couldn't be reached on a narrow viewport before. */
+ * tables used, and favoriting. Wrapped in overflow-x-auto scrollbar-hide - the one real gap the
+ * original tables had: zero responsive handling at all, so a table this wide simply couldn't be
+ * reached on a narrow viewport before. */
 export function ArchiveTable<T>({
   rows,
   columns,
@@ -139,7 +142,11 @@ export function ArchiveTable<T>({
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-        <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+        {/* No min-w here - table-fixed's real minimum is already the sum of each column's own
+            declared width (see ArchiveDriverTable/ArchiveTeamTable), and an extra floor on top of
+            that was one more way to force horizontal scroll at a viewport narrower than the floor
+            for no benefit. overflow-x-auto above is the genuine-mobile fallback. */}
+        <table className="w-full table-fixed text-left text-sm">
           <thead ref={theadRef} className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
             <tr>
               <th scope="col" className="w-12 px-4 py-2.5">
@@ -153,7 +160,7 @@ export function ArchiveTable<T>({
                   onClick={col.sortable ? () => toggleSort(col.key) : undefined}
                   className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
                     col.sortable ? "cursor-pointer select-none" : ""
-                  } ${col.hideOnMobile ? "hidden sm:table-cell" : ""} ${col.widthClassName ?? ""}`}
+                  } ${col.hideOnMobile ? "hidden lg:table-cell" : ""} ${col.widthClassName ?? ""}`}
                 >
                   {col.label}
                   {col.sortable && col.key === sortKey && <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>}
@@ -182,6 +189,11 @@ export function ArchiveTable<T>({
                     animate="show"
                     exit="hidden"
                     variants={staggerItem}
+                    // layout's own transition, separate from the enter/exit variants' transition
+                    // above - the default spring overshoots/bounces, fine for a card lifting on
+                    // hover but "floppy" for table rows snapping into a new sort order. A tween
+                    // reads as a controlled slide instead.
+                    transition={{ layout: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
                     className="transition-colors hover:bg-white/[0.03]"
                   >
                     <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
@@ -189,7 +201,7 @@ export function ArchiveTable<T>({
                       <td
                         key={col.key}
                         className={`truncate px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                          col.hideOnMobile ? "hidden sm:table-cell" : ""
+                          col.hideOnMobile ? "hidden lg:table-cell" : ""
                         }`}
                       >
                         {col.render(row)}

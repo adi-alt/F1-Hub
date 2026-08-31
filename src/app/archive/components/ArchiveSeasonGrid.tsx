@@ -109,71 +109,81 @@ export function ArchiveSeasonGrid({
         createPortal(
           <AnimatePresence>
             {hover && (
-              <motion.div
-                initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
-                transition={{ duration: 0.12, ease: "easeOut" }}
+              // Static positioning (including the translateY(-100%) flip-above) lives on this
+              // plain, non-animated wrapper - separate from the motion.div's own animated y/scale
+              // transform below. Framer Motion owns the `transform` CSS property on any element it
+              // animates y/scale on; a static transform set in the *same* style object gets
+              // silently overwritten the instant the animation runs, which is exactly why the
+              // tooltip was rendering on top of the card instead of above it. Same fix
+              // SeasonCalendar.tsx's own tooltip already uses, for the identical reason.
+              <div
+                className="pointer-events-none fixed z-[300]"
                 style={{
-                  position: "fixed",
                   top: hover.top,
                   left: hover.left,
                   width: TOOLTIP_WIDTH,
                   transform: hover.flipBelow ? undefined : "translateY(-100%)",
                 }}
-                className="pointer-events-none z-[300] glass-surface rounded-lg p-3"
               >
-                <p className="text-sm font-semibold text-white">{hover.year}</p>
-                {hoverIsLive ? (
-                  currentLeader.driver || currentLeader.team ? (
+                <motion.div
+                  initial={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
+                  transition={{ duration: 0.12, ease: "easeOut" }}
+                  className="glass-surface rounded-lg p-3"
+                >
+                  <p className="text-sm font-semibold text-white">{hover.year}</p>
+                  {hoverIsLive ? (
+                    currentLeader.driver || currentLeader.team ? (
+                      <>
+                        <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress</p>
+                        <div className="mt-2.5 space-y-2">
+                          {currentLeader.driver && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Drivers&rsquo; Leader</p>
+                              <p className="truncate text-sm text-white">{currentLeader.driver.name}</p>
+                            </div>
+                          )}
+                          {currentLeader.team && (
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Constructors&rsquo; Leader</p>
+                              <p className="truncate text-sm text-white">{currentLeader.team.name}</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress. No standings yet.</p>
+                    )
+                  ) : hoverStats?.driverLeader || hoverStats?.teamLeader ? (
                     <>
-                      <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress</p>
+                      <p className="mt-0.5 text-[11px] text-neutral-500">
+                        {hoverStats.raceCount} race{hoverStats.raceCount === 1 ? "" : "s"} · Season complete
+                      </p>
                       <div className="mt-2.5 space-y-2">
-                        {currentLeader.driver && (
+                        {hoverStats.driverLeader && (
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Drivers&rsquo; Leader</p>
-                            <p className="truncate text-sm text-white">{currentLeader.driver.name}</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                              {isVerifiedChampionYear(hover.year) ? "Drivers’ Champion" : "Most Points (Driver)"}
+                            </p>
+                            <p className="truncate text-sm text-white">{hoverStats.driverLeader.name}</p>
                           </div>
                         )}
-                        {currentLeader.team && (
+                        {hoverStats.teamLeader && (
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Constructors&rsquo; Leader</p>
-                            <p className="truncate text-sm text-white">{currentLeader.team.name}</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                              {isVerifiedChampionYear(hover.year) ? "Constructors’ Champion" : "Most Points (Team)"}
+                            </p>
+                            <p className="truncate text-sm text-white">{hoverStats.teamLeader.name}</p>
                           </div>
                         )}
                       </div>
                     </>
                   ) : (
-                    <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress. No standings yet.</p>
-                  )
-                ) : hoverStats?.driverLeader || hoverStats?.teamLeader ? (
-                  <>
-                    <p className="mt-0.5 text-[11px] text-neutral-500">
-                      {hoverStats.raceCount} race{hoverStats.raceCount === 1 ? "" : "s"} · Season complete
-                    </p>
-                    <div className="mt-2.5 space-y-2">
-                      {hoverStats.driverLeader && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                            {isVerifiedChampionYear(hover.year) ? "Drivers’ Champion" : "Most Points (Driver)"}
-                          </p>
-                          <p className="truncate text-sm text-white">{hoverStats.driverLeader.name}</p>
-                        </div>
-                      )}
-                      {hoverStats.teamLeader && (
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                            {isVerifiedChampionYear(hover.year) ? "Constructors’ Champion" : "Most Points (Team)"}
-                          </p>
-                          <p className="truncate text-sm text-white">{hoverStats.teamLeader.name}</p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <p className="mt-0.5 text-[11px] text-neutral-500">No results recorded.</p>
-                )}
-              </motion.div>
+                    <p className="mt-0.5 text-[11px] text-neutral-500">No results recorded.</p>
+                  )}
+                </motion.div>
+              </div>
             )}
           </AnimatePresence>,
           document.body,
