@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
+import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
@@ -11,6 +12,10 @@ import { QualifyingBarChart } from "./QualifyingBarChart";
 import { PitStopsTimeline } from "./PitStopsTimeline";
 import { LapChart } from "./LapChart";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
+
+// Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
+// 20+ car historical field doesn't turn Results into a wall-length scroll inside its own card.
+const INITIAL_RESULT_ROWS = 7;
 
 // "Finished" / "+N Lap(s)" classify as having completed the race; anything else (Retired,
 // Accident, Engine, DNF, ...) doesn't - archive's status is free text, not a strict enum, same
@@ -34,27 +39,24 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
   };
 }
 
-function SectionLabel({ children }: { children: string }) {
-  return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{children}</p>;
-}
-
-/** Archive's race page as a flowing dashboard of always-visible sections instead of the old tab
- * shell - a section that genuinely has nothing backfilled yet (qualifying/pit-stops/laps) doesn't
- * render at all, rather than taking up space to say so ("Do not show a meaningless chart if
- * strategy data is incomplete" - the spec's own rule, extended past just Strategy to every
- * section here). Results always renders - final classification isn't optional for a classified
+/** Archive's race page as a flowing dashboard of always-visible, individually bounded sections
+ * (RaceSectionCard) instead of the old tab shell - a section that genuinely has nothing
+ * backfilled yet (qualifying/pit-stops/laps) doesn't render at all, rather than taking up space
+ * to say so. Results always renders - final classification isn't optional for a classified
  * historical race. No Simulation section - archive has no simulation data for any historical
  * race, full stop. */
 export function ArchiveRaceDashboard({ race, circuit }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [showAllResults, setShowAllResults] = useState(false);
 
   const podium: PodiumEntry[] = race.results
     .filter((r) => r.position <= 3)
     .sort((a, b) => a.position - b.position)
     .map((r) => ({ position: r.position as 1 | 2 | 3, driverName: r.driverName, team: r.constructor, gapOrTime: r.time ?? null, points: r.points }));
 
-  const resultRows = race.results.filter((r) => r.position > 3).map(toResultRow);
+  const allResultRows = race.results.filter((r) => r.position > 3).map(toResultRow);
+  const resultRows = showAllResults ? allResultRows : allResultRows.slice(0, INITIAL_RESULT_ROWS);
 
   // Same facts computeHighlights derives for the current season, mapped from ArchiveResultEntry/
   // ArchiveQualifyingEntry instead - no new data, just the archive-side equivalent of the same
@@ -122,53 +124,66 @@ export function ArchiveRaceDashboard({ race, circuit }: { race: ArchiveRaceDoc; 
     );
   }
 
+  const hasQualifying = !!race.qualifying?.length;
+  const hasStrategy = !!race.pitStops?.length;
+  const sideBySide = hasQualifying && hasStrategy;
+
   return (
-    <div id="overview" className="space-y-10">
-      <section className="glass-surface space-y-6 rounded-2xl p-5">
-        {storyFacts && <RaceStory facts={storyFacts} />}
-        <StatTiles tiles={statTiles} />
+    <div id="overview" className="space-y-8">
+      <section className="glass-surface rounded-2xl p-5 sm:p-6">
+        <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+          {storyFacts && <RaceStory facts={storyFacts} />}
+          <StatTiles tiles={statTiles} />
+        </div>
       </section>
 
       <section>
         {circuit ? (
           <CircuitCard circuit={circuit} weather={race.weather} />
         ) : (
-          <>
-            <SectionLabel>Circuit</SectionLabel>
+          <RaceSectionCard title="Circuit">
             <p className="text-sm text-neutral-500">No circuit details backfilled for this race yet.</p>
-          </>
+          </RaceSectionCard>
         )}
       </section>
 
-      <section id="results">
-        <SectionLabel>Results</SectionLabel>
+      <RaceSectionCard id="results" title="Results">
         <div className="space-y-6">
           <RacePodium entries={podium} />
           {resultRows.length > 0 && (
             <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
           )}
+          {allResultRows.length > INITIAL_RESULT_ROWS && (
+            <button
+              type="button"
+              onClick={() => setShowAllResults((v) => !v)}
+              className="mx-auto block text-sm text-neutral-400 transition hover:text-white"
+            >
+              {showAllResults ? "Show fewer results ↑" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS}) ↓`}
+            </button>
+          )}
         </div>
-      </section>
+      </RaceSectionCard>
 
-      {!!race.qualifying?.length && (
-        <section id="qualifying">
-          <SectionLabel>Qualifying</SectionLabel>
-          <QualifyingBarChart qualifying={race.qualifying} />
-        </section>
-      )}
-
-      {!!race.pitStops?.length && (
-        <section id="strategy">
-          <SectionLabel>Strategy</SectionLabel>
-          <PitStopsTimeline pitStops={race.pitStops} results={race.results} />
-        </section>
+      {(hasQualifying || hasStrategy) && (
+        <div className={sideBySide ? "grid gap-8 lg:grid-cols-2" : undefined}>
+          {hasQualifying && (
+            <RaceSectionCard id="qualifying" title="Qualifying">
+              <QualifyingBarChart qualifying={race.qualifying!} />
+            </RaceSectionCard>
+          )}
+          {hasStrategy && (
+            <RaceSectionCard id="strategy" title="Strategy">
+              <PitStopsTimeline pitStops={race.pitStops!} results={race.results} />
+            </RaceSectionCard>
+          )}
+        </div>
       )}
 
       {race.lapsBackfilled && (
-        <section id="analysis">
-          <SectionLabel>Race Progression</SectionLabel>
+        <RaceSectionCard id="analysis" title="Race Progression" description="Track position, lap by lap.">
           <LapChart year={race.year} round={race.round} results={race.results} />
-        </section>
+        </RaceSectionCard>
       )}
     </div>
   );

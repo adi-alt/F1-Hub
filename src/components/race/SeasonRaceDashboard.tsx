@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
+import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
@@ -24,6 +25,10 @@ import { TireStintTimeline } from "./TireStintTimeline";
 import { MovementChart } from "@/components/charts/MovementChart";
 import Link from "next/link";
 
+// Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
+// 20-car field doesn't turn Results into a wall-length scroll inside its own card.
+const INITIAL_RESULT_ROWS = 7;
+
 function toResultRow(r: RaceResultEntry): RaceResultRow {
   return {
     key: r.driver,
@@ -37,14 +42,10 @@ function toResultRow(r: RaceResultEntry): RaceResultRow {
   };
 }
 
-function SectionLabel({ children }: { children: string }) {
-  return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{children}</p>;
-}
-
-/** The season race page's actual content, as a flowing dashboard of always-visible sections
- * instead of the old tab shell - each section gated on exactly the same real-data condition its
- * old tab was (isCompleted/has-inputs/has-tireStints/has-prediction/has-simulation), just applied
- * to whether the section renders at all rather than whether a tab appears. */
+/** The season race page's actual content, as a flowing dashboard of always-visible, individually
+ * bounded sections (RaceSectionCard) instead of the old tab shell - each section gated on exactly
+ * the same real-data condition its old tab was (isCompleted/has-inputs/has-tireStints/has-
+ * prediction/has-simulation), just applied to whether the section renders at all. */
 export function SeasonRaceDashboard({
   race,
   highlights,
@@ -58,6 +59,7 @@ export function SeasonRaceDashboard({
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [showAllResults, setShowAllResults] = useState(false);
   const isCompleted = race.status === "completed" && !!race.results;
 
   const fastestLapSec = isCompleted && race.results ? Math.min(...race.results.filter((r) => r.fastestLapSec !== null).map((r) => r.fastestLapSec!)) : null;
@@ -76,13 +78,14 @@ export function SeasonRaceDashboard({
             points: r.points,
           }))
       : [];
-  const resultRows: RaceResultRow[] =
+  const allResultRows: RaceResultRow[] =
     isCompleted && race.results
       ? [...race.results]
           .filter((r) => r.finishPosition > 3)
           .sort((a, b) => a.finishPosition - b.finishPosition)
           .map((r) => ({ ...toResultRow(r), fastestLap: fastestLapSec !== null && r.fastestLapSec === fastestLapSec }))
       : [];
+  const resultRows = showAllResults ? allResultRows : allResultRows.slice(0, INITIAL_RESULT_ROWS);
 
   // Race story + key statistics - both built from the same facts computeHighlights already
   // produces, no new data. Winning margin is P2's own gap-to-leader (the gap-to-leader field *is*
@@ -141,25 +144,30 @@ export function SeasonRaceDashboard({
   }
 
   const hasAnalysis = isCompleted || !!accuracy || !!poleAccuracy;
+  const hasQualifying = !!race.inputs?.length;
+  const hasStrategy = !!race.tireStints?.length;
+  const sideBySide = hasQualifying && hasStrategy;
 
   return (
-    <div id="overview" className="space-y-10">
+    <div id="overview" className="space-y-8">
       {(storyFacts || statTiles) && (
-        <section className="glass-surface space-y-6 rounded-2xl p-5">
-          {storyFacts && <RaceStory facts={storyFacts} />}
-          {statTiles && <StatTiles tiles={statTiles} />}
+        <section className="glass-surface rounded-2xl p-5 sm:p-6">
+          <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+            {storyFacts && <RaceStory facts={storyFacts} />}
+            {statTiles && <StatTiles tiles={statTiles} />}
+          </div>
         </section>
       )}
 
       {!isCompleted &&
         (race.prediction ? (
-          <section>
+          <RaceSectionCard title="Pre-Race Prediction">
             <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
-          </section>
+          </RaceSectionCard>
         ) : race.polePrediction ? (
-          <section>
+          <RaceSectionCard title="Pole Prediction">
             <PoleSection polePrediction={race.polePrediction} />
-          </section>
+          </RaceSectionCard>
         ) : (
           <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
         ))}
@@ -172,41 +180,48 @@ export function SeasonRaceDashboard({
       </section>
 
       {race.practice && (
-        <section>
-          <SectionLabel>Practice</SectionLabel>
+        <RaceSectionCard title="Practice">
           <PracticeSummary practice={race.practice} />
-        </section>
+        </RaceSectionCard>
       )}
 
       {isCompleted && (
-        <section id="results">
-          <SectionLabel>Results</SectionLabel>
+        <RaceSectionCard id="results" title="Results">
           <div className="space-y-6">
             <RacePodium entries={podium} />
             {resultRows.length > 0 && (
               <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
             )}
+            {allResultRows.length > INITIAL_RESULT_ROWS && (
+              <button
+                type="button"
+                onClick={() => setShowAllResults((v) => !v)}
+                className="mx-auto block text-sm text-neutral-400 transition hover:text-white"
+              >
+                {showAllResults ? "Show fewer results ↑" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS}) ↓`}
+              </button>
+            )}
           </div>
-        </section>
+        </RaceSectionCard>
       )}
 
-      {!!race.inputs?.length && (
-        <section id="qualifying">
-          <SectionLabel>Qualifying</SectionLabel>
-          <QualifyingGapChart inputs={race.inputs} />
-        </section>
-      )}
-
-      {!!race.tireStints?.length && (
-        <section id="strategy">
-          <SectionLabel>Strategy</SectionLabel>
-          <TireStintTimeline stints={race.tireStints} results={race.results ?? []} />
-        </section>
+      {(hasQualifying || hasStrategy) && (
+        <div className={sideBySide ? "grid gap-8 lg:grid-cols-2" : undefined}>
+          {hasQualifying && (
+            <RaceSectionCard id="qualifying" title="Qualifying">
+              <QualifyingGapChart inputs={race.inputs!} />
+            </RaceSectionCard>
+          )}
+          {hasStrategy && (
+            <RaceSectionCard id="strategy" title="Strategy">
+              <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} />
+            </RaceSectionCard>
+          )}
+        </div>
       )}
 
       {hasAnalysis && (
-        <section id="analysis">
-          <SectionLabel>Race Progression</SectionLabel>
+        <RaceSectionCard id="analysis" title="Race Progression" description="Grid position vs. finishing position for every classified driver.">
           <div className="space-y-8">
             {(accuracy || poleAccuracy) && (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -217,14 +232,13 @@ export function SeasonRaceDashboard({
             {isCompleted && race.results && <MovementChart results={race.results} />}
             {(race.prediction || race.polePrediction) && <ModelInfo />}
           </div>
-        </section>
+        </RaceSectionCard>
       )}
 
       {race.simulation && (
-        <section id="simulation">
-          <SectionLabel>Simulation</SectionLabel>
+        <RaceSectionCard id="simulation" title="Simulation">
           <SimulationPanel simulation={race.simulation} />
-        </section>
+        </RaceSectionCard>
       )}
     </div>
   );
