@@ -23,7 +23,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-10">
         <SignInGate label="this race" />
       </div>
     );
@@ -56,7 +56,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const circuitImage = matchedCircuit?.imageUrl ? { url: matchedCircuit.imageUrl, wikipediaUrl: matchedCircuit.wikipediaUrl } : null;
 
     return (
-      <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-10">
         <RaceHeader
           backHref="/season"
           backLabel={`${race.year}`}
@@ -92,7 +92,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const archiveWinner = race.results.find((r) => r.position === 1);
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-10">
       <RaceHeader
         backHref={archiveSeasonHref(year)}
         backLabel={`${year}`}

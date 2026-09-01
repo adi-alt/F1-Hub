@@ -215,21 +215,25 @@ export function SeasonRaceDashboard({
           )}
           {(hasQualifying || hasStrategy) && (
             <div className={hasPractice ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
-              <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-2" : undefined}>
+              {/* 1fr/1.15fr, not an even split - Strategy's tyre-stint bars need more horizontal
+                  room than Qualifying's driver-name + gap-chart layout to read well. minmax(0, ...),
+                  not a bare fr, so a wide chart can't force the column past its share (the classic
+                  CSS grid overflow trap for any fr track holding intrinsically-sized content). */}
+              <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : undefined}>
                 {hasQualifying && (
                   // No height cap - Qualifying always shows the full field regardless of what
                   // Strategy's own Top 5/10/All is set to, so it's very often the taller of the
                   // two. That's real content, not wasted space - items-start (above) is what lets
                   // Strategy stay its own natural (often shorter) height instead of both being
                   // forced to match. Divider only when Strategy also exists.
-                  <div id="qualifying" className={sessionAnalysisSideBySide ? "border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : undefined}>
+                  <div id="qualifying" className={sessionAnalysisSideBySide ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : "min-w-0"}>
                     <RaceSubSection label="Qualifying" first>
                       <QualifyingGapChart inputs={race.inputs!} />
                     </RaceSubSection>
                   </div>
                 )}
                 {hasStrategy && (
-                  <div id="strategy">
+                  <div id="strategy" className="min-w-0">
                     {/* `first` unconditionally - Qualifying/Strategy either sit side by side (a
                         grid, no "above" content on either side) or this is the only one in the
                         block, never a second item stacked below the other. */}
