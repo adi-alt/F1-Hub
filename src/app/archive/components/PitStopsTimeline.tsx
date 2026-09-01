@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
-import { chart, rowChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
+import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 import type { DriverSet } from "@/lib/driverSet";
@@ -90,11 +90,11 @@ export function PitStopsTimeline({
 
   return (
     <div>
-      {/* `layout` - height is content-driven (rowChartHeight), so switching Top 5 -> All drivers
+      {/* `layout` - height is content-driven (sessionChartHeight), so switching Top 5 -> All drivers
           animates the chart smoothly taller/shorter instead of the height snapping instantly
           under the still-animating entrance transition. */}
       <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-        <ResponsiveContainer width="100%" height={rowChartHeight(driverOrder.length)}>
+        <ResponsiveContainer width="100%" height={sessionChartHeight(driverOrder.length)}>
         <ScatterChart margin={{ left: 8, right: 16, top: 8, bottom: 24 }}>
           <XAxis
             type="number"

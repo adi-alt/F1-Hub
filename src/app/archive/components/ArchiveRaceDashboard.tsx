@@ -143,6 +143,20 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   const hasStrategy = !!race.pitStops?.length;
   const hasSessionAnalysis = hasQualifying || hasStrategy;
   const sessionAnalysisSideBySide = hasQualifying && hasStrategy;
+  // Nothing left to filter down to for a field of 5 or fewer.
+  const driverSetFilter =
+    (hasQualifying ? race.qualifying!.length : race.pitStops!.length) > 5 ? (
+      <QuietTabs
+        options={[
+          { value: "top5" as const, label: "Top 5" },
+          { value: "top10" as const, label: "Top 10" },
+          { value: "all" as const, label: "All drivers" },
+        ]}
+        value={driverSet}
+        onChange={setDriverSet}
+        className="text-xs"
+      />
+    ) : undefined;
 
   return (
     <div id="overview" className="space-y-8">
@@ -188,39 +202,20 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
 
       {hasSessionAnalysis && (
         <RaceSectionCard title="Session Analysis">
-          {/* One shared driver-set control for both Qualifying and Strategy, not each picking its
-              own - centered above the two columns so it visibly governs both rather than reading
-              as Strategy's own local control. Qualifying's own field is at least 6 to even show
-              this (a 5-or-fewer field has nothing left to filter down to). */}
-          {(hasQualifying ? race.qualifying!.length : race.pitStops!.length) > 5 && (
-            <div className="mb-6 flex justify-center">
-              <QuietTabs
-                options={[
-                  { value: "top5" as const, label: "Top 5" },
-                  { value: "top10" as const, label: "Top 10" },
-                  { value: "all" as const, label: "All drivers" },
-                ]}
-                value={driverSet}
-                onChange={setDriverSet}
-                className="text-xs"
-              />
-            </div>
-          )}
           {/* 1fr/1.15fr, not an even split - Strategy's tyre-stint bars need more horizontal room
               than Qualifying's driver-name + gap-chart layout to read well. minmax(0, ...), not a
               bare fr, so a wide chart can't force the column past its share (the classic CSS grid
               overflow trap for any fr track holding intrinsically-sized content). */}
           <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : undefined}>
             {hasQualifying && (
-              // Both sides now driver-set-filtered to the same count (rowChartHeight, the shared
-              // formula both charts use) - "the taller of the two" is no longer a fixed asymmetry,
-              // it only happens if one field genuinely has more real rows than the other at the
-              // same Top 5/10/All setting (e.g. more classified finishers than pit stops).
-              // lg:border-r/pr for a visible divider between the two side by side; a bottom
-              // border instead once they stack under lg:. Only when Strategy also exists - nothing
-              // to divide from otherwise.
+              // Both sides now driver-set-filtered to the same count (sessionChartHeight, the
+              // shared row-height formula both charts use) - "the taller of the two" is no longer
+              // a fixed asymmetry, it only happens if one field genuinely has more real rows than
+              // the other at the same Top 5/10/All setting. lg:border-r/pr for a visible divider
+              // between the two side by side; a bottom border instead once they stack under lg:.
+              // Only when Strategy also exists - nothing to divide from otherwise.
               <div id="qualifying" className={sessionAnalysisSideBySide ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : "min-w-0"}>
-                <RaceSubSection label="Qualifying" first>
+                <RaceSubSection label="Qualifying" first headerRight={!hasStrategy ? driverSetFilter : undefined}>
                   <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} />
                 </RaceSubSection>
               </div>
@@ -229,8 +224,13 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
               <div id="strategy" className="min-w-0">
                 {/* `first` unconditionally - Qualifying/Strategy either sit side by side (a grid,
                     no "above" content on either side) or this is the only one in the block, never
-                    a second item stacked below the other. */}
-                <RaceSubSection label="Strategy" first>
+                    a second item stacked below the other. The shared driver-set control (state
+                    lives in this component, driving Qualifying too) lives visually in Strategy's
+                    own header, right-aligned - not centered above both columns, which read as
+                    governing some third, separate thing rather than belonging to either panel.
+                    Falls back to Qualifying's own header (above) when there's no Strategy data for
+                    this race at all - the control still needs a home. */}
+                <RaceSubSection label="Strategy" first headerRight={driverSetFilter}>
                   <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} />
                 </RaceSubSection>
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { SESSION_ROW_HEIGHT } from "@/components/charts/chartTheme";
 import type { DriverSet } from "@/lib/driverSet";
 import type { RaceResultEntry, TireStint } from "@/lib/types/race";
 
@@ -48,14 +49,18 @@ export function TireStintTimeline({
   return (
     <div>
       {/* `layout` - row count changes with the Top 5/Top 10/All drivers switch, so the list's own
-          height animates instead of snapping instantly. */}
-      <motion.div layout className="space-y-3">
+          height animates instead of snapping instantly. Every row is exactly SESSION_ROW_HEIGHT,
+          no gap between them (not space-y-*) - the same body-height formula Qualifying's Recharts
+          chart uses (rowCount * SESSION_ROW_HEIGHT), so N drivers occupies the identical pixel
+          height on both sides. The legend is a sibling below this div, not part of it - it's
+          chrome, like Qualifying's own axis label, not part of the row-count-driven body. */}
+      <motion.div layout>
         {visibleDrivers.map((driver, driverIndex) => {
           const sorted = [...byDriver.get(driver)!].sort((a, b) => a.stintNumber - b.stintNumber);
           const totalLaps = sorted.reduce((sum, s) => sum + s.lapCount, 0);
           let lapCursor = 0;
           return (
-            <div key={driver} className="flex items-center gap-3">
+            <div key={driver} className="flex items-center gap-3" style={{ height: SESSION_ROW_HEIGHT }}>
               <span className="w-14 shrink-0 text-sm font-medium text-white">{driver}</span>
               <div className="flex h-5 flex-1 overflow-hidden rounded-md" style={{ gap: 1 }}>
                 {sorted.map((s, stintIndex) => {
@@ -87,15 +92,15 @@ export function TireStintTimeline({
             </div>
           );
         })}
-        <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-neutral-500">
-          {Object.entries(COMPOUND_COLOR).map(([name, color]) => (
-            <span key={name} className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
-              {name.charAt(0) + name.slice(1).toLowerCase()}
-            </span>
-          ))}
-        </div>
       </motion.div>
+      <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-neutral-500">
+        {Object.entries(COMPOUND_COLOR).map(([name, color]) => (
+          <span key={name} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
+            {name.charAt(0) + name.slice(1).toLowerCase()}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

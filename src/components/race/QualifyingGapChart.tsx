@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps } from "recharts";
-import { chart, rowChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
+import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { DriverSet } from "@/lib/driverSet";
 import type { RaceInputEntry } from "@/lib/types/race";
@@ -91,10 +91,10 @@ export function QualifyingGapChart({ inputs, driverSet }: { inputs: RaceInputEnt
           </span>
         )}
       </div>
-      {/* `layout` - height is content-driven (rowChartHeight), so switching Top 5 -> All drivers
+      {/* `layout` - height is content-driven (sessionChartHeight), so switching Top 5 -> All drivers
           animates the chart smoothly taller/shorter instead of snapping. */}
       <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-        <ResponsiveContainer width="100%" height={rowChartHeight(data.length)}>
+        <ResponsiveContainer width="100%" height={sessionChartHeight(data.length)}>
           <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 8, bottom: 20 }} barCategoryGap="20%">
             {/* Vertical gridlines only (aligned to the X-axis' numeric ticks) - a horizontal-bar
                 chart's own reading aid, matching every other real chart on this page. */}
