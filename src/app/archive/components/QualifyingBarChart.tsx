@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps } from "recharts";
+import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveQualifyingEntry } from "@/lib/supabase/archive";
+
+type DriverSet = "top5" | "top10" | "all";
 
 /** Bar geometry animates in once (width 0 -> real value, staggered per driver) via a custom
  * `shape` - Recharts merges the sibling `<Cell>`'s fill/fillOpacity/hover handlers into these same
@@ -49,6 +52,7 @@ function AnimatedBar({ x = 0, y = 0, width = 0, height = 0, fill, fillOpacity, i
 // actually a valid, not-misleading comparison.
 export function QualifyingBarChart({ qualifying }: { qualifying: ArchiveQualifyingEntry[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
+  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const withSeconds = qualifying
     .map((q) => ({ q, seconds: parseTimeToSeconds(q.q3 ?? q.q2 ?? q.q1 ?? null) }))
     .filter((x): x is { q: ArchiveQualifyingEntry; seconds: number } => x.seconds !== null)
@@ -62,40 +66,61 @@ export function QualifyingBarChart({ qualifying }: { qualifying: ArchiveQualifyi
   // gap below one with a *larger* gap. A chart whose entire point is comparing times needs to
   // read as monotonic regardless of why the position field disagrees.
   const poleSeconds = withSeconds[0].seconds;
-  const data = withSeconds.map(({ q, seconds }) => ({
+  const allData = withSeconds.map(({ q, seconds }) => ({
     driverName: q.driverName,
     gap: seconds - poleSeconds,
     time: q.q3 ?? q.q2 ?? q.q1,
     color: teamColor(q.constructor),
   }));
+  // Same Top 5/10/All convention as Strategy's own driver-set switch (PitStopsTimeline,
+  // TireStintTimeline) - so the two sides can both be compact together, not just Strategy.
+  const data = driverSet === "all" ? allData : allData.slice(0, driverSet === "top5" ? 5 : 10);
 
   // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
   // usually two midfield cars a fraction apart, not necessarily whoever's nearest pole itself.
+  // Computed from the full field regardless of the driver-set filter above - a real session fact
+  // (who was actually closest), not something that should change depending on what's visible.
   let closestGap: number | null = null;
-  for (let i = 1; i < data.length; i++) {
-    const diff = data[i].gap - data[i - 1].gap;
+  for (let i = 1; i < allData.length; i++) {
+    const diff = allData[i].gap - allData[i - 1].gap;
     if (closestGap === null || diff < closestGap) closestGap = diff;
   }
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
-        <span>
-          <span className="font-medium text-white">{data[0].driverName}</span> on pole
-          {data[0].time && <span className="text-neutral-600"> · {data[0].time}</span>}
-        </span>
-        {data[1] && (
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
           <span>
-            Margin to P2 <span className="font-medium text-neutral-300">+{data[1].gap.toFixed(3)}s</span>
+            <span className="font-medium text-white">{allData[0].driverName}</span> on pole
+            {allData[0].time && <span className="text-neutral-600"> · {allData[0].time}</span>}
           </span>
-        )}
-        {closestGap !== null && (
-          <span>
-            Closest gap <span className="font-medium text-neutral-300">{closestGap.toFixed(3)}s</span>
-          </span>
+          {allData[1] && (
+            <span>
+              Margin to P2 <span className="font-medium text-neutral-300">+{allData[1].gap.toFixed(3)}s</span>
+            </span>
+          )}
+          {closestGap !== null && (
+            <span>
+              Closest gap <span className="font-medium text-neutral-300">{closestGap.toFixed(3)}s</span>
+            </span>
+          )}
+        </div>
+        {allData.length > 5 && (
+          <QuietTabs
+            options={[
+              { value: "top5" as const, label: "Top 5" },
+              { value: "top10" as const, label: "Top 10" },
+              { value: "all" as const, label: "All drivers" },
+            ]}
+            value={driverSet}
+            onChange={setDriverSet}
+            className="text-xs"
+          />
         )}
       </div>
-      <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+      {/* `layout` - height is content-driven (Math.max(260, data.length * 28)), so switching
+          Top 5 -> All drivers animates the chart smoothly taller/shorter instead of snapping. */}
+      <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
         <ResponsiveContainer width="100%" height={Math.max(260, data.length * 28)}>
           <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 8, bottom: 20 }} barCategoryGap="20%">
             {/* Vertical gridlines only (aligned to the X-axis' numeric ticks) - a horizontal-bar
