@@ -16,11 +16,14 @@ export type RaceResultRow = {
   fastestLap?: boolean;
 };
 
-/** The actual fix for "almost every row has a strong colored background": rows stay dark by
- * default, team identity is a 3px left-border accent instead of a tinted full-row gradient - color
- * as information, not decoration. Shared by Season and Archive's race pages (both map their own
- * real result rows down to this one plain shape at the call site - see RaceHeader's own comment
- * for why the shared component doesn't know either page's real data type).
+/** Table-like divided rows - the same language as the Season Championship table's own `<tbody>`
+ * (see ChampionshipStandings.tsx: `divide-y divide-[var(--f1-line)]`, `hover:bg-white/[0.035]`,
+ * a colored left border instead of a tinted fill) rather than each row painting its own rounded,
+ * bordered, gapped card. Team identity is still the 3px left-border accent - color as information,
+ * not decoration - it just no longer needs its own background/radius to read as a distinct row,
+ * since the divider between rows already does that job. Shared by Season and Archive's race pages
+ * (both map their own real result rows down to this one plain shape at the call site - see
+ * RaceHeader's own comment for why the shared component doesn't know either page's real data type).
  *
  * `renderExpanded`/`expandedKey`/`onToggleExpand` are optional - Archive's click-to-expand
  * qualifying/pit-stop cross-reference (a real, kept feature) plugs into that slot; Season's
@@ -37,17 +40,17 @@ export function RaceResultsTable({
   onToggleExpand?: (key: string) => void;
 }) {
   return (
-    <motion.div initial="hidden" animate="show" variants={staggerContainer} className="space-y-1.5">
+    <motion.div initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-[var(--f1-line)]">
       {rows.map((r) => {
         const color = teamColor(r.team);
         const isOpen = expandedKey === r.key;
         const clickable = !!onToggleExpand;
         return (
-          <motion.div key={r.key} variants={staggerItem} className="overflow-hidden rounded-lg border-l-[3px] bg-[var(--f1-carbon)]/60" style={{ borderLeftColor: color }}>
+          <motion.div key={r.key} variants={staggerItem} className="overflow-hidden border-l-[3px]" style={{ borderLeftColor: color }}>
             <button
               type="button"
               onClick={clickable ? () => onToggleExpand(r.key) : undefined}
-              className={`flex w-full items-center gap-3 py-2 pl-3 pr-3 text-left transition ${clickable ? "cursor-pointer hover:bg-white/[0.04]" : ""}`}
+              className={`flex w-full items-center gap-3 py-2 pl-3 pr-3 text-left transition ${clickable ? "cursor-pointer hover:bg-white/[0.035]" : ""}`}
             >
               <span className="w-7 shrink-0 text-sm font-bold text-white">{r.positionText}</span>
               <span className="min-w-0 flex-1">

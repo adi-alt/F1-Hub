@@ -153,7 +153,7 @@ export function SeasonRaceDashboard({
 
   return (
     <div id="overview" className="space-y-8">
-      <section className="glass-surface rounded-2xl p-5 sm:p-6">
+      <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
         <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-6">

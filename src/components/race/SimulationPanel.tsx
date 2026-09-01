@@ -80,9 +80,11 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
 
       <div>
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Expected finish</p>
-        <ol className="grid gap-2 sm:grid-cols-2">
+        {/* Plain divided rows, not boxed cards - same "row, not card" language as the Championship
+            table and RaceResultsTable (border-b instead of a rounded, bordered background per item). */}
+        <ol className="grid gap-x-8 sm:grid-cols-2">
           {shownFinish.map((entry, index) => (
-            <li key={entry.driver} className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-2.5">
+            <li key={entry.driver} className="flex items-center justify-between border-b border-[var(--f1-line)] py-2">
               <span className="font-semibold text-white">
                 {index + 1}. {entry.driver}
               </span>
