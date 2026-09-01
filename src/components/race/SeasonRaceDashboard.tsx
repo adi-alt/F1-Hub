@@ -157,19 +157,18 @@ export function SeasonRaceDashboard({
   return (
     <div id="overview" className="space-y-8">
       <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
-        {/* items-start, not the grid default (stretch) - the Circuit column is almost always
-            shorter than Story+Stats, and stretch was what forced its own bordered box to grow to
-            match, leaving a dead gap at its own bottom instead of just ending where its content
-            ends. */}
+        {/* "Race Overview" lives inside the left column (not as a sibling above the grid) so that
+            column's own top - not "Race Story"'s - is what items-start aligns the Circuit column
+            against. The Circuit column is almost always shorter than the left column overall, and
+            items-start (not the grid default, stretch) is what stops its own bordered box from
+            growing to match and leaving a dead gap at its own bottom. */}
         <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
             {storyFacts && <RaceStory facts={storyFacts} />}
             {statTiles && <StatTiles tiles={statTiles} />}
           </div>
-          <div className="lg:mt-6">
-            <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />
-          </div>
+          <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />
         </div>
       </section>
 
