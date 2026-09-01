@@ -102,14 +102,22 @@ body::after {
      entirely. The first bump (0.88->0.82) still read as too see-through in practice - pushed
      further here (0.95->0.92) plus a stronger blur(28px), so content behind a dropdown/tooltip is
      genuinely illegible-through rather than just softened, while the gradient + blur keep this
-     reading as frosted glass rather than a flat opaque panel. */
-  background: linear-gradient(180deg, rgba(22, 22, 25, 0.95), rgba(18, 18, 21, 0.92));
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+     reading as frosted glass rather than a flat opaque panel.
+
+     Confirmed live via screenshot (race-page redesign round) that at those same opacities this
+     read as a flat near-black box once used for large section cards, not a floating dropdown -
+     rgba(22,22,25) / rgba(18,18,21) sit only ~15 RGB units above --background (#09090b) and
+     --f1-carbon (#18181b) alike, too close in *lightness* to register as a distinct layer even
+     though the opacity itself was never the problem. Opacity is unchanged here (dropdown/tooltip
+     legibility, the reason it was raised in the first place, still depends on it) - only the tint
+     itself is lighter, plus a visibly stronger border/shadow for real edge separation. */
+  background: linear-gradient(135deg, rgba(38, 38, 44, 0.95), rgba(24, 24, 28, 0.93));
+  backdrop-filter: blur(28px) saturate(130%);
+  -webkit-backdrop-filter: blur(28px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 12px 30px rgba(0, 0, 0, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 16px 40px rgba(0, 0, 0, 0.4);
 }
 
 /* .glass-surface's own subtle top-highlight, without its backdrop-filter - for a repeated inline

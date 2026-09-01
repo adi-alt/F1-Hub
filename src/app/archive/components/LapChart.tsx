@@ -63,12 +63,16 @@ export function LapChart({
   year,
   round,
   results,
+  shown,
 }: {
   year: number;
   round: number;
   results: ArchiveResultEntry[];
+  // Lifted to the parent (ArchiveRaceDashboard) so the collapsed state can render as a single
+  // compact row (with its own "Show chart" button) instead of a full-height card wrapping just a
+  // button - see the dashboard's own comment on why. LapChart renders nothing at all until then.
+  shown: boolean;
 }) {
-  const [shown, setShown] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
@@ -122,16 +126,7 @@ export function LapChart({
 
   const moments = useMemo(() => (laps ? computeMoments(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
 
-  if (!shown) {
-    return (
-      <button
-        onClick={() => setShown(true)}
-        className="rounded-lg border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/30 hover:text-white"
-      >
-        Show lap chart
-      </button>
-    );
-  }
+  if (!shown) return null; // the collapsed row itself is rendered by the parent now
 
   if (isLoading) return <p className="text-sm text-neutral-500">Loading lap data…</p>;
   if (isError || chartData.length === 0) {

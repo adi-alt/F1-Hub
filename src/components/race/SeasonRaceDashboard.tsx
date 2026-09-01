@@ -152,16 +152,22 @@ export function SeasonRaceDashboard({
   const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy;
 
   return (
-    <div id="overview" className="space-y-10">
-      {(storyFacts || statTiles) && (
-        <section className="glass-surface rounded-2xl p-5 sm:p-6">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
-          <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+    <div id="overview" className="space-y-8">
+      <section className="glass-surface rounded-2xl p-5 sm:p-6">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
+        <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+          <div className="space-y-6">
             {storyFacts && <RaceStory facts={storyFacts} />}
             {statTiles && <StatTiles tiles={statTiles} />}
           </div>
-        </section>
-      )}
+          <div>
+            <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} />
+            <Link href={circuitHref(race.circuit)} className="mt-3 inline-block text-sm text-neutral-500 transition hover:text-neutral-300">
+              Track history →
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {!isCompleted &&
         (race.prediction ? (
@@ -175,13 +181,6 @@ export function SeasonRaceDashboard({
         ) : (
           <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
         ))}
-
-      <section>
-        <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} />
-        <Link href={circuitHref(race.circuit)} className="mt-3 inline-block text-sm text-neutral-500 transition hover:text-neutral-300">
-          Track history →
-        </Link>
-      </section>
 
       {isCompleted && (
         <RaceSectionCard id="results" title="Results">
@@ -216,7 +215,12 @@ export function SeasonRaceDashboard({
                 {hasQualifying && (
                   <div id="qualifying">
                     <RaceSubSection label="Qualifying" first>
-                      <QualifyingGapChart inputs={race.inputs!} />
+                      {/* Capped height, not the chart's own full N-driver height - same fix as
+                          Archive's QualifyingBarChart, and the same underlying problem (a full-grid
+                          chart next to Strategy's much shorter row list). */}
+                      <div className="max-h-[420px] overflow-y-auto scrollbar-hide">
+                        <QualifyingGapChart inputs={race.inputs!} />
+                      </div>
                     </RaceSubSection>
                   </div>
                 )}

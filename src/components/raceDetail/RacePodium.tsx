@@ -13,7 +13,7 @@ export type PodiumEntry = { position: 1 | 2 | 3; driverName: string; team: strin
 export function RacePodium({ entries }: { entries: PodiumEntry[] }) {
   if (entries.length === 0) return null;
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {entries.map((entry) => (
         <PodiumCard key={entry.position} entry={entry} />
       ))}
@@ -31,16 +31,18 @@ function PodiumCard({ entry }: { entry: PodiumEntry }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="surface-inset flex h-full flex-col justify-between rounded-xl border-t-2 bg-[var(--f1-carbon)]/60 p-4"
+      className="surface-inset flex items-center gap-3 rounded-xl border-t-2 bg-[var(--f1-carbon)]/60 p-3"
       style={{ borderTopColor: accent }}
     >
-      <p className={isP1 ? "text-3xl font-black text-white" : "text-2xl font-black text-neutral-300"}>P{entry.position}</p>
-      <div className="mt-3 min-w-0">
-        <p className="truncate font-semibold text-white">{entry.driverName}</p>
+      <p className={isP1 ? "text-2xl font-black text-white" : "text-xl font-black text-neutral-300"}>P{entry.position}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-white">{entry.driverName}</p>
         <p className="truncate text-xs text-neutral-500">{entry.team}</p>
       </div>
-      {entry.gapOrTime && <p className="mt-3 font-mono text-sm text-neutral-400">{entry.gapOrTime}</p>}
-      {typeof entry.points === "number" && entry.points > 0 && <p className="mt-1 text-xs text-neutral-500">{entry.points} pts</p>}
+      <div className="shrink-0 text-right">
+        {entry.gapOrTime && <p className="font-mono text-xs text-neutral-400">{entry.gapOrTime}</p>}
+        {typeof entry.points === "number" && entry.points > 0 && <p className="mt-0.5 text-[11px] text-neutral-500">{entry.points} pts</p>}
+      </div>
     </motion.div>
   );
 }
