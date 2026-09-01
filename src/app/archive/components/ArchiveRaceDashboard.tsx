@@ -9,7 +9,7 @@ import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStor
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
-import { CircuitCard } from "./CircuitCard";
+import { CircuitImage, CircuitInfoCard } from "./CircuitCard";
 import { QualifyingBarChart } from "./QualifyingBarChart";
 import { PitStopsTimeline } from "./PitStopsTimeline";
 import { LapChart } from "./LapChart";
@@ -140,22 +140,33 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
     <div id="overview" className="space-y-8">
       <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
-        {/* items-start, not the grid default (stretch) - the Circuit column is almost always
-            shorter than Story+Stats, and stretch was what forced its own bordered box to grow to
-            match, leaving a dead gap at its own bottom instead of just ending where its content
-            ends. */}
-        <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
-          <div className="space-y-4">
-            {storyFacts && <RaceStory facts={storyFacts} />}
-            <StatTiles tiles={statTiles} />
-          </div>
-          {circuit ? (
-            <CircuitCard circuit={circuit} weather={race.weather} />
-          ) : (
-            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-500">
-              No circuit details backfilled for this race yet.
+        {/* One shared grid, not two independent stacks - Race Story pairs with the track image
+            (row 1), StatTiles pairs with circuit info/weather/Track History (row 2), each row
+            sized to its own tallest cell (items-start), not one column dictating the other's
+            height. Explicit row/col placement (not DOM order) is what lets the desktop pairing
+            happen while mobile still reads Story -> Stats -> Image -> Info (`order-*`) - Image
+            and Info end up adjacent in the mobile stack, reading as one "circuit" block, rather
+            than Story -> Image -> Stats -> Info, which would separate the image from its own
+            circuit info. */}
+        <div className="grid items-start gap-4 lg:grid-cols-[1fr_20rem] lg:grid-rows-2 lg:gap-x-6 lg:gap-y-4">
+          <div className="order-1 lg:order-none lg:col-start-1 lg:row-start-1">{storyFacts && <RaceStory facts={storyFacts} />}</div>
+          {circuit?.imageUrl && (
+            <div className="order-3 lg:order-none lg:col-start-2 lg:row-start-1">
+              <CircuitImage circuit={circuit} />
             </div>
           )}
+          <div className="order-2 lg:order-none lg:col-start-1 lg:row-start-2">
+            <StatTiles tiles={statTiles} />
+          </div>
+          <div className="order-4 lg:order-none lg:col-start-2 lg:row-start-2">
+            {circuit ? (
+              <CircuitInfoCard circuit={circuit} weather={race.weather} />
+            ) : (
+              <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-500">
+                No circuit details backfilled for this race yet.
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
