@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -9,6 +10,7 @@ import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStor
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
+import type { DriverSet } from "@/lib/driverSet";
 import { formatLapTime } from "@/lib/format";
 import type { RaceHighlights } from "@/lib/highlights";
 import type { PredictionAccuracy, PolePredictionAccuracy } from "@/lib/predictionAccuracy";
@@ -65,6 +67,11 @@ export function SeasonRaceDashboard({
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [showAllResults, setShowAllResults] = useState(false);
+  // Shared between Qualifying and Strategy - one control, not each picking its own. Each side
+  // keeps its own natural ordering (Qualifying by grid, Strategy by finishing position - its
+  // existing convention) sliced to this same count, rather than forcing identical driver
+  // identities across two genuinely different rankings onto one side or the other.
+  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const isCompleted = race.status === "completed" && !!race.results;
 
   const fastestLapSec = isCompleted && race.results ? Math.min(...race.results.filter((r) => r.fastestLapSec !== null).map((r) => r.fastestLapSec!)) : null;
@@ -215,20 +222,36 @@ export function SeasonRaceDashboard({
           )}
           {(hasQualifying || hasStrategy) && (
             <div className={hasPractice ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+              {/* One shared driver-set control for both Qualifying and Strategy, not each picking
+                  its own - centered above the two columns so it visibly governs both rather than
+                  reading as Strategy's own local control. */}
+              {(hasQualifying ? race.inputs!.length : race.tireStints!.length) > 5 && (
+                <div className="mb-6 flex justify-center">
+                  <QuietTabs
+                    options={[
+                      { value: "top5" as const, label: "Top 5" },
+                      { value: "top10" as const, label: "Top 10" },
+                      { value: "all" as const, label: "All drivers" },
+                    ]}
+                    value={driverSet}
+                    onChange={setDriverSet}
+                    className="text-xs"
+                  />
+                </div>
+              )}
               {/* 1fr/1.15fr, not an even split - Strategy's tyre-stint bars need more horizontal
                   room than Qualifying's driver-name + gap-chart layout to read well. minmax(0, ...),
                   not a bare fr, so a wide chart can't force the column past its share (the classic
                   CSS grid overflow trap for any fr track holding intrinsically-sized content). */}
               <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : undefined}>
                 {hasQualifying && (
-                  // No height cap - Qualifying always shows the full field regardless of what
-                  // Strategy's own Top 5/10/All is set to, so it's very often the taller of the
-                  // two. That's real content, not wasted space - items-start (above) is what lets
-                  // Strategy stay its own natural (often shorter) height instead of both being
-                  // forced to match. Divider only when Strategy also exists.
+                  // Both sides now driver-set-filtered to the same count (rowChartHeight, the
+                  // shared formula both charts use) - "the taller of the two" is no longer a fixed
+                  // asymmetry, it only happens if one field genuinely has more real rows than the
+                  // other at the same Top 5/10/All setting. Divider only when Strategy also exists.
                   <div id="qualifying" className={sessionAnalysisSideBySide ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : "min-w-0"}>
                     <RaceSubSection label="Qualifying" first>
-                      <QualifyingGapChart inputs={race.inputs!} />
+                      <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} />
                     </RaceSubSection>
                   </div>
                 )}
@@ -238,7 +261,7 @@ export function SeasonRaceDashboard({
                         grid, no "above" content on either side) or this is the only one in the
                         block, never a second item stacked below the other. */}
                     <RaceSubSection label="Strategy" first>
-                      <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} />
+                      <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} driverSet={driverSet} />
                     </RaceSubSection>
                   </div>
                 )}

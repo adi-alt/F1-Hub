@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps } from "recharts";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
-import { chart, tooltipStyle } from "@/components/charts/chartTheme";
+import { chart, rowChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveQualifyingEntry } from "@/lib/supabase/archive";
-
-type DriverSet = "top5" | "top10" | "all";
+import type { DriverSet } from "@/lib/driverSet";
 
 /** Bar geometry animates in once (width 0 -> real value, staggered per driver) via a custom
  * `shape` - Recharts merges the sibling `<Cell>`'s fill/fillOpacity/hover handlers into these same
@@ -50,9 +48,8 @@ function AnimatedBar({ x = 0, y = 0, width = 0, height = 0, fill, fillOpacity, i
 // Every qualifying entry is a real lap time on one shared scale — unlike race results (where a
 // car "+2 Laps" isn't comparable in seconds to one "+24.065s"), a gap-to-pole bar chart here is
 // actually a valid, not-misleading comparison.
-export function QualifyingBarChart({ qualifying }: { qualifying: ArchiveQualifyingEntry[] }) {
+export function QualifyingBarChart({ qualifying, driverSet }: { qualifying: ArchiveQualifyingEntry[]; driverSet: DriverSet }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const withSeconds = qualifying
     .map((q) => ({ q, seconds: parseTimeToSeconds(q.q3 ?? q.q2 ?? q.q1 ?? null) }))
     .filter((x): x is { q: ArchiveQualifyingEntry; seconds: number } => x.seconds !== null)
@@ -72,8 +69,9 @@ export function QualifyingBarChart({ qualifying }: { qualifying: ArchiveQualifyi
     time: q.q3 ?? q.q2 ?? q.q1,
     color: teamColor(q.constructor),
   }));
-  // Same Top 5/10/All convention as Strategy's own driver-set switch (PitStopsTimeline,
-  // TireStintTimeline) - so the two sides can both be compact together, not just Strategy.
+  // The shared Top 5/10/All filter (lifted to ArchiveRaceDashboard, driving Strategy too) - own
+  // ordering (grid/gap-to-pole), sliced to the shared count, not the shared Strategy's own
+  // finishing-position order forced onto this chart (see the parent's own comment on why).
   const data = driverSet === "all" ? allData : allData.slice(0, driverSet === "top5" ? 5 : 10);
 
   // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
@@ -88,40 +86,26 @@ export function QualifyingBarChart({ qualifying }: { qualifying: ArchiveQualifyi
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
+      <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
+        <span>
+          <span className="font-medium text-white">{allData[0].driverName}</span> on pole
+          {allData[0].time && <span className="text-neutral-600"> · {allData[0].time}</span>}
+        </span>
+        {allData[1] && (
           <span>
-            <span className="font-medium text-white">{allData[0].driverName}</span> on pole
-            {allData[0].time && <span className="text-neutral-600"> · {allData[0].time}</span>}
+            Margin to P2 <span className="font-medium text-neutral-300">+{allData[1].gap.toFixed(3)}s</span>
           </span>
-          {allData[1] && (
-            <span>
-              Margin to P2 <span className="font-medium text-neutral-300">+{allData[1].gap.toFixed(3)}s</span>
-            </span>
-          )}
-          {closestGap !== null && (
-            <span>
-              Closest gap <span className="font-medium text-neutral-300">{closestGap.toFixed(3)}s</span>
-            </span>
-          )}
-        </div>
-        {allData.length > 5 && (
-          <QuietTabs
-            options={[
-              { value: "top5" as const, label: "Top 5" },
-              { value: "top10" as const, label: "Top 10" },
-              { value: "all" as const, label: "All drivers" },
-            ]}
-            value={driverSet}
-            onChange={setDriverSet}
-            className="text-xs"
-          />
+        )}
+        {closestGap !== null && (
+          <span>
+            Closest gap <span className="font-medium text-neutral-300">{closestGap.toFixed(3)}s</span>
+          </span>
         )}
       </div>
-      {/* `layout` - height is content-driven (Math.max(260, data.length * 28)), so switching
-          Top 5 -> All drivers animates the chart smoothly taller/shorter instead of snapping. */}
+      {/* `layout` - height is content-driven (rowChartHeight), so switching Top 5 -> All drivers
+          animates the chart smoothly taller/shorter instead of snapping. */}
       <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-        <ResponsiveContainer width="100%" height={Math.max(260, data.length * 28)}>
+        <ResponsiveContainer width="100%" height={rowChartHeight(data.length)}>
           <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 8, bottom: 20 }} barCategoryGap="20%">
             {/* Vertical gridlines only (aligned to the X-axis' numeric ticks) - a horizontal-bar
                 chart's own reading aid, matching every other real chart on this page. */}

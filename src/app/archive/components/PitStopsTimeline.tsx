@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
-import { chart, tooltipStyle } from "@/components/charts/chartTheme";
+import { chart, rowChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
+import type { DriverSet } from "@/lib/driverSet";
 
 type Point = { driverName: string; lap: number; durationSec: number | null; color: string; order: number };
-type DriverSet = "top5" | "top10" | "all";
 
 // Longer stops get a visibly bigger dot — clamped so one freak 60s stop-and-retire doesn't make
 // every normal ~2.5s stop invisible by comparison.
@@ -55,12 +54,15 @@ function Dot({
 export function PitStopsTimeline({
   pitStops,
   results,
+  driverSet,
 }: {
   pitStops: ArchivePitStopEntry[];
   results: ArchiveResultEntry[];
+  // The shared Top 5/10/All filter (lifted to ArchiveRaceDashboard, driving Qualifying too) - own
+  // ordering (finishing position, unchanged), sliced to the shared count.
+  driverSet: DriverSet;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const nameFor = (driverId: string) => results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
   const colorFor = (driverId: string) => {
     const constructor = results.find((r) => r.driverId === driverId)?.constructor;
@@ -88,21 +90,11 @@ export function PitStopsTimeline({
 
   return (
     <div>
-      <QuietTabs
-        options={[
-          { value: "top5" as const, label: "Top 5" },
-          { value: "top10" as const, label: "Top 10" },
-          { value: "all" as const, label: "All drivers" },
-        ]}
-        value={driverSet}
-        onChange={setDriverSet}
-        className="mb-3 text-xs"
-      />
-      {/* `layout` - height is content-driven (Math.max(280, driverOrder.length * 26)), so
-          switching Top 5 -> All drivers animates the chart smoothly taller/shorter instead of the
-          height snapping instantly under the still-animating entrance transition. */}
+      {/* `layout` - height is content-driven (rowChartHeight), so switching Top 5 -> All drivers
+          animates the chart smoothly taller/shorter instead of the height snapping instantly
+          under the still-animating entrance transition. */}
       <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-        <ResponsiveContainer width="100%" height={Math.max(280, driverOrder.length * 26)}>
+        <ResponsiveContainer width="100%" height={rowChartHeight(driverOrder.length)}>
         <ScatterChart margin={{ left: 8, right: 16, top: 8, bottom: 24 }}>
           <XAxis
             type="number"

@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import type { DriverSet } from "@/lib/driverSet";
 import type { RaceResultEntry, TireStint } from "@/lib/types/race";
-
-type DriverSet = "top5" | "top10" | "all";
 
 // FastF1's own compound names (SOFT/MEDIUM/HARD/INTERMEDIATE/WET, occasionally lowercase) - F1's
 // real, universally-recognized tyre colors, not an arbitrary palette.
@@ -26,9 +23,17 @@ function compoundColor(compound: string): string {
  * exactly what's needed to derive real start/end laps, no data this doesn't already have. Archive's
  * Strategy tab keeps PitStopsTimeline unchanged - archive_pit_stops has no compound field at all,
  * so this same visualization genuinely can't be built there. */
-export function TireStintTimeline({ stints, results }: { stints: TireStint[]; results: RaceResultEntry[] }) {
-  const [driverSet, setDriverSet] = useState<DriverSet>("top5");
-
+export function TireStintTimeline({
+  stints,
+  results,
+  driverSet,
+}: {
+  stints: TireStint[];
+  results: RaceResultEntry[];
+  // The shared Top 5/10/All filter (lifted to SeasonRaceDashboard, driving Qualifying too) - own
+  // ordering (finishing position, unchanged), sliced to the shared count.
+  driverSet: DriverSet;
+}) {
   const byDriver = new Map<string, TireStint[]>();
   for (const s of stints) {
     const list = byDriver.get(s.driver) ?? [];
@@ -42,20 +47,10 @@ export function TireStintTimeline({ stints, results }: { stints: TireStint[]; re
 
   return (
     <div>
-      <QuietTabs
-        options={[
-          { value: "top5" as const, label: "Top 5" },
-          { value: "top10" as const, label: "Top 10" },
-          { value: "all" as const, label: "All drivers" },
-        ]}
-        value={driverSet}
-        onChange={setDriverSet}
-        className="mb-3 text-xs"
-      />
       {/* `layout` - row count changes with the Top 5/Top 10/All drivers switch, so the list's own
           height animates instead of snapping instantly. */}
       <motion.div layout className="space-y-3">
-        {visibleDrivers.map((driver) => {
+        {visibleDrivers.map((driver, driverIndex) => {
           const sorted = [...byDriver.get(driver)!].sort((a, b) => a.stintNumber - b.stintNumber);
           const totalLaps = sorted.reduce((sum, s) => sum + s.lapCount, 0);
           let lapCursor = 0;
@@ -63,18 +58,28 @@ export function TireStintTimeline({ stints, results }: { stints: TireStint[]; re
             <div key={driver} className="flex items-center gap-3">
               <span className="w-14 shrink-0 text-sm font-medium text-white">{driver}</span>
               <div className="flex h-5 flex-1 overflow-hidden rounded-md" style={{ gap: 1 }}>
-                {sorted.map((s) => {
+                {sorted.map((s, stintIndex) => {
                   const startLap = lapCursor + 1;
                   lapCursor += s.lapCount;
                   return (
-                    <div
+                    // scaleX, not width - these are flex children sized by flexGrow (the actual
+                    // lap-proportional width), so a transform is what reveals the segment without
+                    // fighting the layout that already sized it. transformOrigin left so it grows
+                    // start-to-end, matching "reveal left to right." Staggered per stint, and
+                    // again per driver row, but modest (small deltas) - real polish, not a light
+                    // show for a strategy chart someone's trying to read.
+                    <motion.div
                       key={s.stintNumber}
                       className="flex items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-black/70"
-                      style={{ flexGrow: s.lapCount, flexBasis: 0, background: compoundColor(s.compound) }}
+                      style={{ flexGrow: s.lapCount, flexBasis: 0, background: compoundColor(s.compound), transformOrigin: "left" }}
+                      initial={{ scaleX: 0 }}
+                      whileInView={{ scaleX: 1 }}
+                      viewport={{ once: true, amount: 0.3 }}
+                      transition={{ duration: 0.5, delay: driverIndex * 0.04 + stintIndex * 0.08, ease: [0.22, 1, 0.36, 1] }}
                       title={`${s.compound} · laps ${startLap}-${lapCursor}`}
                     >
                       {s.lapCount >= 4 ? s.compound.slice(0, 1) : ""}
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
