@@ -153,6 +153,7 @@ export function SeasonRaceDashboard({
   const hasQualifying = !!race.inputs?.length;
   const hasStrategy = !!race.tireStints?.length;
   const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy;
+  const sessionAnalysisSideBySide = hasQualifying && hasStrategy;
 
   return (
     <div id="overview" className="space-y-8">
@@ -213,17 +214,17 @@ export function SeasonRaceDashboard({
             </RaceSubSection>
           )}
           {(hasQualifying || hasStrategy) && (
-            <div className={hasPractice ? "mt-8 border-t border-white/[0.07] pt-8" : ""}>
-              <div className={hasQualifying && hasStrategy ? "grid gap-8 lg:grid-cols-2" : undefined}>
+            <div className={hasPractice ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+              <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-2" : undefined}>
                 {hasQualifying && (
-                  <div id="qualifying">
+                  // No height cap - Qualifying always shows the full field regardless of what
+                  // Strategy's own Top 5/10/All is set to, so it's very often the taller of the
+                  // two. That's real content, not wasted space - items-start (above) is what lets
+                  // Strategy stay its own natural (often shorter) height instead of both being
+                  // forced to match. Divider only when Strategy also exists.
+                  <div id="qualifying" className={sessionAnalysisSideBySide ? "border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : undefined}>
                     <RaceSubSection label="Qualifying" first>
-                      {/* Capped height, not the chart's own full N-driver height - same fix as
-                          Archive's QualifyingBarChart, and the same underlying problem (a full-grid
-                          chart next to Strategy's much shorter row list). */}
-                      <div className="max-h-[420px] overflow-y-auto scrollbar-hide">
-                        <QualifyingGapChart inputs={race.inputs!} />
-                      </div>
+                      <QualifyingGapChart inputs={race.inputs!} />
                     </RaceSubSection>
                   </div>
                 )}

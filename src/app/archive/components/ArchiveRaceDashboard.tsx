@@ -135,6 +135,7 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   const hasQualifying = !!race.qualifying?.length;
   const hasStrategy = !!race.pitStops?.length;
   const hasSessionAnalysis = hasQualifying || hasStrategy;
+  const sessionAnalysisSideBySide = hasQualifying && hasStrategy;
 
   return (
     <div id="overview" className="space-y-8">
@@ -180,16 +181,18 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
 
       {hasSessionAnalysis && (
         <RaceSectionCard title="Session Analysis">
-          <div className={hasQualifying && hasStrategy ? "grid gap-8 lg:grid-cols-2" : undefined}>
+          <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-2" : undefined}>
             {hasQualifying && (
-              <div id="qualifying">
+              // No height cap - Qualifying always shows the full field regardless of what
+              // Strategy's own Top 5/10/All is set to, so it's very often the taller of the two.
+              // That's real content, not wasted space - items-start (below) is what lets Strategy
+              // stay its own natural (often shorter) height instead of both being forced to match.
+              // lg:border-r/pr for a visible divider between the two side by side; a bottom
+              // border instead once they stack under lg:. Only when Strategy also exists - nothing
+              // to divide from otherwise.
+              <div id="qualifying" className={sessionAnalysisSideBySide ? "border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : undefined}>
                 <RaceSubSection label="Qualifying" first>
-                  {/* Capped height, not the chart's own full N-driver height - a 20-driver
-                      qualifying chart next to Strategy's much shorter default (Top 5) was the
-                      exact "large empty areas next to a fixed-height chart" problem flagged. */}
-                  <div className="max-h-[420px] overflow-y-auto scrollbar-hide">
-                    <QualifyingBarChart qualifying={race.qualifying!} />
-                  </div>
+                  <QualifyingBarChart qualifying={race.qualifying!} />
                 </RaceSubSection>
               </div>
             )}
