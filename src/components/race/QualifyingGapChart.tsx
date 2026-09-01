@@ -2,11 +2,37 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps, type TooltipContentProps } from "recharts";
 import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { DriverSet } from "@/lib/driverSet";
 import type { RaceInputEntry } from "@/lib/types/race";
+
+type BarDatum = { driverName: string; gap: number; color: string };
+
+/** Recharts' default Tooltip draws a full-category-width cursor rectangle behind whatever's
+ * hovered - for a vertical BarChart that's the entire row, not the bar, and it renders as a flat
+ * gray/white fill with no way to theme it into the dashboard's own dark surfaces. `cursor={false}`
+ * on the Tooltip (below) turns that off entirely; the bar's own hover state (already handled by
+ * Cell's fillOpacity) is the only highlight that should exist. This custom `content` replaces
+ * Recharts' own tooltip layout (a plain label + formatted value list) with the actual visual
+ * hierarchy asked for - driver name as the header, then a muted label, then the real value. Same
+ * component as Archive's QualifyingBarChart.tsx - not shared, since Season has no lap-time field
+ * to show (see this file's own comment on why the two aren't a shared component). */
+function QualifyingTooltip({ active, payload }: TooltipContentProps) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload as BarDatum;
+  return (
+    <div
+      className="rounded-lg border px-3 py-2 shadow-xl"
+      style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
+    >
+      <p className="text-sm font-semibold text-white">{d.driverName}</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Gap to pole</p>
+      <p className="font-mono text-sm text-white">{d.gap === 0 ? "Pole" : `+${d.gap.toFixed(3)}s`}</p>
+    </div>
+  );
+}
 
 /** Bar geometry animates in once (width 0 -> real value, staggered per driver) via a custom
  * `shape` - Recharts merges the sibling `<Cell>`'s fill/fillOpacity/hover handlers into these same
@@ -108,10 +134,7 @@ export function QualifyingGapChart({ inputs, driverSet }: { inputs: RaceInputEnt
               label={{ value: "Gap to pole (s)", position: "insideBottom", offset: -6, fill: chart.mutedInk, fontSize: 11 }}
             />
             <YAxis type="category" dataKey="driverName" width={140} tick={{ fill: "#c3c2b7", fontSize: 12 }} axisLine={false} tickLine={false} />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(_value, _name, item) => [item.payload.gap === 0 ? "Pole" : `+${item.payload.gap.toFixed(3)}s`, ""]}
-            />
+            <Tooltip cursor={false} content={QualifyingTooltip} />
             <Bar dataKey="gap" shape={AnimatedBar} minPointSize={2} maxBarSize={16}>
               {data.map((d) => (
                 <Cell
