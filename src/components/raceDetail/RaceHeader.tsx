@@ -37,7 +37,10 @@ export function RaceHeader({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <Link href={backHref} className="text-sm text-neutral-500 transition hover:text-neutral-300">
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1 rounded-full border border-[var(--f1-line)] bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-400 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+        >
           ← {backLabel}
         </Link>
         <RaceActionsMenu externalLink={externalLink} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -139,7 +140,11 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
     <div id="overview" className="space-y-8">
       <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
-        <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+        {/* items-start, not the grid default (stretch) - the Circuit column is almost always
+            shorter than Story+Stats, and stretch was what forced its own bordered box to grow to
+            match, leaving a dead gap at its own bottom instead of just ending where its content
+            ends. */}
+        <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-6">
             {storyFacts && <RaceStory facts={storyFacts} />}
             <StatTiles tiles={statTiles} />
@@ -155,7 +160,7 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
       </section>
 
       <RaceSectionCard id="results" title="Results">
-        <div className="space-y-6">
+        <motion.div layout className="space-y-4">
           <RacePodium entries={podium} />
           {resultRows.length > 0 && (
             <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
@@ -169,7 +174,7 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
               {showAllResults ? "Show fewer results ↑" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS}) ↓`}
             </button>
           )}
-        </div>
+        </motion.div>
       </RaceSectionCard>
 
       {hasSessionAnalysis && (

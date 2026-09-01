@@ -6,10 +6,35 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import type { ArchiveLapEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 
 type DriverSet = "top5" | "top10" | "all" | "custom";
+
+/** Shaped like the real chart it's standing in for - a QuietTabs-sized pill row, the 420px chart
+ * area itself, and a handful of legend pills - not one generic rectangle. Real, not decorative:
+ * `useArchiveLaps`'s fetch (~1,300 rows/race) is genuine async work, unlike the rest of this page
+ * (Practice/Qualifying/Strategy/Simulation all arrive server-rendered, already in memory - adding
+ * a skeleton there would be animating a wait that doesn't exist). */
+function LapChartSkeleton() {
+  return (
+    <div>
+      <div className="mb-3 flex gap-3">
+        <Skeleton className="h-4 w-12" />
+        <Skeleton className="h-4 w-14" />
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+      <Skeleton className="h-[420px] w-full" />
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-6 w-24 rounded-md" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // The shared chartTheme only defines a couple of data colors (built for single/dual-series
 // charts like CircuitTrendChart) — a full grid's worth of drivers needs one distinct color each,
@@ -121,7 +146,7 @@ export function LapChart({
 
   const moments = useMemo(() => (laps ? computeMoments(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
 
-  if (isLoading) return <p className="text-sm text-neutral-500">Loading lap data…</p>;
+  if (isLoading) return <LapChartSkeleton />;
   if (isError || chartData.length === 0) {
     return <p className="text-sm text-neutral-500">No lap data available for this race.</p>;
   }

@@ -21,7 +21,9 @@ function ProbabilityBars({ label, entries, barColor }: { label: string; entries:
   const max = Math.max(...entries.map((e) => e.pct), 0.01);
   const shown = showAll ? entries : entries.slice(0, COMPACT_ROWS);
   return (
-    <div>
+    // `layout` - "Show all" changes the row count (5 -> full field), so this animates the height
+    // instead of the list snapping open instantly.
+    <motion.div layout>
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{label}</p>
       <div className="space-y-1.5">
         {shown.map((e, i) => (
@@ -46,7 +48,7 @@ function ProbabilityBars({ label, entries, barColor }: { label: string; entries:
           {showAll ? "Show fewer ↑" : `Show all ${entries.length} ↓`}
         </button>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -78,7 +80,7 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
         />
       </div>
 
-      <div>
+      <motion.div layout>
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Expected finish</p>
         {/* Plain divided rows, not boxed cards - same "row, not card" language as the Championship
             table and RaceResultsTable (border-b instead of a rounded, bordered background per item). */}
@@ -97,7 +99,7 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
             {showAllFinish ? "Show fewer ↑" : `Show all ${byMedian.length} ↓`}
           </button>
         )}
-      </div>
+      </motion.div>
 
       <div>
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Finishing-position distribution</p>

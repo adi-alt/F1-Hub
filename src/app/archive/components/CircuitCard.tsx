@@ -1,5 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
 import { describeWeatherCode } from "@/lib/weatherCodes";
+import { archiveCircuitHref } from "@/lib/routes";
 import type { ArchiveCircuit, ArchiveWeather } from "@/lib/supabase/archive";
 
 /** A compact vertical block (image on top, text below) - now embedded as Race Overview's own
@@ -48,6 +50,13 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
             </div>
           </div>
         )}
+
+        <Link
+          href={archiveCircuitHref(circuit.circuitId)}
+          className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-[var(--f1-line)] bg-white/[0.03] px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+        >
+          Track History →
+        </Link>
       </div>
     </div>
   );

@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { motion } from "framer-motion";
 
 /** Every major race-page section gets exactly this bounded container - the same solid, restrained
  * surface the Season Championship table's own container uses (`rounded-xl border
@@ -7,13 +10,18 @@ import type { ReactNode } from "react";
  * overlays (its own comment says so explicitly), and applying it to every major section is what
  * made the race page read as a stack of heavy gray cards instead of an extension of the Season
  * page's own table-like language. No backdrop-filter/gradient/heavy shadow here - separation comes
- * from the same thin border + flat translucent fill + spacing the table already relies on. */
+ * from the same thin border + flat translucent fill + spacing the table already relies on.
+ *
+ * `motion.section layout` - when a child inside grows/shrinks (a driver-set switch, "Show all",
+ * a chart finishing its fetch), this card's own height animates along with it instead of snapping
+ * instantly while the child animates smoothly, which would look like the card and its content
+ * disagreeing about the height change. */
 export function RaceSectionCard({ id, title, description, children }: { id?: string; title: string; description?: string; children: ReactNode }) {
   return (
-    <section id={id} className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
+    <motion.section layout id={id} className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{title}</p>
       {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
       <div className="mt-4">{children}</div>
-    </section>
+    </motion.section>
   );
 }

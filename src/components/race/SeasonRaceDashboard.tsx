@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -9,7 +10,6 @@ import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { formatLapTime } from "@/lib/format";
-import { circuitHref } from "@/lib/routes";
 import type { RaceHighlights } from "@/lib/highlights";
 import type { PredictionAccuracy, PolePredictionAccuracy } from "@/lib/predictionAccuracy";
 import type { RaceDoc, RaceResultEntry } from "@/lib/types/race";
@@ -24,7 +24,6 @@ import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
 import { MovementChart } from "@/components/charts/MovementChart";
-import Link from "next/link";
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20-car field doesn't turn Results into a wall-length scroll inside its own card.
@@ -53,11 +52,15 @@ export function SeasonRaceDashboard({
   highlights,
   accuracy,
   poleAccuracy,
+  circuitImage,
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
   accuracy: PredictionAccuracy | null;
   poleAccuracy: PolePredictionAccuracy | null;
+  // Real, not fabricated - see race/page.tsx's findArchiveCircuitByLocation call and
+  // SeasonConditionsCard's own comment. Null/undefined for a venue the archive hasn't reached yet.
+  circuitImage?: { url: string; wikipediaUrl: string | null } | null;
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -155,17 +158,16 @@ export function SeasonRaceDashboard({
     <div id="overview" className="space-y-8">
       <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
-        <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+        {/* items-start, not the grid default (stretch) - the Circuit column is almost always
+            shorter than Story+Stats, and stretch was what forced its own bordered box to grow to
+            match, leaving a dead gap at its own bottom instead of just ending where its content
+            ends. */}
+        <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-6">
             {storyFacts && <RaceStory facts={storyFacts} />}
             {statTiles && <StatTiles tiles={statTiles} />}
           </div>
-          <div>
-            <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} />
-            <Link href={circuitHref(race.circuit)} className="mt-3 inline-block text-sm text-neutral-500 transition hover:text-neutral-300">
-              Track history →
-            </Link>
-          </div>
+          <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />
         </div>
       </section>
 
@@ -184,7 +186,7 @@ export function SeasonRaceDashboard({
 
       {isCompleted && (
         <RaceSectionCard id="results" title="Results">
-          <div className="space-y-6">
+          <motion.div layout className="space-y-4">
             <RacePodium entries={podium} />
             {resultRows.length > 0 && (
               <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
@@ -198,7 +200,7 @@ export function SeasonRaceDashboard({
                 {showAllResults ? "Show fewer results ↑" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS}) ↓`}
               </button>
             )}
-          </div>
+          </motion.div>
         </RaceSectionCard>
       )}
 

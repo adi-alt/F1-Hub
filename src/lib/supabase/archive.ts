@@ -479,6 +479,21 @@ export const getAllArchiveCircuits = unstable_cache(
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
+/** Exact (case-insensitive) locality+country match against the archive's circuit list - the live
+ * `races` table has no circuit_id at all (see supabase/schema.sql: just a free-text `circuit`
+ * column, FastF1's own location string e.g. "Melbourne"), so this is the only real, verifiable way
+ * to find that circuit's real image/Wikipedia link for a live-season race. Exact match on both
+ * fields, not a fuzzy/partial one - a wrong guess would show the wrong physical track's photo,
+ * which is worse than showing none. Confirmed live against the 2026 calendar: "Melbourne"/
+ * "Australia" -> albert_park, "Shanghai"/"China" -> shanghai. Returns null (no image, not a
+ * fabricated guess) for anything that doesn't confidently match - a new or renamed venue the
+ * archive hasn't reached yet, for example. */
+export function findArchiveCircuitByLocation(circuits: ArchiveCircuit[], locality: string, country?: string | null): ArchiveCircuit | null {
+  const loc = locality.trim().toLowerCase();
+  const ctry = country?.trim().toLowerCase();
+  return circuits.find((c) => c.locality?.trim().toLowerCase() === loc && (!ctry || c.country?.trim().toLowerCase() === ctry)) ?? null;
+}
+
 /** A circuit's full history — every race with this circuit_id, oldest first. Only ever returns
  * races the circuits/weather enrichment pass has actually reached. */
 export const getArchiveRacesByCircuitId = unstable_cache(

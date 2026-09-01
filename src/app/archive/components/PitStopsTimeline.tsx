@@ -98,7 +98,10 @@ export function PitStopsTimeline({
         onChange={setDriverSet}
         className="mb-3 text-xs"
       />
-      <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+      {/* `layout` - height is content-driven (Math.max(280, driverOrder.length * 26)), so
+          switching Top 5 -> All drivers animates the chart smoothly taller/shorter instead of the
+          height snapping instantly under the still-animating entrance transition. */}
+      <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
         <ResponsiveContainer width="100%" height={Math.max(280, driverOrder.length * 26)}>
         <ScatterChart margin={{ left: 8, right: 16, top: 8, bottom: 24 }}>
           <XAxis

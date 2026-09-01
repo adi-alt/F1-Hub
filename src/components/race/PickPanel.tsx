@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/providers/AuthProvider";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 type Status = "idle" | "loading" | "saving" | "saved" | "error";
@@ -10,6 +12,24 @@ const DEFAULT_ERROR = "Pick 3 different drivers.";
 
 function toFormState(data: UserPick) {
   return { p1: data.predictedPodium[0], p2: data.predictedPodium[1], p3: data.predictedPodium[2] };
+}
+
+// Shaped like the real card (label + P1/P2/P3 selects) - `useAuth`'s auth check is genuine async
+// work on first paint, unlike a synchronous tab switch elsewhere on this page.
+function PickPanelSkeleton() {
+  return (
+    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5">
+      <Skeleton className="h-3 w-32" />
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        {["P1", "P2", "P3"].map((label) => (
+          <div key={label}>
+            <Skeleton className="h-3 w-6" />
+            <Skeleton className="mt-1 h-9 w-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function PickPanel({ race }: { race: RaceDoc }) {
@@ -33,7 +53,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
       .catch(() => setStatus("error"));
   }, [isAuthorized, race.id]);
 
-  if (loading) return null;
+  if (loading) return <PickPanelSkeleton />;
 
   if (!isAuthorized) {
     return (
@@ -116,8 +136,18 @@ export function PickPanel({ race }: { race: RaceDoc }) {
           {status === "saving" ? "Saving…" : "Save pick"}
         </button>
       )}
-      {status === "saved" && <p className="mt-2 text-xs text-neutral-500">Saved.</p>}
-      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">{errorMessage}</p>}
+      <AnimatePresence>
+        {status === "saved" && (
+          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-neutral-500">
+            Saved.
+          </motion.p>
+        )}
+        {status === "error" && (
+          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-[var(--f1-red)]">
+            {errorMessage}
+          </motion.p>
+        )}
+      </AnimatePresence>
 
       {actualPodium && (
         <p className="mt-4 text-xs text-neutral-500">

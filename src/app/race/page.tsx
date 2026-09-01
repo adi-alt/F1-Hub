@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { ArchiveRaceDashboard } from "@/app/archive/components/ArchiveRaceDashboard";
-import { getArchiveCircuitData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
+import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
 import { seasonStatus } from "@/app/season/_service/season.service";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { PickPanel } from "@/components/race/PickPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
+import { findArchiveCircuitByLocation } from "@/lib/supabase/archive";
 import { getRace, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
 import { computeHighlights } from "@/lib/highlights";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
@@ -47,11 +48,18 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const poleAccuracy = comparePolePrediction(race);
     const winner = race.status === "completed" ? race.results?.find((r) => r.finishPosition === 1) : undefined;
 
+    // The live `races` table has no circuit_id (see findArchiveCircuitByLocation's own comment) -
+    // an exact locality+country match against the archive's circuit list is the only real way to
+    // find this venue's actual image/Wikipedia link. Null (no image shown), never a guess, for a
+    // venue the archive hasn't reached yet.
+    const matchedCircuit = findArchiveCircuitByLocation(await getAllArchiveCircuitsData(), race.circuit, race.country);
+    const circuitImage = matchedCircuit?.imageUrl ? { url: matchedCircuit.imageUrl, wikipediaUrl: matchedCircuit.wikipediaUrl } : null;
+
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
         <RaceHeader
           backHref="/season"
-          backLabel={`${race.year} season`}
+          backLabel={`${race.year}`}
           roundLabel={`Round ${race.round}`}
           name={race.name}
           circuitName={race.circuit}
@@ -59,7 +67,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           resultLabel={winner ? `Winner: ${winner.driverName}` : undefined}
         />
         <div className="mt-10">
-          <SeasonRaceDashboard race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} />
+          <SeasonRaceDashboard race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} circuitImage={circuitImage} />
         </div>
         <div className="mt-10">
           <PickPanel race={race} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import type { RaceResultEntry, TireStint } from "@/lib/types/race";
 
@@ -51,7 +52,9 @@ export function TireStintTimeline({ stints, results }: { stints: TireStint[]; re
         onChange={setDriverSet}
         className="mb-3 text-xs"
       />
-      <div className="space-y-3">
+      {/* `layout` - row count changes with the Top 5/Top 10/All drivers switch, so the list's own
+          height animates instead of snapping instantly. */}
+      <motion.div layout className="space-y-3">
         {visibleDrivers.map((driver) => {
           const sorted = [...byDriver.get(driver)!].sort((a, b) => a.stintNumber - b.stintNumber);
           const totalLaps = sorted.reduce((sum, s) => sum + s.lapCount, 0);
@@ -87,7 +90,7 @@ export function TireStintTimeline({ stints, results }: { stints: TireStint[]; re
             </span>
           ))}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
