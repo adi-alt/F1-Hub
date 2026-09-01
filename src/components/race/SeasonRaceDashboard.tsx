@@ -20,7 +20,7 @@ import { PracticeSummary } from "./PracticeSummary";
 import { PredictionComparison } from "./PredictionComparison";
 import { PredictionPanel } from "./PredictionPanel";
 import { QualifyingGapChart } from "./QualifyingGapChart";
-import { SeasonCircuitImage, SeasonConditionsCard } from "./SeasonConditionsCard";
+import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
 import { MovementChart } from "@/components/charts/MovementChart";
@@ -158,23 +158,16 @@ export function SeasonRaceDashboard({
     <div id="overview" className="space-y-8">
       <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
-        {/* One shared grid, not two independent stacks - Race Story pairs with the track image
-            (row 1), StatTiles pairs with circuit info/weather/Track History (row 2), each row
-            sized to its own tallest cell (items-start), not one column dictating the other's
-            height. Explicit row/col placement (not DOM order) is what lets the desktop pairing
-            happen while mobile still reads Story -> Stats -> Image -> Info (`order-*`) - Image
-            and Info end up adjacent in the mobile stack, reading as one "circuit" block, rather
-            than Story -> Image -> Stats -> Info, which would separate the image from its own
-            circuit info. */}
-        <div className="grid items-start gap-4 lg:grid-cols-[1fr_20rem] lg:grid-rows-2 lg:gap-x-6 lg:gap-y-4">
-          <div className="order-1 lg:order-none lg:col-start-1 lg:row-start-1">{storyFacts && <RaceStory facts={storyFacts} />}</div>
-          {circuitImage && (
-            <div className="order-3 lg:order-none lg:col-start-2 lg:row-start-1">
-              <SeasonCircuitImage image={circuitImage} />
-            </div>
-          )}
-          <div className="order-2 lg:order-none lg:col-start-1 lg:row-start-2">{statTiles && <StatTiles tiles={statTiles} />}</div>
-          <div className="order-4 lg:order-none lg:col-start-2 lg:row-start-2">
+        {/* items-start, not the grid default (stretch) - the Circuit column is almost always
+            shorter than Story+Stats, and stretch was what forced its own bordered box to grow to
+            match, leaving a dead gap at its own bottom instead of just ending where its content
+            ends. */}
+        <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
+          <div className="space-y-4">
+            {storyFacts && <RaceStory facts={storyFacts} />}
+            {statTiles && <StatTiles tiles={statTiles} />}
+          </div>
+          <div className="lg:mt-6">
             <SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />
           </div>
         </div>
