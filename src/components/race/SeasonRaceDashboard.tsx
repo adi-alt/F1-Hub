@@ -163,7 +163,7 @@ export function SeasonRaceDashboard({
             match, leaving a dead gap at its own bottom instead of just ending where its content
             ends. */}
         <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
-          <div className="space-y-6">
+          <div className="space-y-4">
             {storyFacts && <RaceStory facts={storyFacts} />}
             {statTiles && <StatTiles tiles={statTiles} />}
           </div>

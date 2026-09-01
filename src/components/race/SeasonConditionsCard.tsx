@@ -25,8 +25,10 @@ export function SeasonConditionsCard({
   return (
     <div className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
       {image && (
-        <div className="relative h-32 w-full bg-black/30">
-          <Image src={image.url} alt={`${circuit} circuit layout`} fill className="object-contain p-2" />
+        // object-cover, not contain - fills the panel intentionally instead of a letterboxed
+        // image floating in empty margin, same treatment as Archive's CircuitCard.
+        <div className="relative h-36 w-full bg-black/30">
+          <Image src={image.url} alt={`${circuit} circuit layout`} fill className="object-cover" />
         </div>
       )}
       <div className="p-4">

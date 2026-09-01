@@ -14,12 +14,14 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
   return (
     <div className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
       {circuit.imageUrl && (
-        <div className="relative h-32 w-full bg-black/30">
+        <div className="relative h-36 w-full bg-black/30">
           {/* Sourced from Wikipedia's own lead image for this circuit, re-hosted in Supabase
               Storage — usually the actual track layout, sometimes just a locator photo (see
               pipeline/enrich_archive_circuits.py). Not necessarily the exact configuration this
-              specific historical year raced on. */}
-          <Image src={circuit.imageUrl} alt={`${circuit.name ?? "Circuit"} layout`} fill className="object-contain p-2" />
+              specific historical year raced on. object-cover, not contain - fills the panel
+              intentionally instead of a letterboxed image floating in empty margin; the trade-off
+              is a wide track outline can crop at the edges, same as any cover-fit image. */}
+          <Image src={circuit.imageUrl} alt={`${circuit.name ?? "Circuit"} layout`} fill className="object-cover" />
         </div>
       )}
       <div className="p-4">

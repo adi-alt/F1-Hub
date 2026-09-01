@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { RaceActionsMenu } from "./RaceActionsMenu";
 
-/** The identity block every race page opens with - back link + ⋮ actions on one row, then round/
- * name/meta, then a winner line. Shared by Season and Archive's race pages (both feed it plain
- * strings, nothing about either page's own data shape leaks in here). The external link (Full
- * race report / Wikipedia) moved into the ⋮ menu (RaceActionsMenu, the same component/pattern
- * Season's own ExportMenu already establishes) instead of sitting as its own visible line -
- * declutters the header without losing the action, and adds a real one (Copy link) that didn't
- * exist before. */
+/** The identity block every race page opens with - Season -> Round -> Grand Prix, in that order,
+ * matching SeasonDetail.tsx's own "{year} SEASON" heading style (text-*xl font-bold tracking-tight)
+ * one size down, since here the year is a breadcrumb back into that page, not the page's own
+ * subject. A plain pill-button back link read as disconnected from the rest of the identity block
+ * it sat above - making the year itself the clickable element (same convention as every other
+ * "label →" link on this page - Track History, Wikipedia) is what makes it read as part of the
+ * hierarchy instead of a floating control. The ⋮ menu stays pinned top-right, aligned to the year
+ * line, so it doesn't get lost now that the year itself is much bigger. Shared by Season and
+ * Archive's race pages (both feed it plain strings, nothing about either page's own data shape
+ * leaks in here). */
 export function RaceHeader({
   backHref,
   backLabel,
@@ -36,12 +39,12 @@ export function RaceHeader({
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1 rounded-full border border-[var(--f1-line)] bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-400 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
-        >
-          ← {backLabel}
+      <div className="flex items-start justify-between">
+        <Link href={backHref} className="group inline-flex items-center gap-1.5">
+          <span className="text-2xl font-bold tracking-tight text-white transition group-hover:text-neutral-300 sm:text-3xl">{backLabel}</span>
+          <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-neutral-600 transition group-hover:translate-x-0.5 group-hover:text-neutral-400" aria-hidden>
+            <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </Link>
         <RaceActionsMenu externalLink={externalLink} />
       </div>
