@@ -56,7 +56,6 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [showAllResults, setShowAllResults] = useState(false);
-  const [lapChartShown, setLapChartShown] = useState(false);
 
   const podium: PodiumEntry[] = race.results
     .filter((r) => r.position <= 3)
@@ -202,28 +201,11 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
         </RaceSectionCard>
       )}
 
-      {race.lapsBackfilled &&
-        (lapChartShown ? (
-          <RaceSectionCard id="analysis" title="Race Analysis" description="Track position, lap by lap.">
-            <LapChart year={race.year} round={race.round} results={race.results} shown={lapChartShown} />
-          </RaceSectionCard>
-        ) : (
-          // A compact single row, not a full card wrapping just a button - the lap data itself is
-          // expensive (~1,300 rows/race), fetched only once this is clicked, unchanged from before.
-          <section id="analysis" className="glass-surface flex items-center justify-between gap-4 rounded-2xl px-5 py-4 sm:px-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Analysis</p>
-              <p className="mt-1 text-sm text-neutral-500">Track position, lap by lap.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setLapChartShown(true)}
-              className="shrink-0 rounded-lg border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/30 hover:text-white"
-            >
-              Show chart →
-            </button>
-          </section>
-        ))}
+      {race.lapsBackfilled && (
+        <RaceSectionCard id="analysis" title="Race Analysis" description="Track position, lap by lap.">
+          <LapChart year={race.year} round={race.round} results={race.results} />
+        </RaceSectionCard>
+      )}
 
       {simulation && (
         <RaceSectionCard id="simulation" title="Simulation">

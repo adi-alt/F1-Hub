@@ -2,14 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { archiveKeys } from "../_queries/archiveKeys";
 import { fetchArchiveLaps } from "../_service/archiveLaps.client";
 
-/** `enabled` stays false until the user actually clicks "Show lap chart" (LapChart.tsx) — lap
- * data is the one thing in archive that's expensive enough to not fetch until someone asks
- * for it (see pipeline/enrich_archive_laps.py's docstring: ~1,300 rows for a single race). */
-export function useArchiveLaps(year: number, round: number, enabled: boolean) {
+/** Race Analysis (LapChart.tsx) renders its chart by default, so this fetches as soon as the race
+ * page mounts - `staleTime: Infinity` still means a race's ~1,300 lap rows (see
+ * pipeline/enrich_archive_laps.py) are only ever fetched once per session, not re-fetched on
+ * every render. */
+export function useArchiveLaps(year: number, round: number) {
   return useQuery({
     queryKey: archiveKeys.laps(year, round),
     queryFn: () => fetchArchiveLaps(year, round),
-    enabled,
     staleTime: Infinity,
   });
 }
