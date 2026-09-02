@@ -1,8 +1,12 @@
 import { Skeleton } from "@/components/ui/Skeleton";
 
+// Same container as race/page.tsx's own real content (max-w/padding kept in sync by hand - the
+// two aren't allowed to drift, since a mismatch here is exactly what makes the real content look
+// like it "jumps wider" the instant it replaces this skeleton - not a general "content feels
+// spread" complaint, a literal width discontinuity between this file and page.tsx).
 export default function RaceLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
       <Skeleton className="h-4 w-24" />
       <Skeleton className="mt-3 h-3 w-20" />
       <Skeleton className="mt-2 h-9 w-72" />
