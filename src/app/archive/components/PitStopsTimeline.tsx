@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
@@ -93,24 +93,34 @@ export function PitStopsTimeline({
     return constructor ? teamColor(constructor) : chart.mutedInk;
   };
 
-  const rankedIds = results.map((r) => r.driverId).filter((id) => pitStops.some((p) => p.driverId === id));
-  const driverOrder = filterDriverSet(rankedIds, driverSet, (id) => id, customIds);
-  const visible = new Set(driverOrder);
+  // Memoized on the real inputs (results/pitStops/driverSet/customIds) only - not on `hovered`.
+  // These used to be plain computations re-run on every render, which includes every
+  // hover-triggered re-render (setHovered fires on every dot mouseenter/mouseleave) - a fresh
+  // `data` array (new object references) on every one of those was handed straight to Recharts'
+  // `data` prop, which is what made the chart visibly re-render on hover instead of just updating
+  // one dot's fillOpacity.
+  const driverOrder = useMemo(() => {
+    const rankedIds = results.map((r) => r.driverId).filter((id) => pitStops.some((p) => p.driverId === id));
+    return filterDriverSet(rankedIds, driverSet, (id) => id, customIds);
+  }, [results, pitStops, driverSet, customIds]);
 
   // Recharts derives a category axis's row order from first-appearance in `data`, not from
   // alphabetical or any other implicit rule — sorting by finishing position here (rather than
   // pit-stop order, which is what this produced before the fix) is what makes the chart read as
   // an ordered comparison instead of a seemingly-random diagonal scatter.
-  const data: Point[] = pitStops
-    .filter((p) => visible.has(p.driverId))
-    .map((p) => ({
-      driverName: nameFor(p.driverId),
-      lap: p.lap,
-      durationSec: p.durationSec,
-      color: colorFor(p.driverId),
-      order: driverOrder.indexOf(p.driverId),
-    }))
-    .sort((a, b) => a.order - b.order);
+  const data: Point[] = useMemo(() => {
+    const visible = new Set(driverOrder);
+    return pitStops
+      .filter((p) => visible.has(p.driverId))
+      .map((p) => ({
+        driverName: nameFor(p.driverId),
+        lap: p.lap,
+        durationSec: p.durationSec,
+        color: colorFor(p.driverId),
+        order: driverOrder.indexOf(p.driverId),
+      }))
+      .sort((a, b) => a.order - b.order);
+  }, [pitStops, driverOrder]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor/colorFor are derived from the same `results` prop each render, not their own changing input
 
   return (
     <div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps, type TooltipContentProps } from "recharts";
 import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
@@ -36,73 +36,104 @@ function QualifyingTooltip({ active, payload }: TooltipContentProps) {
   );
 }
 
-/** Bar geometry animates in once (width 0 -> real value, staggered per driver) via a custom
- * `shape` - Recharts merges the sibling `<Cell>`'s fill/fillOpacity/hover handlers into these same
- * props, so this only needs to override how the rectangle itself is drawn, not re-derive any of
- * that. Width, not scaleX - these are SVG rects Recharts has already positioned at a shared left
- * edge (the 0s gridline), so animating the geometry attribute directly is simpler and more
- * reliable here than a CSS transform, which would need its own transform-origin bookkeeping for
- * no real benefit. fillOpacity (the hover dim/undim) stays a plain attribute + CSS transition, not
- * part of the framer animation - it needs to react instantly on every hover change, not just once
- * on first scroll-into-view. Same component as Archive's QualifyingBarChart.tsx - not shared,
- * since the two data shapes differ (see this file's own comment on `QualifyingGapChart`).
- *
- * Renders a plain <rect>, not Recharts' own default <path>-based Rectangle - visually identical,
- * but a real SVG rect has a native `width` attribute framer-motion can animate directly, which a
- * path's `d` string doesn't. Recharts' own BarShapeProps types onMouseEnter/Leave for the
- * SVGPathElement it normally renders; the cast below is just bridging that mismatch (both are
- * plain "some SVG element" mouse events - nothing element-specific is ever read off them). */
-function AnimatedBar({ x = 0, y = 0, width = 0, height = 0, fill, fillOpacity, index = 0, onMouseEnter, onMouseLeave }: BarShapeProps) {
-  return (
-    <motion.rect
-      x={x}
-      y={y}
-      height={height}
-      rx={3}
-      ry={3}
-      fill={fill}
-      fillOpacity={fillOpacity}
-      initial={{ width: 0 }}
-      whileInView={{ width }}
-      viewport={{ once: true, amount: 0.3 }}
-      transition={{ duration: 0.7, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-      onMouseEnter={onMouseEnter as unknown as React.MouseEventHandler<SVGRectElement>}
-      onMouseLeave={onMouseLeave as unknown as React.MouseEventHandler<SVGRectElement>}
-      style={{ transition: "fill-opacity 150ms ease-out", cursor: "pointer" }}
-    />
-  );
-}
-
 /** Season's own version of Archive's QualifyingBarChart.tsx - same gap-to-pole bar shape, but
  * `RaceInputEntry` only ever has one qualifying gap value (no Q1/Q2/Q3 breakdown, unlike Archive's
  * real data), so this is its own small sibling component rather than a shared one forced to
  * pretend both sides have the same input shape. */
 export function QualifyingGapChart({ inputs, driverSet, customIds }: { inputs: RaceInputEntry[]; driverSet: DriverSet; customIds: string[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const sorted = [...inputs].sort((a, b) => a.grid - b.grid);
-  if (sorted.length === 0) return <p className="text-sm text-neutral-500">No qualifying data recorded.</p>;
+  // Flips true once, after this component's own real first paint, and never resets. Read by
+  // AnimatedBar below (a closure over this ref, not a prop threaded through Recharts) so a
+  // hover-triggered remount of the bars always sees `true` and skips straight to the bar's final
+  // width instead of replaying the grow-in animation from zero. Recharts remounts every bar's
+  // shape element on every hover state change (confirmed live via a mount-counter on Archive's
+  // identical QualifyingBarChart.tsx - same shape+Cell pattern, same root cause), independent of
+  // whether `data` itself is stable.
+  const hasAnimatedRef = useRef(false);
+  useEffect(() => {
+    hasAnimatedRef.current = true;
+  }, []);
 
-  const allData: BarDatum[] = sorted.map((r) => ({
-    driver: r.driver,
-    driverName: r.driverName,
-    grid: r.grid,
-    gap: r.grid === 1 ? 0 : (r.qualifyingGapSec ?? 0),
-    color: teamColor(r.team),
-  }));
+  // Memoized on the real input (inputs) only - not on `hovered`. A plain computation re-run on
+  // every render used to hand Recharts a fresh `allData` array (new object references) on every
+  // hover-triggered re-render (setHovered fires on every mouseenter/mouseleave), which is what
+  // made the chart visibly re-render/re-animate on hover instead of just updating one bar's
+  // fillOpacity. `closestGap` moved in here too since it's derived from the same array.
+  const computed = useMemo(() => {
+    const sorted = [...inputs].sort((a, b) => a.grid - b.grid);
+    if (sorted.length === 0) return null;
+
+    const allData: BarDatum[] = sorted.map((r) => ({
+      driver: r.driver,
+      driverName: r.driverName,
+      grid: r.grid,
+      gap: r.grid === 1 ? 0 : (r.qualifyingGapSec ?? 0),
+      color: teamColor(r.team),
+    }));
+
+    // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
+    // usually two midfield cars a fraction apart, not necessarily whoever's nearest pole itself.
+    // Computed from the full field regardless of the driver-set filter below - a real session fact
+    // (who was actually closest), not something that should change depending on what's visible.
+    let closestGap: number | null = null;
+    for (let i = 1; i < allData.length; i++) {
+      const diff = allData[i].gap - allData[i - 1].gap;
+      if (closestGap === null || diff < closestGap) closestGap = diff;
+    }
+    return { allData, closestGap };
+  }, [inputs]);
+
   // The shared Top 5/10/All/Custom filter (lifted to SeasonRaceDashboard, driving every Race
   // Analysis panel together) - own ordering (grid), sliced/filtered to the shared selection, not
   // Strategy's own finishing-position order forced onto this chart (see the parent's own comment
-  // on why).
-  const data = filterDriverSet(allData, driverSet, (d) => d.driver, customIds);
+  // on why). Its own memo - `driverSet`/`customIds` legitimately do need to recompute this,
+  // `hovered` still doesn't.
+  const data = useMemo(
+    () => (computed ? filterDriverSet(computed.allData, driverSet, (d) => d.driver, customIds) : []),
+    [computed, driverSet, customIds],
+  );
 
-  // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
-  // usually two midfield cars a fraction apart, not necessarily whoever's nearest pole itself.
-  // Computed from the full field regardless of the driver-set filter above - a real session fact
-  // (who was actually closest), not something that should change depending on what's visible.
-  let closestGap: number | null = null;
-  for (let i = 1; i < allData.length; i++) {
-    const diff = allData[i].gap - allData[i - 1].gap;
-    if (closestGap === null || diff < closestGap) closestGap = diff;
+  if (!computed) return <p className="text-sm text-neutral-500">No qualifying data recorded.</p>;
+  const { allData, closestGap } = computed;
+
+  /** Bar geometry animates in once (width 0 -> real value, staggered per driver). A closure
+   * defined here (not a module-level function) specifically so it can read `hasAnimatedRef.current`
+   * directly - Cell is Recharts' own deprecated component (SVGProps only, no way to pass a custom
+   * prop through it to the shape function without relying on undocumented forwarding behavior).
+   * Being a fresh closure every render doesn't make the remounting problem worse - Recharts already
+   * remounts every bar's shape element on every hover state change regardless (see hasAnimatedRef's
+   * own comment) - it just means this particular way of reading the flag is reliable. Same pattern
+   * as Archive's QualifyingBarChart.tsx.
+   *
+   * Width, not scaleX - these are SVG rects Recharts has already positioned at a shared left edge
+   * (the 0s gridline), so animating the geometry attribute directly is simpler and more reliable
+   * here than a CSS transform. fillOpacity (the hover dim/undim) stays a plain attribute + CSS
+   * transition, not part of the framer animation - it needs to react instantly on every hover
+   * change.
+   *
+   * Renders a plain <rect>, not Recharts' own default <path>-based Rectangle - visually identical,
+   * but a real SVG rect has a native `width` attribute framer-motion can animate directly, which a
+   * path's `d` string doesn't. Recharts' own BarShapeProps types onMouseEnter/Leave for the
+   * SVGPathElement it normally renders; the cast below is just bridging that mismatch (both are
+   * plain "some SVG element" mouse events - nothing element-specific is ever read off them). */
+  function AnimatedBar({ x = 0, y = 0, width = 0, height = 0, fill, fillOpacity, index = 0, onMouseEnter, onMouseLeave }: BarShapeProps) {
+    return (
+      <motion.rect
+        x={x}
+        y={y}
+        height={height}
+        rx={3}
+        ry={3}
+        fill={fill}
+        fillOpacity={fillOpacity}
+        initial={hasAnimatedRef.current ? false : { width: 0 }}
+        animate={{ width }}
+        transition={{ duration: 0.7, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+        onMouseEnter={onMouseEnter as unknown as React.MouseEventHandler<SVGRectElement>}
+        onMouseLeave={onMouseLeave as unknown as React.MouseEventHandler<SVGRectElement>}
+        style={{ transition: "fill-opacity 150ms ease-out", cursor: "pointer" }}
+      />
+    );
   }
 
   return (
