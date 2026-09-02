@@ -41,23 +41,23 @@ export function RaceHeader({
     <div>
       <div className="flex items-start justify-between">
         <Link href={backHref} className="group inline-flex items-center gap-1.5">
-          <span className="text-2xl font-bold tracking-tight text-white transition group-hover:text-neutral-300 sm:text-3xl">{backLabel}</span>
+          <span className="text-xl font-bold tracking-tight text-white transition group-hover:text-neutral-300 sm:text-2xl">{backLabel}</span>
           <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-neutral-600 transition group-hover:translate-x-0.5 group-hover:text-neutral-400" aria-hidden>
             <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Link>
         <RaceActionsMenu externalLink={externalLink} />
       </div>
-      <div className="mt-2">
+      <div className="mt-1.5">
         {roundLabel && <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{roundLabel}</p>}
-        <h1 className="mt-1 text-3xl font-bold text-white sm:text-4xl">{name}</h1>
+        <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">{name}</h1>
         {(metaParts.length > 0 || dateLabel) && (
-          <p className="mt-2 text-sm text-neutral-500">
+          <p className="mt-1.5 text-sm text-neutral-500">
             {metaParts.join(", ")}
             {dateLabel && (metaParts.length > 0 ? ` · ${dateLabel}` : dateLabel)}
           </p>
         )}
-        {resultLabel && <p className="mt-2 text-sm text-neutral-300">{resultLabel}</p>}
+        {resultLabel && <p className="mt-1.5 text-sm text-neutral-300">{resultLabel}</p>}
       </div>
     </div>
   );

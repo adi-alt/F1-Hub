@@ -206,15 +206,15 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
     ) : undefined;
 
   return (
-    <div id="overview" className="space-y-8">
-      <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5 sm:p-6">
+    <div id="overview" className="space-y-6">
+      <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 sm:p-5">
         {/* "Race Overview" lives inside the left column (not as a sibling above the grid) so that
             column's own top - not "Race Story"'s - is what items-start aligns the Circuit column
             against. The Circuit column is almost always shorter than the left column overall, and
             items-start (not the grid default, stretch) is what stops its own bordered box from
             growing to match and leaving a dead gap at its own bottom. */}
-        <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
-          <div className="space-y-4">
+        <div className="grid items-start gap-5 lg:grid-cols-[1fr_20rem]">
+          <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race Overview</p>
             {storyFacts && <RaceStory facts={storyFacts} />}
             <StatTiles tiles={statTiles} />
@@ -230,7 +230,7 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
       </section>
 
       <RaceSectionCard id="results" title="Results">
-        <motion.div layout className="space-y-4">
+        <motion.div layout className="space-y-3">
           <RacePodium entries={podium} />
           {resultRows.length > 0 && (
             <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
@@ -260,9 +260,9 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
                 reads best as one full-width comparison strip - forcing either into a second
                 column here is exactly the cramped, dead-space-heavy layout this redesign
                 replaces, so both get their own full-width row below instead. */}
-            <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-10 gap-y-8 lg:grid-cols-2" : undefined}>
+            <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
               {hasQualifying && (
-                <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10" : "min-w-0"}>
+                <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
                   <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
                     <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
                   </RaceSubSection>
@@ -277,14 +277,14 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
               )}
             </div>
             {hasLapChart && (
-              <div id="analysis" className={hasQualifying || hasStrategy ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+              <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
                 <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
                   <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
                 </RaceSubSection>
               </div>
             )}
             {hasPositionChanges && (
-              <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+              <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
                 <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
                   <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
                 </RaceSubSection>
@@ -295,9 +295,16 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
       )}
 
       {simulation && (
-        <RaceSectionCard id="simulation" title="Simulation">
-          <SimulationPanel simulation={simulation} />
-        </RaceSectionCard>
+        <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <RaceSectionCard
+            id="simulation"
+            title="Simulation"
+            description="Monte Carlo projection based on grid position, race pace and DNF probability."
+            headerRight={<span className="text-xs text-neutral-500">Based on 10,000 simulations</span>}
+          >
+            <SimulationPanel simulation={simulation} />
+          </RaceSectionCard>
+        </motion.div>
       )}
     </div>
   );

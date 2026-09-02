@@ -27,11 +27,11 @@ export function SeasonConditionsCard({
       {image && (
         // object-cover, not contain - fills the panel intentionally instead of a letterboxed
         // image floating in empty margin, same treatment as Archive's CircuitCard.
-        <div className="relative h-36 w-full bg-black/30">
+        <div className="relative h-32 w-full bg-black/30">
           <Image src={image.url} alt={`${circuit} circuit layout`} fill className="object-cover" />
         </div>
       )}
-      <div className="p-4">
+      <div className="p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-neutral-500">Circuit</p>
@@ -48,7 +48,7 @@ export function SeasonConditionsCard({
         </div>
 
         {weather && (
-          <div className="mt-3 flex items-center gap-3 border-t border-[var(--f1-line)] pt-3">
+          <div className="mt-2.5 flex items-center gap-3 border-t border-[var(--f1-line)] pt-2.5">
             <span className="text-2xl" aria-hidden>
               {weather.rainfall ? "🌧️" : "☀️"}
             </span>
@@ -63,7 +63,7 @@ export function SeasonConditionsCard({
 
         <Link
           href={circuitHref(circuit)}
-          className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-[var(--f1-line)] bg-white/[0.03] px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+          className="mt-2.5 flex items-center justify-center gap-1 rounded-lg border border-[var(--f1-line)] bg-white/[0.03] px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
         >
           Track History →
         </Link>

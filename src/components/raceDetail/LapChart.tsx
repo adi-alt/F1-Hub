@@ -72,7 +72,7 @@ function curveRoundedStepAfter(radius: number): CurveFactory {
 function LapChartSkeleton() {
   return (
     <div>
-      <Skeleton className="skeleton-shimmer h-[360px] w-full" />
+      <Skeleton className="skeleton-shimmer h-[320px] w-full" />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="skeleton-shimmer h-6 w-24 rounded-md" />
@@ -263,7 +263,7 @@ export function LapChart({
           the mouse moves to the chart) picks one out and fades the rest, rather than ~20
           equally-loud lines competing for attention. */}
       <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-        <ResponsiveContainer width="100%" height={360}>
+        <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData} margin={{ left: 8, right: 16, top: 8 }}>
             {/* Two separate grids, not one - horizontal position guides read a touch more visibly
                 than the vertical lap guides, matching "light horizontal... very subtle vertical." */}

@@ -17,6 +17,10 @@ export const chart = {
   // Race Performance's gained/lost pair reads as the conventional green-vs-red motorsport
   // telemetry convention instead of an arbitrary two-color pick.
   sequentialGreen: "#34d399",
+  // A muted gold - "points finish" needs its own third hue distinct from win (red) and podium
+  // (blue) in the Simulation distribution bars, and gold/amber is the real motorsport convention
+  // for "scored points" (vs. red/black for a DNF, silver/bronze for podium tiers).
+  sequentialAmber: "#c9a227",
 };
 
 // Translucent + blurred, not a flat fill, so every tooltip on the site (a chart's hover tooltip,
@@ -38,10 +42,13 @@ export const tooltipStyle = {
  * - the part that scales with row count - while letting each side's own header/summary/legend
  * chrome sit outside that synced measurement, on its own.
  *
- * 37, not the tighter 28-32 earlier formulas used - confirmed live that 32 genuinely wasn't enough
- * room for Recharts' own category-axis tick labels at a small row count, which silently auto-hides
- * ticks it judges would collide rather than overlapping them, dropping driver names off the chart. */
-export const SESSION_ROW_HEIGHT = 37;
+ * 37 was the original value here - confirmed live that an EARLIER 32 genuinely wasn't enough room
+ * for Recharts' own category-axis tick labels at a small row count, which silently auto-hides
+ * ticks it judges would collide rather than overlapping them, dropping driver names off the chart.
+ * 34 (the global density pass's ~10% trim) stays a real margin above that known-broken 32 rather
+ * than creeping back down to it - re-verified live after the change that labels still render at
+ * every row count this page actually uses (Top 5/10/All). */
+export const SESSION_ROW_HEIGHT = 34;
 
 // A Recharts bar/scatter chart's plot area is smaller than its own ResponsiveContainer height by
 // this much regardless of row count (margin.top + margin.bottom + the X-axis line/tick labels/
@@ -50,7 +57,7 @@ export const SESSION_ROW_HEIGHT = 37;
 // Calibrated against the actual rendered chrome (margin={{top:8,bottom:20}} + a ~12px tick label
 // row), not a guess baked into a single Math.max floor the way the old formula conflated "minimum
 // chart height" with "axis chrome," which is what made small-N charts crowd their own labels.
-const RECHARTS_AXIS_CHROME = 48;
+const RECHARTS_AXIS_CHROME = 44;
 
 export function sessionRowListHeight(rowCount: number): number {
   return rowCount * SESSION_ROW_HEIGHT;

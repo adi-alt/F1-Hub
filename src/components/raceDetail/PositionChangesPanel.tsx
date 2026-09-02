@@ -7,7 +7,7 @@ import { chart } from "@/components/charts/chartTheme";
 // the shared Custom driver-picker to filter against, never displayed; `code` is the display label.
 export type PositionChangeEntry = { code: string; driverId: string; grid: number; finish: number; movement: number };
 
-const ROW_HEIGHT = 40;
+const ROW_HEIGHT = 36;
 // The track reserves this much room on both ends (in rem) so a dot sitting at the very edge of the
 // scale (P1 or P{fieldSize}) still has space for its own outward-pointing label without spilling
 // into the driver-code/delta columns on either side.

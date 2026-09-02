@@ -23,7 +23,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
         <SignInGate label="this race" />
       </div>
     );
@@ -56,7 +56,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const circuitImage = matchedCircuit?.imageUrl ? { url: matchedCircuit.imageUrl, wikipediaUrl: matchedCircuit.wikipediaUrl } : null;
 
     return (
-      <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
         <RaceHeader
           backHref="/season"
           backLabel={`${race.year}`}
@@ -66,10 +66,10 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           country={race.country}
           resultLabel={winner ? `Winner: ${winner.driverName}` : undefined}
         />
-        <div className="mt-10">
+        <div className="mt-8">
           <SeasonRaceDashboard race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} circuitImage={circuitImage} />
         </div>
-        <div className="mt-10">
+        <div className="mt-8">
           <PickPanel race={race} />
         </div>
       </div>
@@ -92,7 +92,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const archiveWinner = race.results.find((r) => r.position === 1);
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-10">
+    <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
       <RaceHeader
         backHref={archiveSeasonHref(year)}
         backLabel={`${year}`}
@@ -105,7 +105,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         externalLink={race.wikipediaUrl ? { href: race.wikipediaUrl, label: "Full race report" } : undefined}
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
-      <div className="mt-10">
+      <div className="mt-8">
         <ArchiveRaceDashboard race={race} circuit={circuit} simulation={simulation} />
       </div>
     </div>

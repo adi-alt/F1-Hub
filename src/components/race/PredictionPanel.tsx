@@ -11,7 +11,7 @@ export function PredictionPanel({
   polePrediction?: PolePrediction;
 }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-400">
           Predicted finishing order
