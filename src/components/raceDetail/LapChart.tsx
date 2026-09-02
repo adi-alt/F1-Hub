@@ -7,16 +7,18 @@ import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { useArchiveLaps } from "../_hooks/useArchiveLaps";
-import type { ArchiveLapEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
 
 type DriverSet = "top5" | "top10" | "all" | "custom";
 
+export type LapTiming = { driverId: string; time: string | null; position: number | null };
+export type LapEntry = { lap: number; timings: LapTiming[] };
+export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
+
 /** Shaped like the real chart it's standing in for - a QuietTabs-sized pill row, the 420px chart
  * area itself, and a handful of legend pills - not one generic rectangle. Real, not decorative:
- * `useArchiveLaps`'s fetch (~1,300 rows/race) is genuine async work, unlike the rest of this page
- * (Practice/Qualifying/Strategy/Simulation all arrive server-rendered, already in memory - adding
- * a skeleton there would be animating a wait that doesn't exist). */
+ * the lap fetch (~1,300 rows/race) is genuine async work, unlike the rest of the race page (most
+ * sections arrive server-rendered, already in memory - adding a skeleton there would be animating
+ * a wait that doesn't exist). */
 function LapChartSkeleton() {
   return (
     <div>
@@ -37,7 +39,7 @@ function LapChartSkeleton() {
 }
 
 // The shared chartTheme only defines a couple of data colors (built for single/dual-series
-// charts like CircuitTrendChart) — a full grid's worth of drivers needs one distinct color each,
+// charts like CircuitTrendChart) - a full grid's worth of drivers needs one distinct color each,
 // so this generates an evenly-spaced hue rotation instead of trying to stretch a 2-color palette
 // across ~20 lines.
 function driverColor(index: number, total: number): string {
@@ -51,7 +53,7 @@ type Moment = { lap: number; text: string };
  * one-lap position gain across the whole field - genuinely derivable from real lap-by-lap position
  * data, nothing invented. Capped so this stays a handful of real highlights, not a lap-by-lap
  * transcript. */
-function computeMoments(laps: ArchiveLapEntry[], nameFor: (id: string) => string): Moment[] {
+function computeMoments(laps: LapEntry[], nameFor: (id: string) => string): Moment[] {
   const moments: Moment[] = [];
   let prevLeader: string | null = null;
   let biggestGain: { lap: number; driverId: string; gained: number } | null = null;
@@ -84,21 +86,28 @@ function computeMoments(laps: ArchiveLapEntry[], nameFor: (id: string) => string
   return moments.sort((a, b) => a.lap - b.lap).slice(0, 6);
 }
 
+/** Shared by Season and Archive's race pages - each side owns its own fetch (different table,
+ * different API route: race_laps/useSeasonLaps vs archive_laps/useArchiveLaps) and passes the
+ * result down as plain props, so this component only ever deals with the one shape both already
+ * happen to produce (`{lap, timings: {driverId, time, position}[]}`), not either side's own
+ * pipeline/table naming. Same "shared presentation, adapt at the call site" pattern
+ * PositionChangesPanel/RacePodium already use. */
 export function LapChart({
-  year,
-  round,
+  laps,
+  isLoading,
+  isError,
   results,
 }: {
-  year: number;
-  round: number;
-  results: ArchiveResultEntry[];
+  laps: LapEntry[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  results: LapChartResultEntry[];
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const [customIds, setCustomIds] = useState<string[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
-  const { data: laps, isLoading, isError } = useArchiveLaps(year, round);
 
   // Click anywhere outside the chart/legend clears a locked driver - the same click-outside shape
   // EntityMultiSelect's own dropdown already uses.

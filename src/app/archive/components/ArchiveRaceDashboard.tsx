@@ -13,9 +13,10 @@ import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
 import { QualifyingBarChart } from "./QualifyingBarChart";
 import { PitStopsTimeline } from "./PitStopsTimeline";
-import { LapChart } from "./LapChart";
+import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
+import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
 import type { DriverSet } from "@/lib/driverSet";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceSimulation } from "@/lib/types/race";
@@ -66,10 +67,7 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   // position - its existing convention) sliced to this same count, rather than forcing identical
   // driver identities across two genuinely different rankings onto one side or the other.
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
-  // The merged left column can show either the grid->finish rows or the existing gap-to-pole
-  // chart - a separate, local toggle from driverSet above (this picks which visualization, not
-  // how many drivers). Defaults to the compact rows view.
-  const [qualifyingView, setQualifyingView] = useState<"performance" | "qualifying">("performance");
+  const { data: laps, isLoading: lapsLoading, isError: lapsError } = useArchiveLaps(race.year, race.round);
 
   const podium: PodiumEntry[] = race.results
     .filter((r) => r.position <= 3)
@@ -162,10 +160,12 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   const hasQualifying = !!race.qualifying?.length;
   const hasStrategy = !!race.pitStops?.length;
   const hasPositionChanges = allMovementEntries.length > 0;
-  const hasSessionAnalysis = hasQualifying || hasStrategy || hasPositionChanges;
-  // Qualifying and Position Changes share one column (a local toggle, not a separate column) -
-  // side by side with Strategy only when Strategy also has real data.
-  const raceAnalysisSideBySide = (hasQualifying || hasPositionChanges) && hasStrategy;
+  const hasLapChart = race.lapsBackfilled;
+  const hasSessionAnalysis = hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
+  // Real ArchiveResultEntry rows already have driverId/driverName/position - LapChart's own prop
+  // type is exactly that shape (defined there, not here) so this needs no field renaming, just a
+  // type-level assertion that the wider ArchiveResultEntry satisfies it.
+  const lapChartResults: LapChartResultEntry[] = race.results;
   const visibleMovementEntries = driverSet === "all" ? allMovementEntries : allMovementEntries.slice(0, driverSet === "top5" ? 5 : 10);
   // Nothing left to filter down to for a field of 5 or fewer. Governs Qualifying, Strategy, and
   // Position Changes together - one control for the whole section, not each panel's own.
@@ -227,71 +227,50 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
 
       {hasSessionAnalysis && (
         <RaceSectionCard title="Race Analysis" description="Grid position, finishing position and race strategy.">
-          {/* Shared Top 5/10/All control, right-aligned above the 2-column area - governs
-              Qualifying/Race Performance and Strategy together, so it lives at this level, not
-              inside either panel's own header. */}
+          {/* Shared Top 5/10/All control, right-aligned above the 2x2 grid - governs Qualifying,
+              Strategy, and Race Performance together (Lap Chart keeps its own Top5/10/All/Custom
+              control - a line chart's "highlight these specific drivers" need is genuinely
+              different from the row-panels' "show top N", not worth collapsing into one). */}
           {driverSetFilter && <div className="mb-6 flex justify-end">{driverSetFilter}</div>}
-          {/* 1fr/1.15fr, not an even split - Strategy's tyre-stint bars need more horizontal room
-              than Qualifying's driver-name + gap-chart layout to read well. minmax(0, ...), not a
-              bare fr, so a wide chart can't force the column past its share (the classic CSS grid
-              overflow trap for any fr track holding intrinsically-sized content). */}
-          <div className={raceAnalysisSideBySide ? "grid items-start gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : undefined}>
-            {(hasQualifying || hasPositionChanges) && (
-              // Both sides now driver-set-filtered to the same count (sessionChartHeight, the
-              // shared row-height formula both charts use) - "the taller of the two" is no longer
-              // a fixed asymmetry, it only happens if one field genuinely has more real rows than
-              // the other at the same Top 5/10/All setting. lg:border-r/pr for a visible divider
-              // between the two side by side; a bottom border instead once they stack under lg:.
-              // Only when Strategy also exists - nothing to divide from otherwise.
-              <div id="qualifying" className={raceAnalysisSideBySide ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10" : "min-w-0"}>
-                {/* Qualifying and the new Grid -> Finish view share this one column via a local
-                    toggle (not the shared driverSet above - this picks *which* chart, not how
-                    many drivers) so the gap-to-pole chart stays available without needing its own
-                    separate column. Falls back to whichever one actually has data when only one
-                    of the two does. */}
-                {hasQualifying && hasPositionChanges ? (
-                  <RaceSubSection
-                    label="Qualifying"
-                    first
-                    headerRight={
-                      <QuietTabs
-                        options={[
-                          { value: "performance" as const, label: "Race Performance" },
-                          { value: "qualifying" as const, label: "Qualifying" },
-                        ]}
-                        value={qualifyingView}
-                        onChange={setQualifyingView}
-                        className="text-xs"
-                      />
-                    }
-                  >
-                    {qualifyingView === "performance" ? <PositionChangesPanel entries={visibleMovementEntries} /> : <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} />}
-                  </RaceSubSection>
-                ) : hasQualifying ? (
-                  <RaceSubSection label="Qualifying" first>
-                    <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} />
-                  </RaceSubSection>
-                ) : (
-                  <RaceSubSection label="Race Performance" first>
-                    <PositionChangesPanel entries={visibleMovementEntries} />
-                  </RaceSubSection>
-                )}
+          {/* Four peer panels, 2x2 on desktop: Qualifying/Strategy on top, Lap Chart/Race
+              Performance below - a plain even split (no fr-ratio tuning) since each row now pairs
+              a different kind of content (a chart against a chart, a list against a list is no
+              longer the shape). Divider classes are authored per named cell for the realistic
+              "all four" and "qualifying only" cases (the ones that actually occur - the four data
+              sources here become available together in practice); an in-between partial case
+              (e.g. Strategy backfilled but not Lap Chart) still renders correctly, just with an
+              occasional divider implying a neighbor that isn't there - a minor, rare cosmetic
+              gap, not a broken layout. */}
+          <div className={[hasQualifying, hasStrategy, hasLapChart, hasPositionChanges].filter(Boolean).length > 1 ? "grid items-start gap-x-10 gap-y-8 lg:grid-cols-2" : undefined}>
+            {hasQualifying && (
+              <div id="qualifying" className="min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-r lg:pr-10">
+                <RaceSubSection label="Qualifying" first>
+                  <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} />
+                </RaceSubSection>
               </div>
             )}
             {hasStrategy && (
-              <div id="strategy" className="min-w-0">
+              <div id="strategy" className="min-w-0 border-b border-[var(--f1-line)] pb-8">
                 <RaceSubSection label="Strategy" first>
                   <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} />
                 </RaceSubSection>
               </div>
             )}
+            {hasLapChart && (
+              <div id="analysis" className="min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10">
+                <RaceSubSection label="Lap Chart" description="Track position, lap by lap." first>
+                  <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} />
+                </RaceSubSection>
+              </div>
+            )}
+            {hasPositionChanges && (
+              <div id="race-performance" className="min-w-0">
+                <RaceSubSection label="Race Performance" first>
+                  <PositionChangesPanel entries={visibleMovementEntries} />
+                </RaceSubSection>
+              </div>
+            )}
           </div>
-        </RaceSectionCard>
-      )}
-
-      {race.lapsBackfilled && (
-        <RaceSectionCard id="analysis" title="Lap Chart" description="Track position, lap by lap.">
-          <LapChart year={race.year} round={race.round} results={race.results} />
         </RaceSectionCard>
       )}
 

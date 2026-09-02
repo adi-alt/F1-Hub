@@ -36,6 +36,7 @@ from ergast_utils import (
     fetch_and_upload_media,
     fetch_and_upload_media_multi,
     fetch_commons_photos,
+    format_timedelta,
     init_postgres,
     reconnect_postgres,
     trigger_revalidation,
@@ -155,6 +156,26 @@ def fetch_practice(year: int, round_num: int, label: str):
     except Exception as exc:
         print(f"    {label}: not available ({exc})")
         return None
+
+
+def extract_lap_rows(session) -> list[dict]:
+    """Every driver's per-lap track position + lap time, off an already-`session.load(laps=True)`
+    session - real FastF1 data (`session.laps`'s own Position/LapTime columns), the same DataFrame
+    fetch_race() below already loads for fastest-lap/tyre-stint/traffic-stat purposes and otherwise
+    discards. Plays the same role for race_laps that enrich_archive_laps.py's Ergast fetch plays
+    for archive_laps - lap-by-lap position, not just start/finish."""
+    if session.laps is None or session.laps.empty:
+        return []
+    return [
+        {
+            "driver": row.Driver,
+            "lapNumber": int(row.LapNumber),
+            "position": int(row.Position) if pd.notna(row.Position) else None,
+            "time": format_timedelta(row.LapTime) if pd.notna(row.LapTime) else None,
+        }
+        for row in session.laps.itertuples()
+        if pd.notna(row.LapNumber)
+    ]
 
 
 def fetch_race(year: int, round_num: int):
@@ -295,6 +316,7 @@ def fetch_race(year: int, round_num: int):
             "trafficStats": traffic_stats,
             "safetyCarPeriods": safety_car_periods,
             "tireCompoundPace": compound_pace,
+            "lapTimings": extract_lap_rows(session),
         }
     except Exception as exc:
         print(f"    race: not available ({exc})")
@@ -462,6 +484,11 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             for t in race["tireStints"]
         ]
         upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"])
+        lap_rows = [
+            {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
+            for t in race["lapTimings"]
+        ]
+        upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"])
 
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows_n = len(race["results"]) if race else 0
@@ -503,6 +530,38 @@ def backfill_race_photos(cur):
         print(f"  {race_id}: {len(uploaded)} photo(s) uploaded")
 
 
+def backfill_race_laps(cur):
+    """Same shape as backfill_race_photos above - completed races are never revisited by the main
+    per-round loop, so any already-completed race with zero race_laps rows (every race that
+    finished before this feature shipped, or a transient per-race failure) needs its own catch-up
+    pass. Cheap once caught up: only touches completed races with no race_laps rows at all, and
+    unlike the photo backfill this is a single already-cached-by-fastf1 session load per race, not
+    a paginated Ergast fetch."""
+    cur.execute(
+        "select id, year, round from races where status = 'completed' "
+        "and not exists (select 1 from race_laps where race_laps.race_id = races.id) "
+        "order by year, round"
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return
+    print(f"{len(rows)} completed race(s) missing lap data")
+    for race_id, year, round_num in rows:
+        try:
+            session = fastf1.get_session(year, round_num, "R")
+            session.load(laps=True, weather=False, telemetry=False, messages=False)
+            lap_rows = [
+                {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
+                for t in extract_lap_rows(session)
+            ]
+            if not lap_rows:
+                print(f"  {race_id}: no lap data available")
+                continue
+            upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"])
+        except Exception as exc:
+            print(f"  {race_id}: lap backfill failed ({exc})")
+
+
 def discover_rounds(year: int) -> list[int]:
     """Every real round FastF1 knows about for this year — excludes pre-season testing entries,
     which carry RoundNumber 0. No hardcoded count: a season can have 17 rounds or 24."""
@@ -539,6 +598,7 @@ def main():
             build_and_push(cur, year, round_num, known_driver_codes)
 
         backfill_race_photos(cur)
+        backfill_race_laps(cur)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their

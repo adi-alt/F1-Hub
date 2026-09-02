@@ -191,6 +191,40 @@ export const getRaceSimulation = unstable_cache(
   { revalidate: false, tags: ["races"] },
 );
 
+export type RaceLapTiming = { driverId: string; time: string | null; position: number | null };
+export type RaceLapEntry = { lap: number; timings: RaceLapTiming[] };
+
+/** Lap-by-lap timing for a live-season race, read on demand (LapChart mounts, fetches once, via
+ * /api/season/laps) rather than as part of getRace - same split archive_laps/getArchiveRaceLaps
+ * already uses, and the same reason: a full race's worth of per-driver per-lap rows, not a field
+ * on the race row. Source is `race_laps` (see schema.sql), written by fetch_races.py from FastF1's
+ * own `session.laps` - not the Ergast paginated fetch archive_laps depends on, so there's no
+ * `lapsBackfilled`-style flag here; an empty array just means this exact race predates the
+ * feature shipping and hasn't been caught up by backfill_race_laps() yet. */
+export const getRaceLaps = unstable_cache(
+  async (year: number, round: number): Promise<RaceLapEntry[]> => {
+    const { data: race, error: raceError } = await queryWithRetry(() =>
+      supabaseAdmin.from("races").select("id").eq("year", year).eq("round", round).maybeSingle(),
+    );
+    if (raceError) throw new Error(`getRaceLaps(${year}, ${round}): ${raceError.message}`);
+    if (!race) return [];
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("race_laps").select("lap_number, driver, position, time").eq("race_id", race.id).order("lap_number"),
+    );
+    if (error) throw new Error(`getRaceLaps(${year}, ${round}): ${error.message}`);
+
+    const byLap = new Map<number, RaceLapTiming[]>();
+    for (const row of (data ?? []) as { lap_number: number; driver: string; position: number | null; time: string | null }[]) {
+      const timings = byLap.get(row.lap_number) ?? [];
+      timings.push({ driverId: row.driver, time: row.time, position: row.position });
+      byLap.set(row.lap_number, timings);
+    }
+    return [...byLap.entries()].map(([lap, timings]) => ({ lap, timings })).sort((a, b) => a.lap - b.lap);
+  },
+  ["get-race-laps"],
+  { revalidate: false, tags: ["races"] },
+);
+
 /** A season's races in calendar order, including rounds `races` has no row for yet (see
  * `withCalendarPlaceholders`) — otherwise the back half of an in-progress season is invisible. */
 export const getRacesByYear = unstable_cache(

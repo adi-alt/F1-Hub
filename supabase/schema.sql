@@ -77,6 +77,24 @@ create table tire_stints (
   primary key (race_id, driver, stint_number)
 );
 
+-- Live-season equivalent of archive_laps below - same shape (lap_number/driver/position/time),
+-- same reason it's its own table rather than a field on `races` (a full race's worth of per-driver
+-- per-lap rows, not a handful of summary fields). The data source differs though: FastF1's own
+-- `session.laps` (already loaded by fetch_races.py's fetch_race() for fastest-lap/tyre-stint/
+-- traffic-stat purposes - this just persists the Position column that pass already reads and
+-- otherwise discards), not a separate paginated Ergast fetch. No `laps_backfilled`-style flag
+-- needed - unlike the archive backfill (14 paginated requests per race), this is one already-loaded
+-- DataFrame column, cheap enough that fetch_races.py's own backfill_race_laps() just checks "does
+-- this completed race already have race_laps rows" directly.
+create table race_laps (
+  race_id text not null references races (id) on delete cascade,
+  lap_number int not null,
+  driver text not null,          -- 3-letter FastF1 code, matches race_results.driver
+  position int,
+  time text,                     -- display string ("1:23.456"), same convention as archive_laps.time
+  primary key (race_id, lap_number, driver)
+);
+
 -- Current-roster only (not cross-season history like archive_drivers/archive_teams) - one row per
 -- driver/team currently racing, overwritten in place every fetch_races.py run rather than
 -- versioned, since "what does this driver look like right now" has no meaningful history to keep.
