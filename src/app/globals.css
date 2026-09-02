@@ -147,3 +147,9 @@ body::after {
   background-size: 200% 100%;
   animation: skeleton-shimmer 2.2s ease-in-out infinite;
 }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background-position: 0 0;
+  }
+}

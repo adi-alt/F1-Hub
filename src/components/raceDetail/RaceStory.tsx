@@ -1,3 +1,7 @@
+"use client";
+
+import { motion } from "framer-motion";
+
 /** A prose summary over the exact same facts HighlightsPanel/StatTiles already show as tiles - no
  * new data, just templated sentences instead of stat cards. Each line is only included when its
  * underlying fact is real (a race with no DNFs gets no DNF line, a pole-sitter who also won gets
@@ -13,6 +17,10 @@ export type RaceStoryFacts = {
   dnfCount: number;
 };
 
+/** Own label is "Race highlights", not "Race story" - this now renders inside RaceStorySection's
+ * own "RACE STORY" title, so a second identical label directly under it would say the same thing
+ * twice (exactly the redundancy the standalone "Race Overview" eyebrow got removed for, a round
+ * ago). */
 export function RaceStory({ facts }: { facts: RaceStoryFacts }) {
   const lines: string[] = [];
 
@@ -36,13 +44,19 @@ export function RaceStory({ facts }: { facts: RaceStoryFacts }) {
 
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race story</p>
-      <ul className="space-y-1.5">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race highlights</p>
+      <ul className="space-y-2.5">
         {lines.map((line, i) => (
-          <li key={i} className="flex gap-2 text-sm text-neutral-300">
+          <motion.li
+            key={i}
+            initial={{ opacity: 0, x: -6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25, delay: i * 0.04 }}
+            className="flex gap-2 text-sm text-neutral-300"
+          >
             <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[var(--f1-red)]" />
             {line}
-          </li>
+          </motion.li>
         ))}
       </ul>
     </div>

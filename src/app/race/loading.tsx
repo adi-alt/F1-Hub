@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { RaceStorySectionSkeleton } from "@/components/raceDetail/RaceStorySection";
 
 // Same container as race/page.tsx's own real content (max-w/padding kept in sync by hand - the
 // two aren't allowed to drift, since a mismatch here is exactly what makes the real content look
@@ -18,10 +19,8 @@ export default function RaceLoading() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 rounded-xl" />
-        ))}
+      <div className="mt-6">
+        <RaceStorySectionSkeleton />
       </div>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-[var(--f1-line)]">

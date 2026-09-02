@@ -7,9 +7,10 @@ import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_compone
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
-import { RaceStory, type RaceStoryFacts } from "@/components/raceDetail/RaceStory";
+import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
+import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
-import { StatTiles, type StatTile } from "@/components/raceDetail/StatTiles";
+import type { StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
 import { QualifyingBarChart } from "./QualifyingBarChart";
@@ -207,28 +208,19 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
 
   return (
     <div id="overview" className="space-y-6">
-      <section className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 sm:p-5">
-        {/* No separate "Race Overview" eyebrow above this - RaceStory already renders its own
-            "Race story" label, and a second heading above it just said the same thing twice.
-            Left column (not a sibling above the grid) so that column's own top - not "Race
-            Story"'s - is what items-start aligns the Circuit column against. The Circuit column
-            is almost always shorter than the left column overall, and items-start (not the grid
-            default, stretch) is what stops its own bordered box from growing to match and
-            leaving a dead gap at its own bottom. */}
-        <div className="grid items-start gap-5 lg:grid-cols-[1fr_20rem]">
-          <div className="space-y-3">
-            {storyFacts && <RaceStory facts={storyFacts} />}
-            <StatTiles tiles={statTiles} />
-          </div>
-          {circuit ? (
+      <RaceStorySection
+        storyFacts={storyFacts}
+        statTiles={statTiles}
+        circuitCard={
+          circuit ? (
             <CircuitCard circuit={circuit} weather={race.weather} />
           ) : (
             <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-500">
               No circuit details backfilled for this race yet.
             </div>
-          )}
-        </div>
-      </section>
+          )
+        }
+      />
 
       <RaceSectionCard id="results" title="Results">
         <motion.div layout className="space-y-3">
