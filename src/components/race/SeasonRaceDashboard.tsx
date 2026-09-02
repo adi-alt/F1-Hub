@@ -277,7 +277,12 @@ export function SeasonRaceDashboard({
           >
             {hasPractice && (
               <RaceSubSection label="Practice" first>
-                <PracticeSummary practice={race.practice!} />
+                {/* Merged, not `inputs ?? results` - confirmed live that race_inputs can be a few
+                    drivers short of the full field (grid data landing before every driver's row
+                    does) while race_results already has everyone, so picking just one source
+                    whole would silently drop a practice row's tooltip for whoever inputs is
+                    missing. Same driver in both resolves to the same name/team either way. */}
+                <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
               </RaceSubSection>
             )}
             {/* Qualifying and Strategy share a row - they're the two panels that genuinely
