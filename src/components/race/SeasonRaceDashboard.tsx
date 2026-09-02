@@ -25,9 +25,11 @@ import { PracticeSummary } from "./PracticeSummary";
 import { PredictionComparison } from "./PredictionComparison";
 import { PredictionPanel } from "./PredictionPanel";
 import { QualifyingGapChart } from "./QualifyingGapChart";
+import { RaceWeekendPanel } from "./RaceWeekendPanel";
 import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
+import type { CalendarEntry } from "@/lib/supabase/calendar";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
 import { useSeasonLaps } from "@/hooks/useSeasonLaps";
@@ -60,6 +62,7 @@ export function SeasonRaceDashboard({
   accuracy,
   poleAccuracy,
   circuitImage,
+  calendarEntry,
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
@@ -68,6 +71,9 @@ export function SeasonRaceDashboard({
   // Real, not fabricated - see race/page.tsx's findArchiveCircuitByLocation call and
   // SeasonConditionsCard's own comment. Null/undefined for a venue the archive hasn't reached yet.
   circuitImage?: { url: string; wikipediaUrl: string | null } | null;
+  // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
+  // has no row for, same "real or absent, never fabricated" rule as circuitImage above.
+  calendarEntry?: CalendarEntry | null;
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -195,7 +201,16 @@ export function SeasonRaceDashboard({
   // race having actually run instead, same as the other three; LapChart's own empty state covers
   // the gap between "completed" and "backfill_race_laps() has caught this one up yet".
   const hasLapChart = isCompleted;
-  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
+  // Practice/Qualifying get a "not yet available" message instead of just vanishing while the race
+  // weekend is still ahead (see the Practice/Qualifying blocks below) - Strategy/Lap Progression/
+  // Race Performance stay hidden pre-race with no message, since they're genuinely post-race-only
+  // concepts (no tyre stints or finish positions exist yet, there's nothing to editorialize about).
+  // So the whole Race Analysis card needs to render through the entire pre-race window too, not
+  // only once one of the five real `hasX` flags is true.
+  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges || hasLapChart || !isCompleted;
+  const showQualifyingSlot = hasQualifying || !isCompleted;
+  const showQualifyingStrategyRow = showQualifyingSlot || hasStrategy;
+  const showPracticeSlot = hasPractice || !isCompleted;
   // Real RaceResultEntry rows use `driver`/`finishPosition`, not LapChart's own `driverId`/
   // `position` - the one place that naming gap needs bridging, same "adapt at the call site"
   // pattern as toResultRow above.
@@ -234,6 +249,8 @@ export function SeasonRaceDashboard({
         statTiles={statTiles}
         circuitCard={<SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />}
       />
+
+      {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} />}
 
       {!isCompleted &&
         (race.prediction ? (
@@ -275,14 +292,18 @@ export function SeasonRaceDashboard({
             description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
             headerRight={driverSetFilter}
           >
-            {hasPractice && (
+            {showPracticeSlot && (
               <RaceSubSection label="Practice" first>
-                {/* Merged, not `inputs ?? results` - confirmed live that race_inputs can be a few
-                    drivers short of the full field (grid data landing before every driver's row
-                    does) while race_results already has everyone, so picking just one source
-                    whole would silently drop a practice row's tooltip for whoever inputs is
-                    missing. Same driver in both resolves to the same name/team either way. */}
-                <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
+                {hasPractice ? (
+                  // Merged, not `inputs ?? results` - confirmed live that race_inputs can be a few
+                  // drivers short of the full field (grid data landing before every driver's row
+                  // does) while race_results already has everyone, so picking just one source
+                  // whole would silently drop a practice row's tooltip for whoever inputs is
+                  // missing. Same driver in both resolves to the same name/team either way.
+                  <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
+                ) : (
+                  <p className="text-sm text-neutral-500">Practice session data will appear here as the race weekend begins.</p>
+                )}
               </RaceSubSection>
             )}
             {/* Qualifying and Strategy share a row - they're the two panels that genuinely
@@ -290,14 +311,20 @@ export function SeasonRaceDashboard({
                 real horizontal room to read a whole field's trajectories, and Race Performance
                 reads best as one full-width comparison strip - forcing either into a second
                 column here is exactly the cramped, dead-space-heavy layout this redesign
-                replaces, so both get their own full-width row below instead. */}
-            {(hasQualifying || hasStrategy) && (
-              <div className={hasPractice ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
-                  {hasQualifying && (
+                replaces, so both get their own full-width row below instead. Strategy has no
+                pre-race "not yet" slot the way Qualifying does - tyre stints are a genuinely
+                post-race-only concept, nothing to editorialize about before the race has run. */}
+            {showQualifyingStrategyRow && (
+              <div className={showPracticeSlot ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+                <div className={showQualifyingSlot && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
+                  {showQualifyingSlot && (
                     <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
                       <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
-                        <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
+                        {hasQualifying ? (
+                          <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
+                        ) : (
+                          <p className="text-sm text-neutral-500">Starting grid and qualifying analysis will be available once qualifying is complete.</p>
+                        )}
                       </RaceSubSection>
                     </div>
                   )}
@@ -312,7 +339,7 @@ export function SeasonRaceDashboard({
               </div>
             )}
             {hasLapChart && (
-              <div id="lap-chart" className={hasPractice || hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+              <div id="lap-chart" className={showPracticeSlot || showQualifyingStrategyRow ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
                 <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
                   <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
                 </RaceSubSection>
@@ -343,15 +370,19 @@ export function SeasonRaceDashboard({
         </RaceSectionCard>
       )}
 
-      {race.simulation && (
+      {(race.simulation || !isCompleted) && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <RaceSectionCard
             id="simulation"
             title="Simulation"
-            description="Monte Carlo projection based on grid position, race pace and DNF probability."
-            headerRight={<span className="text-xs text-neutral-500">Based on 10,000 simulations</span>}
+            description={race.simulation ? "Monte Carlo projection based on grid position, race pace and DNF probability." : "Available after qualifying."}
+            headerRight={race.simulation ? <span className="text-xs text-neutral-500">Based on 10,000 simulations</span> : undefined}
           >
-            <SimulationPanel simulation={race.simulation} />
+            {race.simulation ? (
+              <SimulationPanel simulation={race.simulation} />
+            ) : (
+              <p className="text-sm text-neutral-500">Race predictions will be generated once the starting grid is confirmed.</p>
+            )}
           </RaceSectionCard>
         </motion.div>
       )}

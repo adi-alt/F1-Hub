@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useAuth } from "@/providers/AuthProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
@@ -32,8 +33,25 @@ function PickPanelSkeleton() {
   );
 }
 
-export function PickPanel({ race }: { race: RaceDoc }) {
+export function PickPanel({
+  race,
+  fallbackEntrants = [],
+  raceSessionDate,
+}: {
+  race: RaceDoc;
+  fallbackEntrants?: { driver: string; driverName: string; team: string }[];
+  // The "Race" session's own real datetime (from `calendar`, see RaceWeekendPanel) - `race.status`
+  // alone can't tell "race in progress" apart from "still upcoming" (the pipeline that would flip
+  // it to "completed" runs on a batch schedule, not live - see races.ts's getRace docstring), so
+  // this is the one honest, real signal this app has for "picks should be closing." Note this is a
+  // client-side-only close, for the UI's sake - the actual save is still gated purely on
+  // race.status server-side (saveUserPick, picks.ts), which is a real, pre-existing gap this alone
+  // doesn't close (someone hitting the API directly could still save mid-race until the pipeline
+  // catches up) - out of scope here, a genuine follow-up if picks-as-scoring integrity matters.
+  raceSessionDate?: string | null;
+}) {
   const { user, isAuthorized, loading } = useAuth();
+  const now = useMinuteClock();
   const [pick, setPick] = useState({ p1: "", p2: "", p3: "" });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState(DEFAULT_ERROR);
@@ -63,16 +81,33 @@ export function PickPanel({ race }: { race: RaceDoc }) {
     );
   }
 
-  const entrants = race.inputs ?? [];
-  if (entrants.length === 0) {
+  // `race.status === "scheduled"` means there's no real `races` row for this round yet (see
+  // toCalendarPlaceholder in races.ts) - `race.id` in that case doesn't exist in the `races` table
+  // at all, so saveUserPick's own server-side check (getRaceStatus, races.ts) would 403 on every
+  // save attempt regardless of what's shown here. An editable form that can never actually save is
+  // worse than this informational message - the same "don't create fake interactions" reasoning
+  // PracticeSummary's own hover rows already follow.
+  if (race.status === "scheduled") {
     return (
       <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
-        Podium picks open once qualifying happens for this race weekend.
+        Podium picks open once this race weekend begins.
       </div>
     );
   }
 
-  const isLocked = race.status !== "upcoming";
+  // race.inputs (this race's own qualifying-derived grid) once it exists, else the current
+  // grid (fallbackEntrants, from getCurrentEntrants) - so a pick can be made for the whole
+  // pre-qualifying window instead of only once this race's own quali has happened.
+  const entrants = race.inputs?.length ? race.inputs : fallbackEntrants;
+  if (entrants.length === 0) {
+    return (
+      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
+        Podium picks open once this race weekend begins.
+      </div>
+    );
+  }
+
+  const isLocked = race.status !== "upcoming" || (!!raceSessionDate && new Date(raceSessionDate).getTime() <= now);
 
   async function submit() {
     if (!user) return;
@@ -98,10 +133,6 @@ export function PickPanel({ race }: { race: RaceDoc }) {
       setStatus("error");
     }
   }
-
-  const actualPodium = race.results
-    ? [...race.results].sort((a, b) => a.finishPosition - b.finishPosition).slice(0, 3).map((r) => r.driver)
-    : null;
 
   return (
     <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
@@ -136,6 +167,7 @@ export function PickPanel({ race }: { race: RaceDoc }) {
           {status === "saving" ? "Saving…" : "Save pick"}
         </button>
       )}
+      {isLocked && <p className="mt-3 text-xs text-neutral-500">Prediction locked at race start.</p>}
       <AnimatePresence>
         {status === "saved" && (
           <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-neutral-500">
@@ -148,13 +180,6 @@ export function PickPanel({ race }: { race: RaceDoc }) {
           </motion.p>
         )}
       </AnimatePresence>
-
-      {actualPodium && (
-        <p className="mt-4 text-xs text-neutral-500">
-          Actual podium: {actualPodium.join(", ")} ·{" "}
-          {[pick.p1, pick.p2, pick.p3].filter((d) => d && actualPodium.includes(d)).length}/3 hits
-        </p>
-      )}
     </div>
   );
 }

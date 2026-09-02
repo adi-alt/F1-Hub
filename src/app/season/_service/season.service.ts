@@ -5,6 +5,7 @@ import { getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
 import { trackShortForm } from "@/lib/format";
 import { computeChampionshipProgression } from "@/lib/personalization";
+import { sessionCode } from "@/lib/sessionCode";
 import { computeStandings, type ConstructorStanding, type DriverStanding } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
@@ -37,21 +38,6 @@ export type RaceResultSummary = {
   grid: number | null;
   status: "finished" | "lapped" | "dnf";
 };
-
-// FastF1 (see pipeline/sync_calendar.py's own all_sessions()) writes whatever a weekend's
-// sessions are actually called ("Practice 1", "Sprint Qualifying", "Sprint Shootout", "Race", …)
-// rather than a fixed 5-slot enum, since the sprint format itself has changed session names across
-// seasons. Reading a short code back out the same way — by substring, not an exhaustive lookup —
-// means a future rename doesn't quietly fall through to an unlabeled cell.
-function sessionCode(label: string): string {
-  const l = label.toLowerCase();
-  if (l.includes("practice")) return `P${l.match(/\d/)?.[0] ?? ""}`;
-  if (l.includes("sprint") && (l.includes("qualif") || l.includes("shootout"))) return "SQ";
-  if (l.includes("sprint")) return "SR";
-  if (l.includes("qualif")) return "Q";
-  if (l.includes("race")) return "R";
-  return label.slice(0, 2).toUpperCase();
-}
 
 export type RaceSessionSummary = { label: string; code: string; date: string; state: "completed" | "current" | "upcoming" };
 
