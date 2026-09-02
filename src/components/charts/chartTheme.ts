@@ -26,7 +26,7 @@ export const tooltipStyle = {
   fontSize: 13,
 };
 
-/** The one row height every driver-set-filtered visualization in Session Analysis shares
+/** The one row height every driver-set-filtered visualization in Race Analysis shares
  * (QualifyingBarChart/QualifyingGapChart's Recharts bands, PitStopsTimeline's Recharts scatter
  * rows, TireStintTimeline's plain CSS rows) - what actually makes "20 drivers" line up to the same
  * pixel height on both sides isn't syncing the two PANELS, it's syncing the two DRIVER-LIST BODIES

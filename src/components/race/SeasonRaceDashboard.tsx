@@ -25,7 +25,7 @@ import { QualifyingGapChart } from "./QualifyingGapChart";
 import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
-import { MovementChart } from "@/components/charts/MovementChart";
+import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20-car field doesn't turn Results into a wall-length scroll inside its own card.
@@ -45,10 +45,10 @@ function toResultRow(r: RaceResultEntry): RaceResultRow {
 }
 
 /** The season race page's actual content, as a flowing dashboard of always-visible, individually
- * bounded sections instead of the old tab shell. Practice/Qualifying/Strategy live inside one
- * "Session Analysis" module (RaceSubSection) rather than three separate top-level glass cards -
- * "related modules should feel grouped," not "card, card, card." Each section/sub-section is
- * still gated on exactly the same real-data condition its old tab was. */
+ * bounded sections instead of the old tab shell. Practice/Qualifying/Strategy/Race Performance
+ * live inside one "Race Analysis" module (RaceSubSection) rather than three separate top-level
+ * glass cards - "related modules should feel grouped," not "card, card, card." Each section/
+ * sub-section is still gated on exactly the same real-data condition its old tab was. */
 export function SeasonRaceDashboard({
   race,
   highlights,
@@ -72,6 +72,10 @@ export function SeasonRaceDashboard({
   // existing convention) sliced to this same count, rather than forcing identical driver
   // identities across two genuinely different rankings onto one side or the other.
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
+  // The merged left column can show either the grid->finish rows or the existing gap-to-pole
+  // chart - a separate, local toggle from driverSet above (this picks which visualization, not
+  // how many drivers). Defaults to the compact rows view.
+  const [qualifyingView, setQualifyingView] = useState<"performance" | "qualifying">("performance");
   const isCompleted = race.status === "completed" && !!race.results;
 
   const fastestLapSec = isCompleted && race.results ? Math.min(...race.results.filter((r) => r.fastestLapSec !== null).map((r) => r.fastestLapSec!)) : null;
@@ -98,6 +102,18 @@ export function SeasonRaceDashboard({
           .map((r) => ({ ...toResultRow(r), fastestLap: fastestLapSec !== null && r.fastestLapSec === fastestLapSec }))
       : [];
   const resultRows = showAllResults ? allResultRows : allResultRows.slice(0, INITIAL_RESULT_ROWS);
+
+  // Same real grid/finish data the old full-width MovementChart plotted, now feeding the compact
+  // Position Changes column instead - same filtering convention that chart already used (DNFs and
+  // zero-movement drivers excluded, biggest gainer first).
+  const allMovementEntries: PositionChangeEntry[] =
+    isCompleted && race.results
+      ? race.results
+          .filter((r) => r.status !== "dnf" && r.grid !== null)
+          .map((r) => ({ code: r.driver, grid: r.grid!, finish: r.finishPosition, movement: r.grid! - r.finishPosition }))
+          .filter((e) => e.movement !== 0)
+          .sort((a, b) => b.movement - a.movement)
+      : [];
 
   // Race story + key statistics - both built from the same facts computeHighlights already
   // produces, no new data. Winning margin is P2's own gap-to-leader (the gap-to-leader field *is*
@@ -155,15 +171,25 @@ export function SeasonRaceDashboard({
     );
   }
 
-  const hasAnalysis = isCompleted || !!accuracy || !!poleAccuracy;
+  // MovementChart used to live in this section (below), gated on isCompleted alone - now that its
+  // data feeds the compact Race Performance view instead, this section only ever shows real
+  // prediction-accuracy content, so it's gated on that content actually existing, not on the race
+  // simply being completed.
+  const hasAnalysis = !!accuracy || !!poleAccuracy || !!race.prediction || !!race.polePrediction;
   const hasPractice = !!race.practice;
   const hasQualifying = !!race.inputs?.length;
   const hasStrategy = !!race.tireStints?.length;
-  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy;
-  const sessionAnalysisSideBySide = hasQualifying && hasStrategy;
-  // Nothing left to filter down to for a field of 5 or fewer.
+  const hasPositionChanges = allMovementEntries.length > 0;
+  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges;
+  // Qualifying and Position Changes share one column (a local toggle, not a separate column) -
+  // side by side with Strategy only when Strategy also has real data, otherwise this stacks like
+  // every other single-column case already does.
+  const raceAnalysisSideBySide = (hasQualifying || hasPositionChanges) && hasStrategy;
+  const visibleMovementEntries = driverSet === "all" ? allMovementEntries : allMovementEntries.slice(0, driverSet === "top5" ? 5 : 10);
+  // Nothing left to filter down to for a field of 5 or fewer. Governs Qualifying, Strategy, and
+  // Position Changes together - one control for the whole section, not each panel's own.
   const driverSetFilter =
-    (hasQualifying ? race.inputs!.length : race.tireStints!.length) > 5 ? (
+    Math.max(hasQualifying ? race.inputs!.length : 0, hasStrategy ? race.tireStints!.length : 0, allMovementEntries.length) > 5 ? (
       <QuietTabs
         options={[
           { value: "top5" as const, label: "Top 5" },
@@ -228,40 +254,64 @@ export function SeasonRaceDashboard({
       )}
 
       {hasSessionAnalysis && (
-        <RaceSectionCard title="Session Analysis">
+        <RaceSectionCard title="Race Analysis" description="Grid position, finishing position and race strategy.">
           {hasPractice && (
             <RaceSubSection label="Practice" first>
               <PracticeSummary practice={race.practice!} />
             </RaceSubSection>
           )}
-          {(hasQualifying || hasStrategy) && (
+          {(hasQualifying || hasStrategy || hasPositionChanges) && (
             <div className={hasPractice ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+              {/* Shared Top 5/10/All - governs Qualifying, Strategy, and Race Performance
+                  together. Right-aligned above this specific two-column area, not the whole Race
+                  Analysis card - Practice above has no such filter, so putting it up there would
+                  visually suggest it governs Practice too. */}
+              {driverSetFilter && <div className="mb-6 flex justify-end">{driverSetFilter}</div>}
               {/* 1fr/1.15fr, not an even split - Strategy's tyre-stint bars need more horizontal
-                  room than Qualifying's driver-name + gap-chart layout to read well. minmax(0, ...),
-                  not a bare fr, so a wide chart can't force the column past its share (the classic
-                  CSS grid overflow trap for any fr track holding intrinsically-sized content). */}
-              <div className={sessionAnalysisSideBySide ? "grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : undefined}>
-                {hasQualifying && (
-                  // Both sides now driver-set-filtered to the same count (sessionChartHeight, the
-                  // shared row-height formula both charts use) - "the taller of the two" is no
-                  // longer a fixed asymmetry, it only happens if one field genuinely has more real
-                  // rows than the other at the same Top 5/10/All setting. Divider only when
-                  // Strategy also exists.
-                  <div id="qualifying" className={sessionAnalysisSideBySide ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-12" : "min-w-0"}>
-                    <RaceSubSection label="Qualifying" first headerRight={!hasStrategy ? driverSetFilter : undefined}>
-                      <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} />
-                    </RaceSubSection>
+                  room than the merged left column's narrower row shapes. */}
+              <div className={raceAnalysisSideBySide ? "grid items-start gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : undefined}>
+                {(hasQualifying || hasPositionChanges) && (
+                  <div id="qualifying" className={raceAnalysisSideBySide ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10" : "min-w-0"}>
+                    {hasQualifying && hasPositionChanges ? (
+                      // Both real, both worth keeping - a local toggle (not the shared driverSet
+                      // filter above) switches which one this column shows, defaulting to the
+                      // compact grid->finish rows rather than permanently discarding the
+                      // gap-to-pole chart in favor of it.
+                      <RaceSubSection
+                        label="Qualifying"
+                        first
+                        headerRight={
+                          <QuietTabs
+                            options={[
+                              { value: "performance" as const, label: "Race Performance" },
+                              { value: "qualifying" as const, label: "Qualifying" },
+                            ]}
+                            value={qualifyingView}
+                            onChange={setQualifyingView}
+                            className="text-xs"
+                          />
+                        }
+                      >
+                        {qualifyingView === "performance" ? (
+                          <PositionChangesPanel entries={visibleMovementEntries} />
+                        ) : (
+                          <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} />
+                        )}
+                      </RaceSubSection>
+                    ) : hasQualifying ? (
+                      <RaceSubSection label="Qualifying" first>
+                        <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} />
+                      </RaceSubSection>
+                    ) : (
+                      <RaceSubSection label="Race Performance" first>
+                        <PositionChangesPanel entries={visibleMovementEntries} />
+                      </RaceSubSection>
+                    )}
                   </div>
                 )}
                 {hasStrategy && (
                   <div id="strategy" className="min-w-0">
-                    {/* `first` unconditionally - Qualifying/Strategy either sit side by side (a
-                        grid, no "above" content on either side) or this is the only one in the
-                        block, never a second item stacked below the other. The shared driver-set
-                        control lives visually in Strategy's own header, right-aligned - not
-                        centered above both columns. Falls back to Qualifying's own header (above)
-                        when there's no Strategy data for this race at all. */}
-                    <RaceSubSection label="Strategy" first headerRight={driverSetFilter}>
+                    <RaceSubSection label="Strategy" first>
                       <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} driverSet={driverSet} />
                     </RaceSubSection>
                   </div>
@@ -273,7 +323,7 @@ export function SeasonRaceDashboard({
       )}
 
       {hasAnalysis && (
-        <RaceSectionCard id="analysis" title="Race Analysis" description="Grid position vs. finishing position for every classified driver.">
+        <RaceSectionCard title="Prediction Accuracy">
           <div className="space-y-8">
             {(accuracy || poleAccuracy) && (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -281,7 +331,6 @@ export function SeasonRaceDashboard({
                 {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
               </div>
             )}
-            {isCompleted && race.results && <MovementChart results={race.results} />}
             {(race.prediction || race.polePrediction) && <ModelInfo />}
           </div>
         </RaceSectionCard>

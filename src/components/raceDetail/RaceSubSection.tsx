@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** A third hierarchy level, inside a RaceSectionCard - "Session Analysis" groups Practice/
+/** A third hierarchy level, inside a RaceSectionCard - "Race Analysis" groups Practice/
  * Qualifying/Strategy under one module instead of three separate ones, each still needing its own
  * clear sub-heading and a divider from its neighbor. Matches the 4-level model: page background ->
  * major surfaces (RaceSectionCard, the Season table's own border+fill treatment) -> inset surfaces
@@ -17,9 +17,9 @@ export function RaceSubSection({
   label: string;
   description?: string;
   first?: boolean;
-  // A right-aligned control that belongs to this specific sub-section (Strategy's own Top 5/10/
-  // All, even though the state it drives is shared/lifted - the control's visual home is the
-  // panel it most directly labels, not floating above both columns).
+  // A right-aligned control that belongs to this specific sub-section - e.g. the local Race
+  // Performance/Qualifying toggle in the merged Qualifying column (which chart, not how many
+  // drivers - the shared driver-set filter lives above the whole 2-column area instead).
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
