@@ -7,9 +7,9 @@ import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/cha
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveQualifyingEntry } from "@/lib/supabase/archive";
-import type { DriverSet } from "@/lib/driverSet";
+import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 
-type BarDatum = { driverName: string; gap: number; time: string | null; color: string };
+type BarDatum = { driverId: string; driverName: string; position: number; gap: number; time: string | null; color: string };
 
 /** Recharts' default Tooltip draws a full-category-width cursor rectangle behind whatever's
  * hovered - for a vertical BarChart that's the entire row, not the bar, and it renders as a flat
@@ -23,13 +23,20 @@ function QualifyingTooltip({ active, payload }: TooltipContentProps) {
   const d = payload[0].payload as BarDatum;
   return (
     <div
-      className="rounded-lg border px-3 py-2 shadow-xl"
+      className="rounded-[10px] border px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.3)]"
       style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
     >
       <p className="text-sm font-semibold text-white">{d.driverName}</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Qualifying position</p>
+      <p className="font-mono text-sm text-white">P{d.position}</p>
+      {d.time && (
+        <>
+          <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Lap time</p>
+          <p className="font-mono text-sm text-white">{d.time}</p>
+        </>
+      )}
       <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Gap to pole</p>
       <p className="font-mono text-sm text-white">{d.gap === 0 ? "Pole" : `+${d.gap.toFixed(3)}s`}</p>
-      {d.time && <p className="mt-1 text-xs text-neutral-500">{d.time}</p>}
     </div>
   );
 }
@@ -73,7 +80,7 @@ function AnimatedBar({ x = 0, y = 0, width = 0, height = 0, fill, fillOpacity, i
 // Every qualifying entry is a real lap time on one shared scale — unlike race results (where a
 // car "+2 Laps" isn't comparable in seconds to one "+24.065s"), a gap-to-pole bar chart here is
 // actually a valid, not-misleading comparison.
-export function QualifyingBarChart({ qualifying, driverSet }: { qualifying: ArchiveQualifyingEntry[]; driverSet: DriverSet }) {
+export function QualifyingBarChart({ qualifying, driverSet, customIds }: { qualifying: ArchiveQualifyingEntry[]; driverSet: DriverSet; customIds: string[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const withSeconds = qualifying
     .map((q) => ({ q, seconds: parseTimeToSeconds(q.q3 ?? q.q2 ?? q.q1 ?? null) }))
@@ -88,16 +95,19 @@ export function QualifyingBarChart({ qualifying, driverSet }: { qualifying: Arch
   // gap below one with a *larger* gap. A chart whose entire point is comparing times needs to
   // read as monotonic regardless of why the position field disagrees.
   const poleSeconds = withSeconds[0].seconds;
-  const allData = withSeconds.map(({ q, seconds }) => ({
+  const allData: BarDatum[] = withSeconds.map(({ q, seconds }) => ({
+    driverId: q.driverId,
     driverName: q.driverName,
+    position: q.position,
     gap: seconds - poleSeconds,
     time: q.q3 ?? q.q2 ?? q.q1,
     color: teamColor(q.constructor),
   }));
-  // The shared Top 5/10/All filter (lifted to ArchiveRaceDashboard, driving Strategy too) - own
-  // ordering (grid/gap-to-pole), sliced to the shared count, not the shared Strategy's own
-  // finishing-position order forced onto this chart (see the parent's own comment on why).
-  const data = driverSet === "all" ? allData : allData.slice(0, driverSet === "top5" ? 5 : 10);
+  // The shared Top 5/10/All/Custom filter (lifted to ArchiveRaceDashboard, driving every Race
+  // Analysis panel together) - own ordering (grid/gap-to-pole), sliced/filtered to the shared
+  // selection, not Strategy's own finishing-position order forced onto this chart (see the
+  // parent's own comment on why).
+  const data = filterDriverSet(allData, driverSet, (d) => d.driverId, customIds);
 
   // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
   // usually two midfield cars a fraction apart, not necessarily whoever's nearest pole itself.

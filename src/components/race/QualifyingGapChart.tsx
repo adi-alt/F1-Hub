@@ -5,10 +5,10 @@ import { motion } from "framer-motion";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis, type BarShapeProps, type TooltipContentProps } from "recharts";
 import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
-import type { DriverSet } from "@/lib/driverSet";
+import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import type { RaceInputEntry } from "@/lib/types/race";
 
-type BarDatum = { driverName: string; gap: number; color: string };
+type BarDatum = { driver: string; driverName: string; grid: number; gap: number; color: string };
 
 /** Recharts' default Tooltip draws a full-category-width cursor rectangle behind whatever's
  * hovered - for a vertical BarChart that's the entire row, not the bar, and it renders as a flat
@@ -24,10 +24,12 @@ function QualifyingTooltip({ active, payload }: TooltipContentProps) {
   const d = payload[0].payload as BarDatum;
   return (
     <div
-      className="rounded-lg border px-3 py-2 shadow-xl"
+      className="rounded-[10px] border px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.3)]"
       style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
     >
       <p className="text-sm font-semibold text-white">{d.driverName}</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Qualifying position</p>
+      <p className="font-mono text-sm text-white">P{d.grid}</p>
       <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Gap to pole</p>
       <p className="font-mono text-sm text-white">{d.gap === 0 ? "Pole" : `+${d.gap.toFixed(3)}s`}</p>
     </div>
@@ -75,20 +77,23 @@ function AnimatedBar({ x = 0, y = 0, width = 0, height = 0, fill, fillOpacity, i
  * `RaceInputEntry` only ever has one qualifying gap value (no Q1/Q2/Q3 breakdown, unlike Archive's
  * real data), so this is its own small sibling component rather than a shared one forced to
  * pretend both sides have the same input shape. */
-export function QualifyingGapChart({ inputs, driverSet }: { inputs: RaceInputEntry[]; driverSet: DriverSet }) {
+export function QualifyingGapChart({ inputs, driverSet, customIds }: { inputs: RaceInputEntry[]; driverSet: DriverSet; customIds: string[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const sorted = [...inputs].sort((a, b) => a.grid - b.grid);
   if (sorted.length === 0) return <p className="text-sm text-neutral-500">No qualifying data recorded.</p>;
 
-  const allData = sorted.map((r) => ({
+  const allData: BarDatum[] = sorted.map((r) => ({
+    driver: r.driver,
     driverName: r.driverName,
+    grid: r.grid,
     gap: r.grid === 1 ? 0 : (r.qualifyingGapSec ?? 0),
     color: teamColor(r.team),
   }));
-  // The shared Top 5/10/All filter (lifted to SeasonRaceDashboard, driving Strategy too) - own
-  // ordering (grid), sliced to the shared count, not Strategy's own finishing-position order
-  // forced onto this chart (see the parent's own comment on why).
-  const data = driverSet === "all" ? allData : allData.slice(0, driverSet === "top5" ? 5 : 10);
+  // The shared Top 5/10/All/Custom filter (lifted to SeasonRaceDashboard, driving every Race
+  // Analysis panel together) - own ordering (grid), sliced/filtered to the shared selection, not
+  // Strategy's own finishing-position order forced onto this chart (see the parent's own comment
+  // on why).
+  const data = filterDriverSet(allData, driverSet, (d) => d.driver, customIds);
 
   // Adjacent-gap differences, not each driver's own gap-to-pole - the closest *fight*, which is
   // usually two midfield cars a fraction apart, not necessarily whoever's nearest pole itself.

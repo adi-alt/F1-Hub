@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import { chart, sessionChartHeight, tooltipStyle } from "@/components/charts/chartTheme";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchivePitStopEntry, ArchiveResultEntry } from "@/lib/supabase/archive";
-import type { DriverSet } from "@/lib/driverSet";
+import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 
 type Point = { driverName: string; lap: number; durationSec: number | null; color: string; order: number };
 
@@ -48,6 +48,27 @@ function Dot({
   );
 }
 
+/** Same dark/blurred/bordered tooltip shape every chart on this page uses (QualifyingTooltip,
+ * LapTooltip) - this one previously relied on Recharts' own default tooltip layout via
+ * `contentStyle` alone, which styles the outer box but not the internal label/value text color,
+ * leaving it at Recharts' own default (dark-on-dark, effectively unreadable). */
+function PitStopTooltip({ active, payload }: TooltipContentProps) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload as Point;
+  return (
+    <div
+      className="rounded-[10px] border px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.3)]"
+      style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
+    >
+      <p className="text-sm font-semibold text-white">{d.driverName}</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Lap</p>
+      <p className="font-mono text-sm text-white">{d.lap}</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Duration</p>
+      <p className="font-mono text-sm text-white">{d.durationSec !== null ? `${d.durationSec.toFixed(3)}s` : "–"}</p>
+    </div>
+  );
+}
+
 // Shows *when* the field stopped and roughly how long, at a glance — lap on the x-axis, one row
 // per driver (ordered by finishing position) on the y-axis, dot size scaled to stop duration.
 // Hovering a driver's row highlights every stop of theirs and fades the rest of the field.
@@ -55,12 +76,15 @@ export function PitStopsTimeline({
   pitStops,
   results,
   driverSet,
+  customIds,
 }: {
   pitStops: ArchivePitStopEntry[];
   results: ArchiveResultEntry[];
-  // The shared Top 5/10/All filter (lifted to ArchiveRaceDashboard, driving Qualifying too) - own
-  // ordering (finishing position, unchanged), sliced to the shared count.
+  // The shared Top 5/10/All/Custom filter (lifted to ArchiveRaceDashboard, driving every Race
+  // Analysis panel together) - own ordering (finishing position, unchanged), sliced/filtered to
+  // the shared selection.
   driverSet: DriverSet;
+  customIds: string[];
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const nameFor = (driverId: string) => results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
@@ -70,7 +94,7 @@ export function PitStopsTimeline({
   };
 
   const rankedIds = results.map((r) => r.driverId).filter((id) => pitStops.some((p) => p.driverId === id));
-  const driverOrder = driverSet === "all" ? rankedIds : rankedIds.slice(0, driverSet === "top5" ? 5 : 10);
+  const driverOrder = filterDriverSet(rankedIds, driverSet, (id) => id, customIds);
   const visible = new Set(driverOrder);
 
   // Recharts derives a category axis's row order from first-appearance in `data`, not from
@@ -114,15 +138,7 @@ export function PitStopsTimeline({
             axisLine={false}
             tickLine={false}
           />
-          <Tooltip
-            contentStyle={tooltipStyle}
-            formatter={(value, name, item) => {
-              const duration = (item?.payload as Point | undefined)?.durationSec;
-              return name === "lap"
-                ? [`Lap ${value}`, ""]
-                : [duration !== null && duration !== undefined ? `${duration.toFixed(3)}s` : "–", "Duration"];
-            }}
-          />
+          <Tooltip cursor={false} content={PitStopTooltip} />
           <Scatter data={data} shape={<Dot hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)} />} />
         </ScatterChart>
         </ResponsiveContainer>

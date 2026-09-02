@@ -12,6 +12,11 @@ export const chart = {
   sequentialBlue: "#3987e5",
   divergingRed: "#e66767",
   neutralMidpoint: "#383835",
+  // Same emerald already used for a "gained positions" reading elsewhere on this page
+  // (SeasonRaceDashboard's results-row expand) - teal/green for a gain, not sequentialBlue, so
+  // Race Performance's gained/lost pair reads as the conventional green-vs-red motorsport
+  // telemetry convention instead of an arbitrary two-color pick.
+  sequentialGreen: "#34d399",
 };
 
 // Translucent + blurred, not a flat fill, so every tooltip on the site (a chart's hover tooltip,

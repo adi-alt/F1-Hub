@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -17,7 +18,8 @@ import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
-import type { DriverSet } from "@/lib/driverSet";
+import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
+import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceSimulation } from "@/lib/types/race";
 
@@ -67,6 +69,9 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   // position - its existing convention) sliced to this same count, rather than forcing identical
   // driver identities across two genuinely different rankings onto one side or the other.
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
+  // Only meaningful while driverSet === "custom" - kept even when switching away so re-selecting
+  // Custom later doesn't lose the previous picks.
+  const [customDriverIds, setCustomDriverIds] = useState<string[]>([]);
   const { data: laps, isLoading: lapsLoading, isError: lapsError } = useArchiveLaps(race.year, race.round);
 
   const podium: PodiumEntry[] = race.results
@@ -88,20 +93,27 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   const byMovement = classified.map((r) => ({ driverName: r.driverName, movement: r.grid! - r.position })).sort((a, b) => b.movement - a.movement);
   const gainer = byMovement[0];
   const loser = byMovement.at(-1);
-  // Same classified/grid/finish data as byMovement above, reshaped for the compact Race
-  // Performance view instead of just the single biggest gainer/loser. driverCode is real (Ergast's
-  // own 3-letter code) but optional on ArchiveResultEntry - falls back to the last name's own
-  // first three letters (the same convention the real codes already follow) rather than leaving a
-  // blank label for the rare row missing it.
+  // Same classified/grid/finish data as byMovement above, reshaped for the full Race Performance
+  // comparison instead of just the single biggest gainer/loser - every classified driver, not only
+  // the ones who actually moved (a driver who held station is still a real, worth-showing "no
+  // change" row, not something to hide). driverCode is real (Ergast's own 3-letter code) but
+  // optional on ArchiveResultEntry - falls back to the last name's own first three letters (the
+  // same convention the real codes already follow) rather than leaving a blank label for the rare
+  // row missing it. driverId is the real Ergast id (not the display code) - what the shared Custom
+  // driver picker actually filters against, matching Qualifying/Strategy's own identifier.
   const allMovementEntries: PositionChangeEntry[] = classified
     .map((r) => ({
       code: r.driverCode ?? r.driverName.split(" ").pop()!.slice(0, 3).toUpperCase(),
+      driverId: r.driverId,
       grid: r.grid!,
       finish: r.position,
       movement: r.grid! - r.position,
     }))
-    .filter((e) => e.movement !== 0)
-    .sort((a, b) => b.movement - a.movement);
+    .sort((a, b) => b.movement - a.movement || a.finish - b.finish);
+  // The whole field's own real range, not just whoever's currently visible - Race Performance's
+  // position-flow track uses one fixed P1..P{fieldSize} scale so switching Top 5 -> All never
+  // rescales the axis underneath rows already on screen.
+  const fieldSize = Math.max(1, ...classified.map((r) => Math.max(r.grid!, r.position)));
   const dnfCount = race.results.filter((r) => isRetired(r.status)).length;
   const winningMargin = race.results.find((r) => r.position === 2)?.time ?? null;
 
@@ -166,21 +178,31 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
   // type is exactly that shape (defined there, not here) so this needs no field renaming, just a
   // type-level assertion that the wider ArchiveResultEntry satisfies it.
   const lapChartResults: LapChartResultEntry[] = race.results;
-  const visibleMovementEntries = driverSet === "all" ? allMovementEntries : allMovementEntries.slice(0, driverSet === "top5" ? 5 : 10);
-  // Nothing left to filter down to for a field of 5 or fewer. Governs Qualifying, Strategy, and
-  // Position Changes together - one control for the whole section, not each panel's own.
+  const visibleMovementEntries = filterDriverSet(allMovementEntries, driverSet, (e) => e.driverId, customDriverIds);
+  // The full roster (not just classified/finishers) - Custom should still be able to pick a driver
+  // who retired, same as every other picker on this page.
+  const customSelectOptions: MultiSelectOption[] = race.results.map((r) => ({ code: r.driverId, label: r.driverName, color: teamColor(r.constructor) }));
+  // Nothing left to filter down to for a field of 5 or fewer. Governs Qualifying, Strategy, Lap
+  // Progression, and Race Performance together - one control for the whole section, not each
+  // panel's own.
   const driverSetFilter =
     Math.max(hasQualifying ? race.qualifying!.length : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5 ? (
-      <QuietTabs
-        options={[
-          { value: "top5" as const, label: "Top 5" },
-          { value: "top10" as const, label: "Top 10" },
-          { value: "all" as const, label: "All drivers" },
-        ]}
-        value={driverSet}
-        onChange={setDriverSet}
-        className="text-xs"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <QuietTabs
+          options={[
+            { value: "top5" as const, label: "Top 5" },
+            { value: "top10" as const, label: "Top 10" },
+            { value: "all" as const, label: "All drivers" },
+            { value: "custom" as const, label: "Custom" },
+          ]}
+          value={driverSet}
+          onChange={setDriverSet}
+          className="text-xs"
+        />
+        {driverSet === "custom" && (
+          <EntityMultiSelect options={customSelectOptions} selected={customDriverIds} onChange={setCustomDriverIds} placeholder="Select drivers" triggerClassName="h-8 py-1 text-xs" />
+        )}
+      </div>
     ) : undefined;
 
   return (
@@ -226,52 +248,50 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
       </RaceSectionCard>
 
       {hasSessionAnalysis && (
-        <RaceSectionCard title="Race Analysis" description="Grid position, finishing position and race strategy.">
-          {/* Shared Top 5/10/All control, right-aligned above the 2x2 grid - governs Qualifying,
-              Strategy, and Race Performance together (Lap Chart keeps its own Top5/10/All/Custom
-              control - a line chart's "highlight these specific drivers" need is genuinely
-              different from the row-panels' "show top N", not worth collapsing into one). */}
-          {driverSetFilter && <div className="mb-6 flex justify-end">{driverSetFilter}</div>}
-          {/* Four peer panels, 2x2 on desktop: Qualifying/Strategy on top, Lap Chart/Race
-              Performance below - a plain even split (no fr-ratio tuning) since each row now pairs
-              a different kind of content (a chart against a chart, a list against a list is no
-              longer the shape). Divider classes are authored per named cell for the realistic
-              "all four" and "qualifying only" cases (the ones that actually occur - the four data
-              sources here become available together in practice); an in-between partial case
-              (e.g. Strategy backfilled but not Lap Chart) still renders correctly, just with an
-              occasional divider implying a neighbor that isn't there - a minor, rare cosmetic
-              gap, not a broken layout. */}
-          <div className={[hasQualifying, hasStrategy, hasLapChart, hasPositionChanges].filter(Boolean).length > 1 ? "grid items-start gap-x-10 gap-y-8 lg:grid-cols-2" : undefined}>
-            {hasQualifying && (
-              <div id="qualifying" className="min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-r lg:pr-10">
-                <RaceSubSection label="Qualifying" first>
-                  <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} />
-                </RaceSubSection>
-              </div>
-            )}
-            {hasStrategy && (
-              <div id="strategy" className="min-w-0 border-b border-[var(--f1-line)] pb-8">
-                <RaceSubSection label="Strategy" first>
-                  <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} />
-                </RaceSubSection>
-              </div>
-            )}
+        <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          <RaceSectionCard
+            title="Race Analysis"
+            description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
+            headerRight={driverSetFilter}
+          >
+            {/* Qualifying and Strategy share a row - they're the two panels that genuinely
+                benefit from sitting side by side at a comparable width. Lap Progression needs
+                real horizontal room to read a whole field's trajectories, and Race Performance
+                reads best as one full-width comparison strip - forcing either into a second
+                column here is exactly the cramped, dead-space-heavy layout this redesign
+                replaces, so both get their own full-width row below instead. */}
+            <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-10 gap-y-8 lg:grid-cols-2" : undefined}>
+              {hasQualifying && (
+                <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10" : "min-w-0"}>
+                  <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
+                    <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
+                  </RaceSubSection>
+                </div>
+              )}
+              {hasStrategy && (
+                <div id="strategy" className="min-w-0">
+                  <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths across the race." first>
+                    <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} customIds={customDriverIds} />
+                  </RaceSubSection>
+                </div>
+              )}
+            </div>
             {hasLapChart && (
-              <div id="analysis" className="min-w-0 border-b border-[var(--f1-line)] pb-8 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10">
-                <RaceSubSection label="Lap Chart" description="Track position, lap by lap." first>
-                  <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} />
+              <div id="analysis" className={hasQualifying || hasStrategy ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+                <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
+                  <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
                 </RaceSubSection>
               </div>
             )}
             {hasPositionChanges && (
-              <div id="race-performance" className="min-w-0">
-                <RaceSubSection label="Race Performance" first>
-                  <PositionChangesPanel entries={visibleMovementEntries} />
+              <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-8 border-t border-[var(--f1-line)] pt-8" : ""}>
+                <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
+                  <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
                 </RaceSubSection>
               </div>
             )}
-          </div>
-        </RaceSectionCard>
+          </RaceSectionCard>
+        </motion.div>
       )}
 
       {simulation && (
