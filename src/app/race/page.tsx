@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ArchiveRaceDashboard } from "@/app/archive/components/ArchiveRaceDashboard";
-import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
+import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveCircuitHistoryData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
 import { seasonStatus } from "@/app/season/_service/season.service";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
@@ -8,7 +8,7 @@ import { PickPanel } from "@/components/race/PickPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
-import { getCurrentEntrants, getRace, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
+import { getCurrentEntrants, getRace, getRacesByCircuit, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
 import { computeHighlights } from "@/lib/highlights";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
@@ -74,6 +74,21 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // is the same "most recent real grid" lookup the signup form already uses - not a new source.
     const fallbackEntrants = race.status === "upcoming" && !race.inputs?.length ? await getCurrentEntrants(year) : [];
 
+    // Track Intelligence's own real history at this exact circuit - only fetched for a race that
+    // isn't completed yet (a completed race has its own full real analysis already; this would be
+    // redundant there). Both real sources, same match `circuitImage` above already resolved -
+    // archive_races is NOT pre-2018-only (confirmed live: it comprehensively covers a circuit's
+    // full history, including years `races` also has), so circuitIntelligence.ts's own merge dedupes
+    // by year rather than treating these as two non-overlapping halves - see its own comment.
+    let trackHistory: { liveRaces: Awaited<ReturnType<typeof getRacesByCircuit>>; archiveRaces: Awaited<ReturnType<typeof getArchiveCircuitHistoryData>> } | undefined;
+    if (race.status !== "completed") {
+      const [liveRaces, archiveRaces] = await Promise.all([
+        getRacesByCircuit(race.circuit),
+        matchedCircuit ? getArchiveCircuitHistoryData(matchedCircuit.circuitId) : Promise.resolve([]),
+      ]);
+      trackHistory = { liveRaces, archiveRaces };
+    }
+
     return (
       <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
         <RaceHeader
@@ -86,7 +101,15 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           resultLabel={winner ? `Winner: ${winner.driverName}` : undefined}
         />
         <div className="mt-8">
-          <SeasonRaceDashboard race={race} highlights={highlights} accuracy={accuracy} poleAccuracy={poleAccuracy} circuitImage={circuitImage} calendarEntry={calendarEntry} />
+          <SeasonRaceDashboard
+            race={race}
+            highlights={highlights}
+            accuracy={accuracy}
+            poleAccuracy={poleAccuracy}
+            circuitImage={circuitImage}
+            calendarEntry={calendarEntry}
+            trackHistory={trackHistory}
+          />
         </div>
         {/* Never for a completed race - see PickPanel's own reasoning (the request that drove this:
             no prediction UI, no podium-hit comparison, once a race is history). */}

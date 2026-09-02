@@ -10,6 +10,11 @@ import type { RaceDoc, UserPick } from "@/lib/types/race";
 type Status = "idle" | "loading" | "saving" | "saved" | "error";
 
 const DEFAULT_ERROR = "Pick 3 different drivers.";
+// Picks open this many days out, not the instant a race is technically "upcoming" - a real `races`
+// row (and even a fallback grid) can exist weeks before there's anything meaningfully fresh to
+// predict against; opening right at the start of that window is a deliberate product choice, not a
+// data constraint the way the "scheduled" gate above it is.
+const PICK_WINDOW_DAYS = 10;
 
 function toFormState(data: UserPick) {
   return { p1: data.predictedPodium[0], p2: data.predictedPodium[1], p3: data.predictedPodium[2] };
@@ -93,6 +98,25 @@ export function PickPanel({
         Podium picks open once this race weekend begins.
       </div>
     );
+  }
+
+  // Opens PICK_WINDOW_DAYS before the real "Race" session datetime - only when that date is
+  // actually known; a missing calendar entry fails open (shows the form) rather than blocking picks
+  // indefinitely over a date this app just doesn't have yet.
+  if (raceSessionDate) {
+    const opensAt = new Date(raceSessionDate).getTime() - PICK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    if (now < opensAt) {
+      const daysLeft = Math.ceil((opensAt - now) / (24 * 60 * 60 * 1000));
+      return (
+        <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">Podium pick</p>
+          <p className="mt-1.5 text-sm font-semibold text-white">
+            Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
+          </p>
+          <p className="mt-0.5 text-xs text-neutral-500">Make your prediction once picks open.</p>
+        </div>
+      );
+    }
   }
 
   // race.inputs (this race's own qualifying-derived grid) once it exists, else the current

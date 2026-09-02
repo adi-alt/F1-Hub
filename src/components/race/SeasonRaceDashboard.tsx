@@ -29,6 +29,8 @@ import { RaceWeekendPanel } from "./RaceWeekendPanel";
 import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
+import { TrackIntelligence } from "./TrackIntelligence";
+import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
@@ -63,6 +65,7 @@ export function SeasonRaceDashboard({
   poleAccuracy,
   circuitImage,
   calendarEntry,
+  trackHistory,
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
@@ -74,7 +77,12 @@ export function SeasonRaceDashboard({
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
   // has no row for, same "real or absent, never fabricated" rule as circuitImage above.
   calendarEntry?: CalendarEntry | null;
+  // This exact physical track's own real history, both real sources (see TrackIntelligence /
+  // circuitIntelligence.ts) - only ever fetched by the caller for a non-completed race (a completed
+  // race already has its own full real analysis, Track Intelligence would be redundant there).
+  trackHistory?: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
 }) {
+  const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [showAllResults, setShowAllResults] = useState(false);
@@ -251,6 +259,12 @@ export function SeasonRaceDashboard({
       />
 
       {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} />}
+
+      {/* Persists across the whole pre-race window (not swapped out once Practice/Qualifying data
+          starts arriving) - it's the one section that's already fully populated the entire time
+          those are still progressively unlocking, real history at this exact track rather than
+          another "not yet available" message. */}
+      {!isCompleted && <TrackIntelligence liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} circuitName={race.circuit} />}
 
       {!isCompleted &&
         (race.prediction ? (
