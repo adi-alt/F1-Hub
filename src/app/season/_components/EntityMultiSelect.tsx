@@ -19,7 +19,7 @@ export type MultiSelectOption = {
   logoUrl?: string | null;
 };
 
-type Rect = { top: number; left: number; width: number; flip: boolean };
+type Rect = { top?: number; bottom?: number; left: number; width: number; flip: boolean; maxHeight: number };
 
 /** A compact select popover: trigger reads "{n} selected" (multi) or the chosen entity's name
  * (single), opens a portaled dropdown with search and a grouped option list. Built for
@@ -101,13 +101,42 @@ export function EntityMultiSelect({
     return out;
   }, [filtered, favoriteCodes]);
 
+  // Same trigger, same dropdown, wherever it's used (Race Analysis' shared filter, Simulation's
+  // own Finishing Position Distribution filter, Progression, Compare) - any difference in how
+  // reliably it opens is purely a function of *where on the page* a given trigger happens to sit,
+  // not the component. This used to guess a single fixed 360px height for the flip decision,
+  // which broke exactly the way a hardcoded estimate always does: fine near the top of the page
+  // (usually genuine room below), unreliable near the bottom (Finishing Position Distribution
+  // sits much lower than Race Analysis' own filter, so it hits the cramped case far more often in
+  // practice) - not two different dropdowns, the same fragile estimate under different real
+  // conditions. Measuring the *actual* available space in each direction and capping the
+  // dropdown's own height to whatever genuinely fits (never a blind 360px) means it can never
+  // overflow the viewport regardless of where the trigger sits, and only flips upward when doing
+  // so actually gains real room - not just because "below" doesn't fit a fixed guess.
+  //
+  // Anchored via `bottom` (not `top` + a manual `transform: translateY(-100%)`) when flipped -
+  // confirmed live that the transform trick never actually worked, at any trigger position: this
+  // element is a `motion.div` animating its own `y`/`scale` (the open/close micro-motion), and
+  // framer-motion owns the whole `transform` property the instant any motion value drives it,
+  // silently discarding a same-element `style.transform` set outside its own animation props
+  // (verified via the rendered DOM: `transform: none` even with flip correctly computed true).
+  // `bottom`, unlike `transform`, is a completely different CSS property framer-motion never
+  // touches, and a fixed-position box anchored by `bottom` grows upward from that edge on its own
+  // as content height changes - no need to also know the exact pixel height up front.
   function updatePosition() {
     const el = triggerRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const estimatedHeight = 360;
-    const flip = r.bottom + estimatedHeight > window.innerHeight && r.top - estimatedHeight > 0;
-    setRect({ top: flip ? r.top : r.bottom, left: r.left, width: Math.max(r.width, 260), flip });
+    const margin = 8; // breathing room from the viewport edge, so the dropdown never sits flush against it
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    const flip = spaceBelow < 240 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(360, flip ? spaceAbove : spaceBelow));
+    setRect(
+      flip
+        ? { bottom: window.innerHeight - r.top, left: r.left, width: Math.max(r.width, 260), flip, maxHeight }
+        : { top: r.bottom, left: r.left, width: Math.max(r.width, 260), flip, maxHeight },
+    );
   }
 
   useLayoutEffect(() => {
@@ -201,16 +230,20 @@ export function EntityMultiSelect({
                 style={{
                   position: "fixed",
                   top: rect.top,
+                  bottom: rect.bottom,
                   left: rect.left,
                   width: rect.width,
-                  transform: rect.flip ? "translateY(-100%)" : undefined,
+                  maxHeight: rect.maxHeight,
                 }}
                 // glass-surface (not the sticky-header token) - that one's ~92% opaque on purpose,
                 // to stop table rows bleeding through while scrolling underneath it. Nothing
                 // scrolls behind a popover the same way, so this can actually read as translucent
                 // glass (a faint white gradient + a real 20px blur) instead of a flat dark panel
                 // with a blur that's technically there but invisible behind that much opacity.
-                className="glass-surface z-[200] flex max-h-[360px] flex-col overflow-hidden rounded-lg"
+                // max-height is inline (rect.maxHeight, the real measured available space), not a
+                // fixed Tailwind class - that fixed 360px is exactly what let this overflow the
+                // viewport whenever less than 360px was actually available in either direction.
+                className="glass-surface z-[200] flex flex-col overflow-hidden rounded-lg"
               >
                 <div className="shrink-0 border-b border-white/[0.08] p-2">
                   <input

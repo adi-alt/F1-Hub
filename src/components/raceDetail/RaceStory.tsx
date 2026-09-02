@@ -17,10 +17,9 @@ export type RaceStoryFacts = {
   dnfCount: number;
 };
 
-/** Own label is "Race highlights", not "Race story" - this now renders inside RaceStorySection's
- * own "RACE STORY" title, so a second identical label directly under it would say the same thing
- * twice (exactly the redundancy the standalone "Race Overview" eyebrow got removed for, a round
- * ago). */
+/** No own label - this renders directly under RaceStorySection's "RACE STORY" title, and an
+ * inner "Race highlights" eyebrow on top of that was the same redundancy the standalone "Race
+ * Overview" eyebrow got removed for, two rounds ago. */
 export function RaceStory({ facts }: { facts: RaceStoryFacts }) {
   const lines: string[] = [];
 
@@ -44,7 +43,6 @@ export function RaceStory({ facts }: { facts: RaceStoryFacts }) {
 
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Race highlights</p>
       <ul className="space-y-2.5">
         {lines.map((line, i) => (
           <motion.li
