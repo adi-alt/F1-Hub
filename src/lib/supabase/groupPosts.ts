@@ -20,6 +20,20 @@ export type GroupPost = {
 
 export type PostComment = { id: string; userId: string; authorName: string; content: string; createdAt: string };
 
+export type FeedPost = {
+  id: string;
+  groupId: string;
+  groupName: string;
+  groupAvatarUrl: string | null;
+  userId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  upvotes: number;
+  hasVoted: boolean;
+  commentCount: number;
+};
+
 const MAX_POST_CHARS = 2000;
 const MAX_COMMENT_CHARS = 1000;
 
@@ -107,6 +121,77 @@ export async function listPosts(groupId: string, uid: string): Promise<GroupPost
     hasVoted: myVotes.has(p.id as string),
     commentCount: commentCounts.get(p.id as string) ?? 0,
   }));
+}
+
+/** The Groups home feed: every published post across every group the user has actually joined,
+ * newest first, cursor-paginated on created_at (stable under concurrent inserts, unlike an
+ * offset). No cross-group ranking/"For You" algorithm - there's no real signal yet (a handful of
+ * groups, most with a handful of posts) to rank meaningfully on, and a fake-looking "smart" order
+ * would be worse than plain chronological. authorRole is left out here (unlike GroupPost) - it'd
+ * need a per-post membership join against that post's *own* group, one extra join for a badge a
+ * cross-group feed doesn't need as much as an in-group one already showing it (GroupFeed.tsx). */
+export async function listFeedPosts(uid: string, cursor?: string, limit = 15): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
+  const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
+  if (membershipsError) throw new Error(`listFeedPosts: ${membershipsError.message}`);
+  const groupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+  if (groupIds.length === 0) return { posts: [], nextCursor: null };
+
+  let query = supabaseAdmin
+    .from("group_posts")
+    .select("*")
+    .in("group_id", groupIds)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(limit + 1); // +1 to detect "is there another page" without a second round trip
+  if (cursor) query = query.lt("created_at", cursor);
+  const { data: rows, error } = await queryWithRetry(() => query);
+  if (error) throw new Error(`listFeedPosts: ${error.message}`);
+  if (!rows?.length) return { posts: [], nextCursor: null };
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const postIds = page.map((p) => p.id as string);
+  const authorIds = [...new Set(page.map((p) => p.user_id as string))];
+  const postGroupIds = [...new Set(page.map((p) => p.group_id as string))];
+
+  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: groupsData, error: groupsError }, profileById] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id").in("post_id", postIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds)),
+    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", postGroupIds)),
+    profilesById(authorIds),
+  ]);
+  if (votesError) throw new Error(`listFeedPosts: ${votesError.message}`);
+  if (commentsError) throw new Error(`listFeedPosts: ${commentsError.message}`);
+  if (groupsError) throw new Error(`listFeedPosts: ${groupsError.message}`);
+
+  const groupById = new Map((groupsData ?? []).map((g) => [g.id as string, g]));
+  const voteCounts = new Map<string, number>();
+  const myVotes = new Set<string>();
+  for (const v of votes ?? []) {
+    const pid = v.post_id as string;
+    voteCounts.set(pid, (voteCounts.get(pid) ?? 0) + 1);
+    if (v.user_id === uid) myVotes.add(pid);
+  }
+  const commentCounts = new Map<string, number>();
+  for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
+
+  const posts: FeedPost[] = page.map((p) => {
+    const group = groupById.get(p.group_id as string);
+    return {
+      id: p.id as string,
+      groupId: p.group_id as string,
+      groupName: (group?.name as string | undefined) ?? "a group",
+      groupAvatarUrl: (group?.avatar_url as string | null | undefined) ?? null,
+      userId: p.user_id as string,
+      authorName: nameFor(profileById.get(p.user_id as string), p.user_id as string),
+      content: p.content as string,
+      createdAt: p.created_at as string,
+      upvotes: voteCounts.get(p.id as string) ?? 0,
+      hasVoted: myVotes.has(p.id as string),
+      commentCount: commentCounts.get(p.id as string) ?? 0,
+    };
+  });
+  return { posts, nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };
 }
 
 /** Toggles the current user's own upvote - up-only (no downvote, see schema.sql's own comment on

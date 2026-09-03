@@ -14,6 +14,61 @@ export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType } from "@/lib/groupPredictionTypes";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 
+// Omit entryCount/myEntry, not reuse them with placeholder values - this summary genuinely
+// doesn't fetch either (see listMyOpenPredictions' own comment), and a fabricated 0/null would
+// look like real data to any caller that didn't already know better.
+export type FeedPrediction = Omit<GroupPrediction, "entryCount" | "myEntry"> & { groupName: string; hasEntered: boolean };
+
+/** Groups home's right-sidebar widget: open predictions across every group the user has joined,
+ * most recent first - a real cross-group query, not a per-group fetch repeated N times. Kept to a
+ * summary (race/type/entry cost/whether they've already entered); actually entering still happens
+ * in the real group's own Predictions tab (GroupPredictions.tsx already owns the guess UI, the
+ * driver roster lookup, etc. - duplicating that into a sidebar widget would be a second, parallel
+ * implementation of the same interaction for no real benefit). */
+export async function listMyOpenPredictions(uid: string, limit = 5): Promise<FeedPrediction[]> {
+  const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
+  if (membershipsError) throw new Error(`listMyOpenPredictions: ${membershipsError.message}`);
+  const groupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+  if (groupIds.length === 0) return [];
+
+  const { data: predictions, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_predictions").select("*").in("group_id", groupIds).eq("status", "open").order("created_at", { ascending: false }).limit(limit),
+  );
+  if (error) throw new Error(`listMyOpenPredictions: ${error.message}`);
+  if (!predictions?.length) return [];
+
+  const predictionIds = predictions.map((p) => p.id as string);
+  const raceIds = [...new Set(predictions.map((p) => p.race_id as string))];
+  const predictionGroupIds = [...new Set(predictions.map((p) => p.group_id as string))];
+  const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("races").select("id, name").in("id", raceIds)),
+    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").in("id", predictionGroupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id").eq("user_id", uid).in("prediction_id", predictionIds)),
+  ]);
+  if (racesError) throw new Error(`listMyOpenPredictions: ${racesError.message}`);
+  if (groupsError) throw new Error(`listMyOpenPredictions: ${groupsError.message}`);
+  if (entriesError) throw new Error(`listMyOpenPredictions: ${entriesError.message}`);
+
+  const raceNameById = new Map((races ?? []).map((r) => [r.id as string, r.name as string]));
+  const groupNameById = new Map((groupsData ?? []).map((g) => [g.id as string, g.name as string]));
+  const enteredSet = new Set((myEntries ?? []).map((e) => e.prediction_id as string));
+
+  return predictions.map((p) => ({
+    id: p.id as string,
+    groupId: p.group_id as string,
+    groupName: groupNameById.get(p.group_id as string) ?? "a group",
+    raceId: p.race_id as string,
+    raceName: raceNameById.get(p.race_id as string) ?? (p.race_id as string),
+    type: p.type as PredictionType,
+    entryPoints: p.entry_points as number,
+    status: p.status as PredictionStatus,
+    correctAnswer: (p.correct_answer as PredictionGuess | null) ?? null,
+    createdAt: p.created_at as string,
+    resolvedAt: (p.resolved_at as string | null) ?? null,
+    hasEntered: enteredSet.has(p.id as string),
+  }));
+}
+
 export async function createPrediction(
   groupId: string,
   uid: string,
