@@ -156,7 +156,7 @@ export async function prepareOtp(email: string): Promise<{ code: string } | "coo
 export async function deliverOtp(email: string, code: string): Promise<void> {
   try {
     const info = await getTransporter().sendMail({
-      from: `"F1 Hub" <${process.env.MAIL_FROM}>`,
+      from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
       to: email,
       subject: `${code} is your F1 Hub verification code`,
       text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,

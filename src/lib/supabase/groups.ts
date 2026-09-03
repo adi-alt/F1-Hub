@@ -590,7 +590,7 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   await Promise.all(
     cleaned.map((to) =>
       transporter.sendMail({
-        from: `"F1 Hub" <${process.env.MAIL_FROM}>`,
+        from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
         to,
         subject: `${inviterName} invited you to join ${groupName} on F1 Hub`,
         text: `${inviterName} invited you to join "${groupName}" on F1 Hub - a prediction league and F1 community. Join here: ${link}`,
