@@ -5,7 +5,7 @@ import { GroupCardSkeleton } from "./components/GroupCardSkeleton";
 // final layout exactly (header, tabs+toolbar row, card grid) so there's no reflow on swap-in.
 export default function GroupsLoading() {
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+    <div className="mx-auto sm:max-w-[80vw] px-5 py-8 sm:px-8 lg:px-16">
       <Skeleton className="h-9 w-40" />
       <Skeleton className="mt-2 h-4 w-72" />
 
