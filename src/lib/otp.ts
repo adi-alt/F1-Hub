@@ -100,12 +100,13 @@ let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 // Exported - groups.ts's inviteByEmail reuses this same SMTP setup for group-invite emails
 // rather than duplicating the host/port/auth wiring for a second transactional email type.
 //
-// KNOWN LIMITATION: this is a personal Gmail account relayed through smtp.gmail.com, not a real
-// verified sending domain through a transactional ESP (Resend/SES/etc.). Confirmed in production:
-// it lands in spam for a lot of providers and gets blocked outright (not even to spam) by some
-// corporate mail gateways, with zero bounce or error - the SMTP transaction itself succeeds every
-// time. There is no code fix for this; it needs a domain you control + a real ESP with SPF/DKIM/
-// DMARC set up. Until then, deliverOtp logs accepted/rejected so at least a failure is visible.
+// Resend's own SMTP relay (smtp.resend.com), not raw Gmail SMTP anymore - a personal Gmail
+// account had no verified sending domain, so it landed in spam for most providers and was
+// blocked outright by corporate mail gateways with zero trace (confirmed in production). Now
+// that apexf1hub.com is a real domain verified in Resend with SPF/DKIM/DMARC, deliverability is
+// actually solved instead of just logged-and-shrugged-at. SMTP_USER is literally the string
+// "resend" (Resend's own convention) - the real identity is MAIL_FROM, which must be an address
+// on the verified domain, not a raw account username the way SMTP_USER was for Gmail.
 export function getTransporter() {
   if (transporter) return transporter;
   const host = process.env.SMTP_HOST;
@@ -114,6 +115,9 @@ export function getTransporter() {
   const pass = process.env.SMTP_PASS;
   if (!host || !user || !pass) {
     throw new Error("SMTP_HOST / SMTP_USER / SMTP_PASS are not set — required to send OTP emails (see .env.local).");
+  }
+  if (!process.env.MAIL_FROM) {
+    throw new Error("MAIL_FROM is not set — required as the verified-domain sender address (see .env.local).");
   }
   transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
   return transporter;
@@ -152,7 +156,7 @@ export async function prepareOtp(email: string): Promise<{ code: string } | "coo
 export async function deliverOtp(email: string, code: string): Promise<void> {
   try {
     const info = await getTransporter().sendMail({
-      from: `"F1 Hub" <${process.env.SMTP_USER}>`,
+      from: `"F1 Hub" <${process.env.MAIL_FROM}>`,
       to: email,
       subject: `${code} is your F1 Hub verification code`,
       text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,
