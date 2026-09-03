@@ -137,15 +137,24 @@ export async function prepareOtp(email: string): Promise<{ code: string } | "coo
 }
 
 /** The slow part — meant to be called via next/server's after() so it runs once the response
- * has already gone out, not awaited in the request's critical path. */
+ * has already gone out, not awaited in the request's critical path. Every caller fires this via
+ * `after()` with no .catch of its own, so a delivery failure here needs to actually be logged —
+ * otherwise a bad send (auth failure, Gmail throttling, a rejected recipient) is completely
+ * invisible: the sign-in screen already showed the OTP step, nothing ever surfaces the error to
+ * the user or to anyone watching logs. */
 export async function deliverOtp(email: string, code: string): Promise<void> {
-  await getTransporter().sendMail({
-    from: `"F1 Hub" <${process.env.SMTP_USER}>`,
-    to: email,
-    subject: `${code} is your F1 Hub verification code`,
-    text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,
-    html: buildOtpEmailHtml(code, email),
-  });
+  try {
+    const info = await getTransporter().sendMail({
+      from: `"F1 Hub" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: `${code} is your F1 Hub verification code`,
+      text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,
+      html: buildOtpEmailHtml(code, email),
+    });
+    console.log(`[otp] sent to ${email} — accepted:${JSON.stringify(info.accepted)} rejected:${JSON.stringify(info.rejected)} response:${info.response}`);
+  } catch (err) {
+    console.error(`[otp] FAILED to send to ${email}:`, err);
+  }
 }
 
 /** One attempt per call, counted against MAX_ATTEMPTS regardless of outcome — a fixed code that
