@@ -51,17 +51,43 @@ const PAGE_SIZE = 1000; // this Supabase project's own server-side max-rows cap 
 // any table with more than 1000 rows silently returns only the first 1000 unless the caller loops
 // past this - archive_races (1,149 rows) and archive_results (25,701) both already exceed it.
 
-/** Fetches every row of a query PostgREST would otherwise truncate at PAGE_SIZE, looping
- * `.range()` windows until a page comes back short (the real end of the data, not just "no error
- * this time"). `buildQuery(from, to)` should apply that exact range to the same base query on each
- * call - e.g. `(from, to) => supabaseAdmin.from("archive_races").select("year").range(from, to)`.
- * Each page still goes through queryWithRetry individually, so a transient blip mid-scan retries
- * just that page, not the whole fetch from the start. */
+/** Fetches every row of a query PostgREST would otherwise truncate at PAGE_SIZE.
+ *
+ * `buildQuery(from, to)` should apply that exact range to the same base query on each call - e.g.
+ * `(from, to) => supabaseAdmin.from("archive_races").select("year").range(from, to)`. Pass
+ * `{ count: "exact" }` in the `.select()` call and the response carries the *total* row count
+ * alongside the first page's data - when it does, every remaining page is fetched in parallel
+ * (`Promise.all`, not a sequential loop), since the total is already known up front. That's the
+ * difference between ~26 round trips in series and ~26 in parallel for archive_results' 25,701
+ * rows - confirmed live as the dominant cost in Archive's cold-cache load time. Without `count`
+ * (older call sites, or PostgREST configs that don't support it), this falls back to the original
+ * sequential "fetch a page, keep going until one comes back short" loop. Every page still goes
+ * through queryWithRetry individually, so a transient blip mid-scan retries just that page, not
+ * the whole fetch from the start. */
 export async function fetchAllRows<T>(
-  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null }>,
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null; count?: number | null }>,
 ): Promise<{ data: T[]; error: SupabaseQueryError | null }> {
-  const all: T[] = [];
-  let from = 0;
+  const first = await queryWithRetry(() => buildQuery(0, PAGE_SIZE - 1));
+  if (first.error) return { data: [], error: first.error };
+  const firstPage = first.data ?? [];
+
+  if (typeof first.count === "number" && first.count > firstPage.length) {
+    const totalPages = Math.ceil(first.count / PAGE_SIZE);
+    const rest = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) => {
+        const from = (i + 1) * PAGE_SIZE;
+        return queryWithRetry(() => buildQuery(from, from + PAGE_SIZE - 1));
+      }),
+    );
+    const failed = rest.find((r) => r.error);
+    if (failed) return { data: firstPage, error: failed.error };
+    return { data: [...firstPage, ...rest.flatMap((r) => r.data ?? [])], error: null };
+  }
+
+  // No usable count - fall back to sequential paging from where the first page left off.
+  if (firstPage.length < PAGE_SIZE) return { data: firstPage, error: null };
+  const all = [...firstPage];
+  let from = PAGE_SIZE;
   for (;;) {
     const { data, error } = await queryWithRetry(() => buildQuery(from, from + PAGE_SIZE - 1));
     if (error) return { data: all, error };

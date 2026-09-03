@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { describeWeatherCode } from "@/lib/weatherCodes";
 import { archiveCircuitHref } from "@/lib/routes";
 import type { ArchiveCircuit, ArchiveWeather } from "@/lib/supabase/archive";
@@ -12,7 +15,12 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
   const conditions = weather ? describeWeatherCode(weather.weatherCode) : null;
 
   return (
-    <div className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60"
+    >
       {circuit.imageUrl && (
         <div className="relative h-32 w-full bg-black/30">
           {/* Sourced from Wikipedia's own lead image for this circuit, re-hosted in Supabase
@@ -60,6 +68,6 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
           Track History →
         </Link>
       </div>
-    </div>
+    </motion.div>
   );
 }

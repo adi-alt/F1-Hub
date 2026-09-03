@@ -7,7 +7,7 @@ import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/sup
 // can't verify statically that side is a single object, not an array, without generated schema
 // types, so it infers an array; this is the same through-unknown cast every embed of that shape
 // in this file already needed before fetchAllRows existed.
-type QueryPage<T> = PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null }>;
+type QueryPage<T> = PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null; count?: number | null }>;
 
 // Cached forever (revalidate: false at every call site below) — freshness after a pipeline run
 // comes from revalidateTag("archive-data") via /api/admin/revalidate (called by every
@@ -295,14 +295,14 @@ export const getArchiveYearStats = unstable_cache(
     // request, and archive_races alone already exceeds it (confirmed live). See
     // getArchiveCircuitStats's identical comment for the same bug this works around.
     const [racesResult, resultsResult] = await Promise.all([
-      fetchAllRows<{ year: number }>((from, to) => supabaseAdmin.from("archive_races").select("year").range(from, to)),
+      fetchAllRows<{ year: number }>((from, to) => supabaseAdmin.from("archive_races").select("year", { count: "exact" }).range(from, to)),
       // archive_races(year) is a to-one embed but the untyped client infers an array without
       // generated schema types - same through-unknown cast every embed of this shape needs.
       fetchAllRows<ResultLeaderRow>(
         (from, to) =>
           supabaseAdmin
             .from("archive_results")
-            .select("driver_id, driver_name, constructor, points, position, archive_races(year)")
+            .select("driver_id, driver_name, constructor, points, position, archive_races(year)", { count: "exact" })
             .range(from, to) as unknown as QueryPage<ResultLeaderRow>,
       ),
     ]);
@@ -427,7 +427,7 @@ const getArchiveCircuitStats = unstable_cache(
     // silently missing whichever rows fell outside the first 1000 - real raceCount/firstYear/
     // lastYear/country/locality drift, not a hypothetical one.
     const { data, error } = await fetchAllRows<{ circuit_name: string | null; year: number; country: string | null; locality: string | null }>(
-      (from, to) => supabaseAdmin.from("archive_races").select("circuit_name, year, country, locality").range(from, to),
+      (from, to) => supabaseAdmin.from("archive_races").select("circuit_name, year, country, locality", { count: "exact" }).range(from, to),
     );
     if (error) throw new Error(`getArchiveCircuitStats: ${error.message}`);
     const stats: Record<string, CircuitStats> = {};
@@ -667,7 +667,11 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
     // first, not this team's actual full result history - a real accuracy bug, confirmed live.
     const { data, error } = await fetchAllRows<{ team_id: string; archive_races: { circuit_name: string | null } | null }>(
       (from, to) =>
-        supabaseAdmin.from("archive_results").select("team_id, archive_races(circuit_name)").not("team_id", "is", null).range(from, to) as unknown as QueryPage<{
+        supabaseAdmin
+          .from("archive_results")
+          .select("team_id, archive_races(circuit_name)", { count: "exact" })
+          .not("team_id", "is", null)
+          .range(from, to) as unknown as QueryPage<{
           team_id: string;
           archive_races: { circuit_name: string | null } | null;
         }>,

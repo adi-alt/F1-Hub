@@ -15,9 +15,12 @@ import { archiveSeasonHref } from "@/lib/routes";
  * geometry regardless of year/race-count/live-state rather than the live card reading as visibly
  * shorter. `isLive` is the one exception: the in-progress season gets a small pulsing dot and
  * links to /season instead of /archive?year=, since the archive has no data for it yet - same
- * size and treatment as every other card, not a separate hero. `.glass-surface` (not a flat carbon
- * fill) - genuine frosted glass over the atmospheric background, the same translucent surface the
- * calendar's own tooltips/panels already use. onHoverStart/onHoverEnd wire the champion/leader
+ * size and treatment as every other card, not a separate hero. Translucent zinc (border +
+ * bg-[var(--f1-carbon)]/60), not `.glass-surface` - with ~76 of these on screen at once, a real
+ * backdrop-blur per card is real, unnecessary compositing cost, and this is also the same flat
+ * translucent surface ArchiveTable and the "by track" grid both use, so every browse surface in
+ * Archive reads as one consistent family instead of the cards looking heavier/glassier than
+ * everything around them. onHoverStart/onHoverEnd wire the champion/leader
  * tooltip (mouse *and* focus/blur, same pattern SeasonCalendar's DayCell already uses, so keyboard
  * users get it too) - this card itself renders nothing else about that data, and deliberately no
  * driver photo/team logo (see ArchiveSeasonGrid's own comment on why). */
@@ -42,7 +45,7 @@ export function SeasonCard({
         onMouseLeave={() => onHoverEnd(year)}
         onFocus={(e) => onHoverStart(e, year)}
         onBlur={() => onHoverEnd(year)}
-        className="glass-surface flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl px-4 text-center transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+        className="flex h-16 flex-col items-center justify-center gap-0.5 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-4 text-center transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
       >
         <span className="flex items-center gap-1.5 font-semibold text-white">
           {year}

@@ -84,7 +84,11 @@ export function ArchiveCircuitGrid({
           <motion.div layout key={c.circuitId} variants={staggerItem} whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }}>
             <Link
               href={archiveCircuitHref(c.circuitId)}
-              className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              // bg-[var(--f1-carbon)]/60, not the flat opaque fill this had before - the same
+              // translucent zinc surface ArchiveTable's own wrapper uses, so "by track" reads as
+              // the same visual family as "by year" (SeasonCard) and the tables, not a flatter,
+              // heavier block sitting next to them.
+              className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
             >
               <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
                 {c.imageUrl && <Image src={c.imageUrl} alt={`${c.name ?? c.circuitId} layout`} fill className="object-contain p-3" />}
