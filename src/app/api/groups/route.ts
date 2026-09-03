@@ -8,7 +8,8 @@ import { ServiceError } from "@/services/errors";
  * by definition meant to be found. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const groups = await listPublicGroups(searchParams.get("q") ?? undefined);
+  const session = await getSession();
+  const groups = await listPublicGroups(searchParams.get("q") ?? undefined, session.uid);
   return NextResponse.json({ groups });
 }
 

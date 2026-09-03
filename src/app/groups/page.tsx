@@ -7,7 +7,7 @@ export default async function GroupsPage() {
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
         <SignInGate label="your groups" />
       </div>
     );

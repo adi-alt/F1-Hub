@@ -10,6 +10,12 @@ export function timeAgo(iso: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+/** "2431" -> "2.4k" - only kicks in once a real count is actually big enough to need it; small
+ * numbers (the common case today) print as-is. */
+export function compactCount(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
 export function formatLapTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const rest = (seconds - minutes * 60).toFixed(3);

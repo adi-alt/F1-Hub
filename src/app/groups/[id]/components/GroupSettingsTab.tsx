@@ -63,7 +63,7 @@ export function GroupSettingsTab({ group }: { group: GroupDetail }) {
     <div className="space-y-6">
       <SettingsSection title="General">
         <div className="overflow-hidden rounded-lg">
-          <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} height={80} />
+          <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} />
         </div>
         <div className="mt-2">
           <BannerUpload groupId={group.id} hasBanner={!!group.bannerUrl} />
