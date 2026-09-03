@@ -5,6 +5,11 @@ import { ERAS } from "@/lib/eras";
 
 const ERA_OPTIONS: MultiSelectOption[] = [{ code: "all", label: "All eras" }, ...ERAS.map((e) => ({ code: e.id, label: e.name }))];
 
+// The one flat translucent zinc surface Archive's table/cards/tooltip already share - passed to
+// every EntityMultiSelect dropdown here so the era/country picker matches instead of standing out
+// as the one still-.glass-surface popover on the page.
+const DROPDOWN_SURFACE = "border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60";
+
 /** Same compact single-select popover Compare's driver/team pickers use
  * (season/_components/EntityMultiSelect, multiple={false}) instead of a row of always-visible
  * pills - era filtering is secondary to year browsing, so it shouldn't compete for space with the
@@ -21,6 +26,7 @@ export function EraFilterSelect({ value, onChange }: { value: string; onChange: 
         onChange={(codes) => onChange(codes[0] ?? "all")}
         placeholder="All eras"
         triggerClassName="h-9"
+        surfaceClassName={DROPDOWN_SURFACE}
       />
     </div>
   );
@@ -102,6 +108,7 @@ export function TrackFilters({
           onChange={(codes) => onCountryChange(codes[0] ?? "")}
           placeholder="All countries"
           triggerClassName="h-9"
+          surfaceClassName={DROPDOWN_SURFACE}
         />
       </div>
       <FilterPill active={favoritesOnly} onClick={() => onFavoritesOnlyChange(!favoritesOnly)}>

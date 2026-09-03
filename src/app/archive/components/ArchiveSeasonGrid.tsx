@@ -130,7 +130,7 @@ export function ArchiveSeasonGrid({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
                   transition={{ duration: 0.12, ease: "easeOut" }}
-                  className="glass-surface rounded-lg p-3"
+                  className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3"
                 >
                   <p className="text-sm font-semibold text-white">{hover.year}</p>
                   {hoverIsLive ? (

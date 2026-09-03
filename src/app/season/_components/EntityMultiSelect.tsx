@@ -39,6 +39,7 @@ export function EntityMultiSelect({
   placeholder = "Select",
   multiple = true,
   triggerClassName = "",
+  surfaceClassName = "glass-surface",
 }: {
   options: MultiSelectOption[];
   selected: string[];
@@ -50,6 +51,12 @@ export function EntityMultiSelect({
    * `h-9` so the trigger lines up with the search input/FilterPill's own height in that row.
    * Compare/Progression (unset) keep their existing natural sizing. */
   triggerClassName?: string;
+  /** The dropdown panel's own background/border treatment - defaults to `.glass-surface` (Compare/
+   * Progression's look, unchanged). Archive's own filter pickers override this to the flat
+   * translucent zinc surface Archive standardized on (table/cards/tooltip) - a scoped override,
+   * not a change to glass-surface itself or its default here, so this stays exactly as it was
+   * everywhere else this component is used. */
+  surfaceClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -235,15 +242,12 @@ export function EntityMultiSelect({
                   width: rect.width,
                   maxHeight: rect.maxHeight,
                 }}
-                // glass-surface (not the sticky-header token) - that one's ~92% opaque on purpose,
-                // to stop table rows bleeding through while scrolling underneath it. Nothing
-                // scrolls behind a popover the same way, so this can actually read as translucent
-                // glass (a faint white gradient + a real 20px blur) instead of a flat dark panel
-                // with a blur that's technically there but invisible behind that much opacity.
-                // max-height is inline (rect.maxHeight, the real measured available space), not a
-                // fixed Tailwind class - that fixed 360px is exactly what let this overflow the
-                // viewport whenever less than 360px was actually available in either direction.
-                className="glass-surface z-[200] flex flex-col overflow-hidden rounded-lg"
+                // surfaceClassName defaults to glass-surface (see this prop's own doc comment for
+                // why that's right here) - Archive overrides it to match its own flat translucent
+                // surface instead. max-height is inline (rect.maxHeight, the real measured
+                // available space), not a fixed Tailwind class - that fixed 360px is exactly what
+                // let this overflow the viewport whenever less than 360px was actually available.
+                className={`${surfaceClassName} z-[200] flex flex-col overflow-hidden rounded-lg`}
               >
                 <div className="shrink-0 border-b border-white/[0.08] p-2">
                   <input
