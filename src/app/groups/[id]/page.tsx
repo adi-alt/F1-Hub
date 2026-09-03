@@ -2,11 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { AvatarUpload } from "../components/AvatarUpload";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { InviteLink } from "../components/InviteLink";
 import { JoinPrompt } from "../components/JoinPrompt";
+import { GroupDetailTabs } from "./components/GroupDetailTabs";
 import { getGroupDetail, getGroupLeaderboard, getGroupPreview, getMemberRole } from "@/lib/supabase/groups";
+import { listPredictions } from "@/lib/supabase/groupPredictions";
+import { listPosts } from "@/lib/supabase/groupPosts";
+import { getPointsBalance } from "@/lib/supabase/points";
+import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,7 +35,30 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const [group, leaderboard] = await Promise.all([getGroupDetail(id, session.uid), getGroupLeaderboard(id, session.uid)]);
+  const [group, leaderboard, posts, predictions, pointsBalance] = await Promise.all([
+    getGroupDetail(id, session.uid),
+    getGroupLeaderboard(id, session.uid),
+    listPosts(id, session.uid),
+    listPredictions(id, session.uid),
+    getPointsBalance(session.uid),
+  ]);
+
+  // Races for the admin's own "new prediction" race picker - current season, most recent first, so
+  // the realistic choice (this weekend, or one that just finished and needs resolving) is on top.
+  const seasonRaces = await getRacesByYear(new Date().getFullYear());
+  const races = [...seasonRaces].reverse().map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
+
+  // Driver rosters for every race any prediction in this group already references - one small
+  // fetch per unique race (typically a handful), not the whole season, so a guess dropdown has
+  // real names/codes to pick from instead of free-text.
+  const predictionRaceIds = [...new Set(predictions.map((p) => p.raceId))];
+  const predictionRaces = await Promise.all(predictionRaceIds.map((raceId) => getRaceById(raceId)));
+  const driversByRace: Record<string, { code: string; name: string }[]> = {};
+  predictionRaceIds.forEach((raceId, i) => {
+    const race = predictionRaces[i];
+    const roster = race?.inputs?.length ? race.inputs : (race?.results ?? []);
+    driversByRace[raceId] = roster.map((r) => ({ code: r.driver, name: r.driverName }));
+  });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -40,63 +67,44 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
         ← Groups
       </Link>
 
-      <div className="mt-2 flex items-center gap-4">
-        <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={56} />
-        <div>
-          <h1 className="text-2xl font-bold text-white">{group.name}</h1>
-          <p className="text-xs text-neutral-500">
-            {group.members.length} member{group.members.length === 1 ? "" : "s"}
-          </p>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={56} />
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-white">{group.name}</h1>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{group.visibility === "public" ? "Public" : "Private"}</span>
+            </div>
+            {group.description && <p className="mt-0.5 text-sm text-neutral-400">{group.description}</p>}
+            <p className="mt-1 text-xs text-neutral-500">
+              {group.members.length} member{group.members.length === 1 ? "" : "s"} · {predictions.filter((p) => p.status === "open").length} active predictions · Created{" "}
+              {new Date(group.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+            </p>
+          </div>
         </div>
-      </div>
-
-      <div className="mt-6 space-y-3">
         <InviteLink groupId={id} />
-        {group.myRole === "admin" && <AvatarUpload groupId={id} />}
       </div>
 
-      <div className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold text-white">Leaderboard</h2>
-        {leaderboard.length === 0 ? (
-          <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-6 text-center text-neutral-400">
-            No scored races yet — scores land here once a race a member picked finishes.
-          </p>
-        ) : (
-          <ol className="space-y-2">
-            {leaderboard.map((row) => (
-              <li
-                key={row.userId}
-                className="flex items-center justify-between rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 text-sm font-semibold text-neutral-500">{row.rank}</span>
-                  <span className="font-medium text-white">{row.displayName ?? row.username ?? "Member"}</span>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-white">{row.totalScore} pts</p>
-                  <p className="text-xs text-neutral-500">
-                    {row.racesScored} race{row.racesScored === 1 ? "" : "s"}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
+      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-neutral-500">
+        <span>
+          Your role <span className="font-semibold text-neutral-300">{group.myRole}</span>
+        </span>
+        <span>
+          Your points <span className="font-mono font-semibold text-neutral-300">{pointsBalance}</span>
+        </span>
       </div>
 
-      <div className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold text-white">Members</h2>
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {group.members.map((m) => (
-            <li
-              key={m.userId}
-              className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-3 py-2 text-sm"
-            >
-              <span className="text-neutral-200">{m.displayName ?? m.username ?? "Member"}</span>
-              {m.role === "admin" && <span className="text-xs text-neutral-500">admin</span>}
-            </li>
-          ))}
-        </ul>
+      <div className="mt-8">
+        <GroupDetailTabs
+          group={group}
+          myUserId={session.uid}
+          leaderboard={leaderboard}
+          posts={posts}
+          predictions={predictions}
+          races={races}
+          driversByRace={driversByRace}
+          pointsBalance={pointsBalance}
+        />
       </div>
     </div>
   );

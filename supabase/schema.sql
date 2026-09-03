@@ -488,3 +488,142 @@ create policy "admins can update their group" on groups for update
 -- exist yet at that earlier point in this file (alter publication needs the table to already exist).
 alter publication supabase_realtime add table group_race_scores;
 alter publication supabase_realtime add table group_members;
+
+-- ============================================================= groups v2: points economy, roles, predictions, feed, discovery
+
+-- Every user starts with 100 virtual points (never real money) - one column, not a new table,
+-- since it's a single number per user like every other profile field. The DEFAULT backfilled every
+-- existing profiles row to 100 the moment this ran (confirmed live), same as any new signup going
+-- forward via the same column default.
+alter table profiles add column points_balance integer not null default 100 check (points_balance >= 0);
+
+-- A real audit trail for every balance change (the initial grant, a prediction entry, a payout, a
+-- refund) - not what actually prevents a negative balance (the atomic guarded UPDATE the service
+-- layer uses for that - see lib/supabase/points.ts - is what does), but "the backend should always
+-- validate" extends to "and be able to explain how a balance got here," which a bare column alone
+-- can't.
+-- `prediction_id`'s own FK is added further down (as a separate `alter table`, right after
+-- `group_predictions` exists) rather than inline here - same forward-reference situation as the
+-- realtime publications at the bottom of the original groups section above, since this table is
+-- declared before group_predictions is.
+create table points_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles (id) on delete cascade,
+  amount integer not null,              -- negative = spent, positive = credited
+  reason text not null check (reason in ('starting_grant', 'prediction_entry', 'prediction_payout', 'prediction_refund')),
+  group_id uuid references groups (id) on delete set null,
+  prediction_id uuid,
+  created_at timestamptz not null default now()
+);
+
+-- A third real role, alongside the original admin/member - widening the existing check rather than
+-- a new column, keeping this the one place a member's permission level lives.
+alter table group_members drop constraint group_members_role_check;
+alter table group_members add constraint group_members_role_check check (role in ('admin', 'moderator', 'member'));
+
+-- Opt-in public discovery (every existing and new group defaults to 'private' - the exact behavior
+-- this app always had; nothing already-created became newly discoverable by this migration) plus a
+-- real description field the original name-only create form never had, and a per-group toggle for
+-- whether member posts need approval before appearing in the feed.
+alter table groups add column description text;
+alter table groups add column visibility text not null default 'private' check (visibility in ('public', 'private'));
+alter table groups add column moderation_enabled boolean not null default false;
+
+-- One admin-created prediction per (group, race, type) - "type" is what's actually being predicted
+-- (winner/podium/fastest lap/pole/DNF count), kept as one table with a check rather than a table per
+-- type, since every type shares the same lifecycle (open -> locked -> resolved) and the same entry/
+-- payout mechanics - only how a guess is checked against the real result differs, and that lives in
+-- application code (lib/supabase/groupPredictions.ts), not the schema. Distinct from a member's
+-- personal `picks` row above - this is a group's own prediction, not an aggregation of picks.
+create table group_predictions (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references groups (id) on delete cascade,
+  race_id text not null references races (id) on delete cascade,
+  type text not null check (type in ('winner', 'podium', 'fastest_lap', 'pole', 'dnf_count')),
+  entry_points integer not null default 0 check (entry_points >= 0),
+  status text not null default 'open' check (status in ('open', 'locked', 'resolved')),
+  correct_answer jsonb,                 -- filled in once resolved - shape depends on `type`
+  created_by uuid not null references profiles (id),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  unique (group_id, race_id, type)
+);
+
+-- points_transactions.prediction_id's own FK, deferred until here - see that table's own comment.
+alter table points_transactions add constraint points_transactions_prediction_id_fkey
+  foreign key (prediction_id) references group_predictions (id) on delete set null;
+
+-- One entry per (prediction, member) - `guess` shape depends on the prediction's own `type` (a
+-- driver code for winner/fastest_lap/pole, a 3-element array for podium, a number for dnf_count).
+-- `points_wagered` is captured at entry time, not re-read from group_predictions.entry_points at
+-- resolution, so a later admin change to entry_points never retroactively changes what an existing
+-- entry already paid. `points_awarded` stays null until resolution.
+create table group_prediction_entries (
+  prediction_id uuid not null references group_predictions (id) on delete cascade,
+  user_id uuid not null references profiles (id) on delete cascade,
+  guess jsonb not null,
+  points_wagered integer not null,
+  points_awarded integer,
+  created_at timestamptz not null default now(),
+  primary key (prediction_id, user_id)
+);
+
+-- The Reddit-style discussion feed - flat (group_post_comments below is its own flat list per
+-- post, not a threaded tree), upvote-only (no downvotes - matches the product spec's own single
+-- "^ 24" example, and halves the moderation-abuse surface a downvote button would add).
+create table group_posts (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references groups (id) on delete cascade,
+  user_id uuid not null references profiles (id) on delete cascade,
+  content text not null check (char_length(content) between 1 and 2000),
+  status text not null default 'published' check (status in ('published', 'pending', 'rejected')),
+  created_at timestamptz not null default now()
+);
+
+create table group_post_votes (
+  post_id uuid not null references group_posts (id) on delete cascade,
+  user_id uuid not null references profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create table group_post_comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references group_posts (id) on delete cascade,
+  user_id uuid not null references profiles (id) on delete cascade,
+  content text not null check (char_length(content) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+
+alter table points_transactions enable row level security;
+alter table group_predictions enable row level security;
+alter table group_prediction_entries enable row level security;
+alter table group_posts enable row level security;
+alter table group_post_votes enable row level security;
+alter table group_post_comments enable row level security;
+
+-- Same "defense in depth, not the real enforcement" model the original groups policies above use -
+-- every real read/write goes through supabaseAdmin (service role), which re-checks membership/role
+-- itself (groups.ts's requireMember, and the same pattern in groupPredictions.ts/groupPosts.ts).
+create policy "own points transactions" on points_transactions for select using (auth.uid() = user_id);
+create policy "members can view group predictions" on group_predictions for select
+  using (group_id in (select group_id from group_members where user_id = auth.uid()));
+create policy "own prediction entries" on group_prediction_entries for select using (auth.uid() = user_id);
+create policy "members can view group posts" on group_posts for select
+  using (group_id in (select group_id from group_members where user_id = auth.uid()));
+create policy "members can view post votes" on group_post_votes for select
+  using (post_id in (select id from group_posts where group_id in (select group_id from group_members where user_id = auth.uid())));
+create policy "members can view post comments" on group_post_comments for select
+  using (post_id in (select id from group_posts where group_id in (select group_id from group_members where user_id = auth.uid())));
+
+-- Public groups become listable (Discover Groups) without membership - the one deliberate
+-- relaxation of the original "nothing is discoverable" model, and only for groups an admin
+-- explicitly opted into via visibility='public'; every existing/private group is unaffected.
+drop policy "members can view their groups" on groups;
+create policy "members can view their groups" on groups for select
+  using (visibility = 'public' or id in (select group_id from group_members where user_id = auth.uid()));
+
+-- Lets a group's Feed and Predictions tabs react live the same way its Leaderboard/Members already
+-- do (see the group_race_scores/group_members publication above).
+alter publication supabase_realtime add table group_predictions;
+alter publication supabase_realtime add table group_posts;

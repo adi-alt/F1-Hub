@@ -1,19 +1,32 @@
+import { getTransporter } from "@/lib/otp";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 
-export type GroupRole = "admin" | "member";
+export type GroupRole = "admin" | "moderator" | "member";
+export type GroupVisibility = "public" | "private";
 export type PickSlotResult = "exact" | "podium" | "miss";
 
 export type GroupSummary = {
   id: string;
   name: string;
+  description: string | null;
   avatarUrl: string | null;
   memberCount: number;
+  visibility: GroupVisibility;
   myRole: GroupRole;
+  activePredictions: number;
+  // The existing picks-based group_race_scores leaderboard - a different number from the new
+  // points_balance wallet (see points.ts), deliberately: this is "how good are your predictions in
+  // this specific group," the wallet is "how many virtual points do you have to wager." Null when
+  // nobody in the group has a scored race yet.
+  myRank: number | null;
+  leader: { name: string; totalScore: number } | null;
 };
 
-export type GroupPreview = { id: string; name: string; avatarUrl: string | null; memberCount: number };
+export type GroupPreview = { id: string; name: string; description: string | null; avatarUrl: string | null; memberCount: number; visibility: GroupVisibility };
+
+export type PublicGroupSummary = { id: string; name: string; description: string | null; avatarUrl: string | null; memberCount: number; createdAt: string };
 
 export type GroupMember = {
   userId: string;
@@ -21,12 +34,16 @@ export type GroupMember = {
   username: string | null;
   role: GroupRole;
   joinedAt: string;
+  points: number;
 };
 
 export type GroupDetail = {
   id: string;
   name: string;
+  description: string | null;
   avatarUrl: string | null;
+  visibility: GroupVisibility;
+  moderationEnabled: boolean;
   createdBy: string;
   createdAt: string;
   myRole: GroupRole;
@@ -51,12 +68,12 @@ export type RaceScoreRow = {
   breakdown: Record<"p1" | "p2" | "p3", PickSlotResult> | null;
 };
 
-type ProfileLite = { id: string; display_name: string | null; username: string | null };
+type ProfileLite = { id: string; display_name: string | null; username: string | null; points_balance: number };
 
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
   const { data, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds),
+    supabaseAdmin.from("profiles").select("id, display_name, username, points_balance").in("id", userIds),
   );
   if (error) throw new Error(`profilesById: ${error.message}`);
   return new Map((data ?? []).map((p) => [p.id as string, p as ProfileLite]));
@@ -73,10 +90,49 @@ export async function getMemberRole(groupId: string, uid: string): Promise<Group
   return (data?.role as GroupRole | undefined) ?? null;
 }
 
-async function requireMember(groupId: string, uid: string): Promise<GroupRole> {
+// Exported - groupPredictions.ts and groupPosts.ts both need the exact same "are you actually in
+// this group" / "are you actually an admin of it" checks, and supabaseAdmin bypasses RLS entirely
+// (see getMemberRole's own comment), so this application-level check is the real enforcement for
+// every one of those tables too, not just the ones defined in this file.
+export async function requireMember(groupId: string, uid: string): Promise<GroupRole> {
   const role = await getMemberRole(groupId, uid);
   if (!role) throw new ServiceError("You're not a member of this group.", 403);
   return role;
+}
+
+// Moderators can approve/reject posts (see groupPosts.ts) but everything else - settings, member
+// management, creating predictions, deleting a group - is admin-only, matching the role table in
+// the request that drove this redesign.
+export async function requireAdmin(groupId: string, uid: string): Promise<void> {
+  const role = await requireMember(groupId, uid);
+  if (role !== "admin") throw new ServiceError("Only a group admin can do that.", 403);
+}
+
+// Per-group rank/leader for the group cards on the main Groups page - the same ranking logic
+// getGroupLeaderboard uses, just computed for every one of a user's groups in one batched query
+// instead of N separate calls (one per card).
+function rankWithinGroups(scores: { group_id: string; user_id: string; score: number }[]): Map<string, { userId: string; totalScore: number; rank: number }[]> {
+  const byGroup = new Map<string, Map<string, number>>();
+  for (const row of scores) {
+    const totals = byGroup.get(row.group_id) ?? new Map<string, number>();
+    totals.set(row.user_id, (totals.get(row.user_id) ?? 0) + row.score);
+    byGroup.set(row.group_id, totals);
+  }
+  const result = new Map<string, { userId: string; totalScore: number; rank: number }[]>();
+  for (const [groupId, totals] of byGroup) {
+    const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    let rank = 0;
+    let prevScore: number | null = null;
+    result.set(
+      groupId,
+      sorted.map(([userId, totalScore], index) => {
+        if (totalScore !== prevScore) rank = index + 1;
+        prevScore = totalScore;
+        return { userId, totalScore, rank };
+      }),
+    );
+  }
+  return result;
 }
 
 export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
@@ -87,34 +143,91 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
   if (!memberships?.length) return [];
 
   const groupIds = memberships.map((m) => m.group_id as string);
-  const [{ data: groups, error: groupsError }, { data: allMembers, error: allMembersError }] = await Promise.all([
-    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", groupIds)),
+  const [
+    { data: groups, error: groupsError },
+    { data: allMembers, error: allMembersError },
+    { data: scores, error: scoresError },
+    { data: predictions, error: predictionsError },
+  ] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, description, avatar_url, visibility").in("id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, user_id, score").in("group_id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
   ]);
   if (groupsError) throw new Error(`getUserGroups(${uid}): ${groupsError.message}`);
   if (allMembersError) throw new Error(`getUserGroups(${uid}): ${allMembersError.message}`);
+  if (scoresError) throw new Error(`getUserGroups(${uid}): ${scoresError.message}`);
+  if (predictionsError) throw new Error(`getUserGroups(${uid}): ${predictionsError.message}`);
 
   const memberCounts = new Map<string, number>();
   for (const m of allMembers ?? []) memberCounts.set(m.group_id as string, (memberCounts.get(m.group_id as string) ?? 0) + 1);
   const roleByGroup = new Map(memberships.map((m) => [m.group_id as string, m.role as GroupRole]));
+  const activePredictionCounts = new Map<string, number>();
+  for (const p of predictions ?? []) activePredictionCounts.set(p.group_id as string, (activePredictionCounts.get(p.group_id as string) ?? 0) + 1);
+  const ranksByGroup = rankWithinGroups((scores ?? []) as { group_id: string; user_id: string; score: number }[]);
+
+  const leaderIds = [...ranksByGroup.values()].map((rows) => rows[0]?.userId).filter((id): id is string => !!id);
+  const leaderProfiles = await profilesById(leaderIds);
 
   return (groups ?? [])
-    .map((g) => ({
-      id: g.id as string,
-      name: g.name as string,
-      avatarUrl: (g.avatar_url as string | null) ?? null,
-      memberCount: memberCounts.get(g.id as string) ?? 1,
-      myRole: roleByGroup.get(g.id as string) ?? "member",
-    }))
+    .map((g) => {
+      const groupId = g.id as string;
+      const ranked = ranksByGroup.get(groupId) ?? [];
+      const myRow = ranked.find((r) => r.userId === uid);
+      const leaderRow = ranked[0];
+      return {
+        id: groupId,
+        name: g.name as string,
+        description: (g.description as string | null) ?? null,
+        avatarUrl: (g.avatar_url as string | null) ?? null,
+        memberCount: memberCounts.get(groupId) ?? 1,
+        visibility: g.visibility as GroupVisibility,
+        myRole: roleByGroup.get(groupId) ?? "member",
+        activePredictions: activePredictionCounts.get(groupId) ?? 0,
+        myRank: myRow?.rank ?? null,
+        leader: leaderRow ? { name: leaderProfiles.get(leaderRow.userId)?.display_name ?? "Member", totalScore: leaderRow.totalScore } : null,
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Public groups only, opted-in via `visibility = 'public'` - the one deliberate relaxation of
+ * "nothing is discoverable without an invite link" (see groups' own RLS comment in schema.sql).
+ * `query` matches name/description/id, case-insensitively - good enough for a groups directory
+ * this app expects to have dozens, not millions, of rows in. */
+export async function listPublicGroups(query?: string): Promise<PublicGroupSummary[]> {
+  let builder = supabaseAdmin.from("groups").select("id, name, description, avatar_url, created_at").eq("visibility", "public");
+  const trimmed = query?.trim();
+  if (trimmed) builder = builder.or(`name.ilike.%${trimmed}%,description.ilike.%${trimmed}%,id.eq.${trimmed}`);
+  const { data: groups, error } = await queryWithRetry(() => builder.order("created_at", { ascending: false }));
+  if (error) throw new Error(`listPublicGroups: ${error.message}`);
+  if (!groups?.length) return [];
+
+  const groupIds = groups.map((g) => g.id as string);
+  const { data: allMembers, error: membersError } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds),
+  );
+  if (membersError) throw new Error(`listPublicGroups: ${membersError.message}`);
+  const memberCounts = new Map<string, number>();
+  for (const m of allMembers ?? []) memberCounts.set(m.group_id as string, (memberCounts.get(m.group_id as string) ?? 0) + 1);
+
+  return groups.map((g) => ({
+    id: g.id as string,
+    name: g.name as string,
+    description: (g.description as string | null) ?? null,
+    avatarUrl: (g.avatar_url as string | null) ?? null,
+    memberCount: memberCounts.get(g.id as string) ?? 0,
+    createdAt: g.created_at as string,
+  }));
+}
+
 /** Enough to decide "do I want to join this" without being a member yet — the whole point of an
- * invite link. The link itself (the group's own uuid) is the access control: nothing here is
- * discoverable without already having it, since `groups` has no public listing anywhere. */
+ * invite link. The link itself (the group's own uuid) is the access control for a private group;
+ * nothing here is discoverable without already having it unless the group opted into
+ * visibility='public' (see listPublicGroups above). */
 export async function getGroupPreview(groupId: string): Promise<GroupPreview | null> {
   const { data: group, error: groupError } = await queryWithRetry(() =>
-    supabaseAdmin.from("groups").select("id, name, avatar_url").eq("id", groupId).maybeSingle(),
+    supabaseAdmin.from("groups").select("id, name, description, avatar_url, visibility").eq("id", groupId).maybeSingle(),
   );
   if (groupError) throw new Error(`getGroupPreview(${groupId}): ${groupError.message}`);
   if (!group) return null;
@@ -122,15 +235,33 @@ export async function getGroupPreview(groupId: string): Promise<GroupPreview | n
     supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId),
   );
   if (countError) throw new Error(`getGroupPreview(${groupId}): ${countError.message}`);
-  return { id: group.id as string, name: group.name as string, avatarUrl: (group.avatar_url as string | null) ?? null, memberCount: count ?? 0 };
+  return {
+    id: group.id as string,
+    name: group.name as string,
+    description: (group.description as string | null) ?? null,
+    avatarUrl: (group.avatar_url as string | null) ?? null,
+    memberCount: count ?? 0,
+    visibility: group.visibility as GroupVisibility,
+  };
 }
 
-export async function createGroup(uid: string, name: string): Promise<{ id: string }> {
-  const trimmed = name.trim();
+export async function createGroup(
+  uid: string,
+  input: { name: string; description?: string; visibility?: GroupVisibility },
+): Promise<{ id: string }> {
+  const trimmed = input.name.trim();
   if (trimmed.length < 3 || trimmed.length > 40) {
     throw new ServiceError("Group name must be 3-40 characters.", 400);
   }
-  const { data, error } = await supabaseAdmin.from("groups").insert({ name: trimmed, created_by: uid }).select("id").single();
+  const description = input.description?.trim() || null;
+  if (description && description.length > 280) throw new ServiceError("Description must be 280 characters or fewer.", 400);
+  const visibility: GroupVisibility = input.visibility === "public" ? "public" : "private";
+
+  const { data, error } = await supabaseAdmin
+    .from("groups")
+    .insert({ name: trimmed, description, visibility, created_by: uid })
+    .select("id")
+    .single();
   if (error || !data) throw error ?? new ServiceError("Could not create group.", 500);
 
   // Paired insert, not a transaction — a group with no members is a state nothing else can reach
@@ -173,7 +304,10 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
   return {
     id: group.id as string,
     name: group.name as string,
+    description: (group.description as string | null) ?? null,
     avatarUrl: (group.avatar_url as string | null) ?? null,
+    visibility: group.visibility as GroupVisibility,
+    moderationEnabled: group.moderation_enabled as boolean,
     createdBy: group.created_by as string,
     createdAt: group.created_at as string,
     myRole,
@@ -183,6 +317,7 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
       username: profileById.get(m.user_id as string)?.username ?? null,
       role: m.role as GroupRole,
       joinedAt: m.joined_at as string,
+      points: profileById.get(m.user_id as string)?.points_balance ?? 0,
     })),
   };
 }
@@ -249,7 +384,118 @@ export async function getGroupRaceScores(groupId: string, raceId: string, uid: s
 }
 
 export async function updateGroupAvatar(groupId: string, uid: string, avatarUrl: string): Promise<void> {
-  const role = await requireMember(groupId, uid);
-  if (role !== "admin") throw new ServiceError("Only a group admin can change the avatar.", 403);
+  await requireAdmin(groupId, uid);
   await supabaseAdmin.from("groups").update({ avatar_url: avatarUrl }).eq("id", groupId);
+}
+
+export async function updateGroupSettings(
+  groupId: string,
+  uid: string,
+  updates: { name?: string; description?: string | null; visibility?: GroupVisibility; moderationEnabled?: boolean },
+): Promise<void> {
+  await requireAdmin(groupId, uid);
+  const patch: Record<string, unknown> = {};
+  if (updates.name !== undefined) {
+    const trimmed = updates.name.trim();
+    if (trimmed.length < 3 || trimmed.length > 40) throw new ServiceError("Group name must be 3-40 characters.", 400);
+    patch.name = trimmed;
+  }
+  if (updates.description !== undefined) {
+    const trimmed = updates.description?.trim() || null;
+    if (trimmed && trimmed.length > 280) throw new ServiceError("Description must be 280 characters or fewer.", 400);
+    patch.description = trimmed;
+  }
+  if (updates.visibility !== undefined) patch.visibility = updates.visibility;
+  if (updates.moderationEnabled !== undefined) patch.moderation_enabled = updates.moderationEnabled;
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabaseAdmin.from("groups").update(patch).eq("id", groupId);
+  if (error) throw new Error(`updateGroupSettings(${groupId}): ${error.message}`);
+}
+
+async function countAdmins(groupId: string): Promise<number> {
+  const { count, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId).eq("role", "admin"),
+  );
+  if (error) throw new Error(`countAdmins(${groupId}): ${error.message}`);
+  return count ?? 0;
+}
+
+/** Admin sets another member's role. Guards the one real way this could brick a group: demoting
+ * (or removing, below) the sole remaining admin, which would leave nobody able to manage it,
+ * approve posts as an admin, or ever promote anyone again. */
+export async function updateMemberRole(groupId: string, actingUid: string, targetUid: string, newRole: GroupRole): Promise<void> {
+  await requireAdmin(groupId, actingUid);
+  const targetRole = await getMemberRole(groupId, targetUid);
+  if (!targetRole) throw new ServiceError("That user isn't a member of this group.", 404);
+
+  if (targetRole === "admin" && newRole !== "admin" && (await countAdmins(groupId)) <= 1) {
+    throw new ServiceError("A group needs at least one admin - promote someone else first.", 400);
+  }
+
+  const { error } = await supabaseAdmin.from("group_members").update({ role: newRole }).eq("group_id", groupId).eq("user_id", targetUid);
+  if (error) throw new Error(`updateMemberRole(${groupId}, ${targetUid}): ${error.message}`);
+}
+
+export async function removeMember(groupId: string, actingUid: string, targetUid: string): Promise<void> {
+  await requireAdmin(groupId, actingUid);
+  const targetRole = await getMemberRole(groupId, targetUid);
+  if (!targetRole) return; // already not a member - removing is idempotent
+
+  if (targetRole === "admin" && (await countAdmins(groupId)) <= 1) {
+    throw new ServiceError("A group needs at least one admin - promote someone else before removing yourself.", 400);
+  }
+
+  const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", targetUid);
+  if (error) throw new Error(`removeMember(${groupId}, ${targetUid}): ${error.message}`);
+}
+
+export async function deleteGroup(groupId: string, uid: string): Promise<void> {
+  await requireAdmin(groupId, uid);
+  // `on delete cascade` on every group_* table's group_id FK (schema.sql) handles members,
+  // scores, predictions/entries, posts/votes/comments in one statement - nothing else to clean up.
+  const { error } = await supabaseAdmin.from("groups").delete().eq("id", groupId);
+  if (error) throw new Error(`deleteGroup(${groupId}): ${error.message}`);
+}
+
+const MAX_INVITE_EMAILS = 10;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Sends a plain "you've been invited" email per address, reusing the same SMTP transporter
+ * otp.ts already sends verification codes through - no new invite-token table, since the link
+ * inside the email is the exact same group URL InviteLink.tsx already renders for copy/paste (the
+ * group's own uuid is the whole access control, see schema.sql's own comment on why). This is
+ * automating delivery of that same link, not a new invitation entity with its own pending state. */
+export async function inviteByEmail(groupId: string, uid: string, emails: string[], origin: string): Promise<{ sent: number }> {
+  const role = await requireMember(groupId, uid);
+  if (role === "member") throw new ServiceError("Only a group admin or moderator can send invites.", 403);
+
+  const cleaned = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (cleaned.length === 0) throw new ServiceError("Add at least one email address.", 400);
+  if (cleaned.length > MAX_INVITE_EMAILS) throw new ServiceError(`Invite up to ${MAX_INVITE_EMAILS} people at a time.`, 400);
+  const invalid = cleaned.find((e) => !EMAIL_RE.test(e));
+  if (invalid) throw new ServiceError(`"${invalid}" isn't a valid email address.`, 400);
+
+  const { data: group } = await supabaseAdmin.from("groups").select("name").eq("id", groupId).maybeSingle();
+  const groupName = (group?.name as string | undefined) ?? "an F1 Hub group";
+  const inviterName = (await profilesById([uid])).get(uid)?.display_name ?? "A member";
+  // No app-wide base-URL env var exists anywhere in this codebase (confirmed) - InviteLink.tsx's
+  // own copy-link button gets the origin from `window.location.origin` client-side; the route
+  // handler calling this (server-side, no `window`) derives the same thing from the incoming
+  // request's own URL and passes it in, rather than this reaching for a nonexistent env var.
+  const link = `${origin}/groups/${groupId}`;
+
+  const transporter = getTransporter();
+  await Promise.all(
+    cleaned.map((to) =>
+      transporter.sendMail({
+        from: `"F1 Hub" <${process.env.SMTP_USER}>`,
+        to,
+        subject: `${inviterName} invited you to join ${groupName} on F1 Hub`,
+        text: `${inviterName} invited you to join "${groupName}" on F1 Hub - a prediction league and F1 community. Join here: ${link}`,
+        html: `<p>${inviterName} invited you to join <strong>${groupName}</strong> on F1 Hub - a prediction league and F1 community.</p><p><a href="${link}">Join ${groupName}</a></p>`,
+      }),
+    ),
+  );
+  return { sent: cleaned.length };
 }

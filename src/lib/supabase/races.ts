@@ -173,6 +173,20 @@ export const getRace = unstable_cache(
   { revalidate: false, tags: ["races"] },
 );
 
+/** A single race by its own `id` (the string PK, `${year}_r${round}_${slug}`) - group_predictions'
+ * own race_id column is a straight FK to this same id, not a (year, round) pair, so resolving a
+ * group prediction's result needs this instead of parsing the id string back apart (brittle, and
+ * this app already has the row keyed by exactly this column). */
+export const getRaceById = unstable_cache(
+  async (raceId: string): Promise<RaceDoc | null> => {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select(RACE_SELECT).eq("id", raceId).maybeSingle());
+    if (error) throw new Error(`getRaceById(${raceId}): ${error.message}`);
+    return data ? toRaceDoc(data as RaceRow) : null;
+  },
+  ["get-race-by-id"],
+  { revalidate: false, tags: ["races"] },
+);
+
 /** Just the simulation column for one (year, round) - not the full `getRace` fetch, which would
  * redundantly pull results/inputs/tireStints this caller (Archive's race page) already has from
  * `archive_races`. Confirmed live: `races.simulation` is populated for effectively every race back

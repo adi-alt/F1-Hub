@@ -97,7 +97,9 @@ function buildOtpEmailHtml(code: string, email: string): string {
 }
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
-function getTransporter() {
+// Exported - groups.ts's inviteByEmail reuses this same SMTP setup for group-invite emails
+// rather than duplicating the host/port/auth wiring for a second transactional email type.
+export function getTransporter() {
   if (transporter) return transporter;
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT ?? 465);
