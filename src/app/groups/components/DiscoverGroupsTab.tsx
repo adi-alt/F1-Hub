@@ -4,12 +4,22 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import type { PublicGroupSummary } from "@/lib/supabase/groups";
+import { timeAgo } from "@/lib/format";
+import type { GroupActivity, PublicGroupSummary } from "@/lib/supabase/groups";
+import { GroupBanner } from "./GroupBanner";
+import { GroupCardSkeleton } from "./GroupCardSkeleton";
 import { JoinGroupForm } from "./JoinGroupForm";
+
+function activityLine(activity: GroupActivity | null): string | null {
+  if (!activity) return null;
+  if (activity.type === "post") return `${activity.authorName} posted ${timeAgo(activity.createdAt)}`;
+  return `${activity.count} active prediction${activity.count === 1 ? "" : "s"}`;
+}
 
 function PublicGroupCard({ group, index, onJoined }: { group: PublicGroupSummary; index: number; onJoined: (id: string) => void }) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "joining" | "error">("idle");
+  const activity = activityLine(group.activity);
 
   async function join() {
     setStatus("joining");
@@ -27,34 +37,36 @@ function PublicGroupCard({ group, index, onJoined }: { group: PublicGroupSummary
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.04, ease: "easeOut" }}
-      className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4"
+      className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={40} />
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-white">{group.name}</p>
-            {group.description && <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500">{group.description}</p>}
+      <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} height={100} />
+      <div className="px-4 pb-4">
+        <div className="-mt-6 flex items-end justify-between">
+          <div className="rounded-full ring-4 ring-[var(--f1-carbon)]">
+            <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={48} />
           </div>
+          <span className="mb-1 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Public</span>
         </div>
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Public</span>
-      </div>
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+
+        <p className="mt-2.5 truncate font-semibold text-white">{group.name}</p>
+        {group.description && <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500">{group.description}</p>}
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
           <span>
             {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
           </span>
-          <span className="font-mono text-neutral-600">{group.id.slice(0, 8)}</span>
         </div>
+        {activity && <p className="mt-2 truncate text-xs text-neutral-400">{activity}</p>}
+
         <button
           onClick={() => void join()}
           disabled={status === "joining"}
-          className="shrink-0 rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
+          className="mt-3 w-full rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
         >
           {status === "joining" ? "Joining…" : "Join Group"}
         </button>
+        {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">Could not join - try again.</p>}
       </div>
-      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">Could not join - try again.</p>}
     </motion.div>
   );
 }
@@ -84,6 +96,8 @@ export function DiscoverGroupsTab() {
     };
   }, [query]);
 
+  const visible = groups?.filter((g) => !joinedIds.has(g.id)) ?? null;
+
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Discover Groups</p>
@@ -92,28 +106,28 @@ export function DiscoverGroupsTab() {
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search groups by name or ID"
-        className="mt-4 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+        placeholder="Search public F1 communities..."
+        className="mt-4 w-full max-w-sm rounded-lg border border-[var(--f1-line)] bg-black/30 px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
       />
 
-      <div className="mt-4">
-        {groups === null ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-24 animate-pulse rounded-xl border border-[var(--f1-line)] bg-white/[0.03]" />
+      <div className="mt-5">
+        {visible === null ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <GroupCardSkeleton key={i} />
             ))}
           </div>
-        ) : groups.length === 0 ? (
+        ) : visible.length === 0 && query.trim() ? (
+          <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">No groups found. Try another search term.</p>
+        ) : visible.length === 0 ? (
           <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">
-            No public groups match yet - be the first to create one and make it public.
+            No public groups yet - be the first to create one and make it public.
           </p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {groups
-              .filter((g) => !joinedIds.has(g.id))
-              .map((g, i) => (
-                <PublicGroupCard key={g.id} group={g} index={i} onJoined={(id) => setJoinedIds((prev) => new Set(prev).add(id))} />
-              ))}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {visible.map((g, i) => (
+              <PublicGroupCard key={g.id} group={g} index={i} onJoined={(id) => setJoinedIds((prev) => new Set(prev).add(id))} />
+            ))}
           </div>
         )}
       </div>

@@ -9,6 +9,7 @@ import type { GroupVisibility } from "@/lib/supabase/groups";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_ICON_BYTES = 500 * 1024;
+const MAX_BANNER_BYTES = 3 * 1024 * 1024; // matches the group-banners bucket's own file_size_limit
 const ICON_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
 /** Icon upload/invite emails both need a real group id to attach to (the avatar route is keyed by
@@ -20,12 +21,16 @@ const ICON_TYPES: Record<string, string> = { "image/png": "png", "image/jpeg": "
 export function CreateGroupModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<GroupVisibility>("private");
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [iconError, setIconError] = useState("");
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bannerError, setBannerError] = useState("");
   const [emails, setEmails] = useState<string[]>([]);
   const [emailInput, setEmailInput] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
@@ -49,6 +54,23 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
     }
     setIconFile(file);
     setIconPreview(URL.createObjectURL(file));
+  }
+
+  function pickBanner(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBannerError("");
+    if (!ICON_TYPES[file.type]) {
+      setBannerError("PNG, JPEG, or WEBP only.");
+      return;
+    }
+    if (file.size > MAX_BANNER_BYTES) {
+      setBannerError("Image must be under 3MB.");
+      return;
+    }
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
   }
 
   function addEmail() {
@@ -87,6 +109,11 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    if (bannerFile) {
+      const form = new FormData();
+      form.append("banner", bannerFile);
+      await fetch(`/api/groups/${body.id}/banner`, { method: "POST", body: form }).catch(() => {});
+    }
     if (iconFile) {
       const form = new FormData();
       form.append("avatar", iconFile);
@@ -127,6 +154,41 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
         <h2 className="mt-1 text-xl font-bold text-white">Build your own F1 community and prediction league.</h2>
 
         <div className="mt-5 space-y-4">
+          <div>
+            <button
+              type="button"
+              onClick={() => bannerInputRef.current?.click()}
+              className="relative block h-20 w-full overflow-hidden rounded-lg border border-dashed border-[var(--f1-line)] bg-black/20 transition hover:border-white/30"
+            >
+              {bannerPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={bannerPreview} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full items-center justify-center text-xs text-neutral-500">Upload banner</span>
+              )}
+            </button>
+            <div className="mt-1.5 text-xs">
+              <button type="button" onClick={() => bannerInputRef.current?.click()} className="font-medium text-neutral-300 hover:text-white">
+                {bannerPreview ? "Replace banner" : "Upload banner"}
+              </button>
+              {bannerPreview && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBannerFile(null);
+                    setBannerPreview(null);
+                  }}
+                  className="ml-3 text-neutral-500 hover:text-neutral-300"
+                >
+                  Remove
+                </button>
+              )}
+              <p className="mt-0.5 text-neutral-500">PNG, JPEG, or WEBP - max 3MB. No banner uses a generated color instead.</p>
+              {bannerError && <p className="text-[var(--f1-red)]">{bannerError}</p>}
+            </div>
+            <input ref={bannerInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={pickBanner} />
+          </div>
+
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => fileInputRef.current?.click()} className="shrink-0">
               {iconPreview ? (

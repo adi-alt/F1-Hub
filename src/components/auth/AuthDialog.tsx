@@ -255,7 +255,7 @@ function OtpStep({
 // set when this mount is the OAuth-redirect round trip resuming (see AuthDialogHost.tsx) rather
 // than a normal open, so it starts straight on the OTP step instead of "method".
 export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => void; resumeAtOtp?: boolean }) {
-  const { setRole, setDisplayName, setUser } = useAuth();
+  const { setRole, setDisplayName, setUser, refreshPointsBalance } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<Step>(resumeAtOtp ? "otp" : "method");
   const [busy, setBusy] = useState(false);
@@ -396,6 +396,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
         setRole(body.role ?? "user");
         setDisplayName(body.displayName ?? null);
         if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
+        refreshPointsBalance();
         // Every Server Component below the header reads the session cookie at request time —
         // without this, signed-in content stays stuck on the signed-out render until a hard
         // reload.
@@ -444,6 +445,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
       setRole(body.role ?? "user");
       setDisplayName(body.displayName ?? null);
       if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
+      refreshPointsBalance();
       router.refresh();
       onClose();
     } finally {

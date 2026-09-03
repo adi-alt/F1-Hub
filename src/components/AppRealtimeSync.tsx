@@ -31,7 +31,7 @@ import { usersKeys } from "@/app/users/_queries/usersKeys";
 export function AppRealtimeSync() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user, role } = useAuth();
+  const { user, role, refreshPointsBalance } = useAuth();
 
   // One handler for all 4 GLOBAL listeners — they share the same "refresh" strategy, so there's
   // no reason for four separate router.refresh() call sites. Registering the same function
@@ -52,8 +52,14 @@ export function AppRealtimeSync() {
   const channelKey = userChannelKey(uid);
   const allListeners = userListeners(uid, isAdmin);
 
-  const invalidateFavorites = () => void queryClient.invalidateQueries({ queryKey: favoritesKeys.all() });
-  useRealtimeSubscription(channelKey, allListeners, ownProfileListener(uid), invalidateFavorites, invalidateFavorites, !!user);
+  // Same own-row subscription Favorites already needed - a prediction entry/payout (groups.ts's
+  // spendPoints/creditPoints) updates this exact row, so refreshing the header's points balance
+  // here is free: no new channel/listener, just one more thing this one already-open one does.
+  const onOwnProfileChange = () => {
+    void queryClient.invalidateQueries({ queryKey: favoritesKeys.all() });
+    refreshPointsBalance();
+  };
+  useRealtimeSubscription(channelKey, allListeners, ownProfileListener(uid), onOwnProfileChange, onOwnProfileChange, !!user);
 
   const invalidateUsers = () => {
     void queryClient.invalidateQueries({ queryKey: usersKeys.list() });

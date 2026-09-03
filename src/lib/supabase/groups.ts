@@ -7,11 +7,18 @@ export type GroupRole = "admin" | "moderator" | "member";
 export type GroupVisibility = "public" | "private";
 export type PickSlotResult = "exact" | "podium" | "miss";
 
+// The one real reason to open a group from its own card, per-group - a real, recent event, not a
+// fabricated "active" label. `post` beats `predictions` when both exist (a live conversation is a
+// stronger pull than a static count); null when the group genuinely has neither, rather than
+// stretching for something to say.
+export type GroupActivity = { type: "post"; authorName: string; createdAt: string } | { type: "predictions"; count: number };
+
 export type GroupSummary = {
   id: string;
   name: string;
   description: string | null;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   memberCount: number;
   visibility: GroupVisibility;
   myRole: GroupRole;
@@ -22,11 +29,22 @@ export type GroupSummary = {
   // nobody in the group has a scored race yet.
   myRank: number | null;
   leader: { name: string; totalScore: number } | null;
+  activity: GroupActivity | null;
 };
 
-export type GroupPreview = { id: string; name: string; description: string | null; avatarUrl: string | null; memberCount: number; visibility: GroupVisibility };
+export type GroupPreview = { id: string; name: string; description: string | null; avatarUrl: string | null; bannerUrl: string | null; memberCount: number; visibility: GroupVisibility };
 
-export type PublicGroupSummary = { id: string; name: string; description: string | null; avatarUrl: string | null; memberCount: number; createdAt: string };
+export type PublicGroupSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  memberCount: number;
+  createdAt: string;
+  activePredictions: number;
+  activity: GroupActivity | null;
+};
 
 export type GroupMember = {
   userId: string;
@@ -42,6 +60,7 @@ export type GroupDetail = {
   name: string;
   description: string | null;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   visibility: GroupVisibility;
   moderationEnabled: boolean;
   createdBy: string;
@@ -135,6 +154,32 @@ function rankWithinGroups(scores: { group_id: string; user_id: string; score: nu
   return result;
 }
 
+// The real "why open this group" signal for a card - the most recent published post per group
+// (already-sorted single query, first occurrence per group_id wins in the reduce below), not a
+// fabricated activity feed. Shared by getUserGroups and listPublicGroups.
+async function latestPostByGroup(groupIds: string[]): Promise<Map<string, { authorName: string; createdAt: string }>> {
+  if (groupIds.length === 0) return new Map();
+  const { data: posts, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_posts").select("group_id, user_id, created_at").in("group_id", groupIds).eq("status", "published").order("created_at", { ascending: false }),
+  );
+  if (error) throw new Error(`latestPostByGroup: ${error.message}`);
+  if (!posts?.length) return new Map();
+
+  const firstSeen = new Map<string, { user_id: string; created_at: string }>();
+  for (const p of posts) {
+    const groupId = p.group_id as string;
+    if (!firstSeen.has(groupId)) firstSeen.set(groupId, { user_id: p.user_id as string, created_at: p.created_at as string });
+  }
+  const profileById = await profilesById([...firstSeen.values()].map((v) => v.user_id));
+  return new Map([...firstSeen.entries()].map(([groupId, v]) => [groupId, { authorName: profileById.get(v.user_id)?.display_name ?? "A member", createdAt: v.created_at }]));
+}
+
+function toActivity(latestPost: { authorName: string; createdAt: string } | undefined, activePredictions: number): GroupActivity | null {
+  if (latestPost) return { type: "post", authorName: latestPost.authorName, createdAt: latestPost.createdAt };
+  if (activePredictions > 0) return { type: "predictions", count: activePredictions };
+  return null;
+}
+
 export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
   const { data: memberships, error: membershipsError } = await queryWithRetry(() =>
     supabaseAdmin.from("group_members").select("group_id, role").eq("user_id", uid),
@@ -148,11 +193,13 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
     { data: allMembers, error: allMembersError },
     { data: scores, error: scoresError },
     { data: predictions, error: predictionsError },
+    latestPosts,
   ] = await Promise.all([
-    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, description, avatar_url, visibility").in("id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, visibility").in("id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, user_id, score").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
+    latestPostByGroup(groupIds),
   ]);
   if (groupsError) throw new Error(`getUserGroups(${uid}): ${groupsError.message}`);
   if (allMembersError) throw new Error(`getUserGroups(${uid}): ${allMembersError.message}`);
@@ -175,17 +222,20 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
       const ranked = ranksByGroup.get(groupId) ?? [];
       const myRow = ranked.find((r) => r.userId === uid);
       const leaderRow = ranked[0];
+      const activePredictions = activePredictionCounts.get(groupId) ?? 0;
       return {
         id: groupId,
         name: g.name as string,
         description: (g.description as string | null) ?? null,
         avatarUrl: (g.avatar_url as string | null) ?? null,
+        bannerUrl: (g.banner_url as string | null) ?? null,
         memberCount: memberCounts.get(groupId) ?? 1,
         visibility: g.visibility as GroupVisibility,
         myRole: roleByGroup.get(groupId) ?? "member",
-        activePredictions: activePredictionCounts.get(groupId) ?? 0,
+        activePredictions,
         myRank: myRow?.rank ?? null,
         leader: leaderRow ? { name: leaderProfiles.get(leaderRow.userId)?.display_name ?? "Member", totalScore: leaderRow.totalScore } : null,
+        activity: toActivity(latestPosts.get(groupId), activePredictions),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -193,32 +243,46 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
 
 /** Public groups only, opted-in via `visibility = 'public'` - the one deliberate relaxation of
  * "nothing is discoverable without an invite link" (see groups' own RLS comment in schema.sql).
- * `query` matches name/description/id, case-insensitively - good enough for a groups directory
- * this app expects to have dozens, not millions, of rows in. */
+ * `query` matches name/description, case-insensitively - good enough for a groups directory this
+ * app expects to have dozens, not millions, of rows in. Not id - the search box no longer
+ * advertises that (plain "Search public F1 communities..."), and an unconditional `id.eq.<text>`
+ * clause 500s the whole request the moment someone types a term that isn't a valid uuid. */
 export async function listPublicGroups(query?: string): Promise<PublicGroupSummary[]> {
-  let builder = supabaseAdmin.from("groups").select("id, name, description, avatar_url, created_at").eq("visibility", "public");
+  let builder = supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, created_at").eq("visibility", "public");
   const trimmed = query?.trim();
-  if (trimmed) builder = builder.or(`name.ilike.%${trimmed}%,description.ilike.%${trimmed}%,id.eq.${trimmed}`);
+  if (trimmed) builder = builder.or(`name.ilike.%${trimmed}%,description.ilike.%${trimmed}%`);
   const { data: groups, error } = await queryWithRetry(() => builder.order("created_at", { ascending: false }));
   if (error) throw new Error(`listPublicGroups: ${error.message}`);
   if (!groups?.length) return [];
 
   const groupIds = groups.map((g) => g.id as string);
-  const { data: allMembers, error: membersError } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds),
-  );
+  const [{ data: allMembers, error: membersError }, { data: predictions, error: predictionsError }, latestPosts] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
+    latestPostByGroup(groupIds),
+  ]);
   if (membersError) throw new Error(`listPublicGroups: ${membersError.message}`);
+  if (predictionsError) throw new Error(`listPublicGroups: ${predictionsError.message}`);
   const memberCounts = new Map<string, number>();
   for (const m of allMembers ?? []) memberCounts.set(m.group_id as string, (memberCounts.get(m.group_id as string) ?? 0) + 1);
+  const activePredictionCounts = new Map<string, number>();
+  for (const p of predictions ?? []) activePredictionCounts.set(p.group_id as string, (activePredictionCounts.get(p.group_id as string) ?? 0) + 1);
 
-  return groups.map((g) => ({
-    id: g.id as string,
-    name: g.name as string,
-    description: (g.description as string | null) ?? null,
-    avatarUrl: (g.avatar_url as string | null) ?? null,
-    memberCount: memberCounts.get(g.id as string) ?? 0,
-    createdAt: g.created_at as string,
-  }));
+  return groups.map((g) => {
+    const groupId = g.id as string;
+    const activePredictions = activePredictionCounts.get(groupId) ?? 0;
+    return {
+      id: groupId,
+      name: g.name as string,
+      description: (g.description as string | null) ?? null,
+      avatarUrl: (g.avatar_url as string | null) ?? null,
+      bannerUrl: (g.banner_url as string | null) ?? null,
+      memberCount: memberCounts.get(groupId) ?? 0,
+      createdAt: g.created_at as string,
+      activePredictions,
+      activity: toActivity(latestPosts.get(groupId), activePredictions),
+    };
+  });
 }
 
 /** Enough to decide "do I want to join this" without being a member yet — the whole point of an
@@ -227,7 +291,7 @@ export async function listPublicGroups(query?: string): Promise<PublicGroupSumma
  * visibility='public' (see listPublicGroups above). */
 export async function getGroupPreview(groupId: string): Promise<GroupPreview | null> {
   const { data: group, error: groupError } = await queryWithRetry(() =>
-    supabaseAdmin.from("groups").select("id, name, description, avatar_url, visibility").eq("id", groupId).maybeSingle(),
+    supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, visibility").eq("id", groupId).maybeSingle(),
   );
   if (groupError) throw new Error(`getGroupPreview(${groupId}): ${groupError.message}`);
   if (!group) return null;
@@ -240,9 +304,17 @@ export async function getGroupPreview(groupId: string): Promise<GroupPreview | n
     name: group.name as string,
     description: (group.description as string | null) ?? null,
     avatarUrl: (group.avatar_url as string | null) ?? null,
+    bannerUrl: (group.banner_url as string | null) ?? null,
     memberCount: count ?? 0,
     visibility: group.visibility as GroupVisibility,
   };
+}
+
+// 23505 on groups is always the name-uniqueness index (groups_name_unique_idx, case-insensitive) -
+// the only unique constraint that table has besides its own primary key. Shared by createGroup and
+// updateGroupSettings so both give the same real, specific error instead of a generic 500.
+function isDuplicateNameError(error: { code?: string } | null): boolean {
+  return error?.code === "23505";
 }
 
 export async function createGroup(
@@ -262,6 +334,7 @@ export async function createGroup(
     .insert({ name: trimmed, description, visibility, created_by: uid })
     .select("id")
     .single();
+  if (error && isDuplicateNameError(error)) throw new ServiceError("A group with this name already exists.", 409);
   if (error || !data) throw error ?? new ServiceError("Could not create group.", 500);
 
   // Paired insert, not a transaction — a group with no members is a state nothing else can reach
@@ -306,6 +379,7 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
     name: group.name as string,
     description: (group.description as string | null) ?? null,
     avatarUrl: (group.avatar_url as string | null) ?? null,
+    bannerUrl: (group.banner_url as string | null) ?? null,
     visibility: group.visibility as GroupVisibility,
     moderationEnabled: group.moderation_enabled as boolean,
     createdBy: group.created_by as string,
@@ -388,6 +462,16 @@ export async function updateGroupAvatar(groupId: string, uid: string, avatarUrl:
   await supabaseAdmin.from("groups").update({ avatar_url: avatarUrl }).eq("id", groupId);
 }
 
+export async function updateGroupBanner(groupId: string, uid: string, bannerUrl: string): Promise<void> {
+  await requireAdmin(groupId, uid);
+  await supabaseAdmin.from("groups").update({ banner_url: bannerUrl }).eq("id", groupId);
+}
+
+export async function removeGroupBanner(groupId: string, uid: string): Promise<void> {
+  await requireAdmin(groupId, uid);
+  await supabaseAdmin.from("groups").update({ banner_url: null }).eq("id", groupId);
+}
+
 export async function updateGroupSettings(
   groupId: string,
   uid: string,
@@ -410,6 +494,7 @@ export async function updateGroupSettings(
   if (Object.keys(patch).length === 0) return;
 
   const { error } = await supabaseAdmin.from("groups").update(patch).eq("id", groupId);
+  if (error && isDuplicateNameError(error)) throw new ServiceError("A group with this name already exists.", 409);
   if (error) throw new Error(`updateGroupSettings(${groupId}): ${error.message}`);
 }
 

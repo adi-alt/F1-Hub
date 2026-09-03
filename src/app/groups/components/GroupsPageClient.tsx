@@ -25,19 +25,33 @@ function EmptyMyGroups({ onDiscover, onCreate }: { onDiscover: () => void; onCre
   );
 }
 
-export function GroupsPageClient({ groups, pointsBalance }: { groups: GroupSummary[]; pointsBalance: number }) {
+function NoSearchResults() {
+  return (
+    <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">
+      No groups found. Try another search term.
+    </p>
+  );
+}
+
+// Points moved to the global header (see Header.tsx's PointsBadge) - it's visible everywhere now,
+// repeating it here would just be the same number twice on this one page.
+export function GroupsPageClient({ groups }: { groups: GroupSummary[] }) {
   const [tab, setTab] = useState<"mine" | "discover">("mine");
   const [showCreate, setShowCreate] = useState(false);
+  const [query, setQuery] = useState("");
 
   const activePredictionsTotal = groups.reduce((sum, g) => sum + g.activePredictions, 0);
-  const bestGroup = [...groups].filter((g) => g.myRank).sort((a, b) => (a.myRank ?? Infinity) - (b.myRank ?? Infinity))[0];
+  const trimmedQuery = query.trim().toLowerCase();
+  const filteredGroups = trimmedQuery
+    ? groups.filter((g) => g.name.toLowerCase().includes(trimmedQuery) || g.description?.toLowerCase().includes(trimmedQuery))
+    : groups;
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <QuietTabs
           options={[
-            { value: "mine" as const, label: "My Groups" },
+            { value: "mine" as const, label: `My Groups (${groups.length})` },
             { value: "discover" as const, label: "Discover Groups" },
           ]}
           value={tab}
@@ -55,28 +69,29 @@ export function GroupsPageClient({ groups, pointsBalance }: { groups: GroupSumma
         {tab === "mine" ? (
           <motion.div key="mine" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="mt-6">
             {groups.length > 0 && (
-              <div className="mb-5 flex flex-wrap items-center gap-x-8 gap-y-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">My groups</p>
-                  <p className="mt-0.5 text-sm text-neutral-300">
+              <>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search my groups..."
+                  className="w-full max-w-sm rounded-lg border border-[var(--f1-line)] bg-black/30 px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+                />
+                <div className="mb-4 mt-5 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">My groups</p>
+                  <p className="text-xs text-neutral-500">
                     {groups.length} group{groups.length === 1 ? "" : "s"} · {activePredictionsTotal} active prediction{activePredictionsTotal === 1 ? "" : "s"}
                   </p>
                 </div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Your points</p>
-                  <p className="mt-0.5 text-sm text-neutral-300">
-                    <span className="font-mono text-white">{pointsBalance}</span> pts
-                    {bestGroup && <span className="text-neutral-500"> · Ranked #{bestGroup.myRank} in {bestGroup.name}</span>}
-                  </p>
-                </div>
-              </div>
+              </>
             )}
 
             {groups.length === 0 ? (
               <EmptyMyGroups onDiscover={() => setTab("discover")} onCreate={() => setShowCreate(true)} />
+            ) : filteredGroups.length === 0 ? (
+              <NoSearchResults />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {groups.map((g, i) => (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {filteredGroups.map((g, i) => (
                   <GroupCard key={g.id} group={g} index={i} />
                 ))}
               </div>

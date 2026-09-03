@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AvatarUpload } from "../../components/AvatarUpload";
+import { BannerUpload } from "../../components/BannerUpload";
+import { GroupBanner } from "../../components/GroupBanner";
 import type { GroupDetail, GroupVisibility } from "@/lib/supabase/groups";
 
 function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
@@ -60,7 +62,13 @@ export function GroupSettingsTab({ group }: { group: GroupDetail }) {
   return (
     <div className="space-y-6">
       <SettingsSection title="General">
-        <div className="flex items-center gap-4">
+        <div className="overflow-hidden rounded-lg">
+          <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} height={80} />
+        </div>
+        <div className="mt-2">
+          <BannerUpload groupId={group.id} hasBanner={!!group.bannerUrl} />
+        </div>
+        <div className="mt-4 flex items-center gap-4">
           <AvatarUpload groupId={group.id} />
         </div>
         <label className="mt-4 block text-sm text-neutral-400">

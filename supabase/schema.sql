@@ -627,3 +627,16 @@ create policy "members can view their groups" on groups for select
 -- do (see the group_race_scores/group_members publication above).
 alter publication supabase_realtime add table group_predictions;
 alter publication supabase_realtime add table group_posts;
+
+-- Groups v3 (UI refinement): real banner upload, and a case-insensitive uniqueness constraint on
+-- group name (applied and verified live).
+alter table groups add column banner_url text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('group-banners', 'group-banners', true, 3145728, array['image/png', 'image/jpeg', 'image/webp']);
+
+-- Case-insensitive: "F1 Worldwide" and "f1 worldwide" collide. A unique index on lower(name), not
+-- a check constraint - Postgres has no direct "unique, case-insensitive" column modifier, this is
+-- the standard way to express it. createGroup/updateGroupSettings both translate the resulting
+-- 23505 violation into a real "A group with this name already exists." error.
+create unique index groups_name_unique_idx on groups (lower(name));

@@ -22,11 +22,16 @@ type AuthContextValue = {
   // OAuth provider supplied: that's only ever set for a Google/GitHub account, so it's null for
   // every email/password account. This is the reliable "what do we call this person" source.
   displayName: string | null;
+  // The group-predictions wallet balance (lib/supabase/points.ts) - unlike role/displayName this
+  // isn't session-cached (it changes on every prediction entry/payout, which the session cookie
+  // never sees), so it's re-fetched, not just hydrated once - see refreshPointsBalance.
+  pointsBalance: number | null;
   isAuthorized: boolean;
   loading: boolean;
   setRole: (role: Role | null) => void;
   setDisplayName: (name: string | null) => void;
   setUser: (user: SessionUser | null) => void;
+  refreshPointsBalance: () => void;
   signOut: () => Promise<void>;
 };
 
@@ -37,19 +42,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
 
   // Hydrates from whatever server session already exists (a normal persisted cookie) on first
   // load. The real sign-in flow (AuthDialog) sets these directly from its own response once OTP +
   // (for new accounts) the profile step finish; this fetch is just the fallback for "I already
   // have a valid session, who am I."
+  type MeResponse = { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null; pointsBalance?: number | null };
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((body: { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null }) => {
+      .then((body: MeResponse) => {
         if (body.signedIn) {
           setRole(body.role ?? "user");
           setDisplayName(body.displayName ?? null);
+          setPointsBalance(body.pointsBalance ?? null);
           if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
         }
       })
@@ -57,21 +65,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setSessionChecked(true));
   }, []);
 
+  // Re-pulls just the balance - called by AppRealtimeSync whenever the signed-in user's own
+  // `profiles` row changes (the same subscription that already drives Favorites' invalidation),
+  // so a prediction payout on the Groups page shows up in the header without a full reload.
+  function refreshPointsBalance() {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((body: MeResponse) => {
+        if (body.signedIn) setPointsBalance(body.pointsBalance ?? null);
+      })
+      .catch(() => {});
+  }
+
   const value: AuthContextValue = {
     user,
     role,
     displayName,
+    pointsBalance,
     isAuthorized: role !== null,
     loading: !sessionChecked,
     setRole,
     setDisplayName,
     setUser,
+    refreshPointsBalance,
     signOut: async () => {
       await fetch("/api/auth/session", { method: "DELETE" });
       await supabase.auth.signOut();
       setRole(null);
       setDisplayName(null);
       setUser(null);
+      setPointsBalance(null);
       // The rest of the current route (everything below the header, which reacts to `role`
       // directly) is Server-Component-rendered from the session cookie at request time — without
       // this, signed-in-only content stays visible/stale until a hard reload clears it.
