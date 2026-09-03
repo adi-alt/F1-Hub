@@ -5,10 +5,12 @@ import { ERAS } from "@/lib/eras";
 
 const ERA_OPTIONS: MultiSelectOption[] = [{ code: "all", label: "All eras" }, ...ERAS.map((e) => ({ code: e.id, label: e.name }))];
 
-// The one flat translucent zinc surface Archive's table/cards/tooltip already share - passed to
-// every EntityMultiSelect dropdown here so the era/country picker matches instead of standing out
-// as the one still-.glass-surface popover on the page.
-const DROPDOWN_SURFACE = "border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60";
+// Same translucent zinc tint the cards/table use, plus backdrop-blur - unlike the cards, this
+// floats over arbitrary page content, so it needs the blur to actually read as frosted glass
+// rather than see-through (confirmed live: without it, whatever sits underneath shows through
+// sharp, not blurred). Same backdrop-blur-md ArchiveTable's own sticky header already uses for
+// the identical "floats over other content" reason.
+const DROPDOWN_SURFACE = "border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 backdrop-blur-md";
 
 /** Same compact single-select popover Compare's driver/team pickers use
  * (season/_components/EntityMultiSelect, multiple={false}) instead of a row of always-visible
