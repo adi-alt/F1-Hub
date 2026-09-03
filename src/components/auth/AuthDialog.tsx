@@ -229,6 +229,13 @@ function OtpStep({
         )}
       </p>
       <OtpInput value={code} onChange={setCode} />
+      {/* Personal Gmail SMTP relay (no verified sending domain yet - see otp.ts's own comment)
+          means this genuinely lands in spam for a lot of providers, and gets blocked outright by
+          some corporate mail gateways with no notice at all. Surfacing that up front is more
+          honest than a generic "check your email" that leaves people staring at an empty inbox. */}
+      <p className="text-xs text-neutral-500">
+        Don&apos;t see it? Check spam/junk. A strict corporate email filter may block it entirely - try a personal address if so.
+      </p>
       <button
         disabled={busy || code.length !== 6}
         onClick={onSubmit}

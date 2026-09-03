@@ -99,6 +99,13 @@ function buildOtpEmailHtml(code: string, email: string): string {
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 // Exported - groups.ts's inviteByEmail reuses this same SMTP setup for group-invite emails
 // rather than duplicating the host/port/auth wiring for a second transactional email type.
+//
+// KNOWN LIMITATION: this is a personal Gmail account relayed through smtp.gmail.com, not a real
+// verified sending domain through a transactional ESP (Resend/SES/etc.). Confirmed in production:
+// it lands in spam for a lot of providers and gets blocked outright (not even to spam) by some
+// corporate mail gateways, with zero bounce or error - the SMTP transaction itself succeeds every
+// time. There is no code fix for this; it needs a domain you control + a real ESP with SPF/DKIM/
+// DMARC set up. Until then, deliverOtp logs accepted/rejected so at least a failure is visible.
 export function getTransporter() {
   if (transporter) return transporter;
   const host = process.env.SMTP_HOST;
