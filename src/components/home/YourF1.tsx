@@ -22,12 +22,16 @@ export function YourF1({
   races,
   predictionCount,
   driverLeader,
+  favoriteDriverRank,
+  favoriteTeamRank,
 }: {
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
   races: RaceDoc[];
   predictionCount: number;
   driverLeader: DriverStanding | null;
+  favoriteDriverRank?: number | null;
+  favoriteTeamRank?: number | null;
 }) {
   const { pointsBalance } = useAuth();
   const hasFavorites = !!favoriteDriver || !!favoriteTeam;
@@ -59,7 +63,14 @@ export function YourF1({
               <Link href={favoriteDriver.href} className="flex items-center gap-3 transition hover:opacity-90">
                 <EntityAvatar imageUrl={favoriteDriver.headshotUrl} name={favoriteDriver.name} size={48} />
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-500">Your driver</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] uppercase tracking-wide text-neutral-500">Your driver</p>
+                    {favoriteDriverRank && (
+                      <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-mono text-neutral-300">
+                        P{favoriteDriverRank} WDC
+                      </span>
+                    )}
+                  </div>
                   <p className="font-semibold text-white">{favoriteDriver.name}</p>
                   <p className="text-xs text-neutral-500">{favoriteDriver.team ?? "—"}</p>
                 </div>
@@ -74,7 +85,14 @@ export function YourF1({
               <Link href={favoriteTeam.href} className="flex items-center gap-3 transition hover:opacity-90">
                 <EntityAvatar imageUrl={favoriteTeam.logoUrl} name={favoriteTeam.name} size={44} fit="contain" />
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-neutral-500">Your team</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] uppercase tracking-wide text-neutral-500">Your team</p>
+                    {favoriteTeamRank && (
+                      <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-mono text-neutral-300">
+                        P{favoriteTeamRank} WCC
+                      </span>
+                    )}
+                  </div>
                   <p className="font-semibold text-white">{favoriteTeam.name}</p>
                 </div>
               </Link>

@@ -1,25 +1,34 @@
-import { CommunityFeed, CommunityFeedSkeleton } from "./CommunityFeed";
-import { CommunitySnapshot, CommunitySnapshotSkeleton } from "./CommunitySnapshot";
-import { DiscoverSection } from "./DiscoverSection";
+"use client";
+
+import { CommunitySection, CommunitySectionSkeleton } from "./CommunitySection";
 import { HomeLayout } from "./HomeLayout";
 import { IntelligenceSection, IntelligenceSkeleton } from "./IntelligenceSection";
-import { PredictionPolls, PredictionPollsSkeleton } from "./PredictionPolls";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { RecentActivity, RecentActivitySkeleton } from "./RecentActivity";
 import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
+import {
+  HomepageIntelligenceProvider,
+  useHomepageIntelligence,
+} from "./ai/HomepageIntelligenceProvider";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
 
-/** The personal F1 command center — race context (+ what it means for your favorites), then who
- * you are on F1 Hub, then your intelligence layer, then what the community's saying, then how the
- * season is unfolding. Genuinely different information architecture from PublicHome, not the same
- * page with sections hidden. */
-export function PersonalHome({ publicData, personalData, firstName, isReturning }: { publicData: PublicHomeData; personalData: PersonalHomeData; firstName: string; isReturning: boolean }) {
-  const hasCommunity = personalData.groups.length > 0;
-  const hasCommunityContent = personalData.feedPosts.length > 0 || personalData.predictionPolls.length > 0;
+function PersonalHomeInner({
+  publicData,
+  personalData,
+  firstName,
+  isReturning,
+}: {
+  publicData: PublicHomeData;
+  personalData: PersonalHomeData;
+  firstName: string;
+  isReturning: boolean;
+}) {
+  const { intelligence } = useHomepageIntelligence();
 
   return (
     <HomeLayout photos={publicData.backdropPhotos}>
+      {/* 1. Race Context Hero */}
       <RaceHero
         publicData={publicData}
         variant="personal"
@@ -30,58 +39,65 @@ export function PersonalHome({ publicData, personalData, firstName, isReturning 
         favoriteTeam={personalData.favoriteTeam}
       />
 
+      {/* 2. Your F1 Standing & Trajectory */}
       <YourF1
         favoriteDriver={personalData.favoriteDriver}
         favoriteTeam={personalData.favoriteTeam}
         races={publicData.races}
         predictionCount={personalData.predictionPerformance.winner.total}
         driverLeader={publicData.seasonRecap.driverLeader}
+        favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
       />
 
-      <IntelligenceSection myPick={personalData.myPick} nextRace={publicData.nextRace} performance={personalData.predictionPerformance} />
+      {/* 3. F1 Intelligence Command Center (AI + ML + Prediction Coach) */}
+      <IntelligenceSection
+        myPick={personalData.myPick}
+        nextRace={publicData.nextRace}
+        performance={personalData.predictionPerformance}
+      />
 
-      <section>
-        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">Your community</h2>
-        {hasCommunity ? (
-          <div className="mt-4 space-y-6">
-            <CommunitySnapshot groups={personalData.groups} />
-            {hasCommunityContent && (
-              <div className="grid gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px]">
-                <CommunityFeed posts={personalData.feedPosts} />
-                <PredictionPolls polls={personalData.predictionPolls} />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="mt-4">
-            <DiscoverSection groups={personalData.discoverGroups} requireAuthToJoin={false} />
-          </div>
-        )}
-      </section>
+      {/* 4. Community Command Center (Unified Two-Panel Layout) */}
+      <CommunitySection
+        posts={personalData.feedPosts}
+        groups={personalData.groups}
+        discoverGroups={personalData.discoverGroups}
+      />
 
+      {/* 5. Recent Points & Predictions Activity */}
       <RecentActivity entries={personalData.recentActivity} />
 
-      <SeasonRecap year={publicData.year} races={publicData.races} recap={publicData.seasonRecap} />
+      {/* 6. Season So Far (with AI Season Narrative Synthesis) */}
+      <SeasonRecap
+        year={publicData.year}
+        races={publicData.races}
+        recap={publicData.seasonRecap}
+        aiNarrative={intelligence?.seasonNarrative}
+      />
     </HomeLayout>
   );
 }
 
-// ponytail: shown only during the brief client-refetch window on a post-mount login, before we
-// know yet whether the user has any groups — defaults to the "has community" shape (the common
-// case) rather than branching on data this skeleton doesn't have access to.
+/** The personal F1 command center wrapped in the single bundled HomepageIntelligenceProvider */
+export function PersonalHome(props: {
+  publicData: PublicHomeData;
+  personalData: PersonalHomeData;
+  firstName: string;
+  isReturning: boolean;
+}) {
+  return (
+    <HomepageIntelligenceProvider>
+      <PersonalHomeInner {...props} />
+    </HomepageIntelligenceProvider>
+  );
+}
+
 export function PersonalHomeSkeleton() {
   return (
     <HomeLayout photos={[]}>
       <RaceHeroSkeleton variant="personal" />
       <PersonalOverviewSkeleton />
       <IntelligenceSkeleton />
-      <div className="space-y-6">
-        <CommunitySnapshotSkeleton />
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px]">
-          <CommunityFeedSkeleton />
-          <PredictionPollsSkeleton />
-        </div>
-      </div>
+      <CommunitySectionSkeleton />
       <RecentActivitySkeleton />
       <SeasonRecapSkeleton />
     </HomeLayout>

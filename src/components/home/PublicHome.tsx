@@ -1,25 +1,51 @@
+"use client";
+
 import { DiscoverSection, DiscoverSectionSkeleton } from "./DiscoverSection";
 import { ExploreSection } from "./ExploreSection";
 import { HomeLayout } from "./HomeLayout";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { WhyF1Hub } from "./WhyF1Hub";
+import {
+  HomepageIntelligenceProvider,
+  useHomepageIntelligence,
+} from "./ai/HomepageIntelligenceProvider";
 import type { PublicHomeData } from "@/lib/homeData";
 import type { PublicGroupSummary } from "@/lib/supabase/groups";
 
-/** The premium landing/discovery experience — genuinely different information architecture from
- * PersonalHome, not the same dashboard with sections hidden. Race context first, then what F1 Hub
- * is, then what there is to explore, then how the season's unfolding (real, public standings data
- * — no reason to withhold it from a signed-out visitor), then a way in via a real community. */
-export function PublicHome({ publicData, discoverGroups }: { publicData: PublicHomeData; discoverGroups: PublicGroupSummary[] }) {
+function PublicHomeInner({
+  publicData,
+  discoverGroups,
+}: {
+  publicData: PublicHomeData;
+  discoverGroups: PublicGroupSummary[];
+}) {
+  const { intelligence } = useHomepageIntelligence();
+
   return (
     <HomeLayout photos={publicData.backdropPhotos}>
       <RaceHero publicData={publicData} variant="public" />
       <WhyF1Hub />
       <ExploreSection />
-      <SeasonRecap year={publicData.year} races={publicData.races} recap={publicData.seasonRecap} />
+      <SeasonRecap
+        year={publicData.year}
+        races={publicData.races}
+        recap={publicData.seasonRecap}
+        aiNarrative={intelligence?.seasonNarrative}
+      />
       <DiscoverSection groups={discoverGroups} requireAuthToJoin />
     </HomeLayout>
+  );
+}
+
+export function PublicHome(props: {
+  publicData: PublicHomeData;
+  discoverGroups: PublicGroupSummary[];
+}) {
+  return (
+    <HomepageIntelligenceProvider>
+      <PublicHomeInner {...props} />
+    </HomepageIntelligenceProvider>
   );
 }
 

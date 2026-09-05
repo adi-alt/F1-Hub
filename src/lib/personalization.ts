@@ -128,9 +128,28 @@ export async function computeSeasonStandings(year: number): Promise<SeasonStandi
 }
 
 export type TrackTopPerformer = { driverId: string; driverName: string; wins: number; photoUrl: string | null; href: string };
+export type TrackTopPodiumDriver = { driverId: string; driverName: string; podiums: number; photoUrl: string | null; href: string };
 export type TrackYoungestWinner = { driverId: string; driverName: string; year: number; ageYears: number; photoUrl: string | null; href: string };
 export type TrackTopCurrentTeam = { name: string; wins: number; logoUrl: string | null; color: string | null };
 export type TrackDefendingWinner = { driverId: string; driverName: string; year: number; photoUrl: string | null; href: string };
+
+export type DriverCircuitStats = {
+  driverId: string;
+  driverName: string;
+  appearances: number;
+  wins: number;
+  podiums: number;
+  bestFinish: number | null;
+  avgFinish: number | null;
+};
+
+export type TeamCircuitStats = {
+  teamId: string;
+  appearances: number;
+  wins: number;
+  podiums: number;
+  bestFinish: number | null;
+};
 
 export type TrackHistory = {
   circuitId: string;
@@ -140,8 +159,11 @@ export type TrackHistory = {
   firstYear: number;
   lastYear: number;
   topPerformer: TrackTopPerformer | null;
+  topPodiumDriver: TrackTopPodiumDriver | null;
   youngestWinner: TrackYoungestWinner | null;
   topCurrentTeam: TrackTopCurrentTeam | null;
+  favoriteDriverCircuitStats?: DriverCircuitStats | null;
+  favoriteTeamCircuitStats?: TeamCircuitStats | null;
   /** The winner of the most recent race run at this circuit — real, not "reigning champion"
    * (that's a season-wide title, unrelated to who actually won here last). */
   defendingWinner: TrackDefendingWinner | null;
@@ -162,40 +184,52 @@ function ageInYears(birthDateIso: string, onDateIso: string): number {
  * not deduplicated by driver first — acceptable at this scale (a circuit's raced at most ~75
  * times) and each call is `unstable_cache`-backed anyway, so a repeat winner's second lookup
  * doesn't re-hit Postgres. */
-export async function getTrackHistory(circuitId: string): Promise<TrackHistory | null> {
+export async function getTrackHistory(
+  circuitId: string,
+  options?: { favoriteDriverId?: string; favoriteTeamId?: string }
+): Promise<TrackHistory | null> {
   const races = await getArchiveRacesByCircuitId(circuitId);
   if (races.length === 0) return null;
 
   const winsByDriver = new Map<string, { driverName: string; wins: number }>();
+  const podiumsByDriver = new Map<string, { driverName: string; podiums: number }>();
   const winsByTeamId = new Map<string, number>();
   let youngestWinner: TrackYoungestWinner | null = null;
   let minAgeYears = Infinity;
 
   for (const race of races) {
     const winner = race.results.find((r) => r.position === 1);
-    if (!winner) continue;
+    if (winner) {
+      const existing = winsByDriver.get(winner.driverId) ?? { driverName: winner.driverName, wins: 0 };
+      existing.wins += 1;
+      winsByDriver.set(winner.driverId, existing);
 
-    const existing = winsByDriver.get(winner.driverId) ?? { driverName: winner.driverName, wins: 0 };
-    existing.wins += 1;
-    winsByDriver.set(winner.driverId, existing);
+      if (winner.teamId) winsByTeamId.set(winner.teamId, (winsByTeamId.get(winner.teamId) ?? 0) + 1);
 
-    if (winner.teamId) winsByTeamId.set(winner.teamId, (winsByTeamId.get(winner.teamId) ?? 0) + 1);
-
-    if (race.raceDate) {
-      const driverInfo = await getArchiveDriver(winner.driverId);
-      if (driverInfo?.dateOfBirth) {
-        const age = ageInYears(driverInfo.dateOfBirth, race.raceDate);
-        if (age < minAgeYears) {
-          minAgeYears = age;
-          youngestWinner = {
-            driverId: winner.driverId,
-            driverName: winner.driverName,
-            year: race.year,
-            ageYears: age,
-            photoUrl: driverInfo.photoUrl,
-            href: archiveDriverHref(winner.driverId),
-          };
+      if (race.raceDate) {
+        const driverInfo = await getArchiveDriver(winner.driverId);
+        if (driverInfo?.dateOfBirth) {
+          const age = ageInYears(driverInfo.dateOfBirth, race.raceDate);
+          if (age < minAgeYears) {
+            minAgeYears = age;
+            youngestWinner = {
+              driverId: winner.driverId,
+              driverName: winner.driverName,
+              year: race.year,
+              ageYears: age,
+              photoUrl: driverInfo.photoUrl,
+              href: archiveDriverHref(winner.driverId),
+            };
+          }
         }
+      }
+    }
+
+    for (const res of race.results) {
+      if (res.position && res.position <= 3) {
+        const pExisting = podiumsByDriver.get(res.driverId) ?? { driverName: res.driverName, podiums: 0 };
+        pExisting.podiums += 1;
+        podiumsByDriver.set(res.driverId, pExisting);
       }
     }
   }
@@ -206,6 +240,20 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
     const [driverId, info] = topEntry;
     const driverInfo = await getArchiveDriver(driverId);
     topPerformer = { driverId, driverName: info.driverName, wins: info.wins, photoUrl: driverInfo?.photoUrl ?? null, href: archiveDriverHref(driverId) };
+  }
+
+  let topPodiumDriver: TrackTopPodiumDriver | null = null;
+  const topPodiumEntry = [...podiumsByDriver.entries()].sort((a, b) => b[1].podiums - a[1].podiums)[0];
+  if (topPodiumEntry) {
+    const [driverId, info] = topPodiumEntry;
+    const driverInfo = await getArchiveDriver(driverId);
+    topPodiumDriver = {
+      driverId,
+      driverName: info.driverName,
+      podiums: info.podiums,
+      photoUrl: driverInfo?.photoUrl ?? null,
+      href: archiveDriverHref(driverId),
+    };
   }
 
   let topCurrentTeam: TrackTopCurrentTeam | null = null;
@@ -231,6 +279,17 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
       }
     : null;
 
+  // Optional personal circuit stats
+  let favoriteDriverCircuitStats: DriverCircuitStats | null = null;
+  if (options?.favoriteDriverId) {
+    favoriteDriverCircuitStats = await getDriverCircuitStats(options.favoriteDriverId, circuitId);
+  }
+
+  let favoriteTeamCircuitStats: TeamCircuitStats | null = null;
+  if (options?.favoriteTeamId) {
+    favoriteTeamCircuitStats = await getTeamCircuitStats(options.favoriteTeamId, circuitId);
+  }
+
   return {
     circuitId,
     circuitImageUrl: circuit?.imageUrl ?? null,
@@ -239,9 +298,84 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
     firstYear: races[0].year,
     lastYear: races.at(-1)!.year,
     topPerformer,
+    topPodiumDriver,
     youngestWinner,
     topCurrentTeam,
     defendingWinner,
+    favoriteDriverCircuitStats,
+    favoriteTeamCircuitStats,
+  };
+}
+
+export async function getDriverCircuitStats(driverId: string, circuitId: string): Promise<DriverCircuitStats | null> {
+  const races = await getArchiveRacesByCircuitId(circuitId);
+  if (races.length === 0) return null;
+
+  let appearances = 0;
+  let wins = 0;
+  let podiums = 0;
+  let bestFinish: number | null = null;
+  let sumFinish = 0;
+  let classifiedCount = 0;
+  let driverName = "";
+
+  for (const race of races) {
+    const res = race.results.find((r) => r.driverId === driverId);
+    if (!res) continue;
+    appearances++;
+    driverName = res.driverName || driverName;
+    if (res.position) {
+      if (bestFinish === null || res.position < bestFinish) bestFinish = res.position;
+      sumFinish += res.position;
+      classifiedCount++;
+      if (res.position === 1) wins++;
+      if (res.position <= 3) podiums++;
+    }
+  }
+
+  if (appearances === 0) return null;
+
+  return {
+    driverId,
+    driverName,
+    appearances,
+    wins,
+    podiums,
+    bestFinish,
+    avgFinish: classifiedCount > 0 ? sumFinish / classifiedCount : null,
+  };
+}
+
+export async function getTeamCircuitStats(teamId: string, circuitId: string): Promise<TeamCircuitStats | null> {
+  const races = await getArchiveRacesByCircuitId(circuitId);
+  if (races.length === 0) return null;
+
+  let appearances = 0;
+  let wins = 0;
+  let podiums = 0;
+  let bestFinish: number | null = null;
+
+  for (const race of races) {
+    const teamResults = race.results.filter((r) => r.teamId === teamId);
+    if (teamResults.length === 0) continue;
+    appearances++;
+    for (const res of teamResults) {
+      if (res.position) {
+        if (bestFinish === null || res.position < bestFinish) bestFinish = res.position;
+        if (res.position === 1) wins++;
+        if (res.position <= 3) podiums++;
+      }
+    }
+  }
+
+  if (appearances === 0) return null;
+
+  return {
+    teamId,
+    appearances,
+    wins,
+    podiums,
+    bestFinish,
   };
 }
 

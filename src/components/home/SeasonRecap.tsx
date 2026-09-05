@@ -7,14 +7,35 @@ import type { RaceDoc } from "@/lib/types/race";
 
 /** "How the season is unfolding" — a real editorial recap (buildSeasonRecap: rounds completed,
  * leader/gap, closest title fight, most wins/podiums), plus a compact trajectory of the title
- * fight itself and the full-season calendar strip below it. The season's own closing beat in the
- * homepage narrative, not just another card. */
-export function SeasonRecap({ year, races, recap }: { year: number; races: RaceDoc[]; recap: SeasonRecapData }) {
+ * fight itself, the full-season calendar strip, and an optional AI season narrative synthesis. */
+export function SeasonRecap({
+  year,
+  races,
+  recap,
+  aiNarrative,
+}: {
+  year: number;
+  races: RaceDoc[];
+  recap: SeasonRecapData;
+  aiNarrative?: string | null;
+}) {
   if (recap.roundsCompleted === 0) {
     return (
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-white">{year} Season</h2>
-        <p className="text-sm text-neutral-500">The season hasn&apos;t started yet, check back once the first race is in the books.</p>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+            {year} Season So Far
+          </h2>
+          <p className="text-xs text-neutral-500">Season preparation</p>
+        </div>
+        <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5">
+          <p className="text-sm text-neutral-400">The season hasn&apos;t started yet. Check back once the first race is completed.</p>
+          {aiNarrative && (
+            <div className="mt-3 border-t border-white/[0.06] pt-3 text-xs text-neutral-300">
+              <span className="font-semibold text-white">Season Outlook: </span>{aiNarrative}
+            </div>
+          )}
+        </div>
         <div className="mt-4">
           <SeasonStrip races={races} />
         </div>
@@ -25,8 +46,10 @@ export function SeasonRecap({ year, races, recap }: { year: number; races: RaceD
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold text-white">{year} Season</h2>
-        <p className="text-sm text-neutral-500">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+          {year} Season So Far
+        </h2>
+        <p className="text-xs text-neutral-500">
           Round {recap.roundsCompleted} of {recap.totalRounds}
         </p>
       </div>
@@ -76,6 +99,20 @@ export function SeasonRecap({ year, races, recap }: { year: number; races: RaceD
             </div>
           )}
         </div>
+
+        {aiNarrative && (
+          <div className="mt-5 border-t border-white/[0.06] pt-4">
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                AI Season Narrative
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed text-neutral-300">
+              {aiNarrative}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mt-6">
@@ -88,7 +125,7 @@ export function SeasonRecap({ year, races, recap }: { year: number; races: RaceD
 export function SeasonRecapSkeleton() {
   return (
     <div>
-      <Skeleton className="skeleton-shimmer h-6 w-40 rounded" />
+      <Skeleton className="skeleton-shimmer h-4 w-40 rounded" />
       <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="space-y-2">
