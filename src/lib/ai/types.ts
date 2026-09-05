@@ -188,6 +188,11 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     maxTokens: 2048,
     temperature: 0.7,
     timeoutMs: 30_000,
-    reasoningEffort: "high",
+    // "high" was the first fix (see the "medium" HTTP 400 above) but confirmed live in production
+    // to itself time out at 30s - a reasoning model's "high" tier spends real time on hidden
+    // chain-of-thought before answering, and this task (interpret a page of pre-computed numbers
+    // into a few grounded sentences, per the system prompt's own scope) doesn't need that depth.
+    // "low" is the fast tier and is what this bundled call actually needs.
+    reasoningEffort: "low",
   },
 };

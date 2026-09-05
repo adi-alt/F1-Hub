@@ -66,7 +66,7 @@ export class KimiProvider implements AIProvider {
     // or "none" degrades to a safe value instead of taking every homepage load down again.
     const KIMI_SUPPORTED_REASONING_EFFORT = new Set(["low", "high", "max"]);
     if (config.reasoningEffort) {
-      payload.reasoning_effort = KIMI_SUPPORTED_REASONING_EFFORT.has(config.reasoningEffort) ? config.reasoningEffort : "high";
+      payload.reasoning_effort = KIMI_SUPPORTED_REASONING_EFFORT.has(config.reasoningEffort) ? config.reasoningEffort : "low";
     }
 
     if (tools && tools.length > 0) {

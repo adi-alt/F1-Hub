@@ -12,6 +12,11 @@
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
+// Headroom above the provider's own 30s AbortController timeout (kimi.ts) plus one retry - confirmed
+// live that a real NVIDIA call can legitimately take close to 30s even at "low" reasoning effort on
+// a cold request, and Vercel's own default function duration would otherwise kill this route before
+// our own timeout/retry logic ever gets to run its course and return a clean fallback.
+export const maxDuration = 90;
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
