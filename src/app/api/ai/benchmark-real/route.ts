@@ -1,8 +1,8 @@
-// GET /api/ai/benchmark-real
-// Runs 5 real, concurrent requests per candidate model against the REAL production context -
-// buildHomepageContext() + the real system prompt + real fetched data for the authenticated
-// session's own account - not the /api/ai/diagnostic route's simplified hand-written sample. Records
-// latency, token usage, and schema/grounding validity per run, then reports median/P95 per model.
+// POST /api/ai/benchmark-real
+// Generalized real-context AI model bake-off harness. Runs N real, concurrent requests per
+// candidate model - {provider: "nvidia"|"hf", model, label} - against the REAL production
+// context (buildHomepageContext() + the real system prompt + real fetched data for the
+// authenticated session's own account), not the /api/ai/diagnostic route's simplified sample.
 //
 // Deliberately duplicates route.ts's own data-fetching (steps 2-3 there) rather than importing a
 // refactored shared helper: this file can be added, changed, or deleted freely without ever
@@ -10,12 +10,26 @@
 // provider. Nothing here calls getCachedIntelligence/setCachedIntelligence/withSingleFlight - this
 // benchmark can never read or pollute the real cache. buildHomepageContext, formatHomepagePrompt,
 // cleanJsonOutput, and validateHomepageIntelligence ARE the real, unmodified production functions,
-// imported as-is - the only things this file changes are which model receives the identical
+// imported as-is - the only thing this file varies is which model/provider receives the identical
 // resulting prompt.
 //
-// Candidates: the currently-configured NVIDIA/Nemotron provider (production baseline - same
-// maxTokens/reasoningBudget/timeout as production) vs GLM-4.7-Flash via Hugging Face (see
-// huggingface.ts). Same prompt, same context, model swapped only.
+// Candidate list is driven entirely by the POST body, not hardcoded here - a full bake-off across
+// dozens of models is run as several small batches (a handful of models per call, so total wall
+// time and concurrent connections stay bounded within maxDuration), orchestrated externally by
+// whoever calls this route, not by a job queue inside the app.
+//
+// Payload shape per candidate: every NVIDIA model gets the SAME plain, universal OpenAI-compatible
+// body (model, messages, max_tokens, temperature, stream:false) - NO reasoning-specific extras -
+// except the one candidate explicitly flagged useProductionNemotronShape, which gets the exact
+// live-production Nemotron shape (chat_template_kwargs.enable_thinking + reasoning_budget:512)
+// unchanged. Every NVIDIA-hosted model has its own undocumented reasoning-control shape (confirmed
+// this session: Kimi K3, DeepSeek, and Nemotron each differ) - applying Nemotron's own hand-tuned
+// params to an unrelated model isn't a fair "same prompt, different model" test, and using an
+// unrecognized/unsupported param for a fresh candidate is exactly the kind of guess that has
+// previously caused real HTTP 400s. Testing every fresh candidate at its own out-of-the-box default
+// reasoning depth is the fair baseline; only the current production entry represents "as configured
+// today." HF's router is already a plain OpenAI-compatible passthrough for every model (confirmed
+// via HF's own docs), so no such split is needed there.
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
@@ -32,27 +46,43 @@ import { buildHomepageContext, type HomepageContextData } from "@/lib/ai/context
 import { formatHomepagePrompt } from "@/lib/ai/prompts/homepagePrompt";
 import { cleanJsonOutput } from "@/lib/ai/orchestrator";
 import { validateHomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
-import { HF_BENCHMARK_MODELS } from "@/lib/ai/huggingface";
 
-export const maxDuration = 150;
+export const maxDuration = 150; // matches the already-verified-working duration from the prior single-pair benchmark run
 
-const RUNS_PER_MODEL = 5;
-const REQUEST_TIMEOUT_MS = 90_000; // same budget both candidates get - production's own Nemotron timeout
+const REQUEST_TIMEOUT_MS = 90_000; // same budget every candidate gets - production's own Nemotron timeout
+const DEFAULT_RUNS_PER_MODEL = 5;
+
+type Candidate = {
+  provider: "nvidia" | "hf";
+  model: string;
+  label: string;
+  useProductionNemotronShape?: boolean;
+};
 
 type RunResult = {
   ok: boolean;
   latencyMs: number;
   promptTokens?: number;
   completionTokens?: number;
+  reasoningTokens?: number;
   jsonValid: boolean;
   schemaValid: boolean;
   headline?: string;
   personalRaceBriefPresent?: boolean;
   error?: string;
+  rateLimitHeaders?: Record<string, string>;
   // Full raw content on every run (not just valid ones) - a truncated/invalid response is itself
-  // part of the quality signal the account owner asked to see, not just a pass/fail count.
+  // part of the quality signal, not just a pass/fail count.
   rawContent?: string;
 };
+
+function extractRateLimitHeaders(response: Response): Record<string, string> {
+  const out: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    if (/ratelimit|retry-after/i.test(key)) out[key] = value;
+  });
+  return out;
+}
 
 async function runOnce(url: string, headers: Record<string, string>, body: Record<string, unknown>): Promise<RunResult> {
   const controller = new AbortController();
@@ -61,15 +91,16 @@ async function runOnce(url: string, headers: Record<string, string>, body: Recor
   try {
     const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
     const latencyMs = Date.now() - startedAt;
+    const rateLimitHeaders = extractRateLimitHeaders(response);
     if (!response.ok) {
       const text = await response.text();
-      return { ok: false, latencyMs, jsonValid: false, schemaValid: false, error: `HTTP ${response.status}: ${text.slice(0, 200)}` };
+      return { ok: false, latencyMs, jsonValid: false, schemaValid: false, error: `HTTP ${response.status}: ${text.slice(0, 200)}`, rateLimitHeaders };
     }
     const json = await response.json();
     const content: string | null = json.choices?.[0]?.message?.content ?? null;
-    const usage = json.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+    const usage = json.usage as { prompt_tokens?: number; completion_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } } | undefined;
     if (!content) {
-      return { ok: false, latencyMs, jsonValid: false, schemaValid: false, promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens, error: "empty content" };
+      return { ok: false, latencyMs, jsonValid: false, schemaValid: false, promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens, error: "empty content", rateLimitHeaders };
     }
 
     let parsed: unknown;
@@ -87,11 +118,13 @@ async function runOnce(url: string, headers: Record<string, string>, body: Recor
       latencyMs,
       promptTokens: usage?.prompt_tokens,
       completionTokens: usage?.completion_tokens,
+      reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
       jsonValid,
       schemaValid: !!validation.valid,
       headline: jsonValid ? p?.raceBrief?.headline : undefined,
       personalRaceBriefPresent: jsonValid ? !!p?.personalRaceBrief : undefined,
       rawContent: content,
+      rateLimitHeaders,
     };
   } catch (err) {
     const latencyMs = Date.now() - startedAt;
@@ -108,29 +141,46 @@ function avg(nums: number[]): number | null {
 
 function summarize(runs: RunResult[]) {
   const latencies = [...runs.map((r) => r.latencyMs)].sort((a, b) => a - b);
-  const p95Index = Math.min(latencies.length - 1, Math.ceil(latencies.length * 0.95) - 1);
+  const n = latencies.length;
+  const p95Index = Math.min(n - 1, Math.ceil(n * 0.95) - 1);
   return {
-    runs: runs.length,
+    runs: n,
     okCount: runs.filter((r) => r.ok).length,
     timeoutCount: runs.filter((r) => r.error?.includes("Timed out")).length,
     jsonValidCount: runs.filter((r) => r.jsonValid).length,
     schemaValidCount: runs.filter((r) => r.schemaValid).length,
     personalizedCount: runs.filter((r) => r.personalRaceBriefPresent).length,
-    medianMs: latencies.length ? latencies[Math.floor(latencies.length / 2)] : null,
-    p95Ms: latencies.length ? latencies[p95Index] : null,
+    medianMs: n ? latencies[Math.floor(n / 2)] : null,
+    p95Ms: n ? latencies[p95Index] : null,
     minMs: latencies[0] ?? null,
-    maxMs: latencies[latencies.length - 1] ?? null,
+    maxMs: latencies[n - 1] ?? null,
     avgPromptTokens: avg(runs.map((r) => r.promptTokens).filter((x): x is number => x != null)),
     avgCompletionTokens: avg(runs.map((r) => r.completionTokens).filter((x): x is number => x != null)),
+    avgReasoningTokens: avg(runs.map((r) => r.reasoningTokens).filter((x): x is number => x != null)),
   };
 }
 
-export async function GET() {
+export async function POST(request: Request) {
   const nvidiaKey = process.env.NVIDIA_API_KEY;
-  const nvidiaModel = process.env.NVIDIA_AI_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b";
   const hfToken = process.env.HF_TOKEN;
 
-  if (!nvidiaKey) return NextResponse.json({ error: "NVIDIA_API_KEY not set" }, { status: 500 });
+  let payload: { candidates?: Candidate[]; runsPerModel?: number };
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  }
+
+  const candidates = payload.candidates;
+  if (!candidates || !candidates.length) {
+    return NextResponse.json({ error: "candidates array required, e.g. [{provider:'nvidia',model:'...',label:'...'}]" }, { status: 400 });
+  }
+  const runsPerModel = payload.runsPerModel && payload.runsPerModel > 0 ? payload.runsPerModel : DEFAULT_RUNS_PER_MODEL;
+
+  const needsNvidia = candidates.some((c) => c.provider === "nvidia");
+  const needsHf = candidates.some((c) => c.provider === "hf");
+  if (needsNvidia && !nvidiaKey) return NextResponse.json({ error: "NVIDIA_API_KEY not set" }, { status: 500 });
+  if (needsHf && !hfToken) return NextResponse.json({ error: "HF_TOKEN not set" }, { status: 500 });
 
   // ---- Duplicated verbatim from route.ts's own real data-fetching (steps 1-3 there). ----
   const session = await getSession();
@@ -252,33 +302,34 @@ export async function GET() {
   const messages = formatHomepagePrompt(contextString);
 
   const nvidiaHeaders = { Authorization: `Bearer ${nvidiaKey}`, "Content-Type": "application/json", Accept: "application/json" };
-  const nvidiaBody = {
-    model: nvidiaModel,
-    messages,
-    max_tokens: 3500,
-    temperature: 0.7,
-    reasoning_budget: 512,
-    chat_template_kwargs: { enable_thinking: true },
-  };
+  const hfHeaders = { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json", Accept: "application/json" };
 
-  const results: { nemotron: RunResult[]; glm: RunResult[] } = { nemotron: [], glm: [] };
-  const runs: Promise<void>[] = [];
-
-  for (let i = 0; i < RUNS_PER_MODEL; i++) {
-    runs.push(
-      runOnce("https://integrate.api.nvidia.com/v1/chat/completions", nvidiaHeaders, nvidiaBody).then((r) => {
-        results.nemotron[i] = r;
-      }),
-    );
+  function buildBody(candidate: Candidate): Record<string, unknown> {
+    if (candidate.provider === "nvidia" && candidate.useProductionNemotronShape) {
+      return {
+        model: candidate.model,
+        messages,
+        max_tokens: 3500,
+        temperature: 0.7,
+        reasoning_budget: 512,
+        chat_template_kwargs: { enable_thinking: true },
+      };
+    }
+    return { model: candidate.model, messages, max_tokens: 3500, temperature: 0.7, stream: false };
   }
 
-  if (hfToken) {
-    const hfHeaders = { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json", Accept: "application/json" };
-    const hfBody = { model: HF_BENCHMARK_MODELS.glm, messages, max_tokens: 3500, temperature: 0.7, stream: false };
-    for (let i = 0; i < RUNS_PER_MODEL; i++) {
+  const results: Record<string, RunResult[]> = {};
+  const runs: Promise<void>[] = [];
+
+  for (const candidate of candidates) {
+    results[candidate.label] = [];
+    const url = candidate.provider === "nvidia" ? "https://integrate.api.nvidia.com/v1/chat/completions" : "https://router.huggingface.co/v1/chat/completions";
+    const headers = candidate.provider === "nvidia" ? nvidiaHeaders : hfHeaders;
+    const body = buildBody(candidate);
+    for (let i = 0; i < runsPerModel; i++) {
       runs.push(
-        runOnce("https://router.huggingface.co/v1/chat/completions", hfHeaders, hfBody).then((r) => {
-          results.glm[i] = r;
+        runOnce(url, headers, body).then((r) => {
+          results[candidate.label][i] = r;
         }),
       );
     }
@@ -286,20 +337,21 @@ export async function GET() {
 
   await Promise.all(runs);
 
+  const summary: Record<string, ReturnType<typeof summarize>> = {};
+  for (const candidate of candidates) summary[candidate.label] = summarize(results[candidate.label]);
+
   return NextResponse.json({
     testedForUserId: userId,
     contextCharacterLength: contextString.length,
-    // All 10 requests ran concurrently (both models' 5 runs at once), not sequentially - each
-    // real request in production has run in isolation, so this may inflate absolute latency
-    // slightly for both candidates via shared queueing/throughput contention. Since both experience
-    // the same concurrent-load condition, the COMPARISON between them is still fair; the absolute
-    // numbers are a conservative (not optimistic) estimate of real single-request latency.
-    concurrencyCaveat: "All runs executed concurrently, not sequentially - see this field's own comment in source.",
-    hfTokenConfigured: !!hfToken,
+    // All requests across all candidates in this call ran concurrently, not sequentially - each
+    // real request in production runs in isolation, so this may inflate absolute latency slightly
+    // via shared queueing/throughput contention. Since every candidate in a given call experiences
+    // the same concurrent-load condition, the COMPARISON between them stays fair; treat absolute
+    // numbers as a conservative (not optimistic) estimate of real single-request latency.
+    concurrencyCaveat: "All runs in this call executed concurrently, not sequentially.",
+    candidates,
+    runsPerModel,
     results,
-    summary: {
-      nemotron: summarize(results.nemotron),
-      glm: hfToken ? summarize(results.glm) : null,
-    },
+    summary,
   });
 }
