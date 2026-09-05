@@ -741,3 +741,140 @@ representative context against Nemotron (the production baseline), GLM, and Mini
 reporting latency and content for each side by side. Requires `HF_TOKEN` (a fine-grained token with
 "Make calls to Inference Providers" permission) - the benchmark stages skip gracefully, not
 erroring, when it's unset.
+
+## 39. Addendum: Full Multi-Model Bake-Off & Third Provider Swap (Nemotron -> Muse Glimmer 30B)
+
+Section 38's two-candidate HF benchmark was broadened, at the account owner's explicit request,
+into a genuine bake-off across every serious candidate on **both** catalogs - not a hand-picked
+shortlist. "Serious" was defined by real exclusion criteria (chat/instruction capability,
+JSON/structured-output compatibility, reasonable context length, active provider availability,
+suitable licensing, enough reasoning capability for personalized F1 analysis), applied against the
+*actual* live catalogs, not a remembered list:
+
+- **NVIDIA** (`GET /v1/models`, this account's key): 81 models. Excluded embeddings, vision-only,
+  safety/guard classifiers, translation utilities, and domain-niche (finance/medical) models by
+  name. **Qwen: confirmed entirely absent from this catalog** - not an oversight, NVIDIA simply
+  doesn't offer it here.
+- **Hugging Face** (`GET /v1/models` via the router, same account): 137 models - already
+  pre-filtered to models with an *active* Inference Provider, which itself satisfies one of the
+  exclusion criteria automatically.
+
+### 39.1 Candidates tested and what happened
+
+| Model | Host | Result |
+|---|---|---|
+| Kimi K3 | NVIDIA + HF | **Hard rate-limited (HTTP 429)** on both hosts, independent of concurrency or request shape - 0 successes across every attempt. Consistent with why this saga moved off it at the very start (Section 36). |
+| MiniMax M3 | NVIDIA | Hard rate-limited (429), 1/5 got through. |
+| DeepSeek V4 Flash | NVIDIA | **0/10 across every config tried** (plain payload, and the account owner's own verified Playground shape) - real NVIDIA-side `HTTP 529 "Service temporarily overloaded"` plus timeouts. A genuine host-side capacity problem, not a config guess. |
+| DeepSeek V4 Pro | NVIDIA | 3/5 valid on the plain payload (~80s median); the verified Playground config (`temperature:1, top_p:0.95, max_tokens:16384, seed:42, thinking:false`) made it **worse** (1/5, hit the timeout wall) - proof that copying NVIDIA's own example isn't universally an improvement. |
+| Gemma 4 31B IT | NVIDIA + HF | **Complete failure at every config tried on NVIDIA** (0/5, then 0/5 again with the verified config - every single run hit the full timeout with zero output); HF attempt blocked by credit exhaustion (below). |
+| gpt-oss-20b | NVIDIA | 3/5 valid, ~82s median, wide variance - no verified NVIDIA reference example found to retest against. |
+| Nemotron 3.5 Lightning | NVIDIA (prod baseline) | 7/15 valid across the real-context runs, median 40.1s. A verified-config retest (`reasoning_budget:16384` to match `max_tokens:16384`, per the account owner's own Playground example) **failed completely** (0/5, all timeouts) - confirmed live exactly what this file's own `types.ts` comments had warned about: reasoning consuming the entire token budget before any real content. Production's existing `reasoning_budget:512` vs `max_tokens:3500` gap was the right *shape*; NVIDIA's own literal example numbers don't transfer because their demo never had a 12-field JSON schema to fill after reasoning. |
+| **Muse Glimmer 30B** | NVIDIA | Generic payload: 3/5 valid, 55.7s median. **Verified config** (`temperature:1, top_p:0.95, max_tokens:8192` - NOT NVIDIA's own literal example, which additionally included a generic demo `tools` block deliberately not adopted) transformed this to **5/5 valid, 14.6s median, 15.8s P95**. A 15-run replication confirmed it: **15/15 valid, median 14.0s, P95 15.0s, max 15.85s.** Grounding held up under direct reading of the outputs - correct 53-point gap, correct 5-wins/8-podiums/19-starts/P5.9-avg-finish, no fabrication spotted, and genuinely sharp synthesis (e.g. building a "split allegiance" narrative around Hamilton racing for Ferrari while Mercedes, the user's favorite team, leads the championship). |
+| GLM-4.7-Flash | HF (Section 38 baseline) | 5/15 valid across all real-context runs this session, median 65.3s - mostly truncates at the 3500-token cap (too verbose for this schema at that ceiling). |
+| **GLM-5.3-Flash** | HF | 3/4 valid, **8.4s median** - the fastest number seen all session, but only 4 real completions before Hugging Face's credits ran out (below). **Not yet replicated - still an open challenger, not a decided winner.** |
+| Qwen x3, DeepSeek x2, Kimi, MiniMax, Gemma, Muse Glimmer, gpt-oss x2 | HF | **Untested** - blocked by HF's monthly included inference credits running out mid-sweep (`HTTP 402`). Real account-level limit, not a code problem. |
+| Nemotron 3.5 Lightning | HF | Dead end, independent of credits: `HTTP 400 "not supported by any provider you have enabled"` - same pattern as Ministral in Section 38. |
+
+### 39.2 The NVIDIA Playground parameter audit
+
+A parallel, code-only audit (no production change) compared Apex's actual request payloads against
+the account owner's own real NVIDIA Playground code examples for Nemotron, DeepSeek V4 Pro, DeepSeek
+V4 Flash, Kimi K3, and Muse Glimmer 30B - a consistent, repeated pattern across every one of them:
+Apex's generic benchmark payload used `temperature:0.7`, no `top_p`, and `max_tokens:3500`; every one
+of NVIDIA's own reference examples used `temperature:1`, `top_p:0.95`, and a `max_tokens` far above
+3500 (8192-16384). Two things this audit also surfaced, both directly relevant to production
+behavior:
+
+1. **`stream:false` collapses three very different real situations into one indistinguishable
+   number** - a model that's genuinely still generating at the timeout, one that finished early but
+   the client saw no partial signal, and one that kept generating unneeded trailing tokens past a
+   complete answer. Two of the five reference examples used `stream:true` specifically so a caller
+   could watch tokens arrive incrementally; Apex has never streamed a homepage-intelligence call.
+2. The Playground's own generated code snippet for Muse Glimmer 30B included a generic demo `tools`
+   block (Harry Potter character lookup, hex-color naming) - almost certainly boilerplate the
+   Playground UI stamps into every model's code sample regardless of use case, not a
+   model-specific recommendation. Deliberately not adopted.
+
+The resulting principle, confirmed empirically rather than assumed: **NVIDIA's own Playground
+configuration establishes valid ranges and a starting point, not the answer** - copying it verbatim
+measurably *worsened* two other candidates in the same bake-off (DeepSeek V4 Pro, Nemotron) while
+transforming a third (Muse Glimmer). Apex's actual workload (a 12-field structured JSON schema, real
+grounding/personalization requirements, a production timeout) is not NVIDIA's own demo task, and the
+right configuration for it has to be tuned against that reality, not copied from a limerick-writing
+example.
+
+### 39.3 Third provider swap and the environment-variable incident
+
+Muse Glimmer 30B's 15-run replication (14.0s median, 15/15 valid, equal-or-better grounding than
+Nemotron) cleared the account owner's own stated bar for a production swap. `museGlimmer.ts` was
+added (fourth provider in this file's history: Kimi K3 -> DeepSeek V4 Flash -> Nemotron 3.5 Lightning
+-> Muse Glimmer 30B), `provider.ts`'s `getDefaultProvider()` was switched to it, and
+`DEFAULT_ORCHESTRATOR_CONFIG.provider` was updated to its verified config. `NemotronProvider` was
+deliberately left registered, not deleted - this remained a "current best candidate," not a closed
+decision, pending GLM-5.3-Flash's own replication.
+
+**The first real live homepage request after this deploy failed** - `PROVIDER_ERROR`, "NVIDIA
+request timed out after 45000ms" (the timeout margin at the time, since bumped to 90s as a safety
+net). This flatly contradicted the 15-run replication's own max of 15.85s. A repeat of several more
+real production-path calls confirmed it wasn't a fluke: one 95s timeout, one 79.4s success - both
+5-6x slower than the benchmark.
+
+Root cause, found via a dedicated diagnostic (`/api/ai/diagnostic-provider-path` - calls the real,
+unmodified `getDefaultProvider()`/`DEFAULT_ORCHESTRATOR_CONFIG.provider` directly, the same objects
+`orchestrator.ts` uses, bypassing only its cache/single-flight wrapper): the response showed
+`providerName: "muse-glimmer"` **alongside** `model: "nvidia/nemotron-3.5-lightning-30b-a3b"` in the
+same object. Vercel's production `NVIDIA_AI_MODEL` environment variable was still set to Nemotron's
+model ID from before the swap - `getDefaultAIModel()`'s `process.env.NVIDIA_AI_MODEL || "meta/
+muse-glimmer-30b"` silently preferred the stale env var over the new code default.
+**`MuseGlimmerProvider` was sending Nemotron's model ID with Muse Glimmer's payload shape** - no
+`reasoning_budget`/`chat_template_kwargs` (Nemotron needs these; `MuseGlimmerProvider` never sends
+them), `temperature:1`/`top_p:0.95`/`max_tokens:8192` instead of Nemotron's own tuned
+`temperature:0.7`/`reasoning_budget:512`/`max_tokens:3500` - a completely untested model+config
+combination, which is what produced the wild, unpredictable multi-minute latencies.
+
+**Muse Glimmer 30B itself was never actually invoked in production during this window.** The 15-run
+replication's result was never contradicted by any of this - it was measured via the benchmark
+route's raw `fetch` calls, which hardcode the model string and were never affected by the env var.
+
+**Resolution** (three parts, all shipped):
+1. `NVIDIA_AI_MODEL` set explicitly to `meta/muse-glimmer-30b` in Vercel **Production only** -
+   deliberately not relying on the code fallback, so the choice is visible in Vercel rather than
+   implicit.
+2. **A fail-fast provider/model compatibility guard** in `MuseGlimmerProvider.chat()`: if the
+   resolved model isn't exactly `meta/muse-glimmer-30b`, it now throws immediately with a clear
+   `model_mismatch` error - caught by the orchestrator's existing `PROVIDER_ERROR` fallback path, so
+   a future misconfiguration degrades to the deterministic fallback immediately instead of wasting
+   up to 90 real seconds finding out. This is a stronger guarantee than just fixing the env var: a
+   provider class is now unable to silently run against a model it was never validated for.
+3. Both `nemotron.ts` and `museGlimmer.ts` now log `providerName` alongside `model` on every real
+   request/error, not only in a special diagnostic - the exact pairing that caught this bug is now
+   visible in ordinary production logs.
+
+**Final verification, post-fix:** 15 fresh real calls through the actual production provider path -
+**15/15 successful, every one `finishReason: "stop"` (clean, no truncation), median 10.8s, P95
+12.7s, min 9.4s, max 15.1s, zero errors.** Better than the original benchmark's own numbers, not
+merely matching them.
+
+### 39.4 The two numbers that matter, recorded so neither gets misread later
+
+| | Runs | Median | P95 | Notes |
+|---|---|---|---|---|
+| Raw benchmark (`/api/ai/benchmark-real`, bypasses the orchestrator) | 15/15 valid | 14.0s | 15.0s | Confirms Muse Glimmer 30B itself, independent of any env var. |
+| **Production provider path, post-fix** (`getDefaultProvider()` + real config) | 15/15 successful | **10.8s** | **12.7s** | The number that matters for real users. |
+| Initial apparent production failure (45-95s, `PROVIDER_ERROR`) | — | — | — | **Caused by a stale `NVIDIA_AI_MODEL` env var, not a Muse Glimmer reliability problem.** Do not read the old logs from this window as evidence against the model. |
+
+### 39.5 Current state
+
+**Muse Glimmer 30B is the production default**, chosen from a real, controlled bake-off against the
+exact real production context/prompt/schema, verified end-to-end after a genuine incident that
+turned out to be a deployment configuration bug, not a model problem. **Nemotron remains registered
+as a retained fallback/alternative provider** (not deleted - one `provider.ts` line change would
+restore it as default). **GLM-5.3-Flash is a future challenger**, not yet replicated (Hugging Face's
+monthly inference credits ran out after 4 real completions) - the remaining open question is simply
+whether it can beat a *proven* 10.8s/12.7s production path while matching Muse Glimmer's grounding
+and reliability, once those credits return. Until then, there is nothing productive left to do on
+model selection - the biggest technical uncertainty this whole effort was resolving (can an LLM
+reliably generate fast, grounded, personalized Apex intelligence from real production context) is
+now answered, and the next real gains are in the quality of the intelligence itself, not the
+plumbing underneath it.
