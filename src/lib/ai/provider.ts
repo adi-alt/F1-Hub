@@ -1,6 +1,7 @@
-// Abstract AI provider interface — the contract every provider (DeepSeek, Kimi, OpenAI, Gemini,
-// local) must implement. The orchestrator depends on this interface, never on a concrete
-// provider. This is what made swapping Kimi for DeepSeek a one-file change, not a rewrite.
+// Abstract AI provider interface — the contract every provider (Nemotron, DeepSeek, Kimi, OpenAI,
+// Gemini, local) must implement. The orchestrator depends on this interface, never on a concrete
+// provider. This is what made swapping Kimi for DeepSeek, then DeepSeek for Nemotron, a one-file
+// change each time, not a rewrite.
 
 import type { AIMessage, AIProviderConfig, AIProviderToolDef, AIResponse } from "./types";
 
@@ -32,13 +33,14 @@ export function getProvider(name: string): AIProvider {
   return provider;
 }
 
-/** The default provider for F1 Hub — DeepSeek V4 (Flash) via NVIDIA NIM. Lazily initialized so the
- * module can be imported without side effects (the DeepSeekProvider import triggers registration). */
+/** The default provider for F1 Hub — NVIDIA Nemotron 3.5 Lightning via NVIDIA NIM. Lazily
+ * initialized so the module can be imported without side effects (the NemotronProvider import
+ * triggers registration). */
 export function getDefaultProvider(): AIProvider {
-  if (!providers.has("deepseek")) {
+  if (!providers.has("nemotron")) {
     // Dynamic import to avoid circular deps and ensure registration
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("./deepseek");
+    require("./nemotron");
   }
-  return getProvider("deepseek");
+  return getProvider("nemotron");
 }

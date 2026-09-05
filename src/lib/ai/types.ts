@@ -53,13 +53,18 @@ export type AIProviderConfig = {
   temperature: number;
   /** Provider-level timeout in milliseconds. */
   timeoutMs: number;
-  /** Controls how much reasoning the model does before answering. Kimi K3 (the previous provider)
-   * only accepted "low" | "high" | "max" via a top-level `reasoning_effort` field - "medium" made
-   * every single request fail with HTTP 400, confirmed live in production. DeepSeek (the current
-   * provider) takes this nested under `chat_template_kwargs` instead (see deepseek.ts) and its
-   * exact accepted value set isn't documented anywhere as clearly as Kimi's error message was, so
-   * this is passed through as configured rather than clamped to an assumed set. */
+  /** Kimi K3 and DeepSeek (both tried, both replaced - see types.ts's own history below and the
+   * docs addendum) controlled reasoning depth via this enum, under different shapes each time.
+   * Unused by the current provider (Nemotron, see nemotron.ts), which uses reasoningBudget below
+   * instead. Kept only so the type doesn't need to change again if a future provider uses this
+   * same enum-style control. */
   reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
+  /** Nemotron's reasoning control - a token budget for the hidden "thinking" pass specifically,
+   * separate from `maxTokens` (the combined reasoning+content cap). Keep this notably smaller than
+   * maxTokens: DeepSeek's own diagnostic run demonstrated live what happens when reasoning is
+   * allowed to consume the *entire* token budget - finish_reason "length" with real content still
+   * null. */
+  reasoningBudget?: number;
 };
 
 export type AIProviderToolDef = {
@@ -171,7 +176,7 @@ export type OrchestratorConfig = {
 };
 
 export function getDefaultAIModel(): string {
-  return process.env.NVIDIA_AI_MODEL || "deepseek-ai/deepseek-v4-flash-0731";
+  return process.env.NVIDIA_AI_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b";
 }
 
 export function getProviderRPMLimit(): number {
@@ -187,12 +192,18 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
   timeoutMs: 60_000,
   maxResponseTokens: 2048,
   provider: {
-    model: "deepseek-ai/deepseek-v4-flash-0731",
-    maxTokens: 2048,
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b",
+    // Comfortably above reasoningBudget below - real evidence (a live diagnostic run against
+    // DeepSeek) showed a small combined token cap gets fully consumed by reasoning before any real
+    // content is produced. Nemotron itself, tested directly in the NVIDIA playground, answered a
+    // multi-paragraph real question in ~10s at max_tokens/reasoning_budget: 16384 each - this is a
+    // narrower, still-generous budget for a single structured-JSON answer.
+    maxTokens: 3500,
     temperature: 0.7,
-    timeoutMs: 30_000,
-    // DeepSeek's reasoning_effort lives under chat_template_kwargs, not top-level (see
-    // deepseek.ts) - "high" is the one value confirmed to work via a real, working example.
-    reasoningEffort: "high",
+    // Real playground timings for this exact model: 4-10s for most prompts, one complex reasoning
+    // answer at 32s - still comfortably under this budget with margin, vs. Kimi/DeepSeek which
+    // never completed a real answer within 30s at all.
+    timeoutMs: 45_000,
+    reasoningBudget: 2048,
   },
 };

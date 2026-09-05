@@ -587,6 +587,86 @@ Kimi-shaped clamp would apply to a different model's API.
 
 ### 36.5 Status at time of writing
 
-Deployed; verification of a real (non-fallback) DeepSeek response in production was in progress
-when this section was written. Check `isFallback` on a fresh `/api/ai/homepage-intelligence`
-response and the Vercel log drain for `deepseek_provider` error entries to confirm current status.
+Deployed; the follow-up check found DeepSeek never actually resolved this - see Section 37.
+
+---
+
+## 37. Addendum: Second Provider Swap (DeepSeek -> Nemotron)
+
+The DeepSeek swap in Section 36 didn't fix the underlying problem. A follow-up production
+verification got an identical result to Kimi K3's own failure mode:
+
+```json
+{"requestId":"deepseek_provider","category":"timeout","message":"NVIDIA request timed out after 30000ms"}
+```
+
+Same 30s timeout, now on a *third* combination of model + reasoning_effort value (DeepSeek at
+"low", after Kimi had already ruled out "medium" and "high"). That ruled reasoning_effort out
+entirely as the variable - something more fundamental was failing across every model tried so far.
+
+### 37.1 Isolating the real cause: a dedicated diagnostic probe
+
+Rather than continue changing provider parameters and redeploying blind, a temporary route
+(`/api/ai/diagnostic`, kept permanently as a health check - see its own file header) was added to
+test NVIDIA connectivity in isolation from the whole homepage-intelligence pipeline:
+
+- **Stage 1 - `GET /v1/models`** (lightweight catalog lookup, no GPU/inference): `200 OK` in
+  **77ms**. This proved the deployment's network egress, DNS, and API key/auth were all fine -
+  ruling out connectivity and authorization as causes.
+- **Stage 2 - a real `POST /v1/chat/completions`** with a generous 85s timeout (far beyond
+  production's 30s) and a tiny `max_tokens: 5`: **`200 OK` in 26.4 seconds** - but
+  `finish_reason: "length"` with `content: null` and a partial `reasoning_content` string. The
+  model was still mid hidden-reasoning pass when it ran out of its 5-token budget, and never
+  reached the real answer at all.
+
+This was the actual finding: DeepSeek V4 Flash's endpoint is reachable, authenticated, and does
+eventually respond - it's just far too slow for a synchronous homepage request once its own hidden
+reasoning pass is accounted for, regardless of which reasoning_effort value it's given.
+
+### 37.2 Resolution: Nemotron, chosen from real evidence, not another guess
+
+Rather than tune parameters against a third model with no better information, the account owner
+tested candidates directly in **NVIDIA's own playground** and reported real, observed timings:
+DeepSeek V4 Flash and Kimi K3 both "sucked" (consistent with the diagnostic above), while
+**`nvidia/nemotron-3.5-lightning-30b-a3b`** answered real multi-paragraph questions in 4-10 seconds
+typically, with one complex case at 32 seconds worst observed - and, being an NVIDIA first-party
+model on the same NIM infrastructure rather than a third-party community integration, plausibly
+doesn't share the other two models' on-demand cold-start latency profile.
+
+Nemotron introduced a *third* distinct reasoning-control shape, again implemented exactly as
+demonstrated in a real working example rather than assumed:
+
+| Model | Reasoning control shape |
+|---|---|
+| Kimi K3 | top-level `reasoning_effort: "low" \| "high" \| "max"` |
+| DeepSeek V4 Flash | `chat_template_kwargs: { thinking: true, reasoning_effort }` |
+| Nemotron 3.5 Lightning | `chat_template_kwargs: { enable_thinking: true }` + top-level `reasoning_budget` (a token count, not an effort level) |
+
+`AIProviderConfig` gained a `reasoningBudget?: number` field alongside the existing
+`reasoningEffort` enum (kept for any future provider that uses that shape instead) rather than
+overloading one field to mean two different things across providers.
+
+### 37.3 A concrete safety change this surfaced
+
+The DeepSeek diagnostic's `max_tokens: 5` result - reasoning consuming the entire budget with
+`content` staying null - is a real failure mode worth designing against, not just an artifact of an
+unrealistically small test value. Nemotron's config keeps `reasoningBudget` (2048) meaningfully
+smaller than `maxTokens` (3500), so a genuinely long reasoning pass still leaves real headroom for
+the actual structured JSON answer, rather than the two limits being equal (as the diagnostic's own
+first, naive test happened to set them) and risking the same starved-content outcome.
+
+### 37.4 What changed, concretely
+
+- `src/lib/ai/deepseek.ts` deleted; `src/lib/ai/nemotron.ts` added (`NemotronProvider`, registered
+  as `"nemotron"`) - again, the only functional file the provider abstraction required changing.
+- `types.ts`: default model `nvidia/nemotron-3.5-lightning-30b-a3b`; `timeoutMs: 45_000` (real
+  playground evidence supports this, vs. 30s which never once succeeded for either prior model);
+  `maxTokens: 3500` / `reasoningBudget: 2048` (see 37.3).
+- `route.ts`: `maxDuration` raised to 110 (two 45s attempts plus real processing overhead) - and,
+  unlike DeepSeek/Kimi, keeping the retry now actually makes sense: a transient blip is plausible
+  for a model with real fast/reliable timings, in a way it wasn't for one that failed 100% of the
+  time regardless of parameters.
+- Production `NVIDIA_AI_MODEL` / `NVIDIA_API_KEY` updated again via `vercel env`.
+- `/api/ai/diagnostic` kept in the codebase permanently (not deleted once "resolved") - it's a
+  reusable way to answer "is the AI provider actually healthy right now" with real data instead of
+  re-guessing, and its own request payload now mirrors whichever provider is currently configured.

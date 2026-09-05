@@ -1,10 +1,12 @@
 // GET /api/ai/diagnostic
-// Temporary, isolated connectivity probe - deliberately bypasses the whole homepage-intelligence
-// pipeline (caching, standings, personalization, chat completion) to answer one narrow question:
-// can this Vercel deployment reach NVIDIA's NIM endpoint at all, and how fast? Hits GET /v1/models
-// (lightweight - no generation, no token cost) rather than a real chat completion, so a slow/failed
-// result here means the problem is connectivity/auth, not "the model is slow to generate."
-// Never echoes the API key. Safe to leave in place; delete once the provider timeout is resolved.
+// Isolated connectivity/health probe - deliberately bypasses the whole homepage-intelligence
+// pipeline (caching, standings, personalization) to answer one narrow question: can this Vercel
+// deployment reach NVIDIA's NIM endpoint and the currently-configured model, and how fast?
+// This is what actually diagnosed the Kimi K3 -> DeepSeek -> Nemotron provider swaps: proved the
+// endpoint/auth were fine (77ms, HTTP 200) while DeepSeek's real chat completions still took 26+
+// seconds for 5 tokens of hidden reasoning alone. Kept in place permanently as a lightweight
+// health check, not deleted - useful any time "is the AI provider actually working right now"
+// needs a real answer instead of a guess. Never echoes the API key.
 
 import { NextResponse } from "next/server";
 
@@ -39,22 +41,31 @@ export async function GET() {
   // Stage 1: lightweight catalog lookup - no GPU/inference involved, should always be fast.
   const modelsList = await timedFetch("https://integrate.api.nvidia.com/v1/models", { method: "GET", headers }, 10_000);
 
-  // Stage 2: the smallest possible real chat completion - isolates whether an actual inference
-  // call (not just endpoint reachability) succeeds, and how long a cold model backend takes to
-  // spin up, independent of our own app's reasoning_effort/context/schema-validation logic.
+  // Stage 2: a request shaped like the REAL homepage-intelligence call (same max_tokens,
+  // reasoning_budget, and chat_template_kwargs the configured provider actually sends - see
+  // nemotron.ts) but with a much larger timeout budget than production's 45s - isolates whether
+  // this model genuinely completes a realistically-sized structured-output request at all, and how
+  // long it actually takes, rather than guessing.
   const completion = await timedFetch(
     "https://integrate.api.nvidia.com/v1/chat/completions",
     {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with exactly: OK" }], max_tokens: 5 }),
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: "Reply with exactly this JSON and nothing else: {\"status\":\"OK\",\"note\":\"diagnostic probe\"}" }],
+        max_tokens: 800,
+        temperature: 0.7,
+        reasoning_budget: 2048,
+        chat_template_kwargs: { enable_thinking: true },
+      }),
     },
-    75_000,
+    85_000,
   );
 
   return NextResponse.json({
     configuredModel: model,
     modelsList: { ...modelsList.result, latencyMs: modelsList.latencyMs },
-    minimalChatCompletion: { ...completion.result, latencyMs: completion.latencyMs },
+    realisticChatCompletion: { ...completion.result, latencyMs: completion.latencyMs },
   });
 }

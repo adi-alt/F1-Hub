@@ -1,14 +1,22 @@
-// DeepSeekProvider — Concrete AIProvider implementation for DeepSeek V4 (Flash) via NVIDIA NIM.
-// Endpoint: https://integrate.api.nvidia.com/v1/chat/completions
+// NemotronProvider — Concrete AIProvider implementation for NVIDIA's own Nemotron 3.5 Lightning
+// via NVIDIA NIM. Endpoint: https://integrate.api.nvidia.com/v1/chat/completions
 // Uses standard fetch with AbortSignal timeout and OpenAI-compatible completions format.
 //
-// Replaces the original KimiProvider (moonshotai/kimi-k3): Kimi K3 was swapped out after two
-// separate production issues confirmed live via Vercel logs - first every request failed with
-// HTTP 400 ("Unsupported Kimi K3 thinking_effort=\"medium\""; only low/high/max were accepted),
-// then, once that was fixed, every request instead timed out at 30s even at the fast "low" tier.
-// DeepSeek's reasoning control also has a different shape than Kimi's: NOT a top-level
-// `reasoning_effort` field, but `chat_template_kwargs: { thinking, reasoning_effort }` - this is
-// exactly the shape a real working example (confirmed by the account owner) uses.
+// Third provider in this file's history - see docs/AGENTIC_AI.md's addenda for the full story.
+// Kimi K3 (moonshotai/kimi-k3): rejected reasoning_effort="medium" outright (HTTP 400), then timed
+// out at 30s regardless of effort level once that was fixed. DeepSeek V4 Flash: reachable and
+// fast for a lightweight /v1/models call (77ms), but a real chat completion - confirmed live via a
+// diagnostic probe - took 26+ seconds to produce just 5 tokens of hidden reasoning and never even
+// reached real content. Nemotron, tested directly by the account owner in NVIDIA's own playground
+// (not guessed), answered real multi-paragraph questions in 4-10s typically, one at 32s worst case
+// - an NVIDIA-first-party model on the same NIM infrastructure, not a third-party community
+// integration, which plausibly explains why it doesn't share the other two models' latency.
+//
+// Nemotron's reasoning control has its own third shape: NOT DeepSeek's
+// `chat_template_kwargs: { thinking, reasoning_effort }` - it's
+// `chat_template_kwargs: { enable_thinking }` plus a top-level `reasoning_budget` (a token count
+// for the hidden reasoning pass, separate from `max_tokens`). Implemented exactly as demonstrated
+// in a real, working example rather than assumed to match either prior provider's shape.
 
 import { registerProvider, type AIProvider } from "./provider";
 import {
@@ -24,8 +32,8 @@ import { logAIError, logProviderRequest } from "./telemetry";
 
 const NVIDIA_INVOKE_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-export class DeepSeekProvider implements AIProvider {
-  readonly name = "deepseek";
+export class NemotronProvider implements AIProvider {
+  readonly name = "nemotron";
 
   async chat(
     messages: AIMessage[],
@@ -66,15 +74,14 @@ export class DeepSeekProvider implements AIProvider {
       }),
       max_tokens: config.maxTokens || 2048,
       temperature: config.temperature ?? 0.7,
+      // Explicit, not the default - this is a single synchronous bundled call whose JSON output is
+      // schema-validated before ever reaching React, so there's nothing to stream to.
+      stream: false,
     };
 
-    // DeepSeek's reasoning control is nested, not a top-level field - `thinking` must be true for
-    // `reasoning_effort` to do anything. Unlike Kimi's endpoint, NVIDIA hasn't handed us an error
-    // message enumerating DeepSeek's exact accepted values, so this doesn't clamp to an assumed
-    // set the way kimi.ts's now-removed provider did - it passes through whatever the caller
-    // configured, defaulting to "high", the one value confirmed to work.
-    if (config.reasoningEffort) {
-      payload.chat_template_kwargs = { thinking: true, reasoning_effort: config.reasoningEffort };
+    if (config.reasoningBudget) {
+      payload.chat_template_kwargs = { enable_thinking: true };
+      payload.reasoning_budget = config.reasoningBudget;
     }
 
     if (tools && tools.length > 0) {
@@ -133,10 +140,10 @@ export class DeepSeekProvider implements AIProvider {
         },
       }));
 
-      // Reasoning models (thinking: true) can return their chain-of-thought in a separate
-      // reasoning/reasoning_content field alongside the real answer in content - we only ever want
-      // the final answer (never surface hidden reasoning to the UI or feed it back as if it were
-      // the structured JSON output), so this deliberately reads content only.
+      // enable_thinking can return hidden chain-of-thought in a separate reasoning_content field
+      // alongside the real answer in content - we only ever want the final answer (never surface
+      // hidden reasoning to the UI or feed it back as if it were the structured JSON output), so
+      // this deliberately reads content only.
       return {
         content: choice.message?.content ?? null,
         toolCalls,
@@ -152,7 +159,7 @@ export class DeepSeekProvider implements AIProvider {
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       const errorMsg = isAbort ? `NVIDIA request timed out after ${timeoutMs}ms` : String(err);
-      logAIError("deepseek_provider", isAbort ? "timeout" : "provider_error", errorMsg);
+      logAIError("nemotron_provider", isAbort ? "timeout" : "provider_error", errorMsg);
       throw err;
     } finally {
       clearTimeout(timeoutId);
@@ -161,4 +168,4 @@ export class DeepSeekProvider implements AIProvider {
 }
 
 // Auto-register instance with the provider registry
-registerProvider(new DeepSeekProvider());
+registerProvider(new NemotronProvider());
