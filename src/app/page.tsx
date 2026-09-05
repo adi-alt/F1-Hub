@@ -2,7 +2,7 @@ import { HomeShell } from "@/components/home/HomeShell";
 import { OnboardingTour } from "@/components/home/OnboardingTour";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getPersonalHomeData } from "@/lib/homeData";
-import { buildFacts, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
+import { buildFacts, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
 import { listPublicGroups } from "@/lib/supabase/groups";
@@ -46,6 +46,7 @@ export default async function HomePage() {
   ]);
 
   const facts = buildFacts(year, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null, trackHistory);
+  const seasonRecap = buildSeasonRecap(races, standings, personalData?.favoriteDriver ?? null);
 
   const backdropPhotos =
     recentPhotos.length > 0
@@ -56,7 +57,7 @@ export default async function HomePage() {
           ? [trackHistory.circuitImageUrl]
           : [];
 
-  const publicData = { year, nextRace, races, calendarEntry, backdropPhotos, facts };
+  const publicData = { year, nextRace, races, calendarEntry, backdropPhotos, facts, trackHistory, seasonRecap };
   const discoverGroups = publicGroups.filter((g) => !g.isMember).slice(0, DISCOVER_GROUPS_LIMIT);
 
   return (

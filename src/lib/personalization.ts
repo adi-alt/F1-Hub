@@ -8,7 +8,6 @@
 import { getArchiveCircuit, getArchiveDriver, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
 import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
-import { trackShortForm } from "@/lib/format";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import type { RaceDoc } from "@/lib/types/race";
@@ -131,6 +130,7 @@ export async function computeSeasonStandings(year: number): Promise<SeasonStandi
 export type TrackTopPerformer = { driverId: string; driverName: string; wins: number; photoUrl: string | null; href: string };
 export type TrackYoungestWinner = { driverId: string; driverName: string; year: number; ageYears: number; photoUrl: string | null; href: string };
 export type TrackTopCurrentTeam = { name: string; wins: number; logoUrl: string | null; color: string | null };
+export type TrackDefendingWinner = { driverId: string; driverName: string; year: number; photoUrl: string | null; href: string };
 
 export type TrackHistory = {
   circuitId: string;
@@ -142,6 +142,9 @@ export type TrackHistory = {
   topPerformer: TrackTopPerformer | null;
   youngestWinner: TrackYoungestWinner | null;
   topCurrentTeam: TrackTopCurrentTeam | null;
+  /** The winner of the most recent race run at this circuit — real, not "reigning champion"
+   * (that's a season-wide title, unrelated to who actually won here last). */
+  defendingWinner: TrackDefendingWinner | null;
 };
 
 function ageInYears(birthDateIso: string, onDateIso: string): number {
@@ -216,6 +219,18 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
 
   const circuit = await getArchiveCircuit(circuitId);
 
+  const lastRace = races.at(-1)!;
+  const lastRaceWinner = lastRace.results.find((r) => r.position === 1);
+  const defendingWinner: TrackDefendingWinner | null = lastRaceWinner
+    ? {
+        driverId: lastRaceWinner.driverId,
+        driverName: lastRaceWinner.driverName,
+        year: lastRace.year,
+        photoUrl: (await getArchiveDriver(lastRaceWinner.driverId))?.photoUrl ?? null,
+        href: archiveDriverHref(lastRaceWinner.driverId),
+      }
+    : null;
+
   return {
     circuitId,
     circuitImageUrl: circuit?.imageUrl ?? null,
@@ -226,6 +241,7 @@ export async function getTrackHistory(circuitId: string): Promise<TrackHistory |
     topPerformer,
     youngestWinner,
     topCurrentTeam,
+    defendingWinner,
   };
 }
 
@@ -286,37 +302,11 @@ export async function getRecentCircuitPhotos(
   return dedupeSortedByYear([...withPhotos(archiveRaces), ...withPhotos(currentRaces)]);
 }
 
-/** Cumulative points per round for a fixed set of drivers — the "curve" half of the homepage's
- * randomized table-vs-chart fact presentation (computeSeasonStandings is the table/bar half).
- * One flat object per completed round (`{round, raceName, trackShort, HAM: 45, VER: 60, ...}`)
- * since that's the shape recharts' own multi-<Line>/<Area> convention wants — each driver code
- * becomes its own dataKey; trackShort is what the x-axis actually labels each tick with (a full
- * event name doesn't fit that many ticks legibly), raceName is kept for anything that wants the
- * full name (a tooltip, an export). */
-// Takes the season's races directly instead of fetching them itself - both callers (the homepage,
-// season.service.ts) already have this same year's races in hand from their own Promise.all by
-// the time they call this, so a second getRacesByYear(year) here was a purely redundant fetch
-// (unstable_cache likely absorbed it on a warm cache, but on a cold one it's a real extra
-// round-trip sitting on the critical path for no reason). No longer async now that there's nothing
-// left to await.
-export function computeChampionshipProgression(races: RaceDoc[], driverCodes: string[]): Record<string, number | string>[] {
-  const completed = races.filter((r) => r.status === "completed").sort((a, b) => a.round - b.round);
-
-  const running: Record<string, number> = {};
-  for (const code of driverCodes) running[code] = 0;
-
-  return completed.map((race) => {
-    for (const r of race.results ?? []) {
-      if (r.driver in running) running[r.driver] += r.points;
-    }
-    return {
-      round: race.round,
-      raceName: race.name ?? `Round ${race.round}`,
-      trackShort: trackShortForm(race.circuit),
-      ...running,
-    };
-  });
-}
+// computeChampionshipProgression moved to lib/championshipProgression.ts (a pure module, no
+// supabaseAdmin in its import graph) - see that file's own comment on why. Re-exported here so
+// every existing import of it from this module (season.service.ts) keeps working unchanged; a new
+// client-side caller (ChampionshipTrajectory.tsx) imports the pure module directly instead.
+export { computeChampionshipProgression } from "@/lib/championshipProgression";
 
 export type Fact = { icon: string; text: string };
 
@@ -381,7 +371,7 @@ export function buildFacts(
   if (favoriteDriver && trackHistory?.topPerformer?.driverId === favoriteDriver.driverId) {
     facts.push({
       icon: "🎉",
-      text: `Your favorite, ${favoriteDriver.name}, is also the winningest driver at the upcoming track — ${trackHistory.topPerformer.wins} wins there`,
+      text: `Your favorite, ${favoriteDriver.name}, is also the winningest driver at the upcoming track (${trackHistory.topPerformer.wins} wins there)`,
     });
   }
   if (favoriteTeam && trackHistory?.topCurrentTeam?.name === favoriteTeam.currentName) {
@@ -392,4 +382,43 @@ export function buildFacts(
   }
 
   return facts;
+}
+
+export type SeasonRecap = {
+  roundsCompleted: number;
+  totalRounds: number;
+  driverLeader: DriverStanding | null;
+  /** Points gap between P1 and P2 in the drivers' championship — the closest-fight number. Null
+   * with fewer than two classified drivers. */
+  driverGapToSecond: number | null;
+  teamLeader: TeamStanding | null;
+  teamGapToSecond: number | null;
+  mostWins: DriverStanding | null;
+  mostPodiums: DriverStanding | null;
+  favoriteDriverRank: number | null; // 1-based, null if no favorite or not classified
+};
+
+/** The homepage's "how the season is unfolding" editorial recap — every number read straight off
+ * `standings`/`races`, nothing computed that buildFacts/computeSeasonStandings doesn't already
+ * derive from real race_results. A season with zero completed races returns all-null/zero rather
+ * than a fabricated "season hasn't started" placeholder copy — the component decides how to word
+ * that empty state. */
+export function buildSeasonRecap(races: RaceDoc[], standings: SeasonStandings, favoriteDriver: FavoriteDriverCard | null): SeasonRecap {
+  const driverLeader = standings.drivers[0] ?? null;
+  const teamLeader = standings.teams[0] ?? null;
+  const mostWins = [...standings.drivers].sort((a, b) => b.wins - a.wins)[0] ?? null;
+  const mostPodiums = [...standings.drivers].sort((a, b) => b.podiums - a.podiums)[0] ?? null;
+  const favoriteRank = favoriteDriver?.code ? standings.drivers.findIndex((d) => d.driver === favoriteDriver.code) : -1;
+
+  return {
+    roundsCompleted: races.filter((r) => r.status === "completed").length,
+    totalRounds: races.length,
+    driverLeader,
+    driverGapToSecond: driverLeader && standings.drivers[1] ? driverLeader.points - standings.drivers[1].points : null,
+    teamLeader,
+    teamGapToSecond: teamLeader && standings.teams[1] ? teamLeader.points - standings.teams[1].points : null,
+    mostWins: mostWins && mostWins.wins > 0 ? mostWins : null,
+    mostPodiums: mostPodiums && mostPodiums.podiums > 0 ? mostPodiums : null,
+    favoriteDriverRank: favoriteRank >= 0 ? favoriteRank + 1 : null,
+  };
 }

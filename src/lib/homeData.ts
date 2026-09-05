@@ -3,6 +3,7 @@
 // from the Groups data layer (getUserGroups/listPublicGroups/listFeedPosts) but never writes to or
 // modifies it — that surface is owned by a concurrent redesign elsewhere in this codebase.
 
+import { getRecentPredictionPolls, type PredictionPoll } from "@/lib/homePredictionPolls";
 import { computePredictionPerformance, type PredictionPerformance } from "@/lib/predictionPerformance";
 import {
   getFavoriteDriverCard,
@@ -10,6 +11,8 @@ import {
   type Fact,
   type FavoriteDriverCard,
   type FavoriteTeamCard,
+  type SeasonRecap,
+  type TrackHistory,
 } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
@@ -30,6 +33,10 @@ export type PublicHomeData = {
   calendarEntry: CalendarEntry | null;
   backdropPhotos: string[];
   facts: Fact[];
+  /** The upcoming race's circuit history — null for a circuit the archive doesn't cover at all.
+   * Drives the hero's right-side Race Intelligence panel and the Track Intelligence widget. */
+  trackHistory: TrackHistory | null;
+  seasonRecap: SeasonRecap;
 };
 
 // A homepage teaser, not a second Groups feed — same cap FavoritesSection/GroupsPreview already
@@ -39,6 +46,7 @@ const RECENT_TRANSACTIONS_LIMIT = 5;
 const RECENT_ACTIVITY_LIMIT = 5;
 const DISCOVER_GROUPS_LIMIT = 3;
 const ACTIVE_TIER_MIN_PICKS = 3;
+const COMMUNITY_ACTIVITY_WINDOW_DAYS = 7;
 
 export type PersonalizationTier = "new" | "returning" | "active";
 
@@ -57,6 +65,7 @@ export type PersonalHomeData = {
   myPick: UserPick | null;
   predictionPerformance: PredictionPerformance;
   recentActivity: ActivityEntry[];
+  predictionPolls: PredictionPoll[];
   tier: PersonalizationTier;
   nextAction: NextAction | null;
 };
@@ -125,12 +134,13 @@ function computeNextAction(
 }
 
 export async function getPersonalHomeData(uid: string, year: number, nextRace: RaceDoc | null, races: RaceDoc[]): Promise<PersonalHomeData> {
-  const [profile, groups, feed, picks, recentTransactions] = await Promise.all([
+  const [profile, groups, feed, picks, recentTransactions, predictionPolls] = await Promise.all([
     getUserProfile(uid),
     getUserGroups(uid),
     listFeedPosts(uid, { feedType: "following", limit: FEED_POST_LIMIT }),
     getUserPicksForYear(uid, year),
     listRecentTransactions(uid, RECENT_TRANSACTIONS_LIMIT),
+    getRecentPredictionPolls(uid),
   ]);
 
   const [favoriteDriver, favoriteTeam, discoverGroups, myPick] = await Promise.all([
@@ -149,10 +159,11 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     favoriteTeam,
     groups,
     discoverGroups: discoverGroups.filter((g) => !g.isMember).slice(0, DISCOVER_GROUPS_LIMIT),
-    feedPosts: feed.posts,
     myPick,
     predictionPerformance,
     recentActivity: buildRecentActivity(picks, races, recentTransactions),
+    predictionPolls,
+    feedPosts: feed.posts.filter((p) => Date.now() - new Date(p.createdAt).getTime() <= COMMUNITY_ACTIVITY_WINDOW_DAYS * 86_400_000),
     tier: computeTier(hasFavorites, groups.length, picks.length),
     nextAction: computeNextAction(nextRace, myPick, picks, races, hasFavorites, groups.length),
   };

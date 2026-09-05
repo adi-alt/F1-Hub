@@ -3,27 +3,39 @@ import { CommunitySnapshot, CommunitySnapshotSkeleton } from "./CommunitySnapsho
 import { DiscoverSection } from "./DiscoverSection";
 import { HomeLayout } from "./HomeLayout";
 import { IntelligenceSection, IntelligenceSkeleton } from "./IntelligenceSection";
+import { PredictionPolls, PredictionPollsSkeleton } from "./PredictionPolls";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { RecentActivity, RecentActivitySkeleton } from "./RecentActivity";
-import { SeasonStrip } from "./SeasonStrip";
+import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
 
-/** The personal F1 command center — race context, then who you are on F1 Hub, then your
- * intelligence layer, then your community, then broader season navigation. Genuinely different
- * information architecture from PublicHome, not the same page with sections hidden. */
+/** The personal F1 command center — race context (+ what it means for your favorites), then who
+ * you are on F1 Hub, then your intelligence layer, then what the community's saying, then how the
+ * season is unfolding. Genuinely different information architecture from PublicHome, not the same
+ * page with sections hidden. */
 export function PersonalHome({ publicData, personalData, firstName, isReturning }: { publicData: PublicHomeData; personalData: PersonalHomeData; firstName: string; isReturning: boolean }) {
   const hasCommunity = personalData.groups.length > 0;
+  const hasCommunityContent = personalData.feedPosts.length > 0 || personalData.predictionPolls.length > 0;
 
   return (
     <HomeLayout photos={publicData.backdropPhotos}>
-      <RaceHero publicData={publicData} variant="personal" firstName={firstName} isReturning={isReturning} nextAction={personalData.nextAction} />
+      <RaceHero
+        publicData={publicData}
+        variant="personal"
+        firstName={firstName}
+        isReturning={isReturning}
+        nextAction={personalData.nextAction}
+        favoriteDriver={personalData.favoriteDriver}
+        favoriteTeam={personalData.favoriteTeam}
+      />
 
       <YourF1
         favoriteDriver={personalData.favoriteDriver}
         favoriteTeam={personalData.favoriteTeam}
         races={publicData.races}
         predictionCount={personalData.predictionPerformance.winner.total}
+        driverLeader={publicData.seasonRecap.driverLeader}
       />
 
       <IntelligenceSection myPick={personalData.myPick} nextRace={publicData.nextRace} performance={personalData.predictionPerformance} />
@@ -33,7 +45,12 @@ export function PersonalHome({ publicData, personalData, firstName, isReturning 
         {hasCommunity ? (
           <div className="mt-4 space-y-6">
             <CommunitySnapshot groups={personalData.groups} />
-            <CommunityFeed posts={personalData.feedPosts} />
+            {hasCommunityContent && (
+              <div className="grid gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px]">
+                <CommunityFeed posts={personalData.feedPosts} />
+                <PredictionPolls polls={personalData.predictionPolls} />
+              </div>
+            )}
           </div>
         ) : (
           <div className="mt-4">
@@ -44,10 +61,7 @@ export function PersonalHome({ publicData, personalData, firstName, isReturning 
 
       <RecentActivity entries={personalData.recentActivity} />
 
-      <div>
-        <h2 className="mb-4 text-lg font-semibold text-white">{publicData.year} Season</h2>
-        <SeasonStrip races={publicData.races} />
-      </div>
+      <SeasonRecap year={publicData.year} races={publicData.races} recap={publicData.seasonRecap} />
     </HomeLayout>
   );
 }
@@ -63,9 +77,13 @@ export function PersonalHomeSkeleton() {
       <IntelligenceSkeleton />
       <div className="space-y-6">
         <CommunitySnapshotSkeleton />
-        <CommunityFeedSkeleton />
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px]">
+          <CommunityFeedSkeleton />
+          <PredictionPollsSkeleton />
+        </div>
       </div>
       <RecentActivitySkeleton />
+      <SeasonRecapSkeleton />
     </HomeLayout>
   );
 }
