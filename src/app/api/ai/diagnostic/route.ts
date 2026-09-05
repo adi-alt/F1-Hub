@@ -9,8 +9,42 @@
 // needs a real answer instead of a guess. Never echoes the API key.
 
 import { NextResponse } from "next/server";
+import { HOMEPAGE_SYSTEM_PROMPT } from "@/lib/ai/prompts/homepagePrompt";
 
-export const maxDuration = 90;
+export const maxDuration = 110;
+
+// A real, representative context block - same shape buildHomepageContext produces, not the
+// diagnostic's own trivial "reply with this JSON" test. Isolates whether the REAL task (reason
+// through this data and produce all 12 HomepageIntelligence fields) completes at all within a
+// generous budget, since a production timeout at 45s turned out to be about task complexity, not
+// connectivity - the trivial probe below succeeded in 7s; the real endpoint still timed out.
+const SAMPLE_REAL_CONTEXT = `<STRUCTURED_F1_DATA>
+
+Upcoming Race: Round 13 of 2026 - Italian Grand Prix at Monza (Monza, Italy)
+
+Drivers Championship: P1 Kimi Antonelli (216 pts, Mercedes), P2 Lewis Hamilton (163 pts, Ferrari, gap: 53 pts), P3 Max Verstappen (140 pts).
+
+Constructors Championship: P1 Mercedes (365 pts), P2 Ferrari (290 pts).
+
+Circuit Track History: Defending Winner: Max Verstappen; Most Wins / Top Record: Michael Schumacher; Total historic races: 75.
+
+</STRUCTURED_F1_DATA>
+
+<PERSONAL_CONTEXT>
+
+User's Favorite Driver: Lewis Hamilton (P2 in WDC, 163 points) racing for Ferrari.
+
+User's Favorite Driver's History At This Circuit: 19 start(s), 5 win(s), 8 podium(s), best finish P1, average finish P4.2.
+
+User's Own Prediction For This Race: Not yet submitted.
+
+</PERSONAL_CONTEXT>
+
+<UNTRUSTED_COMMUNITY_DATA>
+
+No community posts in the last 7 days.
+
+</UNTRUSTED_COMMUNITY_DATA>`;
 
 async function timedFetch(url: string, init: RequestInit, timeoutMs: number): Promise<{ latencyMs: number; result: { ok: boolean; status?: number; body?: string; error?: string } }> {
   const controller = new AbortController();
@@ -63,9 +97,33 @@ export async function GET() {
     85_000,
   );
 
+  // Stage 3: the REAL system prompt + a representative structured/personal context, at production's
+  // actual maxTokens/reasoningBudget - the one test that answers "does the real 12-field task
+  // complete at all," rather than a trivial one-line echo that isn't representative of it.
+  const realTask = await timedFetch(
+    "https://integrate.api.nvidia.com/v1/chat/completions",
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: HOMEPAGE_SYSTEM_PROMPT },
+          { role: "user", content: SAMPLE_REAL_CONTEXT },
+        ],
+        max_tokens: 3500,
+        temperature: 0.7,
+        reasoning_budget: 2048,
+        chat_template_kwargs: { enable_thinking: true },
+      }),
+    },
+    100_000,
+  );
+
   return NextResponse.json({
     configuredModel: model,
     modelsList: { ...modelsList.result, latencyMs: modelsList.latencyMs },
-    realisticChatCompletion: { ...completion.result, latencyMs: completion.latencyMs },
+    trivialChatCompletion: { ...completion.result, latencyMs: completion.latencyMs },
+    realisticHomepageTask: { ...realTask.result, latencyMs: realTask.latencyMs },
   });
 }
