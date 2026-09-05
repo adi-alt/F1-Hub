@@ -49,6 +49,9 @@ type RunResult = {
   headline?: string;
   personalRaceBriefPresent?: boolean;
   error?: string;
+  // Full raw content on every run (not just valid ones) - a truncated/invalid response is itself
+  // part of the quality signal the account owner asked to see, not just a pass/fail count.
+  rawContent?: string;
 };
 
 async function runOnce(url: string, headers: Record<string, string>, body: Record<string, unknown>): Promise<RunResult> {
@@ -88,6 +91,7 @@ async function runOnce(url: string, headers: Record<string, string>, body: Recor
       schemaValid: !!validation.valid,
       headline: jsonValid ? p?.raceBrief?.headline : undefined,
       personalRaceBriefPresent: jsonValid ? !!p?.personalRaceBrief : undefined,
+      rawContent: content,
     };
   } catch (err) {
     const latencyMs = Date.now() - startedAt;
