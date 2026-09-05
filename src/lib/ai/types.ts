@@ -1,8 +1,9 @@
 // Core AI type definitions — the foundation every other module in src/lib/ai/ depends on.
 // Designed around the NVIDIA NIM / OpenAI-compatible chat completions API the configured model
-// (DeepSeek V4 Flash, formerly Kimi K3) uses, but deliberately abstract enough that swapping to
-// OpenAI, Gemini, or a local model later means implementing one new provider file, not rewriting
-// the orchestrator or tools - which is exactly what happened swapping Kimi K3 for DeepSeek.
+// (Muse Glimmer 30B, formerly Nemotron 3.5 Lightning, DeepSeek V4 Flash, and Kimi K3 before that)
+// uses, but deliberately abstract enough that swapping providers later means implementing one new
+// provider file, not rewriting the orchestrator or tools - which is exactly what's happened four
+// times now. See museGlimmer.ts and docs/AGENTIC_AI.md for the bake-off behind the current choice.
 
 // ─── Messages ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,10 @@ export type AIProviderConfig = {
   model: string;
   maxTokens: number;
   temperature: number;
+  /** Nucleus sampling cutoff. Optional - omitted entirely for older providers (Kimi/DeepSeek/
+   * Nemotron never sent it), but Muse Glimmer's own bake-off-verified config (see museGlimmer.ts)
+   * uses 0.95, matching NVIDIA's own reference example for this model. */
+  topP?: number;
   /** Provider-level timeout in milliseconds. */
   timeoutMs: number;
   /** Kimi K3 and DeepSeek (both tried, both replaced - see types.ts's own history below and the
@@ -176,7 +181,7 @@ export type OrchestratorConfig = {
 };
 
 export function getDefaultAIModel(): string {
-  return process.env.NVIDIA_AI_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b";
+  return process.env.NVIDIA_AI_MODEL || "meta/muse-glimmer-30b";
 }
 
 export function getProviderRPMLimit(): number {
@@ -191,23 +196,31 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
   maxRetries: 1,
   timeoutMs: 60_000,
   maxResponseTokens: 2048,
+  // Fourth model in this config's history (Kimi K3 -> DeepSeek V4 Flash -> Nemotron 3.5 Lightning
+  // -> Muse Glimmer 30B) - see museGlimmer.ts's own header comment and docs/AGENTIC_AI.md for the
+  // full bake-off that produced this. Real evidence, not a guess: a 15-run replication against the
+  // exact real production context/prompt/schema measured 15/15 valid JSON, median 14.0s, P95 15.0s,
+  // max 15.85s - roughly 3x faster than Nemotron's own real-context baseline (7/15 valid, median
+  // 40.1s) with equal or better grounding/personalization. Nemotron remains registered (see
+  // nemotron.ts) - this is a "current best candidate," not a closed decision, pending
+  // GLM-5.3-Flash's own replication once Hugging Face's inference credits are restored.
   provider: {
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b",
-    // Comfortably above reasoningBudget below - real evidence (a live diagnostic run against
-    // DeepSeek) showed a small combined token cap gets fully consumed by reasoning before any real
-    // content is produced.
-    maxTokens: 3500,
-    temperature: 0.7,
-    // History (each number a real, live-measured data point, not a guess):
-    //   reasoningBudget 2048, sample context: 58.4s and 94.1s on two separate runs.
-    //   reasoningBudget  512, sample context: 30.1s.
-    //   reasoningBudget  512, REAL production context (real standings/trackHistory/community
-    //     posts, not the diagnostic's simplified sample): still timed out at 55s.
-    // The real route's actual context is consistently bigger/slower than the diagnostic's
-    // hand-written sample - by how much varies, and cutting reasoningBudget further starts trading
-    // away the genuinely good output quality 512 still produced. 90s is a deliberately generous
-    // budget given that pattern, not a tight fit to one measurement.
-    timeoutMs: 90_000,
-    reasoningBudget: 512,
+    model: "meta/muse-glimmer-30b",
+    // Real observed max across 15 runs was 3696 completion tokens - comfortably under this; not
+    // tightened further without more evidence.
+    maxTokens: 8192,
+    // NOT copied blindly from NVIDIA's own Playground example for this model (which additionally
+    // included a generic demo `tools` block unrelated to our task, deliberately not adopted) -
+    // empirically confirmed via a controlled bake-off retest, after the same "copy NVIDIA's example
+    // verbatim" approach measurably WORSENED two other candidates in the same bake-off (DeepSeek V4
+    // Pro got slower/less reliable; Nemotron with reasoning_budget==max_tokens failed completely).
+    temperature: 1,
+    topP: 0.95,
+    // Real observed latency range across 15 runs: 10.2s-15.85s. 45s is a deliberately generous
+    // margin (~3x the observed max) rather than a tight fit to one measurement - matches this
+    // config's own established practice for every prior model.
+    timeoutMs: 45_000,
+    // Muse Glimmer has no reasoning_budget/chat_template_kwargs shape (unlike Nemotron) - plain
+    // OpenAI-compatible chat completion, no hidden "thinking" pass to control.
   },
 };

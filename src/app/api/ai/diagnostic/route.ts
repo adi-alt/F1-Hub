@@ -110,14 +110,16 @@ export async function GET() {
   // All stages run concurrently - sequential would sum worst-case timeouts, well past this route's
   // own maxDuration. Total wall-clock time here is bounded by whichever single stage is slowest,
   // not their sum.
-  const [modelsList, nemotronRealTask, glmRealTask, ministralRealTask] = await Promise.all([
+  const [modelsList, configuredModelTask, glmRealTask, ministralRealTask] = await Promise.all([
     // Lightweight catalog lookup - no GPU/inference involved, should always be fast. The permanent
     // "is NVIDIA even reachable" health check.
     timedFetch("https://integrate.api.nvidia.com/v1/models", { method: "GET", headers }, 10_000),
 
     // Baseline: the REAL system prompt + a representative structured/personal context, at
-    // production's actual maxTokens/reasoningBudget (512, current config) - what's actually
-    // running in production today.
+    // production's actual config (see types.ts's DEFAULT_ORCHESTRATOR_CONFIG - currently Muse
+    // Glimmer 30B: temperature 1, top_p 0.95, max_tokens 8192, no reasoning_budget/
+    // chat_template_kwargs shape - that's Nemotron-specific and would be a no-op/irrelevant param
+    // for whatever model NVIDIA_AI_MODEL actually points to today).
     timedFetch(
       completionUrl,
       {
@@ -129,18 +131,17 @@ export async function GET() {
             { role: "system", content: HOMEPAGE_SYSTEM_PROMPT },
             { role: "user", content: SAMPLE_REAL_CONTEXT },
           ],
-          max_tokens: 3500,
-          temperature: 0.7,
-          reasoning_budget: 512,
-          chat_template_kwargs: { enable_thinking: true },
+          max_tokens: 8192,
+          temperature: 1,
+          top_p: 0.95,
         }),
       },
       100_000,
     ),
 
-    // Benchmark candidates - exact same system prompt + context as the Nemotron baseline above,
-    // via Hugging Face's Inference Providers router (a plain OpenAI-compatible passthrough, no
-    // per-model reasoning-parameter quirks to guess at). Skipped gracefully without HF_TOKEN.
+    // Benchmark candidates - exact same system prompt + context as the baseline above, via Hugging
+    // Face's Inference Providers router (a plain OpenAI-compatible passthrough, no per-model
+    // reasoning-parameter quirks to guess at). Skipped gracefully without HF_TOKEN.
     hfToken ? hfBenchmarkRequest(hfToken, HF_BENCHMARK_MODELS.glm) : Promise.resolve(skipped),
     hfToken ? hfBenchmarkRequest(hfToken, HF_BENCHMARK_MODELS.ministral) : Promise.resolve(skipped),
   ]);
@@ -150,7 +151,7 @@ export async function GET() {
     hfTokenConfigured: !!hfToken,
     modelsList: { ...modelsList.result, latencyMs: modelsList.latencyMs },
     benchmark: {
-      nemotron: { model, ...nemotronRealTask.result, latencyMs: nemotronRealTask.latencyMs },
+      configuredModel: { model, ...configuredModelTask.result, latencyMs: configuredModelTask.latencyMs },
       glm: { model: HF_BENCHMARK_MODELS.glm, ...glmRealTask.result, latencyMs: glmRealTask.latencyMs },
       ministral: { model: HF_BENCHMARK_MODELS.ministral, ...ministralRealTask.result, latencyMs: ministralRealTask.latencyMs },
     },

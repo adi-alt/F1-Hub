@@ -33,14 +33,18 @@ export function getProvider(name: string): AIProvider {
   return provider;
 }
 
-/** The default provider for F1 Hub — NVIDIA Nemotron 3.5 Lightning via NVIDIA NIM. Lazily
- * initialized so the module can be imported without side effects (the NemotronProvider import
- * triggers registration). */
+/** The default provider for F1 Hub — Meta Muse Glimmer 30B via NVIDIA NIM, chosen via a real,
+ * controlled 15-run bake-off replication against real production context/prompt/schema (see
+ * museGlimmer.ts's own header comment and docs/AGENTIC_AI.md). Lazily initialized so the module
+ * can be imported without side effects (the MuseGlimmerProvider import triggers registration).
+ * NemotronProvider is still registered (see nemotron.ts) but no longer the default - kept, not
+ * deleted, since this remains a "current best candidate" pending GLM-5.3-Flash's own replication
+ * once Hugging Face's inference credits are restored. */
 export function getDefaultProvider(): AIProvider {
-  if (!providers.has("nemotron")) {
+  if (!providers.has("muse-glimmer")) {
     // Dynamic import to avoid circular deps and ensure registration
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("./nemotron");
+    require("./museGlimmer");
   }
-  return getProvider("nemotron");
+  return getProvider("muse-glimmer");
 }
