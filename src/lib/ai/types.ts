@@ -198,15 +198,16 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     // content is produced.
     maxTokens: 3500,
     temperature: 0.7,
-    // 80s (raised from an original 45s after the real task measured 58.4s) still wasn't safe - a
-    // repeat diagnostic run of the SAME reasoning_budget:2048 request took 94.1s, confirming real,
-    // substantial run-to-run variance rather than a fixed cost. The better lever turned out to be
-    // reasoning_budget below, not the timeout: cutting it from 2048 to 512 measured 30.1s for the
-    // full real task (system prompt + representative context), with content quality still
-    // genuinely good (real circuit stats, real championship math, coherent structure) - not a
-    // quality/speed tradeoff worth avoiding. timeoutMs kept generous relative to that single
-    // measurement given the variance already observed at the larger budget.
-    timeoutMs: 55_000,
+    // History (each number a real, live-measured data point, not a guess):
+    //   reasoningBudget 2048, sample context: 58.4s and 94.1s on two separate runs.
+    //   reasoningBudget  512, sample context: 30.1s.
+    //   reasoningBudget  512, REAL production context (real standings/trackHistory/community
+    //     posts, not the diagnostic's simplified sample): still timed out at 55s.
+    // The real route's actual context is consistently bigger/slower than the diagnostic's
+    // hand-written sample - by how much varies, and cutting reasoningBudget further starts trading
+    // away the genuinely good output quality 512 still produced. 90s is a deliberately generous
+    // budget given that pattern, not a tight fit to one measurement.
+    timeoutMs: 90_000,
     reasoningBudget: 512,
   },
 };
