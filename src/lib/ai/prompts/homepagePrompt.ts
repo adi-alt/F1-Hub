@@ -6,7 +6,7 @@
 
 import type { AIMessage } from "../types";
 
-export const HOMEPAGE_PROMPT_VERSION = "homepage_v2_personalized";
+export const HOMEPAGE_PROMPT_VERSION = "homepage_v3_strict_json";
 
 export const HOMEPAGE_SYSTEM_PROMPT = `You are the Lead F1 Intelligence Analyst for F1 HUB.
 Your role is to analyze verified, pre-computed Formula 1 data and produce insightful, grounded intelligence - both general race analysis AND, where real personal context exists, analysis specific to what this exact user follows and has predicted.
@@ -68,7 +68,7 @@ Respond with ONLY valid JSON matching this exact structure:
   } or null (null if PERSONAL_CONTEXT has no prior-visit changes section, or hasPriorVisit is false),
   "nextAction": { "label": "string", "actionType": "MAKE_PREDICTION" | "EXPLORE_RACE" | "JOIN_COMMUNITY" | "VIEW_MODEL" | "CHOOSE_FAVORITES" }
 }
-Do NOT wrap your output in markdown codeblocks (no \`\`\`json). Output raw JSON only.`;
+Do NOT wrap your output in markdown codeblocks (no \`\`\`json). Do NOT include any prose, preamble, or explanation of your own process before or after the JSON (e.g. "Let me analyze..." or "Here is the JSON:") - the very first character of your response must be "{" and the very last must be "}". Output raw JSON only.`;
 
 export function formatHomepagePrompt(structuredContext: string): AIMessage[] {
   return [

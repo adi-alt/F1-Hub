@@ -87,7 +87,15 @@ function toFallbackContext(data: HomepageContextData): FallbackDataContext {
 }
 
 /** Clean potential markdown code blocks from LLM output */
-function cleanJsonOutput(text: string): string {
+/** Extracts the actual JSON object from a raw model response. Handles two real, observed failure
+ * modes, not just the markdown-fence case this originally covered: confirmed live in production
+ * that Nemotron (despite the system prompt's explicit "output raw JSON only" instruction) can
+ * preface its answer with plain prose narrating its own process ("Let me analyze the data and
+ * construct...") before ever reaching the JSON object - `JSON.parse` on the raw string then fails
+ * immediately on that leading text. Taking the substring between the first "{" and the last "}"
+ * is robust to both leading prose and markdown fences without needing to enumerate every way a
+ * model might wrap its answer. */
+export function cleanJsonOutput(text: string): string {
   let cleaned = text.trim();
   if (cleaned.startsWith("```json")) {
     cleaned = cleaned.slice(7);
@@ -97,7 +105,18 @@ function cleanJsonOutput(text: string): string {
   if (cleaned.endsWith("```")) {
     cleaned = cleaned.slice(0, -3);
   }
-  return cleaned.trim();
+  cleaned = cleaned.trim();
+
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    // There's real content before the object (prose, a fence remnant) - the object itself is
+    // still well-formed JSON on its own, so slicing it out is enough; no need to touch anything
+    // between the braces.
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  }
+
+  return cleaned;
 }
 
 /**

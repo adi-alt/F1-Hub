@@ -20,7 +20,7 @@ import {
   resetMemoryCache,
 } from "../cache";
 import { buildHomepageContext } from "../context";
-import { generateHomepageIntelligence } from "../orchestrator";
+import { cleanJsonOutput, generateHomepageIntelligence } from "../orchestrator";
 import { sanitizeActionType } from "../guardrails";
 import type { AgentContext } from "../types";
 
@@ -245,5 +245,28 @@ describe("Structured Context Builder", () => {
     assert.ok(ctx.includes("<UNTRUSTED_COMMUNITY_DATA>"));
     assert.ok(ctx.includes("</UNTRUSTED_COMMUNITY_DATA>"));
     assert.ok(ctx.includes("[Community: Ferrari Fans] Who takes pole position?"));
+  });
+});
+
+describe("cleanJsonOutput - robust extraction against real observed model behavior", () => {
+  test("parses a plain JSON object unchanged", () => {
+    const raw = '{"a":1,"b":2}';
+    assert.equal(cleanJsonOutput(raw), raw);
+    assert.doesNotThrow(() => JSON.parse(cleanJsonOutput(raw)));
+  });
+
+  test("strips a markdown code fence", () => {
+    const raw = '```json\n{"a":1}\n```';
+    assert.deepEqual(JSON.parse(cleanJsonOutput(raw)), { a: 1 });
+  });
+
+  test("strips leading prose the model added despite being told not to (confirmed live in production)", () => {
+    const raw = 'Let me analyze the data and construct the JSON response.\n\n{"a":1,"b":"two"}';
+    assert.deepEqual(JSON.parse(cleanJsonOutput(raw)), { a: 1, b: "two" });
+  });
+
+  test("strips trailing prose after the JSON object", () => {
+    const raw = '{"a":1}\n\nI hope this JSON is helpful!';
+    assert.deepEqual(JSON.parse(cleanJsonOutput(raw)), { a: 1 });
   });
 });
