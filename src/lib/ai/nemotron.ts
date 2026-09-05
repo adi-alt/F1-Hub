@@ -113,12 +113,16 @@ export class NemotronProvider implements AIProvider {
         logProviderRequest("nvidia", model, "error", currentRPM, limit, latencyMs, {
           status: response.status,
           error: errorText.slice(0, 200),
+          providerName: this.name,
         });
         throw new Error(`NVIDIA NIM returned HTTP ${response.status}: ${errorText.slice(0, 300)}`);
       }
 
       const json = await response.json();
-      logProviderRequest("nvidia", model, "success", currentRPM, limit, latencyMs);
+      // providerName alongside model on every real request - see museGlimmer.ts's own comment on
+      // why this pairing matters (a stale NVIDIA_AI_MODEL env var once silently pointed the muse
+      // glimmer provider class at a different model entirely).
+      logProviderRequest("nvidia", model, "success", currentRPM, limit, latencyMs, { providerName: this.name });
 
       const choice = json.choices?.[0];
       if (!choice) {

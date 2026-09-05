@@ -38,6 +38,15 @@ import { logAIError, logProviderRequest } from "./telemetry";
 
 const NVIDIA_INVOKE_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
+// This provider's whole config (no reasoning_budget/chat_template_kwargs, temperature:1, top_p:0.95,
+// max_tokens:8192) was empirically validated against exactly this one model - it was never tested
+// against, and doesn't apply to, any other NVIDIA-hosted model. A stale NVIDIA_AI_MODEL env var
+// once silently pointed this exact class at Nemotron's model ID instead (Nemotron needs its own
+// reasoning_budget shape this class never sends) - the resulting untested combination produced wild,
+// unpredictable multi-minute latencies that looked like a Muse Glimmer reliability problem but were
+// really a deployment configuration bug. See docs/AGENTIC_AI.md for the full incident.
+export const MUSE_GLIMMER_MODEL_ID = "meta/muse-glimmer-30b";
+
 export class MuseGlimmerProvider implements AIProvider {
   readonly name = "muse-glimmer";
 
@@ -52,6 +61,18 @@ export class MuseGlimmerProvider implements AIProvider {
     }
 
     const model = config.model || getDefaultAIModel();
+
+    // Fail fast and loud on a provider/model mismatch instead of silently sending an unvalidated
+    // model+shape combination - this exact scenario (a stale NVIDIA_AI_MODEL env var pointing this
+    // class at a different model) previously produced multi-minute timeouts with no clear signal
+    // beyond "provider_error" in the logs. Caught by the orchestrator's existing PROVIDER_ERROR
+    // fallback path, so a misconfiguration degrades to the deterministic fallback immediately
+    // rather than after a real, wasted 90s wait.
+    if (model !== MUSE_GLIMMER_MODEL_ID) {
+      const msg = `MuseGlimmerProvider resolved model "${model}", not "${MUSE_GLIMMER_MODEL_ID}" - likely a stale NVIDIA_AI_MODEL env var or a provider/model mismatch. Refusing to send an unvalidated model+shape combination.`;
+      logAIError("muse_glimmer_provider", "model_mismatch", msg);
+      throw new Error(msg);
+    }
     const timeoutMs = config.timeoutMs || 30_000;
     const startTime = Date.now();
 
@@ -118,12 +139,16 @@ export class MuseGlimmerProvider implements AIProvider {
         logProviderRequest("nvidia", model, "error", currentRPM, limit, latencyMs, {
           status: response.status,
           error: errorText.slice(0, 200),
+          providerName: this.name,
         });
         throw new Error(`NVIDIA NIM returned HTTP ${response.status}: ${errorText.slice(0, 300)}`);
       }
 
       const json = await response.json();
-      logProviderRequest("nvidia", model, "success", currentRPM, limit, latencyMs);
+      // providerName alongside model on every real request - this exact pairing (a registered
+      // provider class next to the model it actually sent) is what caught a stale NVIDIA_AI_MODEL
+      // env var silently pointing this class at a different, untested model.
+      logProviderRequest("nvidia", model, "success", currentRPM, limit, latencyMs, { providerName: this.name });
 
       const choice = json.choices?.[0];
       if (!choice) {
