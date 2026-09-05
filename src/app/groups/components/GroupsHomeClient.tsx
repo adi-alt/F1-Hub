@@ -37,7 +37,7 @@ export function GroupsHomeClient({
   const [showDiscover, setShowDiscover] = useState(false);
 
   return (
-    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_300px] lg:items-start">
+    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-5 lg:items-start">
       <aside className="order-2 lg:order-1 lg:sticky lg:top-4">
         <GroupsLeftSidebar groups={groups} onDiscover={() => setShowDiscover(true)} />
       </aside>

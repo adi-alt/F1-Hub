@@ -640,3 +640,51 @@ values ('group-banners', 'group-banners', true, 3145728, array['image/png', 'ima
 -- the standard way to express it. createGroup/updateGroupSettings both translate the resulting
 -- 23505 violation into a real "A group with this name already exists." error.
 create unique index groups_name_unique_idx on groups (lower(name));
+
+-- Groups v4 (Reddit-style redesign): real up/down voting, threaded comments, personal (no-group)
+-- posts, post titles, and post media (images/video/documents) - applied and verified live.
+alter table group_post_votes add column value smallint not null default 1 check (value in (1, -1));
+
+create table group_comment_votes (
+  comment_id uuid not null references group_post_comments (id) on delete cascade,
+  user_id uuid not null references profiles (id) on delete cascade,
+  value smallint not null default 1 check (value in (1, -1)),
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);
+alter table group_comment_votes enable row level security;
+create policy "members can view comment votes" on group_comment_votes for select
+  using (comment_id in (select id from group_post_comments where post_id in (
+    select id from group_posts where group_id in (select group_id from group_members where user_id = auth.uid()) or group_id is null
+  )));
+
+alter table group_posts add column title text check (title is null or char_length(title) <= 300);
+alter table group_posts add column media_url text;
+alter table group_posts alter column group_id drop not null;
+
+drop policy "members can view group posts" on group_posts;
+create policy "members can view group posts" on group_posts for select
+  using (group_id is null or group_id in (select group_id from group_members where user_id = auth.uid()));
+drop policy "members can view post comments" on group_post_comments;
+create policy "members can view post comments" on group_post_comments for select
+  using (post_id in (select id from group_posts where group_id is null or group_id in (select group_id from group_members where user_id = auth.uid())));
+
+alter table group_post_comments add column parent_comment_id uuid references group_post_comments (id) on delete cascade;
+
+-- Images (500KB), video (2MB), and common document types (2MB) - one bucket, the bucket's own
+-- file_size_limit is the largest per-type cap; the tighter image limit is enforced in the API
+-- route (see /api/posts/media/route.ts).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'post-media',
+  'post-media',
+  true,
+  2097152,
+  array[
+    'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+    'video/mp4', 'video/webm',
+    'application/pdf',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ]
+);

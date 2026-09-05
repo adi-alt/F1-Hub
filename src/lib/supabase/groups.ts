@@ -335,7 +335,7 @@ function isDuplicateNameError(error: { code?: string } | null): boolean {
 
 export async function createGroup(
   uid: string,
-  input: { name: string; description?: string; visibility?: GroupVisibility },
+  input: { name: string; description?: string; visibility?: GroupVisibility; moderationEnabled?: boolean },
 ): Promise<{ id: string }> {
   const trimmed = input.name.trim();
   if (trimmed.length < 3 || trimmed.length > 40) {
@@ -347,7 +347,7 @@ export async function createGroup(
 
   const { data, error } = await supabaseAdmin
     .from("groups")
-    .insert({ name: trimmed, description, visibility, created_by: uid })
+    .insert({ name: trimmed, description, visibility, created_by: uid, moderation_enabled: !!input.moderationEnabled })
     .select("id")
     .single();
   if (error && isDuplicateNameError(error)) throw new ServiceError("A group with this name already exists.", 409);

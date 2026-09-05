@@ -17,11 +17,11 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { name?: string; description?: string; visibility?: GroupVisibility };
+  const body = (await request.json().catch(() => ({}))) as { name?: string; description?: string; visibility?: GroupVisibility; moderationEnabled?: boolean };
   if (typeof body.name !== "string") return NextResponse.json({ error: "Missing name" }, { status: 400 });
 
   try {
-    const group = await createGroup(session.uid, { name: body.name, description: body.description, visibility: body.visibility });
+    const group = await createGroup(session.uid, { name: body.name, description: body.description, visibility: body.visibility, moderationEnabled: body.moderationEnabled });
     return NextResponse.json(group);
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });

@@ -25,6 +25,7 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<GroupVisibility>("private");
+  const [moderationEnabled, setModerationEnabled] = useState(false);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [iconError, setIconError] = useState("");
@@ -100,7 +101,7 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
     const res = await fetch("/api/groups", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmedName, description: description.trim() || undefined, visibility }),
+      body: JSON.stringify({ name: trimmedName, description: description.trim() || undefined, visibility, moderationEnabled }),
     });
     const body = (await res.json().catch(() => null)) as { id?: string; error?: string } | null;
     if (!res.ok || !body?.id) {
@@ -270,6 +271,17 @@ export function CreateGroupModal({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </div>
+
+          <label className="flex items-center justify-between text-sm text-neutral-300">
+            Require approval for member posts
+            <button
+              type="button"
+              onClick={() => setModerationEnabled((v) => !v)}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition ${moderationEnabled ? "bg-[var(--f1-red)]" : "bg-white/10"}`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${moderationEnabled ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
+          </label>
 
           <label className="block text-sm text-neutral-400">
             Invite by email <span className="text-neutral-600">(optional)</span>
