@@ -64,12 +64,15 @@ export async function POST() {
     const session = await getSession();
     const userId = session?.uid || null;
 
-    // 2. Fetch deterministic GLOBAL data in parallel
+    // 2. Fetch deterministic GLOBAL data in parallel. computeSeasonStandings only depends on `year`
+    // (not on nextRace/races/archiveCircuits), so it joins this same batch instead of waiting on it
+    // - this used to be a separate `await` after this Promise.all resolved for no real reason.
     const year = new Date().getFullYear();
-    const [nextRace, races, archiveCircuits] = await Promise.all([
+    const [nextRace, races, archiveCircuits, standings] = await Promise.all([
       getNextUpcomingRace(year).catch(() => null),
       getRacesByYear(year).catch(() => []),
       getAllArchiveCircuits().catch(() => []),
+      computeSeasonStandings(year).catch(() => null),
     ]);
     const raceId = nextRace?.id || `season_${year}_prep`;
 
@@ -81,7 +84,6 @@ export async function POST() {
     const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
     const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
 
-    const standings = await computeSeasonStandings(year).catch(() => null);
     const driverLeader = standings?.drivers?.[0];
     const driverSecond = standings?.drivers?.[1];
     const driverThird = standings?.drivers?.[2];
@@ -100,13 +102,15 @@ export async function POST() {
     let trackHistory = null;
 
     if (userId) {
-      const profile = await getUserProfile(userId).catch(() => null);
-      lastHomepageVisitAt = profile?.lastHomepageVisitAt ?? null;
-
-      const [picks, feed] = await Promise.all([
+      // getUserProfile doesn't gate getUserPicksForYear/listFeedPosts - neither needs the profile,
+      // only userId/year - so all three now run concurrently instead of profile blocking the other
+      // two for no real reason.
+      const [profile, picks, feed] = await Promise.all([
+        getUserProfile(userId).catch(() => null),
         getUserPicksForYear(userId, year).catch(() => []),
         listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
       ]);
+      lastHomepageVisitAt = profile?.lastHomepageVisitAt ?? null;
 
       userPick = nextRace ? (picks.find((p) => p.raceId === nextRace.id) ?? null) : null;
       fingerprint = computePredictionFingerprint(picks, races, driverLeader?.driver ?? null);
@@ -115,21 +119,24 @@ export async function POST() {
         ? feedPosts.filter((p) => p.createdAt && new Date(p.createdAt).getTime() > new Date(lastHomepageVisitAt!).getTime()).length
         : 0;
 
-      if (profile?.favoriteDrivers?.[0]) {
-        favoriteDriverCard = await getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null);
-      }
-      if (profile?.favoriteTeams?.[0]) {
-        favoriteTeamCard = await getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null);
-      }
-
-      // Circuit history is resolved once here (with the user's real favorite ids attached) rather
-      // than a second, unpersonalized getTrackHistory call below.
-      if (resolvedCircuitId) {
-        trackHistory = await getTrackHistory(resolvedCircuitId, {
-          favoriteDriverId: profile?.favoriteDrivers?.[0],
-          favoriteTeamId: profile?.favoriteTeams?.[0],
-        }).catch(() => null);
-      }
+      // None of these three depends on either of the others' results - favoriteDriverCard doesn't
+      // need favoriteTeamCard, trackHistory only needs the profile's favorite ids (already resolved
+      // above) and resolvedCircuitId - so they run concurrently instead of as three sequential awaits.
+      const [driverCard, teamCard, history] = await Promise.all([
+        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
+        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+        // Circuit history is resolved once here (with the user's real favorite ids attached) rather
+        // than a second, unpersonalized getTrackHistory call below.
+        resolvedCircuitId
+          ? getTrackHistory(resolvedCircuitId, {
+              favoriteDriverId: profile?.favoriteDrivers?.[0],
+              favoriteTeamId: profile?.favoriteTeams?.[0],
+            }).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      favoriteDriverCard = driverCard;
+      favoriteTeamCard = teamCard;
+      trackHistory = history;
     } else if (resolvedCircuitId) {
       trackHistory = await getTrackHistory(resolvedCircuitId).catch(() => null);
     }
