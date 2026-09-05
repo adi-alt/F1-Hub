@@ -198,11 +198,14 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
   maxResponseTokens: 2048,
   // Fourth model in this config's history (Kimi K3 -> DeepSeek V4 Flash -> Nemotron 3.5 Lightning
   // -> Muse Glimmer 30B) - see museGlimmer.ts's own header comment and docs/AGENTIC_AI.md for the
-  // full bake-off that produced this. Real evidence, not a guess: a 15-run replication against the
-  // exact real production context/prompt/schema measured 15/15 valid JSON, median 14.0s, P95 15.0s,
-  // max 15.85s - roughly 3x faster than Nemotron's own real-context baseline (7/15 valid, median
-  // 40.1s) with equal or better grounding/personalization. Nemotron remains registered (see
-  // nemotron.ts) - this is a "current best candidate," not a closed decision, pending
+  // full bake-off that produced this. A 15-run bake-off replication against the exact real
+  // production context/prompt/schema measured 15/15 valid JSON, median 14.0s, P95 15.0s, max
+  // 15.85s - but the benchmark route makes its own raw fetch calls, bypassing this actual provider/
+  // orchestrator path entirely, and the FIRST real live call through this real path timed out at
+  // 45s. Median/reliability still look like a real improvement over Nemotron's own real-context
+  // baseline (7/15 valid, median 40.1s), but the tail latency claim above is not yet confirmed live
+  // - see timeoutMs's own comment below. Nemotron remains registered (see nemotron.ts) - this is a
+  // "current best candidate," not a closed decision, pending both further live verification and
   // GLM-5.3-Flash's own replication once Hugging Face's inference credits are restored.
   provider: {
     model: "meta/muse-glimmer-30b",
@@ -216,10 +219,14 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     // Pro got slower/less reliable; Nemotron with reasoning_budget==max_tokens failed completely).
     temperature: 1,
     topP: 0.95,
-    // Real observed latency range across 15 runs: 10.2s-15.85s. 45s is a deliberately generous
-    // margin (~3x the observed max) rather than a tight fit to one measurement - matches this
-    // config's own established practice for every prior model.
-    timeoutMs: 45_000,
+    // The bake-off's own 15-run replication measured 10.2s-15.85s and 45s was set as a ~3x margin
+    // on that - but the FIRST real live production call after this went live timed out at exactly
+    // 45s (confirmed via Vercel logs: "NVIDIA request timed out after 45000ms"), contradicting that
+    // sample. Same pattern seen earlier this session with Nemotron: a controlled benchmark's context
+    // understated real production context's tail latency. Bumped back to 90s (matching Nemotron's
+    // own long-standing, well-tested margin) as a safety net while more real production calls are
+    // gathered - not yet re-tightened, pending that evidence.
+    timeoutMs: 90_000,
     // Muse Glimmer has no reasoning_budget/chat_template_kwargs shape (unlike Nemotron) - plain
     // OpenAI-compatible chat completion, no hidden "thinking" pass to control.
   },
