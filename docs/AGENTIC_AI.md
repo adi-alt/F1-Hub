@@ -710,3 +710,34 @@ genuinely good - real circuit stats, real championship math, coherent 12-field s
 the reasoning budget was the right lever, not a quality tradeoff worth avoiding: `reasoningBudget`
 dropped to 512, `timeoutMs` correspondingly lowered to 55s (still real margin above the one
 measurement) and `route.ts`'s `maxDuration` down to 75s.
+
+---
+
+## 38. Addendum: Hugging Face Benchmark Candidates (not yet swapped in)
+
+Per the account owner's own research (giant models aren't automatically better for this workload -
+Nemotron's real 63s success proved that even a "good" model can still be too slow for
+homepage-grade latency), added two benchmark candidates through **Hugging Face's Inference
+Providers** router rather than trying yet another large NVIDIA-hosted model:
+
+- **`zai-org/GLM-4.7-Flash`** (31B) - primary candidate.
+- **`mistralai/Ministral-3-14B-Instruct-2512`** (14B) - speed candidate, closer to the "fast
+  homepage analyst" class this task actually needs (the backend already does the quantitative
+  work - RF, Monte Carlo, standings, circuit history; the model only needs to *interpret* it, not
+  calculate it).
+
+HF's router (`https://router.huggingface.co/v1/chat/completions`, confirmed against HF's own
+current docs before writing any code, given how costly wrong API-shape assumptions were for all
+three NVIDIA providers before this) is a genuine plain OpenAI-compatible passthrough - one request
+shape, no per-model reasoning-parameter quirks to guess at. `src/lib/ai/huggingface.ts` implements
+one generic `HuggingFaceProvider` class (not one file per model - `config.model` already carries
+which underlying model each call targets, the same pattern every NVIDIA provider used), registered
+under two names (`"glm"`, `"ministral"`) for the benchmark.
+
+**Not wired into `getDefaultProvider()`** - Nemotron remains the live default. This is
+benchmarking infrastructure only, extending the same diagnostic route (`/api/ai/diagnostic`) that
+diagnosed every prior provider issue: it now runs the exact same real system prompt and
+representative context against Nemotron (the production baseline), GLM, and Ministral concurrently,
+reporting latency and content for each side by side. Requires `HF_TOKEN` (a fine-grained token with
+"Make calls to Inference Providers" permission) - the benchmark stages skip gracefully, not
+erroring, when it's unset.
