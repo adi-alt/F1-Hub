@@ -71,59 +71,90 @@ export async function GET() {
   }
 
   const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" };
+  const completionUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-  // Stage 1: lightweight catalog lookup - no GPU/inference involved, should always be fast.
-  const modelsList = await timedFetch("https://integrate.api.nvidia.com/v1/models", { method: "GET", headers }, 10_000);
+  // All stages run concurrently - sequential would sum worst-case timeouts (10s + 85s + 100s +
+  // 100s = 295s, well past this route's own maxDuration). Total wall-clock time here is bounded by
+  // whichever single stage is slowest, not their sum.
+  const [modelsList, completion, realTask, reducedBudgetTask] = await Promise.all([
+    // Stage 1: lightweight catalog lookup - no GPU/inference involved, should always be fast.
+    timedFetch("https://integrate.api.nvidia.com/v1/models", { method: "GET", headers }, 10_000),
 
-  // Stage 2: a request shaped like the REAL homepage-intelligence call (same max_tokens,
-  // reasoning_budget, and chat_template_kwargs the configured provider actually sends - see
-  // nemotron.ts) but with a much larger timeout budget than production's 45s - isolates whether
-  // this model genuinely completes a realistically-sized structured-output request at all, and how
-  // long it actually takes, rather than guessing.
-  const completion = await timedFetch(
-    "https://integrate.api.nvidia.com/v1/chat/completions",
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: "Reply with exactly this JSON and nothing else: {\"status\":\"OK\",\"note\":\"diagnostic probe\"}" }],
-        max_tokens: 800,
-        temperature: 0.7,
-        reasoning_budget: 2048,
-        chat_template_kwargs: { enable_thinking: true },
-      }),
-    },
-    85_000,
-  );
+    // Stage 2: a trivial one-line echo - isolates whether the model/endpoint responds at all,
+    // independent of task complexity.
+    timedFetch(
+      completionUrl,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: "Reply with exactly this JSON and nothing else: {\"status\":\"OK\",\"note\":\"diagnostic probe\"}" }],
+          max_tokens: 800,
+          temperature: 0.7,
+          reasoning_budget: 2048,
+          chat_template_kwargs: { enable_thinking: true },
+        }),
+      },
+      85_000,
+    ),
 
-  // Stage 3: the REAL system prompt + a representative structured/personal context, at production's
-  // actual maxTokens/reasoningBudget - the one test that answers "does the real 12-field task
-  // complete at all," rather than a trivial one-line echo that isn't representative of it.
-  const realTask = await timedFetch(
-    "https://integrate.api.nvidia.com/v1/chat/completions",
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: HOMEPAGE_SYSTEM_PROMPT },
-          { role: "user", content: SAMPLE_REAL_CONTEXT },
-        ],
-        max_tokens: 3500,
-        temperature: 0.7,
-        reasoning_budget: 2048,
-        chat_template_kwargs: { enable_thinking: true },
-      }),
-    },
-    100_000,
-  );
+    // Stage 3: the REAL system prompt + a representative structured/personal context, at
+    // production's actual maxTokens/reasoningBudget - the one test that answers "does the real
+    // 12-field task complete at all," rather than a trivial one-line echo that isn't
+    // representative of it.
+    timedFetch(
+      completionUrl,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: HOMEPAGE_SYSTEM_PROMPT },
+            { role: "user", content: SAMPLE_REAL_CONTEXT },
+          ],
+          max_tokens: 3500,
+          temperature: 0.7,
+          reasoning_budget: 2048,
+          chat_template_kwargs: { enable_thinking: true },
+        }),
+      },
+      100_000,
+    ),
+
+    // Stage 4: same real prompt as stage 3, but with a much smaller reasoning_budget - two real
+    // production timeouts at 80s (after stage 3 measured 58.4s against a simplified sample
+    // context) suggest the real route's actual context is bigger/more complex than the
+    // hand-written sample here, and reasoning_budget directly controls how long the model spends
+    // thinking before it ever starts the real answer. Testing whether trading some reasoning
+    // depth for speed is the better lever than continuing to raise the timeout indefinitely.
+    timedFetch(
+      completionUrl,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: HOMEPAGE_SYSTEM_PROMPT },
+            { role: "user", content: SAMPLE_REAL_CONTEXT },
+          ],
+          max_tokens: 3500,
+          temperature: 0.7,
+          reasoning_budget: 512,
+          chat_template_kwargs: { enable_thinking: true },
+        }),
+      },
+      100_000,
+    ),
+  ]);
 
   return NextResponse.json({
     configuredModel: model,
     modelsList: { ...modelsList.result, latencyMs: modelsList.latencyMs },
     trivialChatCompletion: { ...completion.result, latencyMs: completion.latencyMs },
     realisticHomepageTask: { ...realTask.result, latencyMs: realTask.latencyMs },
+    reducedReasoningBudgetTask: { ...reducedBudgetTask.result, latencyMs: reducedBudgetTask.latencyMs },
   });
 }
