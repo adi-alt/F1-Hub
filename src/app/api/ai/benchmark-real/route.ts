@@ -57,6 +57,11 @@ type Candidate = {
   model: string;
   label: string;
   useProductionNemotronShape?: boolean;
+  // Verified real request-shape extras for a specific model (e.g. DeepSeek's own documented
+  // chat_template_kwargs.thinking flag) - merged into the plain payload only when supplied, so this
+  // stays opt-in per model rather than a guess applied broadly. Never invented without a confirmed
+  // source (official docs or a live playground example) - see route-level comment for why.
+  extraBody?: Record<string, unknown>;
 };
 
 type RunResult = {
@@ -315,7 +320,7 @@ export async function POST(request: Request) {
         chat_template_kwargs: { enable_thinking: true },
       };
     }
-    return { model: candidate.model, messages, max_tokens: 3500, temperature: 0.7, stream: false };
+    return { model: candidate.model, messages, max_tokens: 3500, temperature: 0.7, stream: false, ...candidate.extraBody };
   }
 
   const results: Record<string, RunResult[]> = {};
