@@ -5,9 +5,10 @@ import { PickVsModel, PickVsModelSkeleton } from "./PickVsModel";
 import { PredictionPerformance, PredictionPerformanceSkeleton } from "./PredictionPerformance";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceBrief, RaceBriefSkeleton } from "./ai/RaceBrief";
+import { YourRace, YourRaceSkeleton } from "./ai/YourRace";
 import { OneThingToWatch, OneThingToWatchSkeleton } from "./ai/OneThingToWatch";
-import { BiggestUncertainty, BiggestUncertaintySkeleton } from "./ai/BiggestUncertainty";
-import { PredictionChallenge } from "./ai/PredictionChallenge";
+import { BlindSpot, BlindSpotSkeleton } from "./ai/BlindSpot";
+import { AIvsYou, AIvsYouSkeleton } from "./ai/AIvsYou";
 import { PredictionCoach } from "./ai/PredictionCoach";
 import { PredictionFingerprint } from "./ai/PredictionFingerprint";
 import { SinceLastVisit } from "./ai/SinceLastVisit";
@@ -15,9 +16,11 @@ import type { PredictionPerformance as PredictionPerformanceData } from "@/lib/p
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 /**
- * The Personalized F1 Intelligence Command Center.
- * Combines grounded AI reasoning (RaceBrief, OneThingToWatch, BiggestUncertainty, PredictionCoach)
- * with deterministic Random Forest predictions, Monte Carlo simulations, and user metrics.
+ * The Personalized F1 Intelligence Command Center - a narrative, not a widget stack:
+ * general context (RaceBrief) -> personal thesis (YourRace) -> attention (OneThingToWatch) ->
+ * challenge (BlindSpot) -> decision (PickVsModel) -> argument (AIvsYou), then the secondary
+ * analytics row and prediction-history cards. Combines grounded AI reasoning with deterministic
+ * Random Forest predictions, Monte Carlo simulations, and user metrics.
  */
 export function IntelligenceSection({
   myPick,
@@ -48,38 +51,44 @@ export function IntelligenceSection({
 
       <SinceLastVisit />
 
-      {/* Top: AI Race Intelligence Briefing */}
+      {/* General context */}
       <RaceBrief />
 
-      {/* Tactical Row: One Thing to Watch + Biggest Uncertainty */}
-      <div className="grid gap-6 sm:grid-cols-2">
-        <OneThingToWatch />
-        <BiggestUncertainty />
-      </div>
+      {/* Personal thesis - the page's editorial centerpiece */}
+      <YourRace />
 
-      {/* Flagship Comparison & Model Watch Grid */}
-      <div className={`grid gap-6 ${hasPickVsModel ? "lg:grid-cols-3" : "sm:grid-cols-2"}`}>
-        {hasPickVsModel && (
-          <div className="lg:col-span-2">
-            <RaceSectionCard title="Your Pick vs. F1 Hub Model">
-              <PickVsModel myPick={myPick} nextRace={nextRace} />
-              <PredictionChallenge />
+      {/* Attention */}
+      <OneThingToWatch />
+
+      {/* Challenge */}
+      <BlindSpot />
+
+      {/* Decision + Argument: the chart, then the AI's commentary attached to it */}
+      {hasPickVsModel && (
+        <div className="space-y-4">
+          <RaceSectionCard title="Your Pick vs. F1 Hub Model">
+            <PickVsModel myPick={myPick} nextRace={nextRace} />
+          </RaceSectionCard>
+          <AIvsYou myPick={myPick} nextRace={nextRace} />
+        </div>
+      )}
+
+      {/* Secondary analytical row */}
+      {(hasPredictionPerf || hasModelData) && (
+        <div className={`grid gap-6 ${hasPredictionPerf && hasModelData ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+          {hasPredictionPerf && (
+            <RaceSectionCard title="Your Accuracy">
+              <PredictionPerformance performance={performance} />
             </RaceSectionCard>
-          </div>
-        )}
+          )}
 
-        {hasPredictionPerf && (
-          <RaceSectionCard title="Your Accuracy">
-            <PredictionPerformance performance={performance} />
-          </RaceSectionCard>
-        )}
-
-        {hasModelData && (
-          <RaceSectionCard title="Machine Learning Watch">
-            <ModelWatch nextRace={nextRace} />
-          </RaceSectionCard>
-        )}
-      </div>
+          {hasModelData && (
+            <RaceSectionCard title="Machine Learning Watch">
+              <ModelWatch nextRace={nextRace} />
+            </RaceSectionCard>
+          )}
+        </div>
+      )}
 
       {/* Prediction Coach & Fingerprint (if user has active history) */}
       {hasPredictionPerf && (
@@ -101,26 +110,24 @@ export function IntelligenceSkeleton() {
       </div>
 
       <RaceBriefSkeleton />
+      <YourRaceSkeleton />
+      <OneThingToWatchSkeleton />
+      <BlindSpotSkeleton />
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <OneThingToWatchSkeleton />
-        <BiggestUncertaintySkeleton />
+      <div className="space-y-4">
+        <RaceSectionCard title="Your Pick vs. F1 Hub Model">
+          <PickVsModelSkeleton />
+        </RaceSectionCard>
+        <AIvsYouSkeleton />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <RaceSectionCard title="Your Pick vs. F1 Hub Model">
-            <PickVsModelSkeleton />
-          </RaceSectionCard>
-        </div>
-        <div className="space-y-6">
-          <RaceSectionCard title="Your Accuracy">
-            <PredictionPerformanceSkeleton />
-          </RaceSectionCard>
-          <RaceSectionCard title="Machine Learning Watch">
-            <ModelWatchSkeleton />
-          </RaceSectionCard>
-        </div>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <RaceSectionCard title="Your Accuracy">
+          <PredictionPerformanceSkeleton />
+        </RaceSectionCard>
+        <RaceSectionCard title="Machine Learning Watch">
+          <ModelWatchSkeleton />
+        </RaceSectionCard>
       </div>
     </section>
   );

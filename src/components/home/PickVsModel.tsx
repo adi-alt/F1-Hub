@@ -11,7 +11,8 @@ const TRACK_MAX_POSITION = 12;
 type Marker = { key: "you" | "model" | "actual"; label: string; color: string; position: number };
 type Row = { driver: string; slot: number; markers: Marker[] };
 
-function modelPositionFor(race: RaceDoc, driver: string): number | null {
+/** Exported for AIvsYou.tsx's own VS header row - same real derivation, not duplicated logic. */
+export function modelPositionFor(race: RaceDoc, driver: string): number | null {
   const sim = race.simulation?.drivers.find((d) => d.driver === driver)?.medianPosition;
   if (sim != null) return sim;
   const pred = race.prediction?.finishOrder.find((d) => d.driver === driver)?.predictedPosition;

@@ -51,26 +51,6 @@ export function RaceBrief() {
             {keyFactor}
           </p>
         </div>
-
-        {intelligence?.personalRaceBrief && (
-          <div className="rounded-xl border border-[var(--f1-red)]/20 bg-[var(--f1-red)]/[0.05] px-3.5 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Your Race</p>
-            <p className="mt-1 text-sm font-medium text-white leading-snug">{intelligence.personalRaceBrief.headline}</p>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-300">{intelligence.personalRaceBrief.whyItMatters}</p>
-            {intelligence.personalRaceBrief.favoriteDriverAngle && (
-              <p className="mt-1.5 text-xs text-neutral-400">
-                <span className="font-medium text-neutral-300">Your driver: </span>
-                {intelligence.personalRaceBrief.favoriteDriverAngle}
-              </p>
-            )}
-            {intelligence.personalRaceBrief.favoriteTeamAngle && (
-              <p className="mt-1 text-xs text-neutral-400">
-                <span className="font-medium text-neutral-300">Your team: </span>
-                {intelligence.personalRaceBrief.favoriteTeamAngle}
-              </p>
-            )}
-          </div>
-        )}
       </div>
     </motion.div>
   );
