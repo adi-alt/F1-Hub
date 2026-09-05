@@ -62,6 +62,15 @@ type Candidate = {
   // stays opt-in per model rather than a guess applied broadly. Never invented without a confirmed
   // source (official docs or a live playground example) - see route-level comment for why.
   extraBody?: Record<string, unknown>;
+  // Verified real sampling/length overrides - NVIDIA's own reference examples for every model
+  // checked this session (Nemotron, DeepSeek Pro, DeepSeek Flash, Kimi, Muse Glimmer) consistently
+  // use temperature:1, top_p:0.95, and a max_tokens far above the 3500 the generic payload below
+  // uses - a real, repeated signal, not per-model noise. Opt-in per candidate (defaults preserve
+  // the original generic payload) so this stays an explicit, evidenced choice per model rather than
+  // a blanket change.
+  temperature?: number;
+  topP?: number;
+  maxTokens?: number;
 };
 
 type RunResult = {
@@ -320,7 +329,15 @@ export async function POST(request: Request) {
         chat_template_kwargs: { enable_thinking: true },
       };
     }
-    return { model: candidate.model, messages, max_tokens: 3500, temperature: 0.7, stream: false, ...candidate.extraBody };
+    const body: Record<string, unknown> = {
+      model: candidate.model,
+      messages,
+      max_tokens: candidate.maxTokens ?? 3500,
+      temperature: candidate.temperature ?? 0.7,
+      stream: false,
+    };
+    if (candidate.topP != null) body.top_p = candidate.topP;
+    return { ...body, ...candidate.extraBody };
   }
 
   const results: Record<string, RunResult[]> = {};
