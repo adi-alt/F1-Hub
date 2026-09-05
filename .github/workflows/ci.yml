@@ -29,3 +29,4 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}

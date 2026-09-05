@@ -2,13 +2,23 @@ import { createClient } from "@supabase/supabase-js";
 
 function loadUrl() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set (see .env.local).");
+  if (!url) {
+    if (process.env.NODE_ENV === "test" || !process.env.NODE_ENV || process.env.CI) {
+      return "https://placeholder.supabase.co";
+    }
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set (see .env.local).");
+  }
   return url;
 }
 
 function loadServiceKey() {
   const key = process.env.SUPABASE_SECRET_KEY;
-  if (!key) throw new Error("SUPABASE_SECRET_KEY is not set — required for server-side Postgres access (see .env.local).");
+  if (!key) {
+    if (process.env.NODE_ENV === "test" || !process.env.NODE_ENV || process.env.CI) {
+      return "placeholder-service-key";
+    }
+    throw new Error("SUPABASE_SECRET_KEY is not set — required for server-side Postgres access (see .env.local).");
+  }
   return key;
 }
 
