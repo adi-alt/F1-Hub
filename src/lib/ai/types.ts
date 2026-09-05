@@ -198,13 +198,15 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     // content is produced.
     maxTokens: 3500,
     temperature: 0.7,
-    // 45s (this field's prior value) was still too tight - confirmed live via the diagnostic's own
-    // stage-3 probe (the REAL system prompt + a representative context, not a trivial one-liner):
-    // the actual 12-field HomepageIntelligence task took 58.4s end to end, successfully, with
-    // genuinely good grounded content. Trivial test prompts (a one-line echo) complete in 7-17s -
-    // this task's real complexity, not connectivity or the model itself, is what needs the larger
-    // budget. 80s leaves real margin above the one measured run.
-    timeoutMs: 80_000,
-    reasoningBudget: 2048,
+    // 80s (raised from an original 45s after the real task measured 58.4s) still wasn't safe - a
+    // repeat diagnostic run of the SAME reasoning_budget:2048 request took 94.1s, confirming real,
+    // substantial run-to-run variance rather than a fixed cost. The better lever turned out to be
+    // reasoning_budget below, not the timeout: cutting it from 2048 to 512 measured 30.1s for the
+    // full real task (system prompt + representative context), with content quality still
+    // genuinely good (real circuit stats, real championship math, coherent structure) - not a
+    // quality/speed tradeoff worth avoiding. timeoutMs kept generous relative to that single
+    // measurement given the variance already observed at the larger budget.
+    timeoutMs: 55_000,
+    reasoningBudget: 512,
   },
 };

@@ -696,3 +696,17 @@ the one measured 58.4s run), and the orchestrator's retry was removed entirely -
 against a transient/flaky failure, not against a task that reliably takes ~58s. Retrying would have
 just doubled worst-case latency for a call that already succeeds, slowly. `route.ts`'s `maxDuration`
 (110s) already had room for this; no further change needed there.
+
+### 37.6 Real variance, and the better fix: reduce reasoning_budget, not the timeout
+
+Two more production timeouts at 80s followed, and a repeat diagnostic run of the exact same
+`reasoning_budget: 2048` request that had measured 58.4s came back at **94.1s** - confirming real,
+substantial run-to-run variance rather than a fixed cost. Continuing to raise the timeout would
+have been chasing a moving target.
+
+The diagnostic route gained a fourth stage: the same real system prompt and context, but with
+`reasoning_budget` cut from 2048 to 512. Result: **30.1 seconds**, with content quality still
+genuinely good - real circuit stats, real championship math, coherent 12-field structure. Cutting
+the reasoning budget was the right lever, not a quality tradeoff worth avoiding: `reasoningBudget`
+dropped to 512, `timeoutMs` correspondingly lowered to 55s (still real margin above the one
+measurement) and `route.ts`'s `maxDuration` down to 75s.
