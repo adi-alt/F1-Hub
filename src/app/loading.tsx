@@ -1,20 +1,9 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { PublicHomeSkeleton } from "@/components/home/PublicHome";
 
+// The route-level fallback while page.tsx's own server data is still resolving — shown before
+// we know the visitor's auth state at all, so it uses the public shape (the safer, leaner
+// default) rather than guessing personalized geometry. HomeShell takes over with the correct
+// state-specific skeleton (or real content) the moment the server response arrives.
 export default function HomeLoading() {
-  return (
-    <>
-      <div className="h-[78vh] min-h-[560px] w-full bg-[var(--f1-carbon)]" />
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <Skeleton className="h-40 w-full rounded-2xl" />
-      </section>
-      <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-        <Skeleton className="mb-4 h-6 w-40" />
-        <div className="flex gap-3 overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 min-w-[168px] rounded-xl" />
-          ))}
-        </div>
-      </section>
-    </>
-  );
+  return <PublicHomeSkeleton />;
 }

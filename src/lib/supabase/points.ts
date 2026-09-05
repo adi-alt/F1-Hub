@@ -14,6 +14,21 @@ async function getBalance(uid: string): Promise<number> {
   return data.points_balance as number;
 }
 
+export type RecentTransaction = { amount: number; reason: PointsReason; createdAt: string };
+
+/** The homepage's "recent activity" strip reads real transactions, not a fabricated activity log —
+ * this table already has everything needed (see logTransaction below), just never had a list read. */
+export async function listRecentTransactions(uid: string, limit: number): Promise<RecentTransaction[]> {
+  const { data, error } = await supabaseAdmin
+    .from("points_transactions")
+    .select("amount, reason, created_at")
+    .eq("user_id", uid)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`listRecentTransactions(${uid}): ${error.message}`);
+  return (data ?? []).map((row) => ({ amount: row.amount as number, reason: row.reason as PointsReason, createdAt: row.created_at as string }));
+}
+
 async function logTransaction(uid: string, amount: number, reason: PointsReason, opts: { groupId?: string; predictionId?: string }): Promise<void> {
   const { error } = await supabaseAdmin
     .from("points_transactions")

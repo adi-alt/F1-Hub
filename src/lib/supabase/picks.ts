@@ -24,6 +24,17 @@ export async function getUserPick(uid: string, raceId: string): Promise<UserPick
   return data ? fromRow(data as PickRow) : null;
 }
 
+/** Every pick a user made this season, for the homepage's prediction-performance view — one query
+ * instead of the per-race `getUserPick` looped over every round. `race_id`s are `${year}_r${round}_
+ * {slug}` (see races.ts), so a prefix match is a real year filter, not a substring coincidence. */
+export async function getUserPicksForYear(uid: string, year: number): Promise<UserPick[]> {
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("picks").select("*").eq("user_id", uid).like("race_id", `${year}_%`),
+  );
+  if (error) throw new Error(`getUserPicksForYear(${uid}, ${year}): ${error.message}`);
+  return ((data ?? []) as PickRow[]).map(fromRow);
+}
+
 /** The write side of the same row — one upsert, since (user_id, race_id) is the primary key.
  * Enforced server-side, not just by PickPanel hiding its own save button: once group scoring
  * (compute_group_scores.py) exists, a pick submitted after the actual result is known isn't just
