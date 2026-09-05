@@ -51,7 +51,11 @@ export type AIProviderConfig = {
   temperature: number;
   /** Provider-level timeout in milliseconds. */
   timeoutMs: number;
-  /** Kimi K3-specific: controls how much reasoning the model does before answering. */
+  /** Controls how much reasoning the model does before answering. Kimi K3 via NVIDIA NIM only
+   * accepts "low" | "high" | "max" - confirmed live in production, where "medium" (this field's
+   * original default) made every single request fail with HTTP 400 ("Unsupported Kimi K3
+   * thinking_effort") until this was caught. "none" is kept in the type for a future provider that
+   * might support it; kimi.ts defensively clamps any other value before it ever reaches NVIDIA. */
   reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
 };
 
@@ -184,6 +188,6 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     maxTokens: 2048,
     temperature: 0.7,
     timeoutMs: 30_000,
-    reasoningEffort: "medium",
+    reasoningEffort: "high",
   },
 };

@@ -60,8 +60,13 @@ export class KimiProvider implements AIProvider {
       temperature: config.temperature ?? 0.7,
     };
 
+    // NVIDIA's Kimi K3 endpoint only accepts "low" | "high" | "max" - confirmed live in production
+    // (every request failed with HTTP 400 "Unsupported Kimi K3 thinking_effort" until this was
+    // caught). Clamped here, not just at the config default, so a future caller passing "medium"
+    // or "none" degrades to a safe value instead of taking every homepage load down again.
+    const KIMI_SUPPORTED_REASONING_EFFORT = new Set(["low", "high", "max"]);
     if (config.reasoningEffort) {
-      payload.reasoning_effort = config.reasoningEffort;
+      payload.reasoning_effort = KIMI_SUPPORTED_REASONING_EFFORT.has(config.reasoningEffort) ? config.reasoningEffort : "high";
     }
 
     if (tools && tools.length > 0) {
