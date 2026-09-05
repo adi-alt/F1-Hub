@@ -7,8 +7,10 @@ import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceBrief, RaceBriefSkeleton } from "./ai/RaceBrief";
 import { OneThingToWatch, OneThingToWatchSkeleton } from "./ai/OneThingToWatch";
 import { BiggestUncertainty, BiggestUncertaintySkeleton } from "./ai/BiggestUncertainty";
+import { PredictionChallenge } from "./ai/PredictionChallenge";
 import { PredictionCoach } from "./ai/PredictionCoach";
 import { PredictionFingerprint } from "./ai/PredictionFingerprint";
+import { SinceLastVisit } from "./ai/SinceLastVisit";
 import type { PredictionPerformance as PredictionPerformanceData } from "@/lib/predictionPerformance";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -44,6 +46,8 @@ export function IntelligenceSection({
         </div>
       </div>
 
+      <SinceLastVisit />
+
       {/* Top: AI Race Intelligence Briefing */}
       <RaceBrief />
 
@@ -59,6 +63,7 @@ export function IntelligenceSection({
           <div className="lg:col-span-2">
             <RaceSectionCard title="Your Pick vs. F1 Hub Model">
               <PickVsModel myPick={myPick} nextRace={nextRace} />
+              <PredictionChallenge />
             </RaceSectionCard>
           </div>
         )}

@@ -387,3 +387,127 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
 | Rate Ceiling | 40 RPM Sliding Window | Unbounded Requests | Strict adherence to NVIDIA provider limits without service interruption |
 | Loading Strategy | Progressive Client Reveal | Server-Side Blocking | Guarantees instant sub-100ms first paint with deterministic data |
 | Fallback Strategy | Dynamic Deterministic Copy | Generic Error Message | Users always get useful, factual insights even during outages |
+
+---
+
+## 35. Addendum: Personalization Pass (v2, `homepage_v2_personalized`)
+
+A follow-up pass after the initial v1 build shipped. v1's infrastructure (provider, guardrails,
+caching, tests, docs above) was correct and complete, but the actual homepage content wasn't
+meaningfully personalized - two different users with two different favorite drivers would get
+close to the same generic race narrative. This addendum documents what changed.
+
+### 35.1 Bugs fixed
+
+1. **`winProbability` was Random Forest feature importance, not a probability.** `route.ts`
+   previously set `winProbability: nextRace.prediction.finishFeatureImportance?.grid` - a feature-
+   importance *weight* (how much grid position influences the RF model), mislabeled as a win
+   probability. Fixed: the real calibrated probability now comes from
+   `nextRace.simulation.drivers[].p1` (Monte Carlo), populated into a new, separate `simulation`
+   context block. `model` (RF) now only ever carries a ranking + its top feature factors, never a
+   percentage. The system prompt (`homepagePrompt.ts`) explicitly tells Kimi never to phrase the RF
+   ranking as a probability.
+2. **`getUserPrediction` tool queried columns that don't exist** (`predicted_winner_driver_id`,
+   `predicted_podium_driver_ids`) instead of the real `picks` schema (`predicted_winner`,
+   `predicted_podium`), and swallowed the resulting Supabase error - always silently returning
+   `{ pick: null }`. Fixed, and the tool now throws on a real Supabase error instead of hiding it.
+3. **Circuit history was resolved with the wrong identifier.** `route.ts` called
+   `getTrackHistory(nextRace.circuit)` directly - `nextRace.circuit` is FastF1's raw location
+   string ("Budapest"), not an archive `circuitId` ("hungaroring"), so this silently returned null
+   for almost every circuit. Fixed by reusing the same `resolveCurrentCircuitToArchiveId` resolution
+   `src/app/page.tsx` already does for the deterministic homepage, and passing the user's real
+   favorite driver/team ids into `getTrackHistory` so `favoriteDriverCircuitStats` actually
+   populates. Confirmed live: Lewis Hamilton's real Monza history (5 wins, 8 podiums, 19 starts)
+   now reaches both the AI context and the deterministic fallback.
+4. **`race.raceDate` is never populated on the real data path.** Discovered while live-testing
+   Since Last Visit: `races.ts`'s `toRaceDoc()` (used by `getRacesByYear`) never maps `race_date`
+   onto `RaceDoc.raceDate` at all - only an unrelated calendar-row helper does. `sinceLastVisit.ts`
+   originally filtered on `raceDate`, so every race was silently excluded from the "prior standings"
+   reconstruction, making every second visit look like the entire season had just happened. Fixed
+   to filter on `updatedAt` (`races.updated_at` - always populated), which is also the more
+   correct field conceptually: what changes the standings is when the result was *written*, not the
+   calendar date of the race.
+
+### 35.2 New schema fields (`HomepageIntelligence`)
+
+- `personalRaceBrief` - a favorite-driver/team-specific headline + why-it-matters, null without a
+  favorite.
+- `predictionChallenge` - `AGREE`/`DISAGREE`/`NO_PICK` (decided deterministically by comparing the
+  user's real pick against the model's/simulation's real pick, never by Kimi) plus an explanation
+  and the strongest evidence for/against the user's pick.
+- `personalOutlook` - one synthesized assessment combining the favorite driver's championship
+  position, this circuit's real history for them, and what RF/Monte Carlo say, null without a
+  favorite driver.
+- `sinceLastVisit` - a real, computed list of what changed (championship leader, favorite's rank,
+  favorite team's rank, a new prediction, new community posts) between `profiles.last_homepage_visit_at`
+  and now, null for a first-ever visit. Kimi only writes `summary`; the `changes` array itself is
+  application-computed (see `sinceLastVisit.ts`).
+
+All four are nullable and validated the same way as every other field - a missing or malformed
+personal field degrades to `null`, never to a fabricated placeholder pretending to be personal.
+
+### 35.3 New deterministic (non-AI) computations
+
+- `computePredictionFingerprint()` (`predictionPerformance.ts`) - winner/podium accuracy, average
+  position error (existing), plus two new real signals: `avgPredictedWinnerGrid` (average starting
+  grid of the drivers the user picked to win - a real "do you back the pole-sitter or the
+  underdog" measure) and `pctPicksForSeasonLeader` (fraction of picks that went to this season's
+  eventual points leader - a simplified, explicitly-documented-as-retroactive "backs the favorite"
+  proxy, not a per-race snapshot reconstruction).
+- `computeSinceLastVisit()` (`lib/ai/sinceLastVisit.ts`) - reconstructs "what the standings looked
+  like as of the user's last visit" from real race results filtered by `updatedAt`, diffs it
+  against current standings, and layers in the user's own prediction/community activity in that
+  window. Live-verified: an empty `changes` array when nothing genuinely changed between two
+  requests seconds apart, and a real 3-item diff (`CHAMPIONSHIP`/`DRIVER`/`TEAM`) reconstructed
+  correctly across an actual multi-round gap.
+
+Both are pure application code - Kimi interprets their output, it never calculates the numbers
+itself (same rule the v1 doc already established for `predictionCoach`).
+
+### 35.4 Cache versioning correction
+
+v1 hashed `userPick.submittedAt` into the *global* `dataVersion`, so one user's own prediction
+would invalidate the shared cache entry every other visitor reads. Fixed: `globalDataVersion` now
+depends only on race/model/simulation/community-volume facts; `personalDataVersion` is
+`globalDataVersion` + the user's own favorites/pick/fingerprint-size/since-last-visit-change-count.
+A user's prediction can now only ever invalidate their own personal cache entry.
+
+### 35.5 Single-flight generation lock
+
+`lib/ai/cache.ts` now exposes `withSingleFlight(key, generate)` - concurrent requests that miss the
+same cache key (the realistic "many users load the homepage in the same few seconds" case)
+coalesce onto one in-flight generation instead of each independently calling Kimi. Documented
+limitation: this map is process-local, so it collapses a stampede *within one serverless instance*,
+not across every concurrently-warm instance on Vercel - the 40 RPM provider-capacity ceiling is the
+actual cross-instance backstop.
+
+### 35.6 UI integration (no new top-level cards)
+
+Per the explicit "don't add 10 more cards" constraint, every new field was woven into an existing
+component rather than given its own section:
+- `personalRaceBrief` renders inside the existing `RaceBrief` card, below the generic headline.
+- `personalOutlook.overallAssessment` renders at the bottom of the hero's existing
+  `RaceIntelligencePanel` (Track Intelligence), under a "Your outlook" label.
+- `predictionChallenge` ("AI Challenge") renders inside the existing "Your Pick vs. F1 Hub Model"
+  section, directly below the `PickVsModel` comparison it explains.
+- `sinceLastVisit` is a single thin strip (not a card) at the very top of the Intelligence section,
+  rendering nothing at all when there's no prior visit or nothing changed.
+
+### 35.7 Migrations applied
+
+`add_ai_cache.sql` and `add_last_homepage_visit.sql` (previously written but never run) were applied
+directly to the live database and folded into `supabase/schema.sql` as the permanent record; the
+scratch migration files were removed per this repo's migration convention.
+
+### 35.8 Known limitation surfaced during this pass
+
+Live end-to-end testing in the development sandbox could not get a real response from NVIDIA's
+endpoint - every call timed out at the provider level (`curl` to `integrate.api.nvidia.com`
+directly, bypassing the app entirely, also failed to connect), which points to the sandbox's
+outbound network restrictions rather than an application bug. This could not be fully ruled out
+without access to the production network, so the honest status is: the deterministic fallback path
+was thoroughly live-verified (including full personalization - real Monza history, real
+championship rank, real since-last-visit deltas), but a genuine 200 response from Kimi itself was
+not observed in this environment. Production (Vercel) has unrestricted outbound network access, so
+this is expected to resolve there; if it doesn't, `logAIError`'s `kimi_provider`/`timeout` entries
+in the Vercel log drain are the first thing to check.

@@ -18,6 +18,7 @@ export type UserProfile = {
   notifyBeforeQualifying?: boolean;
   notifyOnResults?: boolean;
   onboardingCompletedAt?: string; // null until the homepage tutorial is dismissed — see OnboardingTour.tsx
+  lastHomepageVisitAt?: string; // previous homepage visit — powers the AI layer's "Since Last Visit" (see lib/ai/sinceLastVisit.ts)
 };
 
 export type PreferencesPatch = Partial<
@@ -53,6 +54,7 @@ type ProfileRow = {
   notify_before_qualifying: boolean;
   notify_on_results: boolean;
   onboarding_completed_at: string | null;
+  last_homepage_visit_at: string | null;
 };
 
 function fromRow(row: ProfileRow): UserProfile {
@@ -71,6 +73,7 @@ function fromRow(row: ProfileRow): UserProfile {
     notifyBeforeQualifying: row.notify_before_qualifying,
     notifyOnResults: row.notify_on_results,
     onboardingCompletedAt: row.onboarding_completed_at ?? undefined,
+    lastHomepageVisitAt: row.last_homepage_visit_at ?? undefined,
   };
 }
 
@@ -220,4 +223,12 @@ export async function setArchiveFavorite(
  * of dismiss-once state as any other one-shot product tour. */
 export async function markOnboardingComplete(uid: string): Promise<void> {
   await supabaseAdmin.from("profiles").update({ onboarding_completed_at: new Date().toISOString() }).eq("id", uid);
+}
+
+/** Stamps "now" as this user's most recent homepage visit - called at the END of the AI
+ * intelligence request, after `last_homepage_visit_at`'s PREVIOUS value has already been read and
+ * used to compute this same request's Since-Last-Visit diff (see sinceLastVisit.ts). Never awaited
+ * before that read happens, or every visit would diff against itself. */
+export async function touchHomepageVisit(uid: string): Promise<void> {
+  await supabaseAdmin.from("profiles").update({ last_homepage_visit_at: new Date().toISOString() }).eq("id", uid);
 }

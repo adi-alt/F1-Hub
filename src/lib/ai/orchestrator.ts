@@ -19,8 +19,12 @@ import {
   type StructuredOutput,
 } from "./types";
 
-/** Convert HomepageContextData into FallbackDataContext */
+/** Convert HomepageContextData into FallbackDataContext - both the fallback engine and Kimi
+ * reason over the exact same underlying facts, just via different mechanisms (template strings
+ * vs. an LLM), so a provider outage never means a less-personalized homepage, only less eloquent
+ * prose. */
 function toFallbackContext(data: HomepageContextData): FallbackDataContext {
+  const totalPredictions = data.predictionFingerprint?.totalPredictions ?? 0;
   return {
     race: data.race
       ? {
@@ -51,17 +55,34 @@ function toFallbackContext(data: HomepageContextData): FallbackDataContext {
           totalRaces: data.trackHistory.totalRaces,
         }
       : null,
-    favoriteDriver: data.favoriteDriver,
-    favoriteTeam: data.favoriteTeam,
-    model: data.model,
+    favoriteDriver: data.favoriteDriver
+      ? {
+          name: data.favoriteDriver.name,
+          rank: data.favoriteDriver.rank,
+          points: data.favoriteDriver.points,
+          teamName: data.favoriteDriver.teamName,
+          circuit: data.favoriteDriver.circuit,
+        }
+      : null,
+    favoriteTeam: data.favoriteTeam ? { name: data.favoriteTeam.name, rank: data.favoriteTeam.rank, points: data.favoriteTeam.points } : null,
+    model: data.model ? { topPredictedDriver: data.model.topPredictedDriver } : null,
+    simulation: data.simulation ? { topSimulatedDriver: data.simulation.topSimulatedDriver, p1Probability: data.simulation.p1Probability } : null,
     userPrediction: data.userPrediction,
-    predictionPerformance: data.predictionPerformance,
+    predictionPerformance:
+      totalPredictions > 0
+        ? {
+            winnerAccuracy: data.predictionFingerprint!.winnerAccuracy,
+            totalPredictions,
+            avgPositionError: data.predictionFingerprint!.avgPositionError ?? undefined,
+          }
+        : null,
     communitySummary: data.communityPosts && data.communityPosts.length > 0
       ? {
           recentPostCount: data.communityPosts.length,
           hotTopic: data.communityPosts[0]?.title?.slice(0, 40),
         }
       : null,
+    sinceLastVisit: data.sinceLastVisit ?? null,
   };
 }
 

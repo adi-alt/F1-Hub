@@ -94,7 +94,10 @@ describe("Deterministic Fallback Engine", () => {
       },
       model: {
         topPredictedDriver: "Max Verstappen",
-        winProbability: 0.44,
+      },
+      simulation: {
+        topSimulatedDriver: "Max Verstappen",
+        p1Probability: 0.44,
       },
       predictionPerformance: {
         winnerAccuracy: 60,

@@ -140,12 +140,17 @@ registerTool({
     if (!ctx.userId) return { error: "Unauthenticated" };
     if (typeof args.raceId !== "string") throw new Error("raceId must be a string");
 
-    const { data } = await supabaseAdmin
+    // Real picks schema (supabase/schema.sql): predicted_winner (text), predicted_podium (text[]) -
+    // NOT predicted_winner_driver_id/predicted_podium_driver_ids, which never existed. A prior
+    // version of this tool used those wrong column names and silently swallowed the resulting
+    // Supabase error, always returning null even when a real pick existed.
+    const { data, error } = await supabaseAdmin
       .from("picks")
-      .select("predicted_winner_driver_id, predicted_podium_driver_ids, submitted_at")
+      .select("predicted_winner, predicted_podium, submitted_at")
       .eq("user_id", ctx.userId)
       .eq("race_id", args.raceId)
       .maybeSingle();
+    if (error) throw new Error(`getUserPrediction: ${error.message}`);
 
     return { pick: data || null };
   },

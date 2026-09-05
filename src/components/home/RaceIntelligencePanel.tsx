@@ -1,6 +1,10 @@
+"use client";
+
+import Image from "next/image";
 import Link from "next/link";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useHomepageIntelligence } from "./ai/HomepageIntelligenceProvider";
 import type { FavoriteDriverCard, FavoriteTeamCard, TrackHistory } from "@/lib/personalization";
 
 export function RaceIntelligencePanel({
@@ -14,6 +18,9 @@ export function RaceIntelligencePanel({
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
 }) {
+  const { intelligence } = useHomepageIntelligence();
+  const outlook = favoriteDriver && intelligence?.personalOutlook?.driver === favoriteDriver.name ? intelligence.personalOutlook : null;
+
   if (!trackHistory) {
     return (
       <div className="flex h-full items-center rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5">
@@ -35,9 +42,11 @@ export function RaceIntelligencePanel({
     <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5">
       {trackHistory.circuitImageUrl && (
         <div className="mb-3 flex justify-center border-b border-white/[0.06] pb-3">
-          <img
+          <Image
             src={trackHistory.circuitImageUrl}
             alt={circuitName}
+            width={160}
+            height={56}
             className="h-14 w-auto max-w-full object-contain opacity-75 transition hover:opacity-100"
           />
         </div>
@@ -122,6 +131,13 @@ export function RaceIntelligencePanel({
               </>
             )}
           </p>
+        </div>
+      )}
+
+      {outlook && (
+        <div className="mt-3.5 border-t border-white/[0.06] pt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Your outlook</p>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-300">{outlook.overallAssessment}</p>
         </div>
       )}
     </div>

@@ -22,6 +22,55 @@ export type PredictionPerformance = {
   recent: { raceId: string; raceName: string; round: number; result: RecentPredictionResult }[];
 };
 
+export type PredictionFingerprint = {
+  totalPredictions: number;
+  winnerAccuracy: number; // 0-100
+  podiumAccuracy: number; // 0-100
+  avgPositionError: number | null;
+  /** Average starting-grid position of the driver picked to win, across every classified pick -
+   * a real, deterministic "do you back the pole-sitter or the underdog" signal (low = mostly picks
+   * front-row starters, high = regularly backs a grid disadvantage). Kimi interprets this; it never
+   * invents it. Null with no classified picks to average. */
+  avgPredictedWinnerGrid: number | null;
+  /** Fraction (0-100) of the user's picks whose predicted winner is *this season's final* points
+   * leader - a simplified, retroactive "backs the championship favorite" proxy, not a per-race
+   * "who led at the time" reconstruction (that would need a standings snapshot per race, which
+   * isn't stored). Documented as an approximation, never presented as more precise than that. */
+  pctPicksForSeasonLeader: number | null;
+};
+
+/** Application-computed prediction "fingerprint" - the numbers an AI prediction coach interprets,
+ * never calculates itself (see docs/AGENTIC_AI.md's deterministic/AI split). Every field here is a
+ * plain aggregate over real picks/race_results; nothing is inferred by a model. */
+export function computePredictionFingerprint(picks: UserPick[], races: RaceDoc[], seasonPointsLeaderCode?: string | null): PredictionFingerprint {
+  const performance = computePredictionPerformance(picks, races);
+  const raceById = new Map(races.map((r) => [r.id, r]));
+
+  const winnerAccuracy = performance.winner.total > 0 ? (performance.winner.correct / performance.winner.total) * 100 : 0;
+  const podiumAccuracy = performance.podiumSlots.total > 0 ? (performance.podiumSlots.correct / performance.podiumSlots.total) * 100 : 0;
+
+  const gridSamples: number[] = [];
+  let leaderPicks = 0;
+  let classifiedPicks = 0;
+  for (const pick of picks) {
+    const race = raceById.get(pick.raceId);
+    if (!race || race.status !== "completed" || !race.results?.length) continue;
+    classifiedPicks++;
+    const grid = race.results.find((r) => r.driver === pick.predictedWinner)?.grid;
+    if (grid != null) gridSamples.push(grid);
+    if (seasonPointsLeaderCode && pick.predictedWinner === seasonPointsLeaderCode) leaderPicks++;
+  }
+
+  return {
+    totalPredictions: performance.winner.total,
+    winnerAccuracy,
+    podiumAccuracy,
+    avgPositionError: performance.avgPositionError,
+    avgPredictedWinnerGrid: gridSamples.length > 0 ? gridSamples.reduce((a, b) => a + b, 0) / gridSamples.length : null,
+    pctPicksForSeasonLeader: seasonPointsLeaderCode && classifiedPicks > 0 ? (leaderPicks / classifiedPicks) * 100 : null,
+  };
+}
+
 export function computePredictionPerformance(picks: UserPick[], races: RaceDoc[]): PredictionPerformance {
   const raceById = new Map(races.map((r) => [r.id, r]));
 

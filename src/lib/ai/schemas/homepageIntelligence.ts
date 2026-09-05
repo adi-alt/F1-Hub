@@ -12,12 +12,26 @@ export const ALLOWED_ACTION_TYPES = [
 
 export type NextActionType = (typeof ALLOWED_ACTION_TYPES)[number];
 
+export const PREDICTION_CHALLENGE_STATUSES = ["AGREE", "DISAGREE", "NO_PICK"] as const;
+export type PredictionChallengeStatus = (typeof PREDICTION_CHALLENGE_STATUSES)[number];
+
+export const SINCE_LAST_VISIT_CHANGE_TYPES = ["DRIVER", "TEAM", "CHAMPIONSHIP", "PREDICTION", "COMMUNITY", "MODEL"] as const;
+export type SinceLastVisitChangeType = (typeof SINCE_LAST_VISIT_CHANGE_TYPES)[number];
+
 export interface HomepageIntelligence {
   raceBrief: {
     headline: string;
     whyItMatters: string;
     keyFactor: string;
   };
+  /** Null for a guest or a signed-in user with no favorites - never synthesized without real
+   * favorite-driver/team context to ground it in (see context.ts's PERSONAL_CONTEXT block). */
+  personalRaceBrief: {
+    headline: string;
+    whyItMatters: string;
+    favoriteDriverAngle: string | null;
+    favoriteTeamAngle: string | null;
+  } | null;
   oneThingToWatch: {
     topic: string;
     explanation: string;
@@ -37,6 +51,30 @@ export interface HomepageIntelligence {
   predictionCoach: {
     analysis: string;
     tendency: string;
+  } | null;
+  /** Null when the user hasn't made a pick for this race - "NO_PICK" isn't a synthesized status,
+   * it's what the route sets deterministically before ever asking Kimi to fill in an explanation. */
+  predictionChallenge: {
+    status: PredictionChallengeStatus;
+    explanation: string;
+    strongestEvidenceForUser: string;
+    strongestEvidenceAgainstUser: string;
+  } | null;
+  /** Driver-specific synthesis for the hero's Race Intelligence panel - championship position,
+   * this circuit's history for them, and what the model says, woven into one assessment. Null
+   * without a favorite driver. */
+  personalOutlook: {
+    driver: string;
+    championshipContext: string;
+    circuitContext: string;
+    modelContext: string;
+    overallAssessment: string;
+  } | null;
+  /** Null when there's no prior visit to diff against (sinceLastVisit.hasPriorVisit === false) -
+   * the route never asks Kimi to fabricate a "nothing changed" summary for a first-time visitor. */
+  sinceLastVisit: {
+    changes: Array<{ type: SinceLastVisitChangeType; title: string; explanation: string }>;
+    summary: string;
   } | null;
   nextAction: {
     label: string;
@@ -75,6 +113,20 @@ export function validateHomepageIntelligence(
     }
   }
 
+  // Validate personalRaceBrief (nullable - a missing key is treated the same as an explicit null,
+  // since an older/simpler payload or a guest-shaped response may simply omit it)
+  if (obj.personalRaceBrief != null) {
+    if (typeof obj.personalRaceBrief !== "object" || Array.isArray(obj.personalRaceBrief)) {
+      errors.push("personalRaceBrief must be an object or null");
+    } else {
+      const prb = obj.personalRaceBrief as Record<string, unknown>;
+      if (typeof prb.headline !== "string" || !prb.headline.trim()) errors.push("personalRaceBrief.headline must be a non-empty string");
+      if (typeof prb.whyItMatters !== "string" || !prb.whyItMatters.trim()) errors.push("personalRaceBrief.whyItMatters must be a non-empty string");
+      if (prb.favoriteDriverAngle != null && typeof prb.favoriteDriverAngle !== "string") errors.push("personalRaceBrief.favoriteDriverAngle must be a string or null");
+      if (prb.favoriteTeamAngle != null && typeof prb.favoriteTeamAngle !== "string") errors.push("personalRaceBrief.favoriteTeamAngle must be a string or null");
+    }
+  }
+
   // Validate oneThingToWatch
   if (!obj.oneThingToWatch || typeof obj.oneThingToWatch !== "object") {
     errors.push("Missing or invalid oneThingToWatch");
@@ -102,12 +154,12 @@ export function validateHomepageIntelligence(
   }
 
   // Validate favoriteDriverInsight (nullable)
-  if (obj.favoriteDriverInsight !== null && typeof obj.favoriteDriverInsight !== "string") {
+  if (obj.favoriteDriverInsight != null && typeof obj.favoriteDriverInsight !== "string") {
     errors.push("favoriteDriverInsight must be a string or null");
   }
 
   // Validate favoriteTeamInsight (nullable)
-  if (obj.favoriteTeamInsight !== null && typeof obj.favoriteTeamInsight !== "string") {
+  if (obj.favoriteTeamInsight != null && typeof obj.favoriteTeamInsight !== "string") {
     errors.push("favoriteTeamInsight must be a string or null");
   }
 
@@ -117,7 +169,7 @@ export function validateHomepageIntelligence(
   }
 
   // Validate communityPulse (nullable)
-  if (obj.communityPulse !== null) {
+  if (obj.communityPulse != null) {
     if (typeof obj.communityPulse !== "object" || Array.isArray(obj.communityPulse)) {
       errors.push("communityPulse must be an object or null");
     } else {
@@ -135,7 +187,7 @@ export function validateHomepageIntelligence(
   }
 
   // Validate predictionCoach (nullable)
-  if (obj.predictionCoach !== null) {
+  if (obj.predictionCoach != null) {
     if (typeof obj.predictionCoach !== "object" || Array.isArray(obj.predictionCoach)) {
       errors.push("predictionCoach must be an object or null");
     } else {
@@ -146,6 +198,53 @@ export function validateHomepageIntelligence(
       if (typeof pc.tendency !== "string") {
         errors.push("predictionCoach.tendency must be a string");
       }
+    }
+  }
+
+  // Validate predictionChallenge (nullable)
+  if (obj.predictionChallenge != null) {
+    if (typeof obj.predictionChallenge !== "object" || Array.isArray(obj.predictionChallenge)) {
+      errors.push("predictionChallenge must be an object or null");
+    } else {
+      const pc = obj.predictionChallenge as Record<string, unknown>;
+      if (!PREDICTION_CHALLENGE_STATUSES.includes(pc.status as PredictionChallengeStatus)) errors.push("predictionChallenge.status must be AGREE, DISAGREE, or NO_PICK");
+      if (typeof pc.explanation !== "string") errors.push("predictionChallenge.explanation must be a string");
+      if (typeof pc.strongestEvidenceForUser !== "string") errors.push("predictionChallenge.strongestEvidenceForUser must be a string");
+      if (typeof pc.strongestEvidenceAgainstUser !== "string") errors.push("predictionChallenge.strongestEvidenceAgainstUser must be a string");
+    }
+  }
+
+  // Validate personalOutlook (nullable)
+  if (obj.personalOutlook != null) {
+    if (typeof obj.personalOutlook !== "object" || Array.isArray(obj.personalOutlook)) {
+      errors.push("personalOutlook must be an object or null");
+    } else {
+      const po = obj.personalOutlook as Record<string, unknown>;
+      if (typeof po.driver !== "string" || !po.driver.trim()) errors.push("personalOutlook.driver must be a non-empty string");
+      if (typeof po.championshipContext !== "string") errors.push("personalOutlook.championshipContext must be a string");
+      if (typeof po.circuitContext !== "string") errors.push("personalOutlook.circuitContext must be a string");
+      if (typeof po.modelContext !== "string") errors.push("personalOutlook.modelContext must be a string");
+      if (typeof po.overallAssessment !== "string") errors.push("personalOutlook.overallAssessment must be a string");
+    }
+  }
+
+  // Validate sinceLastVisit (nullable)
+  if (obj.sinceLastVisit != null) {
+    if (typeof obj.sinceLastVisit !== "object" || Array.isArray(obj.sinceLastVisit)) {
+      errors.push("sinceLastVisit must be an object or null");
+    } else {
+      const slv = obj.sinceLastVisit as Record<string, unknown>;
+      if (!Array.isArray(slv.changes)) {
+        errors.push("sinceLastVisit.changes must be an array");
+      } else {
+        for (const c of slv.changes) {
+          if (!c || typeof c !== "object" || typeof (c as Record<string, unknown>).title !== "string" || typeof (c as Record<string, unknown>).explanation !== "string") {
+            errors.push("sinceLastVisit.changes entries must have title/explanation strings");
+            break;
+          }
+        }
+      }
+      if (typeof slv.summary !== "string") errors.push("sinceLastVisit.summary must be a string");
     }
   }
 
@@ -176,6 +275,15 @@ export function validateHomepageIntelligence(
       whyItMatters: String((obj.raceBrief as Record<string, unknown>).whyItMatters),
       keyFactor: String((obj.raceBrief as Record<string, unknown>).keyFactor),
     },
+    personalRaceBrief:
+      obj.personalRaceBrief && typeof obj.personalRaceBrief === "object"
+        ? {
+            headline: String((obj.personalRaceBrief as Record<string, unknown>).headline),
+            whyItMatters: String((obj.personalRaceBrief as Record<string, unknown>).whyItMatters),
+            favoriteDriverAngle: typeof (obj.personalRaceBrief as Record<string, unknown>).favoriteDriverAngle === "string" ? ((obj.personalRaceBrief as Record<string, unknown>).favoriteDriverAngle as string) : null,
+            favoriteTeamAngle: typeof (obj.personalRaceBrief as Record<string, unknown>).favoriteTeamAngle === "string" ? ((obj.personalRaceBrief as Record<string, unknown>).favoriteTeamAngle as string) : null,
+          }
+        : null,
     oneThingToWatch: {
       topic: String((obj.oneThingToWatch as Record<string, unknown>).topic),
       explanation: String((obj.oneThingToWatch as Record<string, unknown>).explanation),
@@ -202,6 +310,38 @@ export function validateHomepageIntelligence(
         ? {
             analysis: String((obj.predictionCoach as Record<string, unknown>).analysis),
             tendency: String((obj.predictionCoach as Record<string, unknown>).tendency),
+          }
+        : null,
+    predictionChallenge:
+      obj.predictionChallenge && typeof obj.predictionChallenge === "object"
+        ? {
+            status: PREDICTION_CHALLENGE_STATUSES.includes((obj.predictionChallenge as Record<string, unknown>).status as PredictionChallengeStatus)
+              ? ((obj.predictionChallenge as Record<string, unknown>).status as PredictionChallengeStatus)
+              : "NO_PICK",
+            explanation: String((obj.predictionChallenge as Record<string, unknown>).explanation),
+            strongestEvidenceForUser: String((obj.predictionChallenge as Record<string, unknown>).strongestEvidenceForUser),
+            strongestEvidenceAgainstUser: String((obj.predictionChallenge as Record<string, unknown>).strongestEvidenceAgainstUser),
+          }
+        : null,
+    personalOutlook:
+      obj.personalOutlook && typeof obj.personalOutlook === "object"
+        ? {
+            driver: String((obj.personalOutlook as Record<string, unknown>).driver),
+            championshipContext: String((obj.personalOutlook as Record<string, unknown>).championshipContext),
+            circuitContext: String((obj.personalOutlook as Record<string, unknown>).circuitContext),
+            modelContext: String((obj.personalOutlook as Record<string, unknown>).modelContext),
+            overallAssessment: String((obj.personalOutlook as Record<string, unknown>).overallAssessment),
+          }
+        : null,
+    sinceLastVisit:
+      obj.sinceLastVisit && typeof obj.sinceLastVisit === "object"
+        ? {
+            changes: ((obj.sinceLastVisit as Record<string, unknown>).changes as Array<Record<string, unknown>>).slice(0, 6).map((c) => ({
+              type: SINCE_LAST_VISIT_CHANGE_TYPES.includes(c.type as SinceLastVisitChangeType) ? (c.type as SinceLastVisitChangeType) : "MODEL",
+              title: String(c.title),
+              explanation: String(c.explanation),
+            })),
+            summary: String((obj.sinceLastVisit as Record<string, unknown>).summary),
           }
         : null,
     nextAction: {

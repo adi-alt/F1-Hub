@@ -1,8 +1,14 @@
 // Compact Structured Context Builder for Homepage Intelligence.
-// Pre-computes and aggregates deterministic F1 numbers and historical data
-// into bounded tags (<STRUCTURED_F1_DATA> and <UNTRUSTED_COMMUNITY_DATA>).
+// Split into GLOBAL facts (same for every visitor: race, standings, circuit, RF, Monte Carlo,
+// bounded community pulse) and PERSONAL facts (only present for an authenticated user: favorites,
+// their circuit history, their own prediction + fingerprint + since-last-visit deltas). This split
+// is what lets the cache layer version global and personal data independently (see cache.ts) - one
+// user's prediction must never invalidate the shared global cache.
+
+import type { SinceLastVisitDiff } from "./sinceLastVisit";
 
 export interface HomepageContextData {
+  // ── Global (identical for every visitor of this race/dataVersion) ──────────────
   race: {
     id: string;
     name: string;
@@ -23,50 +29,64 @@ export interface HomepageContextData {
     defendingWinner?: string;
     topPerformer?: string;
     totalRaces?: number;
-    favoriteDriverBestFinish?: number | null;
-    favoriteDriverAvgFinish?: number | null;
   } | null;
-  favoriteDriver?: {
-    name: string;
-    rank?: number;
-    points?: number;
-    teamName?: string;
-  } | null;
-  favoriteTeam?: {
-    name: string;
-    rank?: number;
-    points?: number;
-  } | null;
+  /** Random Forest finish-order prediction - a RANKING, not a probability. `topFeatureFactors` is
+   * the 2-3 highest-weighted inputs from finishFeatureImportance (e.g. "grid", "recentForm"), never
+   * itself a probability - see the route's own comment on the winProbability bug this replaced. */
   model?: {
     topPredictedDriver?: string;
-    winProbability?: number;
-    featureDrivers?: string[];
+    topFeatureFactors?: string[];
   } | null;
+  /** Monte Carlo simulation - the actual calibrated probability source (RaceSimulation.drivers[].p1).
+   * This is the only place a "probability" figure is allowed to come from. */
   simulation?: {
     topSimulatedDriver?: string;
-    p1Probability?: number;
-  } | null;
-  userPrediction?: {
-    predictedWinner?: string;
-    submitted?: boolean;
-  } | null;
-  predictionPerformance?: {
-    winnerAccuracy?: number;
-    podiumAccuracy?: number;
-    avgPositionError?: number;
-    totalPredictions?: number;
+    p1Probability?: number; // 0-1, calibrated
+    podiumProbability?: number; // 0-1, calibrated
   } | null;
   communityPosts?: Array<{
     title?: string;
     content?: string;
     groupName?: string;
   }>;
+
+  // ── Personal (only present for an authenticated user with real data) ───────────
+  favoriteDriver?: {
+    name: string;
+    rank?: number;
+    points?: number;
+    teamName?: string;
+    /** This circuit's real history for this exact driver - getDriverCircuitStats, not invented. */
+    circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null; avgFinish: number | null } | null;
+  } | null;
+  favoriteTeam?: {
+    name: string;
+    rank?: number;
+    points?: number;
+    circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null } | null;
+  } | null;
+  userPrediction?: {
+    predictedWinner?: string;
+    submitted?: boolean;
+  } | null;
+  /** Application-computed (see computePredictionFingerprint) - Kimi interprets these numbers, it
+   * never calculates them. */
+  predictionFingerprint?: {
+    totalPredictions: number;
+    winnerAccuracy: number;
+    podiumAccuracy: number;
+    avgPositionError: number | null;
+    avgPredictedWinnerGrid: number | null;
+    pctPicksForSeasonLeader: number | null;
+  } | null;
+  /** Real, computed deltas since profiles.last_homepage_visit_at - see sinceLastVisit.ts. */
+  sinceLastVisit?: SinceLastVisitDiff | null;
 }
 
 export function buildHomepageContext(data: HomepageContextData): string {
   const sections: string[] = [];
 
-  // Structured Verified Data
+  // ─────────────────────────────────────────── GLOBAL, STRUCTURED, VERIFIED DATA
   sections.push("<STRUCTURED_F1_DATA>");
 
   if (data.race) {
@@ -97,53 +117,79 @@ export function buildHomepageContext(data: HomepageContextData): string {
     sections.push(
       `Circuit Track History: Defending Winner: ${th.defendingWinner || "None recorded"}; Most Wins / Top Record: ${th.topPerformer || "N/A"}${th.totalRaces ? `; Total historic races: ${th.totalRaces}` : ""}.`,
     );
-    if (th.favoriteDriverBestFinish !== undefined && th.favoriteDriverBestFinish !== null) {
-      sections.push(
-        `User Favorite Driver Circuit Record: Best finish P${th.favoriteDriverBestFinish}${th.favoriteDriverAvgFinish ? `, Avg finish P${th.favoriteDriverAvgFinish.toFixed(1)}` : ""}.`,
-      );
-    }
-  }
-
-  if (data.favoriteDriver) {
-    sections.push(
-      `User Favorite Driver: ${data.favoriteDriver.name}${data.favoriteDriver.rank ? ` (P${data.favoriteDriver.rank} in WDC)` : ""}${data.favoriteDriver.points !== undefined ? ` with ${data.favoriteDriver.points} points` : ""}.`,
-    );
-  }
-
-  if (data.favoriteTeam) {
-    sections.push(
-      `User Favorite Constructor: ${data.favoriteTeam.name}${data.favoriteTeam.rank ? ` (P${data.favoriteTeam.rank} in WCC)` : ""}${data.favoriteTeam.points !== undefined ? ` with ${data.favoriteTeam.points} points` : ""}.`,
-    );
   }
 
   if (data.model) {
-    const probPct = data.model.winProbability ? Math.round(data.model.winProbability * 100) : null;
     sections.push(
-      `Machine Learning Random Forest Model: Favors ${data.model.topPredictedDriver || "Leader"}${probPct ? ` with ${probPct}% estimated win probability` : ""}.`,
+      `Random Forest Model (ranking, not a probability): Predicts ${data.model.topPredictedDriver || "the current leader"} to finish highest${data.model.topFeatureFactors?.length ? `; the model's decision leans most on ${data.model.topFeatureFactors.join(", ")}` : ""}.`,
     );
   }
 
   if (data.simulation) {
-    const simPct = data.simulation.p1Probability ? Math.round(data.simulation.p1Probability * 100) : null;
+    const p1Pct = data.simulation.p1Probability != null ? Math.round(data.simulation.p1Probability * 100) : null;
+    const podiumPct = data.simulation.podiumProbability != null ? Math.round(data.simulation.podiumProbability * 100) : null;
     sections.push(
-      `Monte Carlo Simulation: Top simulated outcome is ${data.simulation.topSimulatedDriver || "Frontrunner"}${simPct ? ` with ${simPct}% P1 simulation rate` : ""}.`,
-    );
-  }
-
-  if (data.userPrediction) {
-    sections.push(
-      `User Weekend Prediction: ${data.userPrediction.submitted ? `Submitted - Predicted Winner: ${data.userPrediction.predictedWinner || "Driver"}` : "Not yet submitted for this race"}.`,
-    );
-  }
-
-  if (data.predictionPerformance && (data.predictionPerformance.totalPredictions || 0) > 0) {
-    const pp = data.predictionPerformance;
-    sections.push(
-      `User Prediction History: ${pp.totalPredictions} total predictions, Winner Accuracy: ${Math.round(pp.winnerAccuracy || 0)}%, Podium Accuracy: ${Math.round(pp.podiumAccuracy || 0)}%, Avg Pos Error: ${(pp.avgPositionError || 0).toFixed(1)}.`,
+      `Monte Carlo Simulation (the only real probability figures available): ${data.simulation.topSimulatedDriver || "Frontrunner"} has a ${p1Pct != null ? `${p1Pct}%` : "leading"} simulated win probability${podiumPct != null ? ` and a ${podiumPct}% podium probability` : ""}.`,
     );
   }
 
   sections.push("</STRUCTURED_F1_DATA>");
+
+  // ─────────────────────────────────────────── PERSONAL, USER-SCOPED CONTEXT
+  const hasPersonalData = !!(data.favoriteDriver || data.favoriteTeam || data.userPrediction || data.predictionFingerprint || data.sinceLastVisit?.hasPriorVisit);
+  sections.push("<PERSONAL_CONTEXT>");
+  if (!hasPersonalData) {
+    sections.push("No authenticated personal context available - this is a guest visitor or a signed-in user with no favorites/predictions yet.");
+  } else {
+    if (data.favoriteDriver) {
+      const fd = data.favoriteDriver;
+      sections.push(
+        `User's Favorite Driver: ${fd.name}${fd.rank ? ` (P${fd.rank} in WDC` : ""}${fd.points !== undefined ? `, ${fd.points} points)` : fd.rank ? ")" : ""}${fd.teamName ? ` racing for ${fd.teamName}` : ""}.`,
+      );
+      if (fd.circuit) {
+        sections.push(
+          `User's Favorite Driver's History At This Circuit: ${fd.circuit.appearances} start(s), ${fd.circuit.wins} win(s), ${fd.circuit.podiums} podium(s)${fd.circuit.bestFinish != null ? `, best finish P${fd.circuit.bestFinish}` : ""}${fd.circuit.avgFinish != null ? `, average finish P${fd.circuit.avgFinish.toFixed(1)}` : ""}.`,
+        );
+      }
+    }
+
+    if (data.favoriteTeam) {
+      const ft = data.favoriteTeam;
+      sections.push(
+        `User's Favorite Constructor: ${ft.name}${ft.rank ? ` (P${ft.rank} in WCC` : ""}${ft.points !== undefined ? `, ${ft.points} points)` : ft.rank ? ")" : ""}.`,
+      );
+      if (ft.circuit) {
+        sections.push(
+          `User's Favorite Constructor's History At This Circuit: ${ft.circuit.appearances} start(s), ${ft.circuit.wins} win(s), ${ft.circuit.podiums} podium(s)${ft.circuit.bestFinish != null ? `, best finish P${ft.circuit.bestFinish}` : ""}.`,
+        );
+      }
+    }
+
+    if (data.userPrediction) {
+      sections.push(
+        `User's Own Prediction For This Race: ${data.userPrediction.submitted ? `Submitted - predicted winner ${data.userPrediction.predictedWinner || "a driver"}` : "Not yet submitted"}.`,
+      );
+    }
+
+    if (data.predictionFingerprint && data.predictionFingerprint.totalPredictions > 0) {
+      const pf = data.predictionFingerprint;
+      sections.push(
+        `User's Prediction Fingerprint (application-calculated, real): ${pf.totalPredictions} total predictions, ${Math.round(pf.winnerAccuracy)}% winner accuracy, ${Math.round(pf.podiumAccuracy)}% podium-slot accuracy${pf.avgPositionError != null ? `, average position error ${pf.avgPositionError.toFixed(1)}` : ""}${pf.avgPredictedWinnerGrid != null ? `, average starting grid of picked winners: P${pf.avgPredictedWinnerGrid.toFixed(1)}` : ""}${pf.pctPicksForSeasonLeader != null ? `, ${Math.round(pf.pctPicksForSeasonLeader)}% of picks went to this season's eventual points leader` : ""}.`,
+      );
+    }
+
+    if (data.sinceLastVisit?.hasPriorVisit) {
+      if (data.sinceLastVisit.changes.length > 0) {
+        sections.push("Changes Since The User's Last Visit (real, computed deltas):");
+        for (const change of data.sinceLastVisit.changes) {
+          sections.push(`- [${change.type}] ${change.title}: ${change.explanation}`);
+        }
+      } else {
+        sections.push("Changes Since The User's Last Visit: nothing materially changed.");
+      }
+    }
+  }
+  sections.push("</PERSONAL_CONTEXT>");
 
   // Untrusted Community Context (bounded to avoid prompt injection & token bloat)
   sections.push("<UNTRUSTED_COMMUNITY_DATA>");

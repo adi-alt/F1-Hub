@@ -335,8 +335,11 @@ create table profiles (
   notify_before_qualifying boolean not null default false,
   notify_on_results boolean not null default false,
   created_at timestamptz not null default now(),
-  onboarding_completed_at timestamptz    -- null until the homepage tutorial is dismissed; shown
+  onboarding_completed_at timestamptz,   -- null until the homepage tutorial is dismissed; shown
                                          -- again on every visit until then (see OnboardingTour.tsx)
+  last_homepage_visit_at timestamptz     -- previous homepage visit, read BEFORE this visit's AI
+                                         -- context is built then updated after - powers "Since Last
+                                         -- Visit" (see lib/ai/sinceLastVisit.ts)
 );
 
 create table picks (
@@ -688,3 +691,21 @@ values (
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   ]
 );
+
+-- ============================================================= Agentic AI layer (src/lib/ai/)
+
+-- Server-side (service-role only) cache for bundled homepage AI intelligence - no RLS policy is
+-- defined on purpose (RLS is enabled with zero grants), so PostgREST denies every anon/authenticated
+-- request; supabaseAdmin's service-role key bypasses RLS entirely, same as every other admin-only
+-- table. The browser never queries this directly - see lib/ai/cache.ts.
+create table ai_cache (
+  key text primary key,
+  value jsonb not null,
+  data_version text not null,
+  model_identifier text,
+  prompt_version text,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+create index ai_cache_expires_idx on ai_cache (expires_at);
+alter table ai_cache enable row level security;

@@ -139,3 +139,31 @@ export async function setCachedIntelligence<T>(
 export function resetMemoryCache(): void {
   memoryCache.clear();
 }
+
+// ─── Single-flight generation lock ─────────────────────────────────────────────
+// Prevents a cache-miss "stampede": if N concurrent requests miss the same cache key at once
+// (the realistic case - many users load the homepage in the same few seconds right after a race
+// weekend goes live), only the FIRST caller actually generates the value; every other caller
+// awaits that same in-flight promise instead of independently calling Kimi N times.
+//
+// Known limitation, documented rather than silently assumed away: this map is process-local. On
+// Vercel's serverless model, concurrent requests can land on different warm/cold Lambda instances,
+// each with its own map - so this collapses a stampede *within one instance*, not a strict
+// distributed single-flight across every instance. A real distributed lock would need a shared
+// primitive (a Postgres advisory lock, a Redis SETNX) this app doesn't have yet; the 40 RPM
+// provider-capacity ceiling (providerRateLimiter.ts) is the actual cross-instance backstop that
+// keeps a genuine multi-instance stampede from ever reaching NVIDIA's real rate limit.
+const inFlight = new Map<string, Promise<unknown>>();
+
+/** Runs `generate()` for `key`, but coalesces concurrent callers onto the same in-flight promise -
+ * see the module comment above for what this does and doesn't guarantee. */
+export async function withSingleFlight<T>(key: string, generate: () => Promise<T>): Promise<T> {
+  const existing = inFlight.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const promise = generate().finally(() => {
+    inFlight.delete(key);
+  });
+  inFlight.set(key, promise);
+  return promise;
+}
