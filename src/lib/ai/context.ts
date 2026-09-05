@@ -69,7 +69,7 @@ export interface HomepageContextData {
     predictedWinner?: string;
     submitted?: boolean;
   } | null;
-  /** Application-computed (see computePredictionFingerprint) - Kimi interprets these numbers, it
+  /** Application-computed (see computePredictionFingerprint) - The model interprets these numbers, it
    * never calculates them. */
   predictionFingerprint?: {
     totalPredictions: number;

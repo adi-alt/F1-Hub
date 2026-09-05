@@ -1,7 +1,7 @@
 // Deterministic "Since Last Visit" diff engine.
 // Every entry here is a real, computed delta between the user's previous homepage visit
 // (profiles.last_homepage_visit_at, read BEFORE this request updates it) and the current state -
-// Kimi only summarizes *why* the changes matter, it never invents which changes happened. A user's
+// the model only summarizes *why* the changes matter, it never invents which changes happened. A user's
 // first-ever visit (lastVisitIso === null) returns hasPriorVisit: false rather than a fabricated
 // "nothing changed" - there is genuinely no prior state to diff against.
 

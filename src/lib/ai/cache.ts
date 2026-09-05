@@ -144,7 +144,7 @@ export function resetMemoryCache(): void {
 // Prevents a cache-miss "stampede": if N concurrent requests miss the same cache key at once
 // (the realistic case - many users load the homepage in the same few seconds right after a race
 // weekend goes live), only the FIRST caller actually generates the value; every other caller
-// awaits that same in-flight promise instead of independently calling Kimi N times.
+// awaits that same in-flight promise instead of independently calling the model N times.
 //
 // Known limitation, documented rather than silently assumed away: this map is process-local. On
 // Vercel's serverless model, concurrent requests can land on different warm/cold Lambda instances,

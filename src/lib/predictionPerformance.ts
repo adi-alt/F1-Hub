@@ -29,7 +29,7 @@ export type PredictionFingerprint = {
   avgPositionError: number | null;
   /** Average starting-grid position of the driver picked to win, across every classified pick -
    * a real, deterministic "do you back the pole-sitter or the underdog" signal (low = mostly picks
-   * front-row starters, high = regularly backs a grid disadvantage). Kimi interprets this; it never
+   * front-row starters, high = regularly backs a grid disadvantage). The model interprets this; it never
    * invents it. Null with no classified picks to average. */
   avgPredictedWinnerGrid: number | null;
   /** Fraction (0-100) of the user's picks whose predicted winner is *this season's final* points

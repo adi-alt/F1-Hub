@@ -5,18 +5,13 @@
 // 2. Strict 40 RPM provider ceiling enforcement with sliding window.
 // 3. Two-tier caching: GLOBAL (race/model/simulation/community - independent of any one user's
 //    prediction) vs PERSONAL (global + this user's favorites/pick/fingerprint/visit history).
-// 4. Single-flight generation lock so a cache-miss stampede doesn't fan out into N Kimi calls.
+// 4. Single-flight generation lock so a cache-miss stampede doesn't fan out into N model calls.
 // 5. Guaranteed deterministic (and itself personalized) fallback on rate limit, provider error, or
 //    timeout - see fallback.ts.
 // 6. Zero-call shortcut for unauthenticated or default-state users via the global cache tier.
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
-// Headroom above the provider's own 30s AbortController timeout (kimi.ts) plus one retry - confirmed
-// live that a real NVIDIA call can legitimately take close to 30s even at "low" reasoning effort on
-// a cold request, and Vercel's own default function duration would otherwise kill this route before
-// our own timeout/retry logic ever gets to run its course and return a clean fallback.
-export const maxDuration = 90;
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
@@ -49,6 +44,12 @@ import type { HomepageContextData } from "@/lib/ai/context";
 import type { HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
+
+// Headroom above the provider's own 30s AbortController timeout (deepseek.ts) plus one retry -
+// confirmed live that a real NVIDIA call can legitimately take close to 30s on a cold request, and
+// Vercel's own default function duration would otherwise kill this route before our own
+// timeout/retry logic ever gets to run its course and return a clean fallback.
+export const maxDuration = 90;
 
 type GenerationResult = { data: HomepageIntelligence; isFallback: boolean; fallbackReason?: string; cacheTier: "personal" | "global" | "global_shared" | "fresh" };
 
@@ -248,7 +249,7 @@ export async function POST() {
 
     // 8. Build the compact structured context and invoke the orchestrator - single-flight guarded
     // on whichever cache key this response will be stored under, so concurrent misses on the same
-    // key collapse into one real Kimi call (see cache.ts's own comment on the process-local limit).
+    // key collapse into one real model call (see cache.ts's own comment on the process-local limit).
     const contextData: HomepageContextData = {
       race: nextRace ? { id: nextRace.id, name: nextRace.name, round: nextRace.round, season: nextRace.year, circuitName: nextRace.circuit, city: nextRace.circuit } : null,
       standings: {
@@ -294,7 +295,7 @@ export async function POST() {
     const output = await withSingleFlight(generationKey, () => generateHomepageIntelligence(contextData, agentContext, personalDataVersion ?? globalDataVersion));
 
     // 9. Cache the result. Global slice only stores generic (non-personal) content quality - it's
-    // still the SAME response object (Kimi already tailors it when personal context existed), but
+    // still the SAME response object (the model already tailors it when personal context existed), but
     // it's only ever served back to another user when isDefaultUser is true, so nothing leaks.
     if (!output.isFallback) {
       await setCachedIntelligence(globalCacheKey, output.data, globalDataVersion, DEFAULT_GLOBAL_TTL_SECONDS, { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId });

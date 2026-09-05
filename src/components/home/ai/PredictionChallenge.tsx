@@ -10,7 +10,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 /** "AI Challenge" - lives inside the existing PickVsModel section (Your Pick vs. F1 Hub Model),
  * not a new top-level card. status/AGREE-DISAGREE is decided deterministically by the route before
- * Kimi ever runs (comparing the user's real pick to the model's real pick); Kimi only writes the
+ * the model ever runs (comparing the user's real pick to the model's real pick); the model only writes the
  * explanation and cites the evidence it was actually given. */
 export function PredictionChallenge() {
   const { intelligence, isLoading } = useHomepageIntelligence();

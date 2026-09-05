@@ -53,7 +53,7 @@ export interface HomepageIntelligence {
     tendency: string;
   } | null;
   /** Null when the user hasn't made a pick for this race - "NO_PICK" isn't a synthesized status,
-   * it's what the route sets deterministically before ever asking Kimi to fill in an explanation. */
+   * it's what the route sets deterministically before ever asking the model to fill in an explanation. */
   predictionChallenge: {
     status: PredictionChallengeStatus;
     explanation: string;
@@ -71,7 +71,7 @@ export interface HomepageIntelligence {
     overallAssessment: string;
   } | null;
   /** Null when there's no prior visit to diff against (sinceLastVisit.hasPriorVisit === false) -
-   * the route never asks Kimi to fabricate a "nothing changed" summary for a first-time visitor. */
+   * the route never asks the model to fabricate a "nothing changed" summary for a first-time visitor. */
   sinceLastVisit: {
     changes: Array<{ type: SinceLastVisitChangeType; title: string; explanation: string }>;
     summary: string;

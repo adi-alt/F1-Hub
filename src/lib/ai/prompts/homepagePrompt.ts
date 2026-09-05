@@ -2,7 +2,7 @@
 // Versioned for telemetry and cache invalidation.
 // Strictly enforces factual grounding, untrusted data boundaries, personal-vs-global separation,
 // and concise JSON output - one call produces both the generic race narrative AND (when real
-// personal context exists) the user-specific synthesis, never a second Kimi request.
+// personal context exists) the user-specific synthesis, never a second model request.
 
 import type { AIMessage } from "../types";
 

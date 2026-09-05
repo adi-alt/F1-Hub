@@ -32,7 +32,7 @@ export function RaceBrief() {
           </h3>
         </div>
         <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
-          {isFallback ? "Deterministic Analytics" : "Kimi K3 Synthesis"}
+          {isFallback ? "Deterministic Analytics" : "DeepSeek Synthesis"}
         </span>
       </div>
 

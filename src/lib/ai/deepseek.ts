@@ -1,6 +1,14 @@
-// KimiProvider — Concrete AIProvider implementation for Moonshot AI's Kimi K3 via NVIDIA NIM.
+// DeepSeekProvider — Concrete AIProvider implementation for DeepSeek V4 (Flash) via NVIDIA NIM.
 // Endpoint: https://integrate.api.nvidia.com/v1/chat/completions
 // Uses standard fetch with AbortSignal timeout and OpenAI-compatible completions format.
+//
+// Replaces the original KimiProvider (moonshotai/kimi-k3): Kimi K3 was swapped out after two
+// separate production issues confirmed live via Vercel logs - first every request failed with
+// HTTP 400 ("Unsupported Kimi K3 thinking_effort=\"medium\""; only low/high/max were accepted),
+// then, once that was fixed, every request instead timed out at 30s even at the fast "low" tier.
+// DeepSeek's reasoning control also has a different shape than Kimi's: NOT a top-level
+// `reasoning_effort` field, but `chat_template_kwargs: { thinking, reasoning_effort }` - this is
+// exactly the shape a real working example (confirmed by the account owner) uses.
 
 import { registerProvider, type AIProvider } from "./provider";
 import {
@@ -16,8 +24,8 @@ import { logAIError, logProviderRequest } from "./telemetry";
 
 const NVIDIA_INVOKE_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-export class KimiProvider implements AIProvider {
-  readonly name = "kimi";
+export class DeepSeekProvider implements AIProvider {
+  readonly name = "deepseek";
 
   async chat(
     messages: AIMessage[],
@@ -60,13 +68,13 @@ export class KimiProvider implements AIProvider {
       temperature: config.temperature ?? 0.7,
     };
 
-    // NVIDIA's Kimi K3 endpoint only accepts "low" | "high" | "max" - confirmed live in production
-    // (every request failed with HTTP 400 "Unsupported Kimi K3 thinking_effort" until this was
-    // caught). Clamped here, not just at the config default, so a future caller passing "medium"
-    // or "none" degrades to a safe value instead of taking every homepage load down again.
-    const KIMI_SUPPORTED_REASONING_EFFORT = new Set(["low", "high", "max"]);
+    // DeepSeek's reasoning control is nested, not a top-level field - `thinking` must be true for
+    // `reasoning_effort` to do anything. Unlike Kimi's endpoint, NVIDIA hasn't handed us an error
+    // message enumerating DeepSeek's exact accepted values, so this doesn't clamp to an assumed
+    // set the way kimi.ts's now-removed provider did - it passes through whatever the caller
+    // configured, defaulting to "high", the one value confirmed to work.
     if (config.reasoningEffort) {
-      payload.reasoning_effort = KIMI_SUPPORTED_REASONING_EFFORT.has(config.reasoningEffort) ? config.reasoningEffort : "low";
+      payload.chat_template_kwargs = { thinking: true, reasoning_effort: config.reasoningEffort };
     }
 
     if (tools && tools.length > 0) {
@@ -125,6 +133,10 @@ export class KimiProvider implements AIProvider {
         },
       }));
 
+      // Reasoning models (thinking: true) can return their chain-of-thought in a separate
+      // reasoning/reasoning_content field alongside the real answer in content - we only ever want
+      // the final answer (never surface hidden reasoning to the UI or feed it back as if it were
+      // the structured JSON output), so this deliberately reads content only.
       return {
         content: choice.message?.content ?? null,
         toolCalls,
@@ -140,7 +152,7 @@ export class KimiProvider implements AIProvider {
     } catch (err: unknown) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       const errorMsg = isAbort ? `NVIDIA request timed out after ${timeoutMs}ms` : String(err);
-      logAIError("kimi_provider", isAbort ? "timeout" : "provider_error", errorMsg);
+      logAIError("deepseek_provider", isAbort ? "timeout" : "provider_error", errorMsg);
       throw err;
     } finally {
       clearTimeout(timeoutId);
@@ -149,4 +161,4 @@ export class KimiProvider implements AIProvider {
 }
 
 // Auto-register instance with the provider registry
-registerProvider(new KimiProvider());
+registerProvider(new DeepSeekProvider());

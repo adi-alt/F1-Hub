@@ -1,11 +1,13 @@
 // Core AI type definitions — the foundation every other module in src/lib/ai/ depends on.
-// Designed around the NVIDIA NIM / OpenAI-compatible chat completions API that Kimi K3 uses,
-// but deliberately abstract enough that swapping to OpenAI, Gemini, or a local model later
-// means implementing one new provider file, not rewriting the orchestrator or tools.
+// Designed around the NVIDIA NIM / OpenAI-compatible chat completions API the configured model
+// (DeepSeek V4 Flash, formerly Kimi K3) uses, but deliberately abstract enough that swapping to
+// OpenAI, Gemini, or a local model later means implementing one new provider file, not rewriting
+// the orchestrator or tools - which is exactly what happened swapping Kimi K3 for DeepSeek.
 
 // ─── Messages ──────────────────────────────────────────────────────────────────
 
-/** A single content part — text today, image_url later (Kimi K3 supports multimodal input). */
+/** A single content part — text today, image_url later (some hosted models support multimodal
+ * input). */
 export type AIContentPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } };
@@ -51,11 +53,12 @@ export type AIProviderConfig = {
   temperature: number;
   /** Provider-level timeout in milliseconds. */
   timeoutMs: number;
-  /** Controls how much reasoning the model does before answering. Kimi K3 via NVIDIA NIM only
-   * accepts "low" | "high" | "max" - confirmed live in production, where "medium" (this field's
-   * original default) made every single request fail with HTTP 400 ("Unsupported Kimi K3
-   * thinking_effort") until this was caught. "none" is kept in the type for a future provider that
-   * might support it; kimi.ts defensively clamps any other value before it ever reaches NVIDIA. */
+  /** Controls how much reasoning the model does before answering. Kimi K3 (the previous provider)
+   * only accepted "low" | "high" | "max" via a top-level `reasoning_effort` field - "medium" made
+   * every single request fail with HTTP 400, confirmed live in production. DeepSeek (the current
+   * provider) takes this nested under `chat_template_kwargs` instead (see deepseek.ts) and its
+   * exact accepted value set isn't documented anywhere as clearly as Kimi's error message was, so
+   * this is passed through as configured rather than clamped to an assumed set. */
   reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
 };
 
@@ -168,7 +171,7 @@ export type OrchestratorConfig = {
 };
 
 export function getDefaultAIModel(): string {
-  return process.env.NVIDIA_AI_MODEL || "moonshotai/kimi-k3";
+  return process.env.NVIDIA_AI_MODEL || "deepseek-ai/deepseek-v4-flash-0731";
 }
 
 export function getProviderRPMLimit(): number {
@@ -184,15 +187,12 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
   timeoutMs: 60_000,
   maxResponseTokens: 2048,
   provider: {
-    model: "moonshotai/kimi-k3",
+    model: "deepseek-ai/deepseek-v4-flash-0731",
     maxTokens: 2048,
     temperature: 0.7,
     timeoutMs: 30_000,
-    // "high" was the first fix (see the "medium" HTTP 400 above) but confirmed live in production
-    // to itself time out at 30s - a reasoning model's "high" tier spends real time on hidden
-    // chain-of-thought before answering, and this task (interpret a page of pre-computed numbers
-    // into a few grounded sentences, per the system prompt's own scope) doesn't need that depth.
-    // "low" is the fast tier and is what this bundled call actually needs.
-    reasoningEffort: "low",
+    // DeepSeek's reasoning_effort lives under chat_template_kwargs, not top-level (see
+    // deepseek.ts) - "high" is the one value confirmed to work via a real, working example.
+    reasoningEffort: "high",
   },
 };

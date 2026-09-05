@@ -1,6 +1,6 @@
 # F1 Hub Agentic AI Architecture & Implementation Guide
 
-Comprehensive documentation of the Agentic AI layer for F1 Hub, powered by Moonshot AI's Kimi K3 via NVIDIA NIM.
+Comprehensive documentation of the Agentic AI layer for F1 Hub, powered by DeepSeek V4 (Flash) via NVIDIA NIM (originally launched on Moonshot AI's Kimi K3, swapped after production issues - see the addendum).
 
 ---
 
@@ -12,7 +12,7 @@ F1 Hub is a high-performance Formula 1 intelligence and prediction platform. The
 Traditional sports dashboards present raw tables and static statistics, placing the burden of interpretation entirely on the user. F1 Hub combines:
 1. **Deterministic Application Layer**: Standings, points, gaps, historical track records, and head-to-head metrics.
 2. **Machine Learning Layer**: Random Forest winner classifications and Monte Carlo finish order simulations.
-3. **Agentic AI Layer (Kimi K3)**: Synthesizes complex multi-dimensional data into strategic briefings, narrative context, and coaching advice without ever taking over application control.
+3. **Agentic AI Layer (DeepSeek via NVIDIA NIM)**: Synthesizes complex multi-dimensional data into strategic briefings, narrative context, and coaching advice without ever taking over application control.
 
 ---
 
@@ -37,7 +37,7 @@ flowchart TD
     CapCheck -->|Exhausted| Fallback[Deterministic Fallback Engine]
     
     CapCheck -->|Capacity Available| ContextBuilder[Bounded Structured Context Builder]
-    ContextBuilder --> Kimi[Kimi K3 via NVIDIA NIM API]
+    ContextBuilder --> Kimi[DeepSeek via NVIDIA NIM API]
     Kimi --> Validator[Zod/Runtime Schema Validation]
     
     Validator -->|Pass| CacheWrite[Save to Global & Personal Caches]
@@ -50,13 +50,21 @@ flowchart TD
 
 ---
 
-## 3. Why Kimi K3
+## 3. Why This Model (Kimi K3, then DeepSeek)
 
-Moonshot AI's **Kimi K3** (`moonshotai/kimi-k3`) was selected as the foundational model via NVIDIA NIM:
+Moonshot AI's **Kimi K3** (`moonshotai/kimi-k3`) was the original foundational model via NVIDIA NIM,
+picked for:
 - **Long-Context Reasoning**: Deep contextual synthesis across season trajectories, circuit quirks, and user prediction tendencies.
 - **Strict Structured Output & Tool Calling**: Native adherence to JSON schema outputs and function definitions.
-- **Configurable Reasoning Effort**: Supports fine-tuned `reasoning_effort` ("low", "medium", "high") balancing latency and depth.
+- **Configurable Reasoning Effort**: A `reasoning_effort` parameter balancing latency and depth.
 - **Multimodal Evolution Path**: Future capabilities for analyzing telemetry charts, circuit layout overlays, and weather radar images.
+
+It was swapped for **DeepSeek V4 Flash** (`deepseek-ai/deepseek-v4-flash-0731`) after two separate
+production issues, both confirmed live via Vercel logs rather than assumed - see Section 35's
+addendum. The provider abstraction (Section 4) is exactly what made this a one-file swap
+(`deepseek.ts` replacing `kimi.ts`) rather than a rewrite of the orchestrator, tools, or schemas.
+DeepSeek's reasoning-effort control also turned out to have a different request shape than Kimi's:
+nested under `chat_template_kwargs: { thinking, reasoning_effort }`, not a top-level field.
 
 ---
 
@@ -92,7 +100,7 @@ The homepage employs a single bundled request lifecycle:
 4. **Data Versioning**: Computes a SHA-256 composite hash of all underlying data.
 5. **Two-Tier Cache Check**: Evaluates personal cache (authenticated) or global cache (guest/default).
 6. **Provider Capacity Guard**: Verifies outbound request count against the 40 RPM ceiling within a 60-second window.
-7. **Single Invocational Call**: Pre-computed data is passed to Kimi K3 in one call (zero tool back-and-forth).
+7. **Single Invocational Call**: Pre-computed data is passed to the model in one call (zero tool back-and-forth).
 8. **Schema Validation**: Output is validated against `HomepageIntelligence`.
 9. **Cache Commit**: Results are stored in L1 memory and `ai_cache` table.
 10. **Client Reveal**: Framer Motion smoothly fades in validated content (`opacity: 0 -> 1`, `y: 8px -> 0`).
@@ -101,7 +109,7 @@ The homepage employs a single bundled request lifecycle:
 
 ## 6. Agent Orchestration: Direct Mode vs Agent Mode
 
-- **Direct Mode (Homepage)**: Deterministic data is pre-fetched by Next.js server code and injected directly into prompt context. Kimi K3 executes in a single shot without tool roundtrips. This delivers sub-second processing and predictable cost.
+- **Direct Mode (Homepage)**: Deterministic data is pre-fetched by Next.js server code and injected directly into prompt context. The model executes in a single shot without tool roundtrips. This delivers sub-second processing and predictable cost.
 - **Agent Mode (Interactive Agents)**: Reusable bounded tool-calling loop (max 8 steps, max 12 tool calls) designed for interactive features (e.g., Ask F1, Race Strategy Analyst).
 
 ---
@@ -194,7 +202,7 @@ Claims produced by the AI reference pre-computed structured inputs:
 
 ## 16. Deterministic vs AI Responsibility Split
 
-| Responsibility | Application Code | Kimi K3 AI |
+| Responsibility | Application Code | DeepSeek (via NVIDIA NIM) |
 |---|:---:|:---:|
 | Championship Standings & Points | ✅ | ❌ |
 | Race Winner & Podium Counts | ✅ | ❌ |
@@ -213,7 +221,7 @@ Claims produced by the AI reference pre-computed structured inputs:
 
 1. **Random Forest**: Computes deterministic win probabilities and position predictions based on historical features, qualifying gaps, and track characteristics.
 2. **Monte Carlo**: Simulates 10,000 race iterations to derive finishing probability distributions.
-3. **Kimi K3 AI**: Provides narrative explanations and human-readable context for why the ML model expects these outcomes.
+3. **DeepSeek (via NVIDIA NIM)**: Provides narrative explanations and human-readable context for why the ML model expects these outcomes.
 
 ---
 
@@ -354,7 +362,7 @@ Planned capabilities designed on top of this agent foundation:
 
 1. Inspected existing Supabase, personalization, and race prediction schemas.
 2. Formulated strict 40 RPM rate-limiting and two-tier caching architecture.
-3. Implemented Kimi K3 provider via NVIDIA NIM OpenAI-compatible endpoint.
+3. Implemented a Kimi K3 provider via NVIDIA NIM's OpenAI-compatible endpoint (later swapped for DeepSeek - see the addendum).
 4. Built declarative schemas and sanitization guardrails.
 5. Constructed deterministic fallback engine.
 6. Implemented single-bundled `/api/ai/homepage-intelligence` route.
@@ -368,7 +376,7 @@ Planned capabilities designed on top of this agent foundation:
 ```env
 # Server-only secrets (Never expose to client bundle)
 NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-NVIDIA_AI_MODEL=moonshotai/kimi-k3
+NVIDIA_AI_MODEL=deepseek-ai/deepseek-v4-flash-0731
 AI_PROVIDER_RPM_LIMIT=40
 
 # Supabase Service Role
@@ -382,7 +390,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
 
 | Decision | Chosen Approach | Alternative | Why Chosen |
 |---|---|---|---|
-| Model Endpoint | Kimi K3 via NVIDIA NIM | Local OSS Model | Exceptional reasoning & structured output with zero self-hosting overhead |
+| Model Endpoint | DeepSeek V4 Flash via NVIDIA NIM | Local OSS Model | Exceptional reasoning & structured output with zero self-hosting overhead |
 | Request Pattern | Single Bundled Request | Multiple Widget Requests | Conserves RPM (1 call vs 6), eliminates race conditions |
 | Rate Ceiling | 40 RPM Sliding Window | Unbounded Requests | Strict adherence to NVIDIA provider limits without service interruption |
 | Loading Strategy | Progressive Client Reveal | Server-Side Blocking | Guarantees instant sub-100ms first paint with deterministic data |
@@ -405,7 +413,7 @@ close to the same generic race narrative. This addendum documents what changed.
    probability. Fixed: the real calibrated probability now comes from
    `nextRace.simulation.drivers[].p1` (Monte Carlo), populated into a new, separate `simulation`
    context block. `model` (RF) now only ever carries a ranking + its top feature factors, never a
-   percentage. The system prompt (`homepagePrompt.ts`) explicitly tells Kimi never to phrase the RF
+   percentage. The system prompt (`homepagePrompt.ts`) explicitly tells the model never to phrase the RF
    ranking as a probability.
 2. **`getUserPrediction` tool queried columns that don't exist** (`predicted_winner_driver_id`,
    `predicted_podium_driver_ids`) instead of the real `picks` schema (`predicted_winner`,
@@ -433,14 +441,14 @@ close to the same generic race narrative. This addendum documents what changed.
 - `personalRaceBrief` - a favorite-driver/team-specific headline + why-it-matters, null without a
   favorite.
 - `predictionChallenge` - `AGREE`/`DISAGREE`/`NO_PICK` (decided deterministically by comparing the
-  user's real pick against the model's/simulation's real pick, never by Kimi) plus an explanation
+  user's real pick against the model's/simulation's real pick, never by the model) plus an explanation
   and the strongest evidence for/against the user's pick.
 - `personalOutlook` - one synthesized assessment combining the favorite driver's championship
   position, this circuit's real history for them, and what RF/Monte Carlo say, null without a
   favorite driver.
 - `sinceLastVisit` - a real, computed list of what changed (championship leader, favorite's rank,
   favorite team's rank, a new prediction, new community posts) between `profiles.last_homepage_visit_at`
-  and now, null for a first-ever visit. Kimi only writes `summary`; the `changes` array itself is
+  and now, null for a first-ever visit. the model only writes `summary`; the `changes` array itself is
   application-computed (see `sinceLastVisit.ts`).
 
 All four are nullable and validated the same way as every other field - a missing or malformed
@@ -461,7 +469,7 @@ personal field degrades to `null`, never to a fabricated placeholder pretending 
   requests seconds apart, and a real 3-item diff (`CHAMPIONSHIP`/`DRIVER`/`TEAM`) reconstructed
   correctly across an actual multi-round gap.
 
-Both are pure application code - Kimi interprets their output, it never calculates the numbers
+Both are pure application code - the model interprets their output, it never calculates the numbers
 itself (same rule the v1 doc already established for `predictionCoach`).
 
 ### 35.4 Cache versioning correction
@@ -476,7 +484,7 @@ A user's prediction can now only ever invalidate their own personal cache entry.
 
 `lib/ai/cache.ts` now exposes `withSingleFlight(key, generate)` - concurrent requests that miss the
 same cache key (the realistic "many users load the homepage in the same few seconds" case)
-coalesce onto one in-flight generation instead of each independently calling Kimi. Documented
+coalesce onto one in-flight generation instead of each independently calling the model. Documented
 limitation: this map is process-local, so it collapses a stampede *within one serverless instance*,
 not across every concurrently-warm instance on Vercel - the 40 RPM provider-capacity ceiling is the
 actual cross-instance backstop.
@@ -507,7 +515,78 @@ directly, bypassing the app entirely, also failed to connect), which points to t
 outbound network restrictions rather than an application bug. This could not be fully ruled out
 without access to the production network, so the honest status is: the deterministic fallback path
 was thoroughly live-verified (including full personalization - real Monza history, real
-championship rank, real since-last-visit deltas), but a genuine 200 response from Kimi itself was
+championship rank, real since-last-visit deltas), but a genuine 200 response from the model itself was
 not observed in this environment. Production (Vercel) has unrestricted outbound network access, so
-this is expected to resolve there; if it doesn't, `logAIError`'s `kimi_provider`/`timeout` entries
-in the Vercel log drain are the first thing to check.
+this was expected to resolve there - it did reach the provider, but surfaced two further real
+issues in the process. See Section 36.
+
+---
+
+## 36. Addendum: Provider Swap (Kimi K3 -> DeepSeek)
+
+Pulling real Vercel production logs (`vercel logs <deployment-url> --level error --json`) right
+after the personalization pass above went live turned up two genuine, sequential production bugs -
+neither reproducible in the sandbox, where NVIDIA's endpoint was simply unreachable at the network
+level (confirmed by a direct `curl` bypassing the app entirely).
+
+### 36.1 Bug 1: `reasoning_effort: "medium"` - HTTP 400 on every single request
+
+`DEFAULT_ORCHESTRATOR_CONFIG.provider.reasoningEffort` was `"medium"`. NVIDIA's real error response:
+
+```json
+{"message":"Unsupported Kimi K3 thinking_effort=\"medium\"; supported values are low, high, and max","type":"Bad Request","code":400}
+```
+
+Every homepage AI request was failing this way - silently, since the route always returns 200 with
+a deterministic fallback on any provider error. Fixed by changing the default to `"high"` and
+adding a defensive clamp in the provider file itself, so a future bad config value degrades safely
+instead of taking every request down again.
+
+### 36.2 Bug 2: "high" reasoning effort itself timed out at 30s
+
+Immediately after the above fix, the *next* real production request instead failed with:
+
+```json
+{"category":"timeout","message":"NVIDIA request timed out after 30000ms"}
+```
+
+Hypothesis at the time: a reasoning model's "high" tier spends real time on hidden chain-of-thought,
+and this task (interpret a page of pre-computed numbers into a few sentences) doesn't need that
+depth - so the default was dropped to `"low"`. Shipped, then verified live: **still timed out at
+30s**, twice, with the identical error. That result ruled out reasoning depth as the actual cause -
+it pointed at something more fundamental (endpoint latency/availability for `moonshotai/kimi-k3`
+specifically) that isn't fixable by tuning a request parameter.
+
+### 36.3 Resolution: swapped the model
+
+Rather than continue guessing against an opaque, third-party failure mode, the model was swapped
+outright to **DeepSeek V4 Flash** (`deepseek-ai/deepseek-v4-flash-0731`), based on a real, working
+example request the account owner supplied. This surfaced one more real difference: DeepSeek's
+reasoning control is NOT the top-level `reasoning_effort` field Kimi used - it's nested under
+`chat_template_kwargs: { thinking: true, reasoning_effort: "high" }`. Implemented exactly as
+demonstrated (the one combination with positive evidence of working), rather than assuming a
+Kimi-shaped clamp would apply to a different model's API.
+
+### 36.4 What changed, concretely
+
+- `src/lib/ai/kimi.ts` deleted; `src/lib/ai/deepseek.ts` added (`DeepSeekProvider`, registered as
+  `"deepseek"`) - the provider abstraction (Section 4) meant this was the only functional file that
+  needed to change; `orchestrator.ts`, `context.ts`, `schemas/`, and every tool were untouched.
+- `provider.ts`'s `getDefaultProvider()` now lazily requires `./deepseek` / resolves `"deepseek"`.
+- `types.ts`: `getDefaultAIModel()` and `DEFAULT_ORCHESTRATOR_CONFIG.provider.model` default to
+  `deepseek-ai/deepseek-v4-flash-0731`; `reasoningEffort` default is `"high"`.
+- `route.ts` gained `export const maxDuration = 90` - real headroom above the provider's own 30s
+  timeout plus one retry, so a legitimately slow response gets to run its course rather than risk
+  Vercel's own function limit cutting it off first.
+- Production `NVIDIA_AI_MODEL` and `NVIDIA_API_KEY` env vars updated via `vercel env` to match (the
+  code's own default is only a fallback - an env var override, which production had set to the old
+  Kimi model, would otherwise have silently kept calling Kimi regardless of the code change).
+- Every doc/comment reference to "Kimi" throughout `src/lib/ai/` and this document updated to
+  reflect the actual current provider, without erasing the historical record of why Kimi was tried
+  first and what specifically went wrong with it (this section, and Section 3).
+
+### 36.5 Status at time of writing
+
+Deployed; verification of a real (non-fallback) DeepSeek response in production was in progress
+when this section was written. Check `isFallback` on a fresh `/api/ai/homepage-intelligence`
+response and the Vercel log drain for `deepseek_provider` error entries to confirm current status.

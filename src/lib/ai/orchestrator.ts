@@ -19,7 +19,7 @@ import {
   type StructuredOutput,
 } from "./types";
 
-/** Convert HomepageContextData into FallbackDataContext - both the fallback engine and Kimi
+/** Convert HomepageContextData into FallbackDataContext - both the fallback engine and the model
  * reason over the exact same underlying facts, just via different mechanisms (template strings
  * vs. an LLM), so a provider outage never means a less-personalized homepage, only less eloquent
  * prose. */
@@ -102,7 +102,7 @@ function cleanJsonOutput(text: string): string {
 
 /**
  * Direct Mode: Bundled Homepage Intelligence Request.
- * Single call to Kimi K3, protected by 40 RPM provider capacity check and deterministic fallback.
+ * Single call to the configured model, protected by 40 RPM provider capacity check and deterministic fallback.
  */
 export async function generateHomepageIntelligence(
   contextData: HomepageContextData,
@@ -215,7 +215,7 @@ export async function generateHomepageIntelligence(
     const validation = validateHomepageIntelligence(parsed);
 
     if (!validation.valid || !validation.data) {
-      logAIError(ctx.requestId, "validation_failure", "Failed to validate Kimi output schema", {
+      logAIError(ctx.requestId, "validation_failure", "Failed to validate AI output schema", {
         errors: validation.errors,
       });
       const fallback = generateDeterministicFallback(fallbackContext, "SCHEMA_VALIDATION_FAILED");

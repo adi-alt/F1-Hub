@@ -6,7 +6,7 @@ export interface PredictionFingerprint {
   podiumAccuracy: number; // calculated by app code (0-100)
   avgPositionError: number; // calculated by app code (lower is better)
   totalPredictions: number; // calculated by app code
-  aiInterpretation: string; // Kimi's 1-2 sentence interpretation
+  aiInterpretation: string; // The model's 1-2 sentence interpretation
 }
 
 export function validatePredictionFingerprint(

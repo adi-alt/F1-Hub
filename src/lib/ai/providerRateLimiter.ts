@@ -1,5 +1,5 @@
 // Provider-level rate limiter — enforces strict RPM ceiling across the application.
-// Specifically addresses NVIDIA's 40 RPM quota on Kimi K3, ensuring that concurrent requests
+// Specifically addresses NVIDIA's 40 RPM quota on the configured model, ensuring that concurrent requests
 // across users or homepage loads do NOT exceed provider capacity.
 //
 // If the provider limit is reached, callers receive { allowed: false } and immediately fall back
