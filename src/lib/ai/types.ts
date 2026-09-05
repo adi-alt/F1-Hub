@@ -195,15 +195,16 @@ export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
     model: "nvidia/nemotron-3.5-lightning-30b-a3b",
     // Comfortably above reasoningBudget below - real evidence (a live diagnostic run against
     // DeepSeek) showed a small combined token cap gets fully consumed by reasoning before any real
-    // content is produced. Nemotron itself, tested directly in the NVIDIA playground, answered a
-    // multi-paragraph real question in ~10s at max_tokens/reasoning_budget: 16384 each - this is a
-    // narrower, still-generous budget for a single structured-JSON answer.
+    // content is produced.
     maxTokens: 3500,
     temperature: 0.7,
-    // Real playground timings for this exact model: 4-10s for most prompts, one complex reasoning
-    // answer at 32s - still comfortably under this budget with margin, vs. Kimi/DeepSeek which
-    // never completed a real answer within 30s at all.
-    timeoutMs: 45_000,
+    // 45s (this field's prior value) was still too tight - confirmed live via the diagnostic's own
+    // stage-3 probe (the REAL system prompt + a representative context, not a trivial one-liner):
+    // the actual 12-field HomepageIntelligence task took 58.4s end to end, successfully, with
+    // genuinely good grounded content. Trivial test prompts (a one-line echo) complete in 7-17s -
+    // this task's real complexity, not connectivity or the model itself, is what needs the larger
+    // budget. 80s leaves real margin above the one measured run.
+    timeoutMs: 80_000,
     reasoningBudget: 2048,
   },
 };

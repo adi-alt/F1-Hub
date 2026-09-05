@@ -1,6 +1,6 @@
 # F1 Hub Agentic AI Architecture & Implementation Guide
 
-Comprehensive documentation of the Agentic AI layer for F1 Hub, powered by DeepSeek V4 (Flash) via NVIDIA NIM (originally launched on Moonshot AI's Kimi K3, swapped after production issues - see the addendum).
+Comprehensive documentation of the Agentic AI layer for F1 Hub, powered by NVIDIA Nemotron 3.5 Lightning via NVIDIA NIM (originally launched on Moonshot AI's Kimi K3, then DeepSeek V4 Flash - both swapped out after production issues, see the addenda).
 
 ---
 
@@ -12,7 +12,7 @@ F1 Hub is a high-performance Formula 1 intelligence and prediction platform. The
 Traditional sports dashboards present raw tables and static statistics, placing the burden of interpretation entirely on the user. F1 Hub combines:
 1. **Deterministic Application Layer**: Standings, points, gaps, historical track records, and head-to-head metrics.
 2. **Machine Learning Layer**: Random Forest winner classifications and Monte Carlo finish order simulations.
-3. **Agentic AI Layer (DeepSeek via NVIDIA NIM)**: Synthesizes complex multi-dimensional data into strategic briefings, narrative context, and coaching advice without ever taking over application control.
+3. **Agentic AI Layer (Nemotron via NVIDIA NIM)**: Synthesizes complex multi-dimensional data into strategic briefings, narrative context, and coaching advice without ever taking over application control.
 
 ---
 
@@ -37,7 +37,7 @@ flowchart TD
     CapCheck -->|Exhausted| Fallback[Deterministic Fallback Engine]
     
     CapCheck -->|Capacity Available| ContextBuilder[Bounded Structured Context Builder]
-    ContextBuilder --> Kimi[DeepSeek via NVIDIA NIM API]
+    ContextBuilder --> Kimi[Nemotron via NVIDIA NIM API]
     Kimi --> Validator[Zod/Runtime Schema Validation]
     
     Validator -->|Pass| CacheWrite[Save to Global & Personal Caches]
@@ -65,6 +65,10 @@ addendum. The provider abstraction (Section 4) is exactly what made this a one-f
 (`deepseek.ts` replacing `kimi.ts`) rather than a rewrite of the orchestrator, tools, or schemas.
 DeepSeek's reasoning-effort control also turned out to have a different request shape than Kimi's:
 nested under `chat_template_kwargs: { thinking, reasoning_effort }`, not a top-level field.
+
+DeepSeek didn't fix the underlying problem either, and was itself swapped for **NVIDIA Nemotron
+3.5 Lightning** (`nvidia/nemotron-3.5-lightning-30b-a3b`) - see Section 37 for the full story,
+including the diagnostic work that finally isolated the real cause.
 
 ---
 
@@ -202,7 +206,7 @@ Claims produced by the AI reference pre-computed structured inputs:
 
 ## 16. Deterministic vs AI Responsibility Split
 
-| Responsibility | Application Code | DeepSeek (via NVIDIA NIM) |
+| Responsibility | Application Code | Nemotron (via NVIDIA NIM) |
 |---|:---:|:---:|
 | Championship Standings & Points | ✅ | ❌ |
 | Race Winner & Podium Counts | ✅ | ❌ |
@@ -221,7 +225,7 @@ Claims produced by the AI reference pre-computed structured inputs:
 
 1. **Random Forest**: Computes deterministic win probabilities and position predictions based on historical features, qualifying gaps, and track characteristics.
 2. **Monte Carlo**: Simulates 10,000 race iterations to derive finishing probability distributions.
-3. **DeepSeek (via NVIDIA NIM)**: Provides narrative explanations and human-readable context for why the ML model expects these outcomes.
+3. **Nemotron (via NVIDIA NIM)**: Provides narrative explanations and human-readable context for why the ML model expects these outcomes.
 
 ---
 
@@ -376,7 +380,7 @@ Planned capabilities designed on top of this agent foundation:
 ```env
 # Server-only secrets (Never expose to client bundle)
 NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-NVIDIA_AI_MODEL=deepseek-ai/deepseek-v4-flash-0731
+NVIDIA_AI_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b
 AI_PROVIDER_RPM_LIMIT=40
 
 # Supabase Service Role
@@ -390,7 +394,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
 
 | Decision | Chosen Approach | Alternative | Why Chosen |
 |---|---|---|---|
-| Model Endpoint | DeepSeek V4 Flash via NVIDIA NIM | Local OSS Model | Exceptional reasoning & structured output with zero self-hosting overhead |
+| Model Endpoint | Nemotron 3.5 Lightning via NVIDIA NIM | Local OSS Model | Exceptional reasoning & structured output with zero self-hosting overhead |
 | Request Pattern | Single Bundled Request | Multiple Widget Requests | Conserves RPM (1 call vs 6), eliminates race conditions |
 | Rate Ceiling | 40 RPM Sliding Window | Unbounded Requests | Strict adherence to NVIDIA provider limits without service interruption |
 | Loading Strategy | Progressive Client Reveal | Server-Side Blocking | Guarantees instant sub-100ms first paint with deterministic data |
@@ -670,3 +674,25 @@ first, naive test happened to set them) and risking the same starved-content out
 - `/api/ai/diagnostic` kept in the codebase permanently (not deleted once "resolved") - it's a
   reusable way to answer "is the AI provider actually healthy right now" with real data instead of
   re-guessing, and its own request payload now mirrors whichever provider is currently configured.
+
+### 37.5 Final tuning: the real task needed 58s, not 45s
+
+A production verification right after the swap still showed `isFallback: true` -
+`fallbackReason: "PROVIDER_ERROR"`, and the log was the exact same shape as every prior failure:
+`{"requestId":"nemotron_provider","category":"timeout","message":"NVIDIA request timed out after 45000ms"}`.
+The diagnostic route's own trivial one-line-echo probe succeeded in 7-17s, which didn't match - so
+a third diagnostic stage was added: the REAL `HOMEPAGE_SYSTEM_PROMPT` plus a representative
+structured/personal context, at production's real `maxTokens`/`reasoningBudget`, with a 100s
+timeout budget.
+
+Result: **`200 OK` in 58.4 seconds**, with genuinely good, grounded, well-reasoned content across
+all 12 `HomepageIntelligence` fields (real Monza history, real championship math, a coherent
+narrative). Nemotron was never the problem and never failed once given enough time - the real
+12-field structured-synthesis task is simply more complex than a trivial echo test, and 45s wasn't
+enough runway for it.
+
+Fixed with the real number instead of another guess: `timeoutMs` raised to 80s (real margin above
+the one measured 58.4s run), and the orchestrator's retry was removed entirely - a retry helps
+against a transient/flaky failure, not against a task that reliably takes ~58s. Retrying would have
+just doubled worst-case latency for a call that already succeeds, slowly. `route.ts`'s `maxDuration`
+(110s) already had room for this; no further change needed there.

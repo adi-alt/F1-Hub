@@ -165,34 +165,32 @@ export async function generateHomepageIntelligence(
     model,
   };
 
-  // 3. Invoke provider with retry on transient failure
+  // 3. Invoke provider - single attempt, deliberately no retry. A retry made sense against a
+  // transient failure; it doesn't against this task's real, measured cost - the full
+  // HomepageIntelligence generation reliably takes ~58s (confirmed live via the diagnostic route's
+  // own representative-context probe), so a retry would just double the worst-case wait for a call
+  // that's slow, not flaky. providerConfig.timeoutMs already carries real margin above that.
   let rawContent: string | null = null;
   let tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
-  let retryCount = 0;
+  const retryCount = 0;
 
-  for (let attempt = 0; attempt <= 1; attempt++) {
-    try {
-      const response = await provider.chat(messages, null, providerConfig);
-      rawContent = response.content;
-      tokenUsage = response.usage;
-      break;
-    } catch (err) {
-      retryCount++;
-      if (attempt === 1) {
-        logAIError(ctx.requestId, "provider_failure_final", String(err));
-        const fallback = generateDeterministicFallback(fallbackContext, "PROVIDER_ERROR");
-        return {
-          data: fallback.data,
-          generatedAt: new Date().toISOString(),
-          dataVersion,
-          agentType: "homepage_intelligence",
-          modelIdentifier: model,
-          promptVersion: HOMEPAGE_PROMPT_VERSION,
-          isFallback: true,
-          fallbackReason: "PROVIDER_ERROR",
-        };
-      }
-    }
+  try {
+    const response = await provider.chat(messages, null, providerConfig);
+    rawContent = response.content;
+    tokenUsage = response.usage;
+  } catch (err) {
+    logAIError(ctx.requestId, "provider_failure_final", String(err));
+    const fallback = generateDeterministicFallback(fallbackContext, "PROVIDER_ERROR");
+    return {
+      data: fallback.data,
+      generatedAt: new Date().toISOString(),
+      dataVersion,
+      agentType: "homepage_intelligence",
+      modelIdentifier: model,
+      promptVersion: HOMEPAGE_PROMPT_VERSION,
+      isFallback: true,
+      fallbackReason: "PROVIDER_ERROR",
+    };
   }
 
   // 4. Validate output schema

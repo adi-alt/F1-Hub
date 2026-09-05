@@ -45,12 +45,12 @@ import type { HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
 
-// Headroom above the provider's own 45s AbortController timeout (nemotron.ts) x 2 attempts (90s
-// worst case) plus our own data-fetching/processing overhead - Vercel's own default function
-// duration would otherwise kill this route before our own timeout/retry logic ever gets to run its
-// course and return a clean fallback. Nemotron's real playground timings (4-10s typical, 32s worst
-// case observed) mean a retry is actually worth keeping here, unlike DeepSeek/Kimi - a transient
-// blip is plausible for a fast, reliable model in a way it wasn't for one that always timed out.
+// Headroom above the provider's own 80s AbortController timeout (nemotron.ts, single attempt - see
+// orchestrator.ts's own comment on why this task doesn't retry) plus our own data-fetching/
+// processing overhead - Vercel's own default function duration would otherwise kill this route
+// before our own timeout logic ever gets to run its course and return a clean fallback. 80s itself
+// carries real margin above the one measured real-task completion (58.4s, via the diagnostic
+// route's representative-context probe).
 export const maxDuration = 110;
 
 type GenerationResult = { data: HomepageIntelligence; isFallback: boolean; fallbackReason?: string; cacheTier: "personal" | "global" | "global_shared" | "fresh" };
