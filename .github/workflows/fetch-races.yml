@@ -40,8 +40,7 @@ jobs:
 
       - name: One-off recheck - direct call to the exact SessionInfo URL (temporary)
         run: |
-          curl -sD - -o /tmp/resp.json "https://livetiming.formula1.com/static/2026/2026-09-06_Italian_Grand_Prix/2026-09-06_Race/SessionInfo.jsonStream" -w "HTTP_STATUS:%{http_code}
-"
+          curl -sD - -o /tmp/resp.json "https://livetiming.formula1.com/static/2026/2026-09-06_Italian_Grand_Prix/2026-09-06_Race/SessionInfo.jsonStream" -w "HTTP_STATUS:%{http_code}\n"
           echo "--- body ---"
           cat /tmp/resp.json
 
