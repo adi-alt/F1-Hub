@@ -112,6 +112,28 @@ def normalize_status(raw_status: str) -> str:
     return "dnf"
 
 
+# A narrow, deliberately small alias map - NOT a general fuzzy-match/normalization scheme. Found by
+# auditing real data: these 4 exact strings appeared as one-off inconsistencies (8 total rows,
+# 2 per team, all from the same single race) alongside a team's otherwise-consistent name across
+# every other race that season - confirmed via a direct DB check before adding any of these, not
+# guessed. Deliberately does NOT touch genuine historical team identities (AlphaTauri, Toro Rosso,
+# Racing Point, Renault, Force India, Alfa Romeo Racing, Sauber) - those are real, different teams
+# at different points in F1 history, not formatting noise, and collapsing them into their modern
+# successor would silently rewrite history. A future team renders here completely untouched
+# (`normalize_team_name("Pizza Alpine F1")` returns it as-is) - this is a database-boundary cleanup
+# for known noise, never involved in deciding what to request from any API.
+TEAM_NAME_ALIASES = {
+    "Alpine F1 Team": "Alpine",
+    "Cadillac F1 Team": "Cadillac",
+    "RB F1 Team": "Racing Bulls",
+    "Red Bull": "Red Bull Racing",
+}
+
+
+def normalize_team_name(name: str) -> str:
+    return TEAM_NAME_ALIASES.get(name, name)
+
+
 def fetch_practice(year: int, round_num: int, label: str):
     """{session: "FP1"/"FP2"/"FP3", bestLaps: [...], weather: {...}}, or None if that session
     hasn't happened (or doesn't exist for this weekend — sprint weekends have no FP2/FP3).
@@ -430,6 +452,17 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             results_source = "openf1_preliminary"
             print("    race: FastF1/Jolpica had nothing yet, used OpenF1 preliminary classification")
 
+    # Applied once here, after whichever source (FastF1 or OpenF1) produced qualifying/race data,
+    # so every downstream write (drivers/teams roster, race_inputs, race_results) sees the same
+    # canonical string regardless of source - see normalize_team_name()'s own docstring for why
+    # this specific small set of aliases and not a broader fuzzy-match.
+    if qualifying:
+        for g in qualifying["grid"]:
+            g["team"] = normalize_team_name(g["team"])
+    if race:
+        for r in race["results"]:
+            r["team"] = normalize_team_name(r["team"])
+
     merged_practice = {**(existing["practice"] if existing else {}), **practice}
     keep_old_race = not race and bool(existing) and existing["status"] == "completed"
     if keep_old_race:
@@ -441,7 +474,11 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         data_completeness = json.dumps(
             {
                 "classification": True,
-                "grid": bool(qualifying),
+                # Checks the actual results, not `bool(qualifying)` (FastF1's own local qualifying
+                # fetch) - a real bug caught while auditing this: qualifying fails in CI for the
+                # exact same reason race does, which would wrongly report grid=False even when
+                # OpenF1's starting_grid correctly populated every driver's gridPosition.
+                "grid": any(r.get("gridPosition") is not None for r in race["results"]),
                 "laps": bool(race.get("lapTimings")),
                 "weather": race.get("weather") is not None,
                 "tireData": bool(race.get("tireCompoundPace")),

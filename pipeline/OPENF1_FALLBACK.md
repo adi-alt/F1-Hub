@@ -79,13 +79,13 @@ already checks `status === 'completed'`, and if any were missed, a preliminary r
 show as completed anywhere - defeating the purpose. `results_source`/`data_completeness` capture
 everything a `data_status` enum would have, without duplicating it.
 
-## How the classification is derived (v2)
+## How the classification is derived (v3)
 
 **v1 of this module (see git history) hand-rolled a classification from raw `/position` + `/laps`
 records, including a lap-count-percentage heuristic to guess `dnf` vs `lapped`.** That's no longer
 necessary: OpenF1 has since grown a `session_result` endpoint that gives real position/points/
 dnf/dns/dsq/gap directly - verified live against the 2026 Italian GP (exact match, including all 3
-real retirees and the exact points for every classified driver). v2 uses this instead:
+real retirees and the exact points for every classified driver). v2 (and now v3) uses this instead:
 
 1. `GET /v1/sessions?year&country_name` (whole weekend, not filtered by session_name) → the Race
    session's `session_key` and `date_end`, and the Qualifying session's `session_key` (needed for
@@ -126,6 +126,48 @@ holdover, not an accurate description - see the code comment at its call site.
 writing anything partial or malformed: no duplicate driver codes, no duplicate finishing positions,
 every status in the allowed 3-way enum, no negative points. A rejected result prints exactly why
 (e.g. `"duplicate driver code(s): [...]"` ) to the run log.
+
+## v3: weather, tire stints, lap timing, and safety-car periods added
+
+A full audit of OpenF1's endpoint catalog (prompted by a direct question about what else was
+available) found real, working endpoints for almost everything v2 left empty - each verified live
+against the Italian GP before shipping:
+
+- `GET /v1/weather?session_key=<race>` → per-minute time series, aggregated to the same
+  `airTempC`/`trackTempC`/`humidityPct`/`rainfall` shape `fetch_race()` already produces.
+- `GET /v1/stints?session_key=<race>` → real tire stints directly (`compound`, `lap_start`,
+  `lap_end`) - no derivation needed, unlike FastF1's own path which groups raw laps by compound.
+- `GET /v1/laps?session_key=<race>` → per-lap `lap_duration`, used for both each driver's fastest
+  lap and `lapTimings`.
+- `GET /v1/race_control?session_key=<race>` → same category/message convention FastF1's own
+  `race_control_messages` uses (`category == "SafetyCar"`, `"DEPLOYED"` in the message text,
+  e.g. `"SAFETY CAR DEPLOYED"` / `"VSC DEPLOYED"`) - identical counting logic reused.
+
+**Two known, deliberate gaps, not attempted this pass:**
+- `lapTimings.position` is always `None` on the OpenF1 path. OpenF1's lap records carry no track
+  position (confirmed live), and `/v1/position` only logs sparse position-*change* events (32 rows
+  for an entire race, not one per lap) - matching a lap's completion timestamp to the nearest
+  preceding position record is a real, error-prone join for uncertain value. An honest gap, not a
+  fabricated guess.
+- `trafficStats` and `tireCompoundPace` stay empty. Both are derivable (`/v1/intervals` bucketed by
+  timestamp for the former; `stints` + `laps` matched by lap-within-stint for the latter) but are
+  real, heavier derivations deferred to a follow-up rather than rushed into this pass.
+
+### Team-name canonicalization (found while auditing, unrelated to OpenF1 itself)
+
+Checking driver/team identity handling surfaced a real, pre-existing data-quality issue: the same
+real team had been written under two different literal strings (`"Alpine F1 Team"` vs. `"Alpine"`,
+`"RB F1 Team"` vs. `"Racing Bulls"`, etc.) - confirmed via a direct DB check to be 8 total rows, all
+from one single race, not a systematic source difference or a genuine historical rebrand. Genuine
+historical team identities (AlphaTauri, Toro Rosso, Racing Point, Renault, Force India, Alfa Romeo
+Racing, Sauber) are deliberately left untouched - those are real, different teams at different
+points in F1 history, not formatting noise. `normalize_team_name()` (`fetch_races.py`) is a narrow,
+4-entry alias map applied once, source-agnostically, right after `qualifying`/`race` are resolved -
+before any of `drivers`/`teams`/`race_inputs`/`race_results` are written. It is purely a
+database-boundary cleanup and is never involved in deciding what value to send to any API request -
+every OpenF1/FastF1 call in this pipeline is filtered by `session_key` alone, discovering whichever
+drivers/teams actually appear in the response rather than asking for a name/ID decided in advance.
+A brand-new team name next season passes through completely untouched.
 
 ### Missing data is never guessed
 
@@ -174,6 +216,10 @@ those specific models, not a crash or corrupted training set.
 - No schema change to add a real DNS/DSQ status value, or to rename `status_source`'s
   `'lap_distance_derived'` value now that it's no longer a heuristic - both are cosmetic/precision
   improvements with no behavior change, deferred rather than bundled into this pass.
+- `trafficStats`, `tireCompoundPace`, and `lapTimings.position` stay unpopulated on the OpenF1 path
+  (v3) - see "Two known, deliberate gaps" above.
+- `/v1/pit` (per-stop duration/lap) is real and verified working but needs a new table the current
+  schema doesn't have - a real schema decision, not folded into this pass.
 
 ## Orange Cat Blacktop (blacktop.live) - evaluated, not integrated
 
