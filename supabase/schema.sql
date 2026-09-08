@@ -40,6 +40,19 @@ create table races (
                                          -- diagram - see ergast_utils.py's fetch_commons_photos),
                                          -- re-hosted in Storage, up to a handful per race - the
                                          -- homepage's rotating background draws from this
+  -- Where the classification in race_results came from - 'official' when FastF1/Jolpica provided
+  -- it directly, 'openf1_preliminary' when Jolpica had nothing yet and pipeline/openf1_fallback.py
+  -- derived a real (if partial) classification from OpenF1's live timing feed instead. `status`
+  -- stays a plain 'completed' either way (a preliminary result is still a real, displayable race
+  -- result) - this column is what fetch_races.py's own retry gate uses to keep checking for the
+  -- official upgrade instead of treating a preliminary round as fully done forever. See
+  -- pipeline/OPENF1_FALLBACK.md for the full architecture.
+  results_source text not null default 'official' check (results_source in ('official', 'openf1_preliminary')),
+  -- Which specific analyses are actually populated for this race, independent of results_source -
+  -- an official result could in principle be missing something too. Written by both paths in
+  -- fetch_races.py's build_and_push(). {classification, grid, laps, weather, tireData,
+  -- trafficAnalysis, safetyCarAnalysis, fastestLap} -> bool.
+  data_completeness jsonb,
   updated_at timestamptz not null default now()
 );
 create index races_year_round_idx on races (year, round);
@@ -53,6 +66,12 @@ create table race_results (
   finish_position int not null,
   finish_gap_sec numeric,
   status text not null check (status in ('finished', 'lapped', 'dnf')),
+  -- Provenance for THIS driver's derived status specifically (not the whole race - see
+  -- races.results_source for that). 'official' when FastF1/Jolpica classified it directly,
+  -- 'lap_distance_derived' for an openf1_preliminary row - pipeline/openf1_fallback.py's own doc
+  -- comment explains why a race-control-message-based refinement was tried and rejected (a real
+  -- false positive on a real historical race) in favor of this simpler, verified-safe heuristic.
+  status_source text not null default 'official' check (status_source in ('official', 'lap_distance_derived')),
   fastest_lap_sec numeric,
   points numeric not null default 0,
   primary key (race_id, driver)

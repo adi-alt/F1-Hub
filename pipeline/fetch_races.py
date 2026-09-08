@@ -43,6 +43,7 @@ from ergast_utils import (
     trigger_revalidation,
     upsert,
 )
+from openf1_fallback import fetch_race_openf1
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -332,9 +333,9 @@ def slugify(name: str) -> str:
 
 
 def get_existing_race(cur, race_id: str) -> dict | None:
-    cur.execute("select status, practice, photo_urls from races where id = %s", (race_id,))
+    cur.execute("select status, practice, photo_urls, results_source from races where id = %s", (race_id,))
     row = cur.fetchone()
-    return {"status": row[0], "practice": row[1] or {}, "photo_urls": row[2]} if row else None
+    return {"status": row[0], "practice": row[1] or {}, "photo_urls": row[2], "results_source": row[3]} if row else None
 
 
 def upsize_headshot(url: str | None) -> str | None:
@@ -397,6 +398,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             practice[label] = {"bestLaps": result["bestLaps"], "weather": result["weather"]}
     qualifying = fetch_qualifying(year, round_num)
     race = fetch_race(year, round_num)
+    results_source = "official"
 
     if not practice and not qualifying and not race:
         # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
@@ -412,10 +414,37 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
     # (one jsonb blob covering all three sessions, so a failed FP3 refetch needs to merge onto
     # whatever FP1/FP2 already got stored, not just get skipped wholesale like race/qualifying can).
     existing = get_existing_race(cur, race_id)
+
+    # FastF1/Jolpica came back empty - try OpenF1's preliminary classification before giving up.
+    # Never attempted if an official result already exists (nothing to gain, and no reason to risk
+    # a downgrade) - only relevant the first time a round has no official data yet. See
+    # pipeline/OPENF1_FALLBACK.md for the full architecture and what's verified vs. heuristic here.
+    if not race and not (existing and existing.get("results_source") == "official"):
+        race = fetch_race_openf1(year, round_num, str(calendar_event["Country"]), qualifying["grid"] if qualifying else [])
+        if race:
+            results_source = "openf1_preliminary"
+            print("    race: FastF1/Jolpica had nothing yet, used OpenF1 preliminary classification")
+
     merged_practice = {**(existing["practice"] if existing else {}), **practice}
     keep_old_race = not race and bool(existing) and existing["status"] == "completed"
     if keep_old_race:
         print("    race fetch failed but a completed race already exists — keeping it, not overwriting")
+        results_source = existing.get("results_source") or "official"
+
+    data_completeness = None
+    if race:
+        data_completeness = json.dumps(
+            {
+                "classification": True,
+                "grid": bool(qualifying),
+                "laps": bool(race.get("lapTimings")),
+                "weather": race.get("weather") is not None,
+                "tireData": bool(race.get("tireCompoundPace")),
+                "trafficAnalysis": bool(race.get("trafficStats")),
+                "safetyCarAnalysis": race.get("safetyCarPeriods") is not None,
+                "fastestLap": any(r.get("fastestLapSec") is not None for r in race["results"]),
+            }
+        )
 
     race_row = {
         "id": race_id,
@@ -427,6 +456,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         "race_date": calendar_event["EventDate"].strftime("%Y-%m-%d"),
         "status": "completed" if (race or keep_old_race) else ("upcoming" if qualifying else "scheduled"),
         "practice": json.dumps(merged_practice) if merged_practice else None,
+        "results_source": results_source,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     if qualifying:
@@ -437,6 +467,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         race_row["traffic_stats"] = json.dumps(race["trafficStats"])
         race_row["safety_car_periods"] = race["safetyCarPeriods"]
         race_row["tire_compound_pace"] = json.dumps(race["tireCompoundPace"])
+        race_row["data_completeness"] = data_completeness
         # Once, not every run - re-hit Commons every 6 hours for photos that never change once
         # found. `existing` (fetched above) already tells us if a prior run already got them.
         if not (existing and existing.get("photo_urls")):
@@ -464,6 +495,13 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         ]
         upsert(cur, "race_inputs", input_rows, ["race_id", "driver"])
     if race:
+        # status_source: per-driver provenance for the *derived* status specifically (not the
+        # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
+        # for every OpenF1-fallback row (see openf1_fallback.py's own doc comment on why a
+        # race-control-based refinement was tried and rejected - it produced a real false positive
+        # on a real historical race). This is what lets predict_dnf.py's training data eventually be
+        # filtered/weighted by confidence if that ever matters, without re-deriving it after the fact.
+        status_source = "official" if results_source == "official" else "lap_distance_derived"
         result_rows = [
             {
                 "race_id": race_id,
@@ -474,6 +512,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
                 "finish_position": r["finishPosition"],
                 "finish_gap_sec": r["finishGapSec"],
                 "status": r["status"],
+                "status_source": status_source,
                 "fastest_lap_sec": r["fastestLapSec"],
                 "points": r["points"],
             }
@@ -572,11 +611,15 @@ def discover_rounds(year: int) -> list[int]:
 
 
 def is_already_completed(cur, year: int, round_num: int) -> bool:
-    """Race results never change after the fact — once a round is `completed`, re-fetching it
-    is pure waste, which matters once this runs on every scheduled tick rather than by hand."""
-    cur.execute("select status from races where year = %s and round = %s limit 1", (year, round_num))
+    """Race results never change after the fact once truly `completed` AND `official` - re-fetching
+    that is pure waste, which matters once this runs on every scheduled tick rather than by hand.
+    A round that's `completed` via `results_source = 'openf1_preliminary'` is NOT considered done
+    here on purpose - see openf1_fallback.py/OPENF1_FALLBACK.md - it's a real, displayable result,
+    but the pipeline keeps retrying FastF1/Jolpica for the official upgrade (fuller analytics,
+    real points) within next_relevant_round()'s own fetch window."""
+    cur.execute("select status, results_source from races where year = %s and round = %s limit 1", (year, round_num))
     row = cur.fetchone()
-    return bool(row) and row[0] == "completed"
+    return bool(row) and row[0] == "completed" and row[1] == "official"
 
 
 # How long before a race weekend's first session to start actually attempting fetches, and how
@@ -600,8 +643,14 @@ def next_relevant_round(cur, year: int) -> int | None:
     for rounds that are still months away and can't possibly have data yet. Falls back to
     "fetch anyway" only when a round has no calendar row at all yet (sync_calendar.py hasn't run
     for it) - better to attempt a fetch we have no session data to gate on than to silently never
-    check a round forever."""
-    cur.execute("select round from races where year = %s and status != 'completed' order by round asc limit 1", (year,))
+    check a round forever. A round completed only via `results_source = 'openf1_preliminary'`
+    counts as "not really done" here too - see is_already_completed()'s own comment - so it keeps
+    getting retried for the official upgrade within this same fetch window."""
+    cur.execute(
+        "select round from races where year = %s and (status != 'completed' or results_source = 'openf1_preliminary') "
+        "order by round asc limit 1",
+        (year,),
+    )
     row = cur.fetchone()
     if not row:
         return None
