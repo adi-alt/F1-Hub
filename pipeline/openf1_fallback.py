@@ -6,10 +6,13 @@ OpenF1 (https://openf1.org): free, no API key, sources from F1's live timing fee
 than Ergast/Jolpica, so it doesn't share that source's multi-day publishing lag.
 
 v3 of this module (see git history for v1/v2): a full endpoint audit found real, working endpoints
-for everything FastF1 gives us except lap-by-lap car *position* and gap-to-car-ahead traffic stats
-(see the two "known gaps" comments below) - weather, tire stints, tire-compound pace, safety-car
-periods, and lap timing are all populated now, not left empty. Verified live against the 2026
-Italian GP for every endpoint before shipping.
+for everything FastF1 gives us except lap-by-lap car *position* (see `_fetch_laps`' own docstring
+for why that one stays an honest gap) - weather, tire stints, tire-compound pace, traffic stats,
+safety-car periods, and lap timing are all populated now, not left empty. Tire-compound pace and
+traffic stats port fetch_race()'s own exact methodology (same grouping, same thresholds, same
+uncorrected slope) rather than inventing new constants, so the numbers mean the same thing
+regardless of which source produced them. Verified live against the 2026 Italian GP for every
+endpoint before shipping.
 """
 
 from __future__ import annotations
@@ -78,12 +81,17 @@ def _fetch_weather(session_key: int) -> dict | None:
     }
 
 
-def _fetch_stints(session_key: int, driver_code_by_number: dict[int, str]) -> list[dict]:
+def _fetch_stints(session_key: int) -> list[dict]:
+    """Raw /v1/stints rows - kept as-is (not yet driver-code-mapped or shaped) since both
+    tireStints and tireCompoundPace need this same raw data for different purposes."""
+    return _get("stints", session_key=session_key)
+
+
+def _stints_to_tire_stints(stints_raw: list[dict], driver_code_by_number: dict[int, str]) -> list[dict]:
     """Matches fetch_race()'s tireStints shape - same (driver, stintNumber, compound, lapCount)
     fields, real data from OpenF1's own dedicated endpoint rather than derived from lap groupby."""
-    rows = _get("stints", session_key=session_key)
     stints = []
-    for r in rows:
+    for r in stints_raw:
         code = driver_code_by_number.get(r["driver_number"])
         if code is None:
             continue
@@ -96,6 +104,114 @@ def _fetch_stints(session_key: int, driver_code_by_number: dict[int, str]) -> li
             }
         )
     return stints
+
+
+def _fetch_tire_compound_pace(
+    stints_raw: list[dict], laps_by_driver: dict[str, list[dict]], driver_code_by_number: dict[int, str]
+) -> list[dict]:
+    """Ports fetch_race()'s exact tireCompoundPace method onto OpenF1 data - same grouping by
+    (driver, compound), not per-stint (a driver running the same compound across two separate
+    stints already gets combined into one aggregate in the FastF1 path, so this must too), the
+    same >=3-lap minimum before computing anything, the same nunique-tyre-life>=2 gate before
+    fitting a slope, and the identical uncorrected linear fit - no fuel-burn adjustment, matching
+    fetch_race()'s own documented reasoning for why that's a deliberate limitation, not an
+    oversight (conflating tire wear with fuel burn-off and track evolution is a known, accepted
+    imprecision of this proxy on the FastF1 path already - adding a fuel correction here would
+    make the two paths compute genuinely different things under the same column name).
+
+    `tyre_age_at_start` (from /v1/stints) plus the lap's position within the stint is OpenF1's
+    equivalent of FastF1's own `TyreLife` column - the tyre-life x-axis for the regression.
+    Excludes `is_pit_out_lap` laps (OpenF1's direct equivalent of FastF1's PitOutTime check).
+
+    Also excludes any lap slower than 1.3x the session's own fastest lap - found necessary live,
+    not a guess: the 2026 Italian GP had a genuine red flag (race suspended lap 3, restarted with
+    a second standing start lap 5, confirmed via race_control's own "RED FLAG - RACE SUSPENDED" /
+    "STANDING START" messages), and OpenF1's lap_duration for the lap spanning that suspension was
+    1958 seconds - real data, not corrupted, but it includes the ~35-minute real-world stoppage,
+    not driving time. FastF1's own `IsAccurate` flag exists specifically to exclude exactly this
+    class of lap (red flag/VSC/safety car - none of which reflect genuine tyre-limited pace);
+    OpenF1 has no per-lap equivalent, so this is the closest available substitute. 1.3x is a fixed
+    external reference (the session's own fastest lap), not a self-referential stint-median cutoff
+    - a stint-relative filter would risk excluding the very late-stint degradation it's meant to
+    measure, since lap times legitimately climb as a tyre wears.
+    """
+    all_durations = [
+        lap["lap_duration"]
+        for laps in laps_by_driver.values()
+        for lap in laps
+        if lap.get("lap_duration") and not lap.get("is_pit_out_lap")
+    ]
+    if not all_durations:
+        return []
+    session_best_sec = min(all_durations)
+    max_valid_duration = session_best_sec * 1.3
+
+    groups: dict[tuple[str, str], list[tuple[int, float]]] = {}
+    for stint in stints_raw:
+        code = driver_code_by_number.get(stint["driver_number"])
+        if code is None:
+            continue
+        laps_by_number = {lap["lap_number"]: lap for lap in laps_by_driver.get(code, [])}
+        for lap_number in range(stint["lap_start"], stint["lap_end"] + 1):
+            lap = laps_by_number.get(lap_number)
+            if lap is None or lap.get("is_pit_out_lap") or not lap.get("lap_duration"):
+                continue
+            if lap["lap_duration"] > max_valid_duration:
+                continue
+            tyre_life = (stint.get("tyre_age_at_start") or 0) + (lap_number - stint["lap_start"])
+            groups.setdefault((code, stint["compound"]), []).append((tyre_life, lap["lap_duration"]))
+
+    compound_pace = []
+    for (code, compound), points in groups.items():
+        if len(points) < 3:
+            continue
+        tyre_lives = [p[0] for p in points]
+        durations = [p[1] for p in points]
+        degradation = None
+        if len(set(tyre_lives)) >= 2:
+            slope, _ = np.polyfit(tyre_lives, durations, 1)
+            degradation = round(float(slope), 4)
+        compound_pace.append(
+            {
+                "driver": code,
+                "compound": compound,
+                "lapCount": len(points),
+                "avgPaceDeltaSec": round(float(np.mean(durations) - session_best_sec), 3),
+                "degradationSecPerLap": degradation,
+            }
+        )
+    return compound_pace
+
+
+def _fetch_traffic_stats(session_key: int, driver_code_by_number: dict[int, str]) -> list[dict]:
+    """Matches fetch_race()'s trafficStats shape and its exact 1.5s threshold - avgGapAheadSec is
+    a plain mean, pctLapsCloseBehind is the fraction of observations under 1.5s, identical to the
+    FastF1 path. Sampled from OpenF1's own `interval` time series (real gap to the car directly
+    ahead, confirmed live - not `gap_to_leader`, a different field) rather than FastF1's
+    one-value-per-lap derivation, since OpenF1 doesn't expose lap-by-lap position (see
+    _fetch_laps()'s own docstring on why that join isn't attempted). This changes the *sampling
+    rate* (roughly every few seconds, not once per lap) for the same underlying concept and the
+    same threshold - not a different metric, just a coarser-grained version of it."""
+    rows = _get("intervals", session_key=session_key)
+    by_driver: dict[str, list[float]] = {}
+    for r in rows:
+        code = driver_code_by_number.get(r["driver_number"])
+        gap = r.get("interval")
+        # A lapped driver's interval can be a string like "+1 LAP" (same convention as
+        # session_result's gap_to_leader) - not numeric, so not a real "gap ahead" reading, same
+        # "can't cleanly convert, so treat as absent" pattern used elsewhere in this module.
+        if code is None or not isinstance(gap, (int, float)):
+            continue
+        by_driver.setdefault(code, []).append(gap)
+    return [
+        {
+            "driver": code,
+            "avgGapAheadSec": round(float(np.mean(gaps)), 3),
+            "pctLapsCloseBehind": round(float(np.mean([g < 1.5 for g in gaps])), 3),
+        }
+        for code, gaps in by_driver.items()
+        if gaps
+    ]
 
 
 def _fetch_laps(session_key: int, driver_code_by_number: dict[int, str]) -> list[dict]:
@@ -221,7 +337,10 @@ def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: 
             return None
 
         weather = _fetch_weather(session_key)
-        tire_stints = _fetch_stints(session_key, driver_code_by_number)
+        stints_raw = _fetch_stints(session_key)
+        tire_stints = _stints_to_tire_stints(stints_raw, driver_code_by_number)
+        tire_compound_pace = _fetch_tire_compound_pace(stints_raw, laps_by_driver, driver_code_by_number)
+        traffic_stats = _fetch_traffic_stats(session_key, driver_code_by_number)
 
         # Same convention fetch_race() already uses for FastF1's own race_control_messages: count
         # DEPLOYED events only, not the paired ENDING message, to avoid double-counting a period -
@@ -238,16 +357,9 @@ def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: 
             "results": results,
             "weather": weather,
             "tireStints": tire_stints,
-            # Traffic stats (gap to car directly ahead, per lap) needs `/v1/intervals` bucketed by
-            # timestamp against each driver's track position at that moment - a real, heavier
-            # derivation deferred to a follow-up rather than bundled into this pass.
-            "trafficStats": [],
+            "trafficStats": traffic_stats,
             "safetyCarPeriods": safety_car_periods,
-            # Per-compound pace delta/degradation slope needs each lap matched to its stint (to
-            # know the compound and lap-within-stint tyre-life proxy) - real and doable from
-            # `tire_stints` + `laps_by_driver`, deferred to a follow-up alongside traffic stats
-            # rather than rushed into this pass.
-            "tireCompoundPace": [],
+            "tireCompoundPace": tire_compound_pace,
             "lapTimings": lap_timings,
         }
     except Exception as exc:
