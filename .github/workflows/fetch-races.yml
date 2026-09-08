@@ -30,6 +30,13 @@ jobs:
           # to Storage's REST API directly, not through DATABASE_URL.
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Without this, ergast_utils.trigger_revalidation("races") silently no-ops (it's
+          # deliberately best-effort - see its own docstring) and the Next.js data cache
+          # (unstable_cache with revalidate: false in src/lib/supabase/races.ts) never learns a
+          # race actually finished, serving the pre-race snapshot indefinitely. This is exactly
+          # the bug that left a completed race showing as not-yet-run - was previously missing
+          # from every step here that calls trigger_revalidation.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
       # Deliberately a second step in the same job, not a separate workflow: predictions are
       # meaningless without this run's freshly-fetched data, and running both in one job on one
@@ -38,6 +45,8 @@ jobs:
         run: python pipeline/train_predict.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Also calls trigger_revalidation("races") on its own - same reasoning as above.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
       # Depends only on the results this same run's first step just fetched, not on train_predict's
       # ML output — ordered after it anyway since there's no reason to run before results exist.

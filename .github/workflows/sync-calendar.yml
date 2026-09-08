@@ -24,3 +24,6 @@ jobs:
         run: python pipeline/sync_calendar.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Same gap as fetch-races.yml: sync_calendar.py calls
+          # ergast_utils.trigger_revalidation("calendar"), which silently no-ops without this.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
