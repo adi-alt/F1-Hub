@@ -416,10 +416,15 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
     existing = get_existing_race(cur, race_id)
 
     # FastF1/Jolpica came back empty - try OpenF1's preliminary classification before giving up.
-    # Never attempted if an official result already exists (nothing to gain, and no reason to risk
-    # a downgrade) - only relevant the first time a round has no official data yet. See
-    # pipeline/OPENF1_FALLBACK.md for the full architecture and what's verified vs. heuristic here.
-    if not race and not (existing and existing.get("results_source") == "official"):
+    # Never attempted if an official *completed* result already exists (nothing to gain, and no
+    # reason to risk a downgrade) - only relevant the first time a round has no official data yet.
+    # Checking status == 'completed' too, not just results_source == 'official' alone: the schema
+    # migration's DEFAULT 'official' backfilled every pre-existing row regardless of whether it
+    # actually has a real result yet (an 'upcoming' row with no race at all also reads as
+    # results_source='official' from that default) - a real bug caught live on this exact round
+    # before this fix. See pipeline/OPENF1_FALLBACK.md for the full architecture.
+    already_official = bool(existing) and existing.get("status") == "completed" and existing.get("results_source") == "official"
+    if not race and not already_official:
         race = fetch_race_openf1(year, round_num, str(calendar_event["Country"]), qualifying["grid"] if qualifying else [])
         if race:
             results_source = "openf1_preliminary"
