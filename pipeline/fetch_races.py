@@ -502,10 +502,14 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
     if race:
         # status_source: per-driver provenance for the *derived* status specifically (not the
         # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
-        # for every OpenF1-fallback row (see openf1_fallback.py's own doc comment on why a
-        # race-control-based refinement was tried and rejected - it produced a real false positive
-        # on a real historical race). This is what lets predict_dnf.py's training data eventually be
-        # filtered/weighted by confidence if that ever matters, without re-deriving it after the fact.
+        # for every OpenF1-fallback row. The literal name is a holdover from v1 of
+        # openf1_fallback.py (a lap-count-percentage DNF heuristic, since replaced - see that
+        # module's docstring): status now comes directly from OpenF1's own dnf/dsq flags, not a
+        # derivation, so this is really "not-yet-reconciled-with-official" rather than
+        # "low-confidence" today. Kept as the existing enum value rather than renamed - the
+        # check constraint only allows these two strings (supabase/schema.sql), and a rename
+        # would need a migration for no behavior change. Still what lets predict_dnf.py's training
+        # data be filtered/weighted later if that ever matters.
         status_source = "official" if results_source == "official" else "lap_distance_derived"
         result_rows = [
             {

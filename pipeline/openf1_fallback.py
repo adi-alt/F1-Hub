@@ -3,143 +3,147 @@
 on a None result). Never a replacement for FastF1: no weather, tire-compound pace/degradation,
 traffic stats, safety-car periods, or lap-by-lap timing are attempted here - those stay empty until
 the official FastF1/Jolpica result lands and overwrites this row for real (see fetch_races.py's
-reconciliation logic). See pipeline/OPENF1_FALLBACK.md for the full architecture, what's verified
-against real historical races vs. what's a documented heuristic limitation, and why race-control
-messages are deliberately NOT used to derive DNF status (tested against a real chaotic race and
-found to produce a false positive - see that doc).
+reconciliation logic). See pipeline/OPENF1_FALLBACK.md for the full architecture.
 
 OpenF1 (https://openf1.org): free, no API key, sources from F1's live timing feed directly rather
-than Ergast/Jolpica, so it doesn't share that source's multi-day publishing lag - confirmed live
-this session: had full position data for a race within 2 days when Jolpica still had nothing.
+than Ergast/Jolpica, so it doesn't share that source's multi-day publishing lag.
+
+v2 of this module (see git history for v1): OpenF1 has since grown a `session_result` endpoint
+that gives real position/points/dnf/dns/dsq/gap directly - verified live against the 2026 Italian
+GP, exact match including all 3 real retirees. This replaces v1's own hand-rolled reconstruction
+from raw `/position` + `/laps` (lap-count-percentage DNF heuristic, no points field available at
+the time) - that heuristic's one documented limitation (missing a last-lap crash) no longer applies
+since `dnf`/`dsq` are read directly from OpenF1, not inferred from lap counts. `starting_grid`
+(keyed off the *qualifying* session, confirmed live) replaces the hard dependency on FastF1's own
+qualifying fetch having succeeded - `qualifying_grid` is now a last-resort fallback only, used
+solely for a driver OpenF1's own grid data is missing.
 """
 
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 import requests
 
 OPENF1_BASE = "https://api.openf1.org/v1"
 
-# A driver needs to complete at least this fraction of the race winner's lap count to be
-# classified as merely "lapped" rather than a retirement - matches F1's own real classification
-# convention (a car must cover most of the race distance to be classified at all). Verified against
-# three real races spanning the full range this needs to handle: a clean finish with no
-# retirements (2023 Spanish GP - exact match, zero false positives), a race with three clear-cut
-# big-deficit retirements (2026 Italian GP - exact match), and an extreme chaotic race with eight
-# retirements including four that crashed out within the final lap (2023 Australian GP) - this
-# threshold correctly caught the four big-deficit retirees there but, being lap-count-only, missed
-# the four last-lap-crash ones (they show as "lapped", one lap down, since that's genuinely how
-# close they got before crashing). See OPENF1_FALLBACK.md for why a race-control-based refinement
-# was tried and rejected: it corrected some of those cases but introduced a real false positive
-# (a driver who was merely involved in a stewarded incident, not one who retired from it). This
-# bounded, honest inaccuracy on rare last-lap chaos is preferred over a heuristic proven to
-# sometimes produce a confidently wrong answer.
-LAPPED_THRESHOLD = 0.9
-
-# 2010-present standard points table - NOT used here. OpenF1 carries no points field (confirmed
-# live: neither /position nor /laps has one), and hardcoding a scoring table in the fallback would
-# duplicate real rules that already live wherever the official result is the source of truth
-# (sprint weekends, fastest-lap bonus point history, etc.) - every driver gets points=None from
-# this module; the official FastF1/Jolpica upgrade fills it in for real once it lands.
+# race_results.status only allows ('finished', 'lapped', 'dnf') - supabase/schema.sql, no separate
+# DNS/DSQ value (a schema change is out of scope for this pass). OpenF1's session_result gives
+# clean dns/dsq booleans directly:
+#   - dsq folds into "dnf" (didn't finish classified - same bucket a real FastF1 disqualification
+#     already lands in via normalize_status()).
+#   - dns is skipped entirely, never written - a driver who never started has no finishing
+#     position to rank, same pattern fetch_race() already uses for a driver with no classified
+#     Position.
+#   - "lapped" (finished, but laps down) is read off gap_to_leader's own type: OpenF1 returns a
+#     float (seconds) for a same-lap finisher, or a string like "+1 LAP"/"+2 LAPS" for a lapped one
+#     (verified live: cars 15-19 in the Italian GP all had dnf=false with a "+N LAP(S)" string) -
+#     no lap-count comparison needed, OpenF1 already classifies this for us.
 
 
-def _session_key(year: int, country: str, session_name: str = "Race") -> int | None:
-    resp = requests.get(
-        f"{OPENF1_BASE}/sessions",
-        params={"year": year, "country_name": country, "session_name": session_name},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data[0]["session_key"] if data else None
+def _validate(results: list[dict]) -> str | None:
+    """Returns a description of what's wrong if `results` looks malformed, None if it's fine to
+    write - never lets a bad/partial OpenF1 response reach the database."""
+    codes = [r["driver"] for r in results]
+    if len(codes) != len(set(codes)):
+        return f"duplicate driver code(s): {codes}"
+    positions = [r["finishPosition"] for r in results if r["finishPosition"] is not None]
+    if len(positions) != len(set(positions)):
+        return f"duplicate finishing position(s): {positions}"
+    for r in results:
+        if r["status"] not in ("finished", "lapped", "dnf"):
+            return f"{r['driver']}: invalid status {r['status']!r}"
+        if r["points"] < 0:
+            return f"{r['driver']}: negative points {r['points']}"
+    return None
 
 
 def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: list[dict]) -> dict | None:
     """Same return shape as fetch_races.fetch_race() (session/results/weather/tireStints/
     trafficStats/safetyCarPeriods/tireCompoundPace/lapTimings), so build_and_push() has exactly one
     downstream code path regardless of which source produced it - only `results` is ever populated
-    here, everything else is intentionally empty. Returns None (matching fetch_race()'s own
-    contract) if no matching OpenF1 session exists yet or it has no position data - never a
-    fabricated partial result.
-
-    `qualifying_grid` is the SAME list build_and_push() already has in memory from its own
-    fetch_qualifying() call (which always runs before fetch_race() is even attempted) - grid
-    position is looked up from there, not re-fetched or left blank.
+    here. Returns None (matching fetch_race()'s own contract) if no matching OpenF1 session exists
+    yet, it has no result data, or the result fails `_validate()` - never a fabricated or partial
+    classification.
     """
     try:
-        session_key = _session_key(year, country)
-        if session_key is None:
+        # One call for the whole weekend (not filtered by session_name) so the Race and Qualifying
+        # session_keys come from a single request - Qualifying's is needed for starting_grid, which
+        # is NOT keyed by the Race session (verified live: /v1/starting_grid?session_key=<race>
+        # returns nothing).
+        sessions = requests.get(
+            f"{OPENF1_BASE}/sessions", params={"year": year, "country_name": country}, timeout=15
+        ).json()
+        race_session = next((s for s in sessions if s.get("session_name") == "Race"), None)
+        if race_session is None:
+            return None
+        session_key = race_session["session_key"]
+        # Matched by meeting_key, not country alone, in case a season has more than one race in the
+        # same country (e.g. multiple US rounds) - country-only matching (still used to find
+        # race_session above, an existing limitation this pass doesn't fix) could otherwise pick a
+        # Qualifying session from the wrong weekend.
+        quali_session = next(
+            (s for s in sessions if s.get("meeting_key") == race_session["meeting_key"] and s.get("session_name") == "Qualifying"),
+            None,
+        )
+
+        # Availability telemetry: how long after the race actually ended a usable classification
+        # was found - printed plainly to the run log (not persisted to a new table/column), so a
+        # handful of real races builds a real answer to "how fresh is this" without adding
+        # infrastructure for it.
+        race_end = datetime.fromisoformat(race_session["date_end"])
+        print(f"    openf1: session_result requested {datetime.now(timezone.utc) - race_end} after race end")
+
+        session_result = requests.get(
+            f"{OPENF1_BASE}/session_result", params={"session_key": session_key}, timeout=20
+        ).json()
+        if not session_result:
             return None
 
         drivers = requests.get(f"{OPENF1_BASE}/drivers", params={"session_key": session_key}, timeout=15).json()
-        if not drivers:
-            return None
         driver_info = {d["driver_number"]: d for d in drivers}
 
-        positions = requests.get(f"{OPENF1_BASE}/position", params={"session_key": session_key}, timeout=20).json()
-        if not positions:
-            return None
-        last_pos: dict[int, dict] = {}
-        for p in positions:
-            n = p["driver_number"]
-            if n not in last_pos or p["date"] > last_pos[n]["date"]:
-                last_pos[n] = p
-
-        laps = requests.get(f"{OPENF1_BASE}/laps", params={"session_key": session_key}, timeout=25).json()
-        max_lap: dict[int, int] = {}
-        for lap in laps:
-            n = lap["driver_number"]
-            ln = lap.get("lap_number") or 0
-            if ln > max_lap.get(n, 0):
-                max_lap[n] = ln
-
-        if not max_lap:
-            # Position data exists but no lap data at all - can't derive status for anyone
-            # confidently, and a race with truly zero lap records this late is itself suspicious.
-            # Better to report nothing than guess for every driver.
-            return None
-        winner_laps = max(max_lap.values())
-
-        grid_by_driver = {g["driver"]: g["gridPosition"] for g in qualifying_grid}
+        grid_by_number: dict[int, int] = {}
+        if quali_session is not None:
+            grid = requests.get(
+                f"{OPENF1_BASE}/starting_grid", params={"session_key": quali_session["session_key"]}, timeout=15
+            ).json()
+            grid_by_number = {g["driver_number"]: g["position"] for g in grid}
+        # Last-resort fallback only, for a driver OpenF1's own grid data is missing - not the
+        # primary source anymore (see module docstring).
+        grid_by_driver_code = {g["driver"]: g["gridPosition"] for g in qualifying_grid}
 
         results = []
-        for driver_number, pos_row in sorted(last_pos.items(), key=lambda kv: kv[1]["position"]):
-            info = driver_info.get(driver_number)
+        for row in sorted(session_result, key=lambda r: (r["position"] is None, r["position"] or 0)):
+            if row.get("dns"):
+                print(f"    openf1: skipping car {row['driver_number']}, did not start")
+                continue
+            info = driver_info.get(row["driver_number"])
             if info is None:
-                # In /position but not /drivers - no name/team to attach, real but unusable data.
-                print(f"    openf1: skipping car {driver_number}, no driver info")
+                print(f"    openf1: skipping car {row['driver_number']}, no driver info")
                 continue
-
-            laps_done = max_lap.get(driver_number)
-            if laps_done is None:
-                # Never silently guess a status for a driver we have zero lap data for - could be
-                # a genuine DNF before lap 1, or just a gap in OpenF1's own coverage. Skip the row
-                # entirely rather than fabricate either way.
-                print(f"    openf1: skipping {info.get('name_acronym', driver_number)}, no lap data")
-                continue
-
-            if laps_done >= winner_laps:
-                status = "finished"
-            elif laps_done >= LAPPED_THRESHOLD * winner_laps:
-                status = "lapped"
-            else:
-                status = "dnf"
 
             driver_code = info.get("name_acronym")
+            gap = row.get("gap_to_leader")
+            if row.get("dnf") or row.get("dsq"):
+                status = "dnf"
+            elif isinstance(gap, str):
+                status = "lapped"
+            else:
+                status = "finished"
+
             results.append(
                 {
                     "driver": driver_code,
                     "driverName": info.get("full_name"),
                     "team": info.get("team_name"),
-                    "gridPosition": grid_by_driver.get(driver_code),
-                    "finishPosition": int(pos_row["position"]),
+                    "gridPosition": grid_by_number.get(row["driver_number"], grid_by_driver_code.get(driver_code)),
+                    "finishPosition": row["position"],
                     "status": status,
-                    # race_results.points is NOT NULL DEFAULT 0 (supabase/schema.sql) - and OpenF1
-                    # carries no points field to read anyway (confirmed live). 0 here is a real,
-                    # documented limitation (a standings view read before the official upgrade
-                    # lands would show 0 for a preliminary result's points), not a fabricated
-                    # value - the official FastF1/Jolpica upgrade fills in the real number.
-                    "points": 0,
-                    "finishGapSec": None,
+                    "points": float(row.get("points") or 0),
+                    "finishGapSec": round(gap, 3) if isinstance(gap, (int, float)) else None,
+                    # session_result carries no per-driver fastest-lap field - kept empty rather
+                    # than guessed, same contract v1 already had.
                     "fastestLapSec": None,
                     "headshotUrl": info.get("headshot_url"),
                     "teamColor": (f"#{info['team_colour']}" if info.get("team_colour") else None),
@@ -147,6 +151,10 @@ def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: 
             )
 
         if not results:
+            return None
+        error = _validate(results)
+        if error:
+            print(f"    openf1: rejecting result ({error}), not writing partial/bad data")
             return None
 
         return {

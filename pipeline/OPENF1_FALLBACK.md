@@ -38,12 +38,12 @@ official    OpenF1 fallback -> preliminary classification
 ```
 
 OpenF1 is **never** used to replace FastF1's own analysis. It only ever produces a *preliminary
-classification* - who finished where, roughly what status, real grid position (reused from the
-pipeline's own already-fetched qualifying data). It never attempts weather, tire-compound pace/
-degradation, traffic stats, safety-car periods, or lap-by-lap timing - those columns stay empty on
-a preliminary result until the official upgrade lands. Championship points are also never computed
-here (OpenF1 carries no points field, confirmed live) - `points` is written as `0` (a real,
-documented placeholder, not a fabricated score) until FastF1/Jolpica's real number replaces it.
+classification* - who finished where, real status, real points, real grid position (all read
+directly from OpenF1's `session_result`/`starting_grid`, see below). It never attempts weather,
+tire-compound pace/degradation, traffic stats, safety-car periods, or lap-by-lap timing - those
+columns stay empty on a preliminary result until the official upgrade lands. (An earlier version of
+this doc said OpenF1 had no points field at all - true at the time, no longer true: `session_result`
+now returns real `points` directly, used as-is rather than a `0` placeholder.)
 
 This lives entirely inside the Python pipeline, never the Next.js runtime - the live app never
 calls OpenF1 directly, so its uptime and rate limits are never a page-load dependency.
@@ -66,53 +66,67 @@ already checks `status === 'completed'`, and if any were missed, a preliminary r
 show as completed anywhere - defeating the purpose. `results_source`/`data_completeness` capture
 everything a `data_status` enum would have, without duplicating it.
 
-## How the classification is derived
+## How the classification is derived (v2)
 
-1. `GET /v1/sessions?year&country_name&session_name=Race` → session_key. `races.country` already
-   stores the exact string OpenF1's `country_name` expects (verified live: `"Italy"`) - no fuzzy
-   circuit-name matching needed.
-2. `GET /v1/drivers` → number → name/team.
-3. `GET /v1/position` → the last position record per driver (by max timestamp) is the final
-   classified position.
-4. `GET /v1/laps` → total laps completed per driver, used only to derive `status`.
+**v1 of this module (see git history) hand-rolled a classification from raw `/position` + `/laps`
+records, including a lap-count-percentage heuristic to guess `dnf` vs `lapped`.** That's no longer
+necessary: OpenF1 has since grown a `session_result` endpoint that gives real position/points/
+dnf/dns/dsq/gap directly - verified live against the 2026 Italian GP (exact match, including all 3
+real retirees and the exact points for every classified driver). v2 uses this instead:
 
-### Status derivation and its verified, honest limits
+1. `GET /v1/sessions?year&country_name` (whole weekend, not filtered by session_name) → the Race
+   session's `session_key` and `date_end`, and the Qualifying session's `session_key` (needed for
+   `starting_grid`, which is NOT keyed by the Race session - verified live, a Race-keyed request
+   returns nothing). `races.country` already stores the exact string OpenF1's `country_name`
+   expects (verified live: `"Italy"`).
+2. `GET /v1/session_result?session_key=<race>` → `position`, `points`, `dnf`/`dns`/`dsq`,
+   `gap_to_leader`, per driver_number. This is the real classification - no longer derived.
+3. `GET /v1/drivers?session_key=<race>` → number → name/team/headshot/color.
+4. `GET /v1/starting_grid?session_key=<qualifying>` → real grid position, keyed by the qualifying
+   session. `qualifying_grid` (FastF1's own already-fetched grid, passed in by build_and_push) is
+   now a last-resort fallback only, used solely for a driver OpenF1's own grid data is missing -
+   not a hard dependency, since the entire point of this module is to cover for FastF1 having
+   failed.
 
-A driver is `finished` if their lap count matches the winner's, `lapped` if ≥90% of the winner's lap
-count (F1's own real classification convention - a car must cover most of the race distance to be
-classified at all), otherwise `dnf`.
+### Status mapping (direct, not derived)
 
-**Verified against three real, structurally different historical races before shipping:**
+- `dsq` folds into `dnf` (didn't finish classified - the same bucket a real FastF1 disqualification
+  already lands in via `normalize_status()`). `race_results.status` has no separate DSQ value
+  (supabase/schema.sql) - a schema change for this is out of scope for this pass.
+- `dns` is skipped entirely, never written - a driver who never started has no finishing position
+  to rank, same pattern `fetch_race()` already uses for a driver with no classified `Position`.
+- `lapped` (finished, but laps down) is read off `gap_to_leader`'s own type: OpenF1 returns a float
+  (seconds) for a same-lap finisher, or a string like `"+1 LAP"`/`"+2 LAPS"` for a lapped one -
+  verified live (cars 15-19 in the Italian GP all had `dnf: false` with a `"+N LAP(S)"` string). No
+  lap-count comparison needed - OpenF1 already classifies this for us.
 
-| Race | Shape | Result |
-|---|---|---|
-| 2026 Italian GP (round 13) | Clean finish, 3 clear big-deficit retirements | Exact match to the real result, all 3 retirees correctly `dnf` |
-| 2023 Spanish GP | Normal race, zero retirements | Exact match, top 10 identical to the real result, zero false DNFs |
-| 2023 Australian GP | Extreme case: 3 red flags, 8 retirements, 4 of them crashing out within the final lap | 4 big-deficit retirees correctly `dnf`; the 4 last-lap crashes (Gasly, Ocon, de Vries, Sargeant) show as `lapped` (they really were only 1-2 laps down when they crashed) |
+**This removes v1's one documented limitation** (a driver retiring within the final ~10% of race
+distance could show as `lapped` instead of `dnf`) - `dnf`/`dsq` now come directly from OpenF1's own
+timing-derived classification, not a lap-count guess. `status_source` is still written as
+`'lap_distance_derived'` for these rows (the check constraint only allows that literal string or
+`'official'` - a rename would need a migration for no behavior change) but the name is now a
+holdover, not an accurate description - see the code comment at its call site.
 
-**A race-control-message-based refinement was tried and explicitly rejected.** F1's race control
-feed has no clean "RETIRED"/"DNF" keyword to match on, but it does log
-`"INCIDENT INVOLVING CAR N ..."` messages. Matching a driver's last recorded lap against a nearby
-incident message *did* correctly reclassify Gasly/Ocon as `dnf` on the Australian GP test - but it
-also produced a real false positive: Sainz was named in an incident (spinning Alonso) but actually
-finished the race, and would have been wrongly marked `dnf`. De Vries and Sargeant's retirements
-also had no matching stewarded-incident message at all (single-car offs without a review don't
-always generate one), so the refinement didn't even fully solve the problem it targeted.
+### Validation before writing
 
-Given a choice between a heuristic that's simple and has a bounded, honest gap (misses last-lap
-crashes on rare chaotic races) versus one that's more complex and *sometimes confidently wrong*, the
-simpler lap-distance-only rule is what shipped. **Known limitation, stated plainly: a driver who
-retires within the final ~10% of race distance may show as `lapped` instead of `dnf` until the
-official upgrade lands.** This affects a small number of drivers in unusual, multi-incident races
-only - both other test races had zero such cases.
+`_validate()` rejects the whole result (returns `None`, same as "nothing available") rather than
+writing anything partial or malformed: no duplicate driver codes, no duplicate finishing positions,
+every status in the allowed 3-way enum, no negative points. A rejected result prints exactly why
+(e.g. `"duplicate driver code(s): [...]"` ) to the run log.
 
 ### Missing data is never guessed
 
-A driver present in `/drivers` but absent from `/laps` gets skipped entirely, not assigned a status
-- logged clearly (`"skipping X, no lap data"`), never silently defaulted to `dnf` or `finished`. If
-`/laps` has no data for *any* driver, the whole fallback returns `None` rather than a
-classification derived from nothing. Same for a driver present in `/position` but not `/drivers` (no
-name/team to attach).
+A driver present in `/session_result` but absent from `/drivers` gets skipped entirely, logged
+clearly (`"skipping car N, no driver info"`) - never assigned a name/team from nothing. If
+`/session_result` has no rows at all, the whole fallback returns `None`.
+
+### Availability telemetry
+
+Every fallback attempt logs how long after the race's actual `date_end` (from OpenF1's own session
+record) a usable `session_result` was found - printed plainly to the run log, not persisted to a
+new table/column. Enough real races through this and `gh run view --log` gives a real answer to
+"how fresh is this really," without building a dashboard for a question three data points can
+answer.
 
 ## Reconciliation
 
@@ -126,14 +140,15 @@ write path every completed race already goes through.
 
 ## Training implications (`predict_dnf.py`)
 
-`to_dnf_rows()` in `train_predict.py` trains directly off `race_results.status == 'dnf'` per driver
-- so the lap-distance heuristic's known limitation above is training-data noise, not just a display
-inaccuracy, on the rare chaotic race it affects. `status_source` is written per-row specifically so
-this can be filtered or weighted by confidence later if it ever matters, without needing to
-re-derive it after the fact. `to_training_rows()`/`to_tyre_rows()` already tolerate missing/empty
-race-level jsonb gracefully (`tire_compound_pace or []`, confirmed in the existing code before this
-change) - a preliminary race with empty tire/traffic data simply contributes zero rows to those
-specific models, not a crash or corrupted training set.
+`to_dnf_rows()` in `train_predict.py` trains directly off `race_results.status == 'dnf'` per driver.
+As of v2, that status is read directly from OpenF1's own `dnf`/`dsq` flags rather than derived from
+a lap-count heuristic, so this is no longer a real accuracy concern for training data the way v1's
+documented limitation was - `status_source` still marks these rows `'lap_distance_derived'` (the
+existing enum value, not renamed - see above) purely as "not yet reconciled with official," should
+that distinction ever matter for something else. `to_training_rows()`/`to_tyre_rows()` already
+tolerate missing/empty race-level jsonb gracefully (`tire_compound_pace or []`, confirmed in the
+existing code) - a preliminary race with empty tire/traffic data simply contributes zero rows to
+those specific models, not a crash or corrupted training set.
 
 ## Explicitly not done in this pass
 
@@ -143,3 +158,31 @@ specific models, not a crash or corrupted training set.
   columns a future Muse Glimmer context-building enhancement could read, but this pass doesn't touch
   `context.ts`, `homepagePrompt.ts`, or the schema. That's deliberately deferred until reconciliation
   from `openf1_preliminary` → `official` has actually been observed on a real race.
+- No schema change to add a real DNS/DSQ status value, or to rename `status_source`'s
+  `'lap_distance_derived'` value now that it's no longer a heuristic - both are cosmetic/precision
+  improvements with no behavior change, deferred rather than bundled into this pass.
+
+## Orange Cat Blacktop (blacktop.live) - evaluated, not integrated
+
+A commercial API was benchmarked against OpenF1 for this same race (2026 Italian GP) before v2 was
+built, in case it made OpenF1 unnecessary. Real findings, verified live with a provided API key:
+
+- Free tier: 7,500 requests/month, 60 requests/minute, no card required.
+- Real, working results endpoint:
+  `GET /v1/formula1/events/{eventId}/sessions/{sessionId}/results` (nested under the specific
+  session's own id - the earlier investigation missed this exact path and wrongly concluded no
+  results endpoint was reachable on the free tier; corrected once the real guide page was found).
+- Response is genuinely richer than OpenF1's for this same race: real `points`, real `status`
+  (`"OK"`/`"DNF"`), real `gridPosition`, plus **per-stint tire strategy, pit-stop counts, and per-driver
+  best lap/sector times** - none of which OpenF1's `session_result` carries.
+- Both OpenF1 and Orange Cat Blacktop had full results within the same ~2-day window Jolpica itself
+  eventually caught up in for this race - no decisive freshness edge between them once both expose
+  a direct results endpoint (this wasn't true before `session_result` existed, when OpenF1 required
+  hand-deriving from raw position/lap events).
+
+**Not integrated**, because it would add a second, undisclosed-data-source, single-vendor external
+dependency for what OpenF1 (already integrated, already free, already proven) now covers adequately
+for classification. **Documented here as a real, verified option specifically for race-strategy
+data** (tire strategy, pit stops, sector times) that neither FastF1 nor OpenF1 currently provide in
+this pipeline - worth a real look if/when a feature needs that (e.g. a post-race "why your
+prediction missed" strategy breakdown), not as part of the results fallback chain.
