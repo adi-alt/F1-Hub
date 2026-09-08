@@ -114,7 +114,17 @@ def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: 
         grid_by_driver_code = {g["driver"]: g["gridPosition"] for g in qualifying_grid}
 
         results = []
-        for row in sorted(session_result, key=lambda r: (r["position"] is None, r["position"] or 0)):
+        # dnf/dsq rows carry position: null (OpenF1's own "not classified" convention) - real
+        # official results still assign every driver who started a real finish_position, though
+        # (race_results.finish_position is NOT NULL - confirmed live via a real official race's own
+        # DNF rows, e.g. finish_position 19/20 for that race's two retirees). Sorted here by laps
+        # completed (descending) among the unclassified group so the position numbers assigned
+        # below land in the right order - more laps completed ranks ahead, the same convention a
+        # real classification uses.
+        for row in sorted(
+            session_result,
+            key=lambda r: (r["position"] is None, r["position"] or 0, -(r.get("number_of_laps") or 0)),
+        ):
             if row.get("dns"):
                 print(f"    openf1: skipping car {row['driver_number']}, did not start")
                 continue
@@ -152,6 +162,15 @@ def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: 
 
         if not results:
             return None
+
+        # Fill in a real finish_position for every dnf/dsq row - already sorted into the right
+        # relative order above, just needs numbering to continue after the last classified spot.
+        next_position = max((r["finishPosition"] for r in results if r["finishPosition"] is not None), default=0) + 1
+        for r in results:
+            if r["finishPosition"] is None:
+                r["finishPosition"] = next_position
+                next_position += 1
+
         error = _validate(results)
         if error:
             print(f"    openf1: rejecting result ({error}), not writing partial/bad data")
