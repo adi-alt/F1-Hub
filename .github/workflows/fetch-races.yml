@@ -38,6 +38,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r pipeline/requirements.txt
 
+      - name: One-off IP/ASN check (temporary, remove after use)
+        run: |
+          IP=$(curl -s https://ifconfig.me)
+          echo "Runner egress IP: $IP"
+          curl -s "https://ipinfo.io/$IP/org"
+          echo
+          curl -s "https://ipinfo.io/$IP/json"
+
       - name: Fetch current season (no year/round hardcoded — always "whatever's current")
         run: python pipeline/fetch_races.py
         env:
