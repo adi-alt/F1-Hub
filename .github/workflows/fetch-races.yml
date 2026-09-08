@@ -38,15 +38,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r pipeline/requirements.txt
 
-      - name: One-off livef1 endpoint check (temporary)
-        run: |
-          echo "--- static archive path (what FastF1 also uses) ---"
-          curl -s -o /dev/null -w "HTTP_STATUS:%{http_code}\n" "https://livetiming.formula1.com/static/2026/2026-09-06_Italian_Grand_Prix/2026-09-06_Race/SessionInfo.jsonStream"
-          echo "--- old SignalR endpoint livef1/F1-SignalR use ---"
-          curl -s -o /dev/null -w "HTTP_STATUS:%{http_code}\n" "https://livetiming.formula1.com/signalr/negotiate"
-          echo "--- newer SignalR Core negotiate endpoint ---"
-          curl -s -o /dev/null -w "HTTP_STATUS:%{http_code}\n" "https://livetiming.formula1.com/signalrcore/negotiate"
-
       - name: Fetch current season (no year/round hardcoded — always "whatever's current")
         run: python pipeline/fetch_races.py
         env:
