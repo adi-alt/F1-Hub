@@ -612,7 +612,18 @@ def next_relevant_round(cur, year: int) -> int | None:
     if not cal_row or not cal_row[0]:
         return round_num
 
-    dates = [datetime.fromisoformat(s["date"]) for s in cal_row[0] if s.get("date")]
+    # sync_calendar.py writes these from FastF1's own SessionXDateUtc columns, which pandas
+    # returns as tz-naive Timestamps despite the "Utc" name (a real FastF1 convention/quirk, not
+    # a sync_calendar.py bug) - .isoformat() on a naive Timestamp has no offset suffix at all, so
+    # a naive parse here means UTC, not "unknown timezone."
+    dates = []
+    for s in cal_row[0]:
+        if not s.get("date"):
+            continue
+        d = datetime.fromisoformat(s["date"])
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        dates.append(d)
     if not dates:
         return round_num
 
