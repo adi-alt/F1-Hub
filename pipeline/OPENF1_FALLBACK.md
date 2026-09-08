@@ -11,10 +11,23 @@ days.
 
 FastF1 (v3.6.0+) also has its own automatic "preliminary results from timing data" fallback for
 exactly this situation - verified working locally against a real race - but it consistently failed
-in this project's GitHub Actions environment specifically (reproduced twice on fresh runs; most
-consistent with GitHub's shared runner IPs being rate-limited/blocked by F1's timing servers, a
-known category of problem for datacenter IPs hitting broadcast/anti-scraping-protected APIs - not
-proven with 100% certainty, and deliberately not chased further past a time-boxed investigation).
+in this project's GitHub Actions environment specifically. **Root cause confirmed, not just
+suspected**: a direct request from inside a GitHub Actions runner to the exact URL FastF1 itself
+uses (`https://livetiming.formula1.com/static/.../SessionInfo.jsonStream`) gets a real `403` back
+from CloudFront (`X-Cache: Error from cloudfront`, body: `"Request blocked... too much traffic or a
+configuration error"`) - the same URL, same moment, from a normal machine returns a real `200` with
+real data. This is CloudFront/AWS WAF blocking GitHub Actions' shared runner IP range at the CDN
+layer, not a timeout, not a 429, not a data-availability gap - confirmed via a one-off temporary
+diagnostic step run directly in the actual workflow (see git history around this commit for the
+throwaway script, since removed). FastF1 itself already has a fallback mirror for exactly this class
+of problem (`livetiming-mirror.fastf1.dev`, visible in its own debug log) - it also came back empty
+for this session, so the mirror isn't a reliable fix either.
+
+This means the block is structural, not something our own request volume causes or self-heals from:
+it would 403 on the very first FastF1 call from any GitHub Actions job, not just after repeated
+hits. The OpenF1 fallback below isn't a stopgap for occasional bad luck - it's the necessary path for
+anything running in this specific hosting environment, since raw FastF1 fundamentally cannot reach
+its own data source's CDN from here.
 
 This module is what fills that gap: when `fetch_race()` (FastF1) returns `None`, `fetch_races.py`
 tries [OpenF1](https://openf1.org) - a free, no-API-key service that sources from F1's live timing

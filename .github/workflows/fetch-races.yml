@@ -22,10 +22,6 @@ on:
         description: "Fetch every remaining round this season, not just the one currently due (bulk catch-up/manual re-check only)"
         type: boolean
         default: false
-      diagnose_fastf1:
-        description: "One-off: run pipeline/_diag_fastf1.py instead of the normal fetch, to see GitHub Actions' raw network behavior against F1's live-timing CDN (temporary, delete after use)"
-        type: boolean
-        default: false
 
 jobs:
   fetch-and-predict:
@@ -42,12 +38,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r pipeline/requirements.txt
 
-      - name: One-off FastF1 network diagnostic (temporary)
-        if: github.event.inputs.diagnose_fastf1 == 'true'
-        run: python pipeline/_diag_fastf1.py
-
       - name: Fetch current season (no year/round hardcoded — always "whatever's current")
-        if: github.event.inputs.diagnose_fastf1 != 'true'
         run: python pipeline/fetch_races.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -72,7 +63,6 @@ jobs:
       # meaningless without this run's freshly-fetched data, and running both in one job on one
       # schedule guarantees that ordering for free — no cross-workflow coordination needed.
       - name: Train and freeze predictions for anything newly ready
-        if: github.event.inputs.diagnose_fastf1 != 'true'
         run: python pipeline/train_predict.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -82,7 +72,6 @@ jobs:
       # Depends only on the results this same run's first step just fetched, not on train_predict's
       # ML output — ordered after it anyway since there's no reason to run before results exist.
       - name: Score group picks for any race that now has a real result
-        if: github.event.inputs.diagnose_fastf1 != 'true'
         run: python pipeline/compute_group_scores.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
