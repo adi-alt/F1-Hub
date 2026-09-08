@@ -21,10 +21,11 @@ Run:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import fastf1
@@ -578,12 +579,70 @@ def is_already_completed(cur, year: int, round_num: int) -> bool:
     return bool(row) and row[0] == "completed"
 
 
+# How long before a race weekend's first session to start actually attempting fetches, and how
+# long after its last session to keep retrying before falling quiet again. The "after" window is
+# generous specifically because our results source (FastF1 -> Jolpica-F1, Ergast's community
+# successor) documents its own update cadence as "a single update per race weekend on the Monday
+# after the event," with an explicit caveat that there can be further delay "outside of their
+# control while refining import scripts" - see https://github.com/jolpica/jolpica-f1. A week of
+# retries comfortably covers that, without polling forever if a weekend's data is unusually late.
+FETCH_WINDOW_BEFORE = timedelta(hours=24)
+FETCH_WINDOW_AFTER = timedelta(days=7)
+
+
+def next_relevant_round(cur, year: int) -> int | None:
+    """The earliest non-completed round whose session window (first session minus
+    FETCH_WINDOW_BEFORE, through last session plus FETCH_WINDOW_AFTER) contains right now - or
+    None if nothing is due yet. This is what makes it safe to run this script every 15 minutes
+    instead of every 6 hours: discover_rounds()/looping every remaining round in the season on
+    every tick was real, measured waste - each round's fetch costs ~30 FastF1 API calls (5
+    sessions x ~7 calls each, see pipeline/PROGRESS.md's own 500-calls/hour figure), attempted
+    for rounds that are still months away and can't possibly have data yet. Falls back to
+    "fetch anyway" only when a round has no calendar row at all yet (sync_calendar.py hasn't run
+    for it) - better to attempt a fetch we have no session data to gate on than to silently never
+    check a round forever."""
+    cur.execute("select round from races where year = %s and status != 'completed' order by round asc limit 1", (year,))
+    row = cur.fetchone()
+    if not row:
+        return None
+    round_num = row[0]
+
+    cur.execute("select sessions from calendar where year = %s and round = %s", (year, round_num))
+    cal_row = cur.fetchone()
+    if not cal_row or not cal_row[0]:
+        return round_num
+
+    dates = [datetime.fromisoformat(s["date"]) for s in cal_row[0] if s.get("date")]
+    if not dates:
+        return round_num
+
+    now = datetime.now(timezone.utc)
+    window_start = min(dates) - FETCH_WINDOW_BEFORE
+    window_end = max(dates) + FETCH_WINDOW_AFTER
+    return round_num if window_start <= now <= window_end else None
+
+
 def main():
     args = sys.argv[1:]
     year = int(args[0]) if args else datetime.now().year
-    rounds = [int(r) for r in args[1:]] if len(args) > 1 else discover_rounds(year)
+    force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
 
     conn = init_postgres()
+
+    if len(args) > 1:
+        rounds = [int(r) for r in args[1:]]
+    elif force_all:
+        rounds = discover_rounds(year)
+    else:
+        with conn.cursor() as gate_cur:
+            target = next_relevant_round(gate_cur, year)
+        if target is None:
+            print(f"No race weekend within the fetch window right now for {year} - skipping "
+                  "(saves ~30 FastF1 API calls this tick; see next_relevant_round's docstring).")
+            conn.close()
+            return
+        rounds = [target]
+
     print(f"Processing {len(rounds)} round(s) for {year}: {rounds}")
     with conn.cursor() as cur:
         # `headshot_url is not null`, not just "has a row" - a row can exist without a photo yet

@@ -1,12 +1,27 @@
 name: Fetch race data and predict
 
-# Every few hours, not on every commit or PR — this is a data/ML pipeline on a clock, unrelated
-# to code changes. workflow_dispatch is here so it can be triggered manually to cross-check it
-# works, rather than waiting for the schedule.
+# Every 15 minutes, not on every commit or PR — this is a data/ML pipeline on a clock, unrelated
+# to code changes. Frequent by design: fetch_races.py's own next_relevant_round() gate makes most
+# of these ticks cost one cheap Postgres query and exit (no FastF1 calls at all) whenever no race
+# weekend is within its fetch window - see that function's docstring. This is what actually
+# delivers "near-live during a session, near-zero cost otherwise" without needing a second,
+# differently-scheduled workflow: the frequency lives here, the "is it actually worth doing
+# anything expensive right now" decision lives in the script. Repo is public, so GitHub Actions
+# minutes are unmetered - no cost concern to running this often.
+#
+# workflow_dispatch's force_all_rounds input preserves the old "fetch every remaining round"
+# behavior for manual use (bulk catch-up after an outage, re-checking an older round) - the
+# automated schedule never sets it, so a normal tick only ever touches the one round that's
+# actually due.
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      force_all_rounds:
+        description: "Fetch every remaining round this season, not just the one currently due (bulk catch-up/manual re-check only)"
+        type: boolean
+        default: false
 
 jobs:
   fetch-and-predict:
@@ -17,6 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pipeline/requirements.txt
 
       - name: Install dependencies
         run: pip install -r pipeline/requirements.txt
@@ -37,6 +54,10 @@ jobs:
           # the bug that left a completed race showing as not-yet-run - was previously missing
           # from every step here that calls trigger_revalidation.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Only ever true on a manual workflow_dispatch run - github.event.inputs doesn't exist
+          # on a schedule-triggered run, so this expression evaluates empty/false on every
+          # automated tick rather than erroring.
+          FORCE_ALL_ROUNDS: ${{ github.event.inputs.force_all_rounds }}
 
       # Deliberately a second step in the same job, not a separate workflow: predictions are
       # meaningless without this run's freshly-fetched data, and running both in one job on one
