@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
 export function RaceBrief() {
-  const { intelligence, isLoading, isFallback } = useHomepageIntelligence();
+  const { intelligence, isLoading } = useHomepageIntelligence();
 
   if (isLoading) {
     return <RaceBriefSkeleton />;
@@ -19,21 +19,16 @@ export function RaceBrief() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6"
     >
-      <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-        <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />
-          <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-white">
-            Race Intelligence Brief
-          </h3>
-        </div>
-        <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
-          {isFallback ? "Deterministic Analytics" : "Nemotron Synthesis"}
-        </span>
+      <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+        <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-white">
+          Race Intelligence Brief
+        </h3>
       </div>
 
       <div className="mt-4 space-y-3">

@@ -6,6 +6,7 @@ import { HomeLayout } from "./HomeLayout";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { WhyF1Hub } from "./WhyF1Hub";
+import { ApexIntelligenceWidget } from "./ai/ApexIntelligenceWidget";
 import {
   HomepageIntelligenceProvider,
   useHomepageIntelligence,
@@ -23,18 +24,27 @@ function PublicHomeInner({
   const { intelligence } = useHomepageIntelligence();
 
   return (
-    <HomeLayout photos={publicData.backdropPhotos}>
-      <RaceHero publicData={publicData} variant="public" />
-      <WhyF1Hub />
-      <ExploreSection />
-      <SeasonRecap
-        year={publicData.year}
-        races={publicData.races}
-        recap={publicData.seasonRecap}
-        aiNarrative={intelligence?.seasonNarrative}
+    <>
+      <HomeLayout photos={publicData.backdropPhotos}>
+        <RaceHero publicData={publicData} variant="public" />
+        <WhyF1Hub />
+        <ExploreSection />
+        <SeasonRecap
+          year={publicData.year}
+          races={publicData.races}
+          recap={publicData.seasonRecap}
+          aiNarrative={intelligence?.seasonNarrative}
+        />
+        <DiscoverSection groups={discoverGroups} requireAuthToJoin />
+      </HomeLayout>
+
+      <ApexIntelligenceWidget
+        raceName={publicData.nextRace?.name}
+        round={publicData.nextRace?.round}
+        myPick={null}
+        nextRace={publicData.nextRace}
       />
-      <DiscoverSection groups={discoverGroups} requireAuthToJoin />
-    </HomeLayout>
+    </>
   );
 }
 

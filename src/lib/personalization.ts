@@ -530,6 +530,7 @@ export type SeasonRecap = {
   mostWins: DriverStanding | null;
   mostPodiums: DriverStanding | null;
   favoriteDriverRank: number | null; // 1-based, null if no favorite or not classified
+  favoriteTeamRank: number | null; // 1-based, null if no favorite or not classified
 };
 
 /** The homepage's "how the season is unfolding" editorial recap — every number read straight off
@@ -537,12 +538,18 @@ export type SeasonRecap = {
  * derive from real race_results. A season with zero completed races returns all-null/zero rather
  * than a fabricated "season hasn't started" placeholder copy — the component decides how to word
  * that empty state. */
-export function buildSeasonRecap(races: RaceDoc[], standings: SeasonStandings, favoriteDriver: FavoriteDriverCard | null): SeasonRecap {
+export function buildSeasonRecap(
+  races: RaceDoc[],
+  standings: SeasonStandings,
+  favoriteDriver: FavoriteDriverCard | null,
+  favoriteTeam: FavoriteTeamCard | null = null,
+): SeasonRecap {
   const driverLeader = standings.drivers[0] ?? null;
   const teamLeader = standings.teams[0] ?? null;
   const mostWins = [...standings.drivers].sort((a, b) => b.wins - a.wins)[0] ?? null;
   const mostPodiums = [...standings.drivers].sort((a, b) => b.podiums - a.podiums)[0] ?? null;
   const favoriteRank = favoriteDriver?.code ? standings.drivers.findIndex((d) => d.driver === favoriteDriver.code) : -1;
+  const favoriteTeamRankIndex = favoriteTeam?.currentName ? standings.teams.findIndex((t) => t.team === favoriteTeam.currentName) : -1;
 
   return {
     roundsCompleted: races.filter((r) => r.status === "completed").length,
@@ -554,5 +561,6 @@ export function buildSeasonRecap(races: RaceDoc[], standings: SeasonStandings, f
     mostWins: mostWins && mostWins.wins > 0 ? mostWins : null,
     mostPodiums: mostPodiums && mostPodiums.podiums > 0 ? mostPodiums : null,
     favoriteDriverRank: favoriteRank >= 0 ? favoriteRank + 1 : null,
+    favoriteTeamRank: favoriteTeamRankIndex >= 0 ? favoriteTeamRankIndex + 1 : null,
   };
 }

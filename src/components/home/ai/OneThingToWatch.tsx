@@ -19,9 +19,9 @@ export function OneThingToWatch() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
       className="flex flex-col justify-between rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5"
     >
       <div>

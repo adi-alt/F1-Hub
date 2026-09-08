@@ -42,7 +42,7 @@ export function CommunitySection({
       <div className="mb-4 flex items-baseline justify-between">
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
-            Community Command Center
+            Your Paddock
           </h2>
           <p className="mt-0.5 text-xs text-neutral-500">
             Real discussions, predictions, and active group standings

@@ -58,10 +58,10 @@ export function YourF1({
             </Link>
           </div>
         ) : (
-          <div className="flex flex-wrap items-start gap-x-10 gap-y-6">
+          <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
             {favoriteDriver ? (
               <Link href={favoriteDriver.href} className="flex items-center gap-3 transition hover:opacity-90">
-                <EntityAvatar imageUrl={favoriteDriver.headshotUrl} name={favoriteDriver.name} size={48} />
+                <EntityAvatar imageUrl={favoriteDriver.headshotUrl} name={favoriteDriver.name} size={40} />
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-[11px] uppercase tracking-wide text-neutral-500">Your driver</p>
@@ -83,7 +83,7 @@ export function YourF1({
 
             {favoriteTeam ? (
               <Link href={favoriteTeam.href} className="flex items-center gap-3 transition hover:opacity-90">
-                <EntityAvatar imageUrl={favoriteTeam.logoUrl} name={favoriteTeam.name} size={44} fit="contain" />
+                <EntityAvatar imageUrl={favoriteTeam.logoUrl} name={favoriteTeam.name} size={40} fit="contain" />
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-[11px] uppercase tracking-wide text-neutral-500">Your team</p>
@@ -116,14 +116,14 @@ export function YourF1({
         )}
 
         {favoriteDriver?.code && (
-          <div className="mt-6">
+          <div className="mt-4">
             <DriverFormStrip favoriteDriverCode={favoriteDriver.code} races={races} />
           </div>
         )}
 
         {trajectorySeries.length > 0 && (
-          <div className="mt-6 border-t border-[var(--f1-line)] pt-5">
-            <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Championship trajectory</p>
+          <div className="mt-4 border-t border-[var(--f1-line)] pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Championship trajectory</p>
             <ChampionshipTrajectory races={races} series={trajectorySeries} />
           </div>
         )}

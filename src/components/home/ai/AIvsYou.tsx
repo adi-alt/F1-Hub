@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { modelPositionFor } from "../PickVsModel";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
@@ -30,7 +31,12 @@ export function AIvsYou({ myPick, nextRace }: { myPick: UserPick | null; nextRac
   const modelPosition = yourWinner && nextRace ? modelPositionFor(nextRace, yourWinner) : null;
 
   return (
-    <div className={`rounded-xl border px-4 py-4 ${isDisagree ? "border-[var(--f1-red)]/25 bg-[var(--f1-red)]/[0.05]" : "border-emerald-500/20 bg-emerald-500/[0.04]"}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
+      className={`rounded-xl border px-4 py-4 ${isDisagree ? "border-[var(--f1-red)]/25 bg-[var(--f1-red)]/[0.05]" : "border-emerald-500/20 bg-emerald-500/[0.04]"}`}
+    >
       {yourWinner && (
         <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
           <div>
@@ -70,7 +76,7 @@ export function AIvsYou({ myPick, nextRace }: { myPick: UserPick | null; nextRac
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

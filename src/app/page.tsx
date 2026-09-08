@@ -46,7 +46,7 @@ export default async function HomePage() {
   ]);
 
   const facts = buildFacts(year, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null, trackHistory);
-  const seasonRecap = buildSeasonRecap(races, standings, personalData?.favoriteDriver ?? null);
+  const seasonRecap = buildSeasonRecap(races, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null);
 
   const backdropPhotos =
     recentPhotos.length > 0

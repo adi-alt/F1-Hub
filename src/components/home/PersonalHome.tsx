@@ -7,6 +7,8 @@ import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { RecentActivity, RecentActivitySkeleton } from "./RecentActivity";
 import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
+import { YourF1Radar } from "./YourF1Radar";
+import { ApexIntelligenceWidget } from "./ai/ApexIntelligenceWidget";
 import {
   HomepageIntelligenceProvider,
   useHomepageIntelligence,
@@ -27,53 +29,72 @@ function PersonalHomeInner({
   const { intelligence } = useHomepageIntelligence();
 
   return (
-    <HomeLayout photos={publicData.backdropPhotos}>
-      {/* 1. Race Context Hero */}
-      <RaceHero
-        publicData={publicData}
-        variant="personal"
-        firstName={firstName}
-        isReturning={isReturning}
-        nextAction={personalData.nextAction}
-        favoriteDriver={personalData.favoriteDriver}
-        favoriteTeam={personalData.favoriteTeam}
-      />
+    <>
+      <HomeLayout photos={publicData.backdropPhotos}>
+        {/* 1. Race Context Hero */}
+        <RaceHero
+          publicData={publicData}
+          variant="personal"
+          firstName={firstName}
+          isReturning={isReturning}
+          nextAction={personalData.nextAction}
+          favoriteDriver={personalData.favoriteDriver}
+          favoriteTeam={personalData.favoriteTeam}
+        />
 
-      {/* 2. Your F1 Standing & Trajectory */}
-      <YourF1
-        favoriteDriver={personalData.favoriteDriver}
-        favoriteTeam={personalData.favoriteTeam}
-        races={publicData.races}
-        predictionCount={personalData.predictionPerformance.winner.total}
-        driverLeader={publicData.seasonRecap.driverLeader}
-        favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
-      />
+        {/* 2. Your F1 Radar - thin status rail, not a section */}
+        <YourF1Radar
+          favoriteDriver={personalData.favoriteDriver}
+          favoriteTeam={personalData.favoriteTeam}
+          favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
+          favoriteTeamRank={publicData.seasonRecap.favoriteTeamRank}
+          favoriteDriverCircuitWins={publicData.trackHistory?.favoriteDriverCircuitStats?.wins}
+        />
 
-      {/* 3. F1 Intelligence Command Center (AI + ML + Prediction Coach) */}
-      <IntelligenceSection
+        {/* 3. Your F1 Standing & Trajectory */}
+        <YourF1
+          favoriteDriver={personalData.favoriteDriver}
+          favoriteTeam={personalData.favoriteTeam}
+          races={publicData.races}
+          predictionCount={personalData.predictionPerformance.winner.total}
+          driverLeader={publicData.seasonRecap.driverLeader}
+          favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
+          favoriteTeamRank={publicData.seasonRecap.favoriteTeamRank}
+        />
+
+        {/* 4. F1 Intelligence Command Center (AI + ML + Prediction Coach) */}
+        <IntelligenceSection
+          myPick={personalData.myPick}
+          nextRace={publicData.nextRace}
+          performance={personalData.predictionPerformance}
+        />
+
+        {/* 5. Your Paddock (Unified Two-Panel Community Layout) */}
+        <CommunitySection
+          posts={personalData.feedPosts}
+          groups={personalData.groups}
+          discoverGroups={personalData.discoverGroups}
+        />
+
+        {/* 6. Recent Points & Predictions Activity */}
+        <RecentActivity entries={personalData.recentActivity} />
+
+        {/* 7. Season So Far (with Apex Intelligence Season Narrative) */}
+        <SeasonRecap
+          year={publicData.year}
+          races={publicData.races}
+          recap={publicData.seasonRecap}
+          aiNarrative={intelligence?.seasonNarrative}
+        />
+      </HomeLayout>
+
+      <ApexIntelligenceWidget
+        raceName={publicData.nextRace?.name}
+        round={publicData.nextRace?.round}
         myPick={personalData.myPick}
         nextRace={publicData.nextRace}
-        performance={personalData.predictionPerformance}
       />
-
-      {/* 4. Community Command Center (Unified Two-Panel Layout) */}
-      <CommunitySection
-        posts={personalData.feedPosts}
-        groups={personalData.groups}
-        discoverGroups={personalData.discoverGroups}
-      />
-
-      {/* 5. Recent Points & Predictions Activity */}
-      <RecentActivity entries={personalData.recentActivity} />
-
-      {/* 6. Season So Far (with AI Season Narrative Synthesis) */}
-      <SeasonRecap
-        year={publicData.year}
-        races={publicData.races}
-        recap={publicData.seasonRecap}
-        aiNarrative={intelligence?.seasonNarrative}
-      />
-    </HomeLayout>
+    </>
   );
 }
 

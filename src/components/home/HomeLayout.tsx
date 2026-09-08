@@ -25,7 +25,7 @@ export function HomeLayout({ photos, children }: { photos: string[]; children: R
         <RotatingBackdrop photos={photos} />
         <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
       </div>
-      <div className="relative mx-auto space-y-12 px-4 py-10 sm:max-w-[80vw] sm:px-8 lg:px-12">{children}</div>
+      <div className="relative mx-auto space-y-9 px-4 py-10 sm:max-w-[80vw] sm:px-8 lg:px-12">{children}</div>
     </div>
   );
 }

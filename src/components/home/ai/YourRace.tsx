@@ -24,9 +24,9 @@ export function YourRace() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.45, delay: 0.05, ease: "easeOut" }}
       className="border-l-2 border-[var(--f1-red)] py-1 pl-5 sm:pl-6"
     >
       <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--f1-red)]">

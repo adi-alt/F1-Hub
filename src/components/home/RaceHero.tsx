@@ -55,7 +55,7 @@ export function RaceHero({
   const primaryLabel = heroAction?.section === "hero" ? heroAction.label : "Explore race";
 
   return (
-    <div className="grid gap-8 pt-6 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
+    <div className="grid gap-6 pt-4 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
       <div>
         {variant === "personal" && firstName && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -68,14 +68,14 @@ export function RaceHero({
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.05 }}
-          className={variant === "personal" && firstName ? "mt-4" : ""}
+          className={variant === "personal" && firstName ? "mt-3" : ""}
         >
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">Round {nextRace.round}</p>
           <h1 className="mt-1 max-w-2xl text-4xl font-bold tracking-tight text-white sm:text-5xl">{nextRace.name}</h1>
           <p className="mt-1 text-neutral-400">{nextRace.circuit}</p>
         </motion.div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-8">
+        <div className="mt-5 flex flex-wrap items-center gap-6">
           {countdown && (
             <div>
               <p className="text-[11px] uppercase tracking-wide text-neutral-500">Lights out in</p>
@@ -86,12 +86,12 @@ export function RaceHero({
         </div>
 
         {facts.length > 0 && (
-          <p className="mt-4 max-w-2xl text-sm text-neutral-400">
+          <p className="mt-3 max-w-2xl text-sm text-neutral-400">
             <span aria-hidden>{facts[0].icon}</span> {facts[0].text}
           </p>
         )}
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <Link
             href={primaryHref}
             className="rounded-full bg-[var(--f1-red)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
@@ -119,7 +119,7 @@ export function RaceHero({
 
 export function RaceHeroSkeleton({ variant }: { variant: "public" | "personal" }) {
   return (
-    <div className="grid gap-8 pt-6 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
+    <div className="grid gap-6 pt-4 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
       <div>
         {variant === "personal" && (
           <>
@@ -127,14 +127,14 @@ export function RaceHeroSkeleton({ variant }: { variant: "public" | "personal" }
             <Skeleton className="skeleton-shimmer mt-2 h-6 w-40 rounded" />
           </>
         )}
-        <Skeleton className={`skeleton-shimmer h-3 w-20 rounded ${variant === "personal" ? "mt-6" : ""}`} />
+        <Skeleton className={`skeleton-shimmer h-3 w-20 rounded ${variant === "personal" ? "mt-3" : ""}`} />
         <Skeleton className="skeleton-shimmer mt-2 h-10 w-80 max-w-full rounded" />
         <Skeleton className="skeleton-shimmer mt-2 h-4 w-32 rounded" />
-        <div className="mt-6 flex items-center gap-8">
+        <div className="mt-5 flex items-center gap-6">
           <Skeleton className="skeleton-shimmer h-8 w-24 rounded" />
           <RaceReadinessSkeleton />
         </div>
-        <Skeleton className="skeleton-shimmer mt-6 h-9 w-36 rounded-full" />
+        <Skeleton className="skeleton-shimmer mt-4 h-9 w-36 rounded-full" />
       </div>
       <RaceIntelligencePanelSkeleton />
     </div>

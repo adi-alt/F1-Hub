@@ -4,11 +4,11 @@ import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
-/** Full-width, amber-accented - deliberately reads as attention/caution, not another labeled AI
- * output (no provenance badge like RaceBrief's "Nemotron Synthesis" tag). Same field as before
- * (`biggestUncertainty.{title, explanation}` - no schema/prompt change), only the static UI heading
- * changed from "Biggest Uncertainty" to "What You Might Be Missing" so it reads as a challenge to
- * notice while scanning, not a hedge. */
+/** Full-width, amber-accented - deliberately reads as attention/caution, not a labeled AI output
+ * (no provenance/model badge anywhere on this page - see the Apex Intelligence naming pass). Same
+ * field as before (`biggestUncertainty.{title, explanation}` - no schema/prompt change), only the
+ * static UI heading changed from "Biggest Uncertainty" to "What You Might Be Missing" so it reads
+ * as a challenge to notice while scanning, not a hedge. */
 export function BlindSpot() {
   const { intelligence, isLoading } = useHomepageIntelligence();
 
@@ -24,9 +24,9 @@ export function BlindSpot() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
       className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.05] p-5 sm:p-6"
     >
       <div className="flex items-center gap-2">
