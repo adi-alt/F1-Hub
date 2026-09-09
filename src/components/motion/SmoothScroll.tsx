@@ -17,7 +17,7 @@ import { useLenisContainer } from "./useLenisContainer";
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const pathname = usePathname();
-  const { isAuthorized } = useAuth();
+  const { isAuthorized, loading } = useAuth();
   // deferToNestedRegions: lets a specific nested scroll region (a standings table, say) handle
   // its own Lenis-smoothed scroll instead of this root instance fighting it — see
   // nestedLenisRegistry.ts's docstring for why this isn't just `allowNestedScroll`/
@@ -40,8 +40,12 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
         <main className="flex-1">{children}</main>
         {/* Signed-in visitors get the data-dense homepage now, not the marketing pitch this
             footer's "Explore"/tagline copy is aimed at — showing it there just repeats nav links
-            already in the header. */}
-        {pathname === "/" && !isAuthorized && <Footer />}
+            already in the header. `!loading` matters just as much as `!isAuthorized` here -
+            useAuth() starts out with isAuthorized false before the session check ever resolves
+            (see AuthProvider's own comment), so without this the footer would flash in under the
+            homepage's loading skeleton for every visitor, signed in or not, then disappear the
+            moment auth actually resolves true. */}
+        {pathname === "/" && !loading && !isAuthorized && <Footer />}
       </div>
     </div>
   );
