@@ -33,11 +33,11 @@ export function Footer() {
       {/* Same idea as the hero's own post-band fade strip, reversed - that one starts strong right
           at its seam and eases to transparent moving away from it (into the content below); this
           one starts transparent (blending into whatever content precedes the footer) and eases to
-          strong right at its own seam (the footer's own top edge, where its internal gradient
-          above already starts at the same var(--background) tone). Positioned with bottom-full so
-          it extends upward, overlapping the last 18vh of whatever comes right before the footer,
-          rather than living inside the footer's own (clipped) box. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-full h-[18vh] bg-gradient-to-b from-transparent to-[var(--background)]/70" />
+          the footer's own actual color right at its own seam (the footer's top edge) - matching
+          the footer itself (var(--f1-carbon)), not the page background it starts from. Positioned
+          with bottom-full so it extends upward, overlapping the last 18vh of whatever comes right
+          before the footer, rather than living inside the footer's own (clipped) box. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-full h-[18vh] bg-gradient-to-b from-transparent to-[var(--f1-carbon)]" />
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
