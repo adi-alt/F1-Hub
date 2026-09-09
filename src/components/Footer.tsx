@@ -15,7 +15,7 @@ const EXPLORE_LINKS = [
 export function Footer() {
   return (
     <footer
-      className="bg-[var(--f1-carbon)]"
+      className="relative bg-[var(--f1-carbon)]"
       // A taller band (400px, was 260px) with more intermediate stops so the curve itself eases
       // in and out instead of ramping at one constant rate - a straight two-stop ramp still reads
       // as a seam over any distance because the *rate* of change never softens near either end,
@@ -30,6 +30,14 @@ export function Footer() {
         backgroundRepeat: "no-repeat",
       }}
     >
+      {/* Same idea as the hero's own post-band fade strip, reversed - that one starts strong right
+          at its seam and eases to transparent moving away from it (into the content below); this
+          one starts transparent (blending into whatever content precedes the footer) and eases to
+          strong right at its own seam (the footer's own top edge, where its internal gradient
+          above already starts at the same var(--background) tone). Positioned with bottom-full so
+          it extends upward, overlapping the last 18vh of whatever comes right before the footer,
+          rather than living inside the footer's own (clipped) box. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-full h-[18vh] bg-gradient-to-b from-transparent to-[var(--background)]/70" />
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
