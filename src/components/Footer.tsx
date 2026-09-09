@@ -33,12 +33,10 @@ export function Footer() {
       {/* Same idea as the hero's own post-band fade strip, reversed - that one starts strong right
           at its seam and eases to transparent moving away from it (into the content below); this
           one starts transparent (blending into whatever content precedes the footer) and eases to
-          a warm brown right at its own seam (the footer's top edge) - matching the site's existing
-          warm glow accent (the same rgba(225,90,40,...) tone TreasureMapSection's own atmosphere
-          uses), not a grey. Positioned with bottom-full so it extends upward, overlapping the last
-          10vh of whatever comes right before the footer, rather than living inside the footer's
-          own (clipped) box. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-full h-[10vh] bg-gradient-to-b from-transparent to-[#3a2418]" />
+          solid black right at its own seam (the footer's top edge). Positioned with bottom-full so
+          it extends upward, overlapping the last 10vh of whatever comes right before the footer,
+          rather than living inside the footer's own (clipped) box. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-full h-[10vh] bg-gradient-to-b from-transparent to-black" />
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
