@@ -1,11 +1,21 @@
+import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ServiceError } from "@/services/errors";
 
 export type PointsReason = "starting_grant" | "prediction_entry" | "prediction_payout" | "prediction_refund";
 
-export async function getPointsBalance(uid: string): Promise<number> {
-  return getBalance(uid);
-}
+// Display-only, safe to cache briefly: spendPoints/creditPoints below never call this - they read
+// getBalance() directly, every time, as part of their own compare-and-swap write, so a stale read
+// here can never let anyone spend points they don't actually have. Short TTL (not revalidate:false
+// + a tag) because there's no pipeline write to hang a tag off - this table only ever changes from
+// in-app spend/credit calls, same reasoning as modelBenchmarks.ts's own short-timer precedent.
+const BALANCE_REVALIDATE_SECONDS = 15;
+
+export const getPointsBalance = unstable_cache(
+  async (uid: string): Promise<number> => getBalance(uid),
+  ["get-points-balance"],
+  { revalidate: BALANCE_REVALIDATE_SECONDS },
+);
 
 async function getBalance(uid: string): Promise<number> {
   const { data, error } = await supabaseAdmin.from("profiles").select("points_balance").eq("id", uid).maybeSingle();

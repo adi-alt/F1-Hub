@@ -171,9 +171,17 @@ export async function POST() {
     // 4. Compute independent GLOBAL and PERSONAL data-version hashes.
     // GLOBAL depends only on facts every visitor shares - a user's own prediction must never
     // invalidate the cache entry every other visitor reads.
+    //
+    // Deliberately NOT including nextRace?.updatedAt: the pipeline bumps that timestamp on every
+    // single push of the race row (pipeline/fetch_races.py's race_row["updated_at"]), including
+    // runs where nothing the AI actually talks about changed at all (a re-fetch that found the
+    // same practice/qualifying data, a preliminary-result retry that didn't yet succeed, etc). With
+    // it included, every pipeline tick during a race weekend was busting this cache early - well
+    // before its real 1-hour TTL - forcing a fresh, slow (~10-90s, see nemotron.ts's own timeout)
+    // model call far more often than necessary. simTop/rfTop/raceId/feedPosts.length already cover
+    // every input this response's content actually depends on.
     const globalDataVersion = computeDataVersion([
       raceId,
-      nextRace?.updatedAt,
       simTop ? `${simTop.driver}:${simTop.p1}` : "",
       rfTop ? `${rfTop.driver}` : "",
       feedPosts.length, // global community-pulse input only counts volume, not per-user content

@@ -26,4 +26,6 @@ export const SYNC_STRATEGY: Record<RealtimeTable, SyncStrategy> = {
   profiles: "invalidate",
   group_race_scores: "refresh",
   group_members: "refresh",
+  group_posts: "refresh",
+  group_predictions: "refresh",
 };

@@ -30,6 +30,11 @@ export function GroupRealtimeWatcher({ groupId }: { groupId: string }) {
   const listeners = groupListeners(groupId);
   useRealtimeSubscription(channelKey, listeners, listeners[0], refresh, refresh);
   useRealtimeSubscription(channelKey, listeners, listeners[1], refresh, refresh);
+  // group_posts/group_predictions - previously on the publication with no listener registered at
+  // all (see groupListeners()'s own comment), so the Feed/Predictions tabs never actually got the
+  // live push a prior migration comment claimed they already had.
+  useRealtimeSubscription(channelKey, listeners, listeners[2], refresh, refresh);
+  useRealtimeSubscription(channelKey, listeners, listeners[3], refresh, refresh);
 
   return null;
 }

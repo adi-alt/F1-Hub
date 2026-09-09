@@ -35,17 +35,20 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
     );
   }
 
-  const [group, leaderboard, posts, predictions, pointsBalance] = await Promise.all([
+  // getRacesByYear only depends on the current year, not on any of the group-scoped results below
+  // it - joined into this same batch instead of a separate `await` after it resolved for no real
+  // reason (an avoidable sequential round trip, caught in the site-wide caching/waterfall audit).
+  const [group, leaderboard, posts, predictions, pointsBalance, seasonRaces] = await Promise.all([
     getGroupDetail(id, session.uid),
     getGroupLeaderboard(id, session.uid),
     listPosts(id, session.uid),
     listPredictions(id, session.uid),
     getPointsBalance(session.uid),
+    getRacesByYear(new Date().getFullYear()),
   ]);
 
   // Races for the admin's own "new prediction" race picker - current season, most recent first, so
   // the realistic choice (this weekend, or one that just finished and needs resolving) is on top.
-  const seasonRaces = await getRacesByYear(new Date().getFullYear());
   const races = [...seasonRaces].reverse().map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
 
   // Driver rosters for every race any prediction in this group already references - one small

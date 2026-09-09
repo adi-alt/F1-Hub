@@ -10,8 +10,10 @@ import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
 
 // Reading the session cookie makes this route inherently dynamic (no route-level `revalidate`
-// possible), but the underlying Postgres reads are still cached for 300s via `unstable_cache` in
-// lib/supabase/races.ts, so every visit — signed in or not — doesn't hit Postgres every time.
+// possible), but the underlying Postgres reads are still cached via `unstable_cache` in
+// lib/supabase/races.ts (`revalidate: false`, busted by the pipeline's own `trigger_revalidation`
+// the moment it actually pushes new data - not a fixed timer), so every visit — signed in or not —
+// doesn't hit Postgres every time.
 
 // A homepage teaser, not the full Discover Groups experience — same reasoning DiscoverSection's
 // own cap already documents.

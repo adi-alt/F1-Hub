@@ -14,7 +14,10 @@ export type ModelBenchmark = {
 
 type ModelBenchmarkRow = { id: string; generated_at: string; metrics: { aggregate?: Record<string, unknown> } | null };
 
-const REVALIDATE_SECONDS = 60; // admin data should feel fresher than the public 300s pages
+// A short timer, not revalidate:false + a tag: no pipeline script currently calls
+// trigger_revalidation for this table, so there's no tag-bust event to hang a cache-forever entry
+// off of - a 60s timer is the pragmatic default until one exists.
+const REVALIDATE_SECONDS = 60;
 
 export const getModelBenchmarks = unstable_cache(
   async (): Promise<ModelBenchmark[]> => {

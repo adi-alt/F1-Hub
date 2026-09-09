@@ -1,7 +1,20 @@
+import { unstable_cache, revalidateTag } from "next/cache";
 import { getTransporter } from "@/lib/otp";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
+
+// Tagged AND short-TTL, not one or the other: every in-app mutation below that actually changes
+// what listPublicGroups/getGroupPreview display (name/description/visibility/avatar/banner/member
+// count) calls revalidateTag(GROUP_DISCOVERY_TAG) right after its write - since these mutations run
+// in the same Next.js process as the cache itself, this is a plain synchronous call, not the
+// pipeline's cross-process HTTP-plus-secret dance. The 20s revalidate stays too, as a self-healing
+// backstop in case a future mutation is ever added here and someone forgets to tag it - unlike
+// races/archive/media/calendar (revalidate: false, tag-only), there's no pipeline script watching
+// this table, so a missed tag call would otherwise mean staying stale forever, not just until the
+// next scheduled pipeline run.
+const GROUP_DISCOVERY_TAG = "group-discovery";
+const GROUP_DISCOVERY_REVALIDATE_SECONDS = 20;
 
 export type GroupRole = "admin" | "moderator" | "member";
 export type GroupVisibility = "public" | "private";
@@ -257,7 +270,13 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
  * app expects to have dozens, not millions, of rows in. Not id - the search box no longer
  * advertises that (plain "Search public F1 communities..."), and an unconditional `id.eq.<text>`
  * clause 500s the whole request the moment someone types a term that isn't a valid uuid. */
-export async function listPublicGroups(query?: string, uid?: string): Promise<PublicGroupSummary[]> {
+export const listPublicGroups = unstable_cache(
+  async (query?: string, uid?: string): Promise<PublicGroupSummary[]> => listPublicGroupsUncached(query, uid),
+  ["list-public-groups"],
+  { revalidate: GROUP_DISCOVERY_REVALIDATE_SECONDS, tags: [GROUP_DISCOVERY_TAG] },
+);
+
+async function listPublicGroupsUncached(query?: string, uid?: string): Promise<PublicGroupSummary[]> {
   let builder = supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, created_at").eq("visibility", "public");
   const trimmed = query?.trim();
   if (trimmed) builder = builder.or(`name.ilike.%${trimmed}%,description.ilike.%${trimmed}%`);
@@ -305,7 +324,13 @@ export async function listPublicGroups(query?: string, uid?: string): Promise<Pu
  * invite link. The link itself (the group's own uuid) is the access control for a private group;
  * nothing here is discoverable without already having it unless the group opted into
  * visibility='public' (see listPublicGroups above). */
-export async function getGroupPreview(groupId: string): Promise<GroupPreview | null> {
+export const getGroupPreview = unstable_cache(
+  async (groupId: string): Promise<GroupPreview | null> => getGroupPreviewUncached(groupId),
+  ["get-group-preview"],
+  { revalidate: GROUP_DISCOVERY_REVALIDATE_SECONDS, tags: [GROUP_DISCOVERY_TAG] },
+);
+
+async function getGroupPreviewUncached(groupId: string): Promise<GroupPreview | null> {
   const { data: group, error: groupError } = await queryWithRetry(() =>
     supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, visibility").eq("id", groupId).maybeSingle(),
   );
@@ -359,6 +384,7 @@ export async function createGroup(
   const { error: memberError } = await supabaseAdmin.from("group_members").insert({ group_id: data.id, user_id: uid, role: "admin" });
   if (memberError) throw memberError;
 
+  revalidateTag(GROUP_DISCOVERY_TAG, "max");
   return { id: data.id as string };
 }
 
@@ -370,6 +396,7 @@ export async function joinGroup(uid: string, groupId: string): Promise<{ id: str
   if (!existingRole) {
     const { error } = await supabaseAdmin.from("group_members").insert({ group_id: groupId, user_id: uid, role: "member" });
     if (error) throw error;
+    revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count / isMember changed
   }
   return { id: group.id as string, name: group.name as string };
 }
@@ -476,16 +503,19 @@ export async function getGroupRaceScores(groupId: string, raceId: string, uid: s
 export async function updateGroupAvatar(groupId: string, uid: string, avatarUrl: string): Promise<void> {
   await requireAdmin(groupId, uid);
   await supabaseAdmin.from("groups").update({ avatar_url: avatarUrl }).eq("id", groupId);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max");
 }
 
 export async function updateGroupBanner(groupId: string, uid: string, bannerUrl: string): Promise<void> {
   await requireAdmin(groupId, uid);
   await supabaseAdmin.from("groups").update({ banner_url: bannerUrl }).eq("id", groupId);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max");
 }
 
 export async function removeGroupBanner(groupId: string, uid: string): Promise<void> {
   await requireAdmin(groupId, uid);
   await supabaseAdmin.from("groups").update({ banner_url: null }).eq("id", groupId);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max");
 }
 
 export async function updateGroupSettings(
@@ -512,6 +542,7 @@ export async function updateGroupSettings(
   const { error } = await supabaseAdmin.from("groups").update(patch).eq("id", groupId);
   if (error && isDuplicateNameError(error)) throw new ServiceError("A group with this name already exists.", 409);
   if (error) throw new Error(`updateGroupSettings(${groupId}): ${error.message}`);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max"); // name/description/visibility all shown on the discovery card
 }
 
 async function countAdmins(groupId: string): Promise<number> {
@@ -549,6 +580,7 @@ export async function removeMember(groupId: string, actingUid: string, targetUid
 
   const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", targetUid);
   if (error) throw new Error(`removeMember(${groupId}, ${targetUid}): ${error.message}`);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count changed
 }
 
 export async function deleteGroup(groupId: string, uid: string): Promise<void> {
@@ -557,6 +589,7 @@ export async function deleteGroup(groupId: string, uid: string): Promise<void> {
   // scores, predictions/entries, posts/votes/comments in one statement - nothing else to clean up.
   const { error } = await supabaseAdmin.from("groups").delete().eq("id", groupId);
   if (error) throw new Error(`deleteGroup(${groupId}): ${error.message}`);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max");
 }
 
 const MAX_INVITE_EMAILS = 10;

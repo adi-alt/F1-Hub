@@ -4,7 +4,16 @@ import type { RealtimePostgresChangesPayload, RealtimeChannel } from "@supabase/
  * supabase/schema.sql's `alter publication` statements — verified live, not just read off the
  * schema file, see the plan's "Live verification" section). Adding an 8th realtime table means
  * adding it here first — everything downstream (channels.ts, syncPolicy.ts) is keyed off this. */
-export type RealtimeTable = "races" | "calendar" | "drivers" | "teams" | "profiles" | "group_race_scores" | "group_members";
+export type RealtimeTable =
+  | "races"
+  | "calendar"
+  | "drivers"
+  | "teams"
+  | "profiles"
+  | "group_race_scores"
+  | "group_members"
+  | "group_posts"
+  | "group_predictions";
 
 /** Supabase's own channel subscribe callback status, re-exported under one name so nothing in
  * this app imports realtime-js's status string type from three different places. */

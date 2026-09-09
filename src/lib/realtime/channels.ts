@@ -30,12 +30,11 @@ export const GLOBAL_LISTENERS: ListenerIdentity[] = [
 // different authorization context, kept as genuinely separate `.on()` bindings that happen to
 // share one WebSocket channel object.
 //
-// The unfiltered listener will subscribe successfully but, because Realtime enforces RLS
-// per-subscriber, only actually deliver events for the admin's own row until the `is_admin()` +
-// "admin read all profiles" policy (see supabase/schema.sql) is applied to the live database —
-// confirmed still not applied as of this refactor (see the plan's Live verification section).
-// Registered anyway so it activates automatically the moment that policy lands, with no code
-// change needed then.
+// The unfiltered listener subscribes and, because Realtime enforces RLS per-subscriber, delivers
+// events for every profiles row now that the `is_admin()` + "admin read all profiles" policy (see
+// supabase/schema.sql) has been applied to the live database — confirmed both were missing from
+// the live database despite being checked into schema.sql (a real gap, not just a documentation
+// lag), fixed directly against the live DB.
 export function userChannelKey(uid: string): string {
   return `user:${uid}`;
 }
@@ -58,5 +57,11 @@ export function groupListeners(groupId: string): ListenerIdentity[] {
   return [
     { table: "group_race_scores", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
     { table: "group_members", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
+    // Both tables were already on the supabase_realtime publication (schema.sql's own
+    // `alter publication` statements) - confirmed live - but had no ListenerIdentity anywhere,
+    // so the Feed/Predictions tabs never actually got what an earlier migration comment claimed
+    // they did. Real gap, fixed here, not a new capability being added for the first time.
+    { table: "group_posts", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
+    { table: "group_predictions", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
   ];
 }
