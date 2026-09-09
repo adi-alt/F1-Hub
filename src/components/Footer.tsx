@@ -16,14 +16,17 @@ export function Footer() {
   return (
     <footer
       className="bg-[var(--f1-carbon)]"
-      // A single 100px linear stop reads as a visible seam where the page's flat background
-      // suddenly starts turning into the footer's carbon tone - more stops across a taller band
-      // (with an eased midpoint, not a straight ramp) blends the two the way the homepage's own
-      // hero-to-background fade already does (see HomeLayout.tsx's gradient).
+      // A taller band (400px, was 260px) with more intermediate stops so the curve itself eases
+      // in and out instead of ramping at one constant rate - a straight two-stop ramp still reads
+      // as a seam over any distance because the *rate* of change never softens near either end,
+      // it just changes over more pixels. This is a linear (not radial) fade on purpose - the
+      // footer's edge runs the full page width at a constant color, so a radial glow would fade
+      // faster at the corners than the center and introduce the exact non-uniform look the
+      // TreasureMapSection fade above just got fixed away from.
       style={{
         backgroundImage:
-          "linear-gradient(to bottom, var(--background) 0%, color-mix(in srgb, var(--background) 60%, var(--f1-carbon)) 45%, var(--f1-carbon) 100%)",
-        backgroundSize: "100% 260px",
+          "linear-gradient(to bottom, var(--background) 0%, color-mix(in srgb, var(--background) 85%, var(--f1-carbon)) 20%, color-mix(in srgb, var(--background) 40%, var(--f1-carbon)) 55%, var(--f1-carbon) 100%)",
+        backgroundSize: "100% 400px",
         backgroundRepeat: "no-repeat",
       }}
     >
