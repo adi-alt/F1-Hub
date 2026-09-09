@@ -23,11 +23,12 @@ export function HomeLayout({ photos, children }: { photos: string[]; children: R
           style={{ background: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(225,6,0,0.08), transparent 70%)" }}
         />
         <RotatingBackdrop photos={photos} />
-        {/* A dedicated black fade-out, separate from the fade-to-page-background layer below it -
-            transparent at the top (photo untouched) to solid black by the bottom of this band, so
-            the photo is fully blended out well before this band's own edge, regardless of exactly
-            where content below it starts. */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
+        {/* A short, dedicated black fade-out right at the band's own bottom edge - transparent at
+            its own top (photo untouched above it) to solid black by the band's bottom, confined to
+            just the last 8vh rather than stretched across the whole band, so it reads as one quick
+            blur/blend right at the seam instead of a second slow fade layered under the page-
+            background one below it. */}
+        <div className="absolute inset-x-0 bottom-0 h-[8vh] bg-gradient-to-b from-transparent to-black" />
         <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
       </div>
       <div className="relative mx-auto space-y-9 px-4 py-10 sm:max-w-[80vw] sm:px-8 lg:px-12">{children}</div>
