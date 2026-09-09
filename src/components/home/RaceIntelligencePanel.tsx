@@ -23,7 +23,7 @@ export function RaceIntelligencePanel({
 
   if (!trackHistory) {
     return (
-      <div className="flex h-full items-center rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
+      <div className="flex h-full items-center rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6">
         <p className="text-sm text-neutral-500">No archive history yet for {circuitName}, this looks like a new addition to the calendar.</p>
       </div>
     );
@@ -39,7 +39,7 @@ export function RaceIntelligencePanel({
       : null;
 
   return (
-    <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
+    <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6">
       {trackHistory.circuitImageUrl && (
         <div className="mb-3 flex justify-center border-b border-white/[0.06] pb-3">
           <Image
@@ -146,7 +146,7 @@ export function RaceIntelligencePanel({
 
 export function RaceIntelligencePanelSkeleton() {
   return (
-    <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
+    <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6">
       <Skeleton className="skeleton-shimmer h-12 w-full rounded-lg mb-3 opacity-40" />
       <div className="flex items-center justify-between">
         <Skeleton className="skeleton-shimmer h-3 w-28 rounded" />

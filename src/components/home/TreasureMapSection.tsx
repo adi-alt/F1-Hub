@@ -289,7 +289,16 @@ export function TreasureMapSection({ archiveYearRange }: { archiveYearRange: str
   const sizeScale = size ? size.width / 400 : 1;
 
   return (
-    <div ref={ref} className="relative overflow-hidden rounded-2xl bg-[var(--f1-carbon)]/40 px-6 py-14 sm:px-10">
+    <div ref={ref} className="relative px-6 py-14 sm:px-10">
+      {/* A soft radial glow instead of the old flat rounded-2xl/bg card - that read as a hard-
+          edged rectangle dropped onto the page background (a visible seam on all four sides,
+          worst at the top/bottom where nothing else broke it up). Fading to fully transparent at
+          the edges blends into the page instead of stopping at a border. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{ background: "radial-gradient(ellipse 75% 80% at 50% 50%, color-mix(in srgb, var(--f1-carbon) 55%, transparent), transparent 100%)" }}
+      />
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
       <div className="pointer-events-none absolute inset-0">

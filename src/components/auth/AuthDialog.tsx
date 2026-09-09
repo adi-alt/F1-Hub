@@ -219,14 +219,13 @@ function OtpStep({
       className="space-y-4"
     >
       <h2 className="text-lg font-bold text-white">Check your email</h2>
-      <p className="text-sm text-neutral-400">
-        {verifiedEmail ? (
-          <>
-            We sent a 6-digit code to <span className="text-white">{verifiedEmail}</span>.
-          </>
-        ) : (
-          "We sent a 6-digit code to your email."
-        )}
+      <p className="flex flex-wrap items-center gap-1.5 text-sm text-neutral-400">
+        {/* Empty only during the OAuth-redirect resume path, while the effect above is still
+            fetching whose email this actually was (see AuthDialog's own comment on that fetch) -
+            a skeleton in place of the email itself, not the generic sentence this used to fall
+            back to, so it reads as "still loading" rather than as the final copy. */}
+        <span>We sent a 6-digit code to</span>
+        {verifiedEmail ? <span className="text-white">{verifiedEmail}.</span> : <Skeleton className="h-4 w-36 rounded" />}
       </p>
       <OtpInput value={code} onChange={setCode} />
       {/* Personal Gmail SMTP relay (no verified sending domain yet - see otp.ts's own comment)
