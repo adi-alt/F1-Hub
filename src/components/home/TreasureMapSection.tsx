@@ -38,7 +38,11 @@ const BEATS = [
     body: "A Monte Carlo simulator runs each race ten thousand times with correlated bad luck and good luck built in, a driver's bad day often means their teammate's too, then reports back odds instead of one number pretending to be certain.",
   },
   {
-    stat: "1950 to 2017",
+    // Filled in from the real ARCHIVE_EARLIEST_YEAR/ARCHIVE_LATEST_YEAR constants at render time
+    // (see the archiveYearRange prop) - those live in lib/supabase/archive.ts, which pulls in
+    // supabaseAdmin and isn't safe to import from a "use client" file, so the server-side caller
+    // (ExploreSection) resolves the real string and passes it down instead.
+    stat: "__ARCHIVE_RANGE__",
     title: "It remembers seventy years of the sport",
     body: "Every season back to 1950, results and all, sourced from the same historical database F1 statisticians use, for settling an argument about who really had the better car in 1976.",
   },
@@ -274,7 +278,7 @@ function CloudCallout({ stat, title, body }: { stat: string; title: string; body
   );
 }
 
-export function TreasureMapSection() {
+export function TreasureMapSection({ archiveYearRange }: { archiveYearRange: string }) {
   const { ref, size } = useMeasuredSize();
   const pathRef = useRef<SVGPathElement>(null);
 
@@ -330,7 +334,7 @@ export function TreasureMapSection() {
             >
               <div className={`flex items-start gap-4 ${fromLeft ? "" : "md:flex-row-reverse"}`}>
                 <Grandstand number={i + 1} />
-                <CloudCallout stat={beat.stat} title={beat.title} body={beat.body} />
+                <CloudCallout stat={beat.stat === "__ARCHIVE_RANGE__" ? archiveYearRange : beat.stat} title={beat.title} body={beat.body} />
               </div>
             </motion.div>
           );

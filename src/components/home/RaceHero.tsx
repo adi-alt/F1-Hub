@@ -1,16 +1,50 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceIntelligencePanel";
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { formatCountdown } from "@/lib/countdown";
+import { ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
+import { formatCountdownLive } from "@/lib/countdown";
 import type { NextAction, PublicHomeData } from "@/lib/homeData";
-import type { FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
+import type { FactIconKind, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
+
+const FACT_ICONS: Record<FactIconKind, typeof TrophyIcon> = {
+  trophy: TrophyIcon,
+  constructor: ConstructorIcon,
+  target: TargetIcon,
+  star: StarIcon,
+  wrench: WrenchIcon,
+  confetti: ConfettiIcon,
+};
+
+/** Ticks every second (not the shared `useMinuteClock` 60s tick RaceWeekendPanel/PickPanel use) -
+ * this is the one countdown on the site meant to be glanced at while it's actively running down to
+ * a real moment, so it should visibly move. Scoped to this file, not the shared hook, since a 1Hz
+ * re-render of the whole hero is fine but isn't what those other call sites need. */
+function useSecondClock(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+/** The actual wall-clock date/time, in whichever timezone the viewer's own browser is in -
+ * `toLocaleString` with no explicit `timeZone` already does exactly that. It genuinely differs
+ * between the server's render (the deployment's own timezone) and the client's (the visitor's
+ * real one) - not a bug to route around with an effect, but the documented case
+ * `suppressHydrationWarning` exists for (React's own docs use a locale-formatted date as the
+ * example): render the real value both times, just don't warn that the two didn't match text. */
+function localTimeLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
 
 /** The race, not the user, is the dominant visual — greeting (personal only) sits as a small
  * eyebrow above it, never competing with the round/race name for attention. Background (full-bleed
@@ -34,12 +68,13 @@ export function RaceHero({
   favoriteDriver?: FavoriteDriverCard | null;
   favoriteTeam?: FavoriteTeamCard | null;
 }) {
-  const now = useMinuteClock();
+  const now = useSecondClock();
   const openAuthDialog = useAuthDialogStore((s) => s.open);
   const { nextRace, calendarEntry, facts, trackHistory } = publicData;
 
   const raceSessionDate = calendarEntry?.sessions.find((s) => s.label.toLowerCase().includes("race"))?.date ?? calendarEntry?.raceDate ?? null;
-  const countdown = raceSessionDate ? formatCountdown(new Date(raceSessionDate).getTime(), now) : "";
+  const countdown = raceSessionDate ? formatCountdownLive(new Date(raceSessionDate).getTime(), now) : "";
+  const localTime = localTimeLabel(raceSessionDate);
 
   if (!nextRace) {
     return (
@@ -79,15 +114,26 @@ export function RaceHero({
           {countdown && (
             <div>
               <p className="text-[11px] uppercase tracking-wide text-neutral-500">Lights out in</p>
-              <p className="font-mono text-2xl font-semibold text-white">{countdown}</p>
+              <p suppressHydrationWarning className="font-mono text-2xl font-semibold text-white tabular-nums">
+                {countdown}
+              </p>
+              {localTime && (
+                <p suppressHydrationWarning className="mt-0.5 text-[11px] text-neutral-500">
+                  {localTime} your time
+                </p>
+              )}
             </div>
           )}
           <RaceReadiness calendarEntry={calendarEntry} race={nextRace} />
         </div>
 
         {facts.length > 0 && (
-          <p className="mt-3 max-w-2xl text-sm text-neutral-400">
-            <span aria-hidden>{facts[0].icon}</span> {facts[0].text}
+          <p className="mt-3 flex max-w-2xl items-start gap-1.5 text-sm text-neutral-400">
+            {(() => {
+              const FactIcon = FACT_ICONS[facts[0].icon];
+              return <FactIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--f1-red)]" />;
+            })()}
+            {facts[0].text}
           </p>
         )}
 

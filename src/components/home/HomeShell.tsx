@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { PersonalHome, PersonalHomeSkeleton } from "./PersonalHome";
 import { PublicHome } from "./PublicHome";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
-import type { PublicGroupSummary } from "@/lib/supabase/groups";
 import { useAuth } from "@/providers/AuthProvider";
 
 async function fetchPersonalHomeData(): Promise<PersonalHomeData> {
@@ -21,12 +20,10 @@ async function fetchPersonalHomeData(): Promise<PersonalHomeData> {
 export function HomeShell({
   publicData,
   initialPersonalData,
-  discoverGroups,
   serverAuthed,
 }: {
   publicData: PublicHomeData;
   initialPersonalData: PersonalHomeData | null;
-  discoverGroups: PublicGroupSummary[];
   serverAuthed: boolean;
 }) {
   const { user, loading, isAuthorized } = useAuth();
@@ -56,7 +53,7 @@ export function HomeShell({
     <AnimatePresence mode="wait" initial={false}>
       {!resolvedAuthed ? (
         <motion.div key="public" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-          <PublicHome publicData={publicData} discoverGroups={discoverGroups} />
+          <PublicHome publicData={publicData} />
         </motion.div>
       ) : !personalData ? (
         <motion.div key="personal-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>

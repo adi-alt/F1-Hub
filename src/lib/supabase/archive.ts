@@ -1,6 +1,9 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/supabase/queryWithRetry";
+import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
+
+export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
 
 // The shape fetchAllRows expects a query to resolve to. Mostly needed as an explicit cast target
 // for a PostgREST to-one embed (e.g. archive_races(year) off archive_results) - the untyped client
@@ -20,9 +23,8 @@ type QueryPage<T> = PromiseLike<{ data: T[] | null; error: SupabaseQueryError | 
 const ARCHIVE_TAG = "archive-data";
 
 // fetch_archive.py's backfill range — 1950 is F1's first season; the upper bound is always
-// "last year" (the current season isn't over yet, so it's deliberately never "archived").
-export const ARCHIVE_EARLIEST_YEAR = 1950;
-export const ARCHIVE_LATEST_YEAR = new Date().getFullYear() - 1;
+// "last year" (the current season isn't over yet, so it's deliberately never "archived"). Real
+// definition now lives in lib/archiveYears.ts (re-exported above) - see that file's own comment.
 
 export type ArchiveFastestLap = { rank: number; lap: number; time: string; avgSpeedKph: number | null };
 

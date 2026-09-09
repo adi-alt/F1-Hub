@@ -1,61 +1,26 @@
 "use client";
 
-import { DiscoverSection, DiscoverSectionSkeleton } from "./DiscoverSection";
 import { ExploreSection } from "./ExploreSection";
 import { HomeLayout } from "./HomeLayout";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
-import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { WhyF1Hub } from "./WhyF1Hub";
-import { ApexIntelligenceWidget } from "./ai/ApexIntelligenceWidget";
-import {
-  HomepageIntelligenceProvider,
-  useHomepageIntelligence,
-} from "./ai/HomepageIntelligenceProvider";
 import type { PublicHomeData } from "@/lib/homeData";
-import type { PublicGroupSummary } from "@/lib/supabase/groups";
 
-function PublicHomeInner({
-  publicData,
-  discoverGroups,
-}: {
-  publicData: PublicHomeData;
-  discoverGroups: PublicGroupSummary[];
-}) {
-  const { intelligence } = useHomepageIntelligence();
-
+// No HomepageIntelligenceProvider, no ApexIntelligenceWidget, no SeasonRecap's AI narrative, no
+// DiscoverSection - a signed-out visitor gets the real, deterministic pitch for the product (race
+// context, why it exists, what's inside) with zero AI-generated content and zero group-join
+// prompts, both of which only make sense once there's an actual account behind them. This is also
+// the entire fix for "the AI layer costs every anonymous visit" - previously every logged-out
+// homepage view fired a /api/ai/homepage-intelligence call (a real, sometimes 90s NVIDIA request)
+// for content that was never even shown as the headline feature; removing the provider here means
+// zero AI network calls for anyone who isn't signed in.
+export function PublicHome({ publicData }: { publicData: PublicHomeData }) {
   return (
-    <>
-      <HomeLayout photos={publicData.backdropPhotos}>
-        <RaceHero publicData={publicData} variant="public" />
-        <WhyF1Hub />
-        <ExploreSection />
-        <SeasonRecap
-          year={publicData.year}
-          races={publicData.races}
-          recap={publicData.seasonRecap}
-          aiNarrative={intelligence?.seasonNarrative}
-        />
-        <DiscoverSection groups={discoverGroups} requireAuthToJoin />
-      </HomeLayout>
-
-      <ApexIntelligenceWidget
-        raceName={publicData.nextRace?.name}
-        round={publicData.nextRace?.round}
-        myPick={null}
-        nextRace={publicData.nextRace}
-      />
-    </>
-  );
-}
-
-export function PublicHome(props: {
-  publicData: PublicHomeData;
-  discoverGroups: PublicGroupSummary[];
-}) {
-  return (
-    <HomepageIntelligenceProvider>
-      <PublicHomeInner {...props} />
-    </HomepageIntelligenceProvider>
+    <HomeLayout photos={publicData.backdropPhotos}>
+      <RaceHero publicData={publicData} variant="public" />
+      <WhyF1Hub />
+      <ExploreSection />
+    </HomeLayout>
   );
 }
 
@@ -63,8 +28,6 @@ export function PublicHomeSkeleton() {
   return (
     <HomeLayout photos={[]}>
       <RaceHeroSkeleton variant="public" />
-      <SeasonRecapSkeleton />
-      <DiscoverSectionSkeleton />
     </HomeLayout>
   );
 }

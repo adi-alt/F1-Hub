@@ -446,7 +446,10 @@ export async function getRecentCircuitPhotos(
 // client-side caller (ChampionshipTrajectory.tsx) imports the pure module directly instead.
 export { computeChampionshipProgression } from "@/lib/championshipProgression";
 
-export type Fact = { icon: string; text: string };
+// Semantic keys, not emoji glyphs - RaceHero renders these through the shared icon set
+// (src/components/icons/HomeIcons.tsx) instead of a literal character.
+export type FactIconKind = "trophy" | "constructor" | "target" | "star" | "wrench" | "confetti";
+export type Fact = { icon: FactIconKind; text: string };
 
 /** Every fact here is derived from computeSeasonStandings / getTrackHistory (real
  * race_results/pole_sitter/archive_results data), never invented copy — an empty array means
@@ -464,21 +467,21 @@ export function buildFacts(
   const driverLeader = standings.drivers[0];
   if (driverLeader) {
     facts.push({
-      icon: "🏆",
+      icon: "trophy",
       text: `${driverLeader.driverName} leads the ${year} championship with ${driverLeader.points} points`,
     });
   }
 
   const teamLeader = standings.teams[0];
   if (teamLeader) {
-    facts.push({ icon: "🏗️", text: `${teamLeader.team} tops the constructors' standings with ${teamLeader.points} points` });
+    facts.push({ icon: "constructor", text: `${teamLeader.team} tops the constructors' standings with ${teamLeader.points} points` });
   }
 
   const topPole = Object.entries(standings.poleCounts).sort((a, b) => b[1] - a[1])[0];
   if (topPole) {
     const [driverCode, count] = topPole;
     const name = standings.drivers.find((d) => d.driver === driverCode)?.driverName ?? driverCode;
-    facts.push({ icon: "🎯", text: `${name} has the most poles this season (${count})` });
+    facts.push({ icon: "target", text: `${name} has the most poles this season (${count})` });
   }
 
   if (favoriteDriver?.code) {
@@ -486,7 +489,7 @@ export function buildFacts(
     if (rank >= 0) {
       const s = standings.drivers[rank];
       facts.push({
-        icon: "⭐",
+        icon: "star",
         text: `Your favorite, ${favoriteDriver.name}, sits P${rank + 1} in the championship with ${s.points} points`,
       });
     }
@@ -497,7 +500,7 @@ export function buildFacts(
     if (rank >= 0) {
       const s = standings.teams[rank];
       facts.push({
-        icon: "🔧",
+        icon: "wrench",
         text: `${favoriteTeam.name} sits P${rank + 1} in the constructors' championship with ${s.points} points`,
       });
     }
@@ -508,13 +511,13 @@ export function buildFacts(
   // N wins here" for every driver (that per-track breakdown isn't part of TrackHistory's shape).
   if (favoriteDriver && trackHistory?.topPerformer?.driverId === favoriteDriver.driverId) {
     facts.push({
-      icon: "🎉",
+      icon: "confetti",
       text: `Your favorite, ${favoriteDriver.name}, is also the winningest driver at the upcoming track (${trackHistory.topPerformer.wins} wins there)`,
     });
   }
   if (favoriteTeam && trackHistory?.topCurrentTeam?.name === favoriteTeam.currentName) {
     facts.push({
-      icon: "🎉",
+      icon: "confetti",
       text: `${favoriteTeam.name} has won more at the upcoming track than any other team still on the grid (${trackHistory.topCurrentTeam.wins} wins)`,
     });
   }

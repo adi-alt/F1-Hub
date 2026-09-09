@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { seasonHref } from "@/lib/routes";
+// Not lib/supabase/archive.ts - Footer is imported directly by SmoothScroll.tsx's "use client"
+// tree, so anything it imports gets bundled for the browser too; archive.ts drags in
+// supabaseAdmin, archiveYears.ts is just the two plain year constants, safe either side.
+import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
 
 const EXPLORE_LINKS = [
   { href: seasonHref(2026), label: "2026 Season" },
   { href: "/circuits", label: "Circuits" },
-  { href: "/archive", label: "Archive, 1950-2017" },
+  { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${ARCHIVE_LATEST_YEAR}` },
   { href: "/races/simulation", label: "Race simulator" },
 ];
 
@@ -12,7 +16,16 @@ export function Footer() {
   return (
     <footer
       className="bg-[var(--f1-carbon)]"
-      style={{ backgroundImage: "linear-gradient(to bottom, var(--background), var(--f1-carbon) 100px)" }}
+      // A single 100px linear stop reads as a visible seam where the page's flat background
+      // suddenly starts turning into the footer's carbon tone - more stops across a taller band
+      // (with an eased midpoint, not a straight ramp) blends the two the way the homepage's own
+      // hero-to-background fade already does (see HomeLayout.tsx's gradient).
+      style={{
+        backgroundImage:
+          "linear-gradient(to bottom, var(--background) 0%, color-mix(in srgb, var(--background) 60%, var(--f1-carbon)) 45%, var(--f1-carbon) 100%)",
+        backgroundSize: "100% 260px",
+        backgroundRepeat: "no-repeat",
+      }}
     >
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">

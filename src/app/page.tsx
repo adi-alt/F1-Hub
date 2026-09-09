@@ -5,7 +5,6 @@ import { getPersonalHomeData } from "@/lib/homeData";
 import { buildFacts, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
-import { listPublicGroups } from "@/lib/supabase/groups";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
 
@@ -15,22 +14,16 @@ import { getSession } from "@/lib/session/getSession";
 // the moment it actually pushes new data - not a fixed timer), so every visit — signed in or not —
 // doesn't hit Postgres every time.
 
-// A homepage teaser, not the full Discover Groups experience — same reasoning DiscoverSection's
-// own cap already documents.
-const DISCOVER_GROUPS_LIMIT = 3;
-
 export default async function HomePage() {
   const session = await getSession();
   const year = new Date().getFullYear();
 
   // Public data: real regardless of auth state — the redesigned signed-out hero needs the exact
-  // same upcoming-race context the signed-in one does, not a stripped-down version of it.
-  const [nextRace, races, archiveCircuits, publicGroups] = await Promise.all([
-    getNextUpcomingRace(year),
-    getRacesByYear(year),
-    getAllArchiveCircuits(),
-    listPublicGroups(),
-  ]);
+  // same upcoming-race context the signed-in one does, not a stripped-down version of it. No
+  // listPublicGroups() here anymore - the logged-out homepage no longer has a group-discovery
+  // section (joining a group needs an account anyway), and the signed-in one gets its own groups
+  // from getPersonalHomeData below, not this fetch.
+  const [nextRace, races, archiveCircuits] = await Promise.all([getNextUpcomingRace(year), getRacesByYear(year), getAllArchiveCircuits()]);
 
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
@@ -60,12 +53,11 @@ export default async function HomePage() {
           : [];
 
   const publicData = { year, nextRace, races, calendarEntry, backdropPhotos, facts, trackHistory, seasonRecap };
-  const discoverGroups = publicGroups.filter((g) => !g.isMember).slice(0, DISCOVER_GROUPS_LIMIT);
 
   return (
     <>
       {personalData && <OnboardingTour initiallyOpen={!personalData.profile?.onboardingCompletedAt} />}
-      <HomeShell publicData={publicData} initialPersonalData={personalData} discoverGroups={discoverGroups} serverAuthed={!!session.uid} />
+      <HomeShell publicData={publicData} initialPersonalData={personalData} serverAuthed={!!session.uid} />
     </>
   );
 }

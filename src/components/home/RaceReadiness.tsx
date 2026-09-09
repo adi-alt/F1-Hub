@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { CheckIcon } from "@/components/icons/HomeIcons";
 import { sessionCode } from "@/lib/sessionCode";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
@@ -54,7 +55,7 @@ export function RaceReadiness({ calendarEntry, race }: { calendarEntry: Calendar
                 step.done ? "border-[var(--f1-red)] bg-[var(--f1-red)] text-white" : "border-[var(--f1-line)] bg-black/30 text-transparent"
               }`}
             >
-              {step.done ? "✓" : ""}
+              {step.done && <CheckIcon className="h-3 w-3" />}
             </motion.span>
             <span className={`text-[10px] font-semibold tracking-wide ${step.done ? "text-neutral-300" : "text-neutral-600"}`}>{step.code}</span>
           </div>
