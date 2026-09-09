@@ -26,9 +26,11 @@ export function HomeLayout({ photos, children }: { photos: string[]; children: R
         <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
       </div>
       {/* Starts exactly where the 100vh band above ends (top-[100vh], not bottom-0 inside it) and
-          runs 8vh further down - into the real content below, not the last 8vh of the band itself,
-          which `overflow-hidden` up there would clip away from ever reaching this far anyway. */}
-      <div className="pointer-events-none absolute inset-x-0 top-[100vh] h-[8vh] bg-gradient-to-b from-[var(--background)]/70 to-transparent" />
+          runs 18vh further down - into the real content below, not the last 18vh of the band
+          itself, which `overflow-hidden` up there would clip away from ever reaching this far
+          anyway. Widened from 8vh - too short to actually read as a blend, just a smaller version
+          of the same abrupt stop. */}
+      <div className="pointer-events-none absolute inset-x-0 top-[100vh] h-[18vh] bg-gradient-to-b from-[var(--background)]/70 to-transparent" />
       <div className="relative mx-auto space-y-9 px-4 py-10 sm:max-w-[80vw] sm:px-8 lg:px-12">{children}</div>
     </div>
   );
