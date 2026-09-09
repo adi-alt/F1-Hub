@@ -289,7 +289,28 @@ export function TreasureMapSection({ archiveYearRange }: { archiveYearRange: str
   const sizeScale = size ? size.width / 400 : 1;
 
   return (
-    <div ref={ref} className="relative overflow-hidden rounded-2xl bg-[var(--f1-carbon)]/40 px-6 py-14 sm:px-10">
+    <div
+      ref={ref}
+      className="relative overflow-hidden rounded-2xl px-6 py-14 sm:px-10"
+      // A single, fully opaque background on this one container - not the translucent
+      // bg-[var(--f1-carbon)]/40 this used to be, which let whatever sat behind the page show
+      // through and blend differently depending on scroll position. HomeLayout's own hero photo
+      // band is a fixed height (100vh) pinned to the top of the whole page, and this section can
+      // start anywhere below the hero depending on real content height - the old translucent fill
+      // meant the portion of this panel still inside that band (photo + red glow bleeding through)
+      // looked visibly different from the portion below it (flat page background only), a real
+      // horizontal seam wherever that 100vh boundary happened to fall. One opaque gradient here,
+      // self-contained and independent of anything behind it, can't have that seam by construction.
+      // The two radial layers are the warm glow (unchanged in spirit, just moved from a page-level
+      // effect to this section's own background) - both fade to fully transparent, no hard edge.
+      style={{
+        background: [
+          "radial-gradient(ellipse 70% 45% at 22% 8%, rgba(225, 90, 40, 0.12), transparent 62%)",
+          "radial-gradient(ellipse 65% 40% at 78% 52%, rgba(225, 90, 40, 0.08), transparent 62%)",
+          "linear-gradient(to bottom, var(--f1-carbon) 0%, var(--background) 100%)",
+        ].join(", "),
+      }}
+    >
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
       <div className="pointer-events-none absolute inset-0">
