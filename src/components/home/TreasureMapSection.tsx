@@ -289,23 +289,7 @@ export function TreasureMapSection({ archiveYearRange }: { archiveYearRange: str
   const sizeScale = size ? size.width / 400 : 1;
 
   return (
-    <div ref={ref} className="relative px-6 py-14 sm:px-10">
-      {/* A flat tint, masked to fade out only right at the top/bottom edges - not the radial glow
-          this used to be: centered on this section's own midpoint, that read as a "hot" blob that
-          faded back out well before reaching the actual top/bottom, a visible ring partway through
-          rather than a smooth edge (this section runs several viewport-heights tall with the road
-          story scrolling through it - a centered radial gradient was never going to cover that).
-          A flat color masked only near the two real edges keeps a uniform tint through the entire
-          scrollable story and fades smoothly into the page above and into the footer's own
-          upward fade below, with nothing but page background handing off between the two. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[var(--f1-carbon)]/45"
-        style={{
-          maskImage: "linear-gradient(to bottom, transparent, black 140px, black calc(100% - 200px), transparent)",
-          WebkitMaskImage: "linear-gradient(to bottom, transparent, black 140px, black calc(100% - 200px), transparent)",
-        }}
-      />
+    <div ref={ref} className="relative overflow-hidden rounded-2xl bg-[var(--f1-carbon)]/40 px-6 py-14 sm:px-10">
       <CompassRose className="absolute right-6 top-6 h-16 w-16 sm:right-10 sm:top-10 sm:h-20 sm:w-20" />
 
       <div className="pointer-events-none absolute inset-0">
