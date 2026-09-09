@@ -17,17 +17,13 @@ import { RotatingBackdrop } from "./RotatingBackdrop";
 export function HomeLayout({ photos, children }: { photos: string[]; children: React.ReactNode }) {
   return (
     <div className="relative">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[115vh] max-h-[1080px] overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[100vh] overflow-hidden">
         <div
           className="absolute inset-0"
           style={{ background: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(225,6,0,0.08), transparent 70%)" }}
         />
         <RotatingBackdrop photos={photos} />
-        {/* The photo stays clearly visible through the top third (from/25 at 0%), then eases
-            through a middle stop (via/70 at 40%, not the old via/85 sitting right at the halfway
-            point) before reaching solid background - a longer, gentler back half instead of the
-            photo visibly "snapping" toward opaque partway down. */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/25 via-40% via-[var(--background)]/70 to-[var(--background)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
       </div>
       <div className="relative mx-auto space-y-9 px-4 py-10 sm:max-w-[80vw] sm:px-8 lg:px-12">{children}</div>
     </div>
