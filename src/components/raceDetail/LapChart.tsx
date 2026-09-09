@@ -7,9 +7,9 @@ import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
+import { computeMoments, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
 
-export type LapTiming = { driverId: string; time: string | null; position: number | null };
-export type LapEntry = { lap: number; timings: LapTiming[] };
+export type { LapEntry, LapTiming, Moment };
 export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
 
 const CORNER_RADIUS = 5;
@@ -89,45 +89,6 @@ function LapChartSkeleton() {
 function driverColor(index: number, total: number): string {
   const hue = Math.round((index * 360) / Math.max(total, 1));
   return `hsl(${hue}, 65%, 60%)`;
-}
-
-type Moment = { lap: number; text: string };
-
-/** Every lead change (the P1 driver changing lap over lap - unambiguous) plus the single biggest
- * one-lap position gain across the whole field - genuinely derivable from real lap-by-lap position
- * data, nothing invented. Capped so this stays a handful of real highlights, not a lap-by-lap
- * transcript. */
-function computeMoments(laps: LapEntry[], nameFor: (id: string) => string): Moment[] {
-  const moments: Moment[] = [];
-  let prevLeader: string | null = null;
-  let biggestGain: { lap: number; driverId: string; gained: number } | null = null;
-  let prevPositions = new Map<string, number>();
-
-  for (const entry of laps) {
-    const leader = entry.timings.find((t) => t.position === 1)?.driverId ?? null;
-    if (leader && prevLeader && leader !== prevLeader) {
-      moments.push({ lap: entry.lap, text: `${nameFor(leader)} took the lead.` });
-    }
-    if (leader) prevLeader = leader;
-
-    for (const t of entry.timings) {
-      if (t.position === null) continue;
-      const prev = prevPositions.get(t.driverId);
-      if (prev !== undefined) {
-        const gained = prev - t.position;
-        if (gained > 0 && (!biggestGain || gained > biggestGain.gained)) {
-          biggestGain = { lap: entry.lap, driverId: t.driverId, gained };
-        }
-      }
-    }
-    prevPositions = new Map(entry.timings.filter((t) => t.position !== null).map((t) => [t.driverId, t.position!]));
-  }
-
-  if (biggestGain && biggestGain.gained >= 2) {
-    moments.push({ lap: biggestGain.lap, text: `${nameFor(biggestGain.driverId)} gained ${biggestGain.gained} places in a single lap.` });
-  }
-
-  return moments.sort((a, b) => a.lap - b.lap).slice(0, 6);
 }
 
 /** Small dot at a driver's first plotted lap, a bigger filled one at their last - "do not show a

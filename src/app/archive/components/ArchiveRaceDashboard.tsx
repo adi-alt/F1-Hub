@@ -8,7 +8,9 @@ import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
+import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
 import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
+import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import type { StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
@@ -206,6 +208,16 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
       </div>
     ) : undefined;
 
+  // Whatever's honestly knowable client-side, pre-generation - compoundPace/traffic/safetyCar are
+  // never in this coverage object at all (archive_races has no such columns for any year), so the
+  // checklist simply doesn't list them rather than showing a false "unavailable" for something the
+  // route was never going to check.
+  const intelligencePreCoverage: Partial<Record<ContextSource, boolean>> = {
+    classification: race.results.length > 0,
+    weather: !!race.weather,
+    tireStrategy: !!race.pitStops?.length,
+  };
+
   return (
     <div id="overview" className="space-y-6">
       <RaceStorySection
@@ -221,6 +233,8 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
           )
         }
       />
+
+      <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} archiveYear={race.year} archiveRound={race.round} />
 
       <RaceSectionCard id="results" title="Results">
         <motion.div layout className="space-y-3">

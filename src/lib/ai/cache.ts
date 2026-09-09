@@ -37,6 +37,56 @@ export function buildPersonalCacheKey(userId: string, raceId: string, dataVersio
   return `ai:personal:${userId}:${raceId}:${dataVersion}`;
 }
 
+// ─── Race Intelligence cache keys ──────────────────────────────────────────────
+// Bump either version constant whenever raceContext.ts's shape or raceIntelligencePrompt.ts's
+// expectations change - old cached entries under the previous version simply become unreachable
+// (a new key), never silently served as if generated under the new logic.
+export const RACE_CONTEXT_VERSION = "ctx-v1";
+export const RACE_PROMPT_VERSION = "prompt-v1";
+
+// A cached entry's own generationMode travels WITH the content, not as a separate uncached
+// response field - a cache hit must always report the exact mode that produced that exact content
+// (a stale cached fallback must never be relabeled "ai" just because the provider is healthy again
+// on a later request). Asymmetric TTL (see setCachedRaceEntry below) is what keeps a cached
+// fallback from lingering: it expires fast, so the next request gets a fresh real attempt instead.
+export interface CachedRaceEntry<T> {
+  content: T;
+  generationMode: "ai" | "deterministic";
+  generatedAt: string;
+}
+
+const RACE_FALLBACK_TTL_SECONDS = 120;
+const RACE_REAL_TTL_SECONDS = 60 * 60 * 24 * 30; // a completed race's facts never change again - long, not infinite, so a genuinely stuck entry still eventually clears
+
+/** dataVersion = a hash of resultsSource + dataCompletenessHash (computeDataVersion() below is
+ * reused for this) - included on BOTH the shared and personal keys, not just shared: a personal
+ * insight generated while a race's data was still incomplete must not silently survive that race
+ * later being upgraded to a fuller/official dataset while the shared cache correctly busts. */
+export function buildSharedRaceCacheKey(raceId: string, dataVersion: string): string {
+  return `ai:race:shared:${raceId}:${dataVersion}:${RACE_CONTEXT_VERSION}:${RACE_PROMPT_VERSION}`;
+}
+
+export function buildPersonalRaceCacheKey(raceId: string, userId: string, favoriteDriverId: string | null, favoriteTeamId: string | null, dataVersion: string): string {
+  return `ai:race:personal:${raceId}:${userId}:${favoriteDriverId ?? "-"}:${favoriteTeamId ?? "-"}:${dataVersion}:${RACE_CONTEXT_VERSION}:${RACE_PROMPT_VERSION}`;
+}
+
+/** Same read path as getCachedIntelligence (L1 memory then Supabase ai_cache), but returns the
+ * whole {content, generationMode, generatedAt} envelope instead of a bare value. */
+export async function getCachedRaceEntry<T>(cacheKey: string, requestId = "cache_lookup"): Promise<CachedRaceEntry<T> | null> {
+  return getCachedIntelligence<CachedRaceEntry<T>>(cacheKey, requestId);
+}
+
+/** Fallback entries get a short TTL (2 minutes) so the request right after a provider recovers
+ * gets a fresh real attempt, rather than being stuck behind a long TTL meant for real content -
+ * the homepage avoids this by never caching a fallback at all, but that means re-running the whole
+ * context-check/attempt on every single request during an outage; a short-lived cached fallback is
+ * the better trade here now that mode travels with content instead of being a separate field. */
+export async function setCachedRaceEntry<T>(cacheKey: string, content: T, generationMode: "ai" | "deterministic", dataVersion: string, metadata?: { model?: string; promptVersion?: string; requestId?: string }): Promise<void> {
+  const entry: CachedRaceEntry<T> = { content, generationMode, generatedAt: new Date().toISOString() };
+  const ttl = generationMode === "ai" ? RACE_REAL_TTL_SECONDS : RACE_FALLBACK_TTL_SECONDS;
+  await setCachedIntelligence(cacheKey, entry, dataVersion, ttl, metadata);
+}
+
 /**
  * Retrieve cached intelligence from L1 memory or Supabase ai_cache table.
  */

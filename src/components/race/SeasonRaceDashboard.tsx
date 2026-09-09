@@ -8,7 +8,9 @@ import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
+import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
 import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
+import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import type { StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
@@ -162,6 +164,17 @@ export function SeasonRaceDashboard({
         }
       : null;
   const winningMarginSec = isCompleted && race.results ? (race.results.find((r) => r.finishPosition === 2)?.finishGapSec ?? null) : null;
+  // Whatever's honestly knowable client-side, pre-generation - the rest (championship/keyMoments/
+  // trackHistory/favoriteDriver/favoriteTeam) only becomes known once the route responds with the
+  // real server-computed dataCoverage.
+  const intelligencePreCoverage: Partial<Record<ContextSource, boolean>> = {
+    classification: !!race.results?.length,
+    weather: !!race.weather,
+    tireStrategy: !!race.tireStints?.length,
+    compoundPace: !!race.tireCompoundPace?.length,
+    safetyCar: race.safetyCarPeriods !== undefined && race.safetyCarPeriods !== null,
+    traffic: !!race.trafficStats?.length,
+  };
   const statTiles: StatTile[] | null = highlights
     ? [
         { label: "Pole position", value: race.results?.find((r) => r.driver === highlights.poleSitter)?.driverName ?? highlights.poleSitter },
@@ -257,6 +270,8 @@ export function SeasonRaceDashboard({
         statTiles={statTiles}
         circuitCard={<SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />}
       />
+
+      {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
 
       {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} />}
 

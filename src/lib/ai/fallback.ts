@@ -6,7 +6,9 @@
 // only the model's prose is missing), so a provider outage doesn't mean a guest-looking homepage for a
 // signed-in user with real favorites.
 
+import type { RaceIntelligenceContext } from "./context/raceContext";
 import type { HomepageIntelligence } from "./schemas/homepageIntelligence";
+import type { RaceInsight, RaceIntelligenceResult } from "./schemas/raceIntelligence";
 import type { SinceLastVisitDiff } from "./sinceLastVisit";
 
 export interface FallbackDataContext {
@@ -238,5 +240,78 @@ export function generateDeterministicFallback(
     },
     isFallback: true,
     fallbackReason: reason,
+  };
+}
+
+// ─── Race Intelligence fallback ────────────────────────────────────────────────
+// Unlike the homepage fallback above (which builds from a separate, simplified FallbackDataContext),
+// this takes the real RaceIntelligenceContext directly - it already has everything needed, no
+// second, narrower type to keep in sync. Explicit quality rule, not just "template something": only
+// real deterministic facts already available elsewhere on the page get stated; anything it can't
+// honestly template gets `available: false` / empty evidenceIds, never a vague filler sentence.
+export function generateDeterministicRaceFallback(context: RaceIntelligenceContext): RaceIntelligenceResult {
+  const { classification, standingsImpact, safetyCarPeriods, keyMoments } = context;
+  const winnerName = classification.winner?.driverName ?? "the winner";
+
+  const keyFactors: RaceInsight[] = [];
+  if (classification.winner) {
+    keyFactors.push({
+      title: "Race winner",
+      explanation: `${winnerName} won the race.`,
+      claimType: "fact",
+      evidenceIds: ["classification-winner"],
+    });
+  }
+  if (classification.dnfCount > 0) {
+    keyFactors.push({
+      title: "Retirements",
+      explanation: `${classification.dnfCount} car${classification.dnfCount === 1 ? "" : "s"} failed to finish.`,
+      claimType: "fact",
+      evidenceIds: ["classification-dnf"],
+    });
+  }
+  if (safetyCarPeriods !== null && safetyCarPeriods > 0) {
+    keyFactors.push({
+      title: "Safety car",
+      explanation: `${safetyCarPeriods} safety car period${safetyCarPeriods === 1 ? "" : "s"} affected the race.`,
+      claimType: "fact",
+      evidenceIds: ["safety-car-count"],
+    });
+  }
+  const biggestMoveMoment = keyMoments.find((m) => m.text.includes("gained"));
+  if (biggestMoveMoment) {
+    const factId = context.evidenceFacts.find((f) => f.fact === `Lap ${biggestMoveMoment.lap}: ${biggestMoveMoment.text}`)?.id;
+    keyFactors.push({
+      title: "Biggest mover",
+      explanation: biggestMoveMoment.text,
+      claimType: "fact",
+      evidenceIds: factId ? [factId] : [],
+    });
+  }
+  // Never pad below 3 with invented content - a fallback race with too little real data to
+  // template just has fewer key factors, an honest gap rather than filler.
+
+  return {
+    shared: {
+      headline: classification.winner ? `${winnerName} wins the ${context.race.name}` : `${context.race.name} results`,
+      executiveSummary: classification.winner
+        ? `${winnerName} won the ${context.race.name}${classification.dnfCount > 0 ? `, with ${classification.dnfCount} retirement${classification.dnfCount === 1 ? "" : "s"}` : ""}.`
+        : `Results are in for the ${context.race.name}.`,
+      keyFactors,
+      strategyInsight: { title: "", explanation: "", available: false },
+      racePaceInsight: { title: "", explanation: "", available: false },
+      championshipImpact: standingsImpact.driverLeaderChanged
+        ? { title: "Championship lead changes hands", explanation: `${standingsImpact.newDriverLeader} is the new championship leader.`, available: true }
+        : { title: "", explanation: "", available: false },
+    },
+    // Personal fallback: only produced with real favorite context, specific and grounded - never
+    // generic motivational filler. The route only calls this at all when hasPersonalContext() is
+    // true, but this function stays defensive regardless.
+    personal:
+      context.favoriteDriver &&
+      (() => {
+        const row = context.evidenceFacts.find((f) => f.id === "favorite-driver-result");
+        return row ? { title: `${context.favoriteDriver!.name}'s race`, explanation: row.fact, evidenceIds: ["favorite-driver-result"] } : null;
+      })(),
   };
 }

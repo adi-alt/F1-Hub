@@ -99,8 +99,11 @@ export type SeasonStandings = {
 
 /** Computed straight from this season's real race_results/pole_sitter, not a stored standings
  * table (there isn't one — the championship table itself is just points summed over races, cheap
- * enough to derive on every homepage render rather than maintain as its own denormalized state). */
-export async function computeSeasonStandings(year: number): Promise<SeasonStandings> {
+ * enough to derive on every homepage render rather than maintain as its own denormalized state).
+ * `throughRound`, when given, only accumulates rounds up to and including it - used by
+ * src/lib/ai/context/raceContext.ts to compare standings immediately before vs. after one specific
+ * race (did this race change the leader), rather than duplicating this same accumulation logic. */
+export async function computeSeasonStandings(year: number, throughRound?: number): Promise<SeasonStandings> {
   const races = await getRacesByYear(year);
   const driverMap = new Map<string, DriverStanding>();
   const teamMap = new Map<string, number>();
@@ -108,6 +111,7 @@ export async function computeSeasonStandings(year: number): Promise<SeasonStandi
 
   for (const race of races) {
     if (race.status !== "completed") continue;
+    if (throughRound !== undefined && race.round > throughRound) continue;
     for (const r of race.results ?? []) {
       const d = driverMap.get(r.driver) ?? { driver: r.driver, driverName: r.driverName, team: r.team, points: 0, wins: 0, podiums: 0 };
       d.points += r.points;

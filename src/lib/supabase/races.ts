@@ -10,7 +10,9 @@ import type {
   RaceResultEntry,
   RaceSimulation,
   SessionWeather,
+  TireCompoundPace,
   TireStint,
+  TrafficStat,
 } from "@/lib/types/race";
 
 // Data only changes when the pipeline runs (GitHub Actions, every few hours), and the pipeline
@@ -43,6 +45,13 @@ type RaceRow = {
   photo_urls: string[] | null;
   practice: PracticeData | null;
   updated_at: string;
+  // Real columns, already selected via the `*` in RACE_SELECT below - previously never reached this
+  // type at all (see toRaceDoc()'s own comment). Stored as camelCase JSON already (the pipeline
+  // writes these dicts straight through json.dumps, no snake_case translation happens for jsonb
+  // columns the way it does for the flat race_results/race_inputs columns above).
+  tire_compound_pace: TireCompoundPace[] | null;
+  safety_car_periods: number | null;
+  traffic_stats: TrafficStat[] | null;
   race_results: {
     driver: string;
     driver_name: string;
@@ -118,6 +127,9 @@ function toRaceDoc(row: RaceRow): RaceDoc {
     inputs,
     weather: row.weather ?? undefined,
     tireStints,
+    tireCompoundPace: row.tire_compound_pace ?? undefined,
+    safetyCarPeriods: row.safety_car_periods ?? undefined,
+    trafficStats: row.traffic_stats ?? undefined,
     prediction: row.prediction ?? undefined,
     polePrediction: row.pole_prediction ?? undefined,
     simulation: row.simulation ?? undefined,

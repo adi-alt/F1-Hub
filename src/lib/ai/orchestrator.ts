@@ -7,9 +7,12 @@
 import { getDefaultProvider } from "./provider";
 import { acquireProviderCapacity } from "./providerRateLimiter";
 import { formatHomepagePrompt, HOMEPAGE_PROMPT_VERSION } from "./prompts/homepagePrompt";
+import { formatPersonalOnlyPrompt, formatRaceIntelligencePrompt, RACE_INTELLIGENCE_PROMPT_VERSION } from "./prompts/raceIntelligencePrompt";
 import { buildHomepageContext, type HomepageContextData } from "./context";
+import { formatRaceIntelligenceContext, hasPersonalContext, type RaceIntelligenceContext } from "./context/raceContext";
 import { validateHomepageIntelligence, type HomepageIntelligence } from "./schemas/homepageIntelligence";
-import { generateDeterministicFallback, type FallbackDataContext } from "./fallback";
+import { validatePersonalOnlyResult, validateRaceIntelligenceResult, type PersonalRaceInsight, type SharedRaceIntelligence } from "./schemas/raceIntelligence";
+import { generateDeterministicFallback, generateDeterministicRaceFallback, type FallbackDataContext } from "./fallback";
 import { logAIOperation, logDeterministicFallback, logAIError } from "./telemetry";
 import {
   DEFAULT_ORCHESTRATOR_CONFIG,
@@ -287,5 +290,115 @@ export async function generateHomepageIntelligence(
       isFallback: true,
       fallbackReason: "JSON_PARSE_ERROR",
     };
+  }
+}
+
+// ─── Race Intelligence ──────────────────────────────────────────────────────────
+// Same single-bundled-call philosophy as generateHomepageIntelligence above, plus the
+// partial-generation awareness the route's cache layer needs: a cold visit generates shared+
+// personal together (one call); a later personal-only miss (shared already cached and valid) uses
+// the smaller formatPersonalOnlyPrompt instead of redundantly regenerating shared content.
+export interface RaceIntelligenceGenerationResult {
+  shared: { data: SharedRaceIntelligence; generationMode: "ai" | "deterministic" } | null;
+  personal: { data: PersonalRaceInsight | null; generationMode: "ai" | "deterministic" } | null;
+}
+
+export async function generateRaceIntelligence(
+  context: RaceIntelligenceContext,
+  ctx: AgentContext,
+  options: { needShared: boolean; needPersonal: boolean; existingSharedHeadline?: string },
+): Promise<RaceIntelligenceGenerationResult> {
+  const startTime = Date.now();
+  const provider = getDefaultProvider();
+  const model = getDefaultAIModel();
+  const wantsPersonal = options.needPersonal && hasPersonalContext(context);
+
+  const toDeterministicResult = (): RaceIntelligenceGenerationResult => {
+    const fallback = generateDeterministicRaceFallback(context);
+    return {
+      shared: options.needShared ? { data: fallback.shared, generationMode: "deterministic" } : null,
+      personal: wantsPersonal ? { data: fallback.personal, generationMode: "deterministic" } : null,
+    };
+  };
+
+  const capacity = acquireProviderCapacity("nvidia");
+  if (!capacity.allowed) {
+    logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    return toDeterministicResult();
+  }
+
+  const providerConfig = { ...DEFAULT_ORCHESTRATOR_CONFIG.provider, model };
+
+  try {
+    if (options.needShared) {
+      // Full call: shared (+ personal together, when real personal context exists).
+      const structuredContext = formatRaceIntelligenceContext(context, wantsPersonal);
+      const messages = formatRaceIntelligencePrompt(structuredContext);
+      const response = await provider.chat(messages, null, providerConfig);
+      if (!response.content) throw new Error("EMPTY_RESPONSE");
+
+      const parsed = JSON.parse(cleanJsonOutput(response.content));
+      const validation = validateRaceIntelligenceResult(parsed, context.evidenceFacts);
+      if (!validation.valid || !validation.data) {
+        logAIError(ctx.requestId, "race_validation_failure", "Failed to validate race intelligence output", { errors: validation.errors });
+        throw new Error("SCHEMA_VALIDATION_FAILED");
+      }
+
+      logAIOperation({
+        requestId: ctx.requestId,
+        agentType: "race_intelligence",
+        userId: ctx.userId,
+        provider: provider.name,
+        model,
+        promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
+        toolCalls: [],
+        totalDurationMs: Date.now() - startTime,
+        tokenUsage: response.usage,
+        cacheHit: false,
+        validationSuccess: true,
+      });
+
+      return {
+        shared: { data: validation.data.shared, generationMode: "ai" },
+        personal: wantsPersonal ? { data: validation.data.personal, generationMode: "ai" } : null,
+      };
+    }
+
+    if (wantsPersonal) {
+      // Smaller call: personal only, shared already cached and valid - passed in as read-only
+      // context so the model doesn't need to regenerate it (see formatPersonalOnlyPrompt).
+      const structuredContext = formatRaceIntelligenceContext(context, true);
+      const messages = formatPersonalOnlyPrompt(structuredContext, options.existingSharedHeadline ?? context.race.name);
+      const response = await provider.chat(messages, null, providerConfig);
+      if (!response.content) throw new Error("EMPTY_RESPONSE");
+
+      const parsed = JSON.parse(cleanJsonOutput(response.content));
+      const validation = validatePersonalOnlyResult(parsed, context.evidenceFacts);
+      if (!validation.valid || !validation.data) {
+        logAIError(ctx.requestId, "race_personal_validation_failure", "Failed to validate personal-only output", { errors: validation.errors });
+        throw new Error("SCHEMA_VALIDATION_FAILED");
+      }
+
+      logAIOperation({
+        requestId: ctx.requestId,
+        agentType: "race_intelligence",
+        userId: ctx.userId,
+        provider: provider.name,
+        model,
+        promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
+        toolCalls: [],
+        totalDurationMs: Date.now() - startTime,
+        tokenUsage: response.usage,
+        cacheHit: false,
+        validationSuccess: true,
+      });
+
+      return { shared: null, personal: { data: validation.data, generationMode: "ai" } };
+    }
+
+    return { shared: null, personal: null };
+  } catch (err) {
+    logAIError(ctx.requestId, "race_intelligence_generation_failed", String(err));
+    return toDeterministicResult();
   }
 }

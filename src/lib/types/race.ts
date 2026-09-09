@@ -106,6 +106,25 @@ export type TireStint = {
   lapCount: number;
 };
 
+// Written by the pipeline (fetch_races.py's tireCompoundPace/trafficStats, openf1_fallback.py's
+// same-shaped output) into races.tire_compound_pace/traffic_stats, but never previously mapped
+// past toRaceDoc() - real data, silently discarded before this. See degradationSecPerLap's own
+// pipeline-side comment for why it's an uncorrected slope (conflates tyre wear with fuel burn-off
+// and track evolution on purpose, not an oversight - kept consistent here, not re-derived).
+export type TireCompoundPace = {
+  driver: string;
+  compound: string;
+  lapCount: number;
+  avgPaceDeltaSec: number;
+  degradationSecPerLap: number | null;
+};
+
+export type TrafficStat = {
+  driver: string;
+  avgGapAheadSec: number;
+  pctLapsCloseBehind: number;
+};
+
 export type PracticeBestLap = { driver: string; lapTimeSec: number; deltaToBestSec: number };
 export type PracticeSessionSummary = { session: string; bestLaps: PracticeBestLap[]; weather: SessionWeather | null };
 // Sprint weekends have no FP2/FP3 — always a subset, never all three.
@@ -142,6 +161,11 @@ export type RaceDoc = {
   simulation?: RaceSimulation;
   weather?: SessionWeather;
   tireStints?: TireStint[];
+  // All three real, written by the pipeline, previously fetched over the wire (races.* select)
+  // and silently dropped before reaching this type - see toRaceDoc()'s own comment.
+  tireCompoundPace?: TireCompoundPace[];
+  safetyCarPeriods?: number;
+  trafficStats?: TrafficStat[];
   practice?: PracticeData; // FP1-3 best laps — see pipeline/fetch_races.py's fetch_practice
   raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
   photoUrl?: string; // legacy single photo, superseded by photoUrls below
