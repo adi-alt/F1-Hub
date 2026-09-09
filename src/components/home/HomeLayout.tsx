@@ -24,10 +24,11 @@ export function HomeLayout({ photos, children }: { photos: string[]; children: R
         />
         <RotatingBackdrop photos={photos} />
         <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/50 via-[var(--background)]/85 to-[var(--background)]" />
-        {/* A short blend right at the band's own bottom edge, confined to the last 8vh - painted
-            after (on top of) the full-band fade above, not before it. */}
-        <div className="absolute inset-x-0 bottom-0 h-[8vh] bg-gradient-to-b from-[var(--background)]/70 to-transparent" />
       </div>
+      {/* Starts exactly where the 100vh band above ends (top-[100vh], not bottom-0 inside it) and
+          runs 8vh further down - into the real content below, not the last 8vh of the band itself,
+          which `overflow-hidden` up there would clip away from ever reaching this far anyway. */}
+      <div className="pointer-events-none absolute inset-x-0 top-[100vh] h-[8vh] bg-gradient-to-b from-[var(--background)]/70 to-transparent" />
       <div className="relative mx-auto space-y-9 px-4 py-10 sm:max-w-[80vw] sm:px-8 lg:px-12">{children}</div>
     </div>
   );
