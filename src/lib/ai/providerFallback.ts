@@ -13,6 +13,10 @@
 // This file only handles provider-transport-level failures. Empty responses, JSON parse errors,
 // and schema validation failures are still the caller's problem - those already fall through to
 // generateDeterministicFallback/generateDeterministicRaceFallback in orchestrator.ts, unchanged.
+//
+// `baseConfig.groqApiKey` lets each caller (homepage vs. race intelligence) use its own separate
+// Groq account - real per-service isolation, not an attempt to multiply one account's free-tier
+// quota. OpenRouter isn't split the same way (only one account exists for it today).
 
 import { getDefaultProvider, getFallbackProvider, ProviderHttpError, type AIProvider } from "./provider";
 import { GROQ_MODEL_ID } from "./groq";
@@ -54,11 +58,12 @@ export type ProviderChatResult = {
 export async function chatWithProviderFallback(
   messages: AIMessage[],
   tools: AIProviderToolDef[] | null,
-  baseConfig: { maxTokens: number; temperature: number; topP?: number },
+  baseConfig: { maxTokens: number; temperature: number; topP?: number; groqApiKey?: string },
   requestId: string,
 ): Promise<ProviderChatResult> {
+  const { groqApiKey, ...generationConfig } = baseConfig;
   const primary = getDefaultProvider();
-  const primaryConfig: AIProviderConfig = { ...baseConfig, model: GROQ_MODEL_ID, timeoutMs: GROQ_TIMEOUT_MS };
+  const primaryConfig: AIProviderConfig = { ...generationConfig, model: GROQ_MODEL_ID, timeoutMs: GROQ_TIMEOUT_MS, apiKey: groqApiKey };
 
   async function attempt(provider: AIProvider, config: AIProviderConfig): Promise<AIResponse> {
     return provider.chat(messages, tools, config);
@@ -87,7 +92,7 @@ export async function chatWithProviderFallback(
 
   // Primary exhausted (rate-limited, or a retry that also failed) - try the secondary provider.
   const secondary = getFallbackProvider();
-  const secondaryConfig: AIProviderConfig = { ...baseConfig, model: OPENROUTER_FALLBACK_MODEL_ID, timeoutMs: OPENROUTER_TIMEOUT_MS };
+  const secondaryConfig: AIProviderConfig = { ...generationConfig, model: OPENROUTER_FALLBACK_MODEL_ID, timeoutMs: OPENROUTER_TIMEOUT_MS };
   try {
     const response = await attempt(secondary, secondaryConfig);
     return {

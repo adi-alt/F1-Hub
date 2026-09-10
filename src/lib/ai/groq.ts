@@ -10,6 +10,14 @@
 //
 // Same OpenAI-compatible request/response shape as MuseGlimmerProvider - no reasoning_budget/
 // chat_template_kwargs, plain messages/tools/tool_choice.
+//
+// One shared provider class, multiple accounts: config.apiKey (AIProviderConfig, see types.ts)
+// lets each real AI feature use its own Groq account (GROQ_HOMEPAGE_API_KEY/
+// GROQ_RACE_INTELLIGENCE_API_KEY, wired in orchestrator.ts) instead of a single shared key - real
+// per-service isolation (a homepage traffic spike can't touch race intelligence's own quota, one
+// leaking key can be rotated without affecting the other), not an attempt to multiply free-tier
+// capacity (Groq's quota is org-level, and each of these is genuinely its own separate account,
+// not a bypass of any one account's own limit).
 
 import { ProviderHttpError, registerProvider, type AIProvider } from "./provider";
 import { getDefaultAIModel, type AIMessage, type AIProviderConfig, type AIProviderToolDef, type AIResponse, type AIToolCall } from "./types";
@@ -25,7 +33,7 @@ export class GroqProvider implements AIProvider {
   readonly name = "groq";
 
   async chat(messages: AIMessage[], tools: AIProviderToolDef[] | null, config: AIProviderConfig): Promise<AIResponse> {
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = config.apiKey || process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw new Error("GROQ_API_KEY environment variable is not configured on the server.");
     }

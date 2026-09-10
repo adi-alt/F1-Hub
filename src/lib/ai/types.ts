@@ -70,6 +70,11 @@ export type AIProviderConfig = {
    * allowed to consume the *entire* token budget - finish_reason "length" with real content still
    * null. */
   reasoningBudget?: number;
+  /** Per-call API key override - lets one provider class (GroqProvider) be shared across multiple
+   * accounts/keys (one per real AI feature, for genuine isolation - see providerFallback.ts's own
+   * comment) without needing a separate registered provider instance per key. Falls back to the
+   * provider's own default env var when omitted. */
+  apiKey?: string;
 };
 
 export type AIProviderToolDef = {
