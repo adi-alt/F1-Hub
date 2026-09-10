@@ -130,7 +130,8 @@ export type AgentType =
   | "model_explanation"
   | "community_pulse"
   | "season_story"
-  | "since_last_visit";
+  | "since_last_visit"
+  | "ask_apex";
 
 // ─── Structured Output ─────────────────────────────────────────────────────────
 

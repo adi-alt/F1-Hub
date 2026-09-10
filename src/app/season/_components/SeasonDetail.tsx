@@ -28,7 +28,7 @@ export function SeasonDetail({
   backHref?: string;
   drivers: DriverStandingRow[];
   constructors: ConstructorStandingRow[];
-  progression: Record<string, number | string>[];
+  progression: Record<string, number | string | null>[];
   raceSummaries: RaceSummary[];
   racesCompleted: number;
   racesRemaining: number;

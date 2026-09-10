@@ -16,8 +16,13 @@ import type { RaceDoc } from "@/lib/types/race";
  * that's the shape recharts' own multi-<Line>/<Area> convention wants (season.service.ts's own
  * usage) - each driver code becomes its own dataKey; trackShort is what the x-axis actually labels
  * each tick with (a full event name doesn't fit that many ticks legibly), raceName is kept for
- * anything that wants the full name (a tooltip, an export). */
-export function computeChampionshipProgression(races: RaceDoc[], driverCodes: string[]): Record<string, number | string>[] {
+ * anything that wants the full name (a tooltip, an export).
+ *
+ * Per-round finish position is captured alongside the cumulative points, keyed `${code}__finishPosition`
+ * to avoid colliding with a driver-code key - additive only, `season.service.ts`/`ProgressionPanel.tsx`
+ * (the other consumer, via personalization.ts's re-export) only ever read `row[specificCode]`/
+ * `row.round`/`row.raceName`/`row.trackShort` and never enumerate keys, so this is safe for them. */
+export function computeChampionshipProgression(races: RaceDoc[], driverCodes: string[]): Record<string, number | string | null>[] {
   const completed = races.filter((r) => r.status === "completed").sort((a, b) => a.round - b.round);
 
   const running: Record<string, number> = {};
@@ -27,11 +32,16 @@ export function computeChampionshipProgression(races: RaceDoc[], driverCodes: st
     for (const r of race.results ?? []) {
       if (r.driver in running) running[r.driver] += r.points;
     }
+    const positions: Record<string, number | null> = {};
+    for (const code of driverCodes) {
+      positions[`${code}__finishPosition`] = race.results?.find((r) => r.driver === code)?.finishPosition ?? null;
+    }
     return {
       round: race.round,
       raceName: race.name ?? `Round ${race.round}`,
       trackShort: trackShortForm(race.circuit),
       ...running,
+      ...positions,
     };
   });
 }

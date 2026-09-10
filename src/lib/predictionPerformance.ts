@@ -71,6 +71,86 @@ export function computePredictionFingerprint(picks: UserPick[], races: RaceDoc[]
   };
 }
 
+/** The model's winner pick for a race — the highest calibrated win probability once a Monte Carlo
+ * simulation exists, else whoever the Random Forest `finishOrder` puts at P1. A different question
+ * from `PickVsModel.tsx`'s own `modelPositionFor(race, driver)` (which asks "what position does
+ * the model predict for THIS driver") - this asks "who does the model predict to win at all",
+ * needed for the Prediction Intelligence card's model-comparison line on a race that may not be
+ * `nextRace` (PickVsModel/AIvsYou are both scoped to `nextRace` only). */
+export function modelWinnerFor(race: RaceDoc): string | null {
+  if (race.simulation?.drivers?.length) {
+    const byP1 = [...race.simulation.drivers].sort((a, b) => b.p1 - a.p1)[0];
+    if (byP1) return byP1.driver;
+  }
+  return race.prediction?.finishOrder.find((d) => d.predictedPosition === 1)?.driver ?? null;
+}
+
+export type LatestPredictionSummary = {
+  raceId: string;
+  raceName: string;
+  round: number;
+  predictedWinner: string;
+  predictedPodium: [string, string, string];
+  modelWinner: string | null;
+  status: "pending" | "resolved";
+  result?: RecentPredictionResult;
+  actualWinner?: string;
+};
+
+/** The user's most recently *submitted* pick, resolved against its own race regardless of what
+ * `nextRace` currently is (PickVsModel/AIvsYou can only ever show "your pick for nextRace" - once
+ * that race is behind us, its own outcome falls out of their scope entirely). */
+export function getLatestPredictionSummary(picks: UserPick[], races: RaceDoc[]): LatestPredictionSummary | null {
+  if (picks.length === 0) return null;
+  const latest = [...picks].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())[0];
+  const race = races.find((r) => r.id === latest.raceId);
+  if (!race) return null;
+
+  const modelWinner = modelWinnerFor(race);
+  const base = { raceId: race.id, raceName: race.name, round: race.round, predictedWinner: latest.predictedWinner, predictedPodium: latest.predictedPodium, modelWinner };
+
+  if (race.status !== "completed" || !race.results?.length) {
+    return { ...base, status: "pending" };
+  }
+  const actualWinner = race.results.find((r) => r.finishPosition === 1)?.driver;
+  const { recent } = computePredictionPerformance([latest], races);
+  return { ...base, status: "resolved", result: recent[0]?.result, actualWinner };
+}
+
+export const MIN_PREDICTIONS_FOR_TREND = 5;
+
+export type PredictionStyleTrait = { label: string; detail: string };
+
+/** Real, threshold-based traits only - gated on a real sample size, capped at 2 shown. Deliberately
+ * not a "personality type" beyond these two concrete, defensible numbers - never claims a pattern
+ * the data doesn't actually support. */
+export function classifyPredictionStyle(
+  fingerprint: PredictionFingerprint,
+  picks: UserPick[],
+  favoriteDriverCode: string | null,
+): PredictionStyleTrait[] {
+  if (fingerprint.totalPredictions < MIN_PREDICTIONS_FOR_TREND) return [];
+  const traits: PredictionStyleTrait[] = [];
+
+  if (fingerprint.avgPredictedWinnerGrid != null) {
+    if (fingerprint.avgPredictedWinnerGrid <= 2.5) {
+      traits.push({ label: "Backs pole-position pace", detail: `Average grid slot of your winner picks: P${fingerprint.avgPredictedWinnerGrid.toFixed(1)}` });
+    } else if (fingerprint.avgPredictedWinnerGrid >= 5) {
+      traits.push({ label: "Willing to back a grid underdog", detail: `Average grid slot of your winner picks: P${fingerprint.avgPredictedWinnerGrid.toFixed(1)}` });
+    }
+  }
+
+  if (favoriteDriverCode) {
+    const favoritePicks = picks.filter((p) => p.predictedWinner === favoriteDriverCode).length;
+    const pct = (favoritePicks / picks.length) * 100;
+    if (pct >= 50) {
+      traits.push({ label: "Backs your favorite driver often", detail: `${Math.round(pct)}% of your winner picks are your favorite driver.` });
+    }
+  }
+
+  return traits.slice(0, 2);
+}
+
 export function computePredictionPerformance(picks: UserPick[], races: RaceDoc[]): PredictionPerformance {
   const raceById = new Map(races.map((r) => [r.id, r]));
 

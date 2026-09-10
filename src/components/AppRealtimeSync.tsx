@@ -14,6 +14,7 @@ import {
 } from "@/lib/realtime/channels";
 import { favoritesKeys } from "@/queries/favorites/favoritesKeys";
 import { usersKeys } from "@/app/users/_queries/usersKeys";
+import { refreshOnce } from "@/lib/refreshGuard";
 
 /**
  * Root-mounted once, in AppProviders — replaces the old per-page RaceRealtimeWatcher/
@@ -55,9 +56,14 @@ export function AppRealtimeSync() {
   // Same own-row subscription Favorites already needed - a prediction entry/payout (groups.ts's
   // spendPoints/creditPoints) updates this exact row, so refreshing the header's points balance
   // here is free: no new channel/listener, just one more thing this one already-open one does.
+  // router.refresh() covers the homepage's server-rendered favorite/personalization data too -
+  // this fires for the SAME write FavoriteEntityList's own toggle already calls refreshOnce for
+  // (this is the realtime echo of that write, not a separate change), so both go through the
+  // shared debounce guard rather than double-refreshing for one user action.
   const onOwnProfileChange = () => {
     void queryClient.invalidateQueries({ queryKey: favoritesKeys.all() });
     refreshPointsBalance();
+    refreshOnce(router);
   };
   useRealtimeSubscription(channelKey, allListeners, ownProfileListener(uid), onOwnProfileChange, onOwnProfileChange, !!user);
 

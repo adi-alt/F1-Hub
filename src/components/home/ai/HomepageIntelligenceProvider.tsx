@@ -17,12 +17,35 @@ const HomepageIntelligenceContext = createContext<HomepageIntelligenceContextTyp
   isFallback: false,
 });
 
-export function HomepageIntelligenceProvider({ children }: { children: React.ReactNode }) {
+export function HomepageIntelligenceProvider({
+  children,
+  favoriteContextKey,
+}: {
+  children: React.ReactNode;
+  /** `${favoriteDriverCode}:${favoriteTeamCode}` (or similar stable identity string) from
+   * PersonalHome - the effect below refetches whenever this changes, so a favorite change is
+   * reflected without a full remount. Deliberately NOT part of the memoized context value below
+   * (that memoization was fixed earlier specifically to stop 12+ consumers re-rendering on
+   * unrelated changes) - this only controls when to re-fetch, not what re-renders consumers. */
+  favoriteContextKey: string;
+}) {
   const [intelligence, setIntelligence] = useState<HomepageIntelligence | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFallback, setIsFallback] = useState(false);
   const [fallbackReason, setFallbackReason] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset on every favorite change, not just the first mount - without this, switching favorites
+  // would leave stale content on screen with isLoading still false until the new response lands.
+  // Adjusted during render (React's own "state derived from a prop change" pattern, already used
+  // elsewhere in this codebase - see ProgressionPanel.tsx's entityType reset) rather than inside
+  // the effect below, which would call setState synchronously in an effect body.
+  const [prevFavoriteKey, setPrevFavoriteKey] = useState(favoriteContextKey);
+  if (prevFavoriteKey !== favoriteContextKey) {
+    setPrevFavoriteKey(favoriteContextKey);
+    setIsLoading(true);
+    setError(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +85,7 @@ export function HomepageIntelligenceProvider({ children }: { children: React.Rea
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [favoriteContextKey]);
 
   // Memoized: an inline object here was a new reference on every render regardless of whether
   // `intelligence`/`isLoading`/etc. actually changed - confirmed (2026-09-10 perf audit) to force

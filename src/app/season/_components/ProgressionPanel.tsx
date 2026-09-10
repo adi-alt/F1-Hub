@@ -75,7 +75,7 @@ export function ProgressionPanel({
 }: {
   drivers: DriverStandingRow[];
   constructors: ConstructorStandingRow[];
-  progression: Record<string, number | string>[];
+  progression: Record<string, number | string | null>[];
 }) {
   const { entityType, highlightRound } = useSeasonExplorer();
   const favDrivers = useFavDriverIds();
@@ -100,7 +100,7 @@ export function ProgressionPanel({
 
   // Team progression isn't fetched separately — every scored driver's cumulative points are
   // already in `progression`, so a team's is just its two drivers' summed per round.
-  const teamProgression = useMemo((): Record<string, number | string>[] => {
+  const teamProgression = useMemo((): Record<string, number | string | null>[] => {
     if (isDrivers) return progression;
     return progression.map((row) => {
       const sums: Record<string, number> = {};
@@ -163,7 +163,7 @@ export function ProgressionPanel({
     if (metric === "points") return teamProgression;
     return teamProgression.map((row) => {
       const leaderValue = typeof row[leaderCode] === "number" ? (row[leaderCode] as number) : 0;
-      const out: Record<string, number | string> = { round: row.round, raceName: row.raceName, trackShort: row.trackShort };
+      const out: Record<string, number | string | null> = { round: row.round, raceName: row.raceName, trackShort: row.trackShort };
       for (const code of activeCodes) {
         const v = row[code];
         out[code] = typeof v === "number" ? leaderValue - v : 0;

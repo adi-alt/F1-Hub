@@ -50,7 +50,7 @@ function DiscoverCard({ group, requireAuthToJoin }: { group: PublicGroupSummary;
         type="button"
         onClick={() => void join()}
         disabled={status === "joining"}
-        className="mt-3 w-full rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
+        className="mt-3 w-full rounded-lg border border-[var(--f1-line)] px-3 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
       >
         {status === "joining" ? "Joining…" : "Join"}
       </button>

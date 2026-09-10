@@ -6,10 +6,9 @@ import { PredictionPerformance, PredictionPerformanceSkeleton } from "./Predicti
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { ApexIntelligenceWorkspace, ApexIntelligenceWorkspaceSkeleton } from "./ai/ApexIntelligenceWorkspace";
 import { AIvsYou, AIvsYouSkeleton } from "./ai/AIvsYou";
-import { PredictionCoach } from "./ai/PredictionCoach";
-import { PredictionFingerprint } from "./ai/PredictionFingerprint";
+import { PredictionIntelligence, PredictionIntelligenceSkeleton } from "./ai/PredictionIntelligence";
 import { SinceLastVisit } from "./ai/SinceLastVisit";
-import type { PredictionPerformance as PredictionPerformanceData } from "@/lib/predictionPerformance";
+import type { LatestPredictionSummary, PredictionPerformance as PredictionPerformanceData, PredictionStyleTrait } from "@/lib/predictionPerformance";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 /**
@@ -23,19 +22,26 @@ export function IntelligenceSection({
   myPick,
   nextRace,
   performance,
+  latestPrediction,
+  styleTraits,
   apexActiveTab,
   onApexTabChange,
 }: {
   myPick: UserPick | null;
   nextRace: RaceDoc | null;
   performance: PredictionPerformanceData;
+  latestPrediction: LatestPredictionSummary | null;
+  styleTraits: PredictionStyleTrait[];
   apexActiveTab: string;
   onApexTabChange: (key: string) => void;
 }) {
   const hasModelData = !!nextRace && (!!nextRace.simulation || !!nextRace.prediction);
   const hasPickVsModel = !!myPick && hasModelData;
   const hasPredictionPerf = performance.winner.total > 0;
-  const hasFingerprint = performance.winner.total >= 3;
+  // Prediction Intelligence shows on EITHER real accuracy history OR a still-pending latest call -
+  // a user's very first prediction (not yet resolved) still deserves "here's your current call",
+  // not silence until their first race resolves.
+  const hasPredictionIntel = hasPredictionPerf || !!latestPrediction;
 
   return (
     <section id="intelligence-section" className="space-y-6 scroll-mt-6">
@@ -81,13 +87,10 @@ export function IntelligenceSection({
         </div>
       )}
 
-      {/* Prediction Coach & Fingerprint (if user has active history) */}
-      {hasPredictionPerf && (
-        <div className={`grid gap-6 ${hasFingerprint ? "sm:grid-cols-2" : "grid-cols-1"}`}>
-          <PredictionCoach />
-          {hasFingerprint && <PredictionFingerprint performance={performance} />}
-        </div>
-      )}
+      {/* Prediction Intelligence (only with real prediction activity) - one consolidated card
+       * instead of two near-identical shells, covering latest call/model comparison/outcome/
+       * accuracy/style traits in one story. */}
+      {hasPredictionIntel && <PredictionIntelligence performance={performance} latestPrediction={latestPrediction} styleTraits={styleTraits} />}
     </section>
   );
 }
@@ -117,6 +120,8 @@ export function IntelligenceSkeleton() {
           <ModelWatchSkeleton />
         </RaceSectionCard>
       </div>
+
+      <PredictionIntelligenceSkeleton />
     </section>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 import { useUrlPage } from "@/hooks/useUrlPage";
+import { refreshOnce } from "@/lib/refreshGuard";
 
 export type FavoriteEntity = {
   id: string;
@@ -54,6 +56,7 @@ export function FavoriteEntityList({
 }) {
   const [favorites, setFavorites] = useState(() => new Set(favoriteIds));
   const [page, setPage] = useUrlPage();
+  const router = useRouter();
 
   const rootRef = useRef<HTMLDivElement>(null);
   const theadRef = useRef<HTMLTableSectionElement>(null);
@@ -91,14 +94,22 @@ export function FavoriteEntityList({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, id, favorited: willFavorite }),
-    }).catch(() => {
-      setFavorites((prev) => {
-        const reverted = new Set(prev);
-        if (willFavorite) reverted.delete(id);
-        else reverted.add(id);
-        return reverted;
+    })
+      .then((res) => {
+        // Homepage (Your F1/Season Recap/Apex/Ask Apex) reads favorites via a server-rendered
+        // prop, not this component's own state - nothing tells it to look again without this.
+        // Deduped against AppRealtimeSync's echo of this same write via refreshOnce (see there).
+        if (res.ok) refreshOnce(router);
+        else throw new Error(`HTTP ${res.status}`);
+      })
+      .catch(() => {
+        setFavorites((prev) => {
+          const reverted = new Set(prev);
+          if (willFavorite) reverted.delete(id);
+          else reverted.add(id);
+          return reverted;
+        });
       });
-    });
   }
 
   if (items.length === 0) {

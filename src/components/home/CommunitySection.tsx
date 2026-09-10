@@ -75,7 +75,7 @@ export function CommunitySection({
                 Recent discourse and predictions from your paddock
               </p>
             </div>
-            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
+            <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
               {posts.length} Active
             </span>
           </div>

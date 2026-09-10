@@ -6,6 +6,7 @@
 
 import { chatWithProviderFallback } from "./providerFallback";
 import { acquireProviderCapacity } from "./providerRateLimiter";
+import { ASK_APEX_PROMPT_VERSION, formatAskApexPrompt } from "./prompts/askApexPrompt";
 import { formatHomepagePrompt, HOMEPAGE_PROMPT_VERSION } from "./prompts/homepagePrompt";
 import { formatPersonalOnlyPrompt, formatRaceIntelligencePrompt, RACE_INTELLIGENCE_PROMPT_VERSION } from "./prompts/raceIntelligencePrompt";
 import { buildHomepageContext, type HomepageContextData } from "./context";
@@ -370,6 +371,104 @@ export async function generateHomepageIntelligence(
       isFallback: true,
       fallbackReason: "JSON_PARSE_ERROR",
     };
+  }
+}
+
+// ─── Ask Apex ───────────────────────────────────────────────────────────────────
+// A real single-turn conversational exchange, not a fixed-schema generation - same
+// capacity-check -> chatWithProviderFallback -> logAIOperation shape as generateHomepageIntelligence
+// above, but no JSON parse/schema validation (free-text chat reply) and no caching (a per-question
+// answer isn't cacheable the way race-wide intelligence is). Architected so real multi-turn/
+// streaming conversation can be layered on later without redoing this: `history` already threads
+// through in the exact {role,content}[] shape a persisted conversation would use.
+const ASK_APEX_MAX_TOKENS = 350;
+const ASK_APEX_FALLBACK_TEXT = "Apex is at capacity right now - try again in a moment.";
+
+export async function generateAskApexAnswer(
+  question: string,
+  history: { role: "user" | "assistant"; content: string }[],
+  intelligenceJson: string,
+  ctx: AgentContext,
+): Promise<{ answer: string; isFallback: boolean; fallbackReason?: string; modelIdentifier: string }> {
+  const startTime = Date.now();
+  const plannedModel = "groq/openai/gpt-oss-120b";
+
+  const capacity = acquireProviderCapacity("groq");
+  if (!capacity.allowed) {
+    logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "ask_apex",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: ASK_APEX_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion ?? "",
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      providerRPMCurrent: capacity.currentRPM,
+      providerRPMLimit: capacity.limit,
+      capacityExhausted: true,
+      fallbackUsed: true,
+      fallbackReason: "PROVIDER_RATE_LIMITED",
+      errorCategory: "rate_limit",
+    });
+    return { answer: ASK_APEX_FALLBACK_TEXT, isFallback: true, fallbackReason: "PROVIDER_RATE_LIMITED", modelIdentifier: plannedModel };
+  }
+
+  const messages = formatAskApexPrompt(intelligenceJson, history, question);
+  const baseConfig = {
+    maxTokens: ASK_APEX_MAX_TOKENS,
+    temperature: 0.6,
+    // Own Groq/OpenRouter account for this feature, same isolation reasoning as every other
+    // feature-specific key in this file - falls back to the shared keys when unset.
+    groqApiKey: process.env.GROQ_HOMEPAGE_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_HOMEPAGE_API_KEY,
+  };
+
+  try {
+    const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+    const answer = (result.response.content ?? "").trim();
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "ask_apex",
+      userId: ctx.userId,
+      provider: result.providerName,
+      model: result.model,
+      promptVersion: ASK_APEX_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion ?? "",
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage: result.response.usage,
+      cacheHit: false,
+      validationSuccess: !!answer,
+      finishReason: result.response.finishReason,
+      fallbackUsed: result.fallbackUsed,
+      fallbackReason: result.fallbackReason,
+    });
+    if (!answer) return { answer: ASK_APEX_FALLBACK_TEXT, isFallback: true, fallbackReason: "EMPTY_RESPONSE", modelIdentifier: result.model };
+    return { answer, isFallback: false, modelIdentifier: result.model };
+  } catch (err) {
+    logAIError(ctx.requestId, "ask_apex_provider_failure", String(err));
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "ask_apex",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: ASK_APEX_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion ?? "",
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: "PROVIDER_ERROR",
+      errorCategory: categorizeProviderError(err),
+    });
+    return { answer: ASK_APEX_FALLBACK_TEXT, isFallback: true, fallbackReason: "PROVIDER_ERROR", modelIdentifier: plannedModel };
   }
 }
 

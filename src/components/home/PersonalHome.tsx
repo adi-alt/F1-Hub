@@ -84,6 +84,8 @@ function PersonalHomeInner({
           myPick={personalData.myPick}
           nextRace={publicData.nextRace}
           performance={personalData.predictionPerformance}
+          latestPrediction={personalData.latestPrediction}
+          styleTraits={personalData.styleTraits}
           apexActiveTab={apexActiveTab}
           onApexTabChange={setApexActiveTab}
         />
@@ -105,11 +107,15 @@ function PersonalHomeInner({
           recap={publicData.seasonRecap}
           aiNarrative={intelligence?.seasonNarrative}
           nextRaceRound={publicData.nextRace?.round}
+          favoriteDriver={personalData.favoriteDriver}
+          favoriteTeam={personalData.favoriteTeam}
         />
       </HomeLayout>
 
       <ApexIntelligenceWidget
         raceName={publicData.nextRace?.name}
+        favoriteDriverName={personalData.favoriteDriver?.name}
+        favoriteTeamName={personalData.favoriteTeam?.name}
         onNavigateToTab={setApexActiveTab}
       />
     </>
@@ -123,8 +129,12 @@ export function PersonalHome(props: {
   firstName: string;
   isReturning: boolean;
 }) {
+  // Stable identity string, not the card objects themselves - a new object reference every render
+  // (e.g. from router.refresh() re-fetching the same favorite) must NOT retrigger the AI fetch,
+  // only an actual identity change should.
+  const favoriteContextKey = `${props.personalData.favoriteDriver?.driverId ?? ""}:${props.personalData.favoriteTeam?.teamId ?? ""}`;
   return (
-    <HomepageIntelligenceProvider>
+    <HomepageIntelligenceProvider favoriteContextKey={favoriteContextKey}>
       <PersonalHomeInner {...props} />
     </HomepageIntelligenceProvider>
   );

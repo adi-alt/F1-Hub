@@ -37,7 +37,7 @@ export function AnalysisWorkspace({
   records: SeasonRecord[];
   drivers: DriverStandingRow[];
   constructors: ConstructorStandingRow[];
-  progression: Record<string, number | string>[];
+  progression: Record<string, number | string | null>[];
   raceSummaries: RaceSummary[];
 }) {
   const { analysisTab, setAnalysisTab } = useSeasonExplorer();

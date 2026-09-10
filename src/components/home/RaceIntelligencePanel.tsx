@@ -65,7 +65,7 @@ export function RaceIntelligencePanel({
 
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">Track intelligence</p>
-        <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
+        <span className="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
           {trackHistory.totalRaces} GP{trackHistory.totalRaces === 1 ? "" : "s"}
         </span>
       </div>
@@ -183,7 +183,7 @@ export function RaceIntelligencePanelSkeleton() {
       <Skeleton className="skeleton-shimmer h-12 w-full rounded-lg mb-3 opacity-40" />
       <div className="flex items-center justify-between">
         <Skeleton className="skeleton-shimmer h-3 w-28 rounded" />
-        <Skeleton className="skeleton-shimmer h-3 w-12 rounded-full" />
+        <Skeleton className="skeleton-shimmer h-3 w-12 rounded-md" />
       </div>
       <Skeleton className="skeleton-shimmer mt-2 h-3 w-36 rounded" />
       <div className="mt-4 space-y-3">

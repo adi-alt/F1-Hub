@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import { ChampionshipTrajectory, type TrajectorySeries } from "./ChampionshipTrajectory";
 import { DriverFormStrip, DriverFormStripSkeleton } from "./DriverFormStrip";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
 import { chart } from "@/components/charts/chartTheme";
+import { trackShortForm } from "@/lib/format";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { DriverStanding, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import type { RaceDoc } from "@/lib/types/race";
@@ -57,6 +59,16 @@ export function YourF1({
   if (driverLeader && driverLeader.driver !== favoriteDriver?.code) trajectorySeries.push({ code: driverLeader.driver, label: driverLeader.driverName, color: chart.sequentialBlue });
 
   const resolvedTab = TABS.find((t) => t.key === activeTab) ? activeTab : "overview";
+
+  // One new editorial line, not a new card - the most recent completed race the favorite driver
+  // actually appears in, from the `races` prop already in scope (zero new fetch/prop).
+  const lastResult = useMemo(() => {
+    const code = favoriteDriver?.code;
+    if (!code) return null;
+    const completed = [...races].filter((r) => r.status === "completed").sort((a, b) => b.round - a.round);
+    const match = completed.map((race) => ({ race, entry: race.results?.find((r) => r.driver === code) })).find((m) => m.entry != null);
+    return match ? { race: match.race, entry: match.entry! } : null;
+  }, [races, favoriteDriver]);
 
   return (
     <section id="your-f1-section" className="scroll-mt-6">
@@ -119,15 +131,26 @@ export function YourF1({
 
               <div id="your-f1-panel" role="tabpanel" aria-labelledby={`tabs-your-f1-tab-${resolvedTab}`} className="mt-4">
                 {resolvedTab === "overview" && (
-                  <div className="flex items-center gap-6">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wide text-neutral-500">Points</p>
-                      <p className="font-mono text-lg font-semibold text-white">{pointsBalance ?? "—"}</p>
+                  <div>
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-neutral-500">Points</p>
+                        <p className="font-mono text-lg font-semibold text-white">{pointsBalance ?? "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-neutral-500">Predictions</p>
+                        <p className="font-mono text-lg font-semibold text-white">{predictionCount}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wide text-neutral-500">Predictions</p>
-                      <p className="font-mono text-lg font-semibold text-white">{predictionCount}</p>
-                    </div>
+                    {lastResult && (
+                      <p className="mt-3 text-xs text-neutral-500">
+                        Last time out:{" "}
+                        <span className="text-neutral-300">
+                          {favoriteDriver!.name} finished {lastResult.entry.status === "dnf" ? "DNF" : `P${lastResult.entry.finishPosition}`}
+                        </span>{" "}
+                        at {trackShortForm(lastResult.race.circuit)}.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -141,7 +164,7 @@ export function YourF1({
 
                 {resolvedTab === "championship" && (
                   trajectorySeries.length > 0 ? (
-                    <ChampionshipTrajectory races={races} series={trajectorySeries} />
+                    <ChampionshipTrajectory races={races} series={trajectorySeries} leaderCode={driverLeader?.driver} />
                   ) : (
                     <p className="text-sm text-neutral-500">Not enough data yet to plot a trajectory.</p>
                   )
@@ -171,7 +194,7 @@ export function PersonalOverviewSkeleton() {
           </div>
         </div>
         <div className="mt-4 border-t border-white/[0.06] pt-4">
-          <Skeleton className="skeleton-shimmer h-7 w-48 rounded-full" />
+          <Skeleton className="skeleton-shimmer h-7 w-48 rounded-lg" />
           <div className="mt-4">
             <DriverFormStripSkeleton />
           </div>

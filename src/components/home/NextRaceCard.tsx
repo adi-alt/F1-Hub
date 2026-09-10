@@ -36,7 +36,7 @@ export function NextRaceCard({ race }: { race: RaceDoc | null }) {
           <motion.span
             whileHover={{ x: 3 }}
             whileTap={{ scale: 0.96 }}
-            className="block rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-200 transition group-hover:border-white/30 group-hover:text-white"
+            className="block rounded-lg border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-200 transition group-hover:border-white/30 group-hover:text-white"
           >
             {race.status === "scheduled" ? "Track history →" : "View race →"}
           </motion.span>

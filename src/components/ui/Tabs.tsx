@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 
 export type TabItem = { key: string; label: string };
 
-/** Generic pill-capsule tab bar - visually modeled on `src/components/profile/PersonalizationTabs.tsx`
- * (the sliding Framer Motion capsule look already established there), but built as a plain
+/** Generic segmented tab bar - visually modeled on `src/components/profile/PersonalizationTabs.tsx`
+ * (the sliding Framer Motion indicator look already established there, restyled from a stadium pill
+ * to a structured rounded-rectangle segment per the shape-system pass), but built as a plain
  * **controlled** component from the start (no internal state) since both real call sites (Your F1's
  * cockpit, the Apex Intelligence workspace) need their active tab driven from a parent that's ALSO
  * set from elsewhere on the page (the hero radar, the floating Apex widget's quick-jump buttons) -
@@ -61,7 +62,7 @@ export function Tabs({
     <div
       role="tablist"
       aria-orientation="horizontal"
-      className="flex gap-1 overflow-x-auto rounded-full border border-[var(--f1-line)] bg-black/20 p-1 scrollbar-hide"
+      className="flex gap-1 overflow-x-auto rounded-lg border border-[var(--f1-line)] bg-black/20 p-1 scrollbar-hide"
     >
       {items.map((item, i) => {
         const isActive = item.key === activeKey;
@@ -79,12 +80,12 @@ export function Tabs({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(item.key)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className="relative shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition sm:text-sm"
+            className="relative shrink-0 whitespace-nowrap rounded-md px-3.5 py-1.5 text-xs font-medium transition sm:text-sm"
           >
             {isActive && (
               <motion.div
                 layoutId={layoutId}
-                className="absolute inset-0 rounded-full bg-[var(--f1-red)]"
+                className="absolute inset-0 rounded-md bg-[var(--f1-red)]"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
               />
             )}

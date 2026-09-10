@@ -2,7 +2,7 @@ import { ChampionshipTrajectory } from "./ChampionshipTrajectory";
 import { SeasonStrip } from "./SeasonStrip";
 import { chart } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
-import type { SeasonRecap as SeasonRecapData } from "@/lib/personalization";
+import type { FavoriteDriverCard, FavoriteTeamCard, SeasonRecap as SeasonRecapData } from "@/lib/personalization";
 import type { RaceDoc } from "@/lib/types/race";
 
 /** "How the season is unfolding" - Tier 3 (editorial/data-viz, see the redesign plan's surface
@@ -16,12 +16,16 @@ export function SeasonRecap({
   recap,
   aiNarrative,
   nextRaceRound,
+  favoriteDriver,
+  favoriteTeam,
 }: {
   year: number;
   races: RaceDoc[];
   recap: SeasonRecapData;
   aiNarrative?: string | null;
   nextRaceRound?: number | null;
+  favoriteDriver: FavoriteDriverCard | null;
+  favoriteTeam: FavoriteTeamCard | null;
 }) {
   if (recap.roundsCompleted === 0) {
     return (
@@ -41,7 +45,7 @@ export function SeasonRecap({
           )}
         </p>
         <div className="mt-4">
-          <SeasonStrip races={races} nextRaceRound={nextRaceRound} />
+          <SeasonStrip races={races} nextRaceRound={nextRaceRound} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} />
         </div>
       </div>
     );
@@ -90,6 +94,11 @@ export function SeasonRecap({
               Your favorite sits P{recap.favoriteDriverRank} in the championship.
             </p>
           )}
+          {recap.favoriteDriverRank == null && recap.favoriteTeamRank != null && (
+            <p className="text-neutral-400">
+              Your favorite team sits P{recap.favoriteTeamRank} in the constructors&apos; championship.
+            </p>
+          )}
 
           {aiNarrative && (
             <div className="mt-4 border-t border-white/[0.06] pt-3">
@@ -116,7 +125,7 @@ export function SeasonRecap({
       </div>
 
       <div className="mt-6">
-        <SeasonStrip races={races} nextRaceRound={nextRaceRound} />
+        <SeasonStrip races={races} nextRaceRound={nextRaceRound} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} />
       </div>
     </div>
   );

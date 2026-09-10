@@ -66,7 +66,7 @@ export function OnboardingTour({ initiallyOpen }: { initiallyOpen: boolean }) {
         <button
           onClick={() => void dismiss()}
           disabled={dismissing}
-          className="mt-6 w-full rounded-full bg-[var(--f1-red)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+          className="mt-6 w-full rounded-lg bg-[var(--f1-red)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
         >
           Got it, don&apos;t show this again
         </button>

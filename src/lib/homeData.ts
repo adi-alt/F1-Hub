@@ -4,7 +4,15 @@
 // modifies it — that surface is owned by a concurrent redesign elsewhere in this codebase.
 
 import { getRecentPredictionPolls, type PredictionPoll } from "@/lib/homePredictionPolls";
-import { computePredictionPerformance, type PredictionPerformance } from "@/lib/predictionPerformance";
+import {
+  classifyPredictionStyle,
+  computePredictionFingerprint,
+  computePredictionPerformance,
+  getLatestPredictionSummary,
+  type LatestPredictionSummary,
+  type PredictionPerformance,
+  type PredictionStyleTrait,
+} from "@/lib/predictionPerformance";
 import {
   getFavoriteDriverCard,
   getFavoriteTeamCard,
@@ -64,6 +72,13 @@ export type PersonalHomeData = {
   /** The user's pick for `nextRace`, if any — the "your pick" half of PickVsModel. */
   myPick: UserPick | null;
   predictionPerformance: PredictionPerformance;
+  /** The user's most recently *submitted* pick, resolved against its own race regardless of
+   * whether that's still `nextRace` — decoupled so a just-completed prediction's outcome doesn't
+   * fall out of scope the moment the calendar rolls to the next round. Null with zero predictions. */
+  latestPrediction: LatestPredictionSummary | null;
+  /** Real, threshold-gated behavioral traits (see classifyPredictionStyle) — empty below the
+   * minimum sample size, never a fabricated "personality" claim. */
+  styleTraits: PredictionStyleTrait[];
   recentActivity: ActivityEntry[];
   predictionPolls: PredictionPoll[];
   tier: PersonalizationTier;
@@ -152,6 +167,11 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
 
   const hasFavorites = !!favoriteDriver || !!favoriteTeam;
   const predictionPerformance = computePredictionPerformance(picks, races);
+  // seasonPointsLeaderCode omitted (null) — computeSeasonStandings runs in parallel with, not
+  // before, getPersonalHomeData in page.tsx today, so the current round-independent standings
+  // leader isn't in scope here; classifyPredictionStyle's favorite-driver-bias trait doesn't need
+  // it, only the (not built this phase) season-leader-bias trait would.
+  const fingerprint = computePredictionFingerprint(picks, races, null);
 
   return {
     profile,
@@ -161,6 +181,8 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     discoverGroups: discoverGroups.filter((g) => !g.isMember).slice(0, DISCOVER_GROUPS_LIMIT),
     myPick,
     predictionPerformance,
+    latestPrediction: getLatestPredictionSummary(picks, races),
+    styleTraits: classifyPredictionStyle(fingerprint, picks, favoriteDriver?.code ?? null),
     recentActivity: buildRecentActivity(picks, races, recentTransactions),
     predictionPolls,
     feedPosts: feed.posts.filter((p) => Date.now() - new Date(p.createdAt).getTime() <= COMMUNITY_ACTIVITY_WINDOW_DAYS * 86_400_000),

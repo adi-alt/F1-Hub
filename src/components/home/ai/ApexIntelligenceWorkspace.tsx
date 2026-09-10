@@ -159,8 +159,8 @@ export function ApexIntelligenceWorkspace({
             )}
 
             {resolvedActive === "risks" && intelligence.biggestUncertainty && (
-              <div className="space-y-1.5 rounded-xl border border-amber-500/25 bg-amber-500/[0.05] p-4">
-                <p className="text-sm font-semibold text-white sm:text-base">{intelligence.biggestUncertainty.title}</p>
+              <div className="space-y-1.5 border-l-2 border-amber-500/40 pl-4">
+                <p className="text-sm font-semibold text-amber-100 sm:text-base">{intelligence.biggestUncertainty.title}</p>
                 <p className="text-xs leading-relaxed text-neutral-300">{intelligence.biggestUncertainty.explanation}</p>
               </div>
             )}
@@ -196,7 +196,7 @@ export function ApexIntelligenceWorkspaceSkeleton() {
     <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
       <div className="flex items-center justify-between">
         <Skeleton className="skeleton-shimmer h-3.5 w-36 rounded" />
-        <Skeleton className="skeleton-shimmer h-7 w-56 rounded-full" />
+        <Skeleton className="skeleton-shimmer h-7 w-56 rounded-lg" />
       </div>
       <div className="mt-4 space-y-3">
         <Skeleton className="skeleton-shimmer h-6 w-5/6 rounded" />
