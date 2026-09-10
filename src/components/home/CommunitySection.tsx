@@ -15,6 +15,16 @@ function formatActivityLabel(g: GroupSummary): string {
   return `${g.memberCount} member${g.memberCount === 1 ? "" : "s"}`;
 }
 
+/** Most-recently-active first - a real signal (`latestPost.createdAt`, already fetched for every
+ * group, just previously unused beyond a one-line label), not a fabricated "featured" flag. */
+function byRecentActivity(groups: GroupSummary[]): GroupSummary[] {
+  return [...groups].sort((a, b) => {
+    const at = a.latestPost ? new Date(a.latestPost.createdAt).getTime() : 0;
+    const bt = b.latestPost ? new Date(b.latestPost.createdAt).getTime() : 0;
+    return bt - at;
+  });
+}
+
 export function CommunitySection({
   posts,
   groups,
@@ -26,16 +36,16 @@ export function CommunitySection({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Client-side filter of user's communities
+  // Client-side filter of user's communities, most-recently-active first.
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return groups;
-    return groups.filter(
-      (g) =>
-        g.name.toLowerCase().includes(q) ||
-        (g.description && g.description.toLowerCase().includes(q)),
-    );
+    const base = q
+      ? groups.filter((g) => g.name.toLowerCase().includes(q) || (g.description && g.description.toLowerCase().includes(q)))
+      : groups;
+    return byRecentActivity(base);
   }, [groups, searchQuery]);
+  const featured = !searchQuery.trim() && filteredGroups.length > 0 && filteredGroups[0].latestPost ? filteredGroups[0] : null;
+  const restGroups = featured ? filteredGroups.slice(1) : filteredGroups;
 
   return (
     <section>
@@ -70,7 +80,7 @@ export function CommunitySection({
             </span>
           </div>
 
-          <div className="scrollbar-subtle flex-1 space-y-3 overflow-y-auto pr-1">
+          <div className="scrollbar-subtle flex-1 overflow-y-auto pr-1">
             {posts.length === 0 ? (
               <div className="flex h-48 flex-col items-center justify-center text-center">
                 <p className="text-sm text-neutral-400">No community activity in the last 7 days.</p>
@@ -83,7 +93,7 @@ export function CommunitySection({
               </div>
             ) : (
               posts.map((post, i) => (
-                <PostCard key={post.id} post={post} index={i} showGroup />
+                <PostCard key={post.id} post={post} index={i} showGroup variant="compact" />
               ))
             )}
           </div>
@@ -144,19 +154,34 @@ export function CommunitySection({
                 No joined groups match &quot;{searchQuery}&quot;
               </p>
             ) : (
-              filteredGroups.map((g) => (
-                <Link
-                  key={g.id}
-                  href={groupHref(g.id)}
-                  className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-white/20 hover:bg-white/[0.05]"
-                >
-                  <EntityAvatar imageUrl={g.avatarUrl} name={g.name} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-white">{g.name}</p>
-                    <p className="truncate text-xs text-neutral-400">{formatActivityLabel(g)}</p>
-                  </div>
-                </Link>
-              ))
+              <>
+                {featured && (
+                  <Link
+                    href={groupHref(featured.id)}
+                    className="mb-2.5 flex items-center gap-3 rounded-xl border border-[var(--f1-red)]/25 bg-[var(--f1-red)]/[0.06] p-3.5 transition hover:border-[var(--f1-red)]/50"
+                  >
+                    <EntityAvatar imageUrl={featured.avatarUrl} name={featured.name} size={38} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--f1-red)]">Most active</p>
+                      <p className="truncate text-sm font-medium text-white">{featured.name}</p>
+                      <p className="truncate text-xs text-neutral-400">{formatActivityLabel(featured)}</p>
+                    </div>
+                  </Link>
+                )}
+                {restGroups.map((g) => (
+                  <Link
+                    key={g.id}
+                    href={groupHref(g.id)}
+                    className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-white/20 hover:bg-white/[0.05]"
+                  >
+                    <EntityAvatar imageUrl={g.avatarUrl} name={g.name} size={34} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white">{g.name}</p>
+                      <p className="truncate text-xs text-neutral-400">{formatActivityLabel(g)}</p>
+                    </div>
+                  </Link>
+                ))}
+              </>
             )}
           </div>
 

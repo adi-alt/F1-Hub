@@ -16,19 +16,27 @@ const ROLE_LABEL: Record<string, string> = { admin: "ADMIN", moderator: "MODERAT
  * (later, if a permalink page gets built) a post's own page all use this exact component, not
  * three parallel implementations of the same row. `showGroup` is the only real behavioral
  * difference: the home feed needs the group identity in the header, a group's own feed doesn't
- * (you're already looking at that group's page). */
+ * (you're already looking at that group's page).
+ *
+ * `variant` is additive - defaults to `"default"`, the exact appearance every existing call site
+ * (`GroupsFeed.tsx`, `GroupFeed.tsx`) already renders and keeps rendering since neither passes it.
+ * `"compact"` is only used by the homepage's `CommunitySection.tsx`, for a lighter "activity feed"
+ * feel (tighter padding, a bottom divider instead of a full border-per-item) - real behavior/data
+ * is unchanged either way, this only affects the outer container's presentation. */
 export function PostCard({
   post,
   index = 0,
   showGroup,
   canModerate = false,
   onModerated,
+  variant = "default",
 }: {
   post: PostCardData;
   index?: number;
   showGroup: boolean;
   canModerate?: boolean;
   onModerated?: (action: "approve" | "reject") => void;
+  variant?: "default" | "compact";
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
   const [showComments, setShowComments] = useState(false);
@@ -51,7 +59,11 @@ export function PostCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5"
+      className={
+        variant === "compact"
+          ? "border-b border-white/[0.06] py-3 last:border-b-0"
+          : "rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5"
+      }
     >
       <div className="flex items-center gap-2">
         <PostHeader post={post} showGroup={showGroup} />

@@ -20,6 +20,10 @@ const PAD = 8;
  * passes in ("is my favorite closing the gap on the leader", "how close is the title fight"). */
 export function ChampionshipTrajectory({ races, series }: { races: RaceDoc[]; series: TrajectorySeries[] }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  // Separate from hoverIndex on purpose: a tap on a touch device sets both hoverIndex and pinned,
+  // but a hybrid device's own continuous mousemove must not silently clear a tap-set pin the way it
+  // would clear a plain hover - onMouseLeave only clears hoverIndex when nothing is pinned.
+  const [pinned, setPinned] = useState(false);
   const codes = useMemo(() => series.map((s) => s.code), [series]);
   const rows = useMemo(() => computeChampionshipProgression(races, codes), [races, codes]);
 
@@ -38,17 +42,36 @@ export function ChampionshipTrajectory({ races, series }: { races: RaceDoc[]; se
 
   const hovered = hoverIndex != null ? rows[hoverIndex] : null;
 
+  function indexFromEvent(e: { clientX: number; currentTarget: { getBoundingClientRect(): DOMRect } }): number {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relX = ((e.clientX - rect.left) / rect.width) * WIDTH;
+    const i = Math.round(((relX - PAD) / (WIDTH - PAD * 2)) * (rows.length - 1));
+    return Math.min(Math.max(i, 0), rows.length - 1);
+  }
+
   return (
     <div className="relative">
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="w-full"
-        onMouseLeave={() => setHoverIndex(null)}
+        className="w-full cursor-pointer"
+        onMouseLeave={() => {
+          if (!pinned) setHoverIndex(null);
+        }}
         onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const relX = ((e.clientX - rect.left) / rect.width) * WIDTH;
-          const i = Math.round(((relX - PAD) / (WIDTH - PAD * 2)) * (rows.length - 1));
-          setHoverIndex(Math.min(Math.max(i, 0), rows.length - 1));
+          if (pinned) return;
+          setHoverIndex(indexFromEvent(e));
+        }}
+        onClick={(e) => {
+          const i = indexFromEvent(e);
+          // A second tap/click on the already-pinned point unpins it (touch devices have no
+          // hover to fall back to, so this is the only way to dismiss the tooltip).
+          if (pinned && hoverIndex === i) {
+            setPinned(false);
+            setHoverIndex(null);
+            return;
+          }
+          setHoverIndex(i);
+          setPinned(true);
         }}
       >
         {paths.map((p) => (

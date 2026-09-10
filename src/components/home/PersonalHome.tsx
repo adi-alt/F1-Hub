@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CommunitySection, CommunitySectionSkeleton } from "./CommunitySection";
 import { HomeLayout } from "./HomeLayout";
 import { IntelligenceSection, IntelligenceSkeleton } from "./IntelligenceSection";
@@ -27,6 +28,13 @@ function PersonalHomeInner({
   isReturning: boolean;
 }) {
   const { intelligence } = useHomepageIntelligence();
+  // Lifted here (not in HomepageIntelligenceProvider, whose memoized value was fixed earlier this
+  // session specifically to stop unrelated re-renders - adding tab state there would reintroduce
+  // that) so the hero radar and the floating Apex widget can each drive a tab they don't own the
+  // rendering of. Both default once and are never reset by an AI data refresh - only explicit user
+  // actions (a tab click, a quick-jump button, a radar element) change them.
+  const [apexActiveTab, setApexActiveTab] = useState("briefing");
+  const [yourF1ActiveTab, setYourF1ActiveTab] = useState("overview");
 
   return (
     <>
@@ -42,16 +50,21 @@ function PersonalHomeInner({
           favoriteTeam={personalData.favoriteTeam}
         />
 
-        {/* 2. Your F1 Radar - thin status rail, not a section */}
+        {/* 2. Your F1 Radar - thin status rail, not a section, reading as one connected block with
+         * the hero above it - clickable through to Your F1 below. */}
         <YourF1Radar
           favoriteDriver={personalData.favoriteDriver}
           favoriteTeam={personalData.favoriteTeam}
           favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
           favoriteTeamRank={publicData.seasonRecap.favoriteTeamRank}
           favoriteDriverCircuitWins={publicData.trackHistory?.favoriteDriverCircuitStats?.wins}
+          favoriteDriverPoints={publicData.seasonRecap.favoriteDriverPoints}
+          favoriteDriverGapToLeader={publicData.seasonRecap.favoriteDriverGapToLeader}
+          predictionCount={personalData.predictionPerformance.winner.total}
+          onNavigate={setYourF1ActiveTab}
         />
 
-        {/* 3. Your F1 Standing & Trajectory */}
+        {/* 3. Your F1 - personal cockpit, tabbed */}
         <YourF1
           favoriteDriver={personalData.favoriteDriver}
           favoriteTeam={personalData.favoriteTeam}
@@ -60,13 +73,19 @@ function PersonalHomeInner({
           driverLeader={publicData.seasonRecap.driverLeader}
           favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
           favoriteTeamRank={publicData.seasonRecap.favoriteTeamRank}
+          favoriteDriverPoints={publicData.seasonRecap.favoriteDriverPoints}
+          favoriteDriverGapToLeader={publicData.seasonRecap.favoriteDriverGapToLeader}
+          activeTab={yourF1ActiveTab}
+          onTabChange={setYourF1ActiveTab}
         />
 
-        {/* 4. F1 Intelligence Command Center (AI + ML + Prediction Coach) */}
+        {/* 4. Apex Intelligence workspace (AI) + ML + Prediction Coach */}
         <IntelligenceSection
           myPick={personalData.myPick}
           nextRace={publicData.nextRace}
           performance={personalData.predictionPerformance}
+          apexActiveTab={apexActiveTab}
+          onApexTabChange={setApexActiveTab}
         />
 
         {/* 5. Your Paddock (Unified Two-Panel Community Layout) */}
@@ -85,14 +104,13 @@ function PersonalHomeInner({
           races={publicData.races}
           recap={publicData.seasonRecap}
           aiNarrative={intelligence?.seasonNarrative}
+          nextRaceRound={publicData.nextRace?.round}
         />
       </HomeLayout>
 
       <ApexIntelligenceWidget
         raceName={publicData.nextRace?.name}
-        round={publicData.nextRace?.round}
-        myPick={personalData.myPick}
-        nextRace={publicData.nextRace}
+        onNavigateToTab={setApexActiveTab}
       />
     </>
   );

@@ -4,9 +4,7 @@ import { ModelWatch, ModelWatchSkeleton } from "./ModelWatch";
 import { PickVsModel, PickVsModelSkeleton } from "./PickVsModel";
 import { PredictionPerformance, PredictionPerformanceSkeleton } from "./PredictionPerformance";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
-import { RaceBrief, RaceBriefSkeleton } from "./ai/RaceBrief";
-import { YourRace, YourRaceSkeleton } from "./ai/YourRace";
-import { BlindSpot, BlindSpotSkeleton } from "./ai/BlindSpot";
+import { ApexIntelligenceWorkspace, ApexIntelligenceWorkspaceSkeleton } from "./ai/ApexIntelligenceWorkspace";
 import { AIvsYou, AIvsYouSkeleton } from "./ai/AIvsYou";
 import { PredictionCoach } from "./ai/PredictionCoach";
 import { PredictionFingerprint } from "./ai/PredictionFingerprint";
@@ -16,19 +14,23 @@ import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 /**
  * The Personalized F1 Intelligence Command Center - a narrative, not a widget stack:
- * general context + attention (RaceBrief, one briefing surface) -> personal thesis (YourRace) ->
- * challenge (BlindSpot) -> decision (PickVsModel) -> argument (AIvsYou), then the secondary
- * analytics row and prediction-history cards. Combines grounded AI reasoning with deterministic
- * Random Forest predictions, Monte Carlo simulations, and user metrics.
+ * one tabbed Apex Intelligence workspace (Briefing/Your Race/Watch/Risks - see
+ * ApexIntelligenceWorkspace.tsx) -> decision (PickVsModel) -> argument (AIvsYou), then the
+ * secondary analytics row and prediction-history cards. Combines grounded AI reasoning with
+ * deterministic Random Forest predictions, Monte Carlo simulations, and user metrics.
  */
 export function IntelligenceSection({
   myPick,
   nextRace,
   performance,
+  apexActiveTab,
+  onApexTabChange,
 }: {
   myPick: UserPick | null;
   nextRace: RaceDoc | null;
   performance: PredictionPerformanceData;
+  apexActiveTab: string;
+  onApexTabChange: (key: string) => void;
 }) {
   const hasModelData = !!nextRace && (!!nextRace.simulation || !!nextRace.prediction);
   const hasPickVsModel = !!myPick && hasModelData;
@@ -50,14 +52,7 @@ export function IntelligenceSection({
 
       <SinceLastVisit />
 
-      {/* General context + attention, one briefing surface (see RaceBrief.tsx's own comment) */}
-      <RaceBrief />
-
-      {/* Personal thesis - the page's editorial centerpiece */}
-      <YourRace />
-
-      {/* Challenge */}
-      <BlindSpot />
+      <ApexIntelligenceWorkspace activeTab={apexActiveTab} onTabChange={onApexTabChange} />
 
       {/* Decision + Argument: the chart, then the AI's commentary attached to it */}
       {hasPickVsModel && (
@@ -105,9 +100,7 @@ export function IntelligenceSkeleton() {
         <div className="skeleton-shimmer h-2.5 w-72 rounded opacity-50" />
       </div>
 
-      <RaceBriefSkeleton />
-      <YourRaceSkeleton />
-      <BlindSpotSkeleton />
+      <ApexIntelligenceWorkspaceSkeleton />
 
       <div className="space-y-4">
         <RaceSectionCard title="Your Pick vs. F1 Hub Model">

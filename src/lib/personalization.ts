@@ -538,6 +538,12 @@ export type SeasonRecap = {
   mostPodiums: DriverStanding | null;
   favoriteDriverRank: number | null; // 1-based, null if no favorite or not classified
   favoriteTeamRank: number | null; // 1-based, null if no favorite or not classified
+  /** The favorite driver's own current points and gap to the championship leader - real numbers
+   * for the homepage's "Lewis Hamilton — 70 points to leader" weekend-status summary. Null under
+   * the same conditions favoriteDriverRank is (no favorite, or not classified). 0 when the
+   * favorite IS the leader, not null - "0 points behind" is a real, meaningful fact. */
+  favoriteDriverPoints: number | null;
+  favoriteDriverGapToLeader: number | null;
 };
 
 /** The homepage's "how the season is unfolding" editorial recap — every number read straight off
@@ -557,6 +563,7 @@ export function buildSeasonRecap(
   const mostPodiums = [...standings.drivers].sort((a, b) => b.podiums - a.podiums)[0] ?? null;
   const favoriteRank = favoriteDriver?.code ? standings.drivers.findIndex((d) => d.driver === favoriteDriver.code) : -1;
   const favoriteTeamRankIndex = favoriteTeam?.currentName ? standings.teams.findIndex((t) => t.team === favoriteTeam.currentName) : -1;
+  const favoriteDriverStanding = favoriteRank >= 0 ? standings.drivers[favoriteRank] : null;
 
   return {
     roundsCompleted: races.filter((r) => r.status === "completed").length,
@@ -569,5 +576,7 @@ export function buildSeasonRecap(
     mostPodiums: mostPodiums && mostPodiums.podiums > 0 ? mostPodiums : null,
     favoriteDriverRank: favoriteRank >= 0 ? favoriteRank + 1 : null,
     favoriteTeamRank: favoriteTeamRankIndex >= 0 ? favoriteTeamRankIndex + 1 : null,
+    favoriteDriverPoints: favoriteDriverStanding?.points ?? null,
+    favoriteDriverGapToLeader: favoriteDriverStanding && driverLeader ? driverLeader.points - favoriteDriverStanding.points : null,
   };
 }
