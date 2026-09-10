@@ -1,6 +1,6 @@
 import { creditPoints, spendPoints } from "@/lib/supabase/points";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
-import { getRaceById } from "@/lib/supabase/races";
+import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
 import { requireAdmin, requireMember } from "@/lib/supabase/groups";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ServiceError } from "@/services/errors";
@@ -77,7 +77,10 @@ export async function createPrediction(
   await requireAdmin(groupId, uid);
   if (!Number.isInteger(input.entryPoints) || input.entryPoints < 0) throw new ServiceError("Entry value must be a non-negative whole number.", 400);
 
-  const race = await getRaceById(input.raceId);
+  // A round that hasn't had any FastF1 session yet only exists as a `calendar` placeholder, not a
+  // real `races` row - promote it on first use instead of rejecting the pick (see
+  // promoteCalendarRace's own comment for why).
+  const race = (await getRaceById(input.raceId)) ?? (await promoteCalendarRace(input.raceId));
   if (!race) throw new ServiceError("That race doesn't exist.", 404);
   if (race.status === "completed") throw new ServiceError("That race has already finished.", 400);
 

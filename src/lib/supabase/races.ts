@@ -199,6 +199,34 @@ export const getRaceById = unstable_cache(
   { revalidate: false, tags: ["races"] },
 );
 
+/** Promotes a `calendar`-only round (no FastF1 session data yet, see toCalendarPlaceholder) to a
+ * real, empty `races` row, for the one caller that actually needs to write a foreign key at a
+ * calendar-only race: createPrediction. group_predictions.race_id has a hard FK to races.id, so a
+ * calendar placeholder's id can never be used there directly - insert a minimal row instead of
+ * rejecting the pick outright, since group admins are meant to set predictions up before a race
+ * weekend, not just after. Same id as the calendar row (sync_calendar.py's own scheme), so
+ * fetch_races.py's later real fetch for this round upserts onto this same row rather than
+ * colliding with it. Not cached - a one-time write, not a hot read. */
+export async function promoteCalendarRace(raceId: string): Promise<RaceDoc | null> {
+  const { data: cal, error: calError } = await queryWithRetry(() => supabaseAdmin.from("calendar").select("*").eq("id", raceId).maybeSingle());
+  if (calError) throw new Error(`promoteCalendarRace(${raceId}): ${calError.message}`);
+  if (!cal) return null;
+  const row = cal as CalendarRow & { country: string | null };
+
+  const { data, error } = await supabaseAdmin
+    .from("races")
+    .insert({ id: row.id, year: row.year, round: row.round, name: row.name ?? "", circuit: row.circuit ?? "", country: row.country, status: "upcoming", race_date: row.race_date })
+    .select(RACE_SELECT)
+    .single();
+  if (error) {
+    // Someone else (another admin's click, or the pipeline) inserted this exact row a moment ago -
+    // not a real failure, just re-fetch what's there now.
+    if (error.code === "23505") return getRaceById(raceId);
+    throw new Error(`promoteCalendarRace(${raceId}): ${error.message}`);
+  }
+  return toRaceDoc(data as RaceRow);
+}
+
 /** Just the simulation column for one (year, round) - not the full `getRace` fetch, which would
  * redundantly pull results/inputs/tireStints this caller (Archive's race page) already has from
  * `archive_races`. Confirmed live: `races.simulation` is populated for effectively every race back
