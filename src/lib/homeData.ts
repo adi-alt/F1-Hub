@@ -37,11 +37,6 @@ export type PublicHomeData = {
    * Drives the hero's right-side Race Intelligence panel and the Track Intelligence widget. */
   trackHistory: TrackHistory | null;
   seasonRecap: SeasonRecap;
-  /** Real archive_circuits lat/long for the upcoming race's circuit - null for a circuit the
-   * archive hasn't backfilled coordinates for. Drives DistanceToCircuit's opt-in "how far is this
-   * from you" - a real use for browser geolocation, unlike the countdown (which reads the
-   * browser's own timezone setting, no location permission needed at all). */
-  circuitCoords: { lat: number; long: number } | null;
 };
 
 // A homepage teaser, not a second Groups feed — same cap FavoritesSection/GroupsPreview already
