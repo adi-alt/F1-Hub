@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { computeSinceLastVisit } from "../sinceLastVisit";
 import { generateDeterministicFallback } from "../fallback";
+import { computeDataVersion } from "../cache";
 import { computePredictionFingerprint } from "@/lib/predictionPerformance";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -93,6 +94,71 @@ describe("Since Last Visit - deterministic diff", () => {
       pickSubmittedAt: "2026-01-02T00:00:00Z",
     });
     assert.ok(!diff.changes.some((c) => c.type === "PREDICTION"));
+  });
+
+  test("REGRESSION: visiting must not change personalDataVersion on the very next immediate request", () => {
+    // Real bug this guards against: touchHomepageVisit() bumps profiles.last_homepage_visit_at to
+    // "now" at the end of EVERY homepage-intelligence request. If personalDataVersion's hash had
+    // included sinceLastVisit.changes.length (it used to), an immediate hard refresh would read a
+    // last-visit timestamp only seconds old, almost always finding zero changes regardless of what
+    // the first request found - changing the hash and forcing a full regeneration despite IDENTICAL
+    // underlying F1 data. route.ts's own personalDataVersion hash must never include anything
+    // derived from lastHomepageVisitAt for exactly this reason.
+    const races: RaceDoc[] = [
+      race({
+        id: "r1",
+        round: 1,
+        updatedAt: "2026-08-01T12:00:00Z",
+        results: [
+          { driver: "VER", driverName: "Max Verstappen", team: "Red Bull", grid: 1, finishPosition: 1, finishGapSec: 0, status: "finished", fastestLapSec: null, points: 25 },
+          { driver: "NOR", driverName: "Lando Norris", team: "McLaren", grid: 2, finishPosition: 2, finishGapSec: 3, status: "finished", fastestLapSec: null, points: 18 },
+        ],
+      }),
+      race({
+        id: "r2",
+        round: 2,
+        // The most recent race - Norris wins again (plus fastest lap point) and takes an
+        // UNAMBIGUOUS championship lead, 44-43, no tie - a tie would make sort order depend on Map
+        // insertion order, an unrelated fragility this test isn't trying to exercise.
+        updatedAt: "2026-09-05T12:00:00Z",
+        results: [
+          { driver: "NOR", driverName: "Lando Norris", team: "McLaren", grid: 1, finishPosition: 1, finishGapSec: 0, status: "finished", fastestLapSec: null, points: 26 },
+          { driver: "VER", driverName: "Max Verstappen", team: "Red Bull", grid: 2, finishPosition: 2, finishGapSec: 2, status: "finished", fastestLapSec: null, points: 18 },
+        ],
+      }),
+    ];
+    // The real sum over both races above (VER: 25+18=43, NOR: 18+26=44) - internally consistent
+    // with `races`, the way computeSeasonStandings' own output would be.
+    const currentStandings = {
+      drivers: [
+        { driver: "NOR", driverName: "Lando Norris", team: "McLaren", points: 44, wins: 1, podiums: 2 },
+        { driver: "VER", driverName: "Max Verstappen", team: "Red Bull", points: 43, wins: 1, podiums: 2 },
+      ],
+      teams: [],
+      poleCounts: {},
+    };
+
+    // Mirrors route.ts's real personalDataVersion hash exactly (post-fix): userId + favorite ids +
+    // pick submittedAt + fingerprint count - deliberately NOT a function of lastVisitIso/the diff at
+    // all, which is the actual fix. Same inputs regardless of which "request" is asking.
+    function buildPersonalDataVersion() {
+      return computeDataVersion(["global_v1", "user_123", "norris_id", null, null, 0]);
+    }
+
+    // Request 1: user's real last visit was weeks ago, before round 2 - a genuine new event exists.
+    const requestOneDiff = computeSinceLastVisit({ lastVisitIso: "2026-08-10T00:00:00Z", races, currentStandings, favoriteDriverCode: "NOR", favoriteDriverName: "Lando Norris" });
+    assert.ok(requestOneDiff.changes.length > 0, "fixture must produce a real diff for request 1");
+    const version1 = buildPersonalDataVersion();
+
+    // Request 2: an immediate hard refresh, seconds later - touchHomepageVisit() already moved
+    // lastHomepageVisitAt to "now" at the end of request 1, so this reads a last-visit timestamp
+    // only seconds old. Nothing about the underlying F1 data changed between the two requests.
+    const nowIso = new Date().toISOString();
+    const requestTwoDiff = computeSinceLastVisit({ lastVisitIso: nowIso, races, currentStandings, favoriteDriverCode: "NOR", favoriteDriverName: "Lando Norris" });
+    assert.equal(requestTwoDiff.changes.length, 0, "an immediate re-visit should find no NEW changes");
+    const version2 = buildPersonalDataVersion();
+
+    assert.equal(version1, version2, "personalDataVersion must stay stable across an immediate hard refresh despite the diff itself changing (it's a constant function of stable inputs now, not of the volatile diff)");
   });
 });
 

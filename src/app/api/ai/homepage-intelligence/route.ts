@@ -187,6 +187,20 @@ export async function POST() {
       rfTop ? `${rfTop.driver}` : "",
       feedPosts.length, // global community-pulse input only counts volume, not per-user content
     ]);
+    // Deliberately NOT including sinceLastVisit?.changes.length (or anything else derived from
+    // lastHomepageVisitAt): that value is a diff against the user's OWN last-visit timestamp, which
+    // touchHomepageVisit() (step 9 below, and in the cache-hit/fallback paths) bumps to "now" at the
+    // end of EVERY request - including this one. The very next request (e.g. an immediate hard
+    // refresh) would then read a last-visit timestamp only seconds old, almost always producing
+    // ZERO diff changes regardless of what the first request found, changing personalDataVersion
+    // and forcing a full regeneration even though nothing about the underlying F1 data actually
+    // changed. Confirmed live with the real computeSinceLastVisit/computeDataVersion functions: two
+    // "requests" 5 seconds apart against identical standings produced two different hashes purely
+    // because visiting moves the diff window forward. Every other component here already captures
+    // the events that should genuinely invalidate personal content (a new pick, a new fingerprint
+    // count, a favorite change) - and championship/rank changes coincide with raceId itself
+    // changing in the normal season flow (a race completing is what advances "next race"), so
+    // dropping this one volatile, self-referential signal doesn't introduce a real staleness gap.
     const personalDataVersion = userId
       ? computeDataVersion([
           globalDataVersion,
@@ -195,7 +209,6 @@ export async function POST() {
           favoriteTeamCard?.teamId,
           userPick?.submittedAt,
           fingerprint?.totalPredictions,
-          sinceLastVisit?.changes.length ?? 0,
         ])
       : null;
 
