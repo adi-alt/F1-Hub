@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import type { Role } from "@/lib/rbac";
@@ -68,39 +68,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Re-pulls just the balance - called by AppRealtimeSync whenever the signed-in user's own
   // `profiles` row changes (the same subscription that already drives Favorites' invalidation),
   // so a prediction payout on the Groups page shows up in the header without a full reload.
-  function refreshPointsBalance() {
+  const refreshPointsBalance = useCallback(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((body: MeResponse) => {
         if (body.signedIn) setPointsBalance(body.pointsBalance ?? null);
       })
       .catch(() => {});
-  }
+  }, []);
 
-  const value: AuthContextValue = {
-    user,
-    role,
-    displayName,
-    pointsBalance,
-    isAuthorized: role !== null,
-    loading: !sessionChecked,
-    setRole,
-    setDisplayName,
-    setUser,
-    refreshPointsBalance,
-    signOut: async () => {
-      await fetch("/api/auth/session", { method: "DELETE" });
-      await supabase.auth.signOut();
-      setRole(null);
-      setDisplayName(null);
-      setUser(null);
-      setPointsBalance(null);
-      // The rest of the current route (everything below the header, which reacts to `role`
-      // directly) is Server-Component-rendered from the session cookie at request time — without
-      // this, signed-in-only content stays visible/stale until a hard reload clears it.
-      router.refresh();
-    },
-  };
+  const signOut = useCallback(async () => {
+    await fetch("/api/auth/session", { method: "DELETE" });
+    await supabase.auth.signOut();
+    setRole(null);
+    setDisplayName(null);
+    setUser(null);
+    setPointsBalance(null);
+    // The rest of the current route (everything below the header, which reacts to `role`
+    // directly) is Server-Component-rendered from the session cookie at request time — without
+    // this, signed-in-only content stays visible/stale until a hard reload clears it.
+    router.refresh();
+  }, [router]);
+
+  // Memoized: an unmemoized inline object here was confirmed (2026-09-10 perf audit) to cascade
+  // into every consumer re-rendering on ANY unrelated state change here (e.g. refreshPointsBalance
+  // firing from a real-time balance update elsewhere in the app) - including HomepageIntelligence-
+  // Provider's whole subtree via HomeShell's useAuth() call, even though the AI intelligence data
+  // itself never changed. State setters (setRole/setDisplayName/setUser) are already
+  // referentially stable per React's own guarantee.
+  const value: AuthContextValue = useMemo(
+    () => ({
+      user,
+      role,
+      displayName,
+      pointsBalance,
+      isAuthorized: role !== null,
+      loading: !sessionChecked,
+      setRole,
+      setDisplayName,
+      setUser,
+      refreshPointsBalance,
+      signOut,
+    }),
+    [user, role, displayName, pointsBalance, sessionChecked, refreshPointsBalance, signOut],
+  );
 
   return <AuthContext value={value}>{children}</AuthContext>;
 }

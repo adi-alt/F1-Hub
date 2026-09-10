@@ -65,15 +65,27 @@ export async function POST() {
     const session = await getSession();
     const userId = session?.uid || null;
 
-    // 2. Fetch deterministic GLOBAL data in parallel. computeSeasonStandings only depends on `year`
-    // (not on nextRace/races/archiveCircuits), so it joins this same batch instead of waiting on it
-    // - this used to be a separate `await` after this Promise.all resolved for no real reason.
+    // 2. Fetch deterministic GLOBAL data AND (when signed in) the user's own profile/picks/feed -
+    // all five of these need only `year`/`userId`, already known above, not each other's results
+    // (computeSeasonStandings only depends on `year`, same reasoning as before; the profile/picks/
+    // feed batch below used to run as a SEPARATE, sequential stage after this one purely because it
+    // was written afterward, not because it actually depended on nextRace/races/archiveCircuits/
+    // standings - a real, measured contributor to authenticated cache-hit latency being noticeably
+    // slower than anonymous, confirmed live: ~1.5-2.3s vs ~0.55s for an otherwise-identical cache
+    // hit). Merging them into one batch removes that entire extra sequential round trip.
     const year = new Date().getFullYear();
-    const [nextRace, races, archiveCircuits, standings] = await Promise.all([
+    const [nextRace, races, archiveCircuits, standings, userBatch] = await Promise.all([
       getNextUpcomingRace(year).catch(() => null),
       getRacesByYear(year).catch(() => []),
       getAllArchiveCircuits().catch(() => []),
       computeSeasonStandings(year).catch(() => null),
+      userId
+        ? Promise.all([
+            getUserProfile(userId).catch(() => null),
+            getUserPicksForYear(userId, year).catch(() => []),
+            listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
+          ])
+        : Promise.resolve(null),
     ]);
     const raceId = nextRace?.id || `season_${year}_prep`;
 
@@ -102,15 +114,8 @@ export async function POST() {
     let newCommunityPostCount = 0;
     let trackHistory = null;
 
-    if (userId) {
-      // getUserProfile doesn't gate getUserPicksForYear/listFeedPosts - neither needs the profile,
-      // only userId/year - so all three now run concurrently instead of profile blocking the other
-      // two for no real reason.
-      const [profile, picks, feed] = await Promise.all([
-        getUserProfile(userId).catch(() => null),
-        getUserPicksForYear(userId, year).catch(() => []),
-        listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
-      ]);
+    if (userId && userBatch) {
+      const [profile, picks, feed] = userBatch;
       lastHomepageVisitAt = profile?.lastHomepageVisitAt ?? null;
 
       userPick = nextRace ? (picks.find((p) => p.raceId === nextRace.id) ?? null) : null;

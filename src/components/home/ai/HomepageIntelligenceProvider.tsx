@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
 
 interface HomepageIntelligenceContextType {
@@ -64,19 +64,17 @@ export function HomepageIntelligenceProvider({ children }: { children: React.Rea
     };
   }, []);
 
-  return (
-    <HomepageIntelligenceContext.Provider
-      value={{
-        intelligence,
-        isLoading,
-        isFallback,
-        fallbackReason,
-        error,
-      }}
-    >
-      {children}
-    </HomepageIntelligenceContext.Provider>
+  // Memoized: an inline object here was a new reference on every render regardless of whether
+  // `intelligence`/`isLoading`/etc. actually changed - confirmed (2026-09-10 perf audit) to force
+  // all 12+ consumer components to re-render whenever this Provider re-rendered for any reason
+  // (e.g. a parent re-render from an unrelated AuthProvider state change), not just the one real
+  // transition each of these values goes through per page load.
+  const value = useMemo(
+    () => ({ intelligence, isLoading, isFallback, fallbackReason, error }),
+    [intelligence, isLoading, isFallback, fallbackReason, error],
   );
+
+  return <HomepageIntelligenceContext.Provider value={value}>{children}</HomepageIntelligenceContext.Provider>;
 }
 
 export function useHomepageIntelligence() {

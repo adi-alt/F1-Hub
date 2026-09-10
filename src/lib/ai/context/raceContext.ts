@@ -108,56 +108,62 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
     return best;
   }, null);
 
-  // Standings impact: compare the leader through this round vs. through the round before it -
-  // reuses computeSeasonStandings' existing accumulation (see its own `throughRound` param, added
-  // for exactly this) rather than re-deriving points totals here.
-  const [standingsBefore, standingsAfter] = await Promise.all([
-    computeSeasonStandings(race.year, race.round - 1),
-    computeSeasonStandings(race.year, race.round),
+  // The four blocks below (standings impact, key moments, track history, personal favorites) are
+  // mutually independent - none reads another's result, only `race`/`results`/`userId` (already in
+  // hand). Previously four SEQUENTIAL awaits sitting entirely before this route's cache check can
+  // even run (real, measured contributor to cache-hit latency - see providerFallback.ts-adjacent
+  // perf audit, 2026-09-10). Running them concurrently doesn't change what's fetched or how errors
+  // are handled (each branch keeps its own try/catch, unchanged) - only when.
+  const [[standingsBefore, standingsAfter], keyMoments, trackHistory, personalCards] = await Promise.all([
+    // Standings impact: compare the leader through this round vs. through the round before it -
+    // reuses computeSeasonStandings' existing accumulation (see its own `throughRound` param,
+    // added for exactly this) rather than re-deriving points totals here.
+    Promise.all([computeSeasonStandings(race.year, race.round - 1), computeSeasonStandings(race.year, race.round)]),
+
+    // Key moments: reuse getRaceLaps() + computeMoments(), the exact same data/function
+    // LapChart.tsx already uses - genuinely derived from real lap-by-lap position data.
+    (async (): Promise<Moment[]> => {
+      try {
+        const laps = await getRaceLaps(race.year, race.round);
+        const nameByCode = new Map(results.map((r) => [r.driver, r.driverName]));
+        return computeMoments(laps, (code) => nameByCode.get(code) ?? code);
+      } catch {
+        return []; // lap data genuinely absent for some races - never fabricated
+      }
+    })(),
+
+    // Track history: same circuit-name -> archive-circuit-id resolution the homepage route
+    // already uses, so a race's circuit reliably matches its archive history record.
+    (async (): Promise<TrackHistory | null> => {
+      try {
+        const archiveCircuits = await getAllArchiveCircuits();
+        const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+        const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
+        const resolvedCircuitId = resolveCurrentCircuitToArchiveId(race.circuit, circuitLocalities, circuitIdsByName);
+        return resolvedCircuitId ? await getTrackHistory(resolvedCircuitId) : null;
+      } catch {
+        return null;
+      }
+    })(),
+
+    // Personal context - only ever populated for a real signed-in user with a real favorite;
+    // never fetched at all otherwise, so there's nothing for the prompt's PERSONAL CONTEXT
+    // section to contain for an anonymous/default-state request.
+    (async (): Promise<{ favoriteDriver: FavoriteDriverCard | null; favoriteTeam: FavoriteTeamCard | null }> => {
+      if (!userId) return { favoriteDriver: null, favoriteTeam: null };
+      const profile = await getUserProfile(userId).catch(() => null);
+      const [driverCard, teamCard] = await Promise.all([
+        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
+        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+      ]);
+      return { favoriteDriver: driverCard, favoriteTeam: teamCard };
+    })(),
   ]);
   const driverLeaderBefore = standingsBefore.drivers[0]?.driver ?? null;
   const driverLeaderAfter = standingsAfter.drivers[0]?.driver ?? null;
   const constructorLeaderBefore = standingsBefore.teams[0]?.team ?? null;
   const constructorLeaderAfter = standingsAfter.teams[0]?.team ?? null;
-
-  // Key moments: reuse getRaceLaps() + computeMoments(), the exact same data/function LapChart.tsx
-  // already uses - genuinely derived from real lap-by-lap position data, not invented here.
-  let keyMoments: Moment[] = [];
-  try {
-    const laps = await getRaceLaps(race.year, race.round);
-    const nameByCode = new Map(results.map((r) => [r.driver, r.driverName]));
-    keyMoments = computeMoments(laps, (code) => nameByCode.get(code) ?? code);
-  } catch {
-    keyMoments = []; // lap data genuinely absent for some races - never fabricated
-  }
-
-  // Track history: same circuit-name -> archive-circuit-id resolution the homepage route already
-  // uses, so a race's circuit reliably matches its archive history record.
-  let trackHistory: TrackHistory | null = null;
-  try {
-    const archiveCircuits = await getAllArchiveCircuits();
-    const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
-    const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
-    const resolvedCircuitId = resolveCurrentCircuitToArchiveId(race.circuit, circuitLocalities, circuitIdsByName);
-    if (resolvedCircuitId) trackHistory = await getTrackHistory(resolvedCircuitId);
-  } catch {
-    trackHistory = null;
-  }
-
-  // Personal context - only ever populated for a real signed-in user with a real favorite; never
-  // fetched at all otherwise, so there's nothing for the prompt's PERSONAL CONTEXT section to
-  // contain for an anonymous/default-state request.
-  let favoriteDriver: FavoriteDriverCard | null = null;
-  let favoriteTeam: FavoriteTeamCard | null = null;
-  if (userId) {
-    const profile = await getUserProfile(userId).catch(() => null);
-    const [driverCard, teamCard] = await Promise.all([
-      profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
-      profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
-    ]);
-    favoriteDriver = driverCard;
-    favoriteTeam = teamCard;
-  }
+  const { favoriteDriver, favoriteTeam } = personalCards;
 
   // --- Evidence facts: curated, real, citable - built from the exact data assembled above ---
   const evidenceFacts: EvidenceFact[] = [];

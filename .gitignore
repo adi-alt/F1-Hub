@@ -50,3 +50,4 @@ AGENTS.md
 CLAUDE.md
 pipeline/migration_data/
 supabase/.temp/
+.scratch_pw/

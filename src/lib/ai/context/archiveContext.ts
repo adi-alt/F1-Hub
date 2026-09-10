@@ -12,7 +12,7 @@
 
 import { computeMoments, type Moment } from "@/lib/raceMoments";
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
-import { getFavoriteDriverCard, getFavoriteTeamCard, getTrackHistory, type FavoriteDriverCard, type FavoriteTeamCard, type TrackHistory } from "@/lib/personalization";
+import { getFavoriteDriverCard, getFavoriteTeamCard, getTrackHistory, type FavoriteDriverCard, type FavoriteTeamCard } from "@/lib/personalization";
 import { getArchiveRace, getArchiveRaceLaps, getArchiveSeason, type ArchiveRaceDoc, type ArchiveResultEntry } from "@/lib/supabase/archive";
 import { getUserProfile } from "@/lib/supabase/users";
 import type { EvidenceFact, RaceIntelligenceContext } from "./raceContext";
@@ -55,45 +55,54 @@ export async function buildArchiveIntelligenceContext(year: number, round: numbe
   const dnfCount = results.filter((r) => isRetired(r.status)).length;
   const fastestRow = results.find((r) => r.fastestLap?.rank === 1);
 
-  // Championship impact - accumulated locally from getArchiveSeason(year), not
-  // computeSeasonStandings (that reads the live `races` table, which has nothing for a historical
-  // year) - same "leader through round N vs. N-1" comparison, adapted to archive's own id/points
-  // shape (driverId/constructor, not this season's short code).
-  const season = await getArchiveSeason(year);
-  const before = accumulateStandings(season, round - 1);
-  const after = accumulateStandings(season, round);
-  const driverLeaderChanged = before.driverId !== after.driverId && after.driverId !== null;
-  const constructorLeaderChanged = before.team !== after.team && after.team !== null;
+  // The four blocks below (championship, key moments, track history, personal favorites) are
+  // mutually independent - none reads another's result, only `year`/`round`/`race`/`userId`
+  // (already in hand). Previously four SEQUENTIAL awaits sitting entirely before this route's
+  // cache check can even run (real, measured contributor to cache-hit latency). Running them
+  // concurrently doesn't change what's fetched or how errors are handled - only when.
+  const [{ driverLeaderChanged, constructorLeaderChanged, after }, keyMoments, trackHistory, personalCards] = await Promise.all([
+    // Championship impact - accumulated locally from getArchiveSeason(year), not
+    // computeSeasonStandings (that reads the live `races` table, which has nothing for a
+    // historical year) - same "leader through round N vs. N-1" comparison, adapted to archive's
+    // own id/points shape (driverId/constructor, not this season's short code).
+    (async () => {
+      const season = await getArchiveSeason(year);
+      const before = accumulateStandings(season, round - 1);
+      const after = accumulateStandings(season, round);
+      return {
+        driverLeaderChanged: before.driverId !== after.driverId && after.driverId !== null,
+        constructorLeaderChanged: before.team !== after.team && after.team !== null,
+        after,
+      };
+    })(),
 
-  let keyMoments: Moment[] = [];
-  try {
-    const laps = await getArchiveRaceLaps(year, round);
-    const nameByCode = new Map(results.map((r) => [r.driverId, r.driverName]));
-    keyMoments = computeMoments(laps, (id) => nameByCode.get(id) ?? id);
-  } catch {
-    keyMoments = []; // pre-1996 races and any `!lapsBackfilled` row genuinely have no lap data
-  }
+    (async (): Promise<Moment[]> => {
+      try {
+        const laps = await getArchiveRaceLaps(year, round);
+        const nameByCode = new Map(results.map((r) => [r.driverId, r.driverName]));
+        return computeMoments(laps, (id) => nameByCode.get(id) ?? id);
+      } catch {
+        return []; // pre-1996 races and any `!lapsBackfilled` row genuinely have no lap data
+      }
+    })(),
 
-  // Archive rows already carry their own resolved circuit id - no name-based resolution needed
-  // (that's raceContext.ts's own workaround for the live `races` table having no circuit_id).
-  let trackHistory: TrackHistory | null = null;
-  if (race.circuitId) {
-    trackHistory = await getTrackHistory(race.circuitId).catch(() => null);
-  }
+    // Archive rows already carry their own resolved circuit id - no name-based resolution needed
+    // (that's raceContext.ts's own workaround for the live `races` table having no circuit_id).
+    race.circuitId ? getTrackHistory(race.circuitId).catch(() => null) : Promise.resolve(null),
 
-  // Matched by real archive id (driverId/teamId), not this season's short code - archive results
-  // are keyed by Ergast-style ids, never a current-season code.
-  let favoriteDriver: FavoriteDriverCard | null = null;
-  let favoriteTeam: FavoriteTeamCard | null = null;
-  if (userId) {
-    const profile = await getUserProfile(userId).catch(() => null);
-    const [driverCard, teamCard] = await Promise.all([
-      profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
-      profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
-    ]);
-    favoriteDriver = driverCard;
-    favoriteTeam = teamCard;
-  }
+    // Matched by real archive id (driverId/teamId), not this season's short code - archive
+    // results are keyed by Ergast-style ids, never a current-season code.
+    (async (): Promise<{ favoriteDriver: FavoriteDriverCard | null; favoriteTeam: FavoriteTeamCard | null }> => {
+      if (!userId) return { favoriteDriver: null, favoriteTeam: null };
+      const profile = await getUserProfile(userId).catch(() => null);
+      const [driverCard, teamCard] = await Promise.all([
+        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
+        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+      ]);
+      return { favoriteDriver: driverCard, favoriteTeam: teamCard };
+    })(),
+  ]);
+  const { favoriteDriver, favoriteTeam } = personalCards;
 
   const evidenceFacts: EvidenceFact[] = [];
   if (winnerRow) {
