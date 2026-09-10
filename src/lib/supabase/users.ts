@@ -1,6 +1,17 @@
+import { unstable_cache, revalidateTag } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import type { Role } from "@/lib/rbac";
+
+// One shared tag for every cached profile read (same coarse-grained "bust everything on any
+// write" strategy races.ts's own "races" tag already uses) - a real, measured 500-1200ms Supabase
+// round trip per getUserProfile call (2026-09-10 perf audit) was the dominant remaining cost on an
+// otherwise cache-hit-fast authenticated homepage request. Profile writes are rare (a user
+// changing a favorite, not a high-frequency action), so busting every cached profile on any single
+// write is cheap and, unlike a per-user tag, doesn't require unstable_cache to support per-call
+// dynamic tags (it doesn't - tags are fixed at wrap time). `revalidate: false` means "cached until
+// a real write busts this tag," not a blind timer - see every write function below for the bust.
+const USER_PROFILE_TAG = "user-profiles";
 
 // Same shape the old Firestore-backed UserProfile always had.
 export type UserProfile = {
@@ -105,6 +116,14 @@ export async function createUserProfile(
     ...(isBootstrapAdmin ? { role: "admin" as const } : {}),
   });
   if (error) throw error;
+  // Busts any cached "no profile yet" (null) result from a getUserProfile call earlier in the
+  // signup flow (verifyOtpAndLogin/completeSignup both check for an existing profile before this
+  // insert runs) - without this, a brand-new user's very next real getUserProfile call could
+  // incorrectly keep returning the cached null indefinitely (revalidate: false never expires it on
+  // its own). "max" matches this codebase's own established revalidateTag convention (groups.ts,
+  // admin/revalidate/route.ts) - applies to unstable_cache's tag-bust mechanism, not a time-based
+  // staleness window, so this is an immediate bust for our purposes, same as those call sites.
+  revalidateTag(USER_PROFILE_TAG, "max");
 }
 
 /** Exact-match, case-insensitive via a lowercased mirror isn't worth the extra column at this
@@ -167,14 +186,19 @@ export async function getUserByEmail(email: string): Promise<UserProfile | null>
   return data ? fromRow(data as ProfileRow) : null;
 }
 
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("*").eq("id", uid).maybeSingle());
-  if (error) throw new Error(`getUserProfile(${uid}): ${error.message}`);
-  return data ? fromRow(data as ProfileRow) : null;
-}
+export const getUserProfile = unstable_cache(
+  async (uid: string): Promise<UserProfile | null> => {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("*").eq("id", uid).maybeSingle());
+    if (error) throw new Error(`getUserProfile(${uid}): ${error.message}`);
+    return data ? fromRow(data as ProfileRow) : null;
+  },
+  ["get-user-profile"],
+  { revalidate: false, tags: [USER_PROFILE_TAG] },
+);
 
 export async function setUserRole(uid: string, role: Exclude<Role, "user"> | null): Promise<void> {
   await supabaseAdmin.from("profiles").update({ role }).eq("id", uid);
+  revalidateTag(USER_PROFILE_TAG, "max");
 }
 
 /** The only way profiles/{uid} preference fields ever change — client never writes this row
@@ -191,6 +215,7 @@ export async function updateUserPreferences(uid: string, patch: PreferencesPatch
   if (patch.firstName !== undefined) update.first_name = patch.firstName;
   if (Object.keys(update).length === 0) return;
   await supabaseAdmin.from("profiles").update(update).eq("id", uid);
+  revalidateTag(USER_PROFILE_TAG, "max");
 }
 
 const FAVORITE_COLUMN: Record<"favoriteDrivers" | "favoriteTeams" | "favoriteTracks", string> = {
@@ -216,6 +241,7 @@ export async function setArchiveFavorite(
   const current = data?.[column] ?? [];
   const next = favorited ? [...new Set([...current, id])] : current.filter((v) => v !== id);
   await supabaseAdmin.from("profiles").update({ [column]: next }).eq("id", uid);
+  revalidateTag(USER_PROFILE_TAG, "max");
 }
 
 /** The one-way flag OnboardingTour.tsx checks — once set, the tutorial stops showing on every
@@ -223,12 +249,24 @@ export async function setArchiveFavorite(
  * of dismiss-once state as any other one-shot product tour. */
 export async function markOnboardingComplete(uid: string): Promise<void> {
   await supabaseAdmin.from("profiles").update({ onboarding_completed_at: new Date().toISOString() }).eq("id", uid);
+  revalidateTag(USER_PROFILE_TAG, "max");
 }
 
 /** Stamps "now" as this user's most recent homepage visit - called at the END of the AI
  * intelligence request, after `last_homepage_visit_at`'s PREVIOUS value has already been read and
  * used to compute this same request's Since-Last-Visit diff (see sinceLastVisit.ts). Never awaited
- * before that read happens, or every visit would diff against itself. */
+ * before that read happens, or every visit would diff against itself.
+ *
+ * Deliberately does NOT call revalidateTag(USER_PROFILE_TAG) - this runs on literally every
+ * homepage request (including cache hits), so busting the shared profile cache tag here would
+ * force a fresh, slow getUserProfile read on the very next request every single time, defeating
+ * the whole point of caching it (the exact self-invalidation shape the sinceLastVisit/
+ * personalDataVersion fix earlier this session removed - see homepage-intelligence/route.ts's own
+ * comment on why nothing derived from lastHomepageVisitAt feeds the cache key). The cached
+ * lastHomepageVisitAt can lag behind the real value until some OTHER profile write busts the tag -
+ * harmless, since it only affects the Since-Last-Visit narrative's diff window on a cache MISS
+ * (never the cache-hit path, and never a security/personalization-identity concern), and a wider
+ * window only means it may show slightly older changes, never wrong ones. */
 export async function touchHomepageVisit(uid: string): Promise<void> {
   await supabaseAdmin.from("profiles").update({ last_homepage_visit_at: new Date().toISOString() }).eq("id", uid);
 }

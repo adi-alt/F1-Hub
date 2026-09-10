@@ -1,8 +1,15 @@
+import { unstable_cache, revalidateTag } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getRaceStatus } from "@/lib/supabase/races";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 import type { UserPick } from "@/lib/types/race";
+
+// Same coarse-grained "bust everything on any write" strategy as users.ts's USER_PROFILE_TAG - a
+// real, measured 500-1200ms Supabase round trip per getUserPicksForYear call (2026-09-10 perf
+// audit) was one of the two dominant remaining costs on an otherwise cache-hit-fast authenticated
+// homepage request.
+const USER_PICKS_TAG = "user-picks";
 
 type PickRow = { race_id: string; predicted_winner: string; predicted_podium: string[]; submitted_at: string };
 
@@ -27,13 +34,17 @@ export async function getUserPick(uid: string, raceId: string): Promise<UserPick
 /** Every pick a user made this season, for the homepage's prediction-performance view — one query
  * instead of the per-race `getUserPick` looped over every round. `race_id`s are `${year}_r${round}_
  * {slug}` (see races.ts), so a prefix match is a real year filter, not a substring coincidence. */
-export async function getUserPicksForYear(uid: string, year: number): Promise<UserPick[]> {
-  const { data, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("picks").select("*").eq("user_id", uid).like("race_id", `${year}_%`),
-  );
-  if (error) throw new Error(`getUserPicksForYear(${uid}, ${year}): ${error.message}`);
-  return ((data ?? []) as PickRow[]).map(fromRow);
-}
+export const getUserPicksForYear = unstable_cache(
+  async (uid: string, year: number): Promise<UserPick[]> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("picks").select("*").eq("user_id", uid).like("race_id", `${year}_%`),
+    );
+    if (error) throw new Error(`getUserPicksForYear(${uid}, ${year}): ${error.message}`);
+    return ((data ?? []) as PickRow[]).map(fromRow);
+  },
+  ["get-user-picks-for-year"],
+  { revalidate: false, tags: [USER_PICKS_TAG] },
+);
 
 /** The write side of the same row — one upsert, since (user_id, race_id) is the primary key.
  * Enforced server-side, not just by PickPanel hiding its own save button: once group scoring
@@ -53,4 +64,5 @@ export async function saveUserPick(uid: string, pick: UserPick): Promise<void> {
   });
   // Unchecked before this - a failed save looked identical to a successful one to the caller.
   if (error) throw new Error(`saveUserPick(${uid}, ${pick.raceId}): ${error.message}`);
+  revalidateTag(USER_PICKS_TAG, "max");
 }
