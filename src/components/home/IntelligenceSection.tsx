@@ -6,7 +6,6 @@ import { PredictionPerformance, PredictionPerformanceSkeleton } from "./Predicti
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceBrief, RaceBriefSkeleton } from "./ai/RaceBrief";
 import { YourRace, YourRaceSkeleton } from "./ai/YourRace";
-import { OneThingToWatch, OneThingToWatchSkeleton } from "./ai/OneThingToWatch";
 import { BlindSpot, BlindSpotSkeleton } from "./ai/BlindSpot";
 import { AIvsYou, AIvsYouSkeleton } from "./ai/AIvsYou";
 import { PredictionCoach } from "./ai/PredictionCoach";
@@ -17,7 +16,7 @@ import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 /**
  * The Personalized F1 Intelligence Command Center - a narrative, not a widget stack:
- * general context (RaceBrief) -> personal thesis (YourRace) -> attention (OneThingToWatch) ->
+ * general context + attention (RaceBrief, one briefing surface) -> personal thesis (YourRace) ->
  * challenge (BlindSpot) -> decision (PickVsModel) -> argument (AIvsYou), then the secondary
  * analytics row and prediction-history cards. Combines grounded AI reasoning with deterministic
  * Random Forest predictions, Monte Carlo simulations, and user metrics.
@@ -51,14 +50,11 @@ export function IntelligenceSection({
 
       <SinceLastVisit />
 
-      {/* General context */}
+      {/* General context + attention, one briefing surface (see RaceBrief.tsx's own comment) */}
       <RaceBrief />
 
       {/* Personal thesis - the page's editorial centerpiece */}
       <YourRace />
-
-      {/* Attention */}
-      <OneThingToWatch />
 
       {/* Challenge */}
       <BlindSpot />
@@ -111,7 +107,6 @@ export function IntelligenceSkeleton() {
 
       <RaceBriefSkeleton />
       <YourRaceSkeleton />
-      <OneThingToWatchSkeleton />
       <BlindSpotSkeleton />
 
       <div className="space-y-4">

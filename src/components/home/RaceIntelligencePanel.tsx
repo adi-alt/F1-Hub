@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useHomepageIntelligence } from "./ai/HomepageIntelligenceProvider";
@@ -18,8 +19,14 @@ export function RaceIntelligencePanel({
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
 }) {
-  const { intelligence } = useHomepageIntelligence();
+  const { intelligence, isLoading } = useHomepageIntelligence();
   const outlook = favoriteDriver && intelligence?.personalOutlook?.driver === favoriteDriver.name ? intelligence.personalOutlook : null;
+  // A favorite driver is the ONLY thing that makes an outlook block possible at all (see the
+  // match check above) - so it's the one thing we know synchronously, before the AI fetch
+  // resolves, that tells us whether to reserve space for it. This is what was missing before:
+  // the block simply didn't exist until `outlook` became truthy, so the panel's real height
+  // (and the AI text arriving) came as a sudden, un-animated append with nothing reserved for it.
+  const expectsOutlook = !!favoriteDriver;
 
   if (!trackHistory) {
     return (
@@ -39,7 +46,11 @@ export function RaceIntelligencePanel({
       : null;
 
   return (
-    <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6">
+    <motion.div
+      layout="size"
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6"
+    >
       {trackHistory.circuitImageUrl && (
         <div className="mb-3 flex justify-center border-b border-white/[0.06] pb-3">
           <Image
@@ -134,13 +145,35 @@ export function RaceIntelligencePanel({
         </div>
       )}
 
-      {outlook && (
+      {/* Reserves the block the instant we know a favorite driver exists (before the AI fetch even
+       * resolves) - the real fix for the "outlook suddenly appears and the panel jumps" bug: there
+       * used to be nothing here at all until `outlook` went truthy, so both the text AND its own
+       * vertical space arrived at once, with no transition. Collapses cleanly to nothing if the AI
+       * never ends up producing a matching outlook (a guest, or a fallback that omitted it) -
+       * `layout="size"` on the outer panel animates that height change too, so even the "it wasn't
+       * needed after all" case doesn't jump. */}
+      {expectsOutlook && isLoading && (
         <div className="mt-3.5 border-t border-white/[0.06] pt-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Your outlook</p>
-          <p className="mt-1 text-xs leading-relaxed text-neutral-300">{outlook.overallAssessment}</p>
+          <Skeleton className="skeleton-shimmer h-2.5 w-24 rounded" />
+          <div className="mt-2 space-y-1.5">
+            <Skeleton className="skeleton-shimmer h-3 w-full rounded" />
+            <Skeleton className="skeleton-shimmer h-3 w-full rounded" />
+            <Skeleton className="skeleton-shimmer h-3 w-2/3 rounded" />
+          </div>
         </div>
       )}
-    </div>
+      {outlook && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="mt-3.5 border-t border-white/[0.06] pt-3"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Your outlook</p>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-300">{outlook.overallAssessment}</p>
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 
