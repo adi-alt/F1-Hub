@@ -324,23 +324,66 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
     setInfo("If an account exists for that email, a reset link is on its way.");
   }
 
-  // Redirect-based, not a popup (Supabase has no popup flow the way Firebase's signInWithPopup
-  // did) - the whole tab navigates to the provider and back to /auth/callback, which does the
-  // rest (see that route + AuthDialogHost.tsx's resume watcher). Nothing left to do here once the
-  // redirect kicks off; only a genuine failure to even start it (provider not configured yet)
-  // leaves this dialog open to show something.
-  async function handleProvider(provider: OAuthProvider) {
+  // Supabase has no popup flow the way Firebase's old signInWithPopup did (`skipBrowserRedirect`
+  // just stops it from navigating the current tab itself - it still hands back a real redirect
+  // URL, not a completed sign-in), so this opens that URL in a real popup window and drives the
+  // round trip by hand: /auth/callback (?popup=1, appended below) does the same code exchange +
+  // OTP dispatch it always did, then lands on /auth/popup-closed, which posts the result back via
+  // postMessage and closes itself - the main tab never navigates or reloads at all. Falls back to
+  // the previous same-tab redirect if the popup was blocked (a null return from window.open), so
+  // this never leaves someone with a dead "nothing happened" button.
+  function handleProvider(provider: OAuthProvider) {
     setBusy(true);
     setError(null);
     setInfo(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) {
-      setError("That sign-in method isn't set up yet.");
-      setBusy(false);
-    }
+    void supabase.auth
+      .signInWithOAuth({
+        provider,
+        options: { redirectTo: `${window.location.origin}/auth/callback?popup=1`, skipBrowserRedirect: true },
+      })
+      .then(({ data, error }) => {
+        if (error || !data?.url) {
+          setError("That sign-in method isn't set up yet.");
+          setBusy(false);
+          return;
+        }
+
+        const popup = window.open(data.url, "f1hub-oauth", "width=480,height=640");
+        if (!popup) {
+          // Blocked - same-tab redirect, exactly the old behavior (/auth/callback's own `popup`
+          // param is simply absent this time, so it lands back on `/` the same way it always did).
+          window.location.href = data.url;
+          return;
+        }
+
+        let settled = false;
+        function onMessage(e: MessageEvent) {
+          if (e.origin !== window.location.origin || e.data?.source !== "f1hub-oauth") return;
+          settled = true;
+          window.removeEventListener("message", onMessage);
+          clearInterval(poll);
+          popup?.close();
+          setBusy(false);
+          if (e.data.step === "otp") {
+            setVerifiedEmail(e.data.email ?? "");
+            setStep("otp");
+            setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
+          } else {
+            setError("Sign-in failed. Try again.");
+          }
+        }
+        window.addEventListener("message", onMessage);
+
+        // The popup closing without ever posting a message means the person closed it themselves
+        // (or it errored before /auth/callback could run) - not a failure worth surfacing, just
+        // back to the idle "method" step.
+        const poll = setInterval(() => {
+          if (!popup.closed) return;
+          clearInterval(poll);
+          window.removeEventListener("message", onMessage);
+          if (!settled) setBusy(false);
+        }, 400);
+      });
   }
 
   async function handleEmailContinue() {
