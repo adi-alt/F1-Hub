@@ -1,25 +1,24 @@
 // GroqProvider — Concrete AIProvider implementation for Groq's OpenAI-compatible chat completions
-// API (https://api.groq.com/openai/v1/chat/completions). Benchmark candidate only, not registered
-// as the default (see provider.ts's getDefaultProvider) - added specifically to compare real
-// latency against Muse Glimmer 30B's own documented, sometimes-90s tail (see museGlimmer.ts's own
-// header comment and DEFAULT_ORCHESTRATOR_CONFIG's timeoutMs comment in types.ts). Groq's whole
-// pitch is LPU-hosted inference specifically for low latency, so this is exactly the kind of
-// candidate worth a real, controlled comparison rather than a guess.
+// API (https://api.groq.com/openai/v1/chat/completions). The default provider (see provider.ts's
+// getDefaultProvider) as of 2026-09-10 - chosen via a real, live benchmark against this app's own
+// race-intelligence-shaped structured-JSON workload, not a guess: 5/5 runs at 1.65s-1.87s (median
+// ~1.70s), vs. Muse Glimmer 30B's own bake-off median of 14.0s and a real, confirmed-live 90s
+// production timeout (see museGlimmer.ts's own header comment). Cerebras (billing not set up on
+// the available key), OpenRouter's free-tier models (all either congested/rate-limited or slow-
+// and-unreliable), and OpenRouter's own paid gpt-oss-120b (~22s, >10x slower than Groq for the
+// exact same model) were all tested live too - none came close.
 //
 // Same OpenAI-compatible request/response shape as MuseGlimmerProvider - no reasoning_budget/
 // chat_template_kwargs, plain messages/tools/tool_choice.
 
-import { registerProvider, type AIProvider } from "./provider";
+import { ProviderHttpError, registerProvider, type AIProvider } from "./provider";
 import { getDefaultAIModel, type AIMessage, type AIProviderConfig, type AIProviderToolDef, type AIResponse, type AIToolCall } from "./types";
 import { logAIError, logProviderRequest } from "./telemetry";
 
 const GROQ_INVOKE_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 // Confirmed live against this exact API key's real model catalog (GET /v1/models) - the largest
-// generalist chat model actually available on it. 5/5 real runs against a race-intelligence-shaped
-// structured-JSON prompt: 1.65s-1.87s, median ~1.70s - roughly 8x faster than Muse Glimmer 30B's
-// own bake-off median (14.0s), and nowhere near the 90s tail this app has actually hit in
-// production with that provider.
+// generalist chat model actually available on it.
 export const GROQ_MODEL_ID = "openai/gpt-oss-120b";
 
 export class GroqProvider implements AIProvider {
@@ -71,7 +70,7 @@ export class GroqProvider implements AIProvider {
       if (!response.ok) {
         const errorText = await response.text();
         logProviderRequest("groq", model, "error", 0, 0, latencyMs, { status: response.status, error: errorText.slice(0, 200), providerName: this.name });
-        throw new Error(`Groq returned HTTP ${response.status}: ${errorText.slice(0, 300)}`);
+        throw new ProviderHttpError(`Groq returned HTTP ${response.status}: ${errorText.slice(0, 300)}`, response.status);
       }
 
       const json = await response.json();
@@ -103,10 +102,3 @@ export class GroqProvider implements AIProvider {
 }
 
 registerProvider(new GroqProvider());
-
-/** Benchmark-only accessor - getDefaultProvider() (provider.ts) is untouched, still Muse Glimmer.
- * Call this directly (see the benchmark route) to compare Groq specifically, without changing what
- * any real feature (homepage/race intelligence) actually uses. */
-export function getGroqProvider(): AIProvider {
-  return new GroqProvider();
-}

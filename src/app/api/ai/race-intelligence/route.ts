@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     const needPersonal = wantsPersonal && !personalEntry;
 
     if (needShared || needPersonal) {
-      const capacity = checkProviderCapacity("nvidia");
+      const capacity = checkProviderCapacity("groq");
       if (!capacity.allowed && !sharedEntry) {
         // No shared cache to fall back to and the provider is over capacity - deterministic shared
         // content only, same "never leave the page with nothing" guarantee the homepage route has.

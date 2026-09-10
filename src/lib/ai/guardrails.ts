@@ -82,7 +82,7 @@ export function guardAIExecution(userId: string | null): {
   }
 
   // 2. Check provider capacity (NVIDIA 40 RPM ceiling)
-  const providerCheck = checkProviderCapacity("nvidia");
+  const providerCheck = checkProviderCapacity("groq");
   if (!providerCheck.allowed) {
     return {
       allowed: false,

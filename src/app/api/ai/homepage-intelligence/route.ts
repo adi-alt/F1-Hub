@@ -257,7 +257,7 @@ export async function POST() {
     }
 
     // 7. Check Provider RPM Capacity (NVIDIA 40 RPM ceiling) before doing any generation work.
-    const capacity = checkProviderCapacity("nvidia");
+    const capacity = checkProviderCapacity("groq");
     if (!capacity.allowed) {
       logDeterministicFallback(requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
       const fallback = generateDeterministicFallback(fallbackContext, "PROVIDER_RATE_LIMITED");

@@ -26,25 +26,25 @@ import type { AgentContext } from "../types";
 
 describe("Provider-Aware Rate Limiting (40 RPM Ceiling)", () => {
   beforeEach(() => {
-    resetProviderRateLimiter("nvidia");
+    resetProviderRateLimiter("groq");
   });
 
   test("allows requests up to the 40 RPM ceiling", () => {
     for (let i = 1; i <= 40; i++) {
-      const cap = acquireProviderCapacity("nvidia");
+      const cap = acquireProviderCapacity("groq");
       assert.equal(cap.allowed, true, `Request #${i} should be allowed`);
       assert.equal(cap.currentRPM, i);
       assert.equal(cap.limit, 40);
     }
-    assert.equal(getProviderRPM("nvidia"), 40);
+    assert.equal(getProviderRPM("groq"), 40);
   });
 
   test("blocks the 41st request and returns retryAfterSeconds", () => {
     for (let i = 0; i < 40; i++) {
-      acquireProviderCapacity("nvidia");
+      acquireProviderCapacity("groq");
     }
 
-    const blocked = acquireProviderCapacity("nvidia");
+    const blocked = acquireProviderCapacity("groq");
     assert.equal(blocked.allowed, false, "41st request must be throttled");
     assert.equal(blocked.currentRPM, 40);
     assert.ok(blocked.retryAfterSeconds > 0, "retryAfterSeconds must be positive");
@@ -52,13 +52,13 @@ describe("Provider-Aware Rate Limiting (40 RPM Ceiling)", () => {
   });
 
   test("checkProviderCapacity inspects capacity without consuming tokens", () => {
-    const initial = checkProviderCapacity("nvidia");
+    const initial = checkProviderCapacity("groq");
     assert.equal(initial.allowed, true);
     assert.equal(initial.currentRPM, 0);
 
     // Consume 1
-    acquireProviderCapacity("nvidia");
-    const afterOne = checkProviderCapacity("nvidia");
+    acquireProviderCapacity("groq");
+    const afterOne = checkProviderCapacity("groq");
     assert.equal(afterOne.currentRPM, 1);
   });
 });
@@ -135,13 +135,13 @@ describe("Deterministic Fallback Engine", () => {
 
 describe("Orchestrator Capacity Guarding & Direct Mode", () => {
   beforeEach(() => {
-    resetProviderRateLimiter("nvidia");
+    resetProviderRateLimiter("groq");
   });
 
   test("returns deterministic fallback immediately when 40 RPM is reached", async () => {
     // Fill up quota
     for (let i = 0; i < 40; i++) {
-      acquireProviderCapacity("nvidia");
+      acquireProviderCapacity("groq");
     }
 
     const agentContext: AgentContext = {

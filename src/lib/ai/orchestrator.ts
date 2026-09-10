@@ -4,7 +4,7 @@
 //    provider-capacity checking, and instant deterministic fallback on rate limits or errors.
 // 2. Agent Mode: Bounded multi-step tool execution loop for future interactive agents.
 
-import { getDefaultProvider } from "./provider";
+import { chatWithProviderFallback } from "./providerFallback";
 import { acquireProviderCapacity } from "./providerRateLimiter";
 import { formatHomepagePrompt, HOMEPAGE_PROMPT_VERSION } from "./prompts/homepagePrompt";
 import { formatPersonalOnlyPrompt, formatRaceIntelligencePrompt, RACE_INTELLIGENCE_PROMPT_VERSION } from "./prompts/raceIntelligencePrompt";
@@ -14,13 +14,7 @@ import { validateHomepageIntelligence, type HomepageIntelligence } from "./schem
 import { validatePersonalOnlyResult, validateRaceIntelligenceResult, type PersonalRaceInsight, type SharedRaceIntelligence } from "./schemas/raceIntelligence";
 import { generateDeterministicFallback, generateDeterministicRaceFallback, type FallbackDataContext } from "./fallback";
 import { logAIOperation, logDeterministicFallback, logAIError } from "./telemetry";
-import {
-  DEFAULT_ORCHESTRATOR_CONFIG,
-  getDefaultAIModel,
-  type AgentContext,
-  type OrchestratorConfig,
-  type StructuredOutput,
-} from "./types";
+import { DEFAULT_ORCHESTRATOR_CONFIG, type AgentContext, type OrchestratorConfig, type StructuredOutput } from "./types";
 
 /** Convert HomepageContextData into FallbackDataContext - both the fallback engine and the model
  * reason over the exact same underlying facts, just via different mechanisms (template strings
@@ -124,7 +118,8 @@ export function cleanJsonOutput(text: string): string {
 
 /**
  * Direct Mode: Bundled Homepage Intelligence Request.
- * Single call to the configured model, protected by 40 RPM provider capacity check and deterministic fallback.
+ * Groq primary / OpenRouter fallback (see providerFallback.ts), protected by an RPM capacity
+ * check and deterministic fallback if both providers fail.
  */
 export async function generateHomepageIntelligence(
   contextData: HomepageContextData,
@@ -133,12 +128,14 @@ export async function generateHomepageIntelligence(
   config: Partial<OrchestratorConfig> = {},
 ): Promise<StructuredOutput<HomepageIntelligence>> {
   const startTime = Date.now();
-  const provider = getDefaultProvider();
-  const model = config.provider?.model || getDefaultAIModel();
+  // Not yet known which provider will actually serve this - chatWithProviderFallback below
+  // resolves that; this is only the label for the early rate-limited-return path, which never
+  // gets far enough to attempt either one.
+  const plannedModel = "groq/openai/gpt-oss-120b";
   const fallbackContext = toFallbackContext(contextData);
 
-  // 1. Check & acquire provider capacity (40 RPM ceiling)
-  const capacity = acquireProviderCapacity("nvidia");
+  // 1. Check & acquire provider capacity (RPM ceiling)
+  const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
     logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", {
       currentRPM: capacity.currentRPM,
@@ -151,8 +148,8 @@ export async function generateHomepageIntelligence(
       requestId: ctx.requestId,
       agentType: "homepage_intelligence",
       userId: ctx.userId,
-      provider: provider.name,
-      model,
+      provider: "groq",
+      model: plannedModel,
       promptVersion: HOMEPAGE_PROMPT_VERSION,
       toolCalls: [],
       totalDurationMs: Date.now() - startTime,
@@ -170,7 +167,7 @@ export async function generateHomepageIntelligence(
       generatedAt: new Date().toISOString(),
       dataVersion,
       agentType: "homepage_intelligence",
-      modelIdentifier: model,
+      modelIdentifier: plannedModel,
       promptVersion: HOMEPAGE_PROMPT_VERSION,
       isFallback: true,
       fallbackReason: "PROVIDER_RATE_LIMITED",
@@ -181,25 +178,30 @@ export async function generateHomepageIntelligence(
   const contextString = buildHomepageContext(contextData);
   const messages = formatHomepagePrompt(contextString);
 
-  const providerConfig = {
-    ...DEFAULT_ORCHESTRATOR_CONFIG.provider,
-    ...config.provider,
-    model,
+  const baseConfig = {
+    maxTokens: config.provider?.maxTokens ?? DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens,
+    temperature: config.provider?.temperature ?? 0.7,
   };
 
-  // 3. Invoke provider - single attempt, deliberately no retry. A retry made sense against a
-  // transient failure; it doesn't against this task's real, measured cost - the full
-  // HomepageIntelligence generation reliably takes ~58s (confirmed live via the diagnostic route's
-  // own representative-context probe), so a retry would just double the worst-case wait for a call
-  // that's slow, not flaky. providerConfig.timeoutMs already carries real margin above that.
+  // 3. Invoke provider (Groq -> OpenRouter fallback chain, see providerFallback.ts) - one retry
+  // built into that chain already covers the "transient failure" case; this call site doesn't
+  // add a second layer of retries on top of it.
   let rawContent: string | null = null;
+  let provider = { name: "groq" };
+  let model = plannedModel;
+  let fallbackUsed = false;
+  let fallbackReasonUsed: string | undefined;
   let tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
   const retryCount = 0;
 
   try {
-    const response = await provider.chat(messages, null, providerConfig);
-    rawContent = response.content;
-    tokenUsage = response.usage;
+    const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+    rawContent = result.response.content;
+    tokenUsage = result.response.usage;
+    provider = { name: result.providerName };
+    model = result.model;
+    fallbackUsed = result.fallbackUsed;
+    fallbackReasonUsed = result.fallbackReason;
   } catch (err) {
     logAIError(ctx.requestId, "provider_failure_final", String(err));
     const fallback = generateDeterministicFallback(fallbackContext, "PROVIDER_ERROR");
@@ -266,6 +268,8 @@ export async function generateHomepageIntelligence(
       providerRPMCurrent: capacity.currentRPM,
       providerRPMLimit: capacity.limit,
       retryCount,
+      fallbackUsed,
+      fallbackReason: fallbackReasonUsed,
     });
 
     return {
@@ -309,8 +313,6 @@ export async function generateRaceIntelligence(
   options: { needShared: boolean; needPersonal: boolean; existingSharedHeadline?: string },
 ): Promise<RaceIntelligenceGenerationResult> {
   const startTime = Date.now();
-  const provider = getDefaultProvider();
-  const model = getDefaultAIModel();
   const wantsPersonal = options.needPersonal && hasPersonalContext(context);
 
   const toDeterministicResult = (): RaceIntelligenceGenerationResult => {
@@ -321,23 +323,23 @@ export async function generateRaceIntelligence(
     };
   };
 
-  const capacity = acquireProviderCapacity("nvidia");
+  const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
     logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
     return toDeterministicResult();
   }
 
-  const providerConfig = { ...DEFAULT_ORCHESTRATOR_CONFIG.provider, model };
+  const baseConfig = { maxTokens: DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens, temperature: 0.7 };
 
   try {
     if (options.needShared) {
       // Full call: shared (+ personal together, when real personal context exists).
       const structuredContext = formatRaceIntelligenceContext(context, wantsPersonal);
       const messages = formatRaceIntelligencePrompt(structuredContext);
-      const response = await provider.chat(messages, null, providerConfig);
-      if (!response.content) throw new Error("EMPTY_RESPONSE");
+      const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+      if (!result.response.content) throw new Error("EMPTY_RESPONSE");
 
-      const parsed = JSON.parse(cleanJsonOutput(response.content));
+      const parsed = JSON.parse(cleanJsonOutput(result.response.content));
       const validation = validateRaceIntelligenceResult(parsed, context.evidenceFacts);
       if (!validation.valid || !validation.data) {
         logAIError(ctx.requestId, "race_validation_failure", "Failed to validate race intelligence output", { errors: validation.errors });
@@ -348,14 +350,16 @@ export async function generateRaceIntelligence(
         requestId: ctx.requestId,
         agentType: "race_intelligence",
         userId: ctx.userId,
-        provider: provider.name,
-        model,
+        provider: result.providerName,
+        model: result.model,
         promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
         toolCalls: [],
         totalDurationMs: Date.now() - startTime,
-        tokenUsage: response.usage,
+        tokenUsage: result.response.usage,
         cacheHit: false,
         validationSuccess: true,
+        fallbackUsed: result.fallbackUsed,
+        fallbackReason: result.fallbackReason,
       });
 
       return {
@@ -369,10 +373,10 @@ export async function generateRaceIntelligence(
       // context so the model doesn't need to regenerate it (see formatPersonalOnlyPrompt).
       const structuredContext = formatRaceIntelligenceContext(context, true);
       const messages = formatPersonalOnlyPrompt(structuredContext, options.existingSharedHeadline ?? context.race.name);
-      const response = await provider.chat(messages, null, providerConfig);
-      if (!response.content) throw new Error("EMPTY_RESPONSE");
+      const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+      if (!result.response.content) throw new Error("EMPTY_RESPONSE");
 
-      const parsed = JSON.parse(cleanJsonOutput(response.content));
+      const parsed = JSON.parse(cleanJsonOutput(result.response.content));
       const validation = validatePersonalOnlyResult(parsed, context.evidenceFacts);
       if (!validation.valid || !validation.data) {
         logAIError(ctx.requestId, "race_personal_validation_failure", "Failed to validate personal-only output", { errors: validation.errors });
@@ -383,14 +387,16 @@ export async function generateRaceIntelligence(
         requestId: ctx.requestId,
         agentType: "race_intelligence",
         userId: ctx.userId,
-        provider: provider.name,
-        model,
+        provider: result.providerName,
+        model: result.model,
         promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
         toolCalls: [],
         totalDurationMs: Date.now() - startTime,
-        tokenUsage: response.usage,
+        tokenUsage: result.response.usage,
         cacheHit: false,
         validationSuccess: true,
+        fallbackUsed: result.fallbackUsed,
+        fallbackReason: result.fallbackReason,
       });
 
       return { shared: null, personal: { data: validation.data, generationMode: "ai" } };
