@@ -58,7 +58,11 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
 
   // Races for the admin's own "new prediction" race picker - current season, most recent first, so
   // the realistic choice (this weekend, or one that just finished and needs resolving) is on top.
-  const races = [...seasonRaces].reverse().map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
+  // Excludes `calendar` placeholders (rounds with no `races` row yet, identifiable by raceDate
+  // being set - toRaceDoc never sets it, only toCalendarPlaceholder does, see races.ts) since their
+  // id isn't a real races.id - picking one made createPrediction's getRaceById lookup 404 with
+  // "That race doesn't exist."
+  const races = [...seasonRaces].reverse().filter((r) => !r.raceDate).map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
 
   // Driver rosters for every race any prediction in this group already references - one small
   // fetch per unique race (typically a handful), not the whole season, so a guess dropdown has
