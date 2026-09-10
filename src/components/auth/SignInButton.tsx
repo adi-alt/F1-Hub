@@ -9,7 +9,7 @@ export function SignInButton() {
   const open = useAuthDialogStore((s) => s.open);
 
   if (loading) {
-    return <div className="h-9 w-24 animate-pulse rounded-full bg-white/10" />;
+    return <div className="h-9 w-24 animate-pulse rounded-lg bg-white/10" />;
   }
 
   // Gated on isAuthorized, not the raw Firebase user - Firebase's own auth state goes truthy the
@@ -24,13 +24,13 @@ export function SignInButton() {
     <div className="flex items-center gap-2">
       <button
         onClick={open}
-        className="rounded-full px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:text-white"
+        className="rounded-lg px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:text-white"
       >
         Sign in
       </button>
       <button
         onClick={open}
-        className="rounded-full bg-[var(--f1-red)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 active:brightness-95"
+        className="rounded-lg bg-[var(--f1-red)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 active:brightness-95"
       >
         Sign up
       </button>

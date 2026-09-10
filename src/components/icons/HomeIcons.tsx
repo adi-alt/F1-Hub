@@ -111,3 +111,11 @@ export function CheckIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <svg {...base} strokeWidth={2.2} {...props}>
+      <path d="M4 12h16M13 5l7 7-7 7" />
+    </svg>
+  );
+}

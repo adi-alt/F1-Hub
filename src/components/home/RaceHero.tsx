@@ -6,11 +6,12 @@ import { motion } from "framer-motion";
 import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceIntelligencePanel";
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
+import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
 import { formatCountdownLive } from "@/lib/countdown";
 import type { NextAction, PublicHomeData } from "@/lib/homeData";
 import type { FactIconKind, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
+import { useAuth } from "@/providers/AuthProvider";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
 
 const FACT_ICONS: Record<FactIconKind, typeof TrophyIcon> = {
@@ -70,6 +71,7 @@ export function RaceHero({
 }) {
   const now = useSecondClock();
   const openAuthDialog = useAuthDialogStore((s) => s.open);
+  const { isAuthorized } = useAuth();
   const { nextRace, calendarEntry, facts, trackHistory } = publicData;
 
   const raceSessionDate = calendarEntry?.sessions.find((s) => s.label.toLowerCase().includes("race"))?.date ?? calendarEntry?.raceDate ?? null;
@@ -140,15 +142,28 @@ export function RaceHero({
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Link
             href={primaryHref}
-            className="rounded-full bg-[var(--f1-red)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+            // The race page itself gate-checks the session and shows the sign-in dialog anyway
+            // (see app/race/page.tsx's own SignInGate) - for a signed-out visitor that's a wasted
+            // navigation just to land back on a dialog. Check here first and open the same dialog
+            // directly instead, skip the round trip. `variant === "public"` already only renders
+            // when the visitor isn't authorized, but isAuthorized is still checked explicitly
+            // (not assumed from that alone) so this keeps working correctly if that ever changes.
+            onClick={(e) => {
+              if (variant === "public" && !isAuthorized) {
+                e.preventDefault();
+                openAuthDialog();
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
           >
-            {primaryLabel} →
+            {primaryLabel}
+            <ArrowRightIcon className="h-4 w-4" />
           </Link>
           {variant === "public" && (
             <button
               type="button"
               onClick={openAuthDialog}
-              className="rounded-full border border-[var(--f1-line)] px-5 py-2.5 text-sm font-semibold text-neutral-200 transition hover:border-white/30"
+              className="rounded-lg border border-[var(--f1-line)] px-5 py-2.5 text-sm font-semibold text-neutral-200 transition hover:border-white/30"
             >
               Sign up free
             </button>
@@ -177,10 +192,20 @@ export function RaceHeroSkeleton({ variant }: { variant: "public" | "personal" }
         <Skeleton className="skeleton-shimmer mt-2 h-10 w-80 max-w-full rounded" />
         <Skeleton className="skeleton-shimmer mt-2 h-4 w-32 rounded" />
         <div className="mt-5 flex items-center gap-6">
-          <Skeleton className="skeleton-shimmer h-8 w-24 rounded" />
+          <div>
+            <Skeleton className="skeleton-shimmer h-8 w-24 rounded" />
+            <Skeleton className="skeleton-shimmer mt-1.5 h-2.5 w-28 rounded" />
+          </div>
           <RaceReadinessSkeleton />
         </div>
-        <Skeleton className="skeleton-shimmer mt-4 h-9 w-36 rounded-full" />
+        <div className="mt-3 flex items-center gap-1.5">
+          <Skeleton className="skeleton-shimmer h-4 w-4 shrink-0 rounded" />
+          <Skeleton className="skeleton-shimmer h-3.5 w-64 max-w-full rounded" />
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <Skeleton className="skeleton-shimmer h-9 w-36 rounded-lg" />
+          {variant === "public" && <Skeleton className="skeleton-shimmer h-9 w-32 rounded-lg" />}
+        </div>
       </div>
       <RaceIntelligencePanelSkeleton />
     </div>

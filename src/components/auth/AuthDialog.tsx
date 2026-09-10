@@ -228,17 +228,11 @@ function OtpStep({
         {verifiedEmail ? <span className="text-white">{verifiedEmail}.</span> : <Skeleton className="h-4 w-36 rounded" />}
       </p>
       <OtpInput value={code} onChange={setCode} />
-      {/* Personal Gmail SMTP relay (no verified sending domain yet - see otp.ts's own comment)
-          means this genuinely lands in spam for a lot of providers, and gets blocked outright by
-          some corporate mail gateways with no notice at all. Surfacing that up front is more
-          honest than a generic "check your email" that leaves people staring at an empty inbox. */}
-      <p className="text-xs text-neutral-500">
-        Don&apos;t see it? Check spam/junk. A strict corporate email filter may block it entirely - try a personal address if so.
-      </p>
+      <p className="text-xs text-neutral-500">Don&apos;t see it? Check your spam folder as well.</p>
       <button
         disabled={busy || code.length !== 6}
         onClick={onSubmit}
-        className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+        className="w-full rounded-lg bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
       >
         {busy ? "Verifying…" : "Verify"}
       </button>
@@ -529,7 +523,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             <button
               disabled={busy || !email || password.length < 6}
               onClick={() => void handleEmailContinue()}
-              className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+              className="w-full rounded-lg bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
             >
               {busy ? "Please wait…" : "Continue"}
             </button>
@@ -543,7 +537,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             <button
               disabled={busy}
               onClick={() => void handleProvider("google")}
-              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
             >
               <GoogleIcon />
               Continue with Google
@@ -551,7 +545,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             <button
               disabled={busy}
               onClick={() => void handleProvider("github")}
-              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
             >
               <GitHubIcon />
               Continue with GitHub
@@ -559,7 +553,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             <button
               disabled={busy}
               onClick={() => void handleProvider("discord")}
-              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
             >
               <DiscordIcon />
               Continue with Discord
@@ -567,7 +561,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             <button
               disabled={busy}
               onClick={() => void handleProvider("gitlab")}
-              className="flex w-full items-center justify-center gap-2 rounded-full border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
             >
               <GitLabIcon />
               Continue with GitLab
@@ -686,7 +680,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
                 usernameStatus === "taken"
               }
               onClick={() => void handleProfileSubmit()}
-              className="w-full rounded-full bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+              className="w-full rounded-lg bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
             >
               {busy ? "Creating account…" : "Create account"}
             </button>
