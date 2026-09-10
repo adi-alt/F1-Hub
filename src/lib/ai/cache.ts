@@ -87,6 +87,15 @@ export async function setCachedRaceEntry<T>(cacheKey: string, content: T, genera
   await setCachedIntelligence(cacheKey, entry, dataVersion, ttl, metadata);
 }
 
+/** True for a key that's safe for ANY user to read (homepage global tier or race shared tier) -
+ * used only to label cache-hit telemetry ("hit_global" vs "hit_personal"), never for access control.
+ * Was `cacheKey.startsWith("ai:global")` only, which silently mislabeled every race-intelligence
+ * shared-tier hit ("ai:race:shared:...") as "hit_personal", undercounting how many LLM calls the
+ * shared tier was actually avoiding. */
+function isSharedCacheKey(cacheKey: string): boolean {
+  return cacheKey.startsWith("ai:global") || cacheKey.startsWith("ai:race:shared");
+}
+
 /**
  * Retrieve cached intelligence from L1 memory or Supabase ai_cache table.
  */
@@ -100,7 +109,7 @@ export async function getCachedIntelligence<T>(
   const mem = memoryCache.get(cacheKey);
   if (mem) {
     if (mem.expiresAt > now) {
-      logCacheEvent(requestId, cacheKey.startsWith("ai:global") ? "hit_global" : "hit_personal", cacheKey);
+      logCacheEvent(requestId, isSharedCacheKey(cacheKey) ? "hit_global" : "hit_personal", cacheKey);
       return mem.value as T;
     }
     memoryCache.delete(cacheKey);
@@ -132,7 +141,7 @@ export async function getCachedIntelligence<T>(
       expiresAt,
     });
 
-    logCacheEvent(requestId, cacheKey.startsWith("ai:global") ? "hit_global" : "hit_personal", cacheKey);
+    logCacheEvent(requestId, isSharedCacheKey(cacheKey) ? "hit_global" : "hit_personal", cacheKey);
     return data.value as T;
   } catch (err) {
     logAIError(requestId, "cache_read_error", String(err));

@@ -116,6 +116,10 @@ export type AgentContext = {
   raceId: string | null;
   /** Prompt template version used for this run. */
   promptVersion?: string;
+  /** The cache data-version fingerprint this generation is for, if the caller already computed one
+   * (see cache.ts's computeDataVersion) - threaded through so logAIOperation can record it without
+   * every orchestrator function needing its own separate parameter for the same value. */
+  dataVersion?: string;
 };
 
 export type AgentType =
@@ -152,6 +156,21 @@ export type StructuredOutput<T> = {
 
 // ─── Observability & Telemetry ─────────────────────────────────────────────────
 
+/** A small, fixed set of failure buckets - so a log query can group "why did this fall back"
+ * without parsing free-text error messages. See errorCategory.ts for the actual classifiers. */
+export const AI_ERROR_CATEGORIES = [
+  "rate_limit",
+  "timeout",
+  "provider_error",
+  "authentication",
+  "configuration",
+  "invalid_response",
+  "schema_validation",
+  "deterministic_fallback",
+  "unknown",
+] as const;
+export type AIErrorCategory = (typeof AI_ERROR_CATEGORIES)[number];
+
 export type AIOperationLog = {
   requestId: string;
   agentType: AgentType;
@@ -159,20 +178,27 @@ export type AIOperationLog = {
   provider: string;
   model: string;
   promptVersion?: string;
+  /** The cache data-version fingerprint this generation was for (see cache.ts's
+   * computeDataVersion) - lets a log query tie a generation back to the exact underlying-data
+   * snapshot it reflects. */
+  dataVersion?: string;
   toolCalls: { name: string; durationMs: number; success: boolean }[];
   totalDurationMs: number;
   tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   cacheHit: boolean;
   cacheKeyType?: "global" | "personal" | "none";
   validationSuccess: boolean;
+  /** The provider's own reported stop reason ("stop"/"length"/"tool_calls"/etc.) when a real
+   * response was received - absent when generation never reached a provider response at all
+   * (e.g. rate-limited before attempting, or the provider call itself threw). */
+  finishReason?: string;
   providerRPMCurrent?: number;
   providerRPMLimit?: number;
   capacityExhausted?: boolean;
   fallbackUsed?: boolean;
   fallbackReason?: string;
   retryCount?: number;
-  errorCategory?: string;
-  finishReason?: string;
+  errorCategory?: AIErrorCategory;
 };
 
 // ─── Orchestrator Config ───────────────────────────────────────────────────────

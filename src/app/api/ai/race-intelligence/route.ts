@@ -56,17 +56,6 @@ export async function POST(request: Request) {
     const session = await getSession();
     const userId = session?.uid || null;
 
-    // Per-user request budget (see homepage-intelligence/route.ts's own comment on this same wiring)
-    // - protects the personal-cache-miss path (favorite/team churn) from an individual user, on top
-    // of the shared provider RPM bucket below. A shared-cache hit for this exact race is unaffected
-    // for everyone else - this only ever blocks the still-forming/personal-miss path.
-    if (userId) {
-      const userLimit = checkUserRateLimit(userId);
-      if (!userLimit.allowed) {
-        return NextResponse.json({ error: "Rate limited", reason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds }, { status: 429 });
-      }
-    }
-
     let context: RaceIntelligenceContext;
     let dataVersionSeed: string;
     if (isArchive) {
@@ -118,6 +107,19 @@ export async function POST(request: Request) {
     const needPersonal = wantsPersonal && !personalEntry;
 
     if (needShared || needPersonal) {
+      // Both checks gate ONLY the "about to attempt real generation" path - a shared or personal
+      // cache hit already returned above, so neither budget is ever touched by cache-hit traffic
+      // (see homepage-intelligence/route.ts's identical placement + reasoning). Per-user budget is
+      // checked independent of the provider bucket below, deliberately: this stops one user from
+      // repeatedly forcing personal-miss generation attempts (e.g. favorite/team churn) regardless
+      // of whether the shared provider bucket happens to also be saturated right now.
+      if (userId) {
+        const userLimit = checkUserRateLimit(userId);
+        if (!userLimit.allowed) {
+          return NextResponse.json({ error: "Rate limited", reason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds }, { status: 429 });
+        }
+      }
+
       const capacity = checkProviderCapacity("groq");
       if (!capacity.allowed && !sharedEntry) {
         // No shared cache to fall back to and the provider is over capacity - deterministic shared
@@ -131,7 +133,7 @@ export async function POST(request: Request) {
         });
       }
 
-      const agentContext: AgentContext = { userId, requestId, agentType: "race_intelligence", raceId };
+      const agentContext: AgentContext = { userId, requestId, agentType: "race_intelligence", raceId, dataVersion };
       // Must include the per-user personalCacheKey whenever this call will produce personal content -
       // otherwise two different users landing on the same cold race (needShared=true for both) would
       // lock on the same sharedCacheKey, and the second caller's single-flight join would silently

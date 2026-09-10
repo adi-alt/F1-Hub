@@ -65,20 +65,6 @@ export async function POST() {
     const session = await getSession();
     const userId = session?.uid || null;
 
-    // App-level per-user request budget (Part 19 of the AI-architecture spec) - this was written
-    // in guardrails.ts but never actually called from either AI route, so an authenticated user
-    // churning their favorites/pick to keep busting personalDataVersion had no limit beyond the
-    // shared 40 RPM provider bucket. Anonymous/guest traffic has no identifier to key on here (no
-    // per-IP plumbing exists yet) and almost never reaches generation anyway - it only ever reads
-    // the global cache tier (step 6 below), which is itself now leak-safe (step 9).
-    if (userId) {
-      const userLimit = checkUserRateLimit(userId);
-      if (!userLimit.allowed) {
-        const fallback = generateDeterministicFallback({}, "USER_RATE_LIMITED");
-        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds });
-      }
-    }
-
     // 2. Fetch deterministic GLOBAL data in parallel. computeSeasonStandings only depends on `year`
     // (not on nextRace/races/archiveCircuits), so it joins this same batch instead of waiting on it
     // - this used to be a separate `await` after this Promise.all resolved for no real reason.
@@ -271,7 +257,27 @@ export async function POST() {
       if (cachedGlobal) return respondCached(cachedGlobal, "global");
     }
 
-    // 7. Check Provider RPM Capacity (NVIDIA 40 RPM ceiling) before doing any generation work.
+    // 7. Both checks below gate ONLY the "about to attempt real generation" path - every cache hit
+    // above (step 6) already returned, so a warm cache never costs either budget. This is
+    // deliberate: per-user AI generation quota (Part 19 of the AI-architecture spec) exists to stop
+    // one user from repeatedly forcing real generation attempts (e.g. churning favorites to keep
+    // busting personalDataVersion), not to penalize ordinary cache-hit traffic. Checked BEFORE the
+    // provider bucket, and independent of it: an attempt that lands here counts against this user's
+    // budget whether or not the provider itself happens to also be saturated right now - otherwise a
+    // user could fire unlimited attempts for free during any window the provider bucket is full and
+    // have them all succeed in a burst the moment it frees up.
+    if (userId) {
+      const userLimit = checkUserRateLimit(userId);
+      if (!userLimit.allowed) {
+        const fallback = generateDeterministicFallback(fallbackContext, "USER_RATE_LIMITED");
+        await touchHomepageVisit(userId).catch(() => {});
+        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
+      }
+    }
+
+    // Provider RPM Capacity (global 40 RPM ceiling, shared across all users) - a separate concern
+    // from the per-user budget above: this protects Groq's own quota from the aggregate of every
+    // user's traffic, not any one user's behavior.
     const capacity = checkProviderCapacity("groq");
     if (!capacity.allowed) {
       logDeterministicFallback(requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });

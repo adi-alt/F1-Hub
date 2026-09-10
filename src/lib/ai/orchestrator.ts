@@ -14,7 +14,8 @@ import { validateHomepageIntelligence, type HomepageIntelligence } from "./schem
 import { validatePersonalOnlyResult, validateRaceIntelligenceResult, type PersonalRaceInsight, type SharedRaceIntelligence } from "./schemas/raceIntelligence";
 import { generateDeterministicFallback, generateDeterministicRaceFallback, type FallbackDataContext } from "./fallback";
 import { logAIOperation, logDeterministicFallback, logAIError } from "./telemetry";
-import { DEFAULT_ORCHESTRATOR_CONFIG, type AgentContext, type OrchestratorConfig, type StructuredOutput } from "./types";
+import { categorizeProviderError, categorizeFallbackReason } from "./errorCategory";
+import type { AgentContext, OrchestratorConfig, StructuredOutput } from "./types";
 
 /** Convert HomepageContextData into FallbackDataContext - both the fallback engine and the model
  * reason over the exact same underlying facts, just via different mechanisms (template strings
@@ -116,6 +117,25 @@ export function cleanJsonOutput(text: string): string {
   return cleaned;
 }
 
+// Feature-specific maxTokens, replacing the shared DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens
+// (8192) both features used previously - that value came from a pre-Groq-migration Muse Glimmer
+// benchmark unrelated to either of these schemas. Real measurement (2026-09-10): a local script
+// called the actual chatWithProviderFallback against each feature's real prompt/schema with a
+// realistic, fully-populated fixture (rich favorites/prediction/since-last-visit for homepage; full
+// evidenceFacts/tireStrategy/keyMoments for race intelligence) - not live-sampled production
+// traffic, but a real Groq/OpenRouter call each time, 3 runs per feature:
+//   HOMEPAGE:          completionTokens 3114, 3319 (Groq), 1888 (OpenRouter, real 429 fallback
+//                       triggered mid-run by this account's own 8000 TPM budget) - max observed 3319.
+//   RACE_INTELLIGENCE: completionTokens 1719, 1721, 1576 (Groq) - max observed 1721.
+// Neither feature came remotely close to truncating at 8192. These caps keep meaningful headroom
+// (~1.5x-1.9x the observed max) rather than shaving it to the exact sample - 3 runs each is not
+// enough to treat the observed max as a hard ceiling, only as a real, evidence-based order of
+// magnitude. The benefit isn't day-to-day savings (a normal completion stops at its own natural end
+// regardless of the cap) - it's bounding the worst case if a run ever loops/repeats instead of
+// stopping, which previously could burn up to 8192 tokens before the cap kicked in.
+const HOMEPAGE_MAX_TOKENS = 5000;
+const RACE_INTELLIGENCE_MAX_TOKENS = 3000;
+
 /**
  * Direct Mode: Bundled Homepage Intelligence Request.
  * Groq primary / OpenRouter fallback (see providerFallback.ts), protected by an RPM capacity
@@ -151,15 +171,19 @@ export async function generateHomepageIntelligence(
       provider: "groq",
       model: plannedModel,
       promptVersion: HOMEPAGE_PROMPT_VERSION,
+      dataVersion,
       toolCalls: [],
       totalDurationMs: Date.now() - startTime,
       cacheHit: false,
-      validationSuccess: true,
+      // Never reached a schema to validate - this is not "validation succeeded", it's "validation
+      // never ran" (see the false uses below for the paths that actually did try and failed).
+      validationSuccess: false,
       providerRPMCurrent: capacity.currentRPM,
       providerRPMLimit: capacity.limit,
       capacityExhausted: true,
       fallbackUsed: true,
       fallbackReason: "PROVIDER_RATE_LIMITED",
+      errorCategory: "rate_limit",
     });
 
     return {
@@ -179,7 +203,7 @@ export async function generateHomepageIntelligence(
   const messages = formatHomepagePrompt(contextString);
 
   const baseConfig = {
-    maxTokens: config.provider?.maxTokens ?? DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens,
+    maxTokens: config.provider?.maxTokens ?? HOMEPAGE_MAX_TOKENS,
     temperature: config.provider?.temperature ?? 0.7,
     // Own Groq account for this feature specifically - see groq.ts/providerFallback.ts's own
     // comments on why (isolation, not quota multiplication). Falls back to the shared GROQ_API_KEY
@@ -197,18 +221,60 @@ export async function generateHomepageIntelligence(
   let fallbackUsed = false;
   let fallbackReasonUsed: string | undefined;
   let tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+  let finishReason: string | undefined;
   const retryCount = 0;
+
+  // Every failure path below now emits a real structured AIOperationLog (not just a bare
+  // logAIError) - previously only the success and PROVIDER_RATE_LIMITED paths did, so a schema
+  // failure or a final provider error was invisible to anything querying ai_operation logs.
+  function logFailure(reason: string) {
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "homepage_intelligence",
+      userId: ctx.userId,
+      provider: provider.name,
+      model,
+      promptVersion: HOMEPAGE_PROMPT_VERSION,
+      dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage,
+      cacheHit: false,
+      validationSuccess: false,
+      finishReason,
+      fallbackUsed: true,
+      fallbackReason: reason,
+      errorCategory: categorizeFallbackReason(reason),
+    });
+  }
 
   try {
     const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
     rawContent = result.response.content;
     tokenUsage = result.response.usage;
+    finishReason = result.response.finishReason;
     provider = { name: result.providerName };
     model = result.model;
     fallbackUsed = result.fallbackUsed;
     fallbackReasonUsed = result.fallbackReason;
   } catch (err) {
     logAIError(ctx.requestId, "provider_failure_final", String(err));
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "homepage_intelligence",
+      userId: ctx.userId,
+      provider: provider.name,
+      model,
+      promptVersion: HOMEPAGE_PROMPT_VERSION,
+      dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: "PROVIDER_ERROR",
+      errorCategory: categorizeProviderError(err),
+    });
     const fallback = generateDeterministicFallback(fallbackContext, "PROVIDER_ERROR");
     return {
       data: fallback.data,
@@ -224,6 +290,7 @@ export async function generateHomepageIntelligence(
 
   // 4. Validate output schema
   if (!rawContent) {
+    logFailure("EMPTY_RESPONSE");
     const fallback = generateDeterministicFallback(fallbackContext, "EMPTY_RESPONSE");
     return {
       data: fallback.data,
@@ -245,6 +312,7 @@ export async function generateHomepageIntelligence(
       logAIError(ctx.requestId, "validation_failure", "Failed to validate AI output schema", {
         errors: validation.errors,
       });
+      logFailure("SCHEMA_VALIDATION_FAILED");
       const fallback = generateDeterministicFallback(fallbackContext, "SCHEMA_VALIDATION_FAILED");
       return {
         data: fallback.data,
@@ -265,11 +333,13 @@ export async function generateHomepageIntelligence(
       provider: provider.name,
       model,
       promptVersion: HOMEPAGE_PROMPT_VERSION,
+      dataVersion,
       toolCalls: [],
       totalDurationMs: Date.now() - startTime,
       tokenUsage,
       cacheHit: false,
       validationSuccess: true,
+      finishReason,
       providerRPMCurrent: capacity.currentRPM,
       providerRPMLimit: capacity.limit,
       retryCount,
@@ -288,6 +358,7 @@ export async function generateHomepageIntelligence(
     };
   } catch (parseErr) {
     logAIError(ctx.requestId, "json_parse_error", String(parseErr));
+    logFailure("JSON_PARSE_ERROR");
     const fallback = generateDeterministicFallback(fallbackContext, "JSON_PARSE_ERROR");
     return {
       data: fallback.data,
@@ -328,9 +399,33 @@ export async function generateRaceIntelligence(
     };
   };
 
+  // Attempted-provider label for logging only - not yet known which provider will actually serve
+  // this (chatWithProviderFallback resolves that); mirrors generateHomepageIntelligence's
+  // plannedModel convention.
+  const plannedModel = "groq/openai/gpt-oss-120b";
+
   const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
     logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "race_intelligence",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      providerRPMCurrent: capacity.currentRPM,
+      providerRPMLimit: capacity.limit,
+      capacityExhausted: true,
+      fallbackUsed: true,
+      fallbackReason: "PROVIDER_RATE_LIMITED",
+      errorCategory: "rate_limit",
+    });
     return toDeterministicResult();
   }
 
@@ -338,7 +433,7 @@ export async function generateRaceIntelligence(
   // comments on why (isolation, not quota multiplication). Falls back to the shared GROQ_API_KEY
   // (handled inside GroqProvider itself) if this one isn't set.
   const baseConfig = {
-    maxTokens: DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens,
+    maxTokens: RACE_INTELLIGENCE_MAX_TOKENS,
     temperature: 0.7,
     groqApiKey: process.env.GROQ_RACE_INTELLIGENCE_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_RACE_INTELLIGENCE_API_KEY,
@@ -366,11 +461,13 @@ export async function generateRaceIntelligence(
         provider: result.providerName,
         model: result.model,
         promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
+        dataVersion: ctx.dataVersion,
         toolCalls: [],
         totalDurationMs: Date.now() - startTime,
         tokenUsage: result.response.usage,
         cacheHit: false,
         validationSuccess: true,
+        finishReason: result.response.finishReason,
         fallbackUsed: result.fallbackUsed,
         fallbackReason: result.fallbackReason,
       });
@@ -403,11 +500,13 @@ export async function generateRaceIntelligence(
         provider: result.providerName,
         model: result.model,
         promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
+        dataVersion: ctx.dataVersion,
         toolCalls: [],
         totalDurationMs: Date.now() - startTime,
         tokenUsage: result.response.usage,
         cacheHit: false,
         validationSuccess: true,
+        finishReason: result.response.finishReason,
         fallbackUsed: result.fallbackUsed,
         fallbackReason: result.fallbackReason,
       });
@@ -418,6 +517,27 @@ export async function generateRaceIntelligence(
     return { shared: null, personal: null };
   } catch (err) {
     logAIError(ctx.requestId, "race_intelligence_generation_failed", String(err));
+    // Distinguish this app's own sentinel EMPTY_RESPONSE/SCHEMA_VALIDATION_FAILED throws (a real
+    // provider response was received but rejected downstream) from an actual transport-level error
+    // bubbling up from chatWithProviderFallback (both providers failed) - each gets its own
+    // errorCategory rather than one blanket "provider_error" for every failure in this function.
+    const reason = err instanceof Error && (err.message === "EMPTY_RESPONSE" || err.message === "SCHEMA_VALIDATION_FAILED") ? err.message : "PROVIDER_ERROR";
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "race_intelligence",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: RACE_INTELLIGENCE_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: reason,
+      errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
+    });
     return toDeterministicResult();
   }
 }

@@ -11,6 +11,7 @@ import {
   validateHomepageIntelligence,
   stripPersonalFields,
   ALLOWED_ACTION_TYPES,
+  type HomepageIntelligence,
 } from "../schemas/homepageIntelligence";
 import {
   buildGlobalCacheKey,
@@ -238,6 +239,45 @@ describe("Two-Tier Caching & Key Isolation", () => {
     // Result must still validate as a complete HomepageIntelligence (personal fields are already
     // optional/nullable in the schema).
     assert.equal(validateHomepageIntelligence(stripped).valid, true);
+  });
+
+  test("REGRESSION: User B reading the GLOBAL cache tier never receives User A's personal content", async () => {
+    // End-to-end version of the fix, through the real cache read/write path (not just the pure
+    // stripPersonalFields function) - mirrors route.ts step 9 exactly.
+    const userAOutput = generateDeterministicFallback(
+      {
+        favoriteDriver: { name: "Charles Leclerc", rank: 3, points: 210 },
+        favoriteTeam: { name: "Ferrari", rank: 3, points: 380 },
+        predictionPerformance: { winnerAccuracy: 55, totalPredictions: 8, avgPositionError: 1.8 },
+        userPrediction: { predictedWinner: "Charles Leclerc", submitted: true },
+      },
+      "TEST_REASON",
+    ).data;
+    assert.ok(userAOutput.favoriteDriverInsight?.includes("Leclerc") || userAOutput.favoriteDriverInsight !== null, "fixture must be personalized to User A");
+
+    const globalKey = "ai:global:regression_test_race:v1";
+    const personalKeyA = "ai:personal:user_a:regression_test_race:v1";
+
+    // Exactly what route.ts's step 9 does: strip personal fields before the GLOBAL write, but cache
+    // the full raw output under User A's OWN personal key.
+    await setCachedIntelligence(globalKey, stripPersonalFields(userAOutput), "v1", 3600);
+    await setCachedIntelligence(personalKeyA, userAOutput, "v1", 1800);
+
+    // User B (or any guest/default-state user) only ever reads globalKey - never personalKeyA.
+    const userBView = await getCachedIntelligence<HomepageIntelligence>(globalKey);
+    assert.ok(userBView, "global cache entry must exist");
+    assert.equal(userBView!.favoriteDriverInsight, null, "User B must not see User A's favorite driver insight");
+    assert.equal(userBView!.favoriteTeamInsight, null, "User B must not see User A's favorite team insight");
+    assert.equal(userBView!.predictionCoach, null, "User B must not see User A's prediction coach");
+    assert.equal(userBView!.predictionChallenge, null, "User B must not see User A's prediction challenge");
+    assert.equal(userBView!.personalOutlook, null, "User B must not see User A's personal outlook");
+    assert.equal(userBView!.sinceLastVisit, null, "User B must not see User A's since-last-visit diff");
+    assert.equal(userBView!.personalRaceBrief, null, "User B must not see User A's personal race brief");
+
+    // User A's own personal key still has the full content - the fix removes the LEAK, not the
+    // personalization itself.
+    const userAView = await getCachedIntelligence<HomepageIntelligence>(personalKeyA);
+    assert.deepEqual(userAView, userAOutput);
   });
 });
 
