@@ -14,9 +14,9 @@
 // and schema validation failures are still the caller's problem - those already fall through to
 // generateDeterministicFallback/generateDeterministicRaceFallback in orchestrator.ts, unchanged.
 //
-// `baseConfig.groqApiKey` lets each caller (homepage vs. race intelligence) use its own separate
-// Groq account - real per-service isolation, not an attempt to multiply one account's free-tier
-// quota. OpenRouter isn't split the same way (only one account exists for it today).
+// `baseConfig.groqApiKey`/`openrouterApiKey` let each caller (homepage vs. race intelligence) use
+// its own separate account on both providers - real per-service isolation, not an attempt to
+// multiply either account's free-tier quota.
 
 import { getDefaultProvider, getFallbackProvider, ProviderHttpError, type AIProvider } from "./provider";
 import { GROQ_MODEL_ID } from "./groq";
@@ -58,10 +58,10 @@ export type ProviderChatResult = {
 export async function chatWithProviderFallback(
   messages: AIMessage[],
   tools: AIProviderToolDef[] | null,
-  baseConfig: { maxTokens: number; temperature: number; topP?: number; groqApiKey?: string },
+  baseConfig: { maxTokens: number; temperature: number; topP?: number; groqApiKey?: string; openrouterApiKey?: string },
   requestId: string,
 ): Promise<ProviderChatResult> {
-  const { groqApiKey, ...generationConfig } = baseConfig;
+  const { groqApiKey, openrouterApiKey, ...generationConfig } = baseConfig;
   const primary = getDefaultProvider();
   const primaryConfig: AIProviderConfig = { ...generationConfig, model: GROQ_MODEL_ID, timeoutMs: GROQ_TIMEOUT_MS, apiKey: groqApiKey };
 
@@ -92,7 +92,7 @@ export async function chatWithProviderFallback(
 
   // Primary exhausted (rate-limited, or a retry that also failed) - try the secondary provider.
   const secondary = getFallbackProvider();
-  const secondaryConfig: AIProviderConfig = { ...generationConfig, model: OPENROUTER_FALLBACK_MODEL_ID, timeoutMs: OPENROUTER_TIMEOUT_MS };
+  const secondaryConfig: AIProviderConfig = { ...generationConfig, model: OPENROUTER_FALLBACK_MODEL_ID, timeoutMs: OPENROUTER_TIMEOUT_MS, apiKey: openrouterApiKey };
   try {
     const response = await attempt(secondary, secondaryConfig);
     return {

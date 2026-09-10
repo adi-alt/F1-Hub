@@ -14,6 +14,10 @@
 // - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free and google/gemma-4-26b-a4b-it:free: 0/3 -
 //   the shared free pool was at capacity / rate-limited both times, every single request.
 // None of the free-tier variants are usable for anything user-facing right now.
+//
+// Same per-account-per-feature split as GroqProvider (config.apiKey, see types.ts's own comment)
+// - OPENROUTER_HOMEPAGE_API_KEY/OPENROUTER_RACE_INTELLIGENCE_API_KEY (wired in orchestrator.ts),
+// falling back to the shared OPENROUTER_API_KEY when a service-specific one isn't set.
 
 import { ProviderHttpError, registerProvider, type AIProvider } from "./provider";
 import type { AIMessage, AIProviderConfig, AIProviderToolDef, AIResponse, AIToolCall } from "./types";
@@ -27,7 +31,7 @@ export class OpenRouterProvider implements AIProvider {
   readonly name = "openrouter";
 
   async chat(messages: AIMessage[], tools: AIProviderToolDef[] | null, config: AIProviderConfig): Promise<AIResponse> {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       throw new Error("OPENROUTER_API_KEY environment variable is not configured on the server.");
     }

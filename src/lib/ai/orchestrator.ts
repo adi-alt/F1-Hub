@@ -185,6 +185,7 @@ export async function generateHomepageIntelligence(
     // comments on why (isolation, not quota multiplication). Falls back to the shared GROQ_API_KEY
     // (handled inside GroqProvider itself) if this one isn't set.
     groqApiKey: process.env.GROQ_HOMEPAGE_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_HOMEPAGE_API_KEY,
   };
 
   // 3. Invoke provider (Groq -> OpenRouter fallback chain, see providerFallback.ts) - one retry
@@ -336,7 +337,12 @@ export async function generateRaceIntelligence(
   // Own Groq account for this feature specifically - see groq.ts/providerFallback.ts's own
   // comments on why (isolation, not quota multiplication). Falls back to the shared GROQ_API_KEY
   // (handled inside GroqProvider itself) if this one isn't set.
-  const baseConfig = { maxTokens: DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens, temperature: 0.7, groqApiKey: process.env.GROQ_RACE_INTELLIGENCE_API_KEY };
+  const baseConfig = {
+    maxTokens: DEFAULT_ORCHESTRATOR_CONFIG.provider.maxTokens,
+    temperature: 0.7,
+    groqApiKey: process.env.GROQ_RACE_INTELLIGENCE_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_RACE_INTELLIGENCE_API_KEY,
+  };
 
   try {
     if (options.needShared) {
