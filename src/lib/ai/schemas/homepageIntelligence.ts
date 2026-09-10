@@ -86,6 +86,24 @@ export function isValidActionType(val: unknown): val is NextActionType {
   return typeof val === "string" && (ALLOWED_ACTION_TYPES as readonly string[]).includes(val);
 }
 
+/** Every field that only makes sense for the one user whose favorites/pick/history produced them -
+ * the personal fields nulled out before a response is allowed into the GLOBAL cache tier, which any
+ * other guest/default-state user can read (see homepage-intelligence/route.ts step 9). Nulling
+ * matches their own already-optional shape (they're `null` for a guest by construction), so the
+ * result is still a fully valid HomepageIntelligence. */
+export function stripPersonalFields(data: HomepageIntelligence): HomepageIntelligence {
+  return {
+    ...data,
+    personalRaceBrief: null,
+    favoriteDriverInsight: null,
+    favoriteTeamInsight: null,
+    predictionCoach: null,
+    predictionChallenge: null,
+    personalOutlook: null,
+    sinceLastVisit: null,
+  };
+}
+
 export function validateHomepageIntelligence(
   input: unknown,
 ): { valid: boolean; data?: HomepageIntelligence; errors?: string[] } {

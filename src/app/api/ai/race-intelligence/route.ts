@@ -26,6 +26,7 @@ import {
   type CachedRaceEntry,
 } from "@/lib/ai/cache";
 import { checkProviderCapacity } from "@/lib/ai/providerRateLimiter";
+import { checkUserRateLimit } from "@/lib/ai/guardrails";
 import { generateDeterministicRaceFallback } from "@/lib/ai/fallback";
 import type { PersonalRaceInsight, SharedRaceIntelligence } from "@/lib/ai/schemas/raceIntelligence";
 import type { AgentContext } from "@/lib/ai/types";
@@ -54,6 +55,17 @@ export async function POST(request: Request) {
   try {
     const session = await getSession();
     const userId = session?.uid || null;
+
+    // Per-user request budget (see homepage-intelligence/route.ts's own comment on this same wiring)
+    // - protects the personal-cache-miss path (favorite/team churn) from an individual user, on top
+    // of the shared provider RPM bucket below. A shared-cache hit for this exact race is unaffected
+    // for everyone else - this only ever blocks the still-forming/personal-miss path.
+    if (userId) {
+      const userLimit = checkUserRateLimit(userId);
+      if (!userLimit.allowed) {
+        return NextResponse.json({ error: "Rate limited", reason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds }, { status: 429 });
+      }
+    }
 
     let context: RaceIntelligenceContext;
     let dataVersionSeed: string;
@@ -120,7 +132,15 @@ export async function POST(request: Request) {
       }
 
       const agentContext: AgentContext = { userId, requestId, agentType: "race_intelligence", raceId };
-      const generationKey = needShared ? sharedCacheKey : personalCacheKey!;
+      // Must include the per-user personalCacheKey whenever this call will produce personal content -
+      // otherwise two different users landing on the same cold race (needShared=true for both) would
+      // lock on the same sharedCacheKey, and the second caller's single-flight join would silently
+      // hand them the FIRST caller's personal insight (see cache.ts's withSingleFlight: the second
+      // caller's own generate() closure, built from their own favorite driver/team, never runs at
+      // all - they just get caller #1's resolved {shared, personal} result). Keying by personalCacheKey
+      // when needPersonal is true means two different users never collapse into one lock, even though
+      // both may (redundantly, but harmlessly and correctly) regenerate the same shared content.
+      const generationKey = needPersonal ? personalCacheKey! : sharedCacheKey;
 
       const result = await withSingleFlight(generationKey, () =>
         generateRaceIntelligence(context, agentContext, {

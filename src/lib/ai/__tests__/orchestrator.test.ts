@@ -9,6 +9,7 @@ import {
 import { generateDeterministicFallback } from "../fallback";
 import {
   validateHomepageIntelligence,
+  stripPersonalFields,
   ALLOWED_ACTION_TYPES,
 } from "../schemas/homepageIntelligence";
 import {
@@ -207,6 +208,36 @@ describe("Two-Tier Caching & Key Isolation", () => {
     await setCachedIntelligence("ai:global:expired:v1", payload, "v1", -10);
     const expired = await getCachedIntelligence("ai:global:expired:v1");
     assert.equal(expired, null);
+  });
+
+  test("stripPersonalFields removes every personal field before a response may enter the GLOBAL cache tier", () => {
+    // Real regression coverage for the cache-leak fix: route.ts used to cache the raw model output
+    // (still carrying THIS user's favorite/prediction content) under the key any other guest/
+    // default-state user reads.
+    const personalized = generateDeterministicFallback(
+      {
+        favoriteDriver: { name: "Lando Norris", rank: 2, points: 18 },
+        favoriteTeam: { name: "McLaren", rank: 2, points: 30 },
+        predictionPerformance: { winnerAccuracy: 60, totalPredictions: 10, avgPositionError: 1.2 },
+        userPrediction: { predictedWinner: "Lando Norris", submitted: true },
+      },
+      "TEST_REASON",
+    ).data;
+    assert.ok(personalized.favoriteDriverInsight !== null, "fixture must actually be personalized");
+
+    const stripped = stripPersonalFields(personalized);
+    assert.equal(stripped.personalRaceBrief, null);
+    assert.equal(stripped.favoriteDriverInsight, null);
+    assert.equal(stripped.favoriteTeamInsight, null);
+    assert.equal(stripped.predictionCoach, null);
+    assert.equal(stripped.predictionChallenge, null);
+    assert.equal(stripped.personalOutlook, null);
+    assert.equal(stripped.sinceLastVisit, null);
+    // Shared content is untouched - the point is to reuse it, not discard it.
+    assert.equal(stripped.raceBrief, personalized.raceBrief);
+    // Result must still validate as a complete HomepageIntelligence (personal fields are already
+    // optional/nullable in the schema).
+    assert.equal(validateHomepageIntelligence(stripped).valid, true);
   });
 });
 

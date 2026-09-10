@@ -38,10 +38,11 @@ import {
   DEFAULT_PERSONAL_TTL_SECONDS,
 } from "@/lib/ai/cache";
 import { checkProviderCapacity } from "@/lib/ai/providerRateLimiter";
+import { checkUserRateLimit } from "@/lib/ai/guardrails";
 import { generateDeterministicFallback, type FallbackDataContext } from "@/lib/ai/fallback";
 import { logAIError, logDeterministicFallback } from "@/lib/ai/telemetry";
 import type { HomepageContextData } from "@/lib/ai/context";
-import type { HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
+import { stripPersonalFields, type HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
 
@@ -63,6 +64,20 @@ export async function POST() {
     // 1. Authenticate user via session (never trust a client-provided identity for anything below)
     const session = await getSession();
     const userId = session?.uid || null;
+
+    // App-level per-user request budget (Part 19 of the AI-architecture spec) - this was written
+    // in guardrails.ts but never actually called from either AI route, so an authenticated user
+    // churning their favorites/pick to keep busting personalDataVersion had no limit beyond the
+    // shared 40 RPM provider bucket. Anonymous/guest traffic has no identifier to key on here (no
+    // per-IP plumbing exists yet) and almost never reaches generation anyway - it only ever reads
+    // the global cache tier (step 6 below), which is itself now leak-safe (step 9).
+    if (userId) {
+      const userLimit = checkUserRateLimit(userId);
+      if (!userLimit.allowed) {
+        const fallback = generateDeterministicFallback({}, "USER_RATE_LIMITED");
+        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds });
+      }
+    }
 
     // 2. Fetch deterministic GLOBAL data in parallel. computeSeasonStandings only depends on `year`
     // (not on nextRace/races/archiveCircuits), so it joins this same batch instead of waiting on it
@@ -312,11 +327,13 @@ export async function POST() {
 
     const output = await withSingleFlight(generationKey, () => generateHomepageIntelligence(contextData, agentContext, personalDataVersion ?? globalDataVersion));
 
-    // 9. Cache the result. Global slice only stores generic (non-personal) content quality - it's
-    // still the SAME response object (the model already tailors it when personal context existed), but
-    // it's only ever served back to another user when isDefaultUser is true, so nothing leaks.
+    // 9. Cache the result. The global slice must never carry THIS user's personal content - any
+    // other guest/default-state user can read globalCacheKey (see step 6), so it gets a stripped
+    // copy with every personal-only field nulled out (their already-optional shape, per the schema)
+    // rather than the raw model output, which still contains this user's favorite/pick/coach text
+    // whenever they had any personal context at generation time.
     if (!output.isFallback) {
-      await setCachedIntelligence(globalCacheKey, output.data, globalDataVersion, DEFAULT_GLOBAL_TTL_SECONDS, { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId });
+      await setCachedIntelligence(globalCacheKey, stripPersonalFields(output.data), globalDataVersion, DEFAULT_GLOBAL_TTL_SECONDS, { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId });
       if (personalCacheKey) {
         await setCachedIntelligence(personalCacheKey, output.data, personalDataVersion!, DEFAULT_PERSONAL_TTL_SECONDS, { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId });
       }
