@@ -123,13 +123,13 @@ export function ApexIntelligenceWorkspace({
                       <div className="flex flex-col gap-2 sm:flex-row sm:gap-8">
                         {intelligence.personalRaceBrief.favoriteDriverAngle && (
                           <p className="text-xs leading-relaxed text-neutral-400 sm:max-w-xs">
-                            <span className="font-medium text-neutral-200">Your driver — </span>
+                            <span className="font-medium text-neutral-200">Your driver: </span>
                             {intelligence.personalRaceBrief.favoriteDriverAngle}
                           </p>
                         )}
                         {intelligence.personalRaceBrief.favoriteTeamAngle && (
                           <p className="text-xs leading-relaxed text-neutral-400 sm:max-w-xs">
-                            <span className="font-medium text-neutral-200">Your team — </span>
+                            <span className="font-medium text-neutral-200">Your team: </span>
                             {intelligence.personalRaceBrief.favoriteTeamAngle}
                           </p>
                         )}
@@ -171,17 +171,24 @@ export function ApexIntelligenceWorkspace({
       {otherTabs.length > 0 && (
         <div className="mt-4 border-t border-white/[0.06] pt-3">
           <p className="text-[10px] uppercase tracking-wide text-neutral-600">Also in this briefing:</p>
-          <div className="mt-1.5 space-y-1">
-            {otherTabs.map((t) => (
+          <div className="mt-1.5 space-y-1.5">
+            {otherTabs.map((t, i) => (
               <button
                 key={t.key}
                 type="button"
                 onClick={() => onTabChange(t.key)}
-                className="block truncate text-left text-xs text-neutral-400 transition hover:text-white"
+                className="flex w-full items-start gap-2.5 text-left text-xs text-neutral-400 transition hover:text-white"
               >
-                <span aria-hidden className="mr-1 text-neutral-600">→</span>
-                <span className="font-medium uppercase tracking-wide text-neutral-500">{t.label}: </span>
-                {t.teaser}
+                <span
+                  aria-hidden
+                  className="mt-0.5 flex h-4 w-5 shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)] text-[10px] font-semibold text-white"
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="truncate">
+                  <span className="font-medium uppercase tracking-wide text-neutral-500">{t.label}: </span>
+                  {t.teaser}
+                </span>
               </button>
             ))}
           </div>

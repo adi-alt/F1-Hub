@@ -12,8 +12,8 @@ const QUICK_JUMPS: { tab: string; question: string }[] = [
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-const CAPACITY_FALLBACK_TEXT = "Apex is at capacity right now — try again in a moment.";
-const NETWORK_FALLBACK_TEXT = "Couldn't reach Apex just now — check your connection and try again.";
+const CAPACITY_FALLBACK_TEXT = "Apex is at capacity right now - try again in a moment.";
+const NETWORK_FALLBACK_TEXT = "Couldn't reach Apex just now - check your connection and try again.";
 
 /** The persistent, product-facing entry point into the Apex Intelligence workspace, AND (new) a
  * real single-turn conversational Q&A surface - never a fake chat, per the explicit instruction:
@@ -197,7 +197,7 @@ export function ApexIntelligenceWidget({
           aria-modal="true"
           aria-label="Ask Apex"
           id="apex-intelligence-panel"
-          className="glass-surface fixed inset-x-0 bottom-0 z-[100] flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl pb-[env(safe-area-inset-bottom)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:max-h-[75vh] sm:w-96 sm:rounded-2xl"
+          className="glass-surface fixed inset-x-0 bottom-0 z-[100] flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl pb-[env(safe-area-inset-bottom)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:max-h-[78vh] sm:w-[26rem] sm:rounded-2xl lg:w-[28rem]"
         >
           <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] p-4">
             <div>
@@ -255,7 +255,7 @@ export function ApexIntelligenceWidget({
 
           {favoriteKeyChanged && (
             <div className="mx-4 mb-2 shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-100">
-              Your favorites have changed — this conversation may be about your old one.{" "}
+              Your favorites have changed. This conversation may be about your old one.{" "}
               <button type="button" onClick={startNewConversation} className="font-semibold underline hover:text-white">
                 Start new conversation
               </button>
@@ -304,7 +304,7 @@ export function ApexIntelligenceWidget({
               onChange={(e) => setInput(e.target.value)}
               placeholder={placeholder}
               disabled={isSending}
-              className="min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-white placeholder-neutral-500 transition focus:border-white/30 focus:outline-none disabled:opacity-60"
+              className="min-w-0 flex-1 rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-neutral-500 transition focus:border-white/25 focus:outline-none disabled:opacity-60"
             />
             <button
               type="submit"

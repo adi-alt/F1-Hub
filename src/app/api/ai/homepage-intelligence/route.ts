@@ -28,6 +28,8 @@ import {
   getTrackHistory,
   getFavoriteDriverCard,
   getFavoriteTeamCard,
+  type FavoriteDriverCard,
+  type FavoriteTeamCard,
 } from "@/lib/personalization";
 import { getUserProfile, touchHomepageVisit } from "@/lib/supabase/users";
 import { getUserPicksForYear } from "@/lib/supabase/picks";
@@ -172,12 +174,18 @@ export async function POST() {
     // that also carries circuit stats/images this key doesn't need) - the value is identical either
     // way, but the raw ids are available right after the batch above, without waiting on
     // getFavoriteDriverCard/getFavoriteTeamCard (deferred to step 6b, after the cache check).
+    //
+    // Hashes the WHOLE favorites arrays (sorted, joined), not just index [0] - a real bug fix: a
+    // user with multiple favorites changing/adding/removing anything past the first entry used to
+    // leave this hash (and therefore the cache key) completely unchanged, silently serving AI
+    // content built from the stale favorite set indefinitely.
     const personalDataVersion = userId
       ? computeDataVersion([
           globalDataVersion,
           userId,
-          profile?.favoriteDrivers?.[0],
-          profile?.favoriteTeams?.[0],
+          [...(profile?.favoriteDrivers ?? [])].sort().join(","),
+          [...(profile?.favoriteTeams ?? [])].sort().join(","),
+          [...(profile?.favoriteTracks ?? [])].sort().join(","),
           userPick?.submittedAt,
           fingerprint?.totalPredictions,
         ])
@@ -191,7 +199,7 @@ export async function POST() {
     // ids (already in hand) instead of the enriched favorite-card objects, for the same reason the
     // hash above does - the truthiness is identical (a card is non-null iff a real favorite id
     // exists), so this doesn't change which tier any user lands in.
-    const isDefaultUser = !profile?.favoriteDrivers?.[0] && !profile?.favoriteTeams?.[0] && !userPick && (!fingerprint || fingerprint.totalPredictions === 0);
+    const isDefaultUser = !profile?.favoriteDrivers?.length && !profile?.favoriteTeams?.length && !userPick && (!fingerprint || fingerprint.totalPredictions === 0);
 
     async function respondCached(data: HomepageIntelligence, cacheTier: GenerationResult["cacheTier"]) {
       if (userId) await touchHomepageVisit(userId).catch((err) => logAIError(requestId, "touch_visit_failed", String(err)));
@@ -220,33 +228,50 @@ export async function POST() {
     const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
     const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
 
-    let favoriteDriverCard = null;
-    let favoriteTeamCard = null;
+    let favoriteDriverCards: FavoriteDriverCard[] = [];
+    let favoriteTeamCards: FavoriteTeamCard[] = [];
     let trackHistory = null;
     let feedPosts: Array<{ title?: string; groupName?: string | null; createdAt?: string }> = [];
+    // Real, new signal: is the upcoming race's own circuit one of the user's favorite circuits -
+    // `favoriteTracks` was previously fetched/stored but never read anywhere on the homepage.
+    let isFavoriteCircuit = false;
 
     if (userId) {
-      // 6a. Favorite cards, track history, AND the feed - four mutually-independent fetches (feed
-      // doesn't need the profile's favorite ids; track history only needs resolvedCircuitId and the
-      // ids already in hand) - one batch instead of four sequential awaits.
-      const [driverCard, teamCard, history, feed] = await Promise.all([
-        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
-        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+      const driverIds = profile?.favoriteDrivers ?? [];
+      const teamIds = profile?.favoriteTeams ?? [];
+      isFavoriteCircuit = !!resolvedCircuitId && (profile?.favoriteTracks ?? []).includes(resolvedCircuitId);
+
+      // 6a. ALL favorite driver/team cards (not just index [0]), track history, AND the feed - four
+      // mutually-independent fetches (feed doesn't need the profile's favorite ids; track history
+      // only needs resolvedCircuitId and the ids already in hand) - one batch instead of four
+      // sequential awaits. Track history's own circuit-stats remain scoped to the PRIMARY (first)
+      // favorite driver/team - getTrackHistory's signature is single-entity by design and isn't
+      // being extended here; every OTHER favorite still gets its name/rank/points below, just not
+      // this one circuit-specific stat block.
+      const [driverCards, teamCards, history, feed] = await Promise.all([
+        Promise.all(driverIds.map((id) => getFavoriteDriverCard(id).catch(() => null))),
+        Promise.all(teamIds.map((id) => getFavoriteTeamCard(id).catch(() => null))),
         resolvedCircuitId
           ? getTrackHistory(resolvedCircuitId, {
-              favoriteDriverId: profile?.favoriteDrivers?.[0],
-              favoriteTeamId: profile?.favoriteTeams?.[0],
+              favoriteDriverId: driverIds[0],
+              favoriteTeamId: teamIds[0],
             }).catch(() => null)
           : Promise.resolve(null),
         listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
       ]);
-      favoriteDriverCard = driverCard;
-      favoriteTeamCard = teamCard;
+      favoriteDriverCards = driverCards.filter((c): c is FavoriteDriverCard => c !== null);
+      favoriteTeamCards = teamCards.filter((c): c is FavoriteTeamCard => c !== null);
       trackHistory = history;
       feedPosts = feed.posts.map((p) => ({ title: p.title ?? undefined, groupName: p.groupName, createdAt: p.createdAt }));
     } else if (resolvedCircuitId) {
       trackHistory = await getTrackHistory(resolvedCircuitId).catch(() => null);
     }
+
+    // The "primary" favorite - first-listed, stable (Postgres arrays + a plain field-mapper
+    // preserve insertion order; nothing on this path re-sorts) - is what the deterministic
+    // fallback and since-last-visit diffing still key off, matching the rest of the homepage's UI.
+    const primaryDriverCard = favoriteDriverCards[0] ?? null;
+    const primaryTeamCard = favoriteTeamCards[0] ?? null;
     const newCommunityPostCount = userId && lastHomepageVisitAt
       ? feedPosts.filter((p) => p.createdAt && new Date(p.createdAt).getTime() > new Date(lastHomepageVisitAt!).getTime()).length
       : 0;
@@ -256,9 +281,9 @@ export async function POST() {
           lastVisitIso: lastHomepageVisitAt,
           races,
           currentStandings: standings ?? { drivers: [], teams: [], poleCounts: {} },
-          favoriteDriverCode: favoriteDriverCard?.code ?? null,
-          favoriteDriverName: favoriteDriverCard?.name ?? null,
-          favoriteTeamName: favoriteTeamCard?.currentName ?? null,
+          favoriteDriverCode: primaryDriverCard?.code ?? null,
+          favoriteDriverName: primaryDriverCard?.name ?? null,
+          favoriteTeamName: primaryTeamCard?.currentName ?? null,
           pickSubmittedAt: userPick?.submittedAt ?? null,
           newCommunityPostCount,
         })
@@ -274,22 +299,26 @@ export async function POST() {
         constructorLeader: constructorLeader ? { name: constructorLeader.team, points: constructorLeader.points } : undefined,
       },
       trackHistory: trackHistory ? { defendingWinner: trackHistory.defendingWinner?.driverName, topPerformer: trackHistory.topPerformer?.driverName, totalRaces: trackHistory.totalRaces } : null,
-      favoriteDriver: favoriteDriverCard
+      // Deterministic templates can't synthesize prose across N favorites the way free-form AI text
+      // can - the fallback path deliberately stays scoped to the primary favorite only (see the
+      // plan's own scope note); the real AI path's `contextData` below gets every favorite.
+      favoriteDriver: primaryDriverCard
         ? {
-            name: favoriteDriverCard.name,
-            teamName: favoriteDriverCard.team || undefined,
-            rank: standings ? standings.drivers.findIndex((d) => d.driver === favoriteDriverCard!.code) + 1 || undefined : undefined,
-            points: standings?.drivers.find((d) => d.driver === favoriteDriverCard!.code)?.points,
+            name: primaryDriverCard.name,
+            teamName: primaryDriverCard.team || undefined,
+            rank: standings ? standings.drivers.findIndex((d) => d.driver === primaryDriverCard!.code) + 1 || undefined : undefined,
+            points: standings?.drivers.find((d) => d.driver === primaryDriverCard!.code)?.points,
             circuit: trackHistory?.favoriteDriverCircuitStats ?? null,
           }
         : null,
-      favoriteTeam: favoriteTeamCard
+      favoriteTeam: primaryTeamCard
         ? {
-            name: favoriteTeamCard.name,
-            rank: standings ? standings.teams.findIndex((t) => t.team === favoriteTeamCard!.currentName) + 1 || undefined : undefined,
-            points: standings?.teams.find((t) => t.team === favoriteTeamCard!.currentName)?.points,
+            name: primaryTeamCard.name,
+            rank: standings ? standings.teams.findIndex((t) => t.team === primaryTeamCard!.currentName) + 1 || undefined : undefined,
+            points: standings?.teams.find((t) => t.team === primaryTeamCard!.currentName)?.points,
           }
         : null,
+      favoriteCircuit: isFavoriteCircuit && nextRace ? { name: nextRace.circuit } : null,
       model: rfTopName ? { topPredictedDriver: rfTopName } : null,
       simulation: simTopName ? { topSimulatedDriver: simTopName, p1Probability: simTop?.p1 } : null,
       userPrediction: userPick ? { predictedWinner: userPick.predictedWinner || undefined, submitted: !!userPick.submittedAt } : null,
@@ -343,27 +372,36 @@ export async function POST() {
       model: rfTopName ? { topPredictedDriver: rfTopName, topFeatureFactors: rfTopFactors } : null,
       simulation: simTopName ? { topSimulatedDriver: simTopName, p1Probability: simTop?.p1, podiumProbability: simTop?.podium } : null,
       communityPosts: feedPosts.map((p) => ({ title: p.title, groupName: p.groupName ?? undefined })),
-      favoriteDriver: favoriteDriverCard
-        ? {
-            name: favoriteDriverCard.name,
-            teamName: favoriteDriverCard.team || undefined,
-            rank: standings ? standings.drivers.findIndex((d) => d.driver === favoriteDriverCard!.code) + 1 || undefined : undefined,
-            points: standings?.drivers.find((d) => d.driver === favoriteDriverCard!.code)?.points,
-            circuit: trackHistory?.favoriteDriverCircuitStats
-              ? { appearances: trackHistory.favoriteDriverCircuitStats.appearances, wins: trackHistory.favoriteDriverCircuitStats.wins, podiums: trackHistory.favoriteDriverCircuitStats.podiums, bestFinish: trackHistory.favoriteDriverCircuitStats.bestFinish, avgFinish: trackHistory.favoriteDriverCircuitStats.avgFinish }
-              : null,
-          }
-        : null,
-      favoriteTeam: favoriteTeamCard
-        ? {
-            name: favoriteTeamCard.name,
-            rank: standings ? standings.teams.findIndex((t) => t.team === favoriteTeamCard!.currentName) + 1 || undefined : undefined,
-            points: standings?.teams.find((t) => t.team === favoriteTeamCard!.currentName)?.points,
-            circuit: trackHistory?.favoriteTeamCircuitStats
-              ? { appearances: trackHistory.favoriteTeamCircuitStats.appearances, wins: trackHistory.favoriteTeamCircuitStats.wins, podiums: trackHistory.favoriteTeamCircuitStats.podiums, bestFinish: trackHistory.favoriteTeamCircuitStats.bestFinish }
-              : null,
-          }
-        : null,
+      // ALL favorites, not just the primary - lets the model genuinely synthesize across multiple
+      // drivers/teams (see homepagePrompt.ts's new prioritization rule) rather than only ever
+      // knowing about one. Circuit-specific stats stay attached to the primary entry only (index 0)
+      // since getTrackHistory itself only ever resolves stats for one driver/team id at a time.
+      favoriteDrivers: favoriteDriverCards.map((card, i) => ({
+        name: card.name,
+        teamName: card.team || undefined,
+        rank: standings ? standings.drivers.findIndex((d) => d.driver === card.code) + 1 || undefined : undefined,
+        points: standings?.drivers.find((d) => d.driver === card.code)?.points,
+        circuit:
+          i === 0 && trackHistory?.favoriteDriverCircuitStats
+            ? {
+                appearances: trackHistory.favoriteDriverCircuitStats.appearances,
+                wins: trackHistory.favoriteDriverCircuitStats.wins,
+                podiums: trackHistory.favoriteDriverCircuitStats.podiums,
+                bestFinish: trackHistory.favoriteDriverCircuitStats.bestFinish,
+                avgFinish: trackHistory.favoriteDriverCircuitStats.avgFinish,
+              }
+            : null,
+      })),
+      favoriteTeams: favoriteTeamCards.map((card, i) => ({
+        name: card.name,
+        rank: standings ? standings.teams.findIndex((t) => t.team === card.currentName) + 1 || undefined : undefined,
+        points: standings?.teams.find((t) => t.team === card.currentName)?.points,
+        circuit:
+          i === 0 && trackHistory?.favoriteTeamCircuitStats
+            ? { appearances: trackHistory.favoriteTeamCircuitStats.appearances, wins: trackHistory.favoriteTeamCircuitStats.wins, podiums: trackHistory.favoriteTeamCircuitStats.podiums, bestFinish: trackHistory.favoriteTeamCircuitStats.bestFinish }
+            : null,
+      })),
+      favoriteCircuit: isFavoriteCircuit && nextRace ? { isFavorite: true, name: nextRace.circuit } : null,
       userPrediction: userPick ? { predictedWinner: userPick.predictedWinner || undefined, submitted: !!userPick.submittedAt } : null,
       predictionFingerprint: fingerprint && fingerprint.totalPredictions > 0 ? fingerprint : null,
       sinceLastVisit,

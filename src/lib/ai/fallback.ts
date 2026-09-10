@@ -41,6 +41,9 @@ export interface FallbackDataContext {
     rank?: number;
     points?: number;
   } | null;
+  /** Is this weekend's circuit one of the user's favorite circuits - see homepage route.ts's new
+   * `isFavoriteCircuit` resolution. */
+  favoriteCircuit?: { name: string } | null;
   model?: {
     topPredictedDriver?: string;
   } | null;
@@ -196,8 +199,8 @@ export function generateDeterministicFallback(
       driver: fd.name,
       championshipContext: fd.rank ? `${fd.name} sits P${fd.rank} in the championship${fd.points !== undefined ? ` with ${fd.points} points` : ""}.` : `${fd.name}'s championship position isn't classified yet.`,
       circuitContext: fd.circuit && fd.circuit.appearances > 0
-        ? `At ${circuitName}: ${fd.circuit.wins} win(s), ${fd.circuit.podiums} podium(s) in ${fd.circuit.appearances} start(s).`
-        : `No recorded history for ${fd.name} at ${circuitName} yet.`,
+        ? `At ${circuitName}: ${fd.circuit.wins} win(s), ${fd.circuit.podiums} podium(s) in ${fd.circuit.appearances} start(s).${ctx.favoriteCircuit ? ` ${circuitName} is also one of your favorite circuits.` : ""}`
+        : `No recorded history for ${fd.name} at ${circuitName} yet.${ctx.favoriteCircuit ? ` ${circuitName} is one of your favorite circuits.` : ""}`,
       modelContext: winProbPct != null && topSimulated === fd.name
         ? `The simulation favors ${fd.name} at ${winProbPct}% win probability.`
         : `The model currently favors ${topSimulated || driverLeader} over ${fd.name} this weekend.`,
@@ -306,12 +309,15 @@ export function generateDeterministicRaceFallback(context: RaceIntelligenceConte
     },
     // Personal fallback: only produced with real favorite context, specific and grounded - never
     // generic motivational filler. The route only calls this at all when hasPersonalContext() is
-    // true, but this function stays defensive regardless.
+    // true, but this function stays defensive regardless. Scoped to the primary (first) favorite
+    // driver - a deterministic template can't synthesize prose across multiple favorites the way
+    // free-form AI text can (same scope decision as the homepage fallback).
     personal:
-      context.favoriteDriver &&
+      context.favoriteDrivers[0] &&
       (() => {
-        const row = context.evidenceFacts.find((f) => f.id === "favorite-driver-result");
-        return row ? { title: `${context.favoriteDriver!.name}'s race`, explanation: row.fact, evidenceIds: ["favorite-driver-result"] } : null;
+        const primary = context.favoriteDrivers[0];
+        const row = context.evidenceFacts.find((f) => f.id.startsWith("favorite-driver-result"));
+        return row ? { title: `${primary.name}'s race`, explanation: row.fact, evidenceIds: [row.id] } : null;
       })(),
   };
 }

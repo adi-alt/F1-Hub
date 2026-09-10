@@ -80,8 +80,10 @@ export interface RaceIntelligenceContext {
   trafficStats: NonNullable<RaceDoc["trafficStats"]> | null;
   keyMoments: Moment[];
   trackHistory: TrackHistory | null;
-  favoriteDriver: FavoriteDriverCard | null;
-  favoriteTeam: FavoriteTeamCard | null;
+  /** ALL of the user's favorite drivers/teams, not just index [0] - see homepage context.ts's
+   * identical widening. */
+  favoriteDrivers: FavoriteDriverCard[];
+  favoriteTeams: FavoriteTeamCard[];
   evidenceFacts: EvidenceFact[];
   /** Plain deterministic booleans, NOT an AI-decided field - the UI's "N of 8 sources available"
    * count reads this directly. An OpenF1-fallback race (see pipeline/OPENF1_FALLBACK.md) will
@@ -146,24 +148,27 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
       }
     })(),
 
-    // Personal context - only ever populated for a real signed-in user with a real favorite;
+    // Personal context - only ever populated for a real signed-in user with real favorites;
     // never fetched at all otherwise, so there's nothing for the prompt's PERSONAL CONTEXT
-    // section to contain for an anonymous/default-state request.
-    (async (): Promise<{ favoriteDriver: FavoriteDriverCard | null; favoriteTeam: FavoriteTeamCard | null }> => {
-      if (!userId) return { favoriteDriver: null, favoriteTeam: null };
+    // section to contain for an anonymous/default-state request. ALL favorites, not just [0].
+    (async (): Promise<{ favoriteDrivers: FavoriteDriverCard[]; favoriteTeams: FavoriteTeamCard[] }> => {
+      if (!userId) return { favoriteDrivers: [], favoriteTeams: [] };
       const profile = await getUserProfile(userId).catch(() => null);
-      const [driverCard, teamCard] = await Promise.all([
-        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
-        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+      const [driverCards, teamCards] = await Promise.all([
+        Promise.all((profile?.favoriteDrivers ?? []).map((id) => getFavoriteDriverCard(id).catch(() => null))),
+        Promise.all((profile?.favoriteTeams ?? []).map((id) => getFavoriteTeamCard(id).catch(() => null))),
       ]);
-      return { favoriteDriver: driverCard, favoriteTeam: teamCard };
+      return {
+        favoriteDrivers: driverCards.filter((c): c is FavoriteDriverCard => c !== null),
+        favoriteTeams: teamCards.filter((c): c is FavoriteTeamCard => c !== null),
+      };
     })(),
   ]);
   const driverLeaderBefore = standingsBefore.drivers[0]?.driver ?? null;
   const driverLeaderAfter = standingsAfter.drivers[0]?.driver ?? null;
   const constructorLeaderBefore = standingsBefore.teams[0]?.team ?? null;
   const constructorLeaderAfter = standingsAfter.teams[0]?.team ?? null;
-  const { favoriteDriver, favoriteTeam } = personalCards;
+  const { favoriteDrivers, favoriteTeams } = personalCards;
 
   // --- Evidence facts: curated, real, citable - built from the exact data assembled above ---
   const evidenceFacts: EvidenceFact[] = [];
@@ -220,13 +225,13 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
     if (trackHistory.topPerformer) evidenceFacts.push({ id: "track-history-top-performer", source: "trackHistory", fact: `${trackHistory.topPerformer.driverName} has the most wins at this circuit (${trackHistory.topPerformer.wins}).` });
     if (trackHistory.defendingWinner) evidenceFacts.push({ id: "track-history-defending-winner", source: "trackHistory", fact: `${trackHistory.defendingWinner.driverName} won the most recent race held here (${trackHistory.defendingWinner.year}).` });
   }
-  if (favoriteDriver) {
-    const row = findResult(results, favoriteDriver.code ?? "");
-    if (row) evidenceFacts.push({ id: "favorite-driver-result", source: "favoriteDriver", fact: `${favoriteDriver.name} finished P${row.finishPosition} for ${row.team}.` });
+  for (const fd of favoriteDrivers) {
+    const row = findResult(results, fd.code ?? "");
+    if (row) evidenceFacts.push({ id: `favorite-driver-result-${fd.driverId}`, source: "favoriteDriver", fact: `${fd.name} finished P${row.finishPosition} for ${row.team}.` });
   }
-  if (favoriteTeam) {
-    const rows = results.filter((r) => r.team === favoriteTeam!.currentName);
-    if (rows.length) evidenceFacts.push({ id: "favorite-team-result", source: "favoriteTeam", fact: `${favoriteTeam.name}: ${rows.map((r) => `P${r.finishPosition} ${r.driverName}`).join(", ")}.` });
+  for (const ft of favoriteTeams) {
+    const rows = results.filter((r) => r.team === ft.currentName);
+    if (rows.length) evidenceFacts.push({ id: `favorite-team-result-${ft.teamId}`, source: "favoriteTeam", fact: `${ft.name}: ${rows.map((r) => `P${r.finishPosition} ${r.driverName}`).join(", ")}.` });
   }
 
   const dataCoverage: Record<ContextSource, boolean> = {
@@ -239,8 +244,8 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
     safetyCar: race.safetyCarPeriods !== undefined && race.safetyCarPeriods !== null,
     keyMoments: keyMoments.length > 0,
     trackHistory: !!trackHistory,
-    favoriteDriver: !!favoriteDriver,
-    favoriteTeam: !!favoriteTeam,
+    favoriteDriver: favoriteDrivers.length > 0,
+    favoriteTeam: favoriteTeams.length > 0,
   };
 
   return {
@@ -264,8 +269,8 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
     trafficStats: race.trafficStats ?? null,
     keyMoments,
     trackHistory,
-    favoriteDriver,
-    favoriteTeam,
+    favoriteDrivers,
+    favoriteTeams,
     evidenceFacts,
     dataCoverage,
   };
@@ -274,12 +279,12 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
 // Referenced by the route/orchestrator to decide whether personal generation is worth attempting
 // at all - avoids a wasted model call section for a signed-in user with no real favorite set.
 export function hasPersonalContext(context: RaceIntelligenceContext): boolean {
-  return !!context.favoriteDriver || !!context.favoriteTeam;
+  return context.favoriteDrivers.length > 0 || context.favoriteTeams.length > 0;
 }
 
 /** Serializes the context into the prompt string, same tag-delimited convention context.ts already
  * uses for the homepage (<STRUCTURED_F1_DATA>/<PERSONAL_CONTEXT>). `includePersonal` is a separate
- * argument, not just "does context.favoriteDriver exist" - the orchestrator can request a
+ * argument, not just "do favoriteDrivers/favoriteTeams exist" - the orchestrator can request a
  * shared-only generation (partial cache-hit case) and this must omit the section entirely then,
  * not just leave it empty, so the model has no PERSONAL_CONTEXT tag to accidentally reference. */
 export function formatRaceIntelligenceContext(context: RaceIntelligenceContext, includePersonal: boolean): string {
@@ -299,10 +304,10 @@ export function formatRaceIntelligenceContext(context: RaceIntelligenceContext, 
   if (context.evidenceFacts.length === 0) sections.push("No structured evidence available for this race.");
   sections.push("</RACE_EVIDENCE>");
 
-  if (includePersonal && (context.favoriteDriver || context.favoriteTeam)) {
+  if (includePersonal && (context.favoriteDrivers.length > 0 || context.favoriteTeams.length > 0)) {
     sections.push("<PERSONAL_CONTEXT>");
-    if (context.favoriteDriver) sections.push(`Favorite driver: ${context.favoriteDriver.name} (${context.favoriteDriver.team ?? "team unknown"}).`);
-    if (context.favoriteTeam) sections.push(`Favorite team: ${context.favoriteTeam.name}.`);
+    for (const fd of context.favoriteDrivers) sections.push(`Favorite driver: ${fd.name} (${fd.team ?? "team unknown"}).`);
+    for (const ft of context.favoriteTeams) sections.push(`Favorite team: ${ft.name}.`);
     sections.push("Generate `personal` from this section plus RACE_EVIDENCE only. Do not let this section influence `shared` in any way.");
     sections.push("</PERSONAL_CONTEXT>");
   }

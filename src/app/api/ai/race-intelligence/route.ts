@@ -87,17 +87,28 @@ export async function POST(request: Request) {
     // "your driver finished P4" / "your team scored..." - real deterministic facts for Your
     // Perspective's stat block. No "your prediction vs. outcome" field: no per-user race prediction
     // exists in this context, so it's left out rather than fabricated.
+    // Evidence-fact ids are now suffixed per favorite (favorite-driver-result-{driverId}, see
+    // raceContext.ts) since there can be more than one - this stat block stays scoped to the
+    // primary (first) favorite's fact, matching a prefix rather than the old exact id.
     const personalFacts = wantsPersonal
       ? {
-          driver: context.evidenceFacts.find((f) => f.id === "favorite-driver-result")?.fact ?? null,
-          team: context.evidenceFacts.find((f) => f.id === "favorite-team-result")?.fact ?? null,
+          driver: context.evidenceFacts.find((f) => f.id.startsWith("favorite-driver-result"))?.fact ?? null,
+          team: context.evidenceFacts.find((f) => f.id.startsWith("favorite-team-result"))?.fact ?? null,
         }
       : null;
 
     const dataVersion = dataVersionSeed;
     const sharedCacheKey = buildSharedRaceCacheKey(raceId, dataVersion);
+    // Hashes ALL favorite ids (sorted/joined), not just the primary - a 2nd/3rd favorite changing
+    // must still bust this cache (same fix as the homepage route's personalDataVersion).
     const personalCacheKey = wantsPersonal
-      ? buildPersonalRaceCacheKey(raceId, userId!, context.favoriteDriver?.driverId ?? null, context.favoriteTeam?.teamId ?? null, dataVersion)
+      ? buildPersonalRaceCacheKey(
+          raceId,
+          userId!,
+          context.favoriteDrivers.map((d) => d.driverId).sort().join(",") || null,
+          context.favoriteTeams.map((t) => t.teamId).sort().join(",") || null,
+          dataVersion,
+        )
       : null;
 
     let sharedEntry = await getCachedRaceEntry<SharedRaceIntelligence>(sharedCacheKey, requestId);

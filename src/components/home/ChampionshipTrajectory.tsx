@@ -11,6 +11,10 @@ export type TrajectorySeries = { code: string; label: string; color: string };
 const WIDTH = 520;
 const HEIGHT = 120;
 const PAD = 8;
+// Extra room on the left/bottom edges specifically for axis tick labels - the plot area itself
+// still starts/ends at these, xFor/yFor just account for the wider margins on those two sides.
+const PAD_LEFT = 26;
+const PAD_BOTTOM = 14;
 
 /** Catmull-Rom -> cubic Bezier conversion - passes exactly through every real data point (only the
  * joins between points are curved), so this cannot distort the underlying data the way an
@@ -77,8 +81,13 @@ export function ChampionshipTrajectory({
   }
 
   const maxPoints = Math.max(...rows.flatMap((r) => series.map((s) => Number(r[s.code] ?? 0))), 1);
-  const xFor = (i: number) => PAD + (i / (rows.length - 1)) * (WIDTH - PAD * 2);
-  const yFor = (points: number) => HEIGHT - PAD - (points / maxPoints) * (HEIGHT - PAD * 2);
+  const xFor = (i: number) => PAD_LEFT + (i / (rows.length - 1)) * (WIDTH - PAD_LEFT - PAD);
+  const yFor = (points: number) => HEIGHT - PAD_BOTTOM - (points / maxPoints) * (HEIGHT - PAD_BOTTOM - PAD);
+
+  // X-axis label density: at most ~6 round labels regardless of season length, always including
+  // the first and last round, so a 23-round season never overlaps labels on this small a chart.
+  const xAxisStep = Math.max(1, Math.ceil(rows.length / 6));
+  const xAxisIndices = Array.from(new Set([...rows.map((_, i) => i).filter((i) => i % xAxisStep === 0), rows.length - 1])).sort((a, b) => a - b);
 
   const paths = series.map((s, si) => {
     const points = rows.map((r, i) => ({ x: xFor(i), y: yFor(Number(r[s.code] ?? 0)) }));
@@ -130,8 +139,26 @@ export function ChampionshipTrajectory({
           </defs>
 
           {/* Two light reference gridlines - not a dense grid, just enough to judge scale. */}
-          <line x1={PAD} x2={WIDTH - PAD} y1={yFor(maxPoints)} y2={yFor(maxPoints)} stroke={chart.gridline} strokeWidth={1} />
-          <line x1={PAD} x2={WIDTH - PAD} y1={yFor(maxPoints / 2)} y2={yFor(maxPoints / 2)} stroke={chart.gridline} strokeWidth={1} />
+          <line x1={PAD_LEFT} x2={WIDTH - PAD} y1={yFor(maxPoints)} y2={yFor(maxPoints)} stroke={chart.gridline} strokeWidth={1} />
+          <line x1={PAD_LEFT} x2={WIDTH - PAD} y1={yFor(maxPoints / 2)} y2={yFor(maxPoints / 2)} stroke={chart.gridline} strokeWidth={1} />
+
+          {/* Y-axis: 3 real values from the actual dataset (0/half/max) - a 0 baseline is correct
+           * here (not misleading) since this is a cumulative points chart, not a zoomed price
+           * chart. X-axis: round numbers at a thinned-out subset so a long season never overlaps. */}
+          <text x={PAD_LEFT - 6} y={yFor(0)} textAnchor="end" dominantBaseline="middle" fontSize={8} fill={chart.mutedInk}>
+            0
+          </text>
+          <text x={PAD_LEFT - 6} y={yFor(maxPoints / 2)} textAnchor="end" dominantBaseline="middle" fontSize={8} fill={chart.mutedInk}>
+            {Math.round(maxPoints / 2)}
+          </text>
+          <text x={PAD_LEFT - 6} y={yFor(maxPoints)} textAnchor="end" dominantBaseline="middle" fontSize={8} fill={chart.mutedInk}>
+            {maxPoints}
+          </text>
+          {xAxisIndices.map((i) => (
+            <text key={`xlabel-${i}`} x={xFor(i)} y={HEIGHT - 2} textAnchor="middle" fontSize={8} fill={chart.mutedInk}>
+              R{rows[i].round}
+            </text>
+          ))}
 
           {paths.map((p) => (
             <path
@@ -166,7 +193,7 @@ export function ChampionshipTrajectory({
 
           {hoverIndex != null && (
             <>
-              <line x1={xFor(hoverIndex)} x2={xFor(hoverIndex)} y1={PAD} y2={HEIGHT - PAD} stroke="var(--f1-line)" strokeWidth={1} />
+              <line x1={xFor(hoverIndex)} x2={xFor(hoverIndex)} y1={PAD} y2={HEIGHT - PAD_BOTTOM} stroke="var(--f1-line)" strokeWidth={1} />
               {paths.map((p) => (
                 <circle key={p.code} cx={xFor(hoverIndex)} cy={yFor(Number(rows[hoverIndex][p.code] ?? 0))} r={3} fill={p.color} />
               ))}
@@ -205,7 +232,7 @@ export function ChampionshipTrajectory({
             }}
           >
             <p className="whitespace-nowrap font-semibold text-white">
-              Round {hovered.round} — {hovered.raceName}
+              Round {hovered.round}: {hovered.raceName}
             </p>
             <p className="whitespace-nowrap text-[10px] text-neutral-500">{hovered.trackShort as string}</p>
             {series.map((s) => {

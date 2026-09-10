@@ -54,16 +54,20 @@ function toFallbackContext(data: HomepageContextData): FallbackDataContext {
           totalRaces: data.trackHistory.totalRaces,
         }
       : null,
-    favoriteDriver: data.favoriteDriver
+    // The deterministic fallback stays scoped to the PRIMARY (first-listed) favorite - template
+    // strings can't synthesize prose across N favorites the way free-form AI text can (see the
+    // homepage route's own comment on this same scope decision).
+    favoriteDriver: data.favoriteDrivers?.[0]
       ? {
-          name: data.favoriteDriver.name,
-          rank: data.favoriteDriver.rank,
-          points: data.favoriteDriver.points,
-          teamName: data.favoriteDriver.teamName,
-          circuit: data.favoriteDriver.circuit,
+          name: data.favoriteDrivers[0].name,
+          rank: data.favoriteDrivers[0].rank,
+          points: data.favoriteDrivers[0].points,
+          teamName: data.favoriteDrivers[0].teamName,
+          circuit: data.favoriteDrivers[0].circuit,
         }
       : null,
-    favoriteTeam: data.favoriteTeam ? { name: data.favoriteTeam.name, rank: data.favoriteTeam.rank, points: data.favoriteTeam.points } : null,
+    favoriteTeam: data.favoriteTeams?.[0] ? { name: data.favoriteTeams[0].name, rank: data.favoriteTeams[0].rank, points: data.favoriteTeams[0].points } : null,
+    favoriteCircuit: data.favoriteCircuit?.isFavorite ? { name: data.favoriteCircuit.name } : null,
     model: data.model ? { topPredictedDriver: data.model.topPredictedDriver } : null,
     simulation: data.simulation ? { topSimulatedDriver: data.simulation.topSimulatedDriver, p1Probability: data.simulation.p1Probability } : null,
     userPrediction: data.userPrediction,

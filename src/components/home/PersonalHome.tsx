@@ -131,8 +131,12 @@ export function PersonalHome(props: {
 }) {
   // Stable identity string, not the card objects themselves - a new object reference every render
   // (e.g. from router.refresh() re-fetching the same favorite) must NOT retrigger the AI fetch,
-  // only an actual identity change should.
-  const favoriteContextKey = `${props.personalData.favoriteDriver?.driverId ?? ""}:${props.personalData.favoriteTeam?.teamId ?? ""}`;
+  // only an actual identity change should. Uses the RAW favorite arrays off the profile (already
+  // present on PersonalHomeData, no new data threading) rather than just the primary driver/team
+  // ids - the AI context now considers every favorite, so a change to a 2nd/3rd favorite (or a
+  // favorite circuit) must trigger a refetch too, not just a change to the first-listed one.
+  const profile = props.personalData.profile;
+  const favoriteContextKey = `${(profile?.favoriteDrivers ?? []).join(",")}|${(profile?.favoriteTeams ?? []).join(",")}|${(profile?.favoriteTracks ?? []).join(",")}`;
   return (
     <HomepageIntelligenceProvider favoriteContextKey={favoriteContextKey}>
       <PersonalHomeInner {...props} />

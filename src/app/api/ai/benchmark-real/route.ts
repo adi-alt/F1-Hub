@@ -285,27 +285,33 @@ export async function POST(request: Request) {
     model: rfTopName ? { topPredictedDriver: rfTopName, topFeatureFactors: rfTopFactors } : null,
     simulation: simTopName ? { topSimulatedDriver: simTopName, p1Probability: simTop?.p1, podiumProbability: simTop?.podium } : null,
     communityPosts: feedPosts.map((p) => ({ title: p.title, groupName: p.groupName ?? undefined })),
-    favoriteDriver: favoriteDriverCard
-      ? {
-          name: favoriteDriverCard.name,
-          teamName: favoriteDriverCard.team || undefined,
-          rank: standings ? standings.drivers.findIndex((d) => d.driver === favoriteDriverCard!.code) + 1 || undefined : undefined,
-          points: standings?.drivers.find((d) => d.driver === favoriteDriverCard!.code)?.points,
-          circuit: trackHistory?.favoriteDriverCircuitStats
-            ? { appearances: trackHistory.favoriteDriverCircuitStats.appearances, wins: trackHistory.favoriteDriverCircuitStats.wins, podiums: trackHistory.favoriteDriverCircuitStats.podiums, bestFinish: trackHistory.favoriteDriverCircuitStats.bestFinish, avgFinish: trackHistory.favoriteDriverCircuitStats.avgFinish }
-            : null,
-        }
-      : null,
-    favoriteTeam: favoriteTeamCard
-      ? {
-          name: favoriteTeamCard.name,
-          rank: standings ? standings.teams.findIndex((t) => t.team === favoriteTeamCard!.currentName) + 1 || undefined : undefined,
-          points: standings?.teams.find((t) => t.team === favoriteTeamCard!.currentName)?.points,
-          circuit: trackHistory?.favoriteTeamCircuitStats
-            ? { appearances: trackHistory.favoriteTeamCircuitStats.appearances, wins: trackHistory.favoriteTeamCircuitStats.wins, podiums: trackHistory.favoriteTeamCircuitStats.podiums, bestFinish: trackHistory.favoriteTeamCircuitStats.bestFinish }
-            : null,
-        }
-      : null,
+    // Diagnostic/benchmark route, not a real user path - stays scoped to a single test favorite,
+    // just wrapped in the array shape HomepageContextData now expects.
+    favoriteDrivers: favoriteDriverCard
+      ? [
+          {
+            name: favoriteDriverCard.name,
+            teamName: favoriteDriverCard.team || undefined,
+            rank: standings ? standings.drivers.findIndex((d) => d.driver === favoriteDriverCard!.code) + 1 || undefined : undefined,
+            points: standings?.drivers.find((d) => d.driver === favoriteDriverCard!.code)?.points,
+            circuit: trackHistory?.favoriteDriverCircuitStats
+              ? { appearances: trackHistory.favoriteDriverCircuitStats.appearances, wins: trackHistory.favoriteDriverCircuitStats.wins, podiums: trackHistory.favoriteDriverCircuitStats.podiums, bestFinish: trackHistory.favoriteDriverCircuitStats.bestFinish, avgFinish: trackHistory.favoriteDriverCircuitStats.avgFinish }
+              : null,
+          },
+        ]
+      : [],
+    favoriteTeams: favoriteTeamCard
+      ? [
+          {
+            name: favoriteTeamCard.name,
+            rank: standings ? standings.teams.findIndex((t) => t.team === favoriteTeamCard!.currentName) + 1 || undefined : undefined,
+            points: standings?.teams.find((t) => t.team === favoriteTeamCard!.currentName)?.points,
+            circuit: trackHistory?.favoriteTeamCircuitStats
+              ? { appearances: trackHistory.favoriteTeamCircuitStats.appearances, wins: trackHistory.favoriteTeamCircuitStats.wins, podiums: trackHistory.favoriteTeamCircuitStats.podiums, bestFinish: trackHistory.favoriteTeamCircuitStats.bestFinish }
+              : null,
+          },
+        ]
+      : [],
     userPrediction: userPick ? { predictedWinner: userPick.predictedWinner || undefined, submitted: !!userPick.submittedAt } : null,
     predictionFingerprint: fingerprint && fingerprint.totalPredictions > 0 ? fingerprint : null,
     sinceLastVisit,

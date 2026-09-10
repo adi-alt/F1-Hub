@@ -51,20 +51,27 @@ export interface HomepageContextData {
   }>;
 
   // ── Personal (only present for an authenticated user with real data) ───────────
-  favoriteDriver?: {
+  /** ALL of the user's favorite drivers, not just one - lets the model synthesize across multiple
+   * (see homepagePrompt.ts's prioritization rule) instead of only ever knowing about a single
+   * favorite. Circuit-specific stats are only ever populated on the first (primary) entry -
+   * getTrackHistory itself only resolves stats for one driver id at a time. */
+  favoriteDrivers?: Array<{
     name: string;
     rank?: number;
     points?: number;
     teamName?: string;
     /** This circuit's real history for this exact driver - getDriverCircuitStats, not invented. */
     circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null; avgFinish: number | null } | null;
-  } | null;
-  favoriteTeam?: {
+  }>;
+  favoriteTeams?: Array<{
     name: string;
     rank?: number;
     points?: number;
     circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null } | null;
-  } | null;
+  }>;
+  /** Real, new signal: is the upcoming race's own circuit one of the user's favorite circuits
+   * (profiles.favorite_tracks) - previously stored but never surfaced anywhere on the homepage. */
+  favoriteCircuit?: { isFavorite: boolean; name: string } | null;
   userPrediction?: {
     predictedWinner?: string;
     submitted?: boolean;
@@ -136,33 +143,46 @@ export function buildHomepageContext(data: HomepageContextData): string {
   sections.push("</STRUCTURED_F1_DATA>");
 
   // ─────────────────────────────────────────── PERSONAL, USER-SCOPED CONTEXT
-  const hasPersonalData = !!(data.favoriteDriver || data.favoriteTeam || data.userPrediction || data.predictionFingerprint || data.sinceLastVisit?.hasPriorVisit);
+  const hasPersonalData = !!(
+    data.favoriteDrivers?.length ||
+    data.favoriteTeams?.length ||
+    data.favoriteCircuit?.isFavorite ||
+    data.userPrediction ||
+    data.predictionFingerprint ||
+    data.sinceLastVisit?.hasPriorVisit
+  );
   sections.push("<PERSONAL_CONTEXT>");
   if (!hasPersonalData) {
     sections.push("No authenticated personal context available - this is a guest visitor or a signed-in user with no favorites/predictions yet.");
   } else {
-    if (data.favoriteDriver) {
-      const fd = data.favoriteDriver;
-      sections.push(
-        `User's Favorite Driver: ${fd.name}${fd.rank ? ` (P${fd.rank} in WDC` : ""}${fd.points !== undefined ? `, ${fd.points} points)` : fd.rank ? ")" : ""}${fd.teamName ? ` racing for ${fd.teamName}` : ""}.`,
-      );
-      if (fd.circuit) {
+    if (data.favoriteDrivers && data.favoriteDrivers.length > 0) {
+      for (const fd of data.favoriteDrivers) {
         sections.push(
-          `User's Favorite Driver's History At This Circuit: ${fd.circuit.appearances} start(s), ${fd.circuit.wins} win(s), ${fd.circuit.podiums} podium(s)${fd.circuit.bestFinish != null ? `, best finish P${fd.circuit.bestFinish}` : ""}${fd.circuit.avgFinish != null ? `, average finish P${fd.circuit.avgFinish.toFixed(1)}` : ""}.`,
+          `User's Favorite Driver: ${fd.name}${fd.rank ? ` (P${fd.rank} in WDC` : ""}${fd.points !== undefined ? `, ${fd.points} points)` : fd.rank ? ")" : ""}${fd.teamName ? ` racing for ${fd.teamName}` : ""}.`,
         );
+        if (fd.circuit) {
+          sections.push(
+            `${fd.name}'s History At This Circuit: ${fd.circuit.appearances} start(s), ${fd.circuit.wins} win(s), ${fd.circuit.podiums} podium(s)${fd.circuit.bestFinish != null ? `, best finish P${fd.circuit.bestFinish}` : ""}${fd.circuit.avgFinish != null ? `, average finish P${fd.circuit.avgFinish.toFixed(1)}` : ""}.`,
+          );
+        }
       }
     }
 
-    if (data.favoriteTeam) {
-      const ft = data.favoriteTeam;
-      sections.push(
-        `User's Favorite Constructor: ${ft.name}${ft.rank ? ` (P${ft.rank} in WCC` : ""}${ft.points !== undefined ? `, ${ft.points} points)` : ft.rank ? ")" : ""}.`,
-      );
-      if (ft.circuit) {
+    if (data.favoriteTeams && data.favoriteTeams.length > 0) {
+      for (const ft of data.favoriteTeams) {
         sections.push(
-          `User's Favorite Constructor's History At This Circuit: ${ft.circuit.appearances} start(s), ${ft.circuit.wins} win(s), ${ft.circuit.podiums} podium(s)${ft.circuit.bestFinish != null ? `, best finish P${ft.circuit.bestFinish}` : ""}.`,
+          `User's Favorite Constructor: ${ft.name}${ft.rank ? ` (P${ft.rank} in WCC` : ""}${ft.points !== undefined ? `, ${ft.points} points)` : ft.rank ? ")" : ""}.`,
         );
+        if (ft.circuit) {
+          sections.push(
+            `${ft.name}'s History At This Circuit: ${ft.circuit.appearances} start(s), ${ft.circuit.wins} win(s), ${ft.circuit.podiums} podium(s)${ft.circuit.bestFinish != null ? `, best finish P${ft.circuit.bestFinish}` : ""}.`,
+          );
+        }
       }
+    }
+
+    if (data.favoriteCircuit?.isFavorite) {
+      sections.push(`This weekend's circuit (${data.favoriteCircuit.name}) is one of the user's favorite circuits.`);
     }
 
     if (data.userPrediction) {

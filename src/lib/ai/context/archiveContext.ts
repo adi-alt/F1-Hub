@@ -92,17 +92,20 @@ export async function buildArchiveIntelligenceContext(year: number, round: numbe
 
     // Matched by real archive id (driverId/teamId), not this season's short code - archive
     // results are keyed by Ergast-style ids, never a current-season code.
-    (async (): Promise<{ favoriteDriver: FavoriteDriverCard | null; favoriteTeam: FavoriteTeamCard | null }> => {
-      if (!userId) return { favoriteDriver: null, favoriteTeam: null };
+    (async (): Promise<{ favoriteDrivers: FavoriteDriverCard[]; favoriteTeams: FavoriteTeamCard[] }> => {
+      if (!userId) return { favoriteDrivers: [], favoriteTeams: [] };
       const profile = await getUserProfile(userId).catch(() => null);
-      const [driverCard, teamCard] = await Promise.all([
-        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
-        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+      const [driverCards, teamCards] = await Promise.all([
+        Promise.all((profile?.favoriteDrivers ?? []).map((id) => getFavoriteDriverCard(id).catch(() => null))),
+        Promise.all((profile?.favoriteTeams ?? []).map((id) => getFavoriteTeamCard(id).catch(() => null))),
       ]);
-      return { favoriteDriver: driverCard, favoriteTeam: teamCard };
+      return {
+        favoriteDrivers: driverCards.filter((c): c is FavoriteDriverCard => c !== null),
+        favoriteTeams: teamCards.filter((c): c is FavoriteTeamCard => c !== null),
+      };
     })(),
   ]);
-  const { favoriteDriver, favoriteTeam } = personalCards;
+  const { favoriteDrivers, favoriteTeams } = personalCards;
 
   const evidenceFacts: EvidenceFact[] = [];
   if (winnerRow) {
@@ -148,13 +151,13 @@ export async function buildArchiveIntelligenceContext(year: number, round: numbe
     if (trackHistory.topPerformer) evidenceFacts.push({ id: "track-history-top-performer", source: "trackHistory", fact: `${trackHistory.topPerformer.driverName} has the most wins at this circuit (${trackHistory.topPerformer.wins}).` });
     if (trackHistory.defendingWinner) evidenceFacts.push({ id: "track-history-defending-winner", source: "trackHistory", fact: `${trackHistory.defendingWinner.driverName} won the most recent race held here (${trackHistory.defendingWinner.year}).` });
   }
-  if (favoriteDriver) {
-    const row = findResult(results, favoriteDriver.driverId);
-    if (row) evidenceFacts.push({ id: "favorite-driver-result", source: "favoriteDriver", fact: `${favoriteDriver.name} finished P${row.position} for ${row.constructor}.` });
+  for (const fd of favoriteDrivers) {
+    const row = findResult(results, fd.driverId);
+    if (row) evidenceFacts.push({ id: `favorite-driver-result-${fd.driverId}`, source: "favoriteDriver", fact: `${fd.name} finished P${row.position} for ${row.constructor}.` });
   }
-  if (favoriteTeam) {
-    const rows = results.filter((r) => (r.teamId ? r.teamId === favoriteTeam!.teamId : r.constructor === favoriteTeam!.name));
-    if (rows.length) evidenceFacts.push({ id: "favorite-team-result", source: "favoriteTeam", fact: `${favoriteTeam.name}: ${rows.map((r) => `P${r.position} ${r.driverName}`).join(", ")}.` });
+  for (const ft of favoriteTeams) {
+    const rows = results.filter((r) => (r.teamId ? r.teamId === ft.teamId : r.constructor === ft.name));
+    if (rows.length) evidenceFacts.push({ id: `favorite-team-result-${ft.teamId}`, source: "favoriteTeam", fact: `${ft.name}: ${rows.map((r) => `P${r.position} ${r.driverName}`).join(", ")}.` });
   }
 
   // compoundPace/traffic/safetyCar: genuinely absent from archive_races (no such columns exist for
@@ -171,8 +174,8 @@ export async function buildArchiveIntelligenceContext(year: number, round: numbe
     safetyCar: false,
     keyMoments: keyMoments.length > 0,
     trackHistory: !!trackHistory,
-    favoriteDriver: !!favoriteDriver,
-    favoriteTeam: !!favoriteTeam,
+    favoriteDriver: favoriteDrivers.length > 0,
+    favoriteTeam: favoriteTeams.length > 0,
   };
 
   return {
@@ -199,8 +202,8 @@ export async function buildArchiveIntelligenceContext(year: number, round: numbe
     trafficStats: null,
     keyMoments,
     trackHistory,
-    favoriteDriver,
-    favoriteTeam,
+    favoriteDrivers,
+    favoriteTeams,
     evidenceFacts,
     dataCoverage,
   };

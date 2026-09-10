@@ -56,7 +56,11 @@ export function SeasonStrip({
 
   return (
     <div>
-      <div className="flex items-center gap-2">
+      {/* Frosted control-panel treatment for the navigator strip - reuses existing tokens
+       * (border-[var(--f1-line)]/bg-black/20, the same pairing Tabs.tsx's bar already uses) plus
+       * one backdrop-blur for the requested frosted feel, lighter than .glass-surface (reserved
+       * for floating overlays, not an inline strip like this one). */}
+      <div className="flex items-center gap-2 rounded-xl border border-[var(--f1-line)] bg-black/20 p-2 backdrop-blur-sm">
         <button
           type="button"
           onClick={() => roundIndex > 0 && selectRound(races[roundIndex - 1].round)}
@@ -141,14 +145,22 @@ function FeaturedRound({
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
 }) {
+  // Adaptive content density: the image is a real visual moment for a round with substantive text
+  // alongside it (completed results, or this weekend's prediction CTA) - the plain "not yet raced"
+  // branch has the least real content to justify one, so it stays text-only rather than pairing a
+  // photo with an almost-empty body.
+  const showImage = !!race.photoUrl && (race.status === "completed" || isHere);
+
   return (
     <div>
       {/* Real per-round photo (RaceDoc.photoUrl - already fetched for every DB-backed race, zero
        * new fetch), only on this featured panel, never on a strip node. Omitted entirely (no
-       * broken <Image>) for far-future calendar-placeholder rounds that don't have one yet. */}
-      {race.photoUrl && (
-        <div className="relative aspect-[21/9] w-full overflow-hidden">
-          <Image src={race.photoUrl} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
+       * broken <Image>) for far-future calendar-placeholder rounds that don't have one yet, and for
+       * the "not yet raced" branch even when one exists (see showImage above). Shorter than before
+       * (3:1 capped at 160px, was 21:9 uncapped ~257px) so it doesn't dominate the card. */}
+      {showImage && (
+        <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
+          <Image src={race.photoUrl!} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
         </div>
       )}
@@ -225,12 +237,12 @@ function CompletedRoundDetail({
 
         {favoriteDriverResult ? (
           <p className="mt-2 text-xs text-neutral-400">
-            <span className="font-medium text-neutral-200">Your driver — </span>
+            <span className="font-medium text-neutral-200">Your driver: </span>
             {favoriteDriver!.name} finished {favoriteDriverResult.status === "dnf" ? "DNF" : `P${favoriteDriverResult.finishPosition}`}.
           </p>
         ) : favoriteTeamResults.length > 0 ? (
           <p className="mt-2 text-xs text-neutral-400">
-            <span className="font-medium text-neutral-200">Your team — </span>
+            <span className="font-medium text-neutral-200">Your team: </span>
             {favoriteTeam!.name} best finish P{favoriteTeamResults[0].finishPosition}.
           </p>
         ) : podium[0] ? (
@@ -259,7 +271,7 @@ function ThisWeekendDetail({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-neutral-300">
-        This weekend{who ? ` — make your ${who} prediction` : ""} before lights out.
+        This weekend{who ? `, make your ${who} prediction` : ""} before lights out.
       </p>
       <Link
         href={raceHref(race.year, race.round, race.name)}
