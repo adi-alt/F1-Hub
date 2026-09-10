@@ -3,12 +3,20 @@
 // Features:
 // 1. Single model invocation with pre-fetched context (no tool loops).
 // 2. Strict 40 RPM provider ceiling enforcement with sliding window.
-// 3. Two-tier caching: GLOBAL (race/model/simulation/community - independent of any one user's
-//    prediction) vs PERSONAL (global + this user's favorites/pick/fingerprint/visit history).
+// 3. Two-tier caching: GLOBAL (race/model/simulation - independent of any one user's prediction)
+//    vs PERSONAL (global + this user's favorites/pick/fingerprint/visit history).
 // 4. Single-flight generation lock so a cache-miss stampede doesn't fan out into N model calls.
 // 5. Guaranteed deterministic (and itself personalized) fallback on rate limit, provider error, or
 //    timeout - see fallback.ts.
 // 6. Zero-call shortcut for unauthenticated or default-state users via the global cache tier.
+// 7. CACHE-FIRST for authenticated users too (2026-09-10 perf pass): only `getUserProfile`/
+//    `getUserPicksForYear` (needed to build the personal cache key at all) run before the cache
+//    check. `getFavoriteDriverCard`/`getFavoriteTeamCard`/`getTrackHistory`/`listFeedPosts` - the
+//    genuinely expensive personalization-enrichment calls - are deferred until AFTER a real cache
+//    MISS is confirmed, since none of them affect the cache key and a cache HIT never needs them.
+//    Real, measured problem this fixes: an authenticated cache HIT was taking 1.5-3s (vs ~0.55s
+//    anonymous) purely from unconditionally rebuilding full personalization context before ever
+//    checking whether cached intelligence already existed.
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
@@ -65,14 +73,10 @@ export async function POST() {
     const session = await getSession();
     const userId = session?.uid || null;
 
-    // 2. Fetch deterministic GLOBAL data AND (when signed in) the user's own profile/picks/feed -
-    // all five of these need only `year`/`userId`, already known above, not each other's results
-    // (computeSeasonStandings only depends on `year`, same reasoning as before; the profile/picks/
-    // feed batch below used to run as a SEPARATE, sequential stage after this one purely because it
-    // was written afterward, not because it actually depended on nextRace/races/archiveCircuits/
-    // standings - a real, measured contributor to authenticated cache-hit latency being noticeably
-    // slower than anonymous, confirmed live: ~1.5-2.3s vs ~0.55s for an otherwise-identical cache
-    // hit). Merging them into one batch removes that entire extra sequential round trip.
+    // 2. Fetch deterministic GLOBAL data AND (when signed in) ONLY the two personal reads that
+    // actually feed the cache key: `getUserProfile` (favorite ids) and `getUserPicksForYear` (pick
+    // timestamp + prediction fingerprint). Deliberately NOT `listFeedPosts` here - see step 6's own
+    // comment for why it's cache-key-irrelevant and safe to defer entirely to the miss path.
     const year = new Date().getFullYear();
     const [nextRace, races, archiveCircuits, standings, userBatch] = await Promise.all([
       getNextUpcomingRace(year).catch(() => null),
@@ -80,22 +84,10 @@ export async function POST() {
       getAllArchiveCircuits().catch(() => []),
       computeSeasonStandings(year).catch(() => null),
       userId
-        ? Promise.all([
-            getUserProfile(userId).catch(() => null),
-            getUserPicksForYear(userId, year).catch(() => []),
-            listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
-          ])
+        ? Promise.all([getUserProfile(userId).catch(() => null), getUserPicksForYear(userId, year).catch(() => [])])
         : Promise.resolve(null),
     ]);
     const raceId = nextRace?.id || `season_${year}_prep`;
-
-    // Same circuit-name -> archive-circuit-id resolution page.tsx already uses - nextRace.circuit is
-    // FastF1's raw location string ("Budapest"), NOT an archive circuitId ("hungaroring"). A
-    // previous version of this route passed the raw string straight into getTrackHistory(), which
-    // silently returned null for almost every circuit.
-    const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
-    const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
-    const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
 
     const driverLeader = standings?.drivers?.[0];
     const driverSecond = standings?.drivers?.[1];
@@ -103,48 +95,21 @@ export async function POST() {
     const constructorLeader = standings?.teams?.[0];
     const constructorSecond = standings?.teams?.[1];
 
-    // 3. User-specific data (if signed in) - favorites, prediction, prediction fingerprint,
-    // community context, and prior-visit state for the Since-Last-Visit diff.
-    let favoriteDriverCard = null;
-    let favoriteTeamCard = null;
+    // 3. Just enough personal state to build the cache key - profile's raw favorite ID strings
+    // (not the enriched "card" objects getFavoriteDriverCard/getFavoriteTeamCard build, which also
+    // pull circuit stats/images and are only needed once we know generation is actually happening),
+    // the user's pick, and their prediction fingerprint.
+    let profile: Awaited<ReturnType<typeof getUserProfile>> = null;
     let userPick = null;
     let fingerprint = null;
-    let feedPosts: Array<{ title?: string; groupName?: string | null; createdAt?: string }> = [];
     let lastHomepageVisitAt: string | null = null;
-    let newCommunityPostCount = 0;
-    let trackHistory = null;
 
     if (userId && userBatch) {
-      const [profile, picks, feed] = userBatch;
+      const [p, picks] = userBatch;
+      profile = p;
       lastHomepageVisitAt = profile?.lastHomepageVisitAt ?? null;
-
-      userPick = nextRace ? (picks.find((p) => p.raceId === nextRace.id) ?? null) : null;
+      userPick = nextRace ? (picks.find((pick) => pick.raceId === nextRace.id) ?? null) : null;
       fingerprint = computePredictionFingerprint(picks, races, driverLeader?.driver ?? null);
-      feedPosts = feed.posts.map((p) => ({ title: p.title ?? undefined, groupName: p.groupName, createdAt: p.createdAt }));
-      newCommunityPostCount = lastHomepageVisitAt
-        ? feedPosts.filter((p) => p.createdAt && new Date(p.createdAt).getTime() > new Date(lastHomepageVisitAt!).getTime()).length
-        : 0;
-
-      // None of these three depends on either of the others' results - favoriteDriverCard doesn't
-      // need favoriteTeamCard, trackHistory only needs the profile's favorite ids (already resolved
-      // above) and resolvedCircuitId - so they run concurrently instead of as three sequential awaits.
-      const [driverCard, teamCard, history] = await Promise.all([
-        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
-        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
-        // Circuit history is resolved once here (with the user's real favorite ids attached) rather
-        // than a second, unpersonalized getTrackHistory call below.
-        resolvedCircuitId
-          ? getTrackHistory(resolvedCircuitId, {
-              favoriteDriverId: profile?.favoriteDrivers?.[0],
-              favoriteTeamId: profile?.favoriteTeams?.[0],
-            }).catch(() => null)
-          : Promise.resolve(null),
-      ]);
-      favoriteDriverCard = driverCard;
-      favoriteTeamCard = teamCard;
-      trackHistory = history;
-    } else if (resolvedCircuitId) {
-      trackHistory = await getTrackHistory(resolvedCircuitId).catch(() => null);
     }
 
     // Real Monte Carlo simulation - the only source a "probability" figure is allowed to come from.
@@ -161,19 +126,6 @@ export async function POST() {
           .map(([k]) => k)
       : undefined;
 
-    const sinceLastVisit = userId
-      ? computeSinceLastVisit({
-          lastVisitIso: lastHomepageVisitAt,
-          races,
-          currentStandings: standings ?? { drivers: [], teams: [], poleCounts: {} },
-          favoriteDriverCode: favoriteDriverCard?.code ?? null,
-          favoriteDriverName: favoriteDriverCard?.name ?? null,
-          favoriteTeamName: favoriteTeamCard?.currentName ?? null,
-          pickSubmittedAt: userPick?.submittedAt ?? null,
-          newCommunityPostCount,
-        })
-      : null;
-
     // 4. Compute independent GLOBAL and PERSONAL data-version hashes.
     // GLOBAL depends only on facts every visitor shares - a user's own prediction must never
     // invalidate the cache entry every other visitor reads.
@@ -184,13 +136,21 @@ export async function POST() {
     // same practice/qualifying data, a preliminary-result retry that didn't yet succeed, etc). With
     // it included, every pipeline tick during a race weekend was busting this cache early - well
     // before its real 1-hour TTL - forcing a fresh, slow (~10-90s, see nemotron.ts's own timeout)
-    // model call far more often than necessary. simTop/rfTop/raceId/feedPosts.length already cover
-    // every input this response's content actually depends on.
+    // model call far more often than necessary. simTop/rfTop/raceId already cover every input this
+    // response's SHARED content actually depends on.
+    //
+    // No longer includes feedPosts.length: that count came from `listFeedPosts(userId, {feedType:
+    // "following"})` - an AUTHENTICATED, PER-USER "following" feed, not a sitewide count. Folding it
+    // into globalDataVersion meant two different signed-in default-state users regenerating the
+    // global tier could produce two different globalCacheKey values purely from their own follow-
+    // graph size - real cross-user cache fragmentation of a key that's supposed to be identical for
+    // everyone. It only ever fed the `communityPulse` output field, which nothing in the UI renders
+    // (CommunityPulse.tsx is not mounted anywhere) - removing it loses no real behavior and fixes
+    // the fragmentation as a side effect.
     const globalDataVersion = computeDataVersion([
       raceId,
       simTop ? `${simTop.driver}:${simTop.p1}` : "",
       rfTop ? `${rfTop.driver}` : "",
-      feedPosts.length, // global community-pulse input only counts volume, not per-user content
     ]);
     // Deliberately NOT including sinceLastVisit?.changes.length (or anything else derived from
     // lastHomepageVisitAt): that value is a diff against the user's OWN last-visit timestamp, which
@@ -206,12 +166,18 @@ export async function POST() {
     // count, a favorite change) - and championship/rank changes coincide with raceId itself
     // changing in the normal season flow (a race completing is what advances "next race"), so
     // dropping this one volatile, self-referential signal doesn't introduce a real staleness gap.
+    //
+    // Uses profile's raw favorite ID strings directly (not favoriteDriverCard?.driverId /
+    // favoriteTeamCard?.teamId, which are literally the same values, just wrapped in a "card" object
+    // that also carries circuit stats/images this key doesn't need) - the value is identical either
+    // way, but the raw ids are available right after the batch above, without waiting on
+    // getFavoriteDriverCard/getFavoriteTeamCard (deferred to step 6b, after the cache check).
     const personalDataVersion = userId
       ? computeDataVersion([
           globalDataVersion,
           userId,
-          favoriteDriverCard?.driverId,
-          favoriteTeamCard?.teamId,
+          profile?.favoriteDrivers?.[0],
+          profile?.favoriteTeams?.[0],
           userPick?.submittedAt,
           fingerprint?.totalPredictions,
         ])
@@ -220,7 +186,86 @@ export async function POST() {
     const globalCacheKey = buildGlobalCacheKey(raceId, globalDataVersion);
     const personalCacheKey = userId && personalDataVersion ? buildPersonalCacheKey(userId, raceId, personalDataVersion) : null;
 
-    // 5. Build the fallback context up front - used whether we hit cache, generate fresh, or fail.
+    // 5. Aggressive caching checks - personal, then global-shared for a default-state user, then
+    // plain global for a guest. Same isDefaultUser signal as before, but keyed off the raw profile
+    // ids (already in hand) instead of the enriched favorite-card objects, for the same reason the
+    // hash above does - the truthiness is identical (a card is non-null iff a real favorite id
+    // exists), so this doesn't change which tier any user lands in.
+    const isDefaultUser = !profile?.favoriteDrivers?.[0] && !profile?.favoriteTeams?.[0] && !userPick && (!fingerprint || fingerprint.totalPredictions === 0);
+
+    async function respondCached(data: HomepageIntelligence, cacheTier: GenerationResult["cacheTier"]) {
+      if (userId) await touchHomepageVisit(userId).catch((err) => logAIError(requestId, "touch_visit_failed", String(err)));
+      return NextResponse.json({ data, cached: true, cacheTier, dataVersion: personalDataVersion ?? globalDataVersion, isFallback: false });
+    }
+
+    if (personalCacheKey) {
+      const cachedPersonal = await getCachedIntelligence<HomepageIntelligence>(personalCacheKey, requestId);
+      if (cachedPersonal) return respondCached(cachedPersonal, "personal");
+
+      if (isDefaultUser) {
+        const cachedGlobal = await getCachedIntelligence<HomepageIntelligence>(globalCacheKey, requestId);
+        if (cachedGlobal) return respondCached(cachedGlobal, "global_shared");
+      }
+    } else {
+      const cachedGlobal = await getCachedIntelligence<HomepageIntelligence>(globalCacheKey, requestId);
+      if (cachedGlobal) return respondCached(cachedGlobal, "global");
+    }
+
+    // 6. Real cache MISS confirmed - only now is it worth paying for the expensive personalization
+    // enrichment (favorite driver/team "cards" with circuit stats/images, track history, and the
+    // user's community feed) that a cache HIT never needed. Same circuit-name -> archive-circuit-id
+    // resolution page.tsx already uses - nextRace.circuit is FastF1's raw location string
+    // ("Budapest"), NOT an archive circuitId ("hungaroring").
+    const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+    const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
+    const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
+
+    let favoriteDriverCard = null;
+    let favoriteTeamCard = null;
+    let trackHistory = null;
+    let feedPosts: Array<{ title?: string; groupName?: string | null; createdAt?: string }> = [];
+
+    if (userId) {
+      // 6a. Favorite cards, track history, AND the feed - four mutually-independent fetches (feed
+      // doesn't need the profile's favorite ids; track history only needs resolvedCircuitId and the
+      // ids already in hand) - one batch instead of four sequential awaits.
+      const [driverCard, teamCard, history, feed] = await Promise.all([
+        profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]).catch(() => null) : Promise.resolve(null),
+        profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]).catch(() => null) : Promise.resolve(null),
+        resolvedCircuitId
+          ? getTrackHistory(resolvedCircuitId, {
+              favoriteDriverId: profile?.favoriteDrivers?.[0],
+              favoriteTeamId: profile?.favoriteTeams?.[0],
+            }).catch(() => null)
+          : Promise.resolve(null),
+        listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
+      ]);
+      favoriteDriverCard = driverCard;
+      favoriteTeamCard = teamCard;
+      trackHistory = history;
+      feedPosts = feed.posts.map((p) => ({ title: p.title ?? undefined, groupName: p.groupName, createdAt: p.createdAt }));
+    } else if (resolvedCircuitId) {
+      trackHistory = await getTrackHistory(resolvedCircuitId).catch(() => null);
+    }
+    const newCommunityPostCount = userId && lastHomepageVisitAt
+      ? feedPosts.filter((p) => p.createdAt && new Date(p.createdAt).getTime() > new Date(lastHomepageVisitAt!).getTime()).length
+      : 0;
+
+    const sinceLastVisit = userId
+      ? computeSinceLastVisit({
+          lastVisitIso: lastHomepageVisitAt,
+          races,
+          currentStandings: standings ?? { drivers: [], teams: [], poleCounts: {} },
+          favoriteDriverCode: favoriteDriverCard?.code ?? null,
+          favoriteDriverName: favoriteDriverCard?.name ?? null,
+          favoriteTeamName: favoriteTeamCard?.currentName ?? null,
+          pickSubmittedAt: userPick?.submittedAt ?? null,
+          newCommunityPostCount,
+        })
+      : null;
+
+    // 6b. Build the fallback context - used whether we generate fresh or fail (never on a cache hit,
+    // which already returned above).
     const fallbackContext: FallbackDataContext = {
       race: nextRace ? { name: nextRace.name, round: nextRace.round, season: nextRace.year, circuitName: nextRace.circuit, city: nextRace.circuit } : null,
       standings: {
@@ -253,30 +298,8 @@ export async function POST() {
       sinceLastVisit,
     };
 
-    // 6. Aggressive caching checks - personal, then global-shared for a default-state user, then
-    // plain global for a guest.
-    const isDefaultUser = !favoriteDriverCard && !favoriteTeamCard && !userPick && (!fingerprint || fingerprint.totalPredictions === 0);
-
-    async function respondCached(data: HomepageIntelligence, cacheTier: GenerationResult["cacheTier"]) {
-      if (userId) await touchHomepageVisit(userId).catch((err) => logAIError(requestId, "touch_visit_failed", String(err)));
-      return NextResponse.json({ data, cached: true, cacheTier, dataVersion: personalDataVersion ?? globalDataVersion, isFallback: false });
-    }
-
-    if (personalCacheKey) {
-      const cachedPersonal = await getCachedIntelligence<HomepageIntelligence>(personalCacheKey, requestId);
-      if (cachedPersonal) return respondCached(cachedPersonal, "personal");
-
-      if (isDefaultUser) {
-        const cachedGlobal = await getCachedIntelligence<HomepageIntelligence>(globalCacheKey, requestId);
-        if (cachedGlobal) return respondCached(cachedGlobal, "global_shared");
-      }
-    } else {
-      const cachedGlobal = await getCachedIntelligence<HomepageIntelligence>(globalCacheKey, requestId);
-      if (cachedGlobal) return respondCached(cachedGlobal, "global");
-    }
-
     // 7. Both checks below gate ONLY the "about to attempt real generation" path - every cache hit
-    // above (step 6) already returned, so a warm cache never costs either budget. This is
+    // above (step 5) already returned, so a warm cache never costs either budget. This is
     // deliberate: per-user AI generation quota (Part 19 of the AI-architecture spec) exists to stop
     // one user from repeatedly forcing real generation attempts (e.g. churning favorites to keep
     // busting personalDataVersion), not to penalize ordinary cache-hit traffic. Checked BEFORE the
@@ -352,7 +375,7 @@ export async function POST() {
     const output = await withSingleFlight(generationKey, () => generateHomepageIntelligence(contextData, agentContext, personalDataVersion ?? globalDataVersion));
 
     // 9. Cache the result. The global slice must never carry THIS user's personal content - any
-    // other guest/default-state user can read globalCacheKey (see step 6), so it gets a stripped
+    // other guest/default-state user can read globalCacheKey (see step 5), so it gets a stripped
     // copy with every personal-only field nulled out (their already-optional shape, per the schema)
     // rather than the raw model output, which still contains this user's favorite/pick/coach text
     // whenever they had any personal context at generation time.
