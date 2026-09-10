@@ -28,6 +28,10 @@ export default async function HomePage() {
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
   const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
+  // Real archive_circuits lat/long for the upcoming race's venue - null for a venue the archive
+  // hasn't backfilled coordinates for yet, never guessed.
+  const resolvedCircuit = resolvedCircuitId ? archiveCircuits.find((c) => c.circuitId === resolvedCircuitId) : null;
+  const circuitCoords = resolvedCircuit?.lat != null && resolvedCircuit?.long != null ? { lat: resolvedCircuit.lat, long: resolvedCircuit.long } : null;
 
   // getPersonalHomeData (below) already resolves favoriteDriver/favoriteTeam as full cards for
   // the signed-in case — fetched once here, reused for both the personal bundle and buildFacts,
@@ -52,7 +56,7 @@ export default async function HomePage() {
           ? [trackHistory.circuitImageUrl]
           : [];
 
-  const publicData = { year, nextRace, races, calendarEntry, backdropPhotos, facts, trackHistory, seasonRecap };
+  const publicData = { year, nextRace, races, calendarEntry, backdropPhotos, facts, trackHistory, seasonRecap, circuitCoords };
 
   return (
     <>

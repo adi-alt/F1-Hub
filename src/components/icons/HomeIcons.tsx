@@ -119,3 +119,12 @@ export function ArrowRightIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function PinIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z" />
+      <circle cx="12" cy="9.5" r="2.3" />
+    </svg>
+  );
+}

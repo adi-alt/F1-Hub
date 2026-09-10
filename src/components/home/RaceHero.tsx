@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { DistanceToCircuit } from "./DistanceToCircuit";
 import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceIntelligencePanel";
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -72,7 +73,7 @@ export function RaceHero({
   const now = useSecondClock();
   const openAuthDialog = useAuthDialogStore((s) => s.open);
   const { isAuthorized } = useAuth();
-  const { nextRace, calendarEntry, facts, trackHistory } = publicData;
+  const { nextRace, calendarEntry, facts, trackHistory, circuitCoords } = publicData;
 
   const raceSessionDate = calendarEntry?.sessions.find((s) => s.label.toLowerCase().includes("race"))?.date ?? calendarEntry?.raceDate ?? null;
   const countdown = raceSessionDate ? formatCountdownLive(new Date(raceSessionDate).getTime(), now) : "";
@@ -110,6 +111,7 @@ export function RaceHero({
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">Round {nextRace.round}</p>
           <h1 className="mt-1 max-w-2xl text-4xl font-bold tracking-tight text-white sm:text-5xl">{nextRace.name}</h1>
           <p className="mt-1 text-neutral-400">{nextRace.circuit}</p>
+          {circuitCoords && <div className="mt-1.5"><DistanceToCircuit circuitName={nextRace.circuit} lat={circuitCoords.lat} long={circuitCoords.long} /></div>}
         </motion.div>
 
         <div className="mt-5 flex flex-wrap items-center gap-6">
