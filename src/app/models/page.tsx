@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { BenchmarksTable } from "./components/BenchmarksTable";
 import { PipelineOpsPanel } from "./components/PipelineOpsPanel";
 import { getModelsPageData } from "./services/models.service";
@@ -5,6 +6,11 @@ import { NotAuthorized } from "@/components/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
+
+export const metadata: Metadata = {
+  title: "Models",
+  description: "Benchmark runs and pipeline operations for F1 Hub's prediction models.",
+};
 
 export default async function ModelsPage() {
   const session = await getSession();

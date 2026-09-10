@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CircuitGrid } from "./components/CircuitGrid";
 import { CircuitTrendChart } from "./components/CircuitTrendChart";
@@ -47,6 +48,11 @@ async function CircuitDetail({ circuit }: { circuit: string }) {
     </div>
   );
 }
+
+export const metadata: Metadata = {
+  title: "Circuits",
+  description: "Every Grand Prix circuit — lap records, past winners, and track history.",
+};
 
 export default async function CircuitsPage({
   searchParams,

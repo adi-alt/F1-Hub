@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArchiveExplorer } from "./components/ArchiveExplorer";
@@ -229,6 +230,11 @@ async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
     </div>
   );
 }
+
+export const metadata: Metadata = {
+  title: "Archive",
+  description: `Every F1 season from ${ARCHIVE_EARLIEST_YEAR} to ${ARCHIVE_LATEST_YEAR} — results, qualifying, and pit stops.`,
+};
 
 export default async function ArchivePage({
   searchParams,

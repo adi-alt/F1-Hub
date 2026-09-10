@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { PersonalHome, PersonalHomeSkeleton } from "./PersonalHome";
 import { PublicHome } from "./PublicHome";
@@ -16,7 +15,12 @@ async function fetchPersonalHomeData(): Promise<PersonalHomeData> {
 /** The one thing that decides Public vs. Personal — driven entirely by the existing useAuth(),
  * not the request-time session snapshot page.tsx rendered with. This is the actual fix for the
  * "homepage needs a refresh after login/logout" bug: Header/ProfileMenu already react instantly
- * because they read useAuth() directly; the homepage never did, so it never has either. */
+ * because they read useAuth() directly; the homepage never did, so it never has either.
+ *
+ * No AnimatePresence/motion fade between states (skeleton -> real content, or public -> personal)
+ * - a cross-fade there just reads as the loading state itself flickering/animating, not as a
+ * clean swap. Real content underneath is free to animate in on its own (RaceHero etc. already
+ * do); the swap between skeleton and content should be instant. */
 export function HomeShell({
   publicData,
   initialPersonalData,
@@ -49,26 +53,14 @@ export function HomeShell({
 
   const personalData = needsRefetch ? fetchedPersonalData : initialPersonalData;
 
+  if (!resolvedAuthed) return <PublicHome publicData={publicData} />;
+  if (!personalData) return <PersonalHomeSkeleton />;
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      {!resolvedAuthed ? (
-        <motion.div key="public" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-          <PublicHome publicData={publicData} />
-        </motion.div>
-      ) : !personalData ? (
-        <motion.div key="personal-loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-          <PersonalHomeSkeleton />
-        </motion.div>
-      ) : (
-        <motion.div key="personal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
-          <PersonalHome
-            publicData={publicData}
-            personalData={personalData}
-            firstName={personalData.profile?.firstName ?? personalData.profile?.displayName ?? "there"}
-            isReturning={!!personalData.profile?.onboardingCompletedAt}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <PersonalHome
+      publicData={publicData}
+      personalData={personalData}
+      firstName={personalData.profile?.firstName ?? personalData.profile?.displayName ?? "there"}
+      isReturning={!!personalData.profile?.onboardingCompletedAt}
+    />
   );
 }

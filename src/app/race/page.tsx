@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArchiveRaceDashboard } from "@/app/archive/components/ArchiveRaceDashboard";
 import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveCircuitHistoryData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
@@ -20,6 +21,21 @@ import { getSession } from "@/lib/session/getSession";
  * pipeline backs it follows the same seasonStatus split SeasonDetail's own data layer uses: the
  * live season (real prediction/pole/simulation data) vs. every other year (archive_races - richer
  * completed-race data, real pit-stops/qualifying/laps). */
+// Reuses the same year/slug resolution the page itself does - getRacesByYear/getArchiveSeasonData
+// are both cached (unstable_cache), so this doesn't cost a second real fetch, just a cache hit.
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ year?: string; race?: string }> }): Promise<Metadata> {
+  const { year: yearParam, race: raceParam } = await searchParams;
+  const year = Number(yearParam);
+  if (!yearParam || !raceParam || Number.isNaN(year)) return { title: "Race" };
+
+  if (seasonStatus(year) === "ongoing") {
+    const match = (await getRacesByYear(year)).find((r) => slugifyRaceName(r.name) === raceParam);
+    return match ? { title: `${match.name} ${year}` } : { title: "Race" };
+  }
+  const match = (await getArchiveSeasonData(year)).find((r) => slugifyRaceName(r.raceName) === raceParam);
+  return match ? { title: `${match.raceName} ${year}` } : { title: "Race" };
+}
+
 export default async function RacePage({ searchParams }: { searchParams: Promise<{ year?: string; race?: string }> }) {
   const session = await getSession();
   if (!session.uid) {

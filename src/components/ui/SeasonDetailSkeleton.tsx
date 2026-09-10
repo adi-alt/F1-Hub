@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 /** Shared by /season/loading.tsx and /archive/loading.tsx's ?year= branch - both routes render
  * the exact same SeasonDetail component, so they get the exact same loading shape too, not two
@@ -6,6 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 export function SeasonDetailSkeleton() {
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+      <SectionLoadingMessage label="Pulling this season's telemetry…" />
       <div className="mb-8">
         <Skeleton className="h-12 w-40" />
         <Skeleton className="mt-3 h-4 w-56" />

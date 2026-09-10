@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
 import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -140,6 +141,11 @@ async function mergeCurrentSeason(
 // Only "personalisation" is implemented as a section here — notifications/edit-profile stay at
 // their own /profile/notifications and /profile/edit routes for now. Defaults to it when no
 // section is given at all, since it's the only thing this route currently renders.
+export const metadata: Metadata = {
+  title: "Profile",
+  description: "Your favorite drivers, teams, and tracks — and how they're doing this season.",
+};
+
 export default async function ProfilePage({
   searchParams,
 }: {

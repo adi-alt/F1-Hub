@@ -5,6 +5,7 @@ import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkele
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
+import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 
 const TABS = ["By year", "By track", "By driver", "By team"];
@@ -38,6 +39,7 @@ export default function ArchiveLoading() {
   if (isHistoryRoute) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <SectionLoadingMessage label="Digging through the archive…" />
         <Skeleton className="h-4 w-16" />
         <Skeleton className="mt-3 h-9 w-64" />
         <Skeleton className="mt-2 h-4 w-40" />
@@ -52,6 +54,9 @@ export default function ArchiveLoading() {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <div className="shrink-0">
+        <SectionLoadingMessage label="Digging through the archive…" />
+      </div>
       <Skeleton className="h-9 w-40 shrink-0" />
       <Skeleton className="mt-1 h-4 w-full max-w-lg shrink-0" />
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">

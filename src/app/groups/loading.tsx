@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { GroupsHomeSkeleton } from "./components/GroupsHomeSkeleton";
 
 // Real Suspense fallback for GroupsPage's own async data fetch (feed + groups + predictions +
@@ -6,6 +7,7 @@ import { GroupsHomeSkeleton } from "./components/GroupsHomeSkeleton";
 export default function GroupsLoading() {
   return (
     <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-10">
+      <SectionLoadingMessage label="Loading your paddock…" />
       <Skeleton className="h-9 w-40" />
       <Skeleton className="mt-2 h-4 w-72" />
       <div className="mt-8">

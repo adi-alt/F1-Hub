@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups } from "@/lib/supabase/groups";
@@ -17,6 +18,11 @@ async function getNextRace() {
  * rather than failing this whole page (an empty predictions/next-race list already reads fine as
  * "nothing right now" - Promise.all only needs to not fully reject, and none of these four throws
  * for "no data", only for a real query error, so any real failure still surfaces normally). */
+export const metadata: Metadata = {
+  title: "Groups",
+  description: "Join a group, make podium picks, and climb a real leaderboard once races finish.",
+};
+
 export default async function GroupsPage() {
   const session = await getSession();
   if (!session.uid) {

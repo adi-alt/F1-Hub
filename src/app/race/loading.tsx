@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { RaceStorySectionSkeleton } from "@/components/raceDetail/RaceStorySection";
 
 // Same container as race/page.tsx's own real content (max-w/padding kept in sync by hand - the
@@ -8,6 +9,7 @@ import { RaceStorySectionSkeleton } from "@/components/raceDetail/RaceStorySecti
 export default function RaceLoading() {
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+      <SectionLoadingMessage label="Loading race data…" />
       <Skeleton className="h-4 w-24" />
       <Skeleton className="mt-3 h-3 w-20" />
       <Skeleton className="mt-2 h-9 w-72" />

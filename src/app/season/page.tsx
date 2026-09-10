@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { SeasonDetail } from "./_components/SeasonDetail";
 import { getSeasonDetailData } from "./_service/season.service";
@@ -5,6 +6,11 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { FavoritesHydrator } from "@/components/FavoritesHydrator";
 import { getSession } from "@/lib/session/getSession";
 import { archiveSeasonHref } from "@/lib/routes";
+
+export const metadata: Metadata = {
+  title: "Season",
+  description: "Standings, results, and predictions for the current F1 season, round by round.",
+};
 
 export default async function SeasonPage({
   searchParams,

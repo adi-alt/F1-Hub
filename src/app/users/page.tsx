@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { UserManagement } from "./components/UserManagement";
 import { listUsers } from "./services/users.service";
 import { NotAuthorized } from "@/components/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
+
+export const metadata: Metadata = {
+  title: "Users",
+  description: "Manage F1 Hub user accounts and roles.",
+};
 
 export default async function UsersPage() {
   const session = await getSession();

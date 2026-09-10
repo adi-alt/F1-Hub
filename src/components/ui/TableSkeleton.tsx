@@ -1,7 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
-import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { Skeleton } from "./Skeleton";
 
 /** The capsule tab-bar shape shared by personalization's and archive's tab switchers — a
@@ -21,8 +17,9 @@ export function TabBarSkeleton({ labels }: { labels: string[] }) {
 }
 
 /** Row shape shared by personalization's FavoriteEntityList and archive's driver/team tables:
- * S.No, name, races, years, extra, favorite. Rows fade/slide in with the same stagger the real
- * rows use once they load, so the skeleton isn't a dead, static placeholder. */
+ * S.No, name, races, years, extra, favorite. No entrance animation here (a skeleton is a loading
+ * placeholder, not content worth revealing) - the real rows that replace it use their own stagger
+ * once they load. */
 export function TableRowsSkeleton({ rows = 11 }: { rows?: number }) {
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
@@ -49,14 +46,9 @@ export function TableRowsSkeleton({ rows = 11 }: { rows?: number }) {
             </th>
           </tr>
         </thead>
-        <motion.tbody
-          initial="hidden"
-          animate="show"
-          variants={staggerContainer}
-          className="divide-y divide-[var(--f1-line)]"
-        >
+        <tbody className="divide-y divide-[var(--f1-line)]">
           {Array.from({ length: rows }).map((_, i) => (
-            <motion.tr key={i} variants={staggerItem}>
+            <tr key={i}>
               <td className="px-4 py-3">
                 <Skeleton className="h-3.5 w-4" />
               </td>
@@ -75,9 +67,9 @@ export function TableRowsSkeleton({ rows = 11 }: { rows?: number }) {
               <td className="px-4 py-3 text-center">
                 <Skeleton className="mx-auto h-5 w-5 rounded-full" />
               </td>
-            </motion.tr>
+            </tr>
           ))}
-        </motion.tbody>
+        </tbody>
       </table>
     </div>
   );

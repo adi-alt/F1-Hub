@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 // Real Suspense fallback for GroupPage's own async fetches (group detail, leaderboard, posts,
 // predictions). Mirrors the header (avatar, name, meta line) + tab strip + feed shell - "feed" is
@@ -6,6 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 export default function GroupDetailLoading() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <SectionLoadingMessage label="Loading group…" />
       <Skeleton className="h-4 w-16" />
 
       <div className="mt-2 flex items-start gap-4">

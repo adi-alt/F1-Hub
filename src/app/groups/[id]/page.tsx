@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
@@ -12,6 +13,14 @@ import { listPosts } from "@/lib/supabase/groupPosts";
 import { getPointsBalance } from "@/lib/supabase/points";
 import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
+
+// getGroupPreview works regardless of membership (it's also what the not-a-member JoinPrompt
+// branch below uses) and is cached, so this costs a cache hit, not a second real fetch.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const preview = await getGroupPreview(id).catch(() => null);
+  return { title: preview ? preview.name : "Group" };
+}
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "F1 Hub: 2026 Predictions",
+  title: { template: "%s | F1 Hub", default: "F1 Hub: 2026 Predictions" },
   description: "Race results, track history, and ML-driven predictions for the 2026 F1 season.",
 };
 
