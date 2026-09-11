@@ -18,6 +18,12 @@ export type GroupPrediction = {
   groupId: string;
   raceId: string;
   raceName: string;
+  /** The race's own scheduled date, from `races.race_date`. Null for a calendar-only placeholder
+   * round the pipeline hasn't dated yet - the card says "date TBC" rather than inventing one. */
+  raceDate: string | null;
+  /** 'upcoming' | 'scheduled' | 'completed', straight off the races row. Lets a prediction whose
+   * race has already run be told apart from one still genuinely open. */
+  raceStatus: string | null;
   type: PredictionType;
   entryPoints: number;
   status: PredictionStatus;

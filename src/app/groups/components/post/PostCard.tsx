@@ -96,7 +96,9 @@ export function PostCard({
         </div>
       )}
 
-      {showComments && <CommentThread postId={post.id} onCountChange={setCommentCount} />}
+      {/* The thread needs the whole post now, not just its id - the discussion panel shows the post
+          it belongs to at the top so replies have their subject in view. */}
+      {showComments && <CommentThread post={post} onCountChange={setCommentCount} />}
     </motion.div>
   );
 }

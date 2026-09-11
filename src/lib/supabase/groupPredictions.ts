@@ -42,7 +42,7 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
   const raceIds = [...new Set(predictions.map((p) => p.race_id as string))];
   const predictionGroupIds = [...new Set(predictions.map((p) => p.group_id as string))];
   const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }] = await Promise.all([
-    queryWithRetry(() => supabaseAdmin.from("races").select("id, name").in("id", raceIds)),
+    queryWithRetry(() => supabaseAdmin.from("races").select("id, name, race_date, status").in("id", raceIds)),
     queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").in("id", predictionGroupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id").eq("user_id", uid).in("prediction_id", predictionIds)),
   ]);
@@ -50,7 +50,7 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
   if (groupsError) throw new Error(`listMyOpenPredictions: ${groupsError.message}`);
   if (entriesError) throw new Error(`listMyOpenPredictions: ${entriesError.message}`);
 
-  const raceNameById = new Map((races ?? []).map((r) => [r.id as string, r.name as string]));
+  const raceById = new Map((races ?? []).map((r) => [r.id as string, r]));
   const groupNameById = new Map((groupsData ?? []).map((g) => [g.id as string, g.name as string]));
   const enteredSet = new Set((myEntries ?? []).map((e) => e.prediction_id as string));
 
@@ -59,7 +59,9 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
     groupId: p.group_id as string,
     groupName: groupNameById.get(p.group_id as string) ?? "a group",
     raceId: p.race_id as string,
-    raceName: raceNameById.get(p.race_id as string) ?? (p.race_id as string),
+    raceName: (raceById.get(p.race_id as string)?.name as string | undefined) ?? (p.race_id as string),
+    raceDate: (raceById.get(p.race_id as string)?.race_date as string | null | undefined) ?? null,
+    raceStatus: (raceById.get(p.race_id as string)?.status as string | null | undefined) ?? null,
     type: p.type as PredictionType,
     entryPoints: p.entry_points as number,
     status: p.status as PredictionStatus,
@@ -117,12 +119,12 @@ export async function listPredictions(groupId: string, uid: string): Promise<Gro
   const raceIds = [...new Set(predictions.map((p) => p.race_id as string))];
   const [{ data: entries, error: entriesError }, { data: races, error: racesError }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id, user_id, guess, points_wagered, points_awarded").in("prediction_id", predictionIds)),
-    queryWithRetry(() => supabaseAdmin.from("races").select("id, name").in("id", raceIds)),
+    queryWithRetry(() => supabaseAdmin.from("races").select("id, name, race_date, status").in("id", raceIds)),
   ]);
   if (entriesError) throw new Error(`listPredictions(${groupId}): ${entriesError.message}`);
   if (racesError) throw new Error(`listPredictions(${groupId}): ${racesError.message}`);
 
-  const raceNameById = new Map((races ?? []).map((r) => [r.id as string, r.name as string]));
+  const raceById = new Map((races ?? []).map((r) => [r.id as string, r]));
   const entryCountByPrediction = new Map<string, number>();
   const myEntryByPrediction = new Map<string, { guess: PredictionGuess; pointsWagered: number; pointsAwarded: number | null }>();
   for (const e of entries ?? []) {
@@ -137,7 +139,9 @@ export async function listPredictions(groupId: string, uid: string): Promise<Gro
     id: p.id as string,
     groupId: p.group_id as string,
     raceId: p.race_id as string,
-    raceName: raceNameById.get(p.race_id as string) ?? p.race_id as string,
+    raceName: (raceById.get(p.race_id as string)?.name as string | undefined) ?? (p.race_id as string),
+    raceDate: (raceById.get(p.race_id as string)?.race_date as string | null | undefined) ?? null,
+    raceStatus: (raceById.get(p.race_id as string)?.status as string | null | undefined) ?? null,
     type: p.type as PredictionType,
     entryPoints: p.entry_points as number,
     status: p.status as PredictionStatus,
