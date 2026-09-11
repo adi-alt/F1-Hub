@@ -343,3 +343,56 @@ export function sortDiscover<T extends DiscoverSortable>(rows: T[], sort: Discov
       });
   }
 }
+
+// ---------------------------------------------------------------- permissions
+
+/** The four things a community can restrict. Each maps to a real enforcement point in the service
+ * layer - there is no permission here that isn't actually checked before the write happens. */
+export type PermissionAction = "post" | "comment" | "createPredictions" | "invite";
+
+/** Who is allowed to do it. There is deliberately no "everyone" level: every one of these actions
+ * already requires membership (requireMember runs first, in every case), so an "everyone" option
+ * would be indistinguishable from "members" and would imply non-members could act. */
+export type PermissionLevel = "members" | "moderators" | "admins";
+
+export type CommunityPermissions = Partial<Record<PermissionAction, PermissionLevel>>;
+
+export const PERMISSION_ACTIONS: { value: PermissionAction; label: string; description: string }[] = [
+  { value: "post", label: "Create posts", description: "Start a new discussion in the feed" },
+  { value: "comment", label: "Reply", description: "Comment on someone else's post" },
+  { value: "createPredictions", label: "Create prediction rounds", description: "Open a new round for the community to enter" },
+  { value: "invite", label: "Invite people", description: "Send email invitations to join" },
+];
+
+export const PERMISSION_LEVELS: { value: PermissionLevel; label: string }[] = [
+  { value: "members", label: "All members" },
+  { value: "moderators", label: "Moderators and admins" },
+  { value: "admins", label: "Admins only" },
+];
+
+/** Defaults match exactly what the app enforced before permissions existed, so an existing
+ * community with `permissions = {}` behaves identically to how it did yesterday. */
+const DEFAULT_PERMISSIONS: Record<PermissionAction, PermissionLevel> = {
+  post: "members",
+  comment: "members",
+  createPredictions: "admins",
+  // Moderators+, matching the hardcoded rule inviteByEmail enforced before this column existed.
+  // Getting this wrong would silently *loosen* an existing restriction on every community.
+  invite: "moderators",
+};
+
+const ROLE_RANK: Record<string, number> = { member: 0, moderator: 1, admin: 2 };
+const LEVEL_RANK: Record<PermissionLevel, number> = { members: 0, moderators: 1, admins: 2 };
+
+export function permissionLevel(permissions: unknown, action: PermissionAction): PermissionLevel {
+  const map = permissions && typeof permissions === "object" && !Array.isArray(permissions) ? (permissions as CommunityPermissions) : {};
+  const value = map[action];
+  return value === "members" || value === "moderators" || value === "admins" ? value : DEFAULT_PERMISSIONS[action];
+}
+
+/** The single gate. Compares the member's role rank against the required level's rank, so adding a
+ * role or a level later doesn't mean revisiting four call sites. */
+export function canDo(permissions: unknown, action: PermissionAction, role: string | null | undefined): boolean {
+  if (!role) return false;
+  return (ROLE_RANK[role] ?? -1) >= LEVEL_RANK[permissionLevel(permissions, action)];
+}

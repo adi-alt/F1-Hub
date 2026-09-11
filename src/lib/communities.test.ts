@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  canDo,
   communityTypeMeta,
+  permissionLevel,
   normalizeTags,
   normalizeTopic,
   postKindsFor,
@@ -145,4 +147,45 @@ test("sortDiscover never mutates its input", () => {
   const before = names(rows);
   sortDiscover(rows, "members");
   assert.deepEqual(names(rows), before);
+});
+
+// ---------------------------------------------------------------- permissions
+
+test("canDo defaults match the behaviour that predated the permissions column", () => {
+  // An existing community has permissions = {}; it must behave exactly as it did before.
+  assert.equal(canDo({}, "post", "member"), true);
+  assert.equal(canDo({}, "comment", "member"), true);
+  // Invites were moderators+ before the permissions column existed, and stay that way by default.
+  assert.equal(canDo({}, "invite", "member"), false);
+  assert.equal(canDo({}, "invite", "moderator"), true);
+  // Prediction rounds were admin-only before, and stay admin-only by default.
+  assert.equal(canDo({}, "createPredictions", "member"), false);
+  assert.equal(canDo({}, "createPredictions", "moderator"), false);
+  assert.equal(canDo({}, "createPredictions", "admin"), true);
+});
+
+test("canDo respects an explicit level, and higher roles always satisfy a lower bar", () => {
+  const locked = { post: "moderators" as const };
+  assert.equal(canDo(locked, "post", "member"), false);
+  assert.equal(canDo(locked, "post", "moderator"), true);
+  assert.equal(canDo(locked, "post", "admin"), true);
+
+  const adminsOnly = { comment: "admins" as const };
+  assert.equal(canDo(adminsOnly, "comment", "moderator"), false);
+  assert.equal(canDo(adminsOnly, "comment", "admin"), true);
+});
+
+test("canDo refuses a non-member and tolerates junk", () => {
+  assert.equal(canDo({}, "post", null), false);
+  assert.equal(canDo({}, "post", undefined), false);
+  assert.equal(canDo({}, "post", "spectator"), false);
+  // A malformed permissions blob falls back to the defaults rather than locking everyone out.
+  assert.equal(canDo("nonsense", "post", "member"), true);
+  assert.equal(canDo({ post: "wizards" }, "post", "member"), true);
+});
+
+test("permissionLevel reports the effective level for the Manage UI", () => {
+  assert.equal(permissionLevel({}, "post"), "members");
+  assert.equal(permissionLevel({}, "createPredictions"), "admins");
+  assert.equal(permissionLevel({ post: "admins" }, "post"), "admins");
 });

@@ -19,9 +19,10 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
       ) : (
         <div className="mt-2.5 space-y-2.5">
           {predictions.map((p) => (
-            // groupHref, not a #predictions-tab deep link - GroupDetailTabs' tab state isn't
-            // URL-backed, so there's nothing to actually link straight to.
-            <Link key={p.id} href={groupHref(p.groupId)} className="block rounded-lg border border-[var(--f1-line)] bg-black/20 p-2.5 transition hover:border-white/20">
+            // Deep-links straight to the Predictions tab. This used to be a plain groupHref with a
+            // note explaining that tab state wasn't URL-backed so there was nothing to link to -
+            // CommunityTabs puts the active tab in ?tab= now, so there is.
+            <Link key={p.id} href={`${groupHref(p.groupId)}?tab=predictions`} className="block rounded-lg border border-[var(--f1-line)] bg-black/20 p-2.5 transition hover:border-white/20">
               <p className="truncate text-xs font-semibold text-white">{p.raceName}</p>
               <p className="mt-0.5 text-[11px] text-neutral-500">
                 {predictionTypeLabels[p.type]} · {p.groupName}

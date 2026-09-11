@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { CommunityFeatures, CommunityType } from "@/lib/communities";
+import type { CommunityFeatures, CommunityPermissions, CommunityType } from "@/lib/communities";
 import { deleteGroup, updateGroupSettings, type GroupVisibility } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
@@ -19,6 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     topic?: string | null;
     tags?: string[];
     features?: CommunityFeatures;
+    permissions?: CommunityPermissions;
   };
   try {
     await updateGroupSettings(id, session.uid, body);

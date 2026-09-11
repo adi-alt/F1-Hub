@@ -1,6 +1,7 @@
 import { creditPoints, spendPoints } from "@/lib/supabase/points";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
+import { canDo } from "@/lib/communities";
 import { requireAdmin, requireMember } from "@/lib/supabase/groups";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ServiceError } from "@/services/errors";
@@ -74,7 +75,14 @@ export async function createPrediction(
   uid: string,
   input: { raceId: string; type: PredictionType; entryPoints: number },
 ): Promise<{ id: string }> {
-  await requireAdmin(groupId, uid);
+  // Permission-driven rather than hardcoded admin: a community can open this up to moderators or
+  // all members. Defaults to admins, which is exactly what this was before.
+  const role = await requireMember(groupId, uid);
+  const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle();
+  if (groupError) throw new Error(`createPrediction(${groupId}): ${groupError.message}`);
+  if (!canDo(group?.permissions, "createPredictions", role)) {
+    throw new ServiceError("Only certain roles can create prediction rounds in this community.", 403);
+  }
   if (!Number.isInteger(input.entryPoints) || input.entryPoints < 0) throw new ServiceError("Entry value must be a non-negative whole number.", 400);
 
   // A round that hasn't had any FastF1 session yet only exists as a `calendar` placeholder, not a

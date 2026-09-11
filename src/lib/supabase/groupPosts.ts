@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
 import { requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { ServiceError } from "@/services/errors";
 
@@ -8,6 +9,7 @@ export type VoteValue = 1 | -1 | 0;
 export type FeedType = "following" | "latest" | "forYou";
 
 export type GroupPost = {
+  kind: PostKind;
   id: string;
   groupId: string;
   userId: string;
@@ -36,6 +38,7 @@ export type PostComment = {
 };
 
 export type FeedPost = {
+  kind: PostKind;
   id: string;
   groupId: string | null;
   groupName: string | null;
@@ -82,7 +85,7 @@ async function requireMemberIfGrouped(groupId: string | null, uid: string): Prom
 export async function createPost(
   groupId: string | null,
   uid: string,
-  input: { title?: string; content: string; mediaUrl?: string | null },
+  input: { title?: string; content: string; mediaUrl?: string | null; kind?: PostKind },
 ): Promise<{ id: string; status: PostStatus }> {
   const trimmedContent = input.content.trim();
   if (!trimmedContent) throw new ServiceError("Write something first.", 400);
@@ -91,10 +94,25 @@ export async function createPost(
   if (trimmedTitle && trimmedTitle.length > MAX_TITLE_CHARS) throw new ServiceError(`Titles are limited to ${MAX_TITLE_CHARS} characters.`, 400);
 
   let status: PostStatus = "published";
+  // A post's kind must be one this community actually offers - a Photography community can't be
+  // made to hold a Race Discussion by hand-crafting a request, and a personal (community-less) post
+  // is always a plain discussion since there's no community to take a vocabulary from.
+  let kind: PostKind = "discussion";
+
   if (groupId !== null) {
     const role = await requireMember(groupId, uid);
-    const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("moderation_enabled").eq("id", groupId).maybeSingle();
+    const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("moderation_enabled, community_type, features, permissions").eq("id", groupId).maybeSingle();
     if (groupError) throw new Error(`createPost(${groupId}): ${groupError.message}`);
+
+    if (!canDo(group?.permissions, "post", role)) {
+      throw new ServiceError("Only certain roles can post in this community.", 403);
+    }
+
+    if (input.kind) {
+      const allowed = postKindsFor(group?.community_type as string | null, group?.features);
+      if (!allowed.includes(input.kind)) throw new ServiceError("That post type isn't available in this community.", 400);
+      kind = input.kind;
+    }
     // Admins/moderators bypass their own group's queue - a standard forum convention (the people
     // trusted to approve everyone else's posts don't need their own approved).
     const needsApproval = !!group?.moderation_enabled && role === "member";
@@ -103,7 +121,7 @@ export async function createPost(
 
   const { data, error } = await supabaseAdmin
     .from("group_posts")
-    .insert({ group_id: groupId, user_id: uid, title: trimmedTitle, content: trimmedContent, media_url: input.mediaUrl ?? null, status })
+    .insert({ group_id: groupId, user_id: uid, title: trimmedTitle, content: trimmedContent, media_url: input.mediaUrl ?? null, status, kind })
     .select("id")
     .single();
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
@@ -112,16 +130,43 @@ export async function createPost(
 
 /** Everyone sees published posts; a post's own author also sees it while pending/rejected; an
  * admin/moderator additionally sees every pending post from anyone (the moderation queue). */
-export async function listPosts(groupId: string, uid: string): Promise<GroupPost[]> {
+const GROUP_PAGE_SIZE = 15;
+
+/** One community's own feed, cursor-paginated the same way the cross-community feed already was.
+ * It previously fetched EVERY post in the community on every page load and rendered the lot - fine
+ * at 11 posts, not at 11,000. `mediaOnly` powers the Media module, which is a view over this same
+ * table rather than a second store.
+ *
+ * The cursor is the last row's created_at, matching listFeedPosts. Ties are possible in principle
+ * (two posts in the same millisecond) and would drop a row; in practice created_at is a timestamptz
+ * with microsecond precision and posts come from human typing, so it isn't reachable here.
+ * ponytail: if it ever is, the fix is a (created_at, id) composite cursor, not a rewrite. */
+export async function listPosts(
+  groupId: string,
+  uid: string,
+  opts: { cursor?: string; limit?: number; mediaOnly?: boolean } = {},
+): Promise<{ posts: GroupPost[]; nextCursor: string | null }> {
   const role = await requireMember(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
+  const limit = opts.limit ?? GROUP_PAGE_SIZE;
 
   const visibilityFilter = canModerate ? `status.eq.published,status.eq.pending,user_id.eq.${uid}` : `status.eq.published,user_id.eq.${uid}`;
-  const { data: posts, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_posts").select("*").eq("group_id", groupId).or(visibilityFilter).order("created_at", { ascending: false }),
-  );
+  let builder = supabaseAdmin
+    .from("group_posts")
+    .select("*")
+    .eq("group_id", groupId)
+    .or(visibilityFilter)
+    .order("created_at", { ascending: false })
+    .limit(limit + 1);
+  if (opts.cursor) builder = builder.lt("created_at", opts.cursor);
+  if (opts.mediaOnly) builder = builder.not("media_url", "is", null);
+
+  const { data: rows, error } = await queryWithRetry(() => builder);
   if (error) throw new Error(`listPosts(${groupId}): ${error.message}`);
-  if (!posts?.length) return [];
+  if (!rows?.length) return { posts: [], nextCursor: null };
+
+  const hasMore = rows.length > limit;
+  const posts = hasMore ? rows.slice(0, limit) : rows;
 
   const postIds = posts.map((p) => p.id as string);
   const authorIds = [...new Set(posts.map((p) => p.user_id as string))];
@@ -140,7 +185,7 @@ export async function listPosts(groupId: string, uid: string): Promise<GroupPost
   const commentCounts = new Map<string, number>();
   for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
 
-  return posts.map((p) => ({
+  const mapped: GroupPost[] = posts.map((p) => ({
     id: p.id as string,
     groupId: p.group_id as string,
     userId: p.user_id as string,
@@ -149,12 +194,15 @@ export async function listPosts(groupId: string, uid: string): Promise<GroupPost
     title: (p.title as string | null) ?? null,
     content: p.content as string,
     mediaUrl: (p.media_url as string | null) ?? null,
+    kind: (p.kind as PostKind | null) ?? "discussion",
     status: p.status as PostStatus,
     createdAt: p.created_at as string,
     score: scoreByTarget.get(p.id as string) ?? 0,
     myVote: myVoteByTarget.get(p.id as string) ?? 0,
     commentCount: commentCounts.get(p.id as string) ?? 0,
   }));
+
+  return { posts: mapped, nextCursor: hasMore ? (posts[posts.length - 1].created_at as string) : null };
 }
 
 // Shared by post votes and comment votes - same {target_id, user_id, value} shape either way.
@@ -240,6 +288,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       title: (p.title as string | null) ?? null,
       content: p.content as string,
       mediaUrl: (p.media_url as string | null) ?? null,
+      kind: (p.kind as PostKind | null) ?? "discussion",
       createdAt: p.created_at as string,
       score: scoreByTarget.get(p.id as string) ?? 0,
       myVote: myVoteByTarget.get(p.id as string) ?? 0,
@@ -314,7 +363,15 @@ export async function listComments(groupId: string | null, postId: string, uid: 
 }
 
 export async function addComment(groupId: string | null, postId: string, uid: string, content: string, parentCommentId?: string | null): Promise<{ id: string }> {
-  await requireMemberIfGrouped(groupId, uid);
+  const role = await requireMemberIfGrouped(groupId, uid);
+  // groupId null is a personal post - there's no community to take a permission policy from, so
+  // the only gate is being signed in (already checked by the route).
+  if (groupId !== null) {
+    const { data: group, error } = await supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle();
+    if (error) throw new Error(`addComment(${groupId}): ${error.message}`);
+    if (!canDo(group?.permissions, "comment", role)) throw new ServiceError("Only certain roles can reply in this community.", 403);
+  }
+
   const trimmed = content.trim();
   if (!trimmed) throw new ServiceError("Write a comment first.", 400);
   if (trimmed.length > MAX_COMMENT_CHARS) throw new ServiceError(`Comments are limited to ${MAX_COMMENT_CHARS} characters.`, 400);

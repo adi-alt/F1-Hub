@@ -1,5 +1,6 @@
 import { unstable_cache, revalidateTag } from "next/cache";
 import {
+  canDo,
   isCommunityType,
   isVisibility,
   normalizeTags,
@@ -7,6 +8,7 @@ import {
   sortDiscover,
   type DiscoverSort,
   type CommunityFeatures,
+  type CommunityPermissions,
   type CommunityType,
   type CommunityVisibility,
 } from "@/lib/communities";
@@ -43,6 +45,7 @@ export type CommunityShape = {
   topic: string | null;
   tags: string[];
   features: CommunityFeatures;
+  permissions: CommunityPermissions;
 };
 
 /** Reads the community-shape columns off a raw `groups` row, tolerating rows written before this
@@ -54,11 +57,12 @@ function communityShapeOf(row: Record<string, unknown>): CommunityShape {
     topic: (row.topic as string | null) ?? null,
     tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
     features: row.features && typeof row.features === "object" && !Array.isArray(row.features) ? (row.features as CommunityFeatures) : {},
+    permissions: row.permissions && typeof row.permissions === "object" && !Array.isArray(row.permissions) ? (row.permissions as CommunityPermissions) : {},
   };
 }
 
 /** The columns communityShapeOf() needs, appended to an explicit `select(...)` list. */
-const COMMUNITY_SHAPE_COLUMNS = "community_type, topic, tags, features";
+const COMMUNITY_SHAPE_COLUMNS = "community_type, topic, tags, features, permissions";
 
 // A group card's own "why should I click this right now" signals - all real, all derived straight
 // from group_posts/group_predictions, never a fabricated count or label.
@@ -698,6 +702,7 @@ export async function updateGroupSettings(
     topic?: string | null;
     tags?: string[];
     features?: CommunityFeatures;
+    permissions?: CommunityPermissions;
   },
 ): Promise<void> {
   await requireAdmin(groupId, uid);
@@ -728,6 +733,12 @@ export async function updateGroupSettings(
       throw new ServiceError("Invalid features.", 400);
     }
     patch.features = updates.features;
+  }
+  if (updates.permissions !== undefined) {
+    if (!updates.permissions || typeof updates.permissions !== "object" || Array.isArray(updates.permissions)) {
+      throw new ServiceError("Invalid permissions.", 400);
+    }
+    patch.permissions = updates.permissions;
   }
   if (Object.keys(patch).length === 0) return;
 
@@ -794,8 +805,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * automating delivery of that same link, not a new invitation entity with its own pending state. */
 export async function inviteByEmail(groupId: string, uid: string, emails: string[], origin: string): Promise<{ sent: number }> {
   const role = await requireMember(groupId, uid);
-  if (role === "member") throw new ServiceError("Only a group admin or moderator can send invites.", 403);
-
+  const { data: permissionRow, error: permissionError } = await supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle();
+  if (permissionError) throw new Error(`inviteByEmail(${groupId}): ${permissionError.message}`);
+  if (!canDo(permissionRow?.permissions, "invite", role)) {
+    throw new ServiceError("Only certain roles can invite people to this community.", 403);
+  }
   const cleaned = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
   if (cleaned.length === 0) throw new ServiceError("Add at least one email address.", 400);
   if (cleaned.length > MAX_INVITE_EMAILS) throw new ServiceError(`Invite up to ${MAX_INVITE_EMAILS} people at a time.`, 400);
@@ -824,4 +838,152 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
     ),
   );
   return { sent: cleaned.length };
+}
+
+// ============================================================= join requests
+
+export type JoinRequestStatus = "pending" | "approved" | "rejected";
+
+export type JoinRequest = {
+  userId: string;
+  displayName: string | null;
+  username: string | null;
+  message: string | null;
+  status: JoinRequestStatus;
+  createdAt: string;
+};
+
+/** What the current user's relationship to a community they're NOT in looks like - drives whether
+ * the page offers "Join", "Request to Join", or "Requested". */
+export async function getMyJoinRequest(groupId: string, uid: string): Promise<{ status: JoinRequestStatus } | null> {
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_join_requests").select("status").eq("group_id", groupId).eq("user_id", uid).maybeSingle(),
+  );
+  if (error) throw new Error(`getMyJoinRequest(${groupId}): ${error.message}`);
+  return data ? { status: data.status as JoinRequestStatus } : null;
+}
+
+const MAX_JOIN_MESSAGE = 500;
+
+/** Ask to join a private community. Public communities never route through here (joinGroup is
+ * immediate), and hidden ones can't be reached without an invite in the first place.
+ *
+ * Upserts rather than inserts: re-requesting after a rejection should reopen the same row, not
+ * stack a second one - the primary key on (group_id, user_id) makes duplicates structurally
+ * impossible anyway.
+ */
+export async function requestToJoin(groupId: string, uid: string, message?: string): Promise<{ status: JoinRequestStatus }> {
+  const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("visibility").eq("id", groupId).maybeSingle();
+  if (groupError) throw new Error(`requestToJoin(${groupId}): ${groupError.message}`);
+  if (!group) throw new ServiceError("That community doesn't exist.", 404);
+  if (group.visibility === "public") throw new ServiceError("This community is public - you can join it directly.", 400);
+
+  const existingRole = await getMemberRole(groupId, uid);
+  if (existingRole) throw new ServiceError("You're already a member.", 400);
+
+  const trimmed = message?.trim().slice(0, MAX_JOIN_MESSAGE) || null;
+  const { error } = await supabaseAdmin
+    .from("group_join_requests")
+    .upsert({ group_id: groupId, user_id: uid, message: trimmed, status: "pending", decided_at: null, decided_by: null }, { onConflict: "group_id,user_id" });
+  if (error) throw new Error(`requestToJoin(${groupId}): ${error.message}`);
+  return { status: "pending" };
+}
+
+export async function cancelJoinRequest(groupId: string, uid: string): Promise<void> {
+  const { error } = await supabaseAdmin.from("group_join_requests").delete().eq("group_id", groupId).eq("user_id", uid);
+  if (error) throw new Error(`cancelJoinRequest(${groupId}): ${error.message}`);
+}
+
+/** Pending requests for a community's admins/moderators to act on. */
+export async function listJoinRequests(groupId: string, uid: string): Promise<JoinRequest[]> {
+  const role = await requireMember(groupId, uid);
+  if (role === "member") throw new ServiceError("Only admins and moderators can see join requests.", 403);
+
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_join_requests").select("user_id, message, status, created_at").eq("group_id", groupId).eq("status", "pending").order("created_at"),
+  );
+  if (error) throw new Error(`listJoinRequests(${groupId}): ${error.message}`);
+  if (!data?.length) return [];
+
+  const profileById = await profilesById(data.map((r) => r.user_id as string));
+  return data.map((r) => ({
+    userId: r.user_id as string,
+    displayName: profileById.get(r.user_id as string)?.display_name ?? null,
+    username: profileById.get(r.user_id as string)?.username ?? null,
+    message: (r.message as string | null) ?? null,
+    status: r.status as JoinRequestStatus,
+    createdAt: r.created_at as string,
+  }));
+}
+
+/** Approve or reject. Approval adds the real membership row in the same call - a request marked
+ * approved that didn't actually let the person in would be the worst of both states. */
+export async function decideJoinRequest(groupId: string, actingUid: string, targetUid: string, decision: "approve" | "reject"): Promise<void> {
+  const role = await requireMember(groupId, actingUid);
+  if (role === "member") throw new ServiceError("Only admins and moderators can decide join requests.", 403);
+
+  const { data: request, error: requestError } = await supabaseAdmin
+    .from("group_join_requests")
+    .select("status")
+    .eq("group_id", groupId)
+    .eq("user_id", targetUid)
+    .maybeSingle();
+  if (requestError) throw new Error(`decideJoinRequest(${groupId}): ${requestError.message}`);
+  if (!request) throw new ServiceError("That request no longer exists.", 404);
+
+  if (decision === "approve") {
+    // Membership first: if this insert fails the request stays pending and can be retried, which is
+    // recoverable. Marking it approved first and then failing to add them is not.
+    const alreadyMember = await getMemberRole(groupId, targetUid);
+    if (!alreadyMember) {
+      const { error } = await supabaseAdmin.from("group_members").insert({ group_id: groupId, user_id: targetUid, role: "member" });
+      if (error) throw error;
+    }
+    revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count changed
+  }
+
+  const { error } = await supabaseAdmin
+    .from("group_join_requests")
+    .update({ status: decision === "approve" ? "approved" : "rejected", decided_at: new Date().toISOString(), decided_by: actingUid })
+    .eq("group_id", groupId)
+    .eq("user_id", targetUid);
+  if (error) throw new Error(`decideJoinRequest(${groupId}): ${error.message}`);
+}
+
+export async function countPendingJoinRequests(groupId: string): Promise<number> {
+  const { count, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_join_requests").select("user_id", { count: "exact", head: true }).eq("group_id", groupId).eq("status", "pending"),
+  );
+  if (error) throw new Error(`countPendingJoinRequests(${groupId}): ${error.message}`);
+  return count ?? 0;
+}
+
+/** Leave a community you're in. Distinct from removeMember, which is an admin action and requires
+ * admin - until now there was no code path at all by which an ordinary member could leave.
+ *
+ * Two guards, both about not orphaning the community:
+ *  - the last admin can't walk out on a community that still has other members (someone has to be
+ *    able to administer it); promote someone first
+ *  - the last member full stop is told to delete it instead, because a community with zero members
+ *    is unreachable by anyone afterwards, including them
+ */
+export async function leaveGroup(groupId: string, uid: string): Promise<void> {
+  const role = await requireMember(groupId, uid);
+
+  const { count, error: countError } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId),
+  );
+  if (countError) throw new Error(`leaveGroup(${groupId}): ${countError.message}`);
+  const memberCount = count ?? 0;
+
+  if (memberCount <= 1) {
+    throw new ServiceError("You're the only member. Delete the community instead.", 400);
+  }
+  if (role === "admin" && (await countAdmins(groupId)) <= 1) {
+    throw new ServiceError("You're the only admin. Promote someone else before leaving.", 400);
+  }
+
+  const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", uid);
+  if (error) throw new Error(`leaveGroup(${groupId}): ${error.message}`);
+  revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count changed
 }
