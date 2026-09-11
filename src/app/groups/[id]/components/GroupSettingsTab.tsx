@@ -83,7 +83,7 @@ export function GroupSettingsTab({ group }: { group: GroupDetail }) {
           {(
             [
               { value: "private" as const, title: "Private", desc: "Members can only join through an invite." },
-              { value: "public" as const, title: "Public", desc: "Anyone can discover and join this group." },
+              { value: "public" as const, title: "Public", desc: "Anyone can discover and join this community." },
             ]
           ).map((opt) => (
             <button
@@ -137,7 +137,7 @@ export function GroupSettingsTab({ group }: { group: GroupDetail }) {
       <SettingsSection title="Danger Zone">
         {deleteConfirm ? (
           <div className="rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.06] p-3">
-            <p className="text-sm text-neutral-200">Delete this group permanently? All posts, predictions, and scores are lost.</p>
+            <p className="text-sm text-neutral-200">Delete this community permanently? All posts, predictions, and scores are lost.</p>
             <div className="mt-2 flex gap-3">
               <button onClick={() => void deleteGroupNow()} className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white hover:brightness-110">
                 Delete group

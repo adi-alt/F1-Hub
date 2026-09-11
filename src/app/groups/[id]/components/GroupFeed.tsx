@@ -25,7 +25,7 @@ export function GroupFeed({ groupId, initialPosts, myRole, moderationEnabled }: 
       <PostComposer
         groups={[]}
         fixedGroupId={groupId}
-        placeholder={moderationEnabled && myRole === "member" ? "Share something with the group (posts need approval)..." : "Share something with the group..."}
+        placeholder={moderationEnabled && myRole === "member" ? "Share something with the community (posts need approval)..." : "Share something with the community..."}
         onPosted={refresh}
       />
 
@@ -33,7 +33,7 @@ export function GroupFeed({ groupId, initialPosts, myRole, moderationEnabled }: 
         {posts.map((post, i) => (
           <PostCard key={post.id} post={post} index={i} showGroup={false} canModerate={canModerate} onModerated={refresh} />
         ))}
-        {posts.length === 0 && <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">No posts yet - start the conversation.</p>}
+        {posts.length === 0 && <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">This community is quiet. Start the first conversation.</p>}
       </div>
     </div>
   );

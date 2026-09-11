@@ -110,7 +110,7 @@ export function GroupsFeed({ groups, initialPosts, initialCursor }: { groups: Gr
         <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-8 text-center">
           <p className="text-sm font-semibold text-neutral-300">Nothing here yet.</p>
           <p className="mt-1 text-sm text-neutral-500">
-            {feedType === "following" ? "Posts from groups you've joined will show up here." : "No posts to show right now."}
+            {feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
           </p>
         </div>
       ) : (

@@ -1,17 +1,19 @@
 "use client";
 
+import { Picker } from "@/components/ui/Picker";
+
 export type SortKey = "active" | "members" | "new";
 
-const OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "active", label: "Most active" },
-  { value: "members", label: "Most members" },
-  { value: "new", label: "Recently created" },
+const OPTIONS: { value: SortKey; label: string; description: string }[] = [
+  { value: "active", label: "Most active", description: "Open predictions and posts this week" },
+  { value: "members", label: "Most members", description: "Largest communities first" },
+  { value: "new", label: "Recently created", description: "Newest communities first" },
 ];
 
 type Sortable = { memberCount: number; activePredictions: number; weeklyPosts: number; createdAt: string };
 
-/** All three keys are real, already-fetched fields - no "most predictions" or "most discussed"
- * filter on top (the request's own "do not overcomplicate" note), and nothing here is fabricated. */
+/** All three keys are real, already-fetched fields - nothing here is fabricated, and there's no
+ * sort offered that the data can't actually back. */
 export function sortGroups<T extends Sortable>(groups: T[], key: SortKey): T[] {
   const sorted = [...groups];
   if (key === "members") return sorted.sort((a, b) => b.memberCount - a.memberCount);
@@ -19,18 +21,18 @@ export function sortGroups<T extends Sortable>(groups: T[], key: SortKey): T[] {
   return sorted.sort((a, b) => b.activePredictions + b.weeklyPosts - (a.activePredictions + a.weeklyPosts));
 }
 
+/** Was a browser-native <select>, which meant an OS-rendered option list that ignored every one of
+ * this app's own surface styles and couldn't show the "what does this sort actually do" line each
+ * option now carries. */
 export function GroupSort({ value, onChange }: { value: SortKey; onChange: (key: SortKey) => void }) {
   return (
-    <select
+    <Picker
+      options={OPTIONS}
       value={value}
-      onChange={(e) => onChange(e.target.value as SortKey)}
-      className="rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2.5 text-sm text-neutral-300 focus:border-white/30 focus:outline-none"
-    >
-      {OPTIONS.map((opt) => (
-        <option key={opt.value} value={opt.value} className="bg-[var(--f1-carbon)]">
-          {opt.label}
-        </option>
-      ))}
-    </select>
+      onChange={(next) => onChange(next as SortKey)}
+      ariaLabel="Sort communities"
+      className="w-52"
+      align="end"
+    />
   );
 }

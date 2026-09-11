@@ -728,3 +728,71 @@ create table ai_cache (
 );
 create index ai_cache_expires_idx on ai_cache (expires_at);
 alter table ai_cache enable row level security;
+
+-- ============================================================= Communities (groups v5)
+
+-- Applied via supabase/migrations/20260911_communities.sql (the first migration in this repo to
+-- run through scripts/apply-migration.mjs rather than by hand) - reproduced here so this file
+-- stays the complete picture. Purely additive: nothing renamed, dropped, or re-typed. The
+-- user-facing Groups -> Communities rename is a UI-layer change only (src/lib/communities/), which
+-- is why every table, column, and route below still says "group".
+
+-- What kind of community this is. Drives which modules/tabs it shows, not what it's allowed to
+-- store - a community can be re-typed later without losing anything.
+alter table groups add column community_type text not null default 'general'
+  check (community_type in ('general', 'f1', 'prediction_league', 'private_circle'));
+-- Every group that existed when this ran was created under the old F1-only create form and
+-- rendered Feed/Predictions/Leaderboard; they were backfilled to 'f1' so feature-driven navigation
+-- didn't silently strip those tabs on deploy. New communities default to 'general'.
+update groups set community_type = 'f1' where community_type = 'general';
+
+alter table groups add column topic text;
+alter table groups add column tags text[] not null default '{}';
+-- '{}' means "inherit this community_type's defaults" (resolved in src/lib/communities/modules.ts),
+-- so re-typing a community stays meaningful and no per-flag backfill was needed.
+alter table groups add column features jsonb not null default '{}'::jsonb;
+alter table groups add column permissions jsonb not null default '{}'::jsonb;
+
+-- 'hidden' = undiscoverable in search/recommendations, invite-only. Widened rather than a second
+-- column, keeping visibility the one place this lives.
+alter table groups drop constraint groups_visibility_check;
+alter table groups add constraint groups_visibility_check
+  check (visibility in ('public', 'private', 'hidden'));
+
+-- What a post *is*, distinct from its moderation `status`. No 'poll' on purpose - polls need their
+-- own options/votes tables plus a real voting UI, and exposing the kind without the machinery is
+-- exactly the broken-generic-UI case this redesign set out to avoid.
+alter table group_posts add column kind text not null default 'discussion'
+  check (kind in ('discussion', 'question', 'race_discussion', 'prediction'));
+
+-- Private communities previously had exactly one way in (invite link or emailed invite) - "Request
+-- to Join" had no backing store. One row per (community, user): re-requesting after a rejection
+-- updates that row rather than stacking duplicates.
+create table group_join_requests (
+  group_id uuid not null references groups (id) on delete cascade,
+  user_id uuid not null references profiles (id) on delete cascade,
+  message text check (message is null or char_length(message) <= 500),
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  decided_by uuid references profiles (id),
+  primary key (group_id, user_id)
+);
+alter table group_join_requests enable row level security;
+create policy "own join requests" on group_join_requests for select using (auth.uid() = user_id);
+create policy "admins can view join requests" on group_join_requests for select
+  using (group_id in (select group_id from group_members where user_id = auth.uid() and role in ('admin', 'moderator')));
+
+-- group_posts had NO index beyond its primary key, so the cursor-paginated feed (listFeedPosts:
+-- `where group_id in (...) and status = 'published' order by created_at desc limit n`) was a
+-- sequential scan on every page of every feed for every user.
+create index group_posts_group_created_idx on group_posts (group_id, created_at desc);
+create index group_posts_created_idx on group_posts (created_at desc);
+create index group_post_comments_post_idx on group_post_comments (post_id);
+create index group_post_votes_post_idx on group_post_votes (post_id);
+create index groups_visibility_idx on groups (visibility);
+
+-- group_post_comments was never published, so a live comment.created event had nothing to listen
+-- to: the feed could push a new post live but never a new comment on one already on screen.
+alter publication supabase_realtime add table group_post_comments;
+alter publication supabase_realtime add table group_join_requests;

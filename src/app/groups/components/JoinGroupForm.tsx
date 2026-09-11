@@ -17,7 +17,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
     e.preventDefault();
     const groupId = value.trim().match(UUID_RE)?.[0];
     if (!groupId) {
-      setError("Paste the invite link or group code.");
+      setError("Paste the invite link or community code.");
       setStatus("error");
       return;
     }
@@ -25,7 +25,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
     const res = await fetch(`/api/groups/${groupId}/join`, { method: "POST" });
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     if (!res.ok) {
-      setError(body?.error ?? "Could not join group.");
+      setError(body?.error ?? "Could not join community.");
       setStatus("error");
       return;
     }
@@ -55,7 +55,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
 
   return (
     <form onSubmit={(e) => void submit(e)} className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5">
-      <p className="text-sm font-semibold text-white">Join a group</p>
+      <p className="text-sm font-semibold text-white">Join a community</p>
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}

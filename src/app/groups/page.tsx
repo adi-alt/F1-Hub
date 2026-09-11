@@ -19,8 +19,8 @@ async function getNextRace() {
  * "nothing right now" - Promise.all only needs to not fully reject, and none of these four throws
  * for "no data", only for a real query error, so any real failure still surfaces normally). */
 export const metadata: Metadata = {
-  title: "Groups",
-  description: "Join a group, make podium picks, and climb a real leaderboard once races finish.",
+  title: "Communities",
+  description: "Find people and spaces around the things you care about - F1 and everything else.",
 };
 
 export default async function GroupsPage() {
@@ -28,7 +28,7 @@ export default async function GroupsPage() {
   if (!session.uid) {
     return (
       <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-8 lg:px-10">
-        <SignInGate label="your groups" />
+        <SignInGate label="your communities" />
       </div>
     );
   }
@@ -43,8 +43,8 @@ export default async function GroupsPage() {
   return (
     <div className="mx-auto sm:max-w-[80vw] px-5 py-8 sm:px-8 lg:px-16">
       <div>
-        <h1 className="text-3xl font-bold text-white">Groups</h1>
-        <p className="mt-1 text-sm text-neutral-400">What&apos;s happening in the F1 community right now.</p>
+        <h1 className="text-3xl font-bold text-white">Communities</h1>
+        <p className="mt-1 text-sm text-neutral-400">Find people and spaces around the things you care about.</p>
       </div>
 
       <div className="mt-8">

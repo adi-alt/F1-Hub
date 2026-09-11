@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
+import { DriverPicker } from "@/components/ui/F1Pickers";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -159,27 +160,24 @@ export function PickPanel({
     }
   }
 
+  const driverOptions = entrants.map((entry) => ({ code: entry.driver, name: entry.driverName, team: entry.team }));
+
   return (
     <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
       <p className="text-xs uppercase tracking-wide text-neutral-500">Your podium pick</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {(["p1", "p2", "p3"] as const).map((slot, i) => (
-          <label key={slot} className="text-sm text-neutral-400">
+          <div key={slot} className="text-sm text-neutral-400">
             P{i + 1}
-            <select
+            <DriverPicker
+              drivers={driverOptions}
               value={pick[slot]}
               disabled={isLocked}
-              onChange={(e) => setPick((prev) => ({ ...prev, [slot]: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-white disabled:opacity-60"
-            >
-              <option value="">Select driver</option>
-              {entrants.map((entry) => (
-                <option key={entry.driver} value={entry.driver}>
-                  {entry.driverName} ({entry.driver})
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={(code) => setPick((prev) => ({ ...prev, [slot]: code }))}
+              ariaLabel={`Podium P${i + 1}`}
+              className="mt-1"
+            />
+          </div>
         ))}
       </div>
 

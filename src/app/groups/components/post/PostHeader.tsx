@@ -15,7 +15,7 @@ export function PostHeader({ post, showGroup }: { post: PostCardData; showGroup:
       {showGroup &&
         (post.groupId ? (
           <Link href={groupHref(post.groupId)} className="flex items-center gap-1.5 font-semibold text-neutral-200 hover:text-white">
-            <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Group"} size={18} />
+            <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} size={18} />
             {post.groupName}
           </Link>
         ) : (

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { CommunityFeatures, CommunityType } from "@/lib/communities";
 import { deleteGroup, updateGroupSettings, type GroupVisibility } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
@@ -7,11 +8,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id } = await params;
+  // Every field here is re-validated inside updateGroupSettings (unknown community_type/visibility
+  // and non-object features all raise a 400 there) - this type is the shape, not the gate.
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     description?: string | null;
     visibility?: GroupVisibility;
     moderationEnabled?: boolean;
+    communityType?: CommunityType;
+    topic?: string | null;
+    tags?: string[];
+    features?: CommunityFeatures;
   };
   try {
     await updateGroupSettings(id, session.uid, body);

@@ -8,6 +8,8 @@ import { AnimatePresence, motion } from "framer-motion";
 // anything beyond an erased `import type` (predictionTypeLabels is a real runtime value) - see
 // groupPredictionTypes.ts's own comment.
 import { predictionTypeLabels, type GroupPrediction, type PredictionType } from "@/lib/groupPredictionTypes";
+import { DriverPicker, RacePicker } from "@/components/ui/F1Pickers";
+import { Picker } from "@/components/ui/Picker";
 import type { GroupRole } from "@/lib/supabase/groups";
 
 const ENTRY_PRESETS = [10, 20, 50, 100];
@@ -46,26 +48,20 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
   return (
     <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-xs text-neutral-500">
+        <div className="text-xs text-neutral-500">
           Race
-          <select value={raceId} onChange={(e) => setRaceId(e.target.value)} className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white">
-            {races.map((r) => (
-              <option key={r.id} value={r.id}>
-                R{r.round} {r.name} {r.status === "completed" ? "(completed)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-neutral-500">
+          <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this prediction" className="mt-1" />
+        </div>
+        <div className="text-xs text-neutral-500">
           Prediction type
-          <select value={type} onChange={(e) => setType(e.target.value as PredictionType)} className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white">
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {predictionTypeLabels[t]}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Picker
+            options={TYPES.map((t) => ({ value: t, label: predictionTypeLabels[t] }))}
+            value={type}
+            onChange={(next) => setType(next as PredictionType)}
+            ariaLabel="Prediction type"
+            className="mt-1"
+          />
+        </div>
       </div>
 
       <div className="mt-3">
@@ -113,25 +109,21 @@ function GuessInput({ type, drivers, value, onChange }: { type: PredictionType; 
     return (
       <div className="grid grid-cols-3 gap-2">
         {(["P1", "P2", "P3"] as const).map((label, i) => (
-          <label key={label} className="text-[10px] text-neutral-500">
+          <div key={label} className="text-[10px] text-neutral-500">
             {label}
-            <select
+            <DriverPicker
+              drivers={drivers}
               value={guess[i] ?? ""}
-              onChange={(e) => {
+              onChange={(code) => {
                 const next = [...guess];
-                next[i] = e.target.value;
+                next[i] = code;
                 onChange(next);
               }}
-              className="mt-0.5 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-2 py-1.5 text-xs text-white"
-            >
-              <option value="">Select</option>
-              {drivers.map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.code}
-                </option>
-              ))}
-            </select>
-          </label>
+              placeholder="Select"
+              ariaLabel={`Podium ${label}`}
+              className="mt-0.5"
+            />
+          </div>
         ))}
       </div>
     );
@@ -148,16 +140,7 @@ function GuessInput({ type, drivers, value, onChange }: { type: PredictionType; 
       />
     );
   }
-  return (
-    <select value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-1.5 text-xs text-white">
-      <option value="">Select driver</option>
-      {drivers.map((d) => (
-        <option key={d.code} value={d.code}>
-          {d.name} ({d.code})
-        </option>
-      ))}
-    </select>
-  );
+  return <DriverPicker drivers={drivers} value={typeof value === "string" ? value : ""} onChange={onChange} />;
 }
 
 function guessLabel(type: PredictionType, guess: unknown): string {

@@ -3,9 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { Picker } from "@/components/ui/Picker";
 import type { GroupMember, GroupRole } from "@/lib/supabase/groups";
 
 const ROLE_LABEL: Record<GroupRole, string> = { admin: "ADMIN", moderator: "MODERATOR", member: "MEMBER" };
+
+// Descriptions matter here: "what does promoting someone to moderator actually let them do" was
+// invisible in the native <select> this replaced.
+const ROLE_OPTIONS = [
+  { value: "admin", label: "Admin", description: "Full control, including settings and deletion" },
+  { value: "moderator", label: "Moderator", description: "Can approve and remove posts" },
+  { value: "member", label: "Member", description: "Can post, comment and predict" },
+];
 
 function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; member: GroupMember; myRole: GroupRole; myUserId: string }) {
   const router = useRouter();
@@ -30,7 +40,6 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
   }
 
   async function remove() {
-    if (!confirm(`Remove ${member.displayName ?? member.username ?? "this member"} from the group?`)) return;
     setStatus("saving");
     const res = await fetch(`/api/groups/${groupId}/members/${member.userId}`, { method: "DELETE" });
     if (!res.ok) {
@@ -53,23 +62,27 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {canManage ? (
-          <select
+          <Picker
+            options={ROLE_OPTIONS}
             value={member.role}
-            onChange={(e) => void setRole(e.target.value as GroupRole)}
+            onChange={(role) => void setRole(role as GroupRole)}
             disabled={status === "saving"}
-            className="rounded-lg border border-[var(--f1-line)] bg-black/30 px-2 py-1 text-xs text-neutral-300 disabled:opacity-60"
-          >
-            <option value="admin">Admin</option>
-            <option value="moderator">Moderator</option>
-            <option value="member">Member</option>
-          </select>
+            ariaLabel={`Role for ${member.displayName ?? member.username ?? "member"}`}
+            className="w-36"
+            align="end"
+          />
         ) : (
           member.role !== "member" && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{ROLE_LABEL[member.role]}</span>
         )}
         {canManage && (
-          <button onClick={() => void remove()} disabled={status === "saving"} className="text-xs text-neutral-600 hover:text-[var(--f1-red)] disabled:opacity-40">
+          <ConfirmButton
+            onConfirm={() => void remove()}
+            question="Remove?"
+            confirmLabel="Remove"
+            pending={status === "saving"}
+          >
             Remove
-          </button>
+          </ConfirmButton>
         )}
       </div>
       {error && <p className="w-full text-xs text-[var(--f1-red)]">{error}</p>}

@@ -1,4 +1,13 @@
 import { unstable_cache, revalidateTag } from "next/cache";
+import {
+  isCommunityType,
+  isVisibility,
+  normalizeTags,
+  normalizeTopic,
+  type CommunityFeatures,
+  type CommunityType,
+  type CommunityVisibility,
+} from "@/lib/communities";
 import { getTransporter } from "@/lib/otp";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
@@ -17,14 +26,43 @@ const GROUP_DISCOVERY_TAG = "group-discovery";
 const GROUP_DISCOVERY_REVALIDATE_SECONDS = 20;
 
 export type GroupRole = "admin" | "moderator" | "member";
-export type GroupVisibility = "public" | "private";
+// Re-exported from the pure communities vocabulary rather than redeclared, so "what visibilities
+// exist" has exactly one definition - this alias only exists so the ~20 existing call sites that
+// import GroupVisibility from here keep compiling unchanged. Now includes 'hidden'.
+export type GroupVisibility = CommunityVisibility;
 export type PickSlotResult = "exact" | "podium" | "miss";
+
+/** The community-shape fields every surface needs alongside a group's identity. Grouped into one
+ * reused type rather than repeated across GroupSummary/GroupPreview/PublicGroupSummary/GroupDetail,
+ * since all four now carry exactly the same four columns. `features` stays raw here; callers run it
+ * through resolveModules() (which is what applies type defaults and the F1-only guard). */
+export type CommunityShape = {
+  communityType: CommunityType;
+  topic: string | null;
+  tags: string[];
+  features: CommunityFeatures;
+};
+
+/** Reads the community-shape columns off a raw `groups` row, tolerating rows written before this
+ * migration (or by a newer deploy) rather than trusting the column to be populated. */
+function communityShapeOf(row: Record<string, unknown>): CommunityShape {
+  const rawType = row.community_type;
+  return {
+    communityType: isCommunityType(rawType) ? rawType : "general",
+    topic: (row.topic as string | null) ?? null,
+    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    features: row.features && typeof row.features === "object" && !Array.isArray(row.features) ? (row.features as CommunityFeatures) : {},
+  };
+}
+
+/** The columns communityShapeOf() needs, appended to an explicit `select(...)` list. */
+const COMMUNITY_SHAPE_COLUMNS = "community_type, topic, tags, features";
 
 // A group card's own "why should I click this right now" signals - all real, all derived straight
 // from group_posts/group_predictions, never a fabricated count or label.
 export type LatestPost = { authorName: string; createdAt: string; content: string };
 
-export type GroupSummary = {
+export type GroupSummary = CommunityShape & {
   id: string;
   name: string;
   description: string | null;
@@ -45,9 +83,9 @@ export type GroupSummary = {
   leader: { name: string; totalScore: number } | null;
 };
 
-export type GroupPreview = { id: string; name: string; description: string | null; avatarUrl: string | null; bannerUrl: string | null; memberCount: number; visibility: GroupVisibility };
+export type GroupPreview = CommunityShape & { id: string; name: string; description: string | null; avatarUrl: string | null; bannerUrl: string | null; memberCount: number; visibility: GroupVisibility };
 
-export type PublicGroupSummary = {
+export type PublicGroupSummary = CommunityShape & {
   id: string;
   name: string;
   description: string | null;
@@ -73,7 +111,7 @@ export type GroupMember = {
   points: number;
 };
 
-export type GroupDetail = {
+export type GroupDetail = CommunityShape & {
   id: string;
   name: string;
   description: string | null;
@@ -216,7 +254,7 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
     { data: predictions, error: predictionsError },
     activitySignals,
   ] = await Promise.all([
-    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, visibility, created_at").in("id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, visibility, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).in("id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, user_id, score").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
@@ -245,6 +283,7 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
       const leaderRow = ranked[0];
       const activePredictions = activePredictionCounts.get(groupId) ?? 0;
       return {
+        ...communityShapeOf(g),
         id: groupId,
         name: g.name as string,
         description: (g.description as string | null) ?? null,
@@ -277,7 +316,7 @@ export const listPublicGroups = unstable_cache(
 );
 
 async function listPublicGroupsUncached(query?: string, uid?: string): Promise<PublicGroupSummary[]> {
-  let builder = supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, created_at").eq("visibility", "public");
+  let builder = supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).eq("visibility", "public");
   const trimmed = query?.trim();
   if (trimmed) builder = builder.or(`name.ilike.%${trimmed}%,description.ilike.%${trimmed}%`);
   const { data: groups, error } = await queryWithRetry(() => builder.order("created_at", { ascending: false }));
@@ -305,6 +344,7 @@ async function listPublicGroupsUncached(query?: string, uid?: string): Promise<P
   return groups.map((g) => {
     const groupId = g.id as string;
     return {
+      ...communityShapeOf(g),
       id: groupId,
       name: g.name as string,
       description: (g.description as string | null) ?? null,
@@ -332,7 +372,7 @@ export const getGroupPreview = unstable_cache(
 
 async function getGroupPreviewUncached(groupId: string): Promise<GroupPreview | null> {
   const { data: group, error: groupError } = await queryWithRetry(() =>
-    supabaseAdmin.from("groups").select("id, name, description, avatar_url, banner_url, visibility").eq("id", groupId).maybeSingle(),
+    supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, visibility, ${COMMUNITY_SHAPE_COLUMNS}`).eq("id", groupId).maybeSingle(),
   );
   if (groupError) throw new Error(`getGroupPreview(${groupId}): ${groupError.message}`);
   if (!group) return null;
@@ -341,6 +381,7 @@ async function getGroupPreviewUncached(groupId: string): Promise<GroupPreview | 
   );
   if (countError) throw new Error(`getGroupPreview(${groupId}): ${countError.message}`);
   return {
+    ...communityShapeOf(group),
     id: group.id as string,
     name: group.name as string,
     description: (group.description as string | null) ?? null,
@@ -360,7 +401,16 @@ function isDuplicateNameError(error: { code?: string } | null): boolean {
 
 export async function createGroup(
   uid: string,
-  input: { name: string; description?: string; visibility?: GroupVisibility; moderationEnabled?: boolean },
+  input: {
+    name: string;
+    description?: string;
+    visibility?: GroupVisibility;
+    moderationEnabled?: boolean;
+    communityType?: CommunityType;
+    topic?: string | null;
+    tags?: string[];
+    features?: CommunityFeatures;
+  },
 ): Promise<{ id: string }> {
   const trimmed = input.name.trim();
   if (trimmed.length < 3 || trimmed.length > 40) {
@@ -368,11 +418,30 @@ export async function createGroup(
   }
   const description = input.description?.trim() || null;
   if (description && description.length > 280) throw new ServiceError("Description must be 280 characters or fewer.", 400);
-  const visibility: GroupVisibility = input.visibility === "public" ? "public" : "private";
+  // Unknown/absent visibility still falls back to 'private' - the safest default, and the exact
+  // behavior this had before 'hidden' existed.
+  const visibility: GroupVisibility = isVisibility(input.visibility) ? input.visibility : "private";
+  const communityType: CommunityType = isCommunityType(input.communityType) ? input.communityType : "general";
+  // A Private Circle that's marked public is a contradiction the create flow shouldn't be able to
+  // produce, but the API is callable directly - so the type's own privacy wins here rather than
+  // trusting the pair to arrive consistent.
+  const effectiveVisibility: GroupVisibility = communityType === "private_circle" && visibility === "public" ? "private" : visibility;
 
   const { data, error } = await supabaseAdmin
     .from("groups")
-    .insert({ name: trimmed, description, visibility, created_by: uid, moderation_enabled: !!input.moderationEnabled })
+    .insert({
+      name: trimmed,
+      description,
+      visibility: effectiveVisibility,
+      created_by: uid,
+      moderation_enabled: !!input.moderationEnabled,
+      community_type: communityType,
+      topic: normalizeTopic(input.topic),
+      tags: normalizeTags(input.tags),
+      // Only the modules the caller actually overrode - `{}` means "this type's defaults", which is
+      // what keeps a later type change meaningful (see resolveModules).
+      features: input.features && typeof input.features === "object" ? input.features : {},
+    })
     .select("id")
     .single();
   if (error && isDuplicateNameError(error)) throw new ServiceError("A group with this name already exists.", 409);
@@ -418,6 +487,7 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
   const profileById = await profilesById((members ?? []).map((m) => m.user_id as string));
 
   return {
+    ...communityShapeOf(group),
     id: group.id as string,
     name: group.name as string,
     description: (group.description as string | null) ?? null,
@@ -521,7 +591,16 @@ export async function removeGroupBanner(groupId: string, uid: string): Promise<v
 export async function updateGroupSettings(
   groupId: string,
   uid: string,
-  updates: { name?: string; description?: string | null; visibility?: GroupVisibility; moderationEnabled?: boolean },
+  updates: {
+    name?: string;
+    description?: string | null;
+    visibility?: GroupVisibility;
+    moderationEnabled?: boolean;
+    communityType?: CommunityType;
+    topic?: string | null;
+    tags?: string[];
+    features?: CommunityFeatures;
+  },
 ): Promise<void> {
   await requireAdmin(groupId, uid);
   const patch: Record<string, unknown> = {};
@@ -535,8 +614,23 @@ export async function updateGroupSettings(
     if (trimmed && trimmed.length > 280) throw new ServiceError("Description must be 280 characters or fewer.", 400);
     patch.description = trimmed;
   }
-  if (updates.visibility !== undefined) patch.visibility = updates.visibility;
+  if (updates.visibility !== undefined) {
+    if (!isVisibility(updates.visibility)) throw new ServiceError("Unknown visibility.", 400);
+    patch.visibility = updates.visibility;
+  }
   if (updates.moderationEnabled !== undefined) patch.moderation_enabled = updates.moderationEnabled;
+  if (updates.communityType !== undefined) {
+    if (!isCommunityType(updates.communityType)) throw new ServiceError("Unknown community type.", 400);
+    patch.community_type = updates.communityType;
+  }
+  if (updates.topic !== undefined) patch.topic = normalizeTopic(updates.topic);
+  if (updates.tags !== undefined) patch.tags = normalizeTags(updates.tags);
+  if (updates.features !== undefined) {
+    if (!updates.features || typeof updates.features !== "object" || Array.isArray(updates.features)) {
+      throw new ServiceError("Invalid features.", 400);
+    }
+    patch.features = updates.features;
+  }
   if (Object.keys(patch).length === 0) return;
 
   const { error } = await supabaseAdmin.from("groups").update(patch).eq("id", groupId);

@@ -54,7 +54,7 @@ export function Header() {
                 Archive
               </Link>
               <Link href="/groups" className="transition hover:text-white">
-                Groups
+                Communities
               </Link>
               {showUsers && (
                 <Link href="/users" className="transition hover:text-white">

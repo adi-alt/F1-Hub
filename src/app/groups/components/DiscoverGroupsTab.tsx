@@ -41,7 +41,7 @@ function PublicGroupCard({ group, index, onJoined }: { group: PublicGroupSummary
       footer={
         group.isMember ? (
           <div className="mt-3 flex items-center justify-end gap-1 text-xs font-medium text-neutral-400 transition group-hover:text-white">
-            View Group
+            View Community
             <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" aria-hidden>
               <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -53,7 +53,7 @@ function PublicGroupCard({ group, index, onJoined }: { group: PublicGroupSummary
               disabled={status === "joining"}
               className="mt-3 w-full rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
             >
-              {status === "joining" ? "Joining…" : "Join Group"}
+              {status === "joining" ? "Joining…" : "Join Community"}
             </button>
             {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">Could not join - try again.</p>}
           </>
@@ -112,8 +112,8 @@ export function DiscoverGroupsTab() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Discover Groups</p>
-          <p className="mt-1 text-sm text-neutral-500">Find public F1 communities and prediction leagues.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Discover Communities</p>
+          <p className="mt-1 text-sm text-neutral-500">Find people and spaces around what interests you.</p>
         </div>
       </div>
 
@@ -121,7 +121,7 @@ export function DiscoverGroupsTab() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search public F1 communities..."
+          placeholder="Search communities..."
           className="w-full max-w-sm rounded-lg border border-[var(--f1-line)] bg-black/30 px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
         />
         <GroupSort value={sort} onChange={setSort} />
@@ -135,10 +135,10 @@ export function DiscoverGroupsTab() {
             ))}
           </div>
         ) : visible.length === 0 && query.trim() ? (
-          <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">No groups found. Try another search term.</p>
+          <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">No communities found. Try another search term.</p>
         ) : visible.length === 0 ? (
           <p className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-6 text-center text-sm text-neutral-500">
-            No public groups yet - be the first to create one and make it public.
+            No public communities yet - be the first to create one and make it public.
           </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -150,7 +150,7 @@ export function DiscoverGroupsTab() {
       </div>
 
       <div className="mt-6 border-t border-[var(--f1-line)] pt-5">
-        <p className="mb-2 text-xs text-neutral-500">Have an invite link to a private group?</p>
+        <p className="mb-2 text-xs text-neutral-500">Have an invite link to a private community?</p>
         <JoinGroupForm compact />
       </div>
     </div>

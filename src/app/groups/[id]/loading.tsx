@@ -7,7 +7,7 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 export default function GroupDetailLoading() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <SectionLoadingMessage label="Loading group…" />
+      <SectionLoadingMessage label="Loading community…" />
       <Skeleton className="h-4 w-16" />
 
       <div className="mt-2 flex items-start gap-4">

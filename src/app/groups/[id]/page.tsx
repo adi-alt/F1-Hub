@@ -19,7 +19,7 @@ import { getSession } from "@/lib/session/getSession";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const preview = await getGroupPreview(id).catch(() => null);
-  return { title: preview ? preview.name : "Group" };
+  return { title: preview ? preview.name : "Community" };
 }
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,7 +28,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   if (!session.uid) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <SignInGate label="this group" />
+        <SignInGate label="this community" />
       </div>
     );
   }
@@ -80,7 +80,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <GroupRealtimeWatcher groupId={id} />
       <Link href="/groups" className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← Groups
+        ← Communities
       </Link>
 
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
