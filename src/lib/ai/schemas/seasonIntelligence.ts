@@ -1,32 +1,41 @@
 import { z } from "zod";
 
+// `.nullish()` (not `.optional()`) on every optional field below - confirmed live that the model
+// reliably emits `null` for a field it considers not applicable rather than omitting the key
+// entirely, and plain `.optional()` only accepts `undefined`, rejecting `null` as a type error and
+// failing the ENTIRE 5-section response over one harmless field. `.transform` normalizes both
+// `null` and `undefined` down to one consistent shape (`[]` for arrays, `undefined` for scalars)
+// so nothing downstream has to check for three different "absent" states.
+const optionalStringArray = z.array(z.string()).nullish().transform((v) => v ?? []);
+const optionalString = z.string().nullish().transform((v) => v ?? undefined);
+
 export const SeasonStorySchema = z.object({
   headline: z.string(),
   summary: z.string(),
-  themes: z.array(z.string()).optional(),
+  themes: optionalStringArray,
 });
 
 export const BattleInsightSchema = z.object({
   headline: z.string(),
   summary: z.string(),
-  highlightedBattleId: z.string().optional(),
+  highlightedBattleId: optionalString,
 });
 
 export const ProgressionInsightSchema = z.object({
   headline: z.string(),
   summary: z.string(),
-  highlightedEntities: z.array(z.string()).optional(),
+  highlightedEntities: optionalStringArray,
 });
 
 export const RecordInsightSchema = z.object({
   headline: z.string(),
   summary: z.string(),
-  highlightedRecordIds: z.array(z.string()).optional(),
+  highlightedRecordIds: optionalStringArray,
 });
 
 export const WhatChangedInsightSchema = z.object({
   summary: z.string(),
-  highlights: z.array(z.string()).optional(),
+  highlights: optionalStringArray,
 });
 
 export const SharedSeasonIntelligenceSchema = z.object({
@@ -54,25 +63,21 @@ export const SeasonCompareInsightSchema = z.object({
 
 export type SeasonCompareInsight = z.infer<typeof SeasonCompareInsightSchema>;
 
+/** A bad ID reference (the model citing a battle/entity/record that doesn't exist in this
+ * season's real data) is a real correctness issue for whatever UI highlights that ID, but the
+ * headline/summary text around it is still perfectly good editorial content - rejecting the
+ * WHOLE response over one hallucinated reference (the previous behavior) threw away four other
+ * working sections for one bad pointer. Strips just the offending reference(s) instead. */
 export function validateSeasonIntelligence(data: unknown, validIds: string[]): { valid: boolean; data?: SharedSeasonIntelligence; errors?: unknown } {
-  try {
-    const parsed = SharedSeasonIntelligenceSchema.parse(data);
-    // Validate referenced IDs against the deterministic context
-    if (parsed.battleInsight.highlightedBattleId && !validIds.includes(parsed.battleInsight.highlightedBattleId)) {
-       throw new Error(`highlightedBattleId ${parsed.battleInsight.highlightedBattleId} not in valid IDs`);
-    }
-    if (parsed.progressionInsight.highlightedEntities) {
-       for (const id of parsed.progressionInsight.highlightedEntities) {
-         if (!validIds.includes(id)) throw new Error(`highlightedEntity ${id} not in valid IDs`);
-       }
-    }
-    if (parsed.recordInsight.highlightedRecordIds) {
-       for (const id of parsed.recordInsight.highlightedRecordIds) {
-         if (!validIds.includes(id)) throw new Error(`highlightedRecordId ${id} not in valid IDs`);
-       }
-    }
-    return { valid: true, data: parsed };
-  } catch (err) {
-    return { valid: false, errors: err };
+  const result = SharedSeasonIntelligenceSchema.safeParse(data);
+  if (!result.success) return { valid: false, errors: result.error };
+
+  const parsed = result.data;
+  if (parsed.battleInsight.highlightedBattleId && !validIds.includes(parsed.battleInsight.highlightedBattleId)) {
+    parsed.battleInsight.highlightedBattleId = undefined;
   }
+  parsed.progressionInsight.highlightedEntities = parsed.progressionInsight.highlightedEntities.filter((id) => validIds.includes(id));
+  parsed.recordInsight.highlightedRecordIds = parsed.recordInsight.highlightedRecordIds.filter((id) => validIds.includes(id));
+
+  return { valid: true, data: parsed };
 }

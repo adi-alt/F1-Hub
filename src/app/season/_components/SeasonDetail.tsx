@@ -1,6 +1,5 @@
 "use client";
 
-import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import Link from "next/link";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
@@ -9,6 +8,7 @@ import { SeasonStory } from "./SeasonStory";
 import { SeasonAtAGlance } from "./SeasonAtAGlance";
 import { WhatChangedRecently } from "./WhatChangedRecently";
 import { SeasonIntelligenceProvider } from "./ai/SeasonIntelligenceProvider";
+import { SeasonApexScope } from "./ai/SeasonApexScope";
 import { useMemo } from "react";
 
 /** Fast, non-cryptographic string hash for client-side cache keys */
@@ -105,21 +105,10 @@ export function SeasonDetail({
     ...battles.map(b => `${b.aId}-vs-${b.bId}`), // IDs for battles could just be string concats, wait, schema is arbitrary. Let's just pass all string IDs.
   ], [drivers, constructors, battles]);
 
-  useRegisterApexScope({
-    key: `season:${year}`,
-    label: `Season ${year}`,
-    sublabel: currentRound ? `Next: ${currentRound.name}` : status === "completed" ? "Completed" : undefined,
-    suggestions: [
-      "Who has gained the most ground recently?",
-      "What's the closest championship battle?",
-      ...(drivers[1] && drivers[0] ? [`Compare ${drivers[0].driverName} and ${drivers[1].driverName}.`] : []),
-    ],
-    context: { page: "season", season: year },
-  });
-
   return (
     <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
       <SeasonIntelligenceProvider contextJson={contextJson} season={year} completedRounds={racesCompleted} validIds={validIds} contextHash={contextHash}>
+        <SeasonApexScope season={year} />
         <div className="mb-8">
         {backHref && (
           <Link href={backHref} className="mb-2 inline-block text-sm text-neutral-500 transition hover:text-neutral-300">

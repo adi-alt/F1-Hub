@@ -13,8 +13,40 @@ import { generateAskApexAnswer } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
 import { getMemberRole } from "@/lib/supabase/groups";
 import { getUserProfile } from "@/lib/supabase/users";
+import { getSeasonDetailData } from "@/app/season/_service/season.service";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
+
+/** Season's own client-registered scope (SeasonApexScope.tsx) deliberately sends only UI
+ * selection state (season/tab/selected IDs) - never standings, points, or battle data, per the
+ * "don't trust client-supplied statistics" rule. That leaves almost nothing for the model to
+ * answer from if forwarded as-is, so for `page: "season"` the real facts are fetched here,
+ * server-side, from the exact same authoritative source the Season page itself renders from -
+ * the client's selection state is folded in on top, for "what am I looking at right now" framing
+ * only, never for numbers. */
+async function buildSeasonGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const season = typeof clientContext.season === "number" ? clientContext.season : null;
+  if (!season) return null;
+
+  const data = await getSeasonDetailData(season, userId).catch(() => null);
+  if (!data) return null;
+
+  return {
+    page: "season",
+    season: { year: data.year, status: data.status, racesCompleted: data.racesCompleted, racesRemaining: data.racesRemaining },
+    driverStandings: data.drivers.slice(0, 10).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
+    constructorStandings: data.constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
+    battles: data.battles.slice(0, 6),
+    records: data.records.slice(0, 8),
+    // What the user is currently looking at - selection state only, still no numbers of its own.
+    viewing: {
+      analysisTab: typeof clientContext.selectedAnalysisTab === "string" ? clientContext.selectedAnalysisTab : undefined,
+      championshipType: typeof clientContext.selectedChampionship === "string" ? clientContext.selectedChampionship : undefined,
+      compareEntityA: typeof clientContext.entityAId === "string" ? clientContext.entityAId : undefined,
+      compareEntityB: typeof clientContext.entityBId === "string" ? clientContext.entityBId : undefined,
+    },
+  };
+}
 
 export const maxDuration = 30;
 
@@ -84,7 +116,15 @@ export async function POST(req: Request) {
     // the prompt's own adversarial-protection rule (askApexPrompt.ts) - never as instructions - and
     // a tampered payload has no cross-user blast radius since this route only ever answers using
     // the caller's own already-visible page data.
-    const context = isPlainObject(body.context) ? body.context : { page: "home", snapshot: isPlainObject(body.intelligenceSnapshot) ? body.intelligenceSnapshot : {} };
+    let context: Record<string, unknown> = isPlainObject(body.context)
+      ? body.context
+      : { page: "home", snapshot: isPlainObject(body.intelligenceSnapshot) ? body.intelligenceSnapshot : {} };
+
+    if (context.page === "season") {
+      const seasonContext = await buildSeasonGroundingContext(userId, context);
+      if (seasonContext) context = seasonContext;
+    }
+
     const rawJson = JSON.stringify(context);
     if (rawJson.length > MAX_RAW_PAYLOAD_BYTES) {
       return NextResponse.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });

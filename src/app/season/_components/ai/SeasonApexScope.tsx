@@ -1,57 +1,41 @@
 "use client";
 
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
+import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
 
-export function SeasonApexScope({
-  season,
-  selectedChampionship,
-  selectedAnalysisTab,
-  selectedRaceId,
-  entityAId,
-  entityBId,
-  selectedDriverId,
-  selectedTeamId,
-}: {
-  season: number;
-  selectedChampionship?: "drivers" | "constructors";
-  selectedAnalysisTab?: string;
-  selectedRaceId?: string;
-  entityAId?: string;
-  entityBId?: string;
-  selectedDriverId?: string;
-  selectedTeamId?: string;
-}) {
-  // Generate suggestions based on context
+/** Must be rendered inside <SeasonExplorerProvider> - it reads the live tab/entity-type/compare
+ * selection straight from that context instead of taking it as props, so the registered scope
+ * (and Ask Apex's suggestions) update automatically as the user switches tabs, with no extra
+ * prop-threading through SeasonDetail. */
+export function SeasonApexScope({ season }: { season: number }) {
+  const { entityType, analysisTab, compareA, compareB } = useSeasonExplorer();
+
   const suggestions = ["What's the overall story of this season?"];
-
-  if (selectedAnalysisTab === "compare" && entityAId && entityBId && entityAId !== entityBId) {
+  if (analysisTab === "compare" && compareA && compareB && compareA !== compareB) {
     suggestions.unshift("What separates these two in this matchup?", "Who has been stronger recently?");
-  } else if (selectedAnalysisTab === "battles") {
+  } else if (analysisTab === "battles") {
     suggestions.unshift("Which championship battle is the tightest?", "Who is winning the momentum?");
-  } else if (selectedAnalysisTab === "records") {
+  } else if (analysisTab === "records") {
     suggestions.unshift("What is the most impressive record this season?");
-  } else if (selectedRaceId) {
-    suggestions.unshift("Why is this race important for the championship?", "What could change after this round?");
+  } else if (analysisTab === "progression") {
+    suggestions.unshift("When did the championship start to change?", "Who is gaining momentum?");
   } else {
     suggestions.push("What changed recently in the standings?", "Who is currently in the best form?");
   }
 
   useRegisterApexScope({
-    key: "season",
+    key: `season:${season}`,
     label: `Season ${season}`,
     sublabel: "Intelligence",
     context: {
       page: "season",
       season,
-      selectedChampionship,
-      selectedAnalysisTab,
-      selectedRaceId,
-      entityAId,
-      entityBId,
-      selectedDriverId,
-      selectedTeamId,
+      selectedChampionship: entityType,
+      selectedAnalysisTab: analysisTab,
+      entityAId: compareA || undefined,
+      entityBId: compareB || undefined,
     },
-    suggestions: suggestions.slice(0, 4), // keep it bounded
+    suggestions: suggestions.slice(0, 4),
   });
 
   return null;

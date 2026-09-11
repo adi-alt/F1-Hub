@@ -8,9 +8,9 @@ import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamR
 import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import { useState, useEffect } from "react";
-import { SparklesIcon } from "lucide-react";
 import type { SeasonCompareInsight } from "@/lib/ai/schemas/seasonIntelligence";
 import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
+import { SeasonInsight } from "./ai/SeasonInsight";
 import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
 
 type StatRow = { label: string; av: number; bv: number; aText: string; bText: string; lowerIsBetter?: boolean };
@@ -340,39 +340,25 @@ function CompareIntelligence({
 
   if (loading) {
     return (
-      <div className="mt-4 p-4 rounded-xl border border-[var(--f1-border)] bg-[var(--f1-card)] animate-pulse">
-        <div className="h-4 bg-[var(--f1-muted)] rounded w-1/3 mb-2" />
-        <div className="h-4 bg-[var(--f1-muted)] rounded w-2/3" />
+      <div className="mb-5">
+        <div className="skeleton-shimmer h-3.5 w-1/3 rounded bg-white/[0.04]" />
+        <div className="skeleton-shimmer mt-2 h-3.5 w-2/3 rounded bg-white/[0.04]" />
       </div>
     );
   }
 
   if (!insight) return null;
 
+  const momentumLabel = insight.momentum === "EVEN" ? "Momentum is even" : insight.momentum === "A" ? "Momentum favors A" : "Momentum favors B";
+
   return (
-    <div className="mt-4 p-5 rounded-xl border border-[var(--f1-border)] bg-[var(--f1-card)] relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[var(--f1-accent)] to-[var(--f1-red)]" />
-      <div className="flex items-center gap-2 mb-2">
-        <SparklesIcon className="w-4 h-4 text-[var(--f1-accent)]" />
-        <h4 className="font-bold text-[var(--f1-text)] text-sm uppercase">{insight.headline}</h4>
+    <div className="mb-5">
+      <SeasonInsight headline={insight.headline} summary={insight.summary} />
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-neutral-400">
+        <p>{insight.keyAdvantageA}</p>
+        <p>{insight.keyAdvantageB}</p>
       </div>
-      <p className="text-sm text-[var(--f1-text-muted)] mb-3">{insight.summary}</p>
-      
-      <div className="grid grid-cols-2 gap-4 text-xs">
-        <div className="bg-[var(--f1-bg)] p-3 rounded-lg border border-[var(--f1-border)]">
-          <p className="font-semibold text-[var(--f1-text)] mb-1 uppercase tracking-wide">Key Advantage A</p>
-          <p className="text-[var(--f1-text-muted)]">{insight.keyAdvantageA}</p>
-        </div>
-        <div className="bg-[var(--f1-bg)] p-3 rounded-lg border border-[var(--f1-border)]">
-          <p className="font-semibold text-[var(--f1-text)] mb-1 uppercase tracking-wide">Key Advantage B</p>
-          <p className="text-[var(--f1-text-muted)]">{insight.keyAdvantageB}</p>
-        </div>
-      </div>
-      <div className="mt-3 text-center">
-        <span className="inline-block px-3 py-1 bg-[var(--f1-muted)] rounded-full text-xs font-bold uppercase text-[var(--f1-text)] tracking-wide">
-          Momentum: {insight.momentum}
-        </span>
-      </div>
+      <p className="mt-2 text-xs text-neutral-500">{momentumLabel}</p>
     </div>
   );
 }

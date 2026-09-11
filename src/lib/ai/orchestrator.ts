@@ -140,6 +140,17 @@ export function cleanJsonOutput(text: string): string {
 // stopping, which previously could burn up to 8192 tokens before the cap kicked in.
 const HOMEPAGE_MAX_TOKENS = 5000;
 const RACE_INTELLIGENCE_MAX_TOKENS = 3000;
+// Season intelligence/compare weren't measured the same way (no real-fixture benchmark run yet)
+// and were left at 1000/500 - far too low for GROQ_MODEL_ID (openai/gpt-oss-120b), a reasoning
+// model that spends part of its token budget on a hidden "reasoning" field before emitting
+// `content` (see groq.ts - only `content` is read, reasoning tokens are pure overhead from the
+// caller's perspective). Confirmed live: at low max_tokens the model exhausts the whole budget on
+// reasoning and returns empty content, which orchestrator throws as EMPTY_RESPONSE - the exact
+// silent "always falls back to deterministic" bug reported. Sized to the same order of magnitude
+// as race-intelligence (a comparably-sized 5-section JSON schema) and season-compare's own smaller
+// one-section schema, both with real headroom for the reasoning overhead.
+const SEASON_INTELLIGENCE_MAX_TOKENS = 3000;
+const SEASON_COMPARE_MAX_TOKENS = 1500;
 
 /**
  * Direct Mode: Bundled Homepage Intelligence Request.
@@ -663,11 +674,11 @@ export async function generateSeasonIntelligence(
 
   const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
-    return { data: generateDeterministicSeasonFallback(season, completedRounds), generationMode: "deterministic" };
+    return { data: generateDeterministicSeasonFallback(season, completedRounds, contextJson), generationMode: "deterministic" };
   }
 
   const baseConfig = {
-    maxTokens: 1000,
+    maxTokens: SEASON_INTELLIGENCE_MAX_TOKENS,
     temperature: 0.7,
     groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
@@ -723,7 +734,7 @@ export async function generateSeasonIntelligence(
       fallbackReason: reason,
       errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
     });
-    return { data: generateDeterministicSeasonFallback(season, completedRounds), generationMode: "deterministic" };
+    return { data: generateDeterministicSeasonFallback(season, completedRounds, contextJson), generationMode: "deterministic" };
   }
 }
 
@@ -742,7 +753,7 @@ export async function generateSeasonCompareInsight(
   }
 
   const baseConfig = {
-    maxTokens: 500,
+    maxTokens: SEASON_COMPARE_MAX_TOKENS,
     temperature: 0.7,
     groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,

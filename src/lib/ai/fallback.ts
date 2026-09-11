@@ -325,28 +325,70 @@ export function generateDeterministicRaceFallback(context: RaceIntelligenceConte
 
 import { SharedSeasonIntelligence, SeasonCompareInsight } from "./schemas/seasonIntelligence";
 
-export function generateDeterministicSeasonFallback(season: number, completedRounds: number): SharedSeasonIntelligence {
+// Loosely-typed on purpose - this is the same contextSnapshot SeasonDetail.tsx serializes to
+// contextJson, but the fallback only reads a handful of already-real, already-computed fields
+// from it, defensively, and never fails just because the shape doesn't fully match.
+type SeasonFallbackContext = {
+  driverStandings?: { position: number; name: string; team: string; points: number; wins: number }[];
+  battles?: { aLabel: string; bLabel: string; gap: number }[];
+};
+
+/** Never says "deterministic", "fallback", "cache", or any other implementation term - this reads
+ * exactly like normal Apex copy because a real generation failure should be invisible to the
+ * user, not a status message about the AI layer's own internal state. Every sentence here is
+ * built ONLY from numbers already computed and passed in (season/completedRounds/context) -
+ * never a guess or an invented stat, the same rule every other deterministic fallback in this
+ * file follows. */
+export function generateDeterministicSeasonFallback(season: number, completedRounds: number, contextJson?: string): SharedSeasonIntelligence {
+  let ctx: SeasonFallbackContext = {};
+  if (contextJson) {
+    try {
+      ctx = JSON.parse(contextJson) as SeasonFallbackContext;
+    } catch {
+      // Malformed/absent context - the generic sentences below still hold up on their own.
+    }
+  }
+
+  const leader = ctx.driverStandings?.[0];
+  const chaser = ctx.driverStandings?.[1];
+  const closestBattle = ctx.battles?.[0];
+
+  const seasonSummary =
+    leader && chaser
+      ? `${leader.name} leads the ${season} championship by ${leader.points - chaser.points} points over ${chaser.name} after ${completedRounds} rounds.`
+      : `${completedRounds} rounds of the ${season} season are complete, with the championship still taking shape.`;
+
+  const battleSummary = closestBattle
+    ? closestBattle.gap === 0
+      ? `${closestBattle.aLabel} and ${closestBattle.bLabel} are level on points, the tightest fight in the standings right now.`
+      : `${closestBattle.aLabel} and ${closestBattle.bLabel} are separated by just ${closestBattle.gap} points, the closest battle in the standings.`
+    : "The standings below show how tightly the field is matched this season.";
+
   return {
     seasonStory: {
-      headline: `${season} Season Intelligence`,
-      summary: `Apex is currently utilizing deterministic mode. ${completedRounds} rounds have been completed.`,
-      themes: ["Data-driven Analysis", "Authoritative Fallback"]
+      headline: leader ? `${leader.name} sets the pace` : `${season} season`,
+      summary: seasonSummary,
+      themes: [],
     },
     battleInsight: {
-      headline: "Championship Battles",
-      summary: "Data regarding championship battles is visible below in the standings."
+      headline: "Championship battles",
+      summary: battleSummary,
+      highlightedBattleId: undefined,
     },
     progressionInsight: {
-      headline: "Season Progression",
-      summary: "Progression data is tracked securely by the intelligence layer."
+      headline: "Season progression",
+      summary: leader ? `${leader.name} has won ${leader.wins} of the ${completedRounds} rounds run so far.` : "The full points progression is charted below.",
+      highlightedEntities: [],
     },
     recordInsight: {
-      headline: "Records and Achievements",
-      summary: "Records are maintained based on verified facts."
+      headline: "Records",
+      summary: leader ? `${leader.name} leads the season with ${leader.points} points and ${leader.wins} wins.` : "The season's key records are listed below.",
+      highlightedRecordIds: [],
     },
     whatChangedInsight: {
-      summary: "Changes since the previous round are calculated exactly."
-    }
+      summary: "The latest round's exact position and points changes are listed below.",
+      highlights: [],
+    },
   };
 }
 

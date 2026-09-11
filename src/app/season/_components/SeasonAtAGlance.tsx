@@ -1,7 +1,9 @@
-import { TrophyIcon, TrendingUpIcon, SwordsIcon, TargetIcon } from "lucide-react";
 import type { DriverStandingRow, ConstructorStandingRow, RaceSummary, Battle } from "../_service/season.pure";
 import { computeRecentForm } from "../_service/season.pure";
 
+/** A compact editorial strip - label/name/value stacked per item, separated by thin dividers -
+ * instead of four large icon-and-border cards. Same "level 3: small information unit" treatment
+ * the standings table's own favorite rows use, not a dashboard metric-card grid. */
 export function SeasonAtAGlance({
   drivers,
   races,
@@ -14,8 +16,8 @@ export function SeasonAtAGlance({
 }) {
   const driverLeader = drivers[0];
   const driverChallenger = drivers[1];
-  
-  // Best form: Highest points in last 5 rounds
+
+  // Best form: highest points across the last 5 completed rounds.
   let bestFormDriver = driverLeader;
   let maxFormPoints = -1;
   for (const d of drivers) {
@@ -28,56 +30,33 @@ export function SeasonAtAGlance({
 
   const tightestBattle = battles[0];
 
+  const items = [
+    { label: "Leader", name: driverLeader?.driverName ?? "-", value: driverLeader ? `${driverLeader.points} pts` : null },
+    {
+      label: "Chaser",
+      name: driverChallenger?.driverName ?? "-",
+      value: driverChallenger && driverLeader ? `-${driverLeader.points - driverChallenger.points} pts` : null,
+    },
+    { label: "Form", name: bestFormDriver?.driverName ?? "-", value: maxFormPoints >= 0 ? `${maxFormPoints} pts · last 5` : null },
+    {
+      label: "Battle",
+      name: tightestBattle ? `${tightestBattle.aId} ↔ ${tightestBattle.bId}` : "-",
+      value: tightestBattle ? (tightestBattle.gap === 0 ? "Level" : `${tightestBattle.gap} pt gap`) : null,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-      {/* Leader */}
-      <div className="bg-[var(--f1-card)] border border-[var(--f1-border)] rounded-xl p-4 flex items-center gap-4 hover:border-[var(--f1-accent)] transition-colors cursor-pointer">
-        <div className="w-12 h-12 rounded-full bg-[var(--f1-muted)] flex items-center justify-center flex-shrink-0">
-          <TrophyIcon className="w-6 h-6 text-yellow-500" />
-        </div>
-        <div>
-          <p className="text-xs uppercase font-semibold text-[var(--f1-text-muted)]">Leader</p>
-          <p className="font-bold text-[var(--f1-text)] text-lg leading-tight">{driverLeader?.driverName ?? "N/A"}</p>
-          <p className="text-sm text-[var(--f1-accent)] font-semibold">{driverLeader?.points ?? 0} PTS</p>
-        </div>
-      </div>
-
-      {/* Challenger */}
-      <div className="bg-[var(--f1-card)] border border-[var(--f1-border)] rounded-xl p-4 flex items-center gap-4 hover:border-[var(--f1-accent)] transition-colors cursor-pointer">
-        <div className="w-12 h-12 rounded-full bg-[var(--f1-muted)] flex items-center justify-center flex-shrink-0">
-          <TargetIcon className="w-6 h-6 text-orange-500" />
-        </div>
-        <div>
-          <p className="text-xs uppercase font-semibold text-[var(--f1-text-muted)]">Challenger</p>
-          <p className="font-bold text-[var(--f1-text)] text-lg leading-tight">{driverChallenger?.driverName ?? "N/A"}</p>
-          <p className="text-sm text-[var(--f1-accent)] font-semibold">{driverChallenger ? (driverLeader.points - driverChallenger.points) : 0} PTS BEHIND</p>
-        </div>
-      </div>
-
-      {/* Best Form */}
-      <div className="bg-[var(--f1-card)] border border-[var(--f1-border)] rounded-xl p-4 flex items-center gap-4 hover:border-[var(--f1-accent)] transition-colors cursor-pointer">
-        <div className="w-12 h-12 rounded-full bg-[var(--f1-muted)] flex items-center justify-center flex-shrink-0">
-          <TrendingUpIcon className="w-6 h-6 text-green-500" />
-        </div>
-        <div>
-          <p className="text-xs uppercase font-semibold text-[var(--f1-text-muted)]">Best Form</p>
-          <p className="font-bold text-[var(--f1-text)] text-lg leading-tight">{bestFormDriver?.driverName ?? "N/A"}</p>
-          <p className="text-sm text-[var(--f1-accent)] font-semibold">{maxFormPoints} PTS IN L5</p>
-        </div>
-      </div>
-
-      {/* Tightest Battle */}
-      <div className="bg-[var(--f1-card)] border border-[var(--f1-border)] rounded-xl p-4 flex items-center gap-4 hover:border-[var(--f1-accent)] transition-colors cursor-pointer">
-        <div className="w-12 h-12 rounded-full bg-[var(--f1-muted)] flex items-center justify-center flex-shrink-0">
-          <SwordsIcon className="w-6 h-6 text-blue-500" />
-        </div>
-        <div>
-          <p className="text-xs uppercase font-semibold text-[var(--f1-text-muted)]">Tightest Battle</p>
-          <p className="font-bold text-[var(--f1-text)] text-lg leading-tight truncate w-full pr-2" title={tightestBattle ? `${tightestBattle.aLabel} vs ${tightestBattle.bLabel}` : "N/A"}>
-            {tightestBattle ? `${tightestBattle.aId} vs ${tightestBattle.bId}` : "N/A"}
-          </p>
-          <p className="text-sm text-[var(--f1-accent)] font-semibold">{tightestBattle?.gap ?? 0} PTS DIFFERENCE</p>
-        </div>
+    <div className="mb-8">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Season snapshot</p>
+      <div className="mt-2 h-px w-full bg-white/[0.06]" />
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4 sm:divide-x sm:divide-white/[0.06]">
+        {items.map((item) => (
+          <div key={item.label} className="sm:px-4 sm:first:pl-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{item.label}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-white">{item.name}</p>
+            {item.value && <p className="mt-0.5 text-xs text-neutral-500">{item.value}</p>}
+          </div>
+        ))}
       </div>
     </div>
   );

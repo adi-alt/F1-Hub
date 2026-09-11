@@ -9,7 +9,7 @@ import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
 import { QuietTabs } from "./QuietTabs";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
-import { SparklesIcon } from "lucide-react";
+import { SeasonInsight } from "./ai/SeasonInsight";
 import type { ConstructorStandingRow, DriverStandingRow } from "../_service/season.service";
 
 type Metric = "points" | "gap";
@@ -140,15 +140,7 @@ export function ProgressionPanel({
 
   return (
     <div>
-      {intelligence?.progressionInsight && (
-        <div className="mb-6 p-4 rounded-xl bg-[var(--f1-accent)]/10 border border-[var(--f1-accent)]/20">
-          <div className="flex items-center gap-2 mb-2">
-            <SparklesIcon className="w-4 h-4 text-[var(--f1-accent)]" />
-            <h4 className="font-bold text-[var(--f1-text)] text-sm uppercase">{intelligence.progressionInsight.headline}</h4>
-          </div>
-          <p className="text-sm text-[var(--f1-text-muted)]">{intelligence.progressionInsight.summary}</p>
-        </div>
-      )}
+      {intelligence?.progressionInsight && <SeasonInsight headline={intelligence.progressionInsight.headline} summary={intelligence.progressionInsight.summary} />}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <QuietTabs
           options={[
