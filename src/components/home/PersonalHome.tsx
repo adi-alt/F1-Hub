@@ -8,7 +8,7 @@ import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
 import { YourF1Radar } from "./YourF1Radar";
-import { ApexIntelligenceWidget } from "./ai/ApexIntelligenceWidget";
+import { HomepageApexScope } from "./ai/HomepageApexScope";
 import {
   HomepageIntelligenceProvider,
   useHomepageIntelligence,
@@ -154,11 +154,13 @@ function PersonalHomeInner({
         ]}
       />
 
-      <ApexIntelligenceWidget
+      {/* Apex itself is global now (ApexLauncher, root layout). The homepage contributes its
+          already-fetched intelligence as that launcher's scope rather than running a second,
+          homepage-only chat with its own floating pill. */}
+      <HomepageApexScope
         raceName={publicData.nextRace?.name}
         favoriteDriverName={personalData.favoriteDriver?.name}
         favoriteTeamName={personalData.favoriteTeam?.name}
-        onNavigateToTab={setApexActiveTab}
       />
     </>
   );

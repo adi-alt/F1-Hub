@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
+import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
+import { communityTypeMeta, MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupPrediction } from "@/lib/groupPredictionTypes";
 import type { GroupDetail, LeaderboardRow } from "@/lib/supabase/groups";
@@ -81,6 +82,55 @@ export function CommunityTabs({
     // tabs/defaultTab derive from props that are fixed for the life of this page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.id]);
+
+  // What Apex sees inside a community. Scoped to THIS community and nothing else, and built only
+  // from data this member has already been served - the page itself ran requireMember to get any
+  // of it. A non-member never reaches this component, so this snapshot cannot exist for them.
+  const meta = communityTypeMeta(group.communityType);
+  useRegisterApexScope({
+    key: `community:${group.id}:${tab}`,
+    label: group.name,
+    sublabel: tab === "manage" ? "Manage" : MODULE_LABELS[tab as CommunityModule],
+    communityId: group.id,
+    suggestions: [
+      "Summarise what people are discussing here.",
+      ...(modules.includes("predictions") ? ["Which prediction rounds are still open?"] : []),
+      "What kind of community is this?",
+    ],
+    snapshot: {
+      community: {
+        name: group.name,
+        type: meta.label,
+        topic: group.topic,
+        tags: group.tags,
+        description: group.description,
+        visibility: group.visibility,
+        memberCount,
+        enabledSections: modules.map((m) => MODULE_LABELS[m]),
+        yourRole: group.myRole,
+        currentTab: tab,
+      },
+      // Trimmed hard: the route caps the whole payload, and a feed page is far bigger than an
+      // answer needs. Titles/authors/scores are enough to summarise a discussion.
+      recentPosts: posts.slice(0, 12).map((p) => ({
+        author: p.authorName,
+        title: p.title,
+        excerpt: p.content.slice(0, 240),
+        score: p.score,
+        comments: p.commentCount,
+        postedAt: p.createdAt,
+      })),
+      predictions: predictions.slice(0, 8).map((p) => ({
+        race: p.raceName,
+        type: p.type,
+        status: p.status,
+        entryPoints: p.entryPoints,
+        entries: p.entryCount,
+        youEntered: !!p.myEntry,
+      })),
+      leaderboard: leaderboard.slice(0, 10).map((row) => ({ name: row.displayName ?? row.username, rank: row.rank, score: row.totalScore })),
+    },
+  });
 
   function select(next: Tab) {
     setTab(next);

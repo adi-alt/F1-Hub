@@ -11,6 +11,7 @@ import { getSession } from "@/lib/session/getSession";
 import { guardAIExecution, sanitizePromptInput } from "@/lib/ai/guardrails";
 import { generateAskApexAnswer } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
+import { getMemberRole } from "@/lib/supabase/groups";
 import { getUserProfile } from "@/lib/supabase/users";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
@@ -36,8 +37,8 @@ export async function POST(req: Request) {
   try {
     const session = await getSession();
     const userId = session?.uid || null;
-    // The widget only ever mounts for a signed-in PersonalHome - this is a defensive check, not a
-    // real traffic path.
+    // Apex is now global (ApexLauncher, mounted in the root layout) but only renders for an
+    // authorized user, so this stays a defensive check rather than a real traffic path.
     if (!userId) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
     // Same combined user-quota + provider-capacity guard every other AI route uses (guardrails.ts) -
@@ -89,6 +90,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
     }
     const intelligenceJson = sanitizePromptInput(rawJson, MAX_INTELLIGENCE_JSON_LENGTH);
+
+    // Scope assertion. The snapshot is client-supplied, and a client can only ever hold what the
+    // server already rendered for it after requireMember - so a non-member's browser physically
+    // never has a private community's posts to send. That makes this check redundant TODAY, and
+    // it's here anyway for the day someone adds server-side context enrichment keyed on
+    // `scope.communityId` and reasonably assumes it was already access-checked. Cheap, and the
+    // failure mode it prevents is a private community leaking into an answer.
+    const scope = isPlainObject(body.scope) ? body.scope : null;
+    const scopedCommunityId = typeof scope?.communityId === "string" ? scope.communityId : null;
+    if (scopedCommunityId) {
+      const role = await getMemberRole(scopedCommunityId, userId).catch(() => null);
+      if (!role) return NextResponse.json({ error: "FORBIDDEN_SCOPE" }, { status: 403 });
+    }
 
     const conversationFavoriteKey = typeof body.conversationFavoriteKey === "string" ? body.conversationFavoriteKey : "";
 

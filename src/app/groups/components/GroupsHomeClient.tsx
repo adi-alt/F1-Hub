@@ -5,6 +5,7 @@ import { AnimatePresence } from "framer-motion";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary } from "@/lib/supabase/groups";
+import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar } from "./GroupsLeftSidebar";
@@ -35,6 +36,30 @@ export function GroupsHomeClient({
   nextRace: NextRace;
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
+
+  // The communities index: what you're in and what's happening across them. Deliberately no
+  // per-community post bodies here beyond the feed you're already looking at - this scope is
+  // "your communities overview", not a way to pull one community's contents into another context.
+  useRegisterApexScope({
+    key: "communities-index",
+    label: "Your communities",
+    sublabel: `${groups.length} joined`,
+    suggestions: ["What's happening across my communities?", "Which predictions close soonest?", "Which of my communities is most active?"],
+    snapshot: {
+      yourCommunities: groups.map((g) => ({
+        name: g.name,
+        type: g.communityType,
+        topic: g.topic,
+        members: g.memberCount,
+        yourRole: g.myRole,
+        openPredictions: g.activePredictions,
+        postsThisWeek: g.weeklyPosts,
+      })),
+      openPredictions: predictions.map((p) => ({ race: p.raceName, type: p.type, community: p.groupName, entryPoints: p.entryPoints, youEntered: p.hasEntered })),
+      nextRace: nextRace ? { name: nextRace.name, round: nextRace.round, date: nextRace.raceDate } : null,
+      recentPosts: initialPosts.slice(0, 10).map((p) => ({ community: p.groupName, author: p.authorName, title: p.title, excerpt: p.content.slice(0, 200) })),
+    },
+  });
 
   return (
     <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-5 lg:items-start">

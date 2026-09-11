@@ -6,6 +6,8 @@ import { AmbientBackground } from "@/components/AmbientBackground";
 import { AuthDialogHost } from "@/components/auth/AuthDialogHost";
 import { Header } from "@/components/Header";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
+import { ApexLauncher } from "@/components/apex/ApexLauncher";
+import { ApexScopeProvider } from "@/components/apex/ApexScopeProvider";
 import { AppProviders } from "@/providers/AppProviders";
 import "./globals.css";
 
@@ -37,8 +39,14 @@ export default function RootLayout({
       <body className="flex h-full flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
         <AmbientBackground />
         <AppProviders>
-          <Header />
-          <SmoothScroll>{children}</SmoothScroll>
+          {/* Apex is app-wide now rather than a homepage widget. The provider holds whatever scope
+              the current page registered; the launcher renders nothing at all on a page that
+              registered none, so it never offers to answer questions about a page it can't see. */}
+          <ApexScopeProvider>
+            <Header />
+            <SmoothScroll>{children}</SmoothScroll>
+            <ApexLauncher />
+          </ApexScopeProvider>
           <AuthDialogHost />
         </AppProviders>
         {/* Zero-config, no dashboard setup needed beyond having the packages installed on a

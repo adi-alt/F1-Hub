@@ -1,3 +1,4 @@
+import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import Link from "next/link";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
@@ -43,6 +44,30 @@ export function SeasonDetail({
   const defaultAIndex = defaultA ? drivers.indexOf(defaultA) : -1;
   const defaultB = drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
   const currentRound = status === "ongoing" ? raceSummaries.find((r) => r.state === "next") : undefined;
+
+  // Season context for Apex. Standings are trimmed to the top of each table plus the season shape -
+  // enough to answer "why is X second" or "who's gained most recently" without shipping the whole
+  // progression matrix, which the route would cap away anyway.
+  useRegisterApexScope({
+    key: `season:${year}`,
+    label: `Season ${year}`,
+    sublabel: currentRound ? `Next: ${currentRound.name}` : status === "completed" ? "Completed" : undefined,
+    suggestions: [
+      "Who has gained the most ground recently?",
+      "What's the closest championship battle?",
+      ...(drivers[1] && drivers[0] ? [`Compare ${drivers[0].driverName} and ${drivers[1].driverName}.`] : []),
+    ],
+    snapshot: {
+      season: { year, status, racesCompleted, racesRemaining, nextRace: currentRound?.name ?? null },
+      // These arrive already ordered by points, so the array index is the championship position -
+      // there's no `position` column to read.
+      driverStandings: drivers.slice(0, 12).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
+      constructorStandings: constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
+      battles: battles.slice(0, 5),
+      records: records.slice(0, 8),
+      recentRaces: raceSummaries.filter((r) => r.state === "completed").slice(-5).map((r) => ({ name: r.name, round: r.round })),
+    },
+  });
 
   return (
     <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
