@@ -36,7 +36,7 @@ export function SeasonRecap({
   favoriteDriver,
   favoriteTeam,
   circuitImageByRound,
-  calendarEntry,
+  calendarByRound,
   weatherByRound,
 }: {
   year: number;
@@ -47,9 +47,9 @@ export function SeasonRecap({
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
   circuitImageByRound?: Record<number, string | null>;
-  /** Real session-schedule data for the upcoming race, threaded through to SeasonStrip's "this
-   * weekend" branch - see that component's own comment on why it's only ever for one round. */
-  calendarEntry?: CalendarEntry | null;
+  /** Real session-schedule data for every round, threaded through to SeasonStrip's featured panel
+   * - any round the navigator selects gets its own real schedule now, not just "this weekend"'s. */
+  calendarByRound?: Record<number, CalendarEntry | undefined>;
   /** Real per-round weather forecast (calendar.weather_forecast), only ever populated for a round
    * still ahead of "now" - null for completed rounds and rounds the schedule hasn't reached yet. */
   weatherByRound?: Record<number, WeatherForecast | null>;
@@ -85,7 +85,7 @@ export function SeasonRecap({
               favoriteDriver={favoriteDriver}
               favoriteTeam={favoriteTeam}
               circuitImageByRound={circuitImageByRound ?? {}}
-              calendarEntry={calendarEntry}
+              calendarByRound={calendarByRound}
               weatherByRound={weatherByRound ?? {}}
             />
           </div>
@@ -179,7 +179,7 @@ export function SeasonRecap({
             favoriteDriver={favoriteDriver}
             favoriteTeam={favoriteTeam}
             circuitImageByRound={circuitImageByRound ?? {}}
-            calendarEntry={calendarEntry}
+            calendarByRound={calendarByRound}
             weatherByRound={weatherByRound ?? {}}
           />
         </div>

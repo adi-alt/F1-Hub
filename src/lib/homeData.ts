@@ -55,6 +55,11 @@ export type PublicHomeData = {
    * ahead of "now" (a forecast for an already-run race is meaningless, see sync_calendar.py's own
    * comment) - null for a completed round, or one FastF1's schedule hasn't reached yet. */
   weatherByRound: Record<number, WeatherForecast | null>;
+  /** The full season's real session schedule, keyed by round - not just `calendarEntry` above
+   * (which stays scoped to nextRace, for the hero's own RaceReadiness). Lets SeasonStrip's
+   * featured panel show a real FP1/FP2/FP3/Q/R (or sprint) schedule for any round, not only the
+   * immediate next one. */
+  calendarByRound: Record<number, CalendarEntry | undefined>;
   /** The current-season roster, `.team`-keyed - lets YourF1's favorite switcher resolve "this
    * team's current drivers" for the team-form view without a second favorites-shaped fetch. */
   currentDrivers: CurrentDriver[];

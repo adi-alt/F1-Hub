@@ -20,12 +20,21 @@ export function RaceIntelligencePanel({
   favoriteTeam: FavoriteTeamCard | null;
 }) {
   const { intelligence, isLoading } = useHomepageIntelligence();
-  const outlook = favoriteDriver && intelligence?.personalOutlook?.driver === favoriteDriver.name ? intelligence.personalOutlook : null;
-  // A favorite driver is the ONLY thing that makes an outlook block possible at all (see the
-  // match check above) - so it's the one thing we know synchronously, before the AI fetch
-  // resolves, that tells us whether to reserve space for it. This is what was missing before:
-  // the block simply didn't exist until `outlook` became truthy, so the panel's real height
-  // (and the AI text arriving) came as a sudden, un-animated append with nothing reserved for it.
+  // Trust the pipeline's own gate, not a re-verification here: both the real AI path and the
+  // deterministic fallback only ever populate personalOutlook when there's a real favorite driver
+  // in context (see fallback.ts's own "only with a favorite driver" comment; the prompt instructs
+  // the model the same way) - requiring intelligence.personalOutlook.driver to be a byte-for-byte
+  // match against favoriteDriver.name was the actual bug: the deterministic fallback always echoes
+  // the name back exactly, but the real model isn't guaranteed to reproduce that exact string (a
+  // nickname, surname-only, or reordered form all fail an === check while still being the right
+  // driver) - "sometimes it shows, sometimes it doesn't" for exactly this reason. A real, non-null
+  // personalOutlook IS the signal that it's relevant; no second check needed.
+  const outlook = intelligence?.personalOutlook ?? null;
+  // A favorite driver is the one thing we know synchronously, before the AI fetch resolves, that
+  // makes an outlook block plausible - so it's what decides whether to reserve loading space for
+  // it. This is what was missing before: the block simply didn't exist until `outlook` became
+  // truthy, so the panel's real height (and the AI text arriving) came as a sudden, un-animated
+  // append with nothing reserved for it.
   const expectsOutlook = !!favoriteDriver;
 
   if (!trackHistory) {

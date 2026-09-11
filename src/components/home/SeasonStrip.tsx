@@ -26,7 +26,7 @@ export function SeasonStrip({
   favoriteDriver,
   favoriteTeam,
   circuitImageByRound = {},
-  calendarEntry = null,
+  calendarByRound = {},
   weatherByRound = {},
 }: {
   races: RaceDoc[];
@@ -36,10 +36,10 @@ export function SeasonStrip({
   /** Archive-circuit fallback image per round (resolved once, server-side, in page.tsx) - the
    * second tier of the image fallback chain, behind the round's own real `photoUrl`. */
   circuitImageByRound?: Record<number, string | null>;
-  /** Real session-schedule data for `nextRaceRound` specifically - the only round this is ever
-   * fetched for (page.tsx only calls getCalendarEntry once, for the upcoming race), so it's only
-   * ever passed through to the "this weekend" branch below, never a different selected round. */
-  calendarEntry?: CalendarEntry | null;
+  /** Real session-schedule data for EVERY round (page.tsx's getCalendarEntriesByYear, keyed by
+   * round) - not just nextRace, so any round the navigator selects gets its own real FP1/FP2/FP3/
+   * Q/R (or sprint-weekend equivalent) schedule, not just "this weekend"'s. */
+  calendarByRound?: Record<number, CalendarEntry | undefined>;
   /** Real per-round weather (calendar.weather_forecast) - only ever populated for a round still
    * ahead of "now" (see the field's own comment in homeData.ts), so this naturally never shows
    * for a completed round - not filtered here, the underlying data already isn't there. */
@@ -162,7 +162,7 @@ export function SeasonStrip({
             favoriteDriver={favoriteDriver}
             favoriteTeam={favoriteTeam}
             fallbackImageUrl={circuitImageByRound[selected.round] ?? null}
-            calendarEntry={selected.round === nextRaceRound ? calendarEntry : null}
+            calendarEntry={calendarByRound[selected.round] ?? null}
             weather={weatherByRound[selected.round] ?? null}
           />
         </motion.div>
@@ -188,11 +188,10 @@ function FeaturedRound({
   calendarEntry: CalendarEntry | null;
   weather: WeatherForecast | null;
 }) {
-  // Adaptive content density: the image is a real visual moment for a round with substantive text
-  // alongside it (completed results, or this weekend's prediction CTA) - the plain "not yet raced"
-  // branch has the least real content to justify one, so it stays text-only rather than pairing a
-  // photo with an almost-empty body.
-  const showImageSlot = race.status === "completed" || isHere;
+  // Every round gets a real image slot now, not just completed/"this weekend" ones - a far-future
+  // round used to stay text-only on the theory it had "the least real content to justify one," but
+  // the fallback chain below already guarantees a real, meaningful image (or an honest abstract
+  // treatment) regardless of how much text sits next to it, so there's no reason to withhold it.
   // Fallback chain: the round's own real photo first, then the resolved archive-circuit photo
   // (page.tsx's circuitImageByRound, itself already alias-resolved via resolveCurrentCircuitToArchiveId),
   // then (only when both are genuinely absent - a confirmed gap, e.g. Miami/Vegas/Qatar pre-race)
@@ -201,15 +200,14 @@ function FeaturedRound({
 
   return (
     <div>
-      {showImageSlot &&
-        (resolvedImageUrl ? (
-          <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
-            <Image src={resolvedImageUrl} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
-          </div>
-        ) : (
-          <CircuitTextureFallback />
-        ))}
+      {resolvedImageUrl ? (
+        <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
+          <Image src={resolvedImageUrl} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
+        </div>
+      ) : (
+        <CircuitTextureFallback />
+      )}
 
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -226,15 +224,8 @@ function FeaturedRound({
         <div className="mt-3">
           {race.status === "completed" ? (
             <CompletedRoundDetail race={race} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} />
-          ) : isHere ? (
-            <ThisWeekendDetail race={race} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} calendarEntry={calendarEntry} />
           ) : (
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-neutral-500">Not yet raced.</p>
-              <Link href={circuitHref(race.circuit)} className="text-xs font-medium text-neutral-400 hover:text-white">
-                Circuit history →
-              </Link>
-            </div>
+            <UpcomingRoundDetail race={race} isHere={isHere} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} calendarEntry={calendarEntry} />
           )}
         </div>
       </div>
@@ -345,13 +336,18 @@ function CompletedRoundDetail({
   );
 }
 
-function ThisWeekendDetail({
+/** Every not-yet-completed round, "this weekend" or further out - both get the same real weekend
+ * schedule (FP1/FP2/FP3/Q/R, sprint-aware, straight from calendar.sessions) and circuit-history
+ * link now; only the headline copy and the prediction CTA are specific to the imminent one. */
+function UpcomingRoundDetail({
   race,
+  isHere,
   favoriteDriver,
   favoriteTeam,
   calendarEntry,
 }: {
   race: RaceDoc;
+  isHere: boolean;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
   calendarEntry: CalendarEntry | null;
@@ -361,20 +357,23 @@ function ThisWeekendDetail({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-neutral-300">
-          This weekend{who ? `, make your ${who} prediction` : ""} before lights out.
+          {isHere ? `This weekend${who ? `, make your ${who} prediction` : ""} before lights out.` : "Not yet raced."}
         </p>
-        <Link
-          href={raceHref(race.year, race.round, race.name)}
-          className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
-        >
-          Make Prediction →
-        </Link>
+        {isHere && (
+          <Link
+            href={raceHref(race.year, race.round, race.name)}
+            className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+          >
+            Make Prediction →
+          </Link>
+        )}
       </div>
 
       {/* Real weekend schedule, sprint-aware - reuses RaceReadiness (already mounted in the hero)
        * rather than a second hand-built session list; existence comes straight from
        * calendarEntry.sessions, so a conventional weekend never shows a fabricated Sprint step and
-       * a sprint weekend shows exactly its own real session set. */}
+       * a sprint weekend shows exactly its own real session set. Available for ANY upcoming round
+       * now (calendarByRound covers the whole season), not just the immediate next one. */}
       {calendarEntry && calendarEntry.sessions.length > 0 && (
         <div className="overflow-x-auto pt-1">
           <RaceReadiness calendarEntry={calendarEntry} race={race} />

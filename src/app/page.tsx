@@ -38,7 +38,15 @@ export default async function HomePage() {
   // meaningless) - keyed once here, same "resolve every round up front, not per card" pattern
   // circuitImageByRound already uses.
   const weatherByRound: Record<number, WeatherForecast | null> = {};
-  for (const entry of calendarEntries) weatherByRound[entry.round] = entry.weatherForecast;
+  // The full season's real session schedule, keyed by round - not just nextRace's (that's what
+  // `calendarEntry` below still is, for the hero's own RaceReadiness) - so SeasonStrip's featured
+  // panel can show a real FP1/FP2/FP3/Q/R (or sprint) schedule for ANY round the navigator selects,
+  // not only "this weekend"'s.
+  const calendarByRound: Record<number, (typeof calendarEntries)[number] | undefined> = {};
+  for (const entry of calendarEntries) {
+    weatherByRound[entry.round] = entry.weatherForecast;
+    calendarByRound[entry.round] = entry;
+  }
 
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
@@ -130,6 +138,7 @@ export default async function HomePage() {
     trackHistory: trackHistoryWithFavorites,
     seasonRecap,
     circuitImageByRound,
+    calendarByRound,
     weatherByRound,
     currentDrivers,
     predictionInsight,
