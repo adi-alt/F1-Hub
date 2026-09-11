@@ -61,20 +61,23 @@ export function RaceIntelligencePanel({
       className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6"
     >
       {trackHistory.circuitImageUrl && (
-        // Real circuit diagrams vary a lot in aspect ratio (confirmed: Monza is ~1:1, Jeddah is
-        // ~2:1) - object-contain always fits within whichever of width/height is the tighter
-        // constraint, so the old h-14 (56px) cap was the actual bug: at that height every one of
-        // them rendered far narrower than the panel's real width, regardless of shape. Raised to
-        // h-28 (112px) so a wide diagram now genuinely fills most of the available width, and a
-        // square one reads as a real logo instead of a small icon - still never stretched/cropped.
-        <div className="mb-3 flex justify-center border-b border-white/[0.06] pb-3">
-          <Image
-            src={trackHistory.circuitImageUrl}
-            alt={circuitName}
-            width={320}
-            height={112}
-            className="h-28 w-auto max-w-full object-contain opacity-75 transition hover:opacity-100"
-          />
+        <div className="mb-3 border-b border-white/[0.06] pb-3">
+          {/* Fills the full width and a fixed height with zero empty space around it -
+           * `object-cover` scales the image UNIFORMLY (so it's never warped/stretched
+           * out of proportion) and crops whatever doesn't fit, instead of `object-contain`'s
+           * letterboxing - real circuit diagrams vary widely in aspect ratio (confirmed:
+           * Monza ~1:1, Jeddah ~2:1), so a "no gaps" requirement inherently means some of a
+           * very square or very wide one gets cropped at the edges; that's the deliberate
+           * trade-off this asks for, not a bug. */}
+          <div className="relative h-28 w-full overflow-hidden rounded-lg">
+            <Image
+              src={trackHistory.circuitImageUrl}
+              alt={circuitName}
+              fill
+              sizes="(min-width: 640px) 360px, 100vw"
+              className="object-cover opacity-75 transition hover:opacity-100"
+            />
+          </div>
         </div>
       )}
 
