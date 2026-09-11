@@ -8,7 +8,7 @@ import { RaceReadiness } from "./RaceReadiness";
 import { formatLapTime, raceStatusLabel, trackShortForm } from "@/lib/format";
 import type { FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { circuitHref, raceHref } from "@/lib/routes";
-import type { CalendarEntry } from "@/lib/supabase/calendar";
+import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
 
 /** The season timeline, redesigned as a minimal round-navigator strip + one larger featured-round
@@ -27,6 +27,7 @@ export function SeasonStrip({
   favoriteTeam,
   circuitImageByRound = {},
   calendarEntry = null,
+  weatherByRound = {},
 }: {
   races: RaceDoc[];
   nextRaceRound?: number | null;
@@ -39,6 +40,10 @@ export function SeasonStrip({
    * fetched for (page.tsx only calls getCalendarEntry once, for the upcoming race), so it's only
    * ever passed through to the "this weekend" branch below, never a different selected round. */
   calendarEntry?: CalendarEntry | null;
+  /** Real per-round weather (calendar.weather_forecast) - only ever populated for a round still
+   * ahead of "now" (see the field's own comment in homeData.ts), so this naturally never shows
+   * for a completed round - not filtered here, the underlying data already isn't there. */
+  weatherByRound?: Record<number, WeatherForecast | null>;
 }) {
   const [selectedRound, setSelectedRound] = useState<number | null>(
     () => nextRaceRound ?? [...races].reverse().find((r) => r.status === "completed")?.round ?? races[0]?.round ?? null,
@@ -158,6 +163,7 @@ export function SeasonStrip({
             favoriteTeam={favoriteTeam}
             fallbackImageUrl={circuitImageByRound[selected.round] ?? null}
             calendarEntry={selected.round === nextRaceRound ? calendarEntry : null}
+            weather={weatherByRound[selected.round] ?? null}
           />
         </motion.div>
       )}
@@ -172,6 +178,7 @@ function FeaturedRound({
   favoriteTeam,
   fallbackImageUrl,
   calendarEntry,
+  weather,
 }: {
   race: RaceDoc;
   isHere: boolean;
@@ -179,6 +186,7 @@ function FeaturedRound({
   favoriteTeam: FavoriteTeamCard | null;
   fallbackImageUrl: string | null;
   calendarEntry: CalendarEntry | null;
+  weather: WeatherForecast | null;
 }) {
   // Adaptive content density: the image is a real visual moment for a round with substantive text
   // alongside it (completed results, or this weekend's prediction CTA) - the plain "not yet raced"
@@ -209,7 +217,10 @@ function FeaturedRound({
             <p className="font-mono text-[11px] text-neutral-500">Round {race.round}</p>
             <p className="text-base font-semibold text-white">{race.name}</p>
           </div>
-          <p className="text-xs text-neutral-400">{raceStatusLabel(race)}</p>
+          <div className="flex items-center gap-2">
+            {weather && <WeatherChip forecast={weather} />}
+            <p className="text-xs text-neutral-400">{raceStatusLabel(race)}</p>
+          </div>
         </div>
 
         <div className="mt-3">
@@ -228,6 +239,21 @@ function FeaturedRound({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A compact, designed chip - real air temperature + rain chance from calendar.weather_forecast,
+ * never raw JSON on screen. Rounded to whole numbers (a forecast was never precise to a decimal
+ * anyway) and the rain-chance clause only appears when it's actually non-trivial, so a dry
+ * forecast doesn't clutter the chip with "· 0% rain". */
+function WeatherChip({ forecast }: { forecast: WeatherForecast }) {
+  const temp = Math.round(forecast.airTempC);
+  const rainPct = Math.round(forecast.rainProbability * 100);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-neutral-300">
+      <span className="font-medium text-neutral-200">{temp}°C</span>
+      {rainPct >= 10 && <span className="text-neutral-500">· {rainPct}% rain</span>}
+    </span>
   );
 }
 

@@ -8,6 +8,7 @@ import { ApexIntelligenceWorkspace, ApexIntelligenceWorkspaceSkeleton } from "./
 import { AIvsYou, AIvsYouSkeleton } from "./ai/AIvsYou";
 import { PredictionIntelligence, PredictionIntelligenceSkeleton } from "./ai/PredictionIntelligence";
 import { SinceLastVisit } from "./ai/SinceLastVisit";
+import type { PredictionInsight } from "@/lib/personalization";
 import type { LatestPredictionSummary, PredictionPerformance as PredictionPerformanceData, PredictionStyleTrait } from "@/lib/predictionPerformance";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -23,6 +24,7 @@ export function IntelligenceSection({
   nextRace,
   performance,
   latestPrediction,
+  predictionInsight,
   styleTraits,
   apexActiveTab,
   onApexTabChange,
@@ -31,6 +33,7 @@ export function IntelligenceSection({
   nextRace: RaceDoc | null;
   performance: PredictionPerformanceData;
   latestPrediction: LatestPredictionSummary | null;
+  predictionInsight: PredictionInsight | null;
   styleTraits: PredictionStyleTrait[];
   apexActiveTab: string;
   onApexTabChange: (key: string) => void;
@@ -90,7 +93,9 @@ export function IntelligenceSection({
       {/* Prediction Intelligence (only with real prediction activity) - one consolidated card
        * instead of two near-identical shells, covering latest call/model comparison/outcome/
        * accuracy/style traits in one story. */}
-      {hasPredictionIntel && <PredictionIntelligence performance={performance} latestPrediction={latestPrediction} styleTraits={styleTraits} />}
+      {hasPredictionIntel && (
+        <PredictionIntelligence performance={performance} latestPrediction={latestPrediction} insight={predictionInsight} styleTraits={styleTraits} />
+      )}
     </section>
   );
 }

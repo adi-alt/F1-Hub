@@ -5,7 +5,6 @@ import { CommunitySection, CommunitySectionSkeleton } from "./CommunitySection";
 import { HomeLayout } from "./HomeLayout";
 import { IntelligenceSection, IntelligenceSkeleton } from "./IntelligenceSection";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
-import { RecentActivity, RecentActivitySkeleton } from "./RecentActivity";
 import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
 import { YourF1Radar } from "./YourF1Radar";
@@ -118,6 +117,7 @@ function PersonalHomeInner({
                 nextRace={publicData.nextRace}
                 performance={personalData.predictionPerformance}
                 latestPrediction={personalData.latestPrediction}
+                predictionInsight={publicData.predictionInsight}
                 styleTraits={personalData.styleTraits}
                 apexActiveTab={apexActiveTab}
                 onApexTabChange={setApexActiveTab}
@@ -135,12 +135,6 @@ function PersonalHomeInner({
             ),
           },
           {
-            // Secondary, lowest-priority, often near-empty for a light-activity account - sits
-            // close to what follows instead of floating in the same gap as a major section.
-            tier: "compact",
-            content: <RecentActivity entries={personalData.recentActivity} />,
-          },
-          {
             tier: "major",
             content: (
               <SeasonRecap
@@ -153,6 +147,7 @@ function PersonalHomeInner({
                 favoriteTeam={personalData.favoriteTeam}
                 circuitImageByRound={publicData.circuitImageByRound}
                 calendarEntry={publicData.calendarEntry}
+                weatherByRound={publicData.weatherByRound}
               />
             ),
           },
@@ -203,7 +198,6 @@ export function PersonalHomeSkeleton() {
         { tier: "normal", content: <PersonalOverviewSkeleton /> },
         { tier: "major", content: <IntelligenceSkeleton /> },
         { tier: "normal", content: <CommunitySectionSkeleton /> },
-        { tier: "compact", content: <RecentActivitySkeleton /> },
         { tier: "major", content: <SeasonRecapSkeleton /> },
       ]}
     />

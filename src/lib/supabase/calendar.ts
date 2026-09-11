@@ -24,6 +24,10 @@ export type CalendarEntry = {
   sessions: CalendarSession[];
   weatherForecast: WeatherForecast | null;
   raceDate: string | null;
+  /** Calendar-level lifecycle state (sync_calendar.py: "completed" once race_date has passed, else
+   * "upcoming") - the same completed/upcoming distinction RaceDoc.status already carries once a
+   * `races` row exists, just available for a round that doesn't have one yet. */
+  status: "completed" | "upcoming" | null;
 };
 
 type CalendarRow = {
@@ -36,6 +40,7 @@ type CalendarRow = {
   sessions: CalendarSession[] | null;
   weather_forecast: WeatherForecast | null;
   race_date: string | null;
+  status: string | null;
 };
 
 function fromRow(row: CalendarRow): CalendarEntry {
@@ -49,6 +54,7 @@ function fromRow(row: CalendarRow): CalendarEntry {
     sessions: row.sessions ?? [],
     weatherForecast: row.weather_forecast,
     raceDate: row.race_date,
+    status: row.status === "completed" || row.status === "upcoming" ? row.status : null,
   };
 }
 

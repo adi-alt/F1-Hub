@@ -3,9 +3,61 @@
 import { motion } from "framer-motion";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { PredictionInsight } from "@/lib/personalization";
 import { MIN_PREDICTIONS_FOR_TREND, type LatestPredictionSummary, type PredictionPerformance, type PredictionStyleTrait } from "@/lib/predictionPerformance";
 
 const RESULT_LABEL: Record<string, string> = { winner: "Nailed it", partial: "Partial hit", miss: "Missed" };
+
+/** One compact real-data justification block for the latest call - "why this pick", not an
+ * invented confidence score. Track record is archive-wide (every year this driver has raced this
+ * exact circuit), season form is this year's real standing, and the sentiment badge/sentence is
+ * derived purely from comparing the pick to the model's own top choice and the championship
+ * leader (see buildPredictionInsight) - the two real, defensible axes available, never a
+ * fabricated percentage. Any stat that doesn't exist (no circuit history, unclassified standing)
+ * is omitted rather than shown as a zero. */
+function PredictionInsightBlock({ insight }: { insight: PredictionInsight }) {
+  const track = insight.trackStats;
+  const hasSeasonForm = insight.seasonRank != null;
+  const hasTrackHistory = !!track && track.appearances > 0;
+
+  return (
+    <div className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium text-white">Why {insight.driverName}?</p>
+        <span className="rounded-md bg-[var(--f1-red)] px-2 py-0.5 text-[10px] font-semibold text-white">{insight.sentiment}</span>
+      </div>
+
+      {(hasSeasonForm || hasTrackHistory) && (
+        <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-neutral-400">
+          {hasSeasonForm && (
+            <span>
+              <span className="text-neutral-500">This season: </span>
+              <span className="font-medium text-neutral-200">
+                P{insight.seasonRank} · {insight.seasonPoints} pts
+                {insight.seasonWins ? ` · ${insight.seasonWins} win${insight.seasonWins === 1 ? "" : "s"}` : ""}
+              </span>
+            </span>
+          )}
+          {hasTrackHistory && (
+            <span>
+              <span className="text-neutral-500">At {insight.circuitLabel}: </span>
+              <span className="font-medium text-neutral-200">
+                {track!.wins > 0
+                  ? `${track!.wins} win${track!.wins === 1 ? "" : "s"}`
+                  : track!.bestFinish != null
+                    ? `best P${track!.bestFinish}`
+                    : "no podium yet"}
+                {` in ${track!.appearances} start${track!.appearances === 1 ? "" : "s"}`}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
+      <p className="mt-2 text-xs leading-relaxed text-neutral-300">{insight.sentimentDetail}</p>
+    </div>
+  );
+}
 
 /** Consolidates what used to be two near-identical hand-rolled card shells (PredictionCoach +
  * PredictionFingerprint, differing only by an accent dot color) into one real story: your latest
@@ -17,10 +69,14 @@ const RESULT_LABEL: Record<string, string> = { winner: "Nailed it", partial: "Pa
 export function PredictionIntelligence({
   performance,
   latestPrediction,
+  insight,
   styleTraits,
 }: {
   performance: PredictionPerformance;
   latestPrediction: LatestPredictionSummary | null;
+  /** Real "why this pick" grounding for latestPrediction specifically - null only when there's no
+   * submitted prediction at all (see buildPredictionInsight); never fabricated. */
+  insight: PredictionInsight | null;
   styleTraits: PredictionStyleTrait[];
 }) {
   const { intelligence, isLoading } = useHomepageIntelligence();
@@ -84,6 +140,8 @@ export function PredictionIntelligence({
         </div>
       )}
 
+      {latestPrediction && isSparse && insight && <PredictionInsightBlock insight={insight} />}
+
       {latestPrediction && !isSparse && (
         <div className="mt-4 space-y-1.5 border-l-2 border-white/10 pl-4 text-sm">
           <p className="text-[10px] uppercase tracking-wide text-neutral-500">
@@ -113,6 +171,8 @@ export function PredictionIntelligence({
           )}
         </div>
       )}
+
+      {latestPrediction && !isSparse && insight && <PredictionInsightBlock insight={insight} />}
 
       {showAccuracy && (
         <div className="mt-4 grid grid-cols-3 gap-4 border-t border-white/[0.06] pt-4 text-center">

@@ -89,6 +89,13 @@ def sync_year(conn, cur, year: int):
                     circuit_records, event_name, location, year, round_num, race_date
                 )
 
+        # A simple, always-derivable lifecycle state - "has this event's race already happened",
+        # not a richer "confirmed/provisional" schedule flag (FastF1's schedule doesn't expose one
+        # cleanly). RaceDoc.status already covers the exact same completed/upcoming/scheduled
+        # distinction once a `races` row exists (see races.ts's toCalendarPlaceholder) - this is
+        # the calendar-only equivalent, available even before that row does.
+        status = "completed" if race_date_str and datetime.fromisoformat(race_date_str).replace(tzinfo=timezone.utc) <= now else "upcoming"
+
         rows.append(
             {
                 "id": row_id,
@@ -103,6 +110,7 @@ def sync_year(conn, cur, year: int):
                 # in N days" sorting/display doesn't need to dig into the sessions list.
                 "race_date": race_date_str,
                 "weather_forecast": json.dumps(weather_forecast) if weather_forecast else None,
+                "status": status,
             }
         )
         print(f"  {row_id}: {len(sessions)} sessions, race={race_date_str}, forecast={weather_forecast}")

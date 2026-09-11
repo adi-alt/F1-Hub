@@ -19,11 +19,12 @@ import {
   type Fact,
   type FavoriteDriverCard,
   type FavoriteTeamCard,
+  type PredictionInsight,
   type SeasonRecap,
   type TrackHistory,
 } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
-import type { CalendarEntry } from "@/lib/supabase/calendar";
+import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
 import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
@@ -50,9 +51,17 @@ export type PublicHomeData = {
    * fallback tier when a round has no real `photoUrl` yet of its own. Null for a round whose
    * circuit genuinely has no archive image (Miami/Vegas/Qatar, pre-race). */
   circuitImageByRound: Record<number, string | null>;
+  /** Real per-round weather (calendar.weather_forecast) - only ever populated for a round still
+   * ahead of "now" (a forecast for an already-run race is meaningless, see sync_calendar.py's own
+   * comment) - null for a completed round, or one FastF1's schedule hasn't reached yet. */
+  weatherByRound: Record<number, WeatherForecast | null>;
   /** The current-season roster, `.team`-keyed - lets YourF1's favorite switcher resolve "this
    * team's current drivers" for the team-form view without a second favorites-shaped fetch. */
   currentDrivers: CurrentDriver[];
+  /** "Why this pick" grounding for Prediction Intelligence - null with no submitted prediction at
+   * all. Lives here (not on PersonalHomeData) for the same reason facts/seasonRecap do: it's a
+   * page.tsx-level computation combining public standings with one personal input. */
+  predictionInsight: PredictionInsight | null;
 };
 
 // A homepage teaser, not a second Groups feed — same cap FavoritesSection/GroupsPreview already

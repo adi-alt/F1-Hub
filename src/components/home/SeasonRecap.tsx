@@ -3,7 +3,7 @@ import { SeasonStrip } from "./SeasonStrip";
 import { chart } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { FavoriteDriverCard, FavoriteTeamCard, SeasonRecap as SeasonRecapData } from "@/lib/personalization";
-import type { CalendarEntry } from "@/lib/supabase/calendar";
+import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
 
 // Season Recap is a narrative summary, not a second detailed dashboard - a favorite's full stats/
@@ -37,6 +37,7 @@ export function SeasonRecap({
   favoriteTeam,
   circuitImageByRound,
   calendarEntry,
+  weatherByRound,
 }: {
   year: number;
   races: RaceDoc[];
@@ -49,6 +50,9 @@ export function SeasonRecap({
   /** Real session-schedule data for the upcoming race, threaded through to SeasonStrip's "this
    * weekend" branch - see that component's own comment on why it's only ever for one round. */
   calendarEntry?: CalendarEntry | null;
+  /** Real per-round weather forecast (calendar.weather_forecast), only ever populated for a round
+   * still ahead of "now" - null for completed rounds and rounds the schedule hasn't reached yet. */
+  weatherByRound?: Record<number, WeatherForecast | null>;
 }) {
   const driverRanksLine = formatFavoriteRanks(recap.favoriteDriverRanks);
   const teamRanksLine = formatFavoriteRanks(recap.favoriteTeamRanks);
@@ -63,7 +67,7 @@ export function SeasonRecap({
           <p className="text-xs text-neutral-500">Season preparation</p>
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40">
+        <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40">
           <div className="p-5 sm:p-6">
             <p className="border-l-2 border-white/10 pl-5 text-sm text-neutral-400 sm:pl-6">
               The season hasn&apos;t started yet. Check back once the first race is completed.
@@ -82,6 +86,7 @@ export function SeasonRecap({
               favoriteTeam={favoriteTeam}
               circuitImageByRound={circuitImageByRound ?? {}}
               calendarEntry={calendarEntry}
+              weatherByRound={weatherByRound ?? {}}
             />
           </div>
         </div>
@@ -104,7 +109,7 @@ export function SeasonRecap({
        * one outer border, an internal divider between the two regions instead of a page-level gap
        * (see the internal border-t convention already used inside PredictionIntelligence.tsx /
        * ApexIntelligenceWorkspace.tsx for their own sub-sections). */}
-      <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40">
+      <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40">
         <div className="grid gap-6 p-5 sm:grid-cols-2 sm:p-6">
           <div className="space-y-3 border-l-2 border-white/10 pl-5 text-sm sm:pl-6">
             {recap.driverLeader && (
@@ -175,6 +180,7 @@ export function SeasonRecap({
             favoriteTeam={favoriteTeam}
             circuitImageByRound={circuitImageByRound ?? {}}
             calendarEntry={calendarEntry}
+            weatherByRound={weatherByRound ?? {}}
           />
         </div>
       </div>

@@ -5,7 +5,7 @@
 // not folded into lib/supabase/* — same role src/lib/highlights.ts and predictionAccuracy.ts
 // already have: a derived view-model layer on top of the data layer, not a data source itself.
 
-import { getArchiveCircuit, getArchiveDriver, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
+import { getArchiveCircuit, getArchiveDriver, getArchiveDriverIdsByCode, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
 import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
@@ -639,5 +639,81 @@ export function buildSeasonRecap(
     favoriteDriverGapToLeader: favoriteDriverStanding && driverLeader ? driverLeader.points - favoriteDriverStanding.points : null,
     favoriteDriverRanks,
     favoriteTeamRanks,
+  };
+}
+
+export type PredictionInsight = {
+  driverCode: string;
+  driverName: string;
+  /** Where this prediction was for, for the "on this track" framing - the human-readable circuit
+   * label the race itself carries, not a resolved archive id. */
+  circuitLabel: string;
+  seasonRank: number | null;
+  seasonPoints: number | null;
+  seasonWins: number | null;
+  seasonPodiums: number | null;
+  /** Archive-wide (every year, not just this season) circuit history for the predicted driver -
+   * null when the circuit doesn't resolve to an archive id, or the driver has never appeared
+   * there (never a fabricated zero-value row). */
+  trackStats: DriverCircuitStats | null;
+  /** A short, real-comparison-grounded read - never an invented confidence percentage. Derived
+   * purely from how the pick compares to the model's own top choice and the championship leader. */
+  sentiment: string;
+  sentimentDetail: string;
+};
+
+/** Grounds "why did I pick this driver" in real data instead of an invented confidence score: their
+ * archive-wide history at this exact circuit, their current championship standing, and how the
+ * pick compares against the F1 Hub Model's own top choice and the championship leader - the two
+ * real, defensible axes a "bold vs safe" read can come from. Circuit stats are simply omitted (not
+ * zeroed) when the archive doesn't resolve a circuit or this driver's never raced there. */
+export async function buildPredictionInsight(
+  predictedWinnerCode: string,
+  circuitLabel: string,
+  circuitId: string | null,
+  standings: SeasonStandings,
+  modelWinnerCode: string | null,
+): Promise<PredictionInsight> {
+  const idMap = await getArchiveDriverIdsByCode([predictedWinnerCode]);
+  const archiveDriverId = idMap.get(predictedWinnerCode) ?? null;
+  const trackStats = archiveDriverId && circuitId ? await getDriverCircuitStats(archiveDriverId, circuitId) : null;
+
+  const rankIndex = standings.drivers.findIndex((d) => d.driver === predictedWinnerCode);
+  const standing = rankIndex >= 0 ? standings.drivers[rankIndex] : null;
+  const driverName = standing?.driverName ?? trackStats?.driverName ?? predictedWinnerCode;
+  const leaderCode = standings.drivers[0]?.driver ?? null;
+
+  const matchesModel = !!modelWinnerCode && modelWinnerCode === predictedWinnerCode;
+  const matchesLeader = !!leaderCode && leaderCode === predictedWinnerCode;
+  let sentiment: string;
+  let sentimentDetail: string;
+  if (matchesModel && matchesLeader) {
+    sentiment = "Model-backed favorite";
+    sentimentDetail = `${driverName} leads the championship and is also the F1 Hub Model's own top pick here, a low-risk call.`;
+  } else if (matchesModel) {
+    sentiment = "Model agrees";
+    sentimentDetail = `The F1 Hub Model also has ${driverName} on top for this race.`;
+  } else if (matchesLeader) {
+    sentiment = "Backing the leader";
+    sentimentDetail = `${driverName} leads the championship, though the model favors someone else here.`;
+  } else if (rankIndex >= 0 && rankIndex >= 5) {
+    sentiment = "Bold call";
+    sentimentDetail = `${driverName} sits P${rankIndex + 1} in the championship and isn't the model's pick here either, a real underdog call.`;
+  } else {
+    sentiment = "Contrarian pick";
+    sentimentDetail = `${driverName} isn't the model's top pick or the championship leader for this one.`;
+  }
+
+  return {
+    driverCode: predictedWinnerCode,
+    driverName,
+    circuitLabel,
+    seasonRank: rankIndex >= 0 ? rankIndex + 1 : null,
+    seasonPoints: standing?.points ?? null,
+    seasonWins: standing?.wins ?? null,
+    seasonPodiums: standing?.podiums ?? null,
+    trackStats,
+    sentiment,
+    sentimentDetail,
   };
 }

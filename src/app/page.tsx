@@ -1,10 +1,11 @@
 import { HomeShell } from "@/components/home/HomeShell";
 import { OnboardingTour } from "@/components/home/OnboardingTour";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
+import { trackShortForm } from "@/lib/format";
 import { getPersonalHomeData } from "@/lib/homeData";
-import { buildFacts, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
+import { buildFacts, buildPredictionInsight, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
-import { getCalendarEntry } from "@/lib/supabase/calendar";
+import { getCalendarEntriesByYear, getCalendarEntry, type WeatherForecast } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
@@ -24,12 +25,20 @@ export default async function HomePage() {
   // listPublicGroups() here anymore - the logged-out homepage no longer has a group-discovery
   // section (joining a group needs an account anyway), and the signed-in one gets its own groups
   // from getPersonalHomeData below, not this fetch.
-  const [nextRace, races, archiveCircuits, currentDrivers] = await Promise.all([
+  const [nextRace, races, archiveCircuits, currentDrivers, calendarEntries] = await Promise.all([
     getNextUpcomingRace(year),
     getRacesByYear(year),
     getAllArchiveCircuits(),
     getAllCurrentDrivers(),
+    getCalendarEntriesByYear(year),
   ]);
+
+  // Real per-round weather (calendar's own field, only ever populated for a round still ahead of
+  // "now" - see sync_calendar.py's own comment on why a forecast for an already-run race is
+  // meaningless) - keyed once here, same "resolve every round up front, not per card" pattern
+  // circuitImageByRound already uses.
+  const weatherByRound: Record<number, WeatherForecast | null> = {};
+  for (const entry of calendarEntries) weatherByRound[entry.round] = entry.weatherForecast;
 
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
@@ -70,6 +79,28 @@ export default async function HomePage() {
         })
       : trackHistory;
 
+  // Prediction Intelligence's "why this pick" grounding - real archive circuit history + season
+  // standing for the SPECIFIC driver the user actually predicted (not their favorite - a pick can
+  // easily be for someone else entirely), plus how that pick compares to the model's own top
+  // choice (already resolved onto latestPrediction.modelWinner) and the championship leader.
+  // Lives on publicData (not personalData) matching facts/seasonRecap's own precedent just below -
+  // both are page.tsx-level computations combining public standings with a personal input.
+  let predictionInsight = null;
+  if (personalData?.latestPrediction) {
+    const latestPrediction = personalData.latestPrediction;
+    const predictionRace = races.find((r) => r.id === latestPrediction.raceId);
+    const predictionCircuitId = predictionRace
+      ? resolveCurrentCircuitToArchiveId(predictionRace.circuit, circuitLocalities, circuitIdsByName)
+      : null;
+    predictionInsight = await buildPredictionInsight(
+      latestPrediction.predictedWinner,
+      predictionRace ? trackShortForm(predictionRace.circuit) : "this circuit",
+      predictionCircuitId,
+      standings,
+      latestPrediction.modelWinner,
+    );
+  }
+
   const facts = buildFacts(year, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null, trackHistoryWithFavorites);
   const seasonRecap = buildSeasonRecap(
     races,
@@ -99,7 +130,9 @@ export default async function HomePage() {
     trackHistory: trackHistoryWithFavorites,
     seasonRecap,
     circuitImageByRound,
+    weatherByRound,
     currentDrivers,
+    predictionInsight,
   };
 
   return (

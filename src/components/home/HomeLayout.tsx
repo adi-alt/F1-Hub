@@ -4,8 +4,8 @@ import { RotatingBackdrop } from "./RotatingBackdrop";
 export type SectionTier = "major" | "normal" | "compact";
 
 // Content-aware vertical rhythm, replacing one uniform gap: a genuinely sparse section (the thin
-// YourF1Radar rail, a light-activity RecentActivity) shouldn't float in the same large gap as a
-// dense, multi-part one (IntelligenceSection, SeasonRecap) - see the redesign plan's own rationale.
+// YourF1Radar rail) shouldn't float in the same large gap as a dense, multi-part one
+// (IntelligenceSection, SeasonRecap) - see the redesign plan's own rationale.
 const TIER_GAP: Record<SectionTier, string> = { major: "mt-12", normal: "mt-9", compact: "mt-5" };
 
 /** The one full-bleed backdrop + 80vw content column shared by Public/Personal home — same shape
