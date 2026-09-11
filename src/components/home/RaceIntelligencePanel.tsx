@@ -61,13 +61,19 @@ export function RaceIntelligencePanel({
       className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6"
     >
       {trackHistory.circuitImageUrl && (
+        // Real circuit diagrams vary a lot in aspect ratio (confirmed: Monza is ~1:1, Jeddah is
+        // ~2:1) - object-contain always fits within whichever of width/height is the tighter
+        // constraint, so the old h-14 (56px) cap was the actual bug: at that height every one of
+        // them rendered far narrower than the panel's real width, regardless of shape. Raised to
+        // h-28 (112px) so a wide diagram now genuinely fills most of the available width, and a
+        // square one reads as a real logo instead of a small icon - still never stretched/cropped.
         <div className="mb-3 flex justify-center border-b border-white/[0.06] pb-3">
           <Image
             src={trackHistory.circuitImageUrl}
             alt={circuitName}
-            width={160}
-            height={56}
-            className="h-14 w-auto max-w-full object-contain opacity-75 transition hover:opacity-100"
+            width={320}
+            height={112}
+            className="h-28 w-auto max-w-full object-contain opacity-75 transition hover:opacity-100"
           />
         </div>
       )}
