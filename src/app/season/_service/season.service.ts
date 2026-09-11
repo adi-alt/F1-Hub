@@ -670,7 +670,7 @@ export type PositionChange = {
 export function computePositionChanges(
   currentDrivers: DriverStandingRow[],
   currentConstructors: ConstructorStandingRow[],
-  progression: Record<string, number | string>[]
+  progression: Record<string, number | string | null>[]
 ): { drivers: PositionChange[], constructors: PositionChange[] } {
   // progression is an array of objects per round. We need the second-to-last completed round
   const result = { drivers: [] as PositionChange[], constructors: [] as PositionChange[] };
