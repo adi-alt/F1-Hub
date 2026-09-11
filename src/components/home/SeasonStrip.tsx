@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { RaceReadiness } from "./RaceReadiness";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatLapTime, raceStatusLabel, trackShortForm } from "@/lib/format";
 import type { FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { circuitHref, raceHref } from "@/lib/routes";
@@ -201,10 +202,11 @@ function FeaturedRound({
   return (
     <div>
       {resolvedImageUrl ? (
-        <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
-          <Image src={resolvedImageUrl} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
-        </div>
+        // Keyed on the url itself: switching rounds swaps `src` on the SAME mounted component (no
+        // full remount otherwise), which wouldn't reset `loaded` on its own - a stale "already
+        // loaded" state would just leave the new image invisible under a permanently-hidden
+        // skeleton instead of showing it. Keying forces a fresh mount (fresh skeleton) per image.
+        <RoundImage key={resolvedImageUrl} src={resolvedImageUrl} />
       ) : (
         <CircuitTextureFallback />
       )}
@@ -229,6 +231,28 @@ function FeaturedRound({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A real photo shown the instant it's actually decoded, not a moment before - `next/image`
+ * doesn't block paint on load, so without this the card would show a blank/transparent gap for
+ * however long the fetch takes. The shimmer skeleton fills that exact same slot until `onLoad`
+ * fires, then the real photo fades in - never a jarring pop once it's ready. */
+function RoundImage({ src }: { src: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
+      {!loaded && <Skeleton className="skeleton-shimmer absolute inset-0" />}
+      <Image
+        src={src}
+        alt=""
+        fill
+        sizes="(min-width: 640px) 600px, 100vw"
+        className={`object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+        onLoad={() => setLoaded(true)}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
     </div>
   );
 }

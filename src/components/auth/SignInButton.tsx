@@ -2,14 +2,27 @@
 
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ProfileMenu } from "./ProfileMenu";
 
 export function SignInButton() {
   const { isAuthorized, loading } = useAuth();
   const open = useAuthDialogStore((s) => s.open);
 
+  // Shaped like the real ProfileMenu pill (avatar + name + points chip), not a generic gray box -
+  // a hard refresh most often belongs to an already-signed-in visitor (their session cookie is
+  // still valid, /api/auth/me just hasn't answered yet), so this is the shape that actually
+  // resolves into for the common case, with no layout jump when it does.
   if (loading) {
-    return <div className="h-9 w-24 animate-pulse rounded-lg bg-white/10" />;
+    return (
+      <div aria-hidden className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5">
+        <Skeleton className="skeleton-shimmer h-7 w-7 shrink-0 rounded-full" />
+        <Skeleton className="skeleton-shimmer h-3.5 w-16 rounded" />
+        <span className="border-l border-white/10 pl-2">
+          <Skeleton className="skeleton-shimmer h-3.5 w-10 rounded" />
+        </span>
+      </div>
+    );
   }
 
   // Gated on isAuthorized, not the raw Firebase user - Firebase's own auth state goes truthy the
