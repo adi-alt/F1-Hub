@@ -133,7 +133,8 @@ export function ProgressionPanel({
 
   const highlightTrack = useMemo(() => {
     if (highlightRound == null) return null;
-    return chartData.find((row) => row.round === highlightRound)?.trackShort ?? null;
+    const track = chartData.find((row) => row.round === highlightRound)?.trackShort;
+    return typeof track === "string" ? track : null;
   }, [chartData, highlightRound]);
 
   if (allCodes.length === 0) {
