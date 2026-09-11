@@ -6,22 +6,25 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/providers/AuthProvider";
+import { StarIcon, SlidersIcon, BellIcon, PencilIcon, LogOutIcon } from "@/components/icons/HomeIcons";
 
 const ITEMS = [
-  { href: "/profile?section=personalisation", label: "Personalisation" },
-  { href: "/profile/notifications", label: "Notifications" },
-  { href: "/profile/edit", label: "Edit profile" },
+  { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersIcon },
+  { href: "/profile/notifications", label: "Notifications", icon: BellIcon },
+  { href: "/profile/edit", label: "Edit profile", icon: PencilIcon },
 ];
 
-// ponytail: inline instead of pulling in an icon package for one glyph (path lifted from Lucide's
-// "star" icon - a properly regular 5-point star instead of the hand-drawn one this replaces).
-function StarIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
-      <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />
-    </svg>
-  );
-}
+// The panel's actual frosted look - a real translucent dark glass (~50% tint, not glass-surface's
+// ~93-95% opaque gradient, which reads as a flat zinc slab at this small a size) plus a strong
+// blur+saturate so blurred page color genuinely shows through. Declared once and reused by both
+// the panel and its tail via inline style + `inherit` below, so they're guaranteed to render as
+// one continuous surface rather than two independently-tuned blurs that can drift out of sync.
+const FROSTED_STYLE = {
+  backgroundColor: "rgba(22, 22, 26, 0.5)",
+  backdropFilter: "blur(32px) saturate(160%)",
+  WebkitBackdropFilter: "blur(32px) saturate(160%)",
+  borderColor: "rgba(255, 255, 255, 0.16)",
+} as const;
 
 type Rect = { top: number; right: number };
 
@@ -120,32 +123,48 @@ export function ProfileMenu() {
                 style={{ position: "fixed", top: rect.top, right: rect.right }}
                 className="z-[200] w-56"
               >
-                {/* Tail pointing back up at the trigger button - same glass tint/blur as the panel
-                    so it reads as one continuous shape, not a pasted-on triangle. */}
-                <div className="absolute -top-1.5 right-5 h-3 w-3 rotate-45 border-l border-t border-white/[0.14] bg-[rgba(31,31,36,0.95)] backdrop-blur-xl" />
-                <div className="glass-surface relative overflow-hidden rounded-xl">
-                  <nav className="p-1.5">
-                    {ITEMS.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setOpen(false)}
-                        className="block rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                {/* One shape, not two: the tail is a child of the SAME element that carries the
+                    real background/blur/border (below), and copies every one of those via CSS
+                    `inherit` rather than a hand-matched duplicate - so it can never drift out of
+                    sync with the panel, and the two read as one continuous frosted surface with
+                    no seam. It sits near the actual top-right corner (not centered) since that's
+                    where the trigger button it points back to actually is. */}
+                <div className="relative rounded-xl border shadow-2xl shadow-black/50" style={FROSTED_STYLE}>
+                  <div
+                    className="absolute -top-[7px] right-4 h-3.5 w-3.5 rotate-45 rounded-[2px] border"
+                    style={{
+                      backgroundColor: "inherit",
+                      backdropFilter: "inherit",
+                      WebkitBackdropFilter: "inherit",
+                      borderColor: "inherit",
+                    }}
+                  />
+                  <div className="relative overflow-hidden rounded-xl">
+                    <nav className="p-1.5">
+                      {ITEMS.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setOpen(false)}
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                        >
+                          <item.icon className="h-4 w-4 shrink-0 text-neutral-500" />
+                          {item.label}
+                        </Link>
+                      ))}
+                    </nav>
+                    <div className="border-t border-white/10 p-1.5">
+                      <button
+                        onClick={() => {
+                          setOpen(false);
+                          void signOut();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
                       >
-                        {item.label}
-                      </Link>
-                    ))}
-                  </nav>
-                  <div className="border-t border-white/10 p-1.5">
-                    <button
-                      onClick={() => {
-                        setOpen(false);
-                        void signOut();
-                      }}
-                      className="block w-full rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
-                    >
-                      Log out
-                    </button>
+                        <LogOutIcon className="h-4 w-4 shrink-0 text-neutral-500" />
+                        Log out
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>

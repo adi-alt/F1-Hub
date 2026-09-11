@@ -119,3 +119,41 @@ export function ArrowRightIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function SlidersIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="13.5" cy="7" r="2" />
+      <circle cx="8.5" cy="17" r="2" />
+    </svg>
+  );
+}
+
+export function BellIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 12 6 8Z" />
+      <path d="M9.5 17a2.5 2.5 0 0 0 5 0" />
+    </svg>
+  );
+}
+
+export function PencilIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 20l1-4L15.5 5.5l3 3L8 19l-4 1Z" />
+      <path d="M13.5 7l3 3" />
+    </svg>
+  );
+}
+
+export function LogOutIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+      <path d="M16 17l4-5-4-5" />
+      <path d="M20 12H9" />
+    </svg>
+  );
+}
