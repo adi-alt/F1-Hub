@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PostCard } from "@/app/groups/components/post/PostCard";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { activityDensity } from "@/lib/density";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
@@ -46,6 +47,10 @@ export function CommunitySection({
   }, [groups, searchQuery]);
   const featured = !searchQuery.trim() && filteredGroups.length > 0 && filteredGroups[0].latestPost ? filteredGroups[0] : null;
   const restGroups = featured ? filteredGroups.slice(1) : filteredGroups;
+  // Shared homepage density rule (see lib/density.ts) - a 1-3 post week gets the compact header
+  // (no subtitle line) instead of a panel chrome sized for many, matching Recent Activity/
+  // Prediction Intelligence's own sparse-state treatment instead of a fourth invented condition.
+  const postsCompact = activityDensity(posts.length) !== "full" && posts.length > 0;
 
   return (
     <section>
@@ -69,14 +74,16 @@ export function CommunitySection({
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
         {/* Left Panel: Latest Activity */}
         <div className="flex flex-col rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6 max-h-[680px]">
-          <div className="mb-4 flex items-center justify-between border-b border-white/[0.06] pb-3">
+          <div className={`flex items-center justify-between border-b border-white/[0.06] ${postsCompact ? "mb-3 pb-2" : "mb-4 pb-3"}`}>
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300">
                 Latest Community Activity
               </h3>
-              <p className="text-[11px] text-neutral-500">
-                Recent discourse and predictions from your paddock
-              </p>
+              {!postsCompact && (
+                <p className="text-[11px] text-neutral-500">
+                  Recent discourse and predictions from your paddock
+                </p>
+              )}
             </div>
             <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
               {posts.length} Active

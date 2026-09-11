@@ -45,3 +45,27 @@ export function computeChampionshipProgression(races: RaceDoc[], driverCodes: st
     };
   });
 }
+
+/** Same shape/logic as computeChampionshipProgression, grouped by `race.results[].team` instead of
+ * `.driver` - lets ChampionshipTrajectory.tsx plot a real constructor points trajectory unmodified
+ * (it only ever reads `row[seriesCode]`, never cares whether that code is a driver code or a team
+ * name). No per-round finish position here - that's a per-driver concept, and the chart's tooltip
+ * already treats a missing `${code}__finishPosition` as "nothing to show", not an error. */
+export function computeConstructorChampionshipProgression(races: RaceDoc[], teamNames: string[]): Record<string, number | string | null>[] {
+  const completed = races.filter((r) => r.status === "completed").sort((a, b) => a.round - b.round);
+
+  const running: Record<string, number> = {};
+  for (const name of teamNames) running[name] = 0;
+
+  return completed.map((race) => {
+    for (const r of race.results ?? []) {
+      if (r.team in running) running[r.team] += r.points;
+    }
+    return {
+      round: race.round,
+      raceName: race.name ?? `Round ${race.round}`,
+      trackShort: trackShortForm(race.circuit),
+      ...running,
+    };
+  });
+}

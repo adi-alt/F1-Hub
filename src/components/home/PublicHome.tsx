@@ -18,11 +18,14 @@ import type { PublicHomeData } from "@/lib/homeData";
 // zero AI network calls for anyone who isn't signed in.
 export function PublicHome({ publicData }: { publicData: PublicHomeData }) {
   return (
-    <HomeLayout photos={publicData.backdropPhotos}>
-      <RaceHero publicData={publicData} variant="public" />
-      <WhyF1Hub />
-      <ExploreSection />
-    </HomeLayout>
+    <HomeLayout
+      photos={publicData.backdropPhotos}
+      sections={[
+        { tier: "major", content: <RaceHero publicData={publicData} variant="public" /> },
+        { tier: "normal", content: <WhyF1Hub /> },
+        { tier: "normal", content: <ExploreSection /> },
+      ]}
+    />
   );
 }
 

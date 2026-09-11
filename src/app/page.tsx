@@ -5,6 +5,7 @@ import { getPersonalHomeData } from "@/lib/homeData";
 import { buildFacts, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
+import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
 
@@ -23,15 +24,33 @@ export default async function HomePage() {
   // listPublicGroups() here anymore - the logged-out homepage no longer has a group-discovery
   // section (joining a group needs an account anyway), and the signed-in one gets its own groups
   // from getPersonalHomeData below, not this fetch.
-  const [nextRace, races, archiveCircuits] = await Promise.all([getNextUpcomingRace(year), getRacesByYear(year), getAllArchiveCircuits()]);
+  const [nextRace, races, archiveCircuits, currentDrivers] = await Promise.all([
+    getNextUpcomingRace(year),
+    getRacesByYear(year),
+    getAllArchiveCircuits(),
+    getAllCurrentDrivers(),
+  ]);
 
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
+  const archiveImageByCircuitId = new Map(archiveCircuits.map((c) => [c.circuitId, c.imageUrl]));
   const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
 
-  // getPersonalHomeData (below) already resolves favoriteDriver/favoriteTeam as full cards for
-  // the signed-in case — fetched once here, reused for both the personal bundle and buildFacts,
-  // rather than a second favorites lookup.
+  // Every round's circuit resolved once, server-side, here - not per-card in SeasonStrip (which
+  // renders one card per round from this one shared map). Real photo (race.photoUrl) always wins
+  // in SeasonStrip itself; this is purely the archive-image fallback tier for rounds that don't
+  // have one yet. Circuits truly missing from archive_circuits (Miami/Vegas/Qatar, pre-race - see
+  // circuitSlug.ts's own comment) simply resolve to null here and fall through to SeasonStrip's
+  // abstract CSS treatment - an honest, verified gap, not a guess.
+  const circuitImageByRound: Record<number, string | null> = {};
+  for (const race of races) {
+    const resolved = resolveCurrentCircuitToArchiveId(race.circuit, circuitLocalities, circuitIdsByName);
+    circuitImageByRound[race.round] = (resolved && archiveImageByCircuitId.get(resolved)) || null;
+  }
+
+  // getPersonalHomeData (below) already resolves the full favorite-card arrays for the signed-in
+  // case — fetched once here, reused for buildFacts/buildSeasonRecap/getTrackHistory, rather than
+  // a second favorites lookup.
   const [calendarEntry, trackHistory, recentPhotos, standings, personalData] = await Promise.all([
     nextRace ? getCalendarEntry(nextRace.year, nextRace.round) : null,
     resolvedCircuitId ? getTrackHistory(resolvedCircuitId) : null,
@@ -40,8 +59,26 @@ export default async function HomePage() {
     session.uid ? getPersonalHomeData(session.uid, year, nextRace, races) : Promise.resolve(null),
   ]);
 
-  const facts = buildFacts(year, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null, trackHistory);
-  const seasonRecap = buildSeasonRecap(races, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null);
+  // Track Intelligence, array-based: every favorite with real appearances at this circuit, not
+  // just the primary - a second pass once personalData's favorite arrays are known (getTrackHistory
+  // itself is cheap/cached per driver-circuit pair, see its own comment on unstable_cache).
+  const trackHistoryWithFavorites =
+    resolvedCircuitId && (personalData?.favoriteDrivers.length || personalData?.favoriteTeams.length)
+      ? await getTrackHistory(resolvedCircuitId, {
+          favoriteDriverIds: personalData?.favoriteDrivers.map((d) => d.driverId),
+          favoriteTeamIds: personalData?.favoriteTeams.map((t) => t.teamId),
+        })
+      : trackHistory;
+
+  const facts = buildFacts(year, standings, personalData?.favoriteDriver ?? null, personalData?.favoriteTeam ?? null, trackHistoryWithFavorites);
+  const seasonRecap = buildSeasonRecap(
+    races,
+    standings,
+    personalData?.favoriteDriver ?? null,
+    personalData?.favoriteTeam ?? null,
+    personalData?.favoriteDrivers ?? [],
+    personalData?.favoriteTeams ?? [],
+  );
 
   const backdropPhotos =
     recentPhotos.length > 0
@@ -52,7 +89,18 @@ export default async function HomePage() {
           ? [trackHistory.circuitImageUrl]
           : [];
 
-  const publicData = { year, nextRace, races, calendarEntry, backdropPhotos, facts, trackHistory, seasonRecap };
+  const publicData = {
+    year,
+    nextRace,
+    races,
+    calendarEntry,
+    backdropPhotos,
+    facts,
+    trackHistory: trackHistoryWithFavorites,
+    seasonRecap,
+    circuitImageByRound,
+    currentDrivers,
+  };
 
   return (
     <>

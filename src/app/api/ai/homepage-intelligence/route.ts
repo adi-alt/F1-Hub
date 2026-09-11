@@ -179,6 +179,12 @@ export async function POST() {
     // user with multiple favorites changing/adding/removing anything past the first entry used to
     // leave this hash (and therefore the cache key) completely unchanged, silently serving AI
     // content built from the stale favorite set indefinitely.
+    // The sorted joins above catch a favorite SET change (add/remove) but, being sorted, are blind
+    // to a pure REORDER of the same set - concretely, toggling a favorite off then back on moves it
+    // to the end of profile.favoriteDrivers/Teams (see setArchiveFavorite's own array_append-style
+    // logic), changing which entry is "primary" (index [0], what personalOutlook/the deterministic
+    // fallback key off) without changing the sorted string at all. Appending each array's raw (not
+    // sorted) [0] separately closes that gap without losing the set-change coverage sorting gives.
     const personalDataVersion = userId
       ? computeDataVersion([
           globalDataVersion,
@@ -186,6 +192,8 @@ export async function POST() {
           [...(profile?.favoriteDrivers ?? [])].sort().join(","),
           [...(profile?.favoriteTeams ?? [])].sort().join(","),
           [...(profile?.favoriteTracks ?? [])].sort().join(","),
+          profile?.favoriteDrivers?.[0] ?? "",
+          profile?.favoriteTeams?.[0] ?? "",
           userPick?.submittedAt,
           fingerprint?.totalPredictions,
         ])

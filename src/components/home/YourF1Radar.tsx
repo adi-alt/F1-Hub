@@ -25,6 +25,8 @@ function scrollToYourF1() {
 export function YourF1Radar({
   favoriteDriver,
   favoriteTeam,
+  favoriteDrivers,
+  favoriteTeams,
   favoriteDriverRank,
   favoriteTeamRank,
   favoriteDriverCircuitWins,
@@ -32,9 +34,14 @@ export function YourF1Radar({
   favoriteDriverGapToLeader,
   predictionCount,
   onNavigate,
+  onSelectFavorite,
 }: {
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
+  /** Full favorite lists - only used for the comma-joined chip label when there's more than one;
+   * orientation only, no per-favorite analysis lives here (that's YourF1's switcher). */
+  favoriteDrivers?: FavoriteDriverCard[];
+  favoriteTeams?: FavoriteTeamCard[];
   favoriteDriverRank?: number | null;
   favoriteTeamRank?: number | null;
   favoriteDriverCircuitWins?: number | null;
@@ -42,21 +49,33 @@ export function YourF1Radar({
   favoriteDriverGapToLeader?: number | null;
   predictionCount?: number;
   onNavigate: (tab: string) => void;
+  /** Seeds YourF1's favorite switcher with a sensible default (the primary driver, or team if no
+   * favorite driver) the moment this rail is clicked - so jumping down from here always lands on
+   * real, already-selected content instead of an unrelated leftover selection. */
+  onSelectFavorite?: (key: string) => void;
 }) {
   const { intelligence } = useHomepageIntelligence();
   const disagrees = intelligence?.predictionChallenge?.status === "DISAGREE";
 
-  function go(tab: string) {
+  function go(tab: string, favoriteKey?: string) {
     onNavigate(tab);
+    if (favoriteKey) onSelectFavorite?.(favoriteKey);
     scrollToYourF1();
   }
 
   const items: ReactNode[] = [];
+  const driverLabel = favoriteDrivers && favoriteDrivers.length > 1 ? favoriteDrivers.map((d) => d.name).join(", ") : favoriteDriver?.name;
+  const teamLabel = favoriteTeams && favoriteTeams.length > 1 ? favoriteTeams.map((t) => t.name).join(", ") : favoriteTeam?.name;
 
   if (favoriteDriver && favoriteDriverRank) {
     items.push(
-      <button key="driver" type="button" onClick={() => go("championship")} className="transition hover:text-white">
-        <span className="font-semibold text-neutral-200">{favoriteDriver.name}</span>{" "}
+      <button
+        key="driver"
+        type="button"
+        onClick={() => go("championship", `driver:${favoriteDriver.driverId}`)}
+        className="transition hover:text-white"
+      >
+        <span className="font-semibold text-neutral-200">{driverLabel}</span>{" "}
         <span className="font-mono text-neutral-500">P{favoriteDriverRank} WDC</span>
         {favoriteDriverPoints != null && <span className="font-mono text-neutral-500"> · {favoriteDriverPoints} pts</span>}
         {favoriteDriverGapToLeader != null && favoriteDriverGapToLeader > 0 && (
@@ -68,8 +87,8 @@ export function YourF1Radar({
 
   if (favoriteTeam && favoriteTeamRank) {
     items.push(
-      <button key="team" type="button" onClick={() => go("overview")} className="transition hover:text-white">
-        <span className="font-semibold text-neutral-200">{favoriteTeam.name}</span>{" "}
+      <button key="team" type="button" onClick={() => go("overview", `team:${favoriteTeam.teamId}`)} className="transition hover:text-white">
+        <span className="font-semibold text-neutral-200">{teamLabel}</span>{" "}
         <span className="font-mono text-neutral-500">P{favoriteTeamRank} WCC</span>
       </button>,
     );

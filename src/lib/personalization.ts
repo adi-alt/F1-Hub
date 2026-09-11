@@ -149,6 +149,7 @@ export type DriverCircuitStats = {
 
 export type TeamCircuitStats = {
   teamId: string;
+  teamName: string;
   appearances: number;
   wins: number;
   podiums: number;
@@ -168,6 +169,12 @@ export type TrackHistory = {
   topCurrentTeam: TrackTopCurrentTeam | null;
   favoriteDriverCircuitStats?: DriverCircuitStats | null;
   favoriteTeamCircuitStats?: TeamCircuitStats | null;
+  /** Every favorite (driver or team) that has real appearances at this circuit - not just the
+   * primary. Only entities with `appearances > 0` are included (getDriverCircuitStats/
+   * getTeamCircuitStats already return null otherwise) - never a zero-value row. Empty array, not
+   * null, when no favorites were passed or none has ever raced here. */
+  favoriteDriverCircuitStatsList: DriverCircuitStats[];
+  favoriteTeamCircuitStatsList: TeamCircuitStats[];
   /** The winner of the most recent race run at this circuit — real, not "reigning champion"
    * (that's a season-wide title, unrelated to who actually won here last). */
   defendingWinner: TrackDefendingWinner | null;
@@ -190,7 +197,17 @@ function ageInYears(birthDateIso: string, onDateIso: string): number {
  * doesn't re-hit Postgres. */
 export async function getTrackHistory(
   circuitId: string,
-  options?: { favoriteDriverId?: string; favoriteTeamId?: string }
+  options?: {
+    /** Kept for the two AI routes (homepage-intelligence, race-intelligence), which only ever
+     * resolve stats for one entity at a time - unchanged behavior. */
+    favoriteDriverId?: string;
+    favoriteTeamId?: string;
+    /** Every favorite driver/team id, not just one - what the deterministic homepage (page.tsx)
+     * passes, so Track Intelligence's "Your favorites at this track" block can cover the whole
+     * set, not silently only the primary. */
+    favoriteDriverIds?: string[];
+    favoriteTeamIds?: string[];
+  }
 ): Promise<TrackHistory | null> {
   const races = await getArchiveRacesByCircuitId(circuitId);
   if (races.length === 0) return null;
@@ -283,15 +300,36 @@ export async function getTrackHistory(
       }
     : null;
 
-  // Optional personal circuit stats
+  // Every favorite with real data here, in one batch each - getDriverCircuitStats/
+  // getTeamCircuitStats already return null on zero appearances, so filtering nulls out is the
+  // whole "only entities with real data" rule, no separate check needed.
+  const favoriteDriverCircuitStatsList = options?.favoriteDriverIds?.length
+    ? (await Promise.all(options.favoriteDriverIds.map((id) => getDriverCircuitStats(id, circuitId)))).filter(
+        (s): s is DriverCircuitStats => s !== null,
+      )
+    : [];
+  const favoriteTeamCircuitStatsList = options?.favoriteTeamIds?.length
+    ? (await Promise.all(options.favoriteTeamIds.map((id) => getTeamCircuitStats(id, circuitId)))).filter(
+        (s): s is TeamCircuitStats => s !== null,
+      )
+    : [];
+
+  // Singular fields - explicit singular options (the two AI routes) compute their own way,
+  // unchanged; when only arrays are given (the deterministic homepage), fall back to the primary
+  // (first) array entry rather than re-fetching, so every existing singular-field consumer
+  // (YourF1Radar's circuit-wins chip) keeps working without a second round-trip.
   let favoriteDriverCircuitStats: DriverCircuitStats | null = null;
   if (options?.favoriteDriverId) {
     favoriteDriverCircuitStats = await getDriverCircuitStats(options.favoriteDriverId, circuitId);
+  } else if (options?.favoriteDriverIds?.[0]) {
+    favoriteDriverCircuitStats = favoriteDriverCircuitStatsList.find((s) => s.driverId === options.favoriteDriverIds![0]) ?? null;
   }
 
   let favoriteTeamCircuitStats: TeamCircuitStats | null = null;
   if (options?.favoriteTeamId) {
     favoriteTeamCircuitStats = await getTeamCircuitStats(options.favoriteTeamId, circuitId);
+  } else if (options?.favoriteTeamIds?.[0]) {
+    favoriteTeamCircuitStats = favoriteTeamCircuitStatsList.find((s) => s.teamId === options.favoriteTeamIds![0]) ?? null;
   }
 
   return {
@@ -308,6 +346,8 @@ export async function getTrackHistory(
     defendingWinner,
     favoriteDriverCircuitStats,
     favoriteTeamCircuitStats,
+    favoriteDriverCircuitStatsList,
+    favoriteTeamCircuitStatsList,
   };
 }
 
@@ -358,11 +398,13 @@ export async function getTeamCircuitStats(teamId: string, circuitId: string): Pr
   let wins = 0;
   let podiums = 0;
   let bestFinish: number | null = null;
+  let teamName = "";
 
   for (const race of races) {
     const teamResults = race.results.filter((r) => r.teamId === teamId);
     if (teamResults.length === 0) continue;
     appearances++;
+    teamName = teamResults[0].constructor || teamName;
     for (const res of teamResults) {
       if (res.position) {
         if (bestFinish === null || res.position < bestFinish) bestFinish = res.position;
@@ -376,6 +418,7 @@ export async function getTeamCircuitStats(teamId: string, circuitId: string): Pr
 
   return {
     teamId,
+    teamName,
     appearances,
     wins,
     podiums,
@@ -544,6 +587,11 @@ export type SeasonRecap = {
    * favorite IS the leader, not null - "0 points behind" is a real, meaningful fact. */
   favoriteDriverPoints: number | null;
   favoriteDriverGapToLeader: number | null;
+  /** One rank entry per favorite (not just the primary) - what YourF1's switcher and SeasonRecap's
+   * capped narrative summary both read from. Only favorites that are actually classified this
+   * season are included (an inactive/retired favorite driver simply doesn't appear). */
+  favoriteDriverRanks: Array<{ id: string; name: string; code: string; rank: number; points: number }>;
+  favoriteTeamRanks: Array<{ id: string; name: string; rank: number; points: number }>;
 };
 
 /** The homepage's "how the season is unfolding" editorial recap — every number read straight off
@@ -556,6 +604,8 @@ export function buildSeasonRecap(
   standings: SeasonStandings,
   favoriteDriver: FavoriteDriverCard | null,
   favoriteTeam: FavoriteTeamCard | null = null,
+  favoriteDrivers: FavoriteDriverCard[] = [],
+  favoriteTeams: FavoriteTeamCard[] = [],
 ): SeasonRecap {
   const driverLeader = standings.drivers[0] ?? null;
   const teamLeader = standings.teams[0] ?? null;
@@ -564,6 +614,15 @@ export function buildSeasonRecap(
   const favoriteRank = favoriteDriver?.code ? standings.drivers.findIndex((d) => d.driver === favoriteDriver.code) : -1;
   const favoriteTeamRankIndex = favoriteTeam?.currentName ? standings.teams.findIndex((t) => t.team === favoriteTeam.currentName) : -1;
   const favoriteDriverStanding = favoriteRank >= 0 ? standings.drivers[favoriteRank] : null;
+
+  const favoriteDriverRanks = favoriteDrivers.flatMap((d) => {
+    const idx = d.code ? standings.drivers.findIndex((s) => s.driver === d.code) : -1;
+    return idx >= 0 ? [{ id: d.driverId, name: d.name, code: d.code!, rank: idx + 1, points: standings.drivers[idx].points }] : [];
+  });
+  const favoriteTeamRanks = favoriteTeams.flatMap((t) => {
+    const idx = t.currentName ? standings.teams.findIndex((s) => s.team === t.currentName) : -1;
+    return idx >= 0 ? [{ id: t.teamId, name: t.name, rank: idx + 1, points: standings.teams[idx].points }] : [];
+  });
 
   return {
     roundsCompleted: races.filter((r) => r.status === "completed").length,
@@ -578,5 +637,7 @@ export function buildSeasonRecap(
     favoriteTeamRank: favoriteTeamRankIndex >= 0 ? favoriteTeamRankIndex + 1 : null,
     favoriteDriverPoints: favoriteDriverStanding?.points ?? null,
     favoriteDriverGapToLeader: favoriteDriverStanding && driverLeader ? driverLeader.points - favoriteDriverStanding.points : null,
+    favoriteDriverRanks,
+    favoriteTeamRanks,
   };
 }

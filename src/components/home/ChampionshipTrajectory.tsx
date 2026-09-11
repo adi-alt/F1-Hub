@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { curveNatural } from "@visx/curve";
+import { line } from "@visx/shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
-import { computeChampionshipProgression } from "@/lib/championshipProgression";
+import { computeChampionshipProgression, computeConstructorChampionshipProgression } from "@/lib/championshipProgression";
 import type { RaceDoc } from "@/lib/types/race";
 
 export type TrajectorySeries = { code: string; label: string; color: string };
@@ -16,25 +18,16 @@ const PAD = 8;
 const PAD_LEFT = 26;
 const PAD_BOTTOM = 14;
 
-/** Catmull-Rom -> cubic Bezier conversion - passes exactly through every real data point (only the
- * joins between points are curved), so this cannot distort the underlying data the way an
- * approximating spline could. A well-known, small formula - not worth a dependency for. */
-function catmullRomToBezierPath(points: { x: number; y: number }[]): string {
-  if (points.length < 2) return "";
-  let d = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[i + 2] ?? p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
-  }
-  return d;
-}
+// Bklit UI's own line chart (packages/ui/src/charts/line.tsx in github.com/bklit/bklit-ui) draws
+// its curve via @visx/shape's LinePath with @visx/curve's curveNatural - a natural cubic spline
+// passing exactly through every real data point (only the joins between points are curved, same
+// interpolating property the previous hand-rolled Catmull-Rom formula had, just Bklit's actual
+// algorithm instead of an equivalent invented here). Using the lower-level `line()` factory
+// (verified against the installed @visx/shape@4's real type declarations - see D3ShapeFactories.d.ts)
+// rather than the <LinePath> JSX component: this file already builds/reuses raw path-string `d`
+// values imperatively (for both the stroke and the gradient-fill closing path below), which is
+// exactly what `line()` returns directly - same curveNatural geometry, no restructuring needed.
+const pointsLine = line<{ x: number; y: number }>({ x: (d) => d.x, y: (d) => d.y, curve: curveNatural });
 
 /** A thin, bespoke SVG points-trajectory — hand-drawn, not Recharts (no other homepage chart uses
  * this component, and no Recharts styling is borrowed), so the "at least one custom SVG data
@@ -54,13 +47,19 @@ export function ChampionshipTrajectory({
   races,
   series,
   leaderCode,
+  mode = "driver",
 }: {
   races: RaceDoc[];
   series: TrajectorySeries[];
-  /** A driver code to track cumulative points for even when it isn't itself plotted — lets the
-   * tooltip show "N behind leader" for a non-leader series without drawing an extra line. Omit
+  /** A driver/team code to track cumulative points for even when it isn't itself plotted — lets
+   * the tooltip show "N behind leader" for a non-leader series without drawing an extra line. Omit
    * when the only plotted series already IS the leader (a gap to itself is meaningless). */
   leaderCode?: string;
+  /** "team" plots constructor points (series codes are team names, grouped via
+   * computeConstructorChampionshipProgression) instead of driver points - lets YourF1's favorite
+   * switcher reuse this exact component for a selected favorite TEAM's trajectory, not just a
+   * driver's. Everything else (curve, gradient, tooltip, endpoint labels) is identical either way. */
+  mode?: "driver" | "team";
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   // Separate from hoverIndex on purpose: a tap on a touch device sets both hoverIndex and pinned,
@@ -74,7 +73,10 @@ export function ChampionshipTrajectory({
     if (leaderCode) set.add(leaderCode);
     return Array.from(set);
   }, [series, leaderCode]);
-  const rows = useMemo(() => computeChampionshipProgression(races, codes), [races, codes]);
+  const rows = useMemo(
+    () => (mode === "team" ? computeConstructorChampionshipProgression(races, codes) : computeChampionshipProgression(races, codes)),
+    [races, codes, mode],
+  );
 
   if (rows.length < 2) {
     return <p className="text-sm text-neutral-500">Not enough completed races yet to plot a trajectory.</p>;
@@ -91,7 +93,7 @@ export function ChampionshipTrajectory({
 
   const paths = series.map((s, si) => {
     const points = rows.map((r, i) => ({ x: xFor(i), y: yFor(Number(r[s.code] ?? 0)) }));
-    return { ...s, points, d: catmullRomToBezierPath(points), isPrimary: si === 0 };
+    return { ...s, points, d: pointsLine(points) ?? "", isPrimary: si === 0 };
   });
 
   const hovered = hoverIndex != null ? rows[hoverIndex] : null;

@@ -23,11 +23,15 @@ export function SeasonStrip({
   nextRaceRound,
   favoriteDriver,
   favoriteTeam,
+  circuitImageByRound = {},
 }: {
   races: RaceDoc[];
   nextRaceRound?: number | null;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
+  /** Archive-circuit fallback image per round (resolved once, server-side, in page.tsx) - the
+   * second tier of the image fallback chain, behind the round's own real `photoUrl`. */
+  circuitImageByRound?: Record<number, string | null>;
 }) {
   const [selectedRound, setSelectedRound] = useState<number | null>(
     () => nextRaceRound ?? [...races].reverse().find((r) => r.status === "completed")?.round ?? races[0]?.round ?? null,
@@ -125,9 +129,18 @@ export function SeasonStrip({
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-3 overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40"
+          // A lighter inset panel, not a second full card border - this now nests inside
+          // SeasonRecap's own shared outer shell (see that component's own comment), so a second
+          // heavy border/background here would read as a box-in-box instead of one section.
+          className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-black/20"
         >
-          <FeaturedRound race={selected} isHere={selected.round === nextRaceRound} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} />
+          <FeaturedRound
+            race={selected}
+            isHere={selected.round === nextRaceRound}
+            favoriteDriver={favoriteDriver}
+            favoriteTeam={favoriteTeam}
+            fallbackImageUrl={circuitImageByRound[selected.round] ?? null}
+          />
         </motion.div>
       )}
     </div>
@@ -139,31 +152,36 @@ function FeaturedRound({
   isHere,
   favoriteDriver,
   favoriteTeam,
+  fallbackImageUrl,
 }: {
   race: RaceDoc;
   isHere: boolean;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
+  fallbackImageUrl: string | null;
 }) {
   // Adaptive content density: the image is a real visual moment for a round with substantive text
   // alongside it (completed results, or this weekend's prediction CTA) - the plain "not yet raced"
   // branch has the least real content to justify one, so it stays text-only rather than pairing a
   // photo with an almost-empty body.
-  const showImage = !!race.photoUrl && (race.status === "completed" || isHere);
+  const showImageSlot = race.status === "completed" || isHere;
+  // Fallback chain: the round's own real photo first, then the resolved archive-circuit photo
+  // (page.tsx's circuitImageByRound, itself already alias-resolved via resolveCurrentCircuitToArchiveId),
+  // then (only when both are genuinely absent - a confirmed gap, e.g. Miami/Vegas/Qatar pre-race)
+  // the one abstract CSS treatment below. Never a blank image slot.
+  const resolvedImageUrl = race.photoUrl ?? fallbackImageUrl;
 
   return (
     <div>
-      {/* Real per-round photo (RaceDoc.photoUrl - already fetched for every DB-backed race, zero
-       * new fetch), only on this featured panel, never on a strip node. Omitted entirely (no
-       * broken <Image>) for far-future calendar-placeholder rounds that don't have one yet, and for
-       * the "not yet raced" branch even when one exists (see showImage above). Shorter than before
-       * (3:1 capped at 160px, was 21:9 uncapped ~257px) so it doesn't dominate the card. */}
-      {showImage && (
-        <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
-          <Image src={race.photoUrl!} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
-        </div>
-      )}
+      {showImageSlot &&
+        (resolvedImageUrl ? (
+          <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
+            <Image src={resolvedImageUrl} alt="" fill sizes="(min-width: 640px) 600px, 100vw" className="object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/20 to-transparent" />
+          </div>
+        ) : (
+          <CircuitTextureFallback />
+        ))}
 
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -189,6 +207,29 @@ function FeaturedRound({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The honest "no real image exists yet" treatment - a confirmed gap (e.g. Miami/Vegas/Qatar
+ * before their first race photo lands), never a blank void. A generic looping SVG line, not any
+ * specific real circuit's outline, so it can never misrepresent a place it isn't - a subtle,
+ * premium-dark abstraction, not a placeholder icon. */
+function CircuitTextureFallback() {
+  return (
+    <div
+      aria-hidden
+      className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden bg-[radial-gradient(ellipse_120%_120%_at_25%_0%,rgba(225,6,0,0.10),transparent_65%)]"
+    >
+      <svg viewBox="0 0 200 60" className="absolute inset-0 h-full w-full text-white opacity-[0.10]" fill="none">
+        <path
+          d="M8 44 C 26 14, 58 12, 78 32 S 122 54, 148 30 S 178 8, 192 22"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 bg-gradient-to-t from-[var(--f1-carbon)] via-[var(--f1-carbon)]/30 to-transparent" />
     </div>
   );
 }

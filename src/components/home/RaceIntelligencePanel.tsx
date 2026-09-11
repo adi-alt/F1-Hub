@@ -116,15 +116,38 @@ export function RaceIntelligencePanel({
         )}
       </div>
 
-      {/* Driver/Team Circuit Record Callout */}
-      {trackHistory.favoriteDriverCircuitStats && (
-        <div className="mt-3.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-neutral-300">
-          <p className="font-medium text-white">Your driver circuit record:</p>
-          <p className="text-[11px] text-neutral-400">
-            Best finish P{trackHistory.favoriteDriverCircuitStats.bestFinish ?? "N/A"}
-            {trackHistory.favoriteDriverCircuitStats.avgFinish ? ` · Avg P${trackHistory.favoriteDriverCircuitStats.avgFinish.toFixed(1)}` : ""}
-            {` · ${trackHistory.favoriteDriverCircuitStats.appearances} starts`}
-          </p>
+      {/* "Your favorites at this track" - every favorite (driver or team) with real appearances
+       * here, not just the primary. getTrackHistory's list fields already only contain entities
+       * with appearances > 0 (see personalization.ts), so no separate "has data" check is needed -
+       * the whole block simply doesn't render when the combined list is empty. Compact rows,
+       * matching the shared homepage density convention (lib/density.ts) - this block never
+       * reaches "4+" in practice (favorites are capped elsewhere), so it always uses the same
+       * tight stacked-row treatment. */}
+      {(trackHistory.favoriteDriverCircuitStatsList.length > 0 || trackHistory.favoriteTeamCircuitStatsList.length > 0) && (
+        <div className="mt-3.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs text-neutral-300">
+          <p className="font-medium text-white">Your favorites at this track</p>
+          <div className="mt-1 space-y-0.5">
+            {trackHistory.favoriteDriverCircuitStatsList.map((s) => (
+              <p key={s.driverId} className="text-[11px] text-neutral-400">
+                <span className="font-medium text-neutral-200">{s.driverName}</span> ·{" "}
+                {s.wins > 0
+                  ? `${s.wins} win${s.wins === 1 ? "" : "s"} here`
+                  : s.podiums > 0
+                    ? `${s.podiums} podium${s.podiums === 1 ? "" : "s"} here`
+                    : `best P${s.bestFinish ?? "N/A"} in ${s.appearances} start${s.appearances === 1 ? "" : "s"}`}
+              </p>
+            ))}
+            {trackHistory.favoriteTeamCircuitStatsList.map((s) => (
+              <p key={s.teamId} className="text-[11px] text-neutral-400">
+                <span className="font-medium text-neutral-200">{s.teamName}</span> ·{" "}
+                {s.wins > 0
+                  ? `${s.wins} win${s.wins === 1 ? "" : "s"} here`
+                  : s.podiums > 0
+                    ? `${s.podiums} podium${s.podiums === 1 ? "" : "s"} here`
+                    : `best P${s.bestFinish ?? "N/A"} in ${s.appearances} start${s.appearances === 1 ? "" : "s"}`}
+              </p>
+            ))}
+          </div>
         </div>
       )}
 

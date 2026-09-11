@@ -37,6 +37,13 @@ export function PredictionIntelligence({
   // compact layout for this case, not just less padding on the same stacked-paragraph block - see
   // the plan's own review note ("only show information that actually exists": no invented model-
   // confidence percentage or sentiment, just the real agree/disagree fact already computed).
+  //
+  // Same underlying idea as the shared homepage density rule (lib/density.ts - "sparse content
+  // gets a compact treatment, not a full section shell sized for more"), just not expressed as an
+  // item count: "sparse" here means "no accuracy/trait/tendency block has real data yet", a richer
+  // condition than a single list length. Forcing this through activityDensity(count) would need a
+  // fabricated count that doesn't actually describe what's sparse here - kept as its own explicit
+  // boolean instead, same spirit, honest about not fitting the generic shape.
   const isSparse = !showAccuracy && styleTraits.length === 0 && !showTendency;
   const modelAgrees = latestPrediction?.modelWinner != null && latestPrediction.modelWinner === latestPrediction.predictedWinner;
   const modelDisagrees = latestPrediction?.modelWinner != null && latestPrediction.modelWinner !== latestPrediction.predictedWinner;

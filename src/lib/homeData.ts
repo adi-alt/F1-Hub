@@ -25,6 +25,7 @@ import {
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
+import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
 import { getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
 import { listRecentTransactions, type PointsReason } from "@/lib/supabase/points";
@@ -45,6 +46,13 @@ export type PublicHomeData = {
    * Drives the hero's right-side Race Intelligence panel and the Track Intelligence widget. */
   trackHistory: TrackHistory | null;
   seasonRecap: SeasonRecap;
+  /** Archive-circuit fallback image per round, resolved once server-side - SeasonStrip's per-card
+   * fallback tier when a round has no real `photoUrl` yet of its own. Null for a round whose
+   * circuit genuinely has no archive image (Miami/Vegas/Qatar, pre-race). */
+  circuitImageByRound: Record<number, string | null>;
+  /** The current-season roster, `.team`-keyed - lets YourF1's favorite switcher resolve "this
+   * team's current drivers" for the team-form view without a second favorites-shaped fetch. */
+  currentDrivers: CurrentDriver[];
 };
 
 // A homepage teaser, not a second Groups feed — same cap FavoritesSection/GroupsPreview already
@@ -64,6 +72,12 @@ export type PersonalHomeData = {
   profile: UserProfile | null;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
+  /** The full favorite set, not just the primary - favoriteDriver/favoriteTeam above stay exactly
+   * as they were (= favoriteDrivers[0]/favoriteTeams[0]) for every existing consumer that only
+   * ever wanted "the primary favorite"; these arrays are what the new YourF1 switcher and
+   * SeasonRecap's capped multi-favorite summary read from. */
+  favoriteDrivers: FavoriteDriverCard[];
+  favoriteTeams: FavoriteTeamCard[];
   groups: GroupSummary[];
   /** Only populated when `groups.length === 0` — recommended public groups the user hasn't
    * joined, for the "Your Community" section's discovery fallback. */
@@ -158,12 +172,18 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     getRecentPredictionPolls(uid),
   ]);
 
-  const [favoriteDriver, favoriteTeam, discoverGroups, myPick] = await Promise.all([
-    profile?.favoriteDrivers?.[0] ? getFavoriteDriverCard(profile.favoriteDrivers[0]) : Promise.resolve(null),
-    profile?.favoriteTeams?.[0] ? getFavoriteTeamCard(profile.favoriteTeams[0]) : Promise.resolve(null),
+  const [favoriteDrivers, favoriteTeams, discoverGroups, myPick] = await Promise.all([
+    Promise.all((profile?.favoriteDrivers ?? []).map((id) => getFavoriteDriverCard(id).catch(() => null))).then(
+      (cards) => cards.filter((c): c is FavoriteDriverCard => c !== null),
+    ),
+    Promise.all((profile?.favoriteTeams ?? []).map((id) => getFavoriteTeamCard(id).catch(() => null))).then(
+      (cards) => cards.filter((c): c is FavoriteTeamCard => c !== null),
+    ),
     groups.length === 0 ? listPublicGroups(undefined, uid) : Promise.resolve([]),
     nextRace ? getUserPick(uid, nextRace.id) : Promise.resolve(null),
   ]);
+  const favoriteDriver = favoriteDrivers[0] ?? null;
+  const favoriteTeam = favoriteTeams[0] ?? null;
 
   const hasFavorites = !!favoriteDriver || !!favoriteTeam;
   const predictionPerformance = computePredictionPerformance(picks, races);
@@ -177,6 +197,8 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     profile,
     favoriteDriver,
     favoriteTeam,
+    favoriteDrivers,
+    favoriteTeams,
     groups,
     discoverGroups: discoverGroups.filter((g) => !g.isMember).slice(0, DISCOVER_GROUPS_LIMIT),
     myPick,
