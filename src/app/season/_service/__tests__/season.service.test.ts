@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.service";
 
 describe("season.service deterministic computations", () => {
@@ -59,10 +60,10 @@ describe("season.service deterministic computations", () => {
   describe("computeHeadToHead", () => {
     it("computes normal h2h", () => {
       const res = computeHeadToHead("VER", "LEC", mockRaceSummaries, false);
-      expect(res.aWins).toBe(2);
-      expect(res.bWins).toBe(1);
-      expect(res.ties).toBe(0);
-      expect(res.comparableRounds).toBe(3);
+      assert.strictEqual(res.aWins, 2);
+      assert.strictEqual(res.bWins, 1);
+      assert.strictEqual(res.ties, 0);
+      assert.strictEqual(res.comparableRounds, 3);
     });
 
     it("handles one DNF", () => {
@@ -71,38 +72,38 @@ describe("season.service deterministic computations", () => {
       // R1: VER P1, SAI DNF -> VER wins
       // R2: VER P1, SAI DNF -> VER wins
       // R3: VER DNF, SAI P1 -> SAI wins
-      expect(res.aWins).toBe(2);
-      expect(res.bWins).toBe(1);
+      assert.strictEqual(res.aWins, 2);
+      assert.strictEqual(res.bWins, 1);
     });
   });
 
   describe("computeRecentForm", () => {
     it("computes form correctly over available rounds", () => {
       const form = computeRecentForm("VER", mockRaceSummaries, false);
-      expect(form.roundsConsidered).toBe(3);
-      expect(form.wins).toBe(2);
-      expect(form.dnfs).toBe(1);
-      expect(form.totalPoints).toBe(50);
-      expect(form.averageFinish).toBe(1); // avg of finished races (1, 1) -> 1.0
+      assert.strictEqual(form.roundsConsidered, 3);
+      assert.strictEqual(form.wins, 2);
+      assert.strictEqual(form.dnfs, 1);
+      assert.strictEqual(form.totalPoints, 50);
+      assert.strictEqual(form.averageFinish, 1); // avg of finished races (1, 1) -> 1.0
     });
   });
 
   describe("computeStreaks", () => {
     it("computes active streaks", () => {
       const streak = computeStreaks("LEC", mockRaceSummaries, false);
-      expect(streak.currentPointsStreak).toBe(3);
-      expect(streak.longestPointsStreak).toBe(3);
-      expect(streak.currentPodiumStreak).toBe(3);
-      expect(streak.longestPodiumStreak).toBe(3);
+      assert.strictEqual(streak.currentPointsStreak, 3);
+      assert.strictEqual(streak.longestPointsStreak, 3);
+      assert.strictEqual(streak.currentPodiumStreak, 3);
+      assert.strictEqual(streak.longestPodiumStreak, 3);
     });
 
     it("computes broken streaks", () => {
       const streak = computeStreaks("VER", mockRaceSummaries, false);
       // R1: points, R2: points, R3: 0 points (DNF)
-      expect(streak.currentPointsStreak).toBe(0);
-      expect(streak.longestPointsStreak).toBe(2);
-      expect(streak.currentWinStreak).toBe(0);
-      expect(streak.longestWinStreak).toBe(2);
+      assert.strictEqual(streak.currentPointsStreak, 0);
+      assert.strictEqual(streak.longestPointsStreak, 2);
+      assert.strictEqual(streak.currentWinStreak, 0);
+      assert.strictEqual(streak.longestWinStreak, 2);
     });
   });
   
@@ -120,21 +121,22 @@ describe("season.service deterministic computations", () => {
       ];
       
       const changes = computePositionChanges(currentDrivers as any, [] as any, progression);
-      expect(changes.drivers.length).toBe(2);
+      assert.strictEqual(changes.drivers.length, 2);
       
       const ver = changes.drivers.find(d => d.entityId === "VER")!;
       // VER was 1st with 50, now 1st with 50... wait, currentDrivers passed as argument dictates current pos!
       // In currentDrivers, VER is index 0 (currentPos = 1) and LEC is index 1 (currentPos = 2).
       // Let's match array index.
-      expect(ver.previousPosition).toBe(1); // VER had 50 in R2, LEC had 33, so VER was 1st
-      expect(ver.currentPosition).toBe(1); // from array index
-      expect(ver.positionDelta).toBe(0);
-      expect(ver.pointsDelta).toBe(0);
+      assert.strictEqual(ver.previousPosition, 1); // VER had 50 in R2, LEC had 33, so VER was 1st
+      assert.strictEqual(ver.currentPosition, 1); // from array index
+      assert.strictEqual(ver.positionDelta, 0);
+      assert.strictEqual(ver.pointsDelta, 0);
       
       const lec = changes.drivers.find(d => d.entityId === "LEC")!;
-      expect(lec.previousPosition).toBe(2);
-      expect(lec.currentPosition).toBe(2);
-      expect(lec.pointsDelta).toBe(18); // 51 - 33
+      assert.strictEqual(lec.previousPosition, 2);
+      assert.strictEqual(lec.currentPosition, 2);
+      assert.strictEqual(lec.pointsDelta, 18); // 51 - 33
     });
   });
 });
+
