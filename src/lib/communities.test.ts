@@ -6,6 +6,7 @@ import {
   normalizeTopic,
   postKindsFor,
   resolveModules,
+  sortDiscover,
   toggleableModules,
 } from "./communities";
 
@@ -73,4 +74,75 @@ test("normalizeTags lowercases, de-duplicates, drops junk, and caps at five", ()
   assert.deepEqual(normalizeTags([1, null, "", "ok"]), ["ok"]);
   assert.deepEqual(normalizeTags("not-an-array"), []);
   assert.equal(normalizeTags(["x".repeat(100)])[0].length, 24);
+});
+
+// ---------------------------------------------------------------- discovery ordering
+
+type Row = {
+  name: string;
+  topic: string | null;
+  createdAt: string;
+  memberCount: number;
+  activePredictions: number;
+  weeklyPosts: number;
+  isMember: boolean;
+};
+
+function row(name: string, over: Partial<Row> = {}): Row {
+  return {
+    name,
+    topic: null,
+    createdAt: "2026-01-01T00:00:00Z",
+    memberCount: 0,
+    activePredictions: 0,
+    weeklyPosts: 0,
+    isMember: false,
+    ...over,
+  };
+}
+
+const names = (rows: Row[]) => rows.map((r) => r.name);
+
+test("sortDiscover orders by each real key", () => {
+  const rows = [
+    row("small", { memberCount: 2, weeklyPosts: 9, createdAt: "2026-05-01T00:00:00Z" }),
+    row("big", { memberCount: 90, weeklyPosts: 1, createdAt: "2026-02-01T00:00:00Z" }),
+    row("newest", { memberCount: 10, weeklyPosts: 0, createdAt: "2026-09-01T00:00:00Z" }),
+  ];
+  assert.deepEqual(names(sortDiscover(rows, "members")), ["big", "newest", "small"]);
+  assert.deepEqual(names(sortDiscover(rows, "new")), ["newest", "small", "big"]);
+  assert.deepEqual(names(sortDiscover(rows, "trending")), ["small", "big", "newest"]);
+});
+
+test("sortDiscover 'active' counts open predictions as well as posts, 'trending' does not", () => {
+  const rows = [
+    row("quiet-league", { activePredictions: 5, weeklyPosts: 0 }),
+    row("chatty", { activePredictions: 0, weeklyPosts: 3 }),
+  ];
+  assert.deepEqual(names(sortDiscover(rows, "active")), ["quiet-league", "chatty"]);
+  assert.deepEqual(names(sortDiscover(rows, "trending")), ["chatty", "quiet-league"]);
+});
+
+test("sortDiscover 'recommended' sinks joined communities and favours familiar topics", () => {
+  const rows = [
+    row("already-in", { isMember: true, weeklyPosts: 100 }),
+    row("unfamiliar", { topic: "Cricket", weeklyPosts: 5 }),
+    row("familiar", { topic: "Photography", weeklyPosts: 1 }),
+  ];
+  const sorted = sortDiscover(rows, "recommended", new Set(["Photography"]));
+  // Familiar topic beats a more active unfamiliar one; a community you already joined is last
+  // however busy it is.
+  assert.deepEqual(names(sorted), ["familiar", "unfamiliar", "already-in"]);
+});
+
+test("sortDiscover 'recommended' degrades to activity order with no topic history", () => {
+  const rows = [row("a", { weeklyPosts: 1 }), row("b", { weeklyPosts: 7 }), row("c", { weeklyPosts: 4 })];
+  assert.deepEqual(names(sortDiscover(rows, "recommended", new Set())), names(sortDiscover(rows, "active")));
+});
+
+test("sortDiscover never mutates its input", () => {
+  const rows = [row("z", { memberCount: 1 }), row("a", { memberCount: 9 })];
+  const before = names(rows);
+  sortDiscover(rows, "members");
+  assert.deepEqual(names(rows), before);
 });

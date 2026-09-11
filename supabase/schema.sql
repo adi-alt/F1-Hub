@@ -796,3 +796,16 @@ create index groups_visibility_idx on groups (visibility);
 -- to: the feed could push a new post live but never a new comment on one already on screen.
 alter publication supabase_realtime add table group_post_comments;
 alter publication supabase_realtime add table group_join_requests;
+
+-- Migration ledger, created automatically by scripts/apply-migration.mjs the first time it runs.
+-- Lets a migration that ISN'T naturally idempotent (a one-off data backfill, say) be applied
+-- exactly once - re-running it is skipped rather than re-executed, so it can't undo a later edit.
+create table schema_migrations (
+  name text primary key,
+  applied_at timestamptz not null default now()
+);
+
+-- One-off: the six communities that predate the `topic` column were all Formula 1 communities by
+-- name and by community_type, so they were backfilled to topic='Formula 1' (see
+-- supabase/migrations/20260911_backfill_topics.sql) rather than shipping Discover's topic filter
+-- with nothing to filter on. Admins can change it from Manage.

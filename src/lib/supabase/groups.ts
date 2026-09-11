@@ -4,6 +4,8 @@ import {
   isVisibility,
   normalizeTags,
   normalizeTopic,
+  sortDiscover,
+  type DiscoverSort,
   type CommunityFeatures,
   type CommunityType,
   type CommunityVisibility,
@@ -303,45 +305,116 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Public groups only, opted-in via `visibility = 'public'` - the one deliberate relaxation of
- * "nothing is discoverable without an invite link" (see groups' own RLS comment in schema.sql).
- * `query` matches name/description, case-insensitively - good enough for a groups directory this
- * app expects to have dozens, not millions, of rows in. Not id - the search box no longer
- * advertises that (plain "Search public F1 communities..."), and an unconditional `id.eq.<text>`
- * clause 500s the whole request the moment someone types a term that isn't a valid uuid. */
-export const listPublicGroups = unstable_cache(
-  async (query?: string, uid?: string): Promise<PublicGroupSummary[]> => listPublicGroupsUncached(query, uid),
-  ["list-public-groups"],
+// Re-exported so existing imports from this module keep working; both actually live in the pure
+// communities vocabulary, which is what lets them be unit-tested without dragging nodemailer (via
+// otp.ts, via this file) into a test process.
+export type { DiscoverSort } from "@/lib/communities";
+
+export type DiscoverOptions = {
+  query?: string;
+  /** Topic names to restrict to. Empty/omitted means every topic. */
+  topics?: string[];
+  sort?: DiscoverSort;
+  /** Opaque offset from a previous page's `nextCursor`. */
+  cursor?: string;
+  limit?: number;
+  uid?: string;
+};
+
+export type DiscoverResult = {
+  communities: PublicGroupSummary[];
+  nextCursor: string | null;
+  /** Total matches for the current query/topics, before paging - drives "12 of 48 communities". */
+  total: number;
+  /** Real topic facets with real counts, computed across everything matching the *search* (but not
+   * the topic filter itself, so unticking a topic doesn't make its own chip vanish). Only topics
+   * that actually exist on a public community ever appear. */
+  facets: { topic: string; count: number }[];
+};
+
+const DISCOVER_PAGE_SIZE = 12;
+
+/** Public communities only, opted-in via `visibility = 'public'` - 'private' is discoverable by
+ * invite link only and 'hidden' is excluded from every listing by definition.
+ *
+ * `query` matches name, description, topic and tags, case-insensitively. Not id - an unconditional
+ * `id.eq.<text>` clause 500s the whole request the moment someone types a term that isn't a valid
+ * uuid.
+ *
+ * ponytail: sorts and paginates in memory after fetching every match, because three of the five
+ * sort keys (recommended/trending/active) rank by signals computed from group_posts and
+ * group_predictions rather than by a column Postgres could ORDER BY. A directory this app expects
+ * to hold dozens - not millions - of rows makes that the honest trade rather than denormalising an
+ * activity counter onto `groups` and keeping it correct. The upgrade path, if this ever holds tens
+ * of thousands: a materialized view of (group_id, weekly_posts, open_predictions) refreshed by the
+ * pipeline, then ORDER BY/LIMIT against it. Until then paging is real - the server returns one page
+ * at a time - it just costs a full scan of a small table to build.
+ */
+export const discoverCommunities = unstable_cache(
+  async (opts: DiscoverOptions): Promise<DiscoverResult> => discoverCommunitiesUncached(opts),
+  ["discover-communities"],
   { revalidate: GROUP_DISCOVERY_REVALIDATE_SECONDS, tags: [GROUP_DISCOVERY_TAG] },
 );
 
-async function listPublicGroupsUncached(query?: string, uid?: string): Promise<PublicGroupSummary[]> {
+/** Backward-compatible shim: the flat array shape `homeData.ts` and the original Discover tab were
+ * written against. New callers should use discoverCommunities. */
+export async function listPublicGroups(query?: string, uid?: string): Promise<PublicGroupSummary[]> {
+  const { communities } = await discoverCommunities({ query, uid, limit: 100 });
+  return communities;
+}
+
+async function discoverCommunitiesUncached(opts: DiscoverOptions): Promise<DiscoverResult> {
+  const { query, topics, sort = "recommended", cursor, limit = DISCOVER_PAGE_SIZE, uid } = opts;
+  const empty: DiscoverResult = { communities: [], nextCursor: null, total: 0, facets: [] };
+
   let builder = supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).eq("visibility", "public");
   const trimmed = query?.trim();
-  if (trimmed) builder = builder.or(`name.ilike.%${trimmed}%,description.ilike.%${trimmed}%`);
+  if (trimmed) {
+    // `tags` is text[], so ilike can't reach it - `cs` (contains) matches an exact lowercased tag,
+    // which is what normalizeTags() already guarantees is stored. Name/description/topic stay
+    // substring matches.
+    const escaped = trimmed.replace(/[%,()]/g, "");
+    builder = builder.or(`name.ilike.%${escaped}%,description.ilike.%${escaped}%,topic.ilike.%${escaped}%,tags.cs.{${escaped.toLowerCase()}}`);
+  }
   const { data: groups, error } = await queryWithRetry(() => builder.order("created_at", { ascending: false }));
-  if (error) throw new Error(`listPublicGroups: ${error.message}`);
-  if (!groups?.length) return [];
+  if (error) throw new Error(`discoverCommunities: ${error.message}`);
+  if (!groups?.length) return empty;
 
-  const groupIds = groups.map((g) => g.id as string);
-  const [{ data: allMembers, error: membersError }, { data: predictions, error: predictionsError }, activitySignals, myMemberships] = await Promise.all([
+  // Facets come from the search result set, BEFORE the topic filter narrows it - otherwise ticking
+  // "Gaming" would leave "Gaming" as the only chip on screen and there'd be no way back.
+  const facetCounts = new Map<string, number>();
+  for (const g of groups) {
+    const topic = (g.topic as string | null) ?? null;
+    if (topic) facetCounts.set(topic, (facetCounts.get(topic) ?? 0) + 1);
+  }
+  const facets = [...facetCounts.entries()].map(([topic, count]) => ({ topic, count })).sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
+
+  const wanted = new Set((topics ?? []).filter(Boolean));
+  const matching = wanted.size > 0 ? groups.filter((g) => wanted.has(((g.topic as string | null) ?? ""))) : groups;
+  if (matching.length === 0) return { ...empty, facets };
+
+  const groupIds = matching.map((g) => g.id as string);
+  const [{ data: allMembers, error: membersError }, { data: predictions, error: predictionsError }, activitySignals, myMemberships, myTopics] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
     groupActivitySignals(groupIds),
     uid
       ? queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid).in("group_id", groupIds))
       : Promise.resolve({ data: [] as { group_id: string }[], error: null }),
+    // The one real input "Recommended" has: the topics of the communities this user already joined.
+    // Not an F1-only signal - it works identically for someone whose only community is Photography.
+    uid ? topicsOfMyCommunities(uid) : Promise.resolve(new Set<string>()),
   ]);
-  if (membersError) throw new Error(`listPublicGroups: ${membersError.message}`);
-  if (predictionsError) throw new Error(`listPublicGroups: ${predictionsError.message}`);
-  if (myMemberships.error) throw new Error(`listPublicGroups: ${myMemberships.error.message}`);
+  if (membersError) throw new Error(`discoverCommunities: ${membersError.message}`);
+  if (predictionsError) throw new Error(`discoverCommunities: ${predictionsError.message}`);
+  if (myMemberships.error) throw new Error(`discoverCommunities: ${myMemberships.error.message}`);
   const memberCounts = new Map<string, number>();
   for (const m of allMembers ?? []) memberCounts.set(m.group_id as string, (memberCounts.get(m.group_id as string) ?? 0) + 1);
   const activePredictionCounts = new Map<string, number>();
   for (const p of predictions ?? []) activePredictionCounts.set(p.group_id as string, (activePredictionCounts.get(p.group_id as string) ?? 0) + 1);
   const myGroupIds = new Set((myMemberships.data ?? []).map((m) => m.group_id as string));
 
-  return groups.map((g) => {
+  const all: PublicGroupSummary[] = matching.map((g) => {
     const groupId = g.id as string;
     return {
       ...communityShapeOf(g),
@@ -358,7 +431,32 @@ async function listPublicGroupsUncached(query?: string, uid?: string): Promise<P
       isMember: myGroupIds.has(groupId),
     };
   });
+
+  const sorted = sortDiscover(all, sort, myTopics);
+  const offset = Number.parseInt(cursor ?? "0", 10);
+  const start = Number.isFinite(offset) && offset > 0 ? offset : 0;
+  const page = sorted.slice(start, start + limit);
+  const nextOffset = start + page.length;
+
+  return {
+    communities: page,
+    nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+    total: sorted.length,
+    facets,
+  };
 }
+
+/** Every distinct topic across the communities this user already belongs to. */
+async function topicsOfMyCommunities(uid: string): Promise<Set<string>> {
+  const { data: memberships, error } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
+  if (error) throw new Error(`topicsOfMyCommunities: ${error.message}`);
+  const ids = (memberships ?? []).map((m) => m.group_id as string);
+  if (ids.length === 0) return new Set();
+  const { data: rows, error: topicsError } = await queryWithRetry(() => supabaseAdmin.from("groups").select("topic").in("id", ids));
+  if (topicsError) throw new Error(`topicsOfMyCommunities: ${topicsError.message}`);
+  return new Set((rows ?? []).map((r) => r.topic as string | null).filter((t): t is string => !!t));
+}
+
 
 /** Enough to decide "do I want to join this" without being a member yet — the whole point of an
  * invite link. The link itself (the group's own uuid) is the access control for a private group;

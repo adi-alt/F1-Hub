@@ -284,3 +284,62 @@ export function isVisibility(value: unknown): value is CommunityVisibility {
 export function isCommunityType(value: unknown): value is CommunityType {
   return TYPE_BY_VALUE.has(value as CommunityType);
 }
+
+// ---------------------------------------------------------------- discovery ordering
+
+/** How Discover orders results. Every one of these is computed from real, already-fetched fields -
+ * there is no key here the data can't actually back. */
+export type DiscoverSort = "recommended" | "trending" | "active" | "new" | "members";
+
+export const DISCOVER_SORTS: { value: DiscoverSort; label: string; description: string }[] = [
+  { value: "recommended", label: "Recommended", description: "Matched to topics you already follow" },
+  { value: "trending", label: "Trending", description: "Most posts in the last 7 days" },
+  { value: "active", label: "Most active", description: "Open predictions and recent posts" },
+  { value: "new", label: "Newest", description: "Recently created" },
+  { value: "members", label: "Most members", description: "Largest communities first" },
+];
+
+/** The fields sortDiscover actually reads. Structural rather than importing PublicGroupSummary, so
+ * this module stays free of any dependency on the service layer. */
+export type DiscoverSortable = {
+  name: string;
+  topic: string | null;
+  createdAt: string;
+  memberCount: number;
+  activePredictions: number;
+  weeklyPosts: number;
+  isMember: boolean;
+};
+
+/** Pure, and tested - "recommended" in particular is the one key whose ordering isn't self-evident
+ * from its name. Never mutates its input. */
+export function sortDiscover<T extends DiscoverSortable>(rows: T[], sort: DiscoverSort, myTopics: Set<string> = new Set()): T[] {
+  const activity = (g: T) => g.activePredictions + g.weeklyPosts;
+  const out = [...rows];
+
+  switch (sort) {
+    case "members":
+      return out.sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
+    case "new":
+      return out.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    case "trending":
+      // Strictly last-7-days posts, a genuinely different question from "active" (which also counts
+      // open prediction rounds - those can sit open for a fortnight without a soul posting).
+      return out.sort((a, b) => b.weeklyPosts - a.weeklyPosts || b.memberCount - a.memberCount);
+    case "active":
+      return out.sort((a, b) => activity(b) - activity(a) || b.memberCount - a.memberCount);
+    case "recommended":
+    default:
+      // Communities you're already in sink to the bottom (they don't need discovering), then a topic
+      // you've shown interest in outranks one you haven't, then plain activity breaks the tie. With
+      // no memberships this degrades to exactly the "active" ordering rather than inventing a
+      // preference the data doesn't support.
+      return out.sort((a, b) => {
+        if (a.isMember !== b.isMember) return a.isMember ? 1 : -1;
+        const aTopic = a.topic && myTopics.has(a.topic) ? 1 : 0;
+        const bTopic = b.topic && myTopics.has(b.topic) ? 1 : 0;
+        if (aTopic !== bTopic) return bTopic - aTopic;
+        return activity(b) - activity(a) || b.memberCount - a.memberCount;
+      });
+  }
+}

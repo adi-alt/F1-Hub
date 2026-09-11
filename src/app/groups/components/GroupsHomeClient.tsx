@@ -5,7 +5,7 @@ import { AnimatePresence } from "framer-motion";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary } from "@/lib/supabase/groups";
-import { DiscoverModal } from "./DiscoverModal";
+import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar } from "./GroupsRightSidebar";
@@ -53,7 +53,7 @@ export function GroupsHomeClient({
         </button>
       </aside>
 
-      <AnimatePresence>{showDiscover && <DiscoverModal onClose={() => setShowDiscover(false)} />}</AnimatePresence>
+      <AnimatePresence>{showDiscover && <DiscoverSheet onClose={() => setShowDiscover(false)} />}</AnimatePresence>
     </div>
   );
 }
