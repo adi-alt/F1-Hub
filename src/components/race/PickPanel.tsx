@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
@@ -104,7 +105,7 @@ export function PickPanel({
   // actually known; a missing calendar entry fails open (shows the form) rather than blocking picks
   // indefinitely over a date this app just doesn't have yet.
   if (raceSessionDate) {
-    const opensAt = new Date(raceSessionDate).getTime() - PICK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const opensAt = parseUtcDateTime(raceSessionDate).getTime() - PICK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
     if (now < opensAt) {
       const daysLeft = Math.ceil((opensAt - now) / (24 * 60 * 60 * 1000));
       return (
@@ -131,7 +132,7 @@ export function PickPanel({
     );
   }
 
-  const isLocked = race.status !== "upcoming" || (!!raceSessionDate && new Date(raceSessionDate).getTime() <= now);
+  const isLocked = race.status !== "upcoming" || (!!raceSessionDate && parseUtcDateTime(raceSessionDate).getTime() <= now);
 
   async function submit() {
     if (!user) return;

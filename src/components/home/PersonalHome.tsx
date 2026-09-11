@@ -152,6 +152,7 @@ function PersonalHomeInner({
                 favoriteDriver={personalData.favoriteDriver}
                 favoriteTeam={personalData.favoriteTeam}
                 circuitImageByRound={publicData.circuitImageByRound}
+                calendarEntry={publicData.calendarEntry}
               />
             ),
           },

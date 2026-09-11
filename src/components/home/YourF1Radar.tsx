@@ -64,8 +64,13 @@ export function YourF1Radar({
   }
 
   const items: ReactNode[] = [];
-  const driverLabel = favoriteDrivers && favoriteDrivers.length > 1 ? favoriteDrivers.map((d) => d.name).join(", ") : favoriteDriver?.name;
-  const teamLabel = favoriteTeams && favoriteTeams.length > 1 ? favoriteTeams.map((t) => t.name).join(", ") : favoriteTeam?.name;
+  // This rail is a single-line glance, not a list - joining every favorite's full name here (a
+  // user with 6 favorite drivers) produced an unreadable run-on sentence spanning the whole
+  // viewport. Same "primary + capped count" convention as SeasonRecap's narrative and YourF1's
+  // header overflow avatars: name the primary, count the rest.
+  const driverLabel =
+    favoriteDrivers && favoriteDrivers.length > 1 ? `${favoriteDriver?.name} +${favoriteDrivers.length - 1}` : favoriteDriver?.name;
+  const teamLabel = favoriteTeams && favoriteTeams.length > 1 ? `${favoriteTeam?.name} +${favoriteTeams.length - 1}` : favoriteTeam?.name;
 
   if (favoriteDriver && favoriteDriverRank) {
     items.push(

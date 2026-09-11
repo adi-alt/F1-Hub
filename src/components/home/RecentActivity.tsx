@@ -22,14 +22,21 @@ export function RecentActivity({ entries }: { entries: ActivityEntry[] }) {
   if (density === "empty") return null;
 
   if (density !== "full") {
+    // A small bordered row, not a bare label+sentence floating between sections - the same
+    // dot-plus-label convention already used for "AI Season Narrative"/"Your outlook" elsewhere on
+    // the homepage, so a light-activity account's compact activity reads as an intentional, styled
+    // element instead of a raw debug-looking tag.
     return (
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 text-sm">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Recent:</span>
-        {entries.map((entry) => (
-          <span key={entry.key} className="text-neutral-300">
-            {entry.text} <span className="text-xs text-neutral-600">({timeAgo(entry.timestamp)})</span>
-          </span>
-        ))}
+      <div className="flex items-start gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
+        <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Recent</span>
+          {entries.map((entry) => (
+            <span key={entry.key} className="text-sm text-neutral-300">
+              {entry.text} <span className="text-xs text-neutral-600">({timeAgo(entry.timestamp)})</span>
+            </span>
+          ))}
+        </div>
       </div>
     );
   }

@@ -105,8 +105,25 @@ export function ChampionshipTrajectory({
     return Math.min(Math.max(i, 0), rows.length - 1);
   }
 
+  // Tooltip/end-of-line-label edge awareness: every series' last point sits at the same rightmost
+  // x by construction (xFor's own definition), so the end-of-line label ALWAYS needs to anchor to
+  // the left of its dot, never grow rightward past the chart's own right edge - that was a latent
+  // clipping bug regardless of container width, just far more visible once a longer label (a
+  // multi-word driver/team name) made the overflow large enough to read as "cut off text" instead
+  // of a barely-perceptible sliver. The interactive hover tooltip gets the same treatment,
+  // computed per-hover from how close that point is to either edge.
+  const hoverFrac = hoverIndex != null ? hoverIndex / (rows.length - 1) : 0.5;
+  const EDGE_ZONE = 0.14;
+  const tooltipAnchor = hoverFrac < EDGE_ZONE ? "left" : hoverFrac > 1 - EDGE_ZONE ? "right" : "center";
+  const tooltipTranslateX = tooltipAnchor === "left" ? "0%" : tooltipAnchor === "right" ? "-100%" : "-50%";
+
   return (
-    <div>
+    // A capped max-width, not just a responsive `w-full` - this component is reused in two very
+    // differently-sized containers (YourF1's full-width Championship tab, SeasonRecap's half-width
+    // panel); without a cap, the fixed 520:120 viewBox scales up on a very wide card until the
+    // chart becomes a dominant, stretched element rather than the compact sparkline it's designed
+    // to be. `mx-auto` keeps it centered rather than pinned left when the container is wider.
+    <div className="mx-auto w-full max-w-[560px]">
       <div className="relative">
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -205,15 +222,18 @@ export function ChampionshipTrajectory({
 
         {/* End-of-line labels - a small "editorial chart" signature (driver + current points right
          * on the line) so which line is which doesn't require cross-referencing the legend below.
-         * Desktop-only: not enough horizontal room for this alongside the chart on narrow phones. */}
+         * Anchored to the LEFT of the endpoint dot (grows leftward, ends 6px before it) rather than
+         * to the right - every series' last point sits at the same far-right x by construction, so
+         * a rightward-growing label had nowhere to go but past the chart's own edge. Desktop-only:
+         * not enough horizontal room for this alongside the chart on narrow phones. */}
         <div className="pointer-events-none absolute inset-0 hidden sm:block">
           {paths.map((p) => {
             const last = p.points[p.points.length - 1];
             return (
               <span
                 key={`label-${p.code}`}
-                className="absolute whitespace-nowrap text-[9px] font-semibold"
-                style={{ left: `${(last.x / WIDTH) * 100}%`, top: `${(last.y / HEIGHT) * 100}%`, transform: "translate(6px, -50%)", color: p.color }}
+                className="absolute max-w-[45%] truncate text-right text-[9px] font-semibold"
+                style={{ left: `${(last.x / WIDTH) * 100}%`, top: `${(last.y / HEIGHT) * 100}%`, transform: "translate(calc(-100% - 6px), -50%)", color: p.color }}
               >
                 {p.label} · {rows[rows.length - 1][p.code]}
               </span>
@@ -226,7 +246,10 @@ export function ChampionshipTrajectory({
             className="pointer-events-none absolute top-0 z-10 -translate-y-full rounded-lg border px-2.5 py-1.5 text-xs shadow-[0_12px_32px_rgba(0,0,0,0.35)]"
             style={{
               left: `${(xFor(hoverIndex!) / WIDTH) * 100}%`,
-              transform: "translate(-50%, -6px)",
+              // Flips to a left- or right-anchored transform once the hovered point is near either
+              // edge, instead of always centering - a centered tooltip on the last/first point
+              // would otherwise sit half off the chart, exactly the clipping this fixes.
+              transform: `translate(${tooltipTranslateX}, -6px)`,
               background: tooltipStyle.background,
               backdropFilter: tooltipStyle.backdropFilter,
               WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter,

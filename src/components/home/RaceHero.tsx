@@ -7,7 +7,7 @@ import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceInte
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
-import { formatCountdownLive } from "@/lib/countdown";
+import { formatCountdownLive, parseUtcDateTime } from "@/lib/countdown";
 import type { NextAction, PublicHomeData } from "@/lib/homeData";
 import type { FactIconKind, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
@@ -44,7 +44,7 @@ function useSecondClock(): number {
  * example): render the real value both times, just don't warn that the two didn't match text. */
 function localTimeLabel(iso: string | null): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return parseUtcDateTime(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 /** The race, not the user, is the dominant visual — greeting (personal only) sits as a small
@@ -75,7 +75,7 @@ export function RaceHero({
   const { nextRace, calendarEntry, facts, trackHistory } = publicData;
 
   const raceSessionDate = calendarEntry?.sessions.find((s) => s.label.toLowerCase().includes("race"))?.date ?? calendarEntry?.raceDate ?? null;
-  const countdown = raceSessionDate ? formatCountdownLive(new Date(raceSessionDate).getTime(), now) : "";
+  const countdown = raceSessionDate ? formatCountdownLive(parseUtcDateTime(raceSessionDate).getTime(), now) : "";
   const localTime = localTimeLabel(raceSessionDate);
 
   if (!nextRace) {

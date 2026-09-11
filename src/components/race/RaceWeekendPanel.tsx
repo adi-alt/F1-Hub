@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { formatCountdown } from "@/lib/countdown";
+import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { sessionCode } from "@/lib/sessionCode";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 
@@ -19,11 +19,11 @@ export function RaceWeekendPanel({ calendarEntry }: { calendarEntry: CalendarEnt
   if (!calendarEntry || calendarEntry.sessions.length === 0) return null;
 
   const raceSessionDate = calendarEntry.sessions.find((s) => sessionCode(s.label) === "R")?.date ?? calendarEntry.raceDate;
-  const countdown = raceSessionDate ? formatCountdown(new Date(raceSessionDate).getTime(), now) : "";
+  const countdown = raceSessionDate ? formatCountdown(parseUtcDateTime(raceSessionDate).getTime(), now) : "";
   // Race day has come and gone but the pipeline hasn't posted a completed status/results yet (it
   // runs on a batch schedule, not live - see races.ts's getRace docstring) - an honest "results are
   // coming, not stuck" note rather than a countdown sitting at 0m or silently vanishing.
-  const awaitingResults = !!raceSessionDate && !countdown && new Date(raceSessionDate).getTime() <= now;
+  const awaitingResults = !!raceSessionDate && !countdown && parseUtcDateTime(raceSessionDate).getTime() <= now;
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
@@ -31,7 +31,7 @@ export function RaceWeekendPanel({ calendarEntry }: { calendarEntry: CalendarEnt
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             {calendarEntry.sessions.map((s) => {
-              const completed = new Date(s.date).getTime() <= now;
+              const completed = parseUtcDateTime(s.date).getTime() <= now;
               return (
                 <div
                   key={s.label}
@@ -39,7 +39,7 @@ export function RaceWeekendPanel({ calendarEntry }: { calendarEntry: CalendarEnt
                 >
                   <span className={`font-semibold ${completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
                   <span className="ml-1.5 font-mono text-[11px] text-neutral-500">
-                    {new Date(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
+                    {parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
               );

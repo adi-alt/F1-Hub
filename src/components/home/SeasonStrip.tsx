@@ -4,9 +4,11 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { RaceReadiness } from "./RaceReadiness";
 import { formatLapTime, raceStatusLabel, trackShortForm } from "@/lib/format";
 import type { FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { circuitHref, raceHref } from "@/lib/routes";
+import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
 
 /** The season timeline, redesigned as a minimal round-navigator strip + one larger featured-round
@@ -24,6 +26,7 @@ export function SeasonStrip({
   favoriteDriver,
   favoriteTeam,
   circuitImageByRound = {},
+  calendarEntry = null,
 }: {
   races: RaceDoc[];
   nextRaceRound?: number | null;
@@ -32,6 +35,10 @@ export function SeasonStrip({
   /** Archive-circuit fallback image per round (resolved once, server-side, in page.tsx) - the
    * second tier of the image fallback chain, behind the round's own real `photoUrl`. */
   circuitImageByRound?: Record<number, string | null>;
+  /** Real session-schedule data for `nextRaceRound` specifically - the only round this is ever
+   * fetched for (page.tsx only calls getCalendarEntry once, for the upcoming race), so it's only
+   * ever passed through to the "this weekend" branch below, never a different selected round. */
+  calendarEntry?: CalendarEntry | null;
 }) {
   const [selectedRound, setSelectedRound] = useState<number | null>(
     () => nextRaceRound ?? [...races].reverse().find((r) => r.status === "completed")?.round ?? races[0]?.round ?? null,
@@ -75,7 +82,17 @@ export function SeasonStrip({
           ◀
         </button>
 
-        <div role="listbox" aria-label="Season rounds" className="flex flex-1 snap-x snap-mandatory gap-1.5 overflow-x-auto scrollbar-hide">
+        {/* A season has far more rounds than fit at once - this list is deliberately a horizontal
+         * scroller, not a wrap. The mask-image fade (not a hard edge) is what turns "a node is
+         * abruptly cut off mid-item at the boundary" into a legible, intentional "there's more,
+         * scroll" affordance instead of looking like clipped/broken content - see the redesign
+         * plan's own note on this exact failure mode. `scroll-px-1` gives the snap points a little
+         * breathing room so the very first/last real round never sits flush against the fade. */}
+        <div
+          role="listbox"
+          aria-label="Season rounds"
+          className="flex flex-1 snap-x snap-mandatory gap-1.5 overflow-x-auto scroll-px-1 scrollbar-hide [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]"
+        >
           {races.map((race, i) => {
             const isHere = race.round === nextRaceRound;
             const isSelected = race.round === selectedRound;
@@ -140,6 +157,7 @@ export function SeasonStrip({
             favoriteDriver={favoriteDriver}
             favoriteTeam={favoriteTeam}
             fallbackImageUrl={circuitImageByRound[selected.round] ?? null}
+            calendarEntry={selected.round === nextRaceRound ? calendarEntry : null}
           />
         </motion.div>
       )}
@@ -153,12 +171,14 @@ function FeaturedRound({
   favoriteDriver,
   favoriteTeam,
   fallbackImageUrl,
+  calendarEntry,
 }: {
   race: RaceDoc;
   isHere: boolean;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
   fallbackImageUrl: string | null;
+  calendarEntry: CalendarEntry | null;
 }) {
   // Adaptive content density: the image is a real visual moment for a round with substantive text
   // alongside it (completed results, or this weekend's prediction CTA) - the plain "not yet raced"
@@ -196,7 +216,7 @@ function FeaturedRound({
           {race.status === "completed" ? (
             <CompletedRoundDetail race={race} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} />
           ) : isHere ? (
-            <ThisWeekendDetail race={race} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} />
+            <ThisWeekendDetail race={race} favoriteDriver={favoriteDriver} favoriteTeam={favoriteTeam} calendarEntry={calendarEntry} />
           ) : (
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-neutral-500">Not yet raced.</p>
@@ -303,22 +323,40 @@ function ThisWeekendDetail({
   race,
   favoriteDriver,
   favoriteTeam,
+  calendarEntry,
 }: {
   race: RaceDoc;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
+  calendarEntry: CalendarEntry | null;
 }) {
   const who = favoriteDriver?.name ?? favoriteTeam?.name;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-neutral-300">
-        This weekend{who ? `, make your ${who} prediction` : ""} before lights out.
-      </p>
-      <Link
-        href={raceHref(race.year, race.round, race.name)}
-        className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
-      >
-        Make Prediction →
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-neutral-300">
+          This weekend{who ? `, make your ${who} prediction` : ""} before lights out.
+        </p>
+        <Link
+          href={raceHref(race.year, race.round, race.name)}
+          className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+        >
+          Make Prediction →
+        </Link>
+      </div>
+
+      {/* Real weekend schedule, sprint-aware - reuses RaceReadiness (already mounted in the hero)
+       * rather than a second hand-built session list; existence comes straight from
+       * calendarEntry.sessions, so a conventional weekend never shows a fabricated Sprint step and
+       * a sprint weekend shows exactly its own real session set. */}
+      {calendarEntry && calendarEntry.sessions.length > 0 && (
+        <div className="overflow-x-auto pt-1">
+          <RaceReadiness calendarEntry={calendarEntry} race={race} />
+        </div>
+      )}
+
+      <Link href={circuitHref(race.circuit)} className="inline-block text-xs font-medium text-neutral-500 transition hover:text-white">
+        Circuit history →
       </Link>
     </div>
   );

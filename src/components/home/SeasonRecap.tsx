@@ -3,6 +3,7 @@ import { SeasonStrip } from "./SeasonStrip";
 import { chart } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { FavoriteDriverCard, FavoriteTeamCard, SeasonRecap as SeasonRecapData } from "@/lib/personalization";
+import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
 
 // Season Recap is a narrative summary, not a second detailed dashboard - a favorite's full stats/
@@ -35,6 +36,7 @@ export function SeasonRecap({
   favoriteDriver,
   favoriteTeam,
   circuitImageByRound,
+  calendarEntry,
 }: {
   year: number;
   races: RaceDoc[];
@@ -44,6 +46,9 @@ export function SeasonRecap({
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
   circuitImageByRound?: Record<number, string | null>;
+  /** Real session-schedule data for the upcoming race, threaded through to SeasonStrip's "this
+   * weekend" branch - see that component's own comment on why it's only ever for one round. */
+  calendarEntry?: CalendarEntry | null;
 }) {
   const driverRanksLine = formatFavoriteRanks(recap.favoriteDriverRanks);
   const teamRanksLine = formatFavoriteRanks(recap.favoriteTeamRanks);
@@ -76,6 +81,7 @@ export function SeasonRecap({
               favoriteDriver={favoriteDriver}
               favoriteTeam={favoriteTeam}
               circuitImageByRound={circuitImageByRound ?? {}}
+              calendarEntry={calendarEntry}
             />
           </div>
         </div>
@@ -168,6 +174,7 @@ export function SeasonRecap({
             favoriteDriver={favoriteDriver}
             favoriteTeam={favoriteTeam}
             circuitImageByRound={circuitImageByRound ?? {}}
+            calendarEntry={calendarEntry}
           />
         </div>
       </div>
