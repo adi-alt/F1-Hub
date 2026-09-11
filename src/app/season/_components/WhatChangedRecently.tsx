@@ -1,6 +1,6 @@
 import { ArrowUpIcon, ArrowDownIcon, MinusIcon } from "lucide-react";
-import type { DriverStandingRow, ConstructorStandingRow } from "../_service/season.service";
-import { computePositionChanges } from "../_service/season.service";
+import type { DriverStandingRow, ConstructorStandingRow } from "../_service/season.pure";
+import { computePositionChanges } from "../_service/season.pure";
 import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
 
 export function WhatChangedRecently({

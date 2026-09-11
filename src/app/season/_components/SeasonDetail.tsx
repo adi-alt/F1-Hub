@@ -1,3 +1,5 @@
+"use client";
+
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import Link from "next/link";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";

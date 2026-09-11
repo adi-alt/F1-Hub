@@ -1,6 +1,6 @@
 import { TrophyIcon, TrendingUpIcon, SwordsIcon, TargetIcon } from "lucide-react";
-import type { DriverStandingRow, ConstructorStandingRow, RaceSummary, Battle } from "../_service/season.service";
-import { computeRecentForm } from "../_service/season.service";
+import type { DriverStandingRow, ConstructorStandingRow, RaceSummary, Battle } from "../_service/season.pure";
+import { computeRecentForm } from "../_service/season.pure";
 
 export function SeasonAtAGlance({
   drivers,

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.service";
+import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.pure";
 
 describe("season.service deterministic computations", () => {
   const mockRaceSummaries: RaceSummary[] = [
