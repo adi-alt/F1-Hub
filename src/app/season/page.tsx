@@ -55,6 +55,7 @@ export default async function SeasonPage({
         battles={data.battles}
         records={data.records}
         favoriteDriverIds={data.favoriteDriverIds}
+        favoriteTeamIds={data.favoriteTeamIds}
       />
     </div>
   );

@@ -45,6 +45,7 @@ export function SeasonDetail({
   battles,
   records,
   favoriteDriverIds,
+  favoriteTeamIds = [],
 }: {
   year: number;
   status: "ongoing" | "completed";
@@ -58,30 +59,44 @@ export function SeasonDetail({
   battles: Battle[];
   records: SeasonRecord[];
   favoriteDriverIds: string[];
+  favoriteTeamIds?: string[];
 }) {
   // The favorite driver (if any) is the sensible default Compare selection, per the "subtle
   // personalization" rule — it changes a default, it doesn't build a whole section of its own.
+  // Checks every favorite driver in standings order (not just favoriteDriverIds[0]) so someone
+  // with several favorites still gets whichever one is actually ahead in the standings, not an
+  // arbitrary "first one saved".
   const favoriteDriver = drivers.find((d) => d.favoriteId && favoriteDriverIds.includes(d.favoriteId));
   const defaultA = favoriteDriver ?? drivers[0];
   const defaultAIndex = defaultA ? drivers.indexOf(defaultA) : -1;
-  const defaultB = drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
+  // A favorite TEAM's own top driver is a better default B than "whoever's adjacent in the
+  // standings" when the favorite driver picked for A already belongs to that team (comparing a
+  // driver against their own teammate is a weaker default than against a team you actually follow).
+  // Matched via each constructor row's own real favoriteId (archiveSlugForCurrentTeam), not a
+  // guessed slug transform of the team name.
+  const favoriteTeam = constructors.find((c) => favoriteTeamIds.includes(c.favoriteId) && c.team !== defaultA?.team);
+  const favoriteTeamDriver = favoriteTeam ? drivers.find((d) => d.team === favoriteTeam.team) : undefined;
+  const defaultB = favoriteTeamDriver ?? drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
   const currentRound = status === "ongoing" ? raceSummaries.find((r) => r.state === "next") : undefined;
 
   // Season context for Apex. Standings are trimmed to the top of each table plus the season shape -
   // enough to answer "why is X second" or "who's gained most recently" without shipping the whole
   // progression matrix, which the route would cap away anyway.
 
-  const contextSnapshot = {
-    season: { year, status, racesCompleted, racesRemaining, nextRace: currentRound?.name ?? null },
-    driverStandings: drivers.slice(0, 12).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
-    constructorStandings: constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
-    battles: battles.slice(0, 5),
-    records: records.slice(0, 8),
-    recentRaces: raceSummaries.filter((r) => r.state === "completed").slice(-5).map((r) => ({ name: r.name, round: r.round })),
-  };
-  
+  const contextSnapshot = useMemo(
+    () => ({
+      season: { year, status, racesCompleted, racesRemaining, nextRace: currentRound?.name ?? null },
+      driverStandings: drivers.slice(0, 12).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
+      constructorStandings: constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
+      battles: battles.slice(0, 5),
+      records: records.slice(0, 8),
+      recentRaces: raceSummaries.filter((r) => r.state === "completed").slice(-5).map((r) => ({ name: r.name, round: r.round })),
+    }),
+    [year, status, racesCompleted, racesRemaining, currentRound, drivers, constructors, battles, records, raceSummaries],
+  );
+
   const contextJson = useMemo(() => JSON.stringify(contextSnapshot), [contextSnapshot]);
-  const contextHash = useMemo(() => generateContextHash(contextSnapshot), [contextJson]);
+  const contextHash = useMemo(() => generateContextHash(contextSnapshot), [contextSnapshot]);
   const validIds = useMemo(() => [
     ...drivers.map(d => d.driver),
     ...constructors.map(c => c.team),

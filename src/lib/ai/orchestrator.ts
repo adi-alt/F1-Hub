@@ -660,32 +660,69 @@ export async function generateSeasonIntelligence(
 ): Promise<{ data: SharedSeasonIntelligence, generationMode: "ai" | "deterministic" }> {
   const startTime = Date.now();
   const plannedModel = "groq/openai/gpt-oss-120b";
-  
+
   const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
     return { data: generateDeterministicSeasonFallback(season, completedRounds), generationMode: "deterministic" };
   }
-  
+
   const baseConfig = {
     maxTokens: 1000,
     temperature: 0.7,
     groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
   };
-  
+
   try {
     const messages = formatSeasonPrompt(contextJson);
     const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
     if (!result.response.content) throw new Error("EMPTY_RESPONSE");
-    
+
     const parsed = JSON.parse(cleanJsonOutput(result.response.content));
     const validation = validateSeasonIntelligence(parsed, validIds);
     if (!validation.valid || !validation.data) {
+      logAIError(ctx.requestId, "season_intelligence_validation_failure", "Failed to validate season intelligence output", { errors: validation.errors });
       throw new Error("SCHEMA_VALIDATION_FAILED");
     }
-    
+
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "season_intelligence",
+      userId: ctx.userId,
+      provider: result.providerName,
+      model: result.model,
+      promptVersion: SEASON_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage: result.response.usage,
+      cacheHit: false,
+      validationSuccess: true,
+      finishReason: result.response.finishReason,
+      fallbackUsed: result.fallbackUsed,
+      fallbackReason: result.fallbackReason,
+    });
+
     return { data: validation.data, generationMode: "ai" };
   } catch (err) {
+    logAIError(ctx.requestId, "season_intelligence_generation_failed", String(err));
+    const reason = err instanceof Error && (err.message === "EMPTY_RESPONSE" || err.message === "SCHEMA_VALIDATION_FAILED") ? err.message : "PROVIDER_ERROR";
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "season_intelligence",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: SEASON_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: reason,
+      errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
+    });
     return { data: generateDeterministicSeasonFallback(season, completedRounds), generationMode: "deterministic" };
   }
 }
@@ -697,29 +734,70 @@ export async function generateSeasonCompareInsight(
   ctx: AgentContext
 ): Promise<{ data: SeasonCompareInsight, generationMode: "ai" | "deterministic" }> {
   const startTime = Date.now();
-  
+  const plannedModel = "groq/openai/gpt-oss-120b";
+
   const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
     return { data: generateDeterministicCompareFallback(entityA, entityB), generationMode: "deterministic" };
   }
-  
+
   const baseConfig = {
     maxTokens: 500,
     temperature: 0.7,
     groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
   };
-  
+
   try {
     const messages = formatSeasonComparePrompt(contextJson);
     const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
     if (!result.response.content) throw new Error("EMPTY_RESPONSE");
-    
+
     const parsed = JSON.parse(cleanJsonOutput(result.response.content));
-    const data = SeasonCompareInsightSchema.parse(parsed);
-    
-    return { data, generationMode: "ai" };
+    const validation = SeasonCompareInsightSchema.safeParse(parsed);
+    if (!validation.success) {
+      logAIError(ctx.requestId, "season_compare_validation_failure", "Failed to validate season compare output", { errors: validation.error.issues });
+      throw new Error("SCHEMA_VALIDATION_FAILED");
+    }
+
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "season_compare",
+      userId: ctx.userId,
+      provider: result.providerName,
+      model: result.model,
+      promptVersion: SEASON_COMPARE_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage: result.response.usage,
+      cacheHit: false,
+      validationSuccess: true,
+      finishReason: result.response.finishReason,
+      fallbackUsed: result.fallbackUsed,
+      fallbackReason: result.fallbackReason,
+    });
+
+    return { data: validation.data, generationMode: "ai" };
   } catch (err) {
+    logAIError(ctx.requestId, "season_compare_generation_failed", String(err));
+    const reason = err instanceof Error && (err.message === "EMPTY_RESPONSE" || err.message === "SCHEMA_VALIDATION_FAILED") ? err.message : "PROVIDER_ERROR";
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "season_compare",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: SEASON_COMPARE_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: reason,
+      errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
+    });
     return { data: generateDeterministicCompareFallback(entityA, entityB), generationMode: "deterministic" };
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent, type MouseEvent } from "react";
-import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
@@ -91,7 +90,6 @@ function useMeasuredWidth<T extends HTMLElement>() {
  * dedicated page - this calendar doesn't expand anything inline anymore (every race opens on its
  * own route now, current season included, same as Archive). */
 export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[] }) {
-  const router = useRouter();
   const favDrivers = useFavDriverIds();
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number; flipBelow: boolean } | null>(null);
   const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null);

@@ -3,6 +3,7 @@ import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
+import { parseUtcDateTime } from "@/lib/countdown";
 import { trackShortForm } from "@/lib/format";
 import { computeChampionshipProgression } from "@/lib/personalization";
 import { sessionCode } from "@/lib/sessionCode";
@@ -68,7 +69,10 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]):
   const sorted = [...calendarEntries].sort((a, b) => a.round - b.round);
 
   const now = Date.now();
-  const nextRound = sorted.find((e) => e.raceDate && new Date(e.raceDate).getTime() > now)?.round;
+  // The pipeline writes naive datetime strings (no timezone suffix) - parseUtcDateTime treats
+  // them as UTC instead of letting new Date() misparse them as local time in whatever timezone
+  // this happens to run in (the exact bug already fixed for RaceHero/RaceWeekendPanel/PickPanel).
+  const nextRound = sorted.find((e) => e.raceDate && parseUtcDateTime(e.raceDate).getTime() > now)?.round;
 
   // The single "what's happening next" pointer, but at session granularity instead of race
   // granularity — every session across the whole season, chronologically, so each weekend's
@@ -76,8 +80,8 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]):
   // switching state at once.
   const allSessions = sorted
     .flatMap((e) => e.sessions.map((s) => ({ ...s, round: e.round })))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const currentSession = allSessions.find((s) => new Date(s.date).getTime() > now);
+    .sort((a, b) => parseUtcDateTime(a.date).getTime() - parseUtcDateTime(b.date).getTime());
+  const currentSession = allSessions.find((s) => parseUtcDateTime(s.date).getTime() > now);
 
   return sorted.map((entry) => {
     const race = raceByRound.get(entry.round);
@@ -93,7 +97,7 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]):
         code: sessionCode(s.label),
         date: s.date,
         state:
-          new Date(s.date).getTime() <= now
+          parseUtcDateTime(s.date).getTime() <= now
             ? "completed"
             : currentSession && currentSession.round === entry.round && currentSession.label === s.label
               ? "current"
@@ -686,9 +690,21 @@ export function computePositionChanges(
     return result;
   }
   
-  const currentRoundState = progression[progression.length - 1];
   const previousRoundState = progression[progression.length - 2];
-  
+
+  // `progression` is keyed by DRIVER code only (see getSeasonPageData/computeChampionshipProgression)
+  // - reading previousRoundState[team] below for constructors would always land on `undefined`
+  // (silently coerced to 0), making every constructor "previous points" reads as zero and the
+  // resulting position/points deltas meaningless. Derive a team-keyed table the same way
+  // ProgressionPanel's own teamProgression already does: sum each round's per-driver points by
+  // that driver's CURRENT team (a real approximation for a mid-season driver swap, same trade-off
+  // ProgressionPanel already accepts, not a new one introduced here).
+  const previousTeamPoints: Record<string, number> = {};
+  for (const d of currentDrivers) {
+    const v = previousRoundState[d.driver];
+    if (typeof v === "number") previousTeamPoints[d.team] = (previousTeamPoints[d.team] ?? 0) + v;
+  }
+
   // To find previous position, we need to sort all entities by their previous points.
   // In a real implementation we'd use proper tie-breakers. For now we use current standings as tie-breakers.
   const prevDriverPoints = currentDrivers.map(d => ({
@@ -712,18 +728,18 @@ export function computePositionChanges(
     });
   });
   
-  // Similar logic for constructors
+  // Similar logic for constructors - using the derived team-keyed table, not the driver-keyed one.
   const prevConstructorPoints = currentConstructors.map(c => ({
     id: c.team,
-    points: (previousRoundState[c.team] as number) || 0,
+    points: previousTeamPoints[c.team] ?? 0,
     currentRank: currentConstructors.findIndex(x => x.team === c.team)
   })).sort((a, b) => b.points - a.points || a.currentRank - b.currentRank);
-  
+
   currentConstructors.forEach((c, i) => {
     const currentPosition = i + 1;
     const previousPosition = prevConstructorPoints.findIndex(x => x.id === c.team) + 1;
     const currentPoints = c.points;
-    const previousPoints = (previousRoundState[c.team] as number) || 0;
+    const previousPoints = previousTeamPoints[c.team] ?? 0;
     
     result.constructors.push({
       entityId: c.team,

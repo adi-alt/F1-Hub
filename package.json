@@ -16,7 +16,6 @@
     "@supabase/supabase-js": "^2.112.3",
     "@tanstack/react-query": "^5.101.4",
     "@vercel/analytics": "^2.0.1",
-    "@vercel/kv": "^3.0.0",
     "@vercel/speed-insights": "^2.0.0",
     "@visx/curve": "^4.0.0",
     "@visx/shape": "^4.0.0",

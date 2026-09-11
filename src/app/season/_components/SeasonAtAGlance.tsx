@@ -4,7 +4,6 @@ import { computeRecentForm } from "../_service/season.service";
 
 export function SeasonAtAGlance({
   drivers,
-  constructors,
   races,
   battles,
 }: {

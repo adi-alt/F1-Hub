@@ -54,7 +54,7 @@ export const SeasonCompareInsightSchema = z.object({
 
 export type SeasonCompareInsight = z.infer<typeof SeasonCompareInsightSchema>;
 
-export function validateSeasonIntelligence(data: unknown, validIds: string[]): { valid: boolean; data?: SharedSeasonIntelligence; errors?: any } {
+export function validateSeasonIntelligence(data: unknown, validIds: string[]): { valid: boolean; data?: SharedSeasonIntelligence; errors?: unknown } {
   try {
     const parsed = SharedSeasonIntelligenceSchema.parse(data);
     // Validate referenced IDs against the deterministic context

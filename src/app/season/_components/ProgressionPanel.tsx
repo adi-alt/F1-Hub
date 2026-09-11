@@ -42,9 +42,6 @@ export function ProgressionPanel({
   const [metric, setMetric] = useState<Metric>("points");
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const [customCodes, setCustomCodes] = useState<string[]>([]);
-  // Hovering a curve (or its legend entry) emphasizes it and dims the rest — null means "show
-  // everything at full strength", the resting state.
-  const [activeCode, setActiveCode] = useState<string | null>(null);
   const isDrivers = entityType === "drivers";
 
   // A driver-code custom selection means nothing once entityType flips to teams (and vice versa)

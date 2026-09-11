@@ -3,16 +3,18 @@ import { getSession } from "@/lib/session/getSession";
 import { guardAIExecution, sanitizePromptInput } from "@/lib/ai/guardrails";
 import { generateSeasonCompareInsight } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
-import { buildSeasonCompareCacheKey } from "@/lib/ai/cache";
-import { kv } from "@vercel/kv";
+import { buildSeasonCompareCacheKey, getCachedIntelligence, setCachedIntelligence, withSingleFlight } from "@/lib/ai/cache";
 import crypto from "crypto";
 import type { AgentContext } from "@/lib/ai/types";
+import type { SeasonCompareInsight } from "@/lib/ai/schemas/seasonIntelligence";
 import { generateDeterministicCompareFallback } from "@/lib/ai/fallback";
 
 export const maxDuration = 60;
+const SEASON_COMPARE_TTL_SECONDS = 60 * 60 * 24; // 24h - a compare pair's insight is stable between race weekends
 
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  let parsedBody: Record<string, unknown> = {};
 
   try {
     const session = await getSession();
@@ -23,8 +25,17 @@ export async function POST(req: Request) {
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
+    parsedBody = body as Record<string, unknown>;
 
-    const { contextJson, season, entityType, entityA, entityB, completedRounds, contextHash } = body as any;
+    const { contextJson, season, entityType, entityA, entityB, completedRounds, contextHash } = body as {
+      contextJson?: string;
+      season?: number;
+      entityType?: "drivers" | "constructors";
+      entityA?: string;
+      entityB?: string;
+      completedRounds?: number;
+      contextHash?: string;
+    };
 
     if (!contextJson || !season || !entityType || !entityA || !entityB || typeof completedRounds !== "number" || !contextHash) {
       return NextResponse.json({ error: "MISSING_PARAMETERS" }, { status: 400 });
@@ -42,35 +53,24 @@ export async function POST(req: Request) {
     const sanitizedContext = sanitizePromptInput(contextJson, 10000);
     const cacheKey = buildSeasonCompareCacheKey(season, entityType, entityA, entityB, completedRounds, contextHash);
 
-    // Cache lookup
-    try {
-      const cached = await kv.get(cacheKey);
-      if (cached) {
-        return NextResponse.json(cached);
-      }
-    } catch (e) {
-      logAIError(requestId, "kv_cache_read_error", String(e));
-    }
+    const cached = await getCachedIntelligence<SeasonCompareInsight>(cacheKey, requestId);
+    if (cached) return NextResponse.json(cached);
 
     const ctx: AgentContext = { userId, requestId, agentType: "season_compare", raceId: null, dataVersion: contextHash };
 
-    // Request may be cancelled client-side; Next.js handles aborts gracefully
-    const result = await generateSeasonCompareInsight(sanitizedContext, entityA, entityB, ctx);
-
-    if (result.generationMode === "ai" && result.data) {
-      try {
-        await kv.set(cacheKey, result.data, { ex: 60 * 60 * 24 }); // Cache for 24h
-      } catch (e) {
-        logAIError(requestId, "kv_cache_write_error", String(e));
+    const data = await withSingleFlight(cacheKey, async () => {
+      const result = await generateSeasonCompareInsight(sanitizedContext, entityA, entityB, ctx);
+      if (result.generationMode === "ai" && result.data) {
+        await setCachedIntelligence(cacheKey, result.data, contextHash, SEASON_COMPARE_TTL_SECONDS, { requestId });
       }
-    }
+      return result.data;
+    });
 
-    return NextResponse.json(result.data);
-
+    return NextResponse.json(data);
   } catch (err) {
     logAIError(requestId, "season_compare_route_exception", String(err));
-    // Provide a deterministic fallback on failure
-    const body: any = await req.json().catch(() => ({}));
-    return NextResponse.json(generateDeterministicCompareFallback(body.entityA || "A", body.entityB || "B"));
+    const entityA = typeof parsedBody.entityA === "string" ? parsedBody.entityA : "A";
+    const entityB = typeof parsedBody.entityB === "string" ? parsedBody.entityB : "B";
+    return NextResponse.json(generateDeterministicCompareFallback(entityA, entityB));
   }
 }

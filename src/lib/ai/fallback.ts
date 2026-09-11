@@ -352,10 +352,10 @@ export function generateDeterministicSeasonFallback(season: number, completedRou
 
 export function generateDeterministicCompareFallback(entityA: string, entityB: string): SeasonCompareInsight {
   return {
-    headline: "Head-to-Head Comparison",
-    summary: "Deterministic comparison mode is active. See deterministic stats below.",
-    keyAdvantageA: "Data visible in tables",
-    keyAdvantageB: "Data visible in tables",
+    headline: `${entityA} vs ${entityB}`,
+    summary: `A written breakdown of ${entityA} against ${entityB} is unavailable right now. The stats below are exact.`,
+    keyAdvantageA: "See the stats below",
+    keyAdvantageB: "See the stats below",
     momentum: "EVEN"
   };
 }

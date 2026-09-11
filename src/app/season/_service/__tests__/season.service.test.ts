@@ -109,18 +109,19 @@ describe("season.service deterministic computations", () => {
   
   describe("computePositionChanges", () => {
     it("computes pos and point deltas correctly", () => {
-      const currentDrivers = [
+      const currentDrivers: DriverStandingRow[] = [
         { driver: "VER", driverName: "Max Verstappen", team: "Red Bull", points: 50, headshotUrl: null, teamLogoUrl: null, favoriteId: null, wins: 2, podiums: 2 },
         { driver: "LEC", driverName: "Charles Leclerc", team: "Ferrari", points: 51, headshotUrl: null, teamLogoUrl: null, favoriteId: null, wins: 0, podiums: 3 },
       ];
+      const currentConstructors: ConstructorStandingRow[] = [];
       // In round 2 (previous to 3): VER had 50 pts, LEC had 33 pts.
       const progression = [
         { round: 1, VER: 25, LEC: 18 },
         { round: 2, VER: 50, LEC: 33 }, // Previous round
         { round: 3, VER: 50, LEC: 51 }, // Current round
       ];
-      
-      const changes = computePositionChanges(currentDrivers as any, [] as any, progression);
+
+      const changes = computePositionChanges(currentDrivers, currentConstructors, progression);
       assert.strictEqual(changes.drivers.length, 2);
       
       const ver = changes.drivers.find(d => d.entityId === "VER")!;
@@ -136,6 +137,34 @@ describe("season.service deterministic computations", () => {
       assert.strictEqual(lec.previousPosition, 2);
       assert.strictEqual(lec.currentPosition, 2);
       assert.strictEqual(lec.pointsDelta, 18); // 51 - 33
+    });
+
+    it("computes constructor deltas from a team-keyed derivation, not the driver-keyed progression directly", () => {
+      // REGRESSION: progression is keyed by DRIVER code only - reading previousRoundState[team]
+      // straight off it (the original bug) always resolved to undefined/0, so every constructor's
+      // previousPoints silently read as 0 regardless of the real previous round.
+      const currentDrivers: DriverStandingRow[] = [
+        { driver: "VER", driverName: "Max Verstappen", team: "Red Bull", points: 50, headshotUrl: null, teamLogoUrl: null, favoriteId: null, wins: 2, podiums: 2 },
+        { driver: "PER", driverName: "Sergio Perez", team: "Red Bull", points: 20, headshotUrl: null, teamLogoUrl: null, favoriteId: null, wins: 0, podiums: 1 },
+        { driver: "LEC", driverName: "Charles Leclerc", team: "Ferrari", points: 51, headshotUrl: null, teamLogoUrl: null, favoriteId: null, wins: 0, podiums: 3 },
+      ];
+      const currentConstructors: ConstructorStandingRow[] = [
+        { team: "Red Bull", points: 70, wins: 2, podiums: 3, logoUrl: null, favoriteId: "red-bull" },
+        { team: "Ferrari", points: 51, wins: 0, podiums: 3, logoUrl: null, favoriteId: "ferrari" },
+      ];
+      const progression = [
+        { round: 1, VER: 25, PER: 8, LEC: 18 },
+        { round: 2, VER: 50, PER: 15, LEC: 33 }, // previous round: Red Bull = 65, Ferrari = 33
+        { round: 3, VER: 50, PER: 20, LEC: 51 }, // current round
+      ];
+
+      const changes = computePositionChanges(currentDrivers, currentConstructors, progression);
+      const redBull = changes.constructors.find(c => c.entityId === "Red Bull")!;
+      const ferrari = changes.constructors.find(c => c.entityId === "Ferrari")!;
+      assert.strictEqual(redBull.pointsDelta, 5); // 70 - 65, not 70 - 0
+      assert.strictEqual(ferrari.pointsDelta, 18); // 51 - 33, not 51 - 0
+      assert.strictEqual(redBull.previousPosition, 1); // Red Bull led on 65 last round too
+      assert.strictEqual(ferrari.previousPosition, 2);
     });
   });
 });

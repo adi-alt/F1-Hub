@@ -273,15 +273,41 @@ export function ComparePanel({
   );
 }
 
-function CompareIntelligence({ season, entityType, entityA, entityB, contextJson, contextHash, completedRounds }: any) {
+function CompareIntelligence({
+  season,
+  entityType,
+  entityA,
+  entityB,
+  contextJson,
+  contextHash,
+  completedRounds,
+}: {
+  season: number;
+  entityType: "drivers" | "constructors";
+  entityA: string;
+  entityB: string;
+  contextJson: string;
+  contextHash: string;
+  completedRounds: number;
+}) {
   const [insight, setInsight] = useState<SeasonCompareInsight | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Resetting to "loading" for a new pair during render (React's own "adjust state when a prop
+  // changes" pattern, same technique ProgressionPanel already uses for its entityType reset)
+  // instead of calling setLoading(true) synchronously inside the effect below.
+  const pairKey = `${entityType}:${entityA}:${entityB}`;
+  const [prevPairKey, setPrevPairKey] = useState(pairKey);
+  if (prevPairKey !== pairKey) {
+    setPrevPairKey(pairKey);
+    setLoading(true);
+    setInsight(null);
+  }
 
   useEffect(() => {
     let active = true;
     if (!entityA || !entityB) return;
 
-    setLoading(true);
     fetch("/api/ai/season-compare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -310,7 +336,7 @@ function CompareIntelligence({ season, entityType, entityA, entityB, contextJson
     });
 
     return () => { active = false; };
-  }, [season, entityType, entityA, entityB, contextHash, completedRounds]);
+  }, [season, entityType, entityA, entityB, contextHash, contextJson, completedRounds]);
 
   if (loading) {
     return (

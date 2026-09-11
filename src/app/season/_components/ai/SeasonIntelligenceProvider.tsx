@@ -65,7 +65,7 @@ export function SeasonIntelligenceProvider({
     };
 
     fetchIntelligence();
-  }, [contextHash, season, completedRounds]);
+  }, [contextHash, season, completedRounds, contextJson, validIds]);
 
   return (
     <SeasonIntelligenceContext.Provider value={state}>

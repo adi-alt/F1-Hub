@@ -3,15 +3,14 @@ import { getSession } from "@/lib/session/getSession";
 import { guardAIExecution, sanitizePromptInput } from "@/lib/ai/guardrails";
 import { generateSeasonIntelligence } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
-import { buildSeasonCacheKey } from "@/lib/ai/cache";
-import { kv } from "@vercel/kv";
+import { buildSeasonCacheKey, getCachedIntelligence, setCachedIntelligence, withSingleFlight } from "@/lib/ai/cache";
 import crypto from "crypto";
 import type { AgentContext } from "@/lib/ai/types";
+import type { SharedSeasonIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 import { generateDeterministicSeasonFallback } from "@/lib/ai/fallback";
 
 export const maxDuration = 60;
-
-const inFlightGenerations = new Map<string, Promise<any>>();
+const SEASON_INTELLIGENCE_TTL_SECONDS = 60 * 60 * 12; // 12h - a season changes race-to-race, not minute-to-minute
 
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
@@ -31,7 +30,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
     }
 
-    const { contextJson, season, completedRounds, validIds, contextHash } = body as any;
+    const { contextJson, season, completedRounds, validIds, contextHash } = body as {
+      contextJson?: string;
+      season?: number;
+      completedRounds?: number;
+      validIds?: string[];
+      contextHash?: string;
+    };
 
     if (!contextJson || !season || typeof completedRounds !== "number" || !validIds || !contextHash) {
       return NextResponse.json({ error: "MISSING_PARAMETERS" }, { status: 400 });
@@ -40,46 +45,23 @@ export async function POST(req: Request) {
     const sanitizedContext = sanitizePromptInput(contextJson, 10000);
     const cacheKey = buildSeasonCacheKey(season, "all", completedRounds, contextHash);
 
-    // Cache lookup
-    try {
-      const cached = await kv.get(cacheKey);
-      if (cached) {
-        return NextResponse.json(cached);
-      }
-    } catch (e) {
-      logAIError(requestId, "kv_cache_read_error", String(e));
-    }
-
-    // Single-flight deduplication
-    if (inFlightGenerations.has(cacheKey)) {
-      const result = await inFlightGenerations.get(cacheKey);
-      return NextResponse.json(result);
-    }
+    const cached = await getCachedIntelligence<SharedSeasonIntelligence>(cacheKey, requestId);
+    if (cached) return NextResponse.json(cached);
 
     const ctx: AgentContext = { userId, requestId, agentType: "season_intelligence", raceId: null, dataVersion: contextHash };
 
-    const generationPromise = generateSeasonIntelligence(sanitizedContext, season, completedRounds, validIds, ctx)
-      .then(async (result) => {
-        if (result.generationMode === "ai" && result.data) {
-          try {
-            await kv.set(cacheKey, result.data, { ex: 60 * 60 * 24 }); // Cache for 24h
-          } catch (e) {
-            logAIError(requestId, "kv_cache_write_error", String(e));
-          }
-        }
-        return result.data;
-      })
-      .finally(() => {
-        inFlightGenerations.delete(cacheKey);
-      });
+    const data = await withSingleFlight(cacheKey, async () => {
+      const result = await generateSeasonIntelligence(sanitizedContext, season, completedRounds, validIds, ctx);
+      if (result.generationMode === "ai" && result.data) {
+        await setCachedIntelligence(cacheKey, result.data, contextHash, SEASON_INTELLIGENCE_TTL_SECONDS, { requestId });
+      }
+      return result.data;
+    });
 
-    inFlightGenerations.set(cacheKey, generationPromise);
-
-    const data = await generationPromise;
     return NextResponse.json(data);
-
   } catch (err) {
     logAIError(requestId, "season_intelligence_route_exception", String(err));
     return NextResponse.json(generateDeterministicSeasonFallback(0, 0));
   }
 }
+
