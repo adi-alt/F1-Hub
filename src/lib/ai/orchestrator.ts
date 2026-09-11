@@ -13,7 +13,7 @@ import { buildHomepageContext, type HomepageContextData } from "./context";
 import { formatRaceIntelligenceContext, hasPersonalContext, type RaceIntelligenceContext } from "./context/raceContext";
 import { validateHomepageIntelligence, type HomepageIntelligence } from "./schemas/homepageIntelligence";
 import { validatePersonalOnlyResult, validateRaceIntelligenceResult, type PersonalRaceInsight, type SharedRaceIntelligence } from "./schemas/raceIntelligence";
-import { generateDeterministicFallback, generateDeterministicRaceFallback, type FallbackDataContext } from "./fallback";
+import { generateDeterministicFallback, generateDeterministicRaceFallback, generateDeterministicSeasonFallback, generateDeterministicCompareFallback, type FallbackDataContext } from "./fallback";
 import { logAIOperation, logDeterministicFallback, logAIError } from "./telemetry";
 import { categorizeProviderError, categorizeFallbackReason } from "./errorCategory";
 import type { AgentContext, OrchestratorConfig, StructuredOutput } from "./types";
@@ -391,6 +391,7 @@ const ASK_APEX_FALLBACK_TEXT = "Apex is at capacity right now - try again in a m
 export async function generateAskApexAnswer(
   question: string,
   history: { role: "user" | "assistant"; content: string }[],
+  page: string,
   intelligenceJson: string,
   ctx: AgentContext,
 ): Promise<{ answer: string; isFallback: boolean; fallbackReason?: string; modelIdentifier: string }> {
@@ -422,7 +423,7 @@ export async function generateAskApexAnswer(
     return { answer: ASK_APEX_FALLBACK_TEXT, isFallback: true, fallbackReason: "PROVIDER_RATE_LIMITED", modelIdentifier: plannedModel };
   }
 
-  const messages = formatAskApexPrompt(intelligenceJson, history, question);
+  const messages = formatAskApexPrompt(page, intelligenceJson, history, question);
   const baseConfig = {
     maxTokens: ASK_APEX_MAX_TOKENS,
     temperature: 0.6,
@@ -642,5 +643,83 @@ export async function generateRaceIntelligence(
       errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
     });
     return toDeterministicResult();
+  }
+}
+
+
+import { validateSeasonIntelligence, type SharedSeasonIntelligence, type SeasonCompareInsight, SeasonCompareInsightSchema } from "./schemas/seasonIntelligence";
+import { formatSeasonPrompt, SEASON_PROMPT_VERSION } from "./prompts/seasonPrompt";
+import { formatSeasonComparePrompt, SEASON_COMPARE_PROMPT_VERSION } from "./prompts/seasonComparePrompt";
+
+export async function generateSeasonIntelligence(
+  contextJson: string,
+  season: number,
+  completedRounds: number,
+  validIds: string[],
+  ctx: AgentContext
+): Promise<{ data: SharedSeasonIntelligence, generationMode: "ai" | "deterministic" }> {
+  const startTime = Date.now();
+  const plannedModel = "groq/openai/gpt-oss-120b";
+  
+  const capacity = acquireProviderCapacity("groq");
+  if (!capacity.allowed) {
+    return { data: generateDeterministicSeasonFallback(season, completedRounds), generationMode: "deterministic" };
+  }
+  
+  const baseConfig = {
+    maxTokens: 1000,
+    temperature: 0.7,
+    groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
+  };
+  
+  try {
+    const messages = formatSeasonPrompt(contextJson);
+    const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+    if (!result.response.content) throw new Error("EMPTY_RESPONSE");
+    
+    const parsed = JSON.parse(cleanJsonOutput(result.response.content));
+    const validation = validateSeasonIntelligence(parsed, validIds);
+    if (!validation.valid || !validation.data) {
+      throw new Error("SCHEMA_VALIDATION_FAILED");
+    }
+    
+    return { data: validation.data, generationMode: "ai" };
+  } catch (err) {
+    return { data: generateDeterministicSeasonFallback(season, completedRounds), generationMode: "deterministic" };
+  }
+}
+
+export async function generateSeasonCompareInsight(
+  contextJson: string,
+  entityA: string,
+  entityB: string,
+  ctx: AgentContext
+): Promise<{ data: SeasonCompareInsight, generationMode: "ai" | "deterministic" }> {
+  const startTime = Date.now();
+  
+  const capacity = acquireProviderCapacity("groq");
+  if (!capacity.allowed) {
+    return { data: generateDeterministicCompareFallback(entityA, entityB), generationMode: "deterministic" };
+  }
+  
+  const baseConfig = {
+    maxTokens: 500,
+    temperature: 0.7,
+    groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
+  };
+  
+  try {
+    const messages = formatSeasonComparePrompt(contextJson);
+    const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+    if (!result.response.content) throw new Error("EMPTY_RESPONSE");
+    
+    const parsed = JSON.parse(cleanJsonOutput(result.response.content));
+    const data = SeasonCompareInsightSchema.parse(parsed);
+    
+    return { data, generationMode: "ai" };
+  } catch (err) {
+    return { data: generateDeterministicCompareFallback(entityA, entityB), generationMode: "deterministic" };
   }
 }

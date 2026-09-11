@@ -88,7 +88,7 @@ export function ApexLauncher() {
         history: messages.slice(-6),
         // Widening deliberately drops the page's own snapshot rather than adding to it: "Entire F1
         // HUB" means general F1 knowledge, not this page's facts plus someone else's.
-        intelligenceSnapshot: reach === "page" ? scope.snapshot : {},
+        context: reach === "page" ? scope.context : { page: "home", snapshot: {} },
         scope: { key: scope.key, label: scope.label, communityId: scope.communityId ?? null, reach },
       }),
     }).catch(() => null);

@@ -226,3 +226,14 @@ export async function withSingleFlight<T>(key: string, generate: () => Promise<T
   inFlight.set(key, promise);
   return promise;
 }
+
+
+export function buildSeasonCacheKey(season: number, championship: string | undefined, completedRounds: number, contextHash: string): string {
+  return `season:${season}:${championship || 'all'}:rounds${completedRounds}:hash${contextHash}`;
+}
+
+export function buildSeasonCompareCacheKey(season: number, entityType: 'drivers' | 'constructors', entityA: string, entityB: string, completedRounds: number, contextHash: string): string {
+  const [canonicalA, canonicalB] = [entityA, entityB].sort();
+  return `season_compare:${season}:${entityType}:${canonicalA}:${canonicalB}:rounds${completedRounds}:hash${contextHash}`;
+}
+

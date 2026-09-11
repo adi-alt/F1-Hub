@@ -125,13 +125,14 @@ export type Battle = {
   bLabel: string;
   bValue: number;
   gap: number;
+  h2h?: H2HResult;
 };
 
 // Adjacent-in-the-standings gaps, drivers and constructors both, tightest first — clicking one
 // (see AnalysisWorkspace.tsx) opens Compare with that exact pair pre-selected. Exported — the
 // archive-backed path below (getArchiveSeasonDetailData) reuses this verbatim, since it only ever
 // takes the already-shared DriverStandingRow/ConstructorStandingRow shape, not RaceDoc.
-export function buildBattles(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[]): Battle[] {
+export function buildBattles(drivers: DriverStandingRow[], constructors: ConstructorStandingRow[], raceSummaries: RaceSummary[] = []): Battle[] {
   const battles: Battle[] = [];
   for (let i = 0; i < drivers.length - 1; i++) {
     battles.push({
@@ -143,6 +144,7 @@ export function buildBattles(drivers: DriverStandingRow[], constructors: Constru
       bLabel: drivers[i + 1].driverName,
       bValue: drivers[i + 1].points,
       gap: drivers[i].points - drivers[i + 1].points,
+      h2h: raceSummaries.length > 0 ? computeHeadToHead(drivers[i].driver, drivers[i + 1].driver, raceSummaries, false, drivers[i].team === drivers[i + 1].team) : undefined,
     });
   }
   for (let i = 0; i < constructors.length - 1; i++) {
@@ -155,6 +157,7 @@ export function buildBattles(drivers: DriverStandingRow[], constructors: Constru
       bLabel: constructors[i + 1].team,
       bValue: constructors[i + 1].points,
       gap: constructors[i].points - constructors[i + 1].points,
+      h2h: raceSummaries.length > 0 ? computeHeadToHead(constructors[i].team, constructors[i + 1].team, raceSummaries, true, false) : undefined,
     });
   }
   return battles.sort((a, b) => a.gap - b.gap).slice(0, 6);
@@ -271,7 +274,7 @@ export async function getSeasonPageData(year: number, uid: string) {
     raceSummaries,
     racesCompleted: completedCount,
     racesRemaining: raceSummaries.length - completedCount,
-    battles: buildBattles(drivers, constructors),
+    battles: buildBattles(drivers, constructors, raceSummaries),
     records: buildRecords(drivers, constructors, raceSummaries),
     favoriteDriverIds: profile?.favoriteDrivers ?? [],
     favoriteTeamIds: profile?.favoriteTeams ?? [],
@@ -390,7 +393,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
     raceSummaries,
     racesCompleted: raceSummaries.length,
     racesRemaining: 0, // true by construction — archive only ever covers seasons that are already over
-    battles: buildBattles(drivers, constructors),
+    battles: buildBattles(drivers, constructors, raceSummaries),
     records: buildRecords(drivers, constructors, raceSummaries),
     favoriteDriverIds: profile?.favoriteDrivers ?? [],
     favoriteTeamIds: profile?.favoriteTeams ?? [],
@@ -413,3 +416,324 @@ export async function getSeasonDetailData(year: number, uid: string) {
   const data = status === "ongoing" ? await getSeasonPageData(year, uid) : await getArchiveSeasonDetailData(year, uid);
   return { ...data, status };
 }
+
+
+export type H2HResult = {
+  aWins: number;
+  bWins: number;
+  ties: number;
+  comparableRounds: number;
+  excludedRounds: number;
+  isTeammates: boolean;
+};
+
+export function computeHeadToHead(
+  entityAId: string,
+  entityBId: string,
+  raceSummaries: RaceSummary[],
+  isConstructors: boolean,
+  isTeammates: boolean = false
+): H2HResult {
+  const result: H2HResult = { aWins: 0, bWins: 0, ties: 0, comparableRounds: 0, excludedRounds: 0, isTeammates };
+  
+  const completedRounds = raceSummaries.filter(r => r.state === "completed");
+  
+  for (const round of completedRounds) {
+    if (isConstructors) {
+      // For constructors, sum points or compare top finishing position. Simple sum for now:
+      const teamA = round.results.filter(r => r.team === entityAId);
+      const teamB = round.results.filter(r => r.team === entityBId);
+      
+      if (teamA.length === 0 || teamB.length === 0) {
+        result.excludedRounds++;
+        continue;
+      }
+      
+      const ptsA = teamA.reduce((sum, r) => sum + r.points, 0);
+      const ptsB = teamB.reduce((sum, r) => sum + r.points, 0);
+      
+      if (ptsA > ptsB) { result.aWins++; result.comparableRounds++; }
+      else if (ptsB > ptsA) { result.bWins++; result.comparableRounds++; }
+      else {
+        // tie breaker based on best finish
+        const bestA = Math.min(...teamA.filter(r => r.status === "finished" || r.status === "lapped").map(r => r.finishPosition));
+        const bestB = Math.min(...teamB.filter(r => r.status === "finished" || r.status === "lapped").map(r => r.finishPosition));
+        if (isFinite(bestA) && isFinite(bestB)) {
+          if (bestA < bestB) { result.aWins++; result.comparableRounds++; }
+          else if (bestB < bestA) { result.bWins++; result.comparableRounds++; }
+          else { result.ties++; result.comparableRounds++; }
+        } else if (isFinite(bestA)) {
+          result.aWins++; result.comparableRounds++;
+        } else if (isFinite(bestB)) {
+          result.bWins++; result.comparableRounds++;
+        } else {
+          result.ties++; result.comparableRounds++;
+        }
+      }
+    } else {
+      // Drivers
+      const resA = round.results.find(r => r.driver === entityAId);
+      const resB = round.results.find(r => r.driver === entityBId);
+      
+      if (!resA || !resB) {
+        result.excludedRounds++;
+        continue;
+      }
+      
+      // Both participated
+      result.comparableRounds++;
+      
+      const aFinished = resA.status === "finished" || resA.status === "lapped";
+      const bFinished = resB.status === "finished" || resB.status === "lapped";
+      
+      if (aFinished && bFinished) {
+        if (resA.finishPosition < resB.finishPosition) result.aWins++;
+        else if (resB.finishPosition < resA.finishPosition) result.bWins++;
+        else result.ties++;
+      } else if (aFinished && !bFinished) {
+        result.aWins++;
+      } else if (!aFinished && bFinished) {
+        result.bWins++;
+      } else {
+        // Both DNF
+        // Check if official classification means anything
+        if (resA.finishPosition < resB.finishPosition) result.aWins++;
+        else if (resB.finishPosition < resA.finishPosition) result.bWins++;
+        else result.ties++;
+      }
+    }
+  }
+  
+  return result;
+}
+
+export type RecentForm = {
+  roundsConsidered: number;
+  totalPoints: number;
+  averageFinish: number | null;
+  averageGridPosition: number | null;
+  positionsGained: number;
+  wins: number;
+  podiums: number;
+  dnfs: number;
+  recentAverageFinish: number | null;
+  previousAverageFinish: number | null;
+  finishDelta: number | null;
+};
+
+export function computeRecentForm(entityId: string, raceSummaries: RaceSummary[], isConstructors: boolean): RecentForm {
+  const completedRounds = raceSummaries.filter(r => r.state === "completed");
+  const windowSize = Math.min(5, completedRounds.length);
+  const recentRounds = completedRounds.slice(-windowSize);
+  
+  const form: RecentForm = {
+    roundsConsidered: windowSize,
+    totalPoints: 0,
+    averageFinish: null,
+    averageGridPosition: null,
+    positionsGained: 0,
+    wins: 0,
+    podiums: 0,
+    dnfs: 0,
+    recentAverageFinish: null,
+    previousAverageFinish: null,
+    finishDelta: null
+  };
+  
+  if (windowSize === 0) return form;
+  
+  let finishSum = 0;
+  let finishCount = 0;
+  let gridSum = 0;
+  let gridCount = 0;
+  
+  for (const round of recentRounds) {
+    const results = round.results.filter(r => isConstructors ? r.team === entityId : r.driver === entityId);
+    for (const res of results) {
+      form.totalPoints += res.points;
+      if (res.status === "finished" || res.status === "lapped") {
+        finishSum += res.finishPosition;
+        finishCount++;
+        if (res.finishPosition === 1) form.wins++;
+        if (res.finishPosition <= 3) form.podiums++;
+      } else {
+        form.dnfs++;
+      }
+      if (res.grid !== null && res.grid > 0) {
+        gridSum += res.grid;
+        gridCount++;
+        if (res.status === "finished" || res.status === "lapped") {
+          form.positionsGained += (res.grid - res.finishPosition);
+        }
+      }
+    }
+  }
+  
+  if (finishCount > 0) form.averageFinish = finishSum / finishCount;
+  if (gridCount > 0) form.averageGridPosition = gridSum / gridCount;
+  
+  form.recentAverageFinish = form.averageFinish;
+  
+  // Previous form to calculate delta
+  const previousRounds = completedRounds.slice(0, Math.max(0, completedRounds.length - windowSize));
+  if (previousRounds.length > 0) {
+    let prevFinishSum = 0;
+    let prevFinishCount = 0;
+    for (const round of previousRounds) {
+      const results = round.results.filter(r => isConstructors ? r.team === entityId : r.driver === entityId);
+      for (const res of results) {
+        if (res.status === "finished" || res.status === "lapped") {
+          prevFinishSum += res.finishPosition;
+          prevFinishCount++;
+        }
+      }
+    }
+    if (prevFinishCount > 0) {
+      form.previousAverageFinish = prevFinishSum / prevFinishCount;
+      if (form.recentAverageFinish !== null) {
+        form.finishDelta = form.previousAverageFinish - form.recentAverageFinish; // Positive means improved position (e.g. 5.0 -> 3.0 = +2.0)
+      }
+    }
+  }
+  
+  return form;
+}
+
+export type Streak = {
+  currentPointsStreak: number;
+  longestPointsStreak: number;
+  currentWinStreak: number;
+  longestWinStreak: number;
+  currentPodiumStreak: number;
+  longestPodiumStreak: number;
+};
+
+export function computeStreaks(entityId: string, raceSummaries: RaceSummary[], isConstructors: boolean): Streak {
+  const completedRounds = raceSummaries.filter(r => r.state === "completed");
+  const streak: Streak = {
+    currentPointsStreak: 0,
+    longestPointsStreak: 0,
+    currentWinStreak: 0,
+    longestWinStreak: 0,
+    currentPodiumStreak: 0,
+    longestPodiumStreak: 0
+  };
+  
+  let currPoints = 0, currWin = 0, currPodium = 0;
+  
+  for (const round of completedRounds) {
+    const results = round.results.filter(r => isConstructors ? r.team === entityId : r.driver === entityId);
+    
+    // Check if they scored points in this round
+    const roundPoints = results.reduce((sum, r) => sum + r.points, 0);
+    if (roundPoints > 0) {
+      currPoints++;
+      streak.longestPointsStreak = Math.max(streak.longestPointsStreak, currPoints);
+    } else {
+      currPoints = 0;
+    }
+    
+    // Win streak
+    const hasWin = results.some(r => r.finishPosition === 1);
+    if (hasWin) {
+      currWin++;
+      streak.longestWinStreak = Math.max(streak.longestWinStreak, currWin);
+    } else {
+      currWin = 0;
+    }
+    
+    // Podium streak
+    const hasPodium = results.some(r => r.finishPosition <= 3 && r.finishPosition >= 1);
+    if (hasPodium) {
+      currPodium++;
+      streak.longestPodiumStreak = Math.max(streak.longestPodiumStreak, currPodium);
+    } else {
+      currPodium = 0;
+    }
+  }
+  
+  streak.currentPointsStreak = currPoints;
+  streak.currentWinStreak = currWin;
+  streak.currentPodiumStreak = currPodium;
+  
+  return streak;
+}
+
+export type PositionChange = {
+  entityId: string;
+  currentPosition: number;
+  previousPosition: number | null;
+  positionDelta: number | null;
+  pointsDelta: number | null;
+};
+
+export function computePositionChanges(
+  currentDrivers: DriverStandingRow[],
+  currentConstructors: ConstructorStandingRow[],
+  progression: Record<string, number | string>[]
+): { drivers: PositionChange[], constructors: PositionChange[] } {
+  // progression is an array of objects per round. We need the second-to-last completed round
+  const result = { drivers: [] as PositionChange[], constructors: [] as PositionChange[] };
+  
+  if (progression.length < 2) {
+    // Cannot compute previous positions
+    currentDrivers.forEach((d, i) => {
+      result.drivers.push({ entityId: d.driver, currentPosition: i + 1, previousPosition: null, positionDelta: null, pointsDelta: null });
+    });
+    currentConstructors.forEach((c, i) => {
+      result.constructors.push({ entityId: c.team, currentPosition: i + 1, previousPosition: null, positionDelta: null, pointsDelta: null });
+    });
+    return result;
+  }
+  
+  const currentRoundState = progression[progression.length - 1];
+  const previousRoundState = progression[progression.length - 2];
+  
+  // To find previous position, we need to sort all entities by their previous points.
+  // In a real implementation we'd use proper tie-breakers. For now we use current standings as tie-breakers.
+  const prevDriverPoints = currentDrivers.map(d => ({
+    id: d.driver,
+    points: (previousRoundState[d.driver] as number) || 0,
+    currentRank: currentDrivers.findIndex(x => x.driver === d.driver) // tie breaker
+  })).sort((a, b) => b.points - a.points || a.currentRank - b.currentRank);
+  
+  currentDrivers.forEach((d, i) => {
+    const currentPosition = i + 1;
+    const previousPosition = prevDriverPoints.findIndex(x => x.id === d.driver) + 1;
+    const currentPoints = d.points;
+    const previousPoints = (previousRoundState[d.driver] as number) || 0;
+    
+    result.drivers.push({
+      entityId: d.driver,
+      currentPosition,
+      previousPosition,
+      positionDelta: previousPosition - currentPosition, // e.g. 5 - 3 = +2
+      pointsDelta: currentPoints - previousPoints
+    });
+  });
+  
+  // Similar logic for constructors
+  const prevConstructorPoints = currentConstructors.map(c => ({
+    id: c.team,
+    points: (previousRoundState[c.team] as number) || 0,
+    currentRank: currentConstructors.findIndex(x => x.team === c.team)
+  })).sort((a, b) => b.points - a.points || a.currentRank - b.currentRank);
+  
+  currentConstructors.forEach((c, i) => {
+    const currentPosition = i + 1;
+    const previousPosition = prevConstructorPoints.findIndex(x => x.id === c.team) + 1;
+    const currentPoints = c.points;
+    const previousPoints = (previousRoundState[c.team] as number) || 0;
+    
+    result.constructors.push({
+      entityId: c.team,
+      currentPosition,
+      previousPosition,
+      positionDelta: previousPosition - currentPosition,
+      pointsDelta: currentPoints - previousPoints
+    });
+  });
+  
+  return result;
+}
+

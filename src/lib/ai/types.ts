@@ -124,6 +124,8 @@ export type AgentContext = {
 
 export type AgentType =
   | "homepage_intelligence"
+  | "season_intelligence"
+  | "season_compare"
   | "race_intelligence"
   | "race_brief"
   | "prediction_coach"

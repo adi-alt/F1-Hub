@@ -84,8 +84,8 @@ export async function POST(req: Request) {
     // the prompt's own adversarial-protection rule (askApexPrompt.ts) - never as instructions - and
     // a tampered payload has no cross-user blast radius since this route only ever answers using
     // the caller's own already-visible page data.
-    const snapshot = isPlainObject(body.intelligenceSnapshot) ? body.intelligenceSnapshot : {};
-    const rawJson = JSON.stringify(snapshot);
+    const context = isPlainObject(body.context) ? body.context : { page: "home", snapshot: isPlainObject(body.intelligenceSnapshot) ? body.intelligenceSnapshot : {} };
+    const rawJson = JSON.stringify(context);
     if (rawJson.length > MAX_RAW_PAYLOAD_BYTES) {
       return NextResponse.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
     }
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
     const favoriteKeyChanged = conversationFavoriteKey !== "" && conversationFavoriteKey !== favoriteKey;
 
     const ctx: AgentContext = { userId, requestId, agentType: "ask_apex", raceId: null };
-    const result = await generateAskApexAnswer(question, history, intelligenceJson, ctx);
+    const result = await generateAskApexAnswer(question, history, String(context.page), intelligenceJson, ctx);
 
     return NextResponse.json({
       answer: result.answer,

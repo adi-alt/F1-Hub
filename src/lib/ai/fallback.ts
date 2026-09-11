@@ -321,3 +321,41 @@ export function generateDeterministicRaceFallback(context: RaceIntelligenceConte
       })(),
   };
 }
+
+
+import { SharedSeasonIntelligence, SeasonCompareInsight } from "./schemas/seasonIntelligence";
+
+export function generateDeterministicSeasonFallback(season: number, completedRounds: number): SharedSeasonIntelligence {
+  return {
+    seasonStory: {
+      headline: `${season} Season Intelligence`,
+      summary: `Apex is currently utilizing deterministic mode. ${completedRounds} rounds have been completed.`,
+      themes: ["Data-driven Analysis", "Authoritative Fallback"]
+    },
+    battleInsight: {
+      headline: "Championship Battles",
+      summary: "Data regarding championship battles is visible below in the standings."
+    },
+    progressionInsight: {
+      headline: "Season Progression",
+      summary: "Progression data is tracked securely by the intelligence layer."
+    },
+    recordInsight: {
+      headline: "Records and Achievements",
+      summary: "Records are maintained based on verified facts."
+    },
+    whatChangedInsight: {
+      summary: "Changes since the previous round are calculated exactly."
+    }
+  };
+}
+
+export function generateDeterministicCompareFallback(entityA: string, entityB: string): SeasonCompareInsight {
+  return {
+    headline: "Head-to-Head Comparison",
+    summary: "Deterministic comparison mode is active. See deterministic stats below.",
+    keyAdvantageA: "Data visible in tables",
+    keyAdvantageB: "Data visible in tables",
+    momentum: "EVEN"
+  };
+}

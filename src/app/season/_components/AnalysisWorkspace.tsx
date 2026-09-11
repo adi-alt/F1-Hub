@@ -8,6 +8,8 @@ import { useSeasonExplorer, type AnalysisTab } from "../_context/SeasonExplorerC
 import { ComparePanel } from "./ComparePanel";
 import { ProgressionPanel } from "./ProgressionPanel";
 import type { Battle, ConstructorStandingRow, DriverStandingRow, RaceSummary, SeasonRecord } from "../_service/season.service";
+import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
+import { SparklesIcon } from "lucide-react";
 
 const TABS: { key: AnalysisTab; label: string }[] = [
   { key: "battles", label: "Battles" },
@@ -105,11 +107,21 @@ function EmptyState({ children }: { children: React.ReactNode }) {
  * size, echoing the standings table's own favorite-row treatment. Clicking a row jumps straight
  * into Compare with that pair loaded. */
 function BattlesPanel({ battles }: { battles: Battle[] }) {
+  const { intelligence } = useSeasonIntelligence();
   const { openCompare } = useSeasonExplorer();
   if (battles.length === 0) return <EmptyState>No close battles yet, check back once more races are in.</EmptyState>;
 
   return (
     <div>
+      {intelligence?.battleInsight && (
+        <div className="mb-6 p-4 rounded-xl bg-[var(--f1-accent)]/10 border border-[var(--f1-accent)]/20">
+          <div className="flex items-center gap-2 mb-2">
+            <SparklesIcon className="w-4 h-4 text-[var(--f1-accent)]" />
+            <h4 className="font-bold text-[var(--f1-text)] text-sm uppercase">{intelligence.battleInsight.headline}</h4>
+          </div>
+          <p className="text-sm text-[var(--f1-text-muted)]">{intelligence.battleInsight.summary}</p>
+        </div>
+      )}
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Closest battles</p>
       <motion.div initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-white/[0.06]">
         {battles.map((b, i) => (
@@ -184,12 +196,24 @@ function RecordRow({ record }: { record: SeasonRecord }) {
 /** A compact editorial leaderboard instead of seven identical icon cards — a two-column grid of
  * quiet label/name/value rows, the number doing the visual work rather than an emoji. */
 function RecordsPanel({ records }: { records: SeasonRecord[] }) {
+  const { intelligence } = useSeasonIntelligence();
   if (records.length === 0) return <EmptyState>Not enough races yet for season records.</EmptyState>;
   return (
-    <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-1 gap-x-8 gap-y-0 sm:grid-cols-2">
+    <div>
+      {intelligence?.recordInsight && (
+        <div className="mb-6 p-4 rounded-xl bg-[var(--f1-accent)]/10 border border-[var(--f1-accent)]/20">
+          <div className="flex items-center gap-2 mb-2">
+            <SparklesIcon className="w-4 h-4 text-[var(--f1-accent)]" />
+            <h4 className="font-bold text-[var(--f1-text)] text-sm uppercase">{intelligence.recordInsight.headline}</h4>
+          </div>
+          <p className="text-sm text-[var(--f1-text-muted)]">{intelligence.recordInsight.summary}</p>
+        </div>
+      )}
+      <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-1 gap-x-8 gap-y-0 sm:grid-cols-2">
       {records.map((r, i) => (
         <RecordRow key={i} record={r} />
       ))}
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }

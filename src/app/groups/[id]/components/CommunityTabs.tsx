@@ -97,7 +97,9 @@ export function CommunityTabs({
       ...(modules.includes("predictions") ? ["Which prediction rounds are still open?"] : []),
       "What kind of community is this?",
     ],
-    snapshot: {
+    context: {
+      page: "community",
+      snapshot: {
       community: {
         name: group.name,
         type: meta.label,
@@ -129,6 +131,7 @@ export function CommunityTabs({
         youEntered: !!p.myEntry,
       })),
       leaderboard: leaderboard.slice(0, 10).map((row) => ({ name: row.displayName ?? row.username, rank: row.rank, score: row.totalScore })),
+      }
     },
   });
 

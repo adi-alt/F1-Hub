@@ -2,27 +2,59 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
+export type ApexPage =
+  | "home"
+  | "season"
+  | "circuit"
+  | "archive"
+  | "community"
+  | "user"
+  | "models";
+
+export type BaseApexContext = {
+  page: ApexPage;
+};
+
+export type HomepageApexContext = BaseApexContext & {
+  page: "home";
+  snapshot: Record<string, unknown>; // Existing homepage intelligence snapshot
+};
+
+export type SeasonApexContext = BaseApexContext & {
+  page: "season";
+  season: number;
+  selectedChampionship?: "drivers" | "constructors";
+  selectedAnalysisTab?: string;
+  selectedRaceId?: string;
+  entityAId?: string;
+  entityBId?: string;
+  selectedDriverId?: string;
+  selectedTeamId?: string;
+};
+
+export type GenericApexContext = BaseApexContext & {
+  page: "circuit" | "archive" | "community" | "user" | "models";
+  snapshot?: Record<string, unknown>;
+};
+
+export type ApexPageContext = HomepageApexContext | SeasonApexContext | GenericApexContext;
+
 /**
  * What Apex can currently see.
  *
- * `snapshot` is whatever the page chooses to hand over, and it is sent to /api/ai/ask-apex as
- * grounding. The privacy model follows from that and is structural rather than a check bolted on:
- * a page can only put into the snapshot what the server already rendered for this user, and the
- * server only renders a community's content after requireMember. So a non-member's browser never
- * holds a private community's posts and therefore cannot put them in a snapshot. (The route adds a
- * second, explicit membership assertion on `communityId` anyway - see its own comment for why a
- * structural guarantee still deserves a belt.)
+ * `context` is whatever the page chooses to hand over, and it is sent to /api/ai/ask-apex as
+ * grounding. The server remains authoritative - the client sends safe UI state (IDs, selections)
+ * in this context, not full factual statistics, preventing hallucination by malicious payload.
  */
 export type ApexScope = {
-  /** Stable identity for this scope - changing it resets the conversation, since the answers were
-   * grounded in different facts. */
+  /** Stable identity for this scope - changing it resets the conversation. */
   key: string;
   /** What the user sees in the scope indicator: "Ferrari Tifosi", "Season 2026". */
   label: string;
   /** Second line: "Feed", "Standings". Optional. */
   sublabel?: string;
-  /** The facts Apex answers from. Kept small - the route caps it hard. */
-  snapshot: Record<string, unknown>;
+  /** The typed UI state context for the active page. */
+  context: ApexPageContext;
   /** Page-appropriate starter questions. Real ones the snapshot can actually answer. */
   suggestions?: string[];
   /** Set when the scope is one community, so the server can verify membership. */

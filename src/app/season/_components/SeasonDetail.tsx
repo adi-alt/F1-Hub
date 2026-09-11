@@ -3,6 +3,28 @@ import Link from "next/link";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
 import { SeasonCalendar } from "./SeasonCalendar";
+import { SeasonStory } from "./SeasonStory";
+import { SeasonAtAGlance } from "./SeasonAtAGlance";
+import { WhatChangedRecently } from "./WhatChangedRecently";
+import { SeasonIntelligenceProvider } from "./ai/SeasonIntelligenceProvider";
+import { useMemo } from "react";
+
+/** Fast, non-cryptographic string hash for client-side cache keys */
+const cyrb53 = (str: string, seed = 0) => {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+};
+
+function generateContextHash(obj: unknown): string {
+  return cyrb53(JSON.stringify(obj)).toString(36);
+}
 import { SeasonExplorerProvider } from "../_context/SeasonExplorerContext";
 import type { Battle, ConstructorStandingRow, DriverStandingRow, RaceSummary, SeasonRecord } from "../_service/season.service";
 
@@ -48,6 +70,24 @@ export function SeasonDetail({
   // Season context for Apex. Standings are trimmed to the top of each table plus the season shape -
   // enough to answer "why is X second" or "who's gained most recently" without shipping the whole
   // progression matrix, which the route would cap away anyway.
+
+  const contextSnapshot = {
+    season: { year, status, racesCompleted, racesRemaining, nextRace: currentRound?.name ?? null },
+    driverStandings: drivers.slice(0, 12).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
+    constructorStandings: constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
+    battles: battles.slice(0, 5),
+    records: records.slice(0, 8),
+    recentRaces: raceSummaries.filter((r) => r.state === "completed").slice(-5).map((r) => ({ name: r.name, round: r.round })),
+  };
+  
+  const contextJson = useMemo(() => JSON.stringify(contextSnapshot), [contextSnapshot]);
+  const contextHash = useMemo(() => generateContextHash(contextSnapshot), [contextJson]);
+  const validIds = useMemo(() => [
+    ...drivers.map(d => d.driver),
+    ...constructors.map(c => c.team),
+    ...battles.map(b => `${b.aId}-vs-${b.bId}`), // IDs for battles could just be string concats, wait, schema is arbitrary. Let's just pass all string IDs.
+  ], [drivers, constructors, battles]);
+
   useRegisterApexScope({
     key: `season:${year}`,
     label: `Season ${year}`,
@@ -57,21 +97,13 @@ export function SeasonDetail({
       "What's the closest championship battle?",
       ...(drivers[1] && drivers[0] ? [`Compare ${drivers[0].driverName} and ${drivers[1].driverName}.`] : []),
     ],
-    snapshot: {
-      season: { year, status, racesCompleted, racesRemaining, nextRace: currentRound?.name ?? null },
-      // These arrive already ordered by points, so the array index is the championship position -
-      // there's no `position` column to read.
-      driverStandings: drivers.slice(0, 12).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
-      constructorStandings: constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
-      battles: battles.slice(0, 5),
-      records: records.slice(0, 8),
-      recentRaces: raceSummaries.filter((r) => r.state === "completed").slice(-5).map((r) => ({ name: r.name, round: r.round })),
-    },
+    context: { page: "season", season: year },
   });
 
   return (
     <SeasonExplorerProvider defaultCompareA={defaultA?.driver ?? ""} defaultCompareB={defaultB?.driver ?? ""}>
-      <div className="mb-8">
+      <SeasonIntelligenceProvider contextJson={contextJson} season={year} completedRounds={racesCompleted} validIds={validIds} contextHash={contextHash}>
+        <div className="mb-8">
         {backHref && (
           <Link href={backHref} className="mb-2 inline-block text-sm text-neutral-500 transition hover:text-neutral-300">
             ← Archive
@@ -101,7 +133,20 @@ export function SeasonDetail({
         )}
       </div>
 
-      <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} />
+      <div className="mb-8">
+          <SeasonStory />
+        </div>
+        
+        <SeasonAtAGlance drivers={drivers} constructors={constructors} races={raceSummaries} battles={battles} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          <div className="lg:col-span-2">
+            <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} />
+          </div>
+          <div>
+            <WhatChangedRecently drivers={drivers} constructors={constructors} progression={progression} />
+          </div>
+        </div>
 
       <div className="mt-8">
         <AnalysisWorkspace battles={battles} records={records} drivers={drivers} constructors={constructors} progression={progression} raceSummaries={raceSummaries} />
@@ -110,6 +155,7 @@ export function SeasonDetail({
       <div className="mt-8">
         <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
       </div>
+      </SeasonIntelligenceProvider>
     </SeasonExplorerProvider>
   );
 }

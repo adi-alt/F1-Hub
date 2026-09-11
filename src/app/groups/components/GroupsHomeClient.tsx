@@ -45,7 +45,9 @@ export function GroupsHomeClient({
     label: "Your communities",
     sublabel: `${groups.length} joined`,
     suggestions: ["What's happening across my communities?", "Which predictions close soonest?", "Which of my communities is most active?"],
-    snapshot: {
+    context: {
+      page: "community",
+      snapshot: {
       yourCommunities: groups.map((g) => ({
         name: g.name,
         type: g.communityType,
@@ -58,6 +60,7 @@ export function GroupsHomeClient({
       openPredictions: predictions.map((p) => ({ race: p.raceName, type: p.type, community: p.groupName, entryPoints: p.entryPoints, youEntered: p.hasEntered })),
       nextRace: nextRace ? { name: nextRace.name, round: nextRace.round, date: nextRace.raceDate } : null,
       recentPosts: initialPosts.slice(0, 10).map((p) => ({ community: p.groupName, author: p.authorName, title: p.title, excerpt: p.content.slice(0, 200) })),
+      }
     },
   });
 

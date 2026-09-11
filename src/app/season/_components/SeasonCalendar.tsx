@@ -6,6 +6,9 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { raceHref } from "@/lib/routes";
+import { parseUtcDateTime } from "@/lib/countdown";
+import { XIcon, ChevronRightIcon } from "lucide-react";
+import Link from "next/link";
 import { useFavDriverIds } from "@/queries/favorites/useFavorites";
 import type { DriverStandingRow, RaceSummary } from "../_service/season.service";
 
@@ -91,6 +94,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   const router = useRouter();
   const favDrivers = useFavDriverIds();
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number; flipBelow: boolean } | null>(null);
+  const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null);
   const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
   const { ref: widthProbeRef, width: availableWidth } = useMeasuredWidth<HTMLDivElement>();
   // Same createPortal(..., document.body) SSR guard as every other floating panel fixed this
@@ -105,7 +109,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   const allSessions = useMemo<DaySession[]>(
     () =>
       raceSummaries.flatMap((r) =>
-        r.sessions.map((s) => ({ round: r.round, raceName: r.name, circuit: r.trackShort, label: s.label, code: s.code, date: new Date(s.date), state: s.state })),
+        r.sessions.map((s) => ({ round: r.round, raceName: r.name, circuit: r.trackShort, label: s.label, code: s.code, date: parseUtcDateTime(s.date), state: s.state })),
       ),
     [raceSummaries],
   );
@@ -197,7 +201,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   function goToRace(sessions: DaySession[]) {
     const first = sessions[0];
     if (!first) return;
-    router.push(raceHref(year, first.round, first.raceName));
+    setSelectedRaceId(first.round);
   }
 
   const hoverRace = hover ? raceSummaries.find((r) => r.round === hover.sessions[0]?.round) : undefined;
@@ -362,6 +366,92 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
           </AnimatePresence>,
           document.body,
         )}
+
+      {/* Race Quick View Panel */}
+      <AnimatePresence>
+        {selectedRaceId !== null && (
+          <div className="fixed inset-y-0 right-0 w-full max-w-md bg-[var(--f1-card)] border-l border-[var(--f1-border)] shadow-2xl z-[400] transform transition-transform overflow-y-auto">
+            {(() => {
+              const selectedRace = raceSummaries.find(r => r.round === selectedRaceId);
+              if (!selectedRace) return null;
+              
+              const winner = selectedRace.results.find(r => r.finishPosition === 1);
+              const pole = selectedRace.poleSitter;
+              
+              return (
+                <>
+                  <div className="sticky top-0 bg-[var(--f1-card)]/90 backdrop-blur-md p-4 border-b border-[var(--f1-border)] flex justify-between items-center z-10">
+                    <h3 className="font-black text-xl italic uppercase text-[var(--f1-text)]">
+                      {selectedRace.name}
+                    </h3>
+                    <button
+                      onClick={() => setSelectedRaceId(null)}
+                      className="p-2 hover:bg-[var(--f1-muted)] rounded-full transition-colors text-[var(--f1-text-muted)] hover:text-[var(--f1-text)]"
+                    >
+                      <XIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  <div className="p-6">
+                    <div className="mb-6 flex items-center justify-between">
+                      <div className="text-[var(--f1-text-muted)] uppercase tracking-wider text-sm font-semibold">
+                        Round {selectedRace.round}
+                      </div>
+                      <div className="px-3 py-1 bg-[var(--f1-muted)] rounded-full text-xs font-bold uppercase text-[var(--f1-text)]">
+                        {selectedRace.state}
+                      </div>
+                    </div>
+                    
+                    <div className="mb-8 bg-[var(--f1-bg)] p-4 rounded-xl border border-[var(--f1-border)]">
+                      <h4 className="font-bold text-[var(--f1-text)] mb-3">SESSIONS</h4>
+                      <div className="space-y-2">
+                        {selectedRace.sessions.map(s => (
+                          <div key={s.label} className="flex justify-between items-center text-sm">
+                            <span className="text-[var(--f1-text)] font-semibold flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                              {s.label}
+                            </span>
+                            <span className="text-[var(--f1-text-muted)]">
+                              {parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {selectedRace.state === 'completed' && (
+                      <div className="mb-8">
+                        <h4 className="font-bold text-[var(--f1-text)] mb-3">QUICK RESULTS</h4>
+                        <div className="space-y-3">
+                          {winner && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-[var(--f1-text-muted)] text-sm font-semibold w-20">WINNER</span>
+                              <span className="font-bold text-[var(--f1-text)]">{winner.driverName}</span>
+                            </div>
+                          )}
+                          {pole && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-[var(--f1-text-muted)] text-sm font-semibold w-20">POLE</span>
+                              <span className="font-bold text-[var(--f1-text)]">{pole}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <Link
+                      href={raceHref(year, selectedRace.round, selectedRace.name)}
+                      className="block w-full py-3 bg-[var(--f1-accent)] text-white text-center rounded-xl font-bold hover:bg-[var(--f1-accent)]/90 transition-colors flex items-center justify-center gap-2"
+                    >
+                      View Full Race Details <ChevronRightIcon className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

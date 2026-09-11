@@ -7,6 +7,10 @@ import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites
 import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../_utils/seasonStats";
 import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import { useState, useEffect } from "react";
+import { SparklesIcon } from "lucide-react";
+import type { SeasonCompareInsight } from "@/lib/ai/schemas/seasonIntelligence";
+import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
 import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
 
 type StatRow = { label: string; av: number; bv: number; aText: string; bText: string; lowerIsBetter?: boolean };
@@ -83,6 +87,7 @@ export function ComparePanel({
   // Lenis scroll along with it - the same nested-region registration ChampionshipStandings'
   // table already uses, so this table's own scroll stays contained to itself.
   const scrollRef = useNestedLenisScroll(`${compareA}-${compareB}`);
+  const { contextArgs } = useSeasonIntelligence();
 
   // Same option shape (grouped by team, real team color/logo) and the same "Favorites" grouping
   // Progression's Custom multi-select uses - one visual/data language for every entity picker in
@@ -170,6 +175,17 @@ export function ComparePanel({
     <div>
       {picker}
 
+      {contextArgs && (
+        <CompareIntelligence 
+          season={contextArgs.season} 
+          completedRounds={contextArgs.completedRounds} 
+          contextJson={contextArgs.contextJson} 
+          contextHash={contextArgs.contextHash} 
+          entityType={entityType} 
+          entityA={compareA} 
+          entityB={compareB} 
+        />
+      )}
       <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-end gap-4 overflow-hidden">
         <div className="text-right">
           <p className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-neutral-500">{aName}</p>
@@ -253,6 +269,84 @@ export function ComparePanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CompareIntelligence({ season, entityType, entityA, entityB, contextJson, contextHash, completedRounds }: any) {
+  const [insight, setInsight] = useState<SeasonCompareInsight | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    if (!entityA || !entityB) return;
+
+    setLoading(true);
+    fetch("/api/ai/season-compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        season,
+        entityType,
+        entityA,
+        entityB,
+        completedRounds,
+        contextJson,
+        contextHash
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    })
+    .then(data => {
+      if (active) {
+        setInsight(data);
+        setLoading(false);
+      }
+    })
+    .catch(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => { active = false; };
+  }, [season, entityType, entityA, entityB, contextHash, completedRounds]);
+
+  if (loading) {
+    return (
+      <div className="mt-4 p-4 rounded-xl border border-[var(--f1-border)] bg-[var(--f1-card)] animate-pulse">
+        <div className="h-4 bg-[var(--f1-muted)] rounded w-1/3 mb-2" />
+        <div className="h-4 bg-[var(--f1-muted)] rounded w-2/3" />
+      </div>
+    );
+  }
+
+  if (!insight) return null;
+
+  return (
+    <div className="mt-4 p-5 rounded-xl border border-[var(--f1-border)] bg-[var(--f1-card)] relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[var(--f1-accent)] to-[var(--f1-red)]" />
+      <div className="flex items-center gap-2 mb-2">
+        <SparklesIcon className="w-4 h-4 text-[var(--f1-accent)]" />
+        <h4 className="font-bold text-[var(--f1-text)] text-sm uppercase">{insight.headline}</h4>
+      </div>
+      <p className="text-sm text-[var(--f1-text-muted)] mb-3">{insight.summary}</p>
+      
+      <div className="grid grid-cols-2 gap-4 text-xs">
+        <div className="bg-[var(--f1-bg)] p-3 rounded-lg border border-[var(--f1-border)]">
+          <p className="font-semibold text-[var(--f1-text)] mb-1 uppercase tracking-wide">Key Advantage A</p>
+          <p className="text-[var(--f1-text-muted)]">{insight.keyAdvantageA}</p>
+        </div>
+        <div className="bg-[var(--f1-bg)] p-3 rounded-lg border border-[var(--f1-border)]">
+          <p className="font-semibold text-[var(--f1-text)] mb-1 uppercase tracking-wide">Key Advantage B</p>
+          <p className="text-[var(--f1-text-muted)]">{insight.keyAdvantageB}</p>
+        </div>
+      </div>
+      <div className="mt-3 text-center">
+        <span className="inline-block px-3 py-1 bg-[var(--f1-muted)] rounded-full text-xs font-bold uppercase text-[var(--f1-text)] tracking-wide">
+          Momentum: {insight.momentum}
+        </span>
+      </div>
     </div>
   );
 }

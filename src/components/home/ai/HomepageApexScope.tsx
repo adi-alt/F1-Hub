@@ -31,7 +31,10 @@ export function HomepageApexScope({ raceName, favoriteDriverName, favoriteTeamNa
     ],
     // The whole briefing, exactly as the homepage's own components see it. The route caps and
     // sanitises it before it ever reaches a prompt.
-    snapshot: (intelligence ?? {}) as unknown as Record<string, unknown>,
+    context: {
+      page: "home",
+      snapshot: (intelligence ?? {}) as unknown as Record<string, unknown>,
+    },
   });
 
   return null;
