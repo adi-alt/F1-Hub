@@ -4,29 +4,20 @@ import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type 
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
-import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
-import { XIcon, ChevronRightIcon } from "lucide-react";
-import Link from "next/link";
 import { useFavDriverIds } from "@/queries/favorites/useFavorites";
-import type { DriverStandingRow, RaceSummary } from "../_service/season.service";
-
-type SessionType = "practice" | "qualifying" | "sprint" | "race";
+import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import { sessionKind, type SessionKind, type DriverStandingRow, type RaceSummary } from "../_service/season.pure";
 
 // Restrained, not a rainbow: one hue family per session type, an F1-red reserved for race day.
-const TYPE_COLOR: Record<SessionType, string> = {
+// The classification itself is shared with the race window's timeline (season.pure's sessionKind)
+// so a session can't be one colour here and another there.
+const TYPE_COLOR: Record<SessionKind, string> = {
   practice: "#3987e5",
   qualifying: "#8b5cf6",
   sprint: "#eab308",
   race: "var(--f1-red)",
 };
-
-function sessionType(code: string): SessionType {
-  if (code === "R") return "race";
-  if (code.startsWith("S")) return "sprint";
-  if (code === "Q") return "qualifying";
-  return "practice";
-}
 
 type DaySession = {
   round: number;
@@ -92,7 +83,9 @@ function useMeasuredWidth<T extends HTMLElement>() {
 export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[] }) {
   const favDrivers = useFavDriverIds();
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number; flipBelow: boolean } | null>(null);
-  const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null);
+  // Opening a race is a route change, not component state - see SeasonExplorerProvider. That's
+  // what survives a refresh, a shared link, and the browser's back button.
+  const { openRace } = useSeasonExplorer();
   const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
   const { ref: widthProbeRef, width: availableWidth } = useMeasuredWidth<HTMLDivElement>();
   // Same createPortal(..., document.body) SSR guard as every other floating panel fixed this
@@ -199,7 +192,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   function goToRace(sessions: DaySession[]) {
     const first = sessions[0];
     if (!first) return;
-    setSelectedRaceId(first.round);
+    openRace(first.round);
   }
 
   const hoverRace = hover ? raceSummaries.find((r) => r.round === hover.sessions[0]?.round) : undefined;
@@ -211,12 +204,12 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
 
   return (
     <div>
-      <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Season calendar</p>
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Season calendar</p>
 
       {/* Same solid, bordered treatment (and full page width) as the standings table above it —
           the grid's own natural content width is much narrower than that, so without an explicit
           full-width container here it read as a stray, differently-sized block on the page. */}
-      <div className="w-full rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-5">
+      <div className="w-full rounded-lg border border-white/[0.06] bg-white/[0.012] p-4 backdrop-blur-[2px] sm:p-5">
         <div className="flex gap-2">
           <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
             {DAY_LABELS.map((label, i) => (
@@ -327,7 +320,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                         {hover.sessions.map((s) => (
                           <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
                             <span className="flex items-center gap-1.5 text-neutral-300">
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[sessionKind(s.code)] }} />
                               {s.label}
                               {s.state === "upcoming" && (
                                 <span className="rounded-sm bg-white/[0.06] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Upcoming</span>
@@ -365,91 +358,6 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
           document.body,
         )}
 
-      {/* Race Quick View Panel */}
-      <AnimatePresence>
-        {selectedRaceId !== null && (
-          <div className="fixed inset-y-0 right-0 w-full max-w-md bg-[var(--f1-card)] border-l border-[var(--f1-border)] shadow-2xl z-[400] transform transition-transform overflow-y-auto">
-            {(() => {
-              const selectedRace = raceSummaries.find(r => r.round === selectedRaceId);
-              if (!selectedRace) return null;
-              
-              const winner = selectedRace.results.find(r => r.finishPosition === 1);
-              const pole = selectedRace.poleSitter;
-              
-              return (
-                <>
-                  <div className="sticky top-0 bg-[var(--f1-card)]/90 backdrop-blur-md p-4 border-b border-[var(--f1-border)] flex justify-between items-center z-10">
-                    <h3 className="font-black text-xl italic uppercase text-[var(--f1-text)]">
-                      {selectedRace.name}
-                    </h3>
-                    <button
-                      onClick={() => setSelectedRaceId(null)}
-                      className="p-2 hover:bg-[var(--f1-muted)] rounded-full transition-colors text-[var(--f1-text-muted)] hover:text-[var(--f1-text)]"
-                    >
-                      <XIcon className="w-5 h-5" />
-                    </button>
-                  </div>
-                  
-                  <div className="p-6">
-                    <div className="mb-6 flex items-center justify-between">
-                      <div className="text-[var(--f1-text-muted)] uppercase tracking-wider text-sm font-semibold">
-                        Round {selectedRace.round}
-                      </div>
-                      <div className="px-3 py-1 bg-[var(--f1-muted)] rounded-full text-xs font-bold uppercase text-[var(--f1-text)]">
-                        {selectedRace.state}
-                      </div>
-                    </div>
-                    
-                    <div className="mb-8 bg-[var(--f1-bg)] p-4 rounded-xl border border-[var(--f1-border)]">
-                      <h4 className="font-bold text-[var(--f1-text)] mb-3">SESSIONS</h4>
-                      <div className="space-y-2">
-                        {selectedRace.sessions.map(s => (
-                          <div key={s.label} className="flex justify-between items-center text-sm">
-                            <span className="text-[var(--f1-text)] font-semibold flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full" style={{ background: TYPE_COLOR[sessionType(s.code)] }} />
-                              {s.label}
-                            </span>
-                            <span className="text-[var(--f1-text-muted)]">
-                              {parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {selectedRace.state === 'completed' && (
-                      <div className="mb-8">
-                        <h4 className="font-bold text-[var(--f1-text)] mb-3">QUICK RESULTS</h4>
-                        <div className="space-y-3">
-                          {winner && (
-                            <div className="flex justify-between items-center">
-                              <span className="text-[var(--f1-text-muted)] text-sm font-semibold w-20">WINNER</span>
-                              <span className="font-bold text-[var(--f1-text)]">{winner.driverName}</span>
-                            </div>
-                          )}
-                          {pole && (
-                            <div className="flex justify-between items-center">
-                              <span className="text-[var(--f1-text-muted)] text-sm font-semibold w-20">POLE</span>
-                              <span className="font-bold text-[var(--f1-text)]">{pole}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <Link
-                      href={raceHref(year, selectedRace.round, selectedRace.name)}
-                      className="block w-full py-3 bg-[var(--f1-accent)] text-white text-center rounded-xl font-bold hover:bg-[var(--f1-accent)]/90 transition-colors flex items-center justify-center gap-2"
-                    >
-                      View Full Race Details <ChevronRightIcon className="w-4 h-4" />
-                    </Link>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -475,7 +383,9 @@ function DayCell({
   const hasSessions = !!sessions && sessions.length > 0;
   // Empty days still get the hover tooltip (date + "no F1 session") - just no click action, since
   // there's nothing to open.
-  const ariaLabel = hasSessions ? `${dayLabel}: ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}` : `${dayLabel}: no F1 session`;
+  const ariaLabel = hasSessions
+    ? `${dayLabel}: ${sessions[0]?.raceName ?? ""} — ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}. Opens race detail.`
+    : `${dayLabel}: no F1 session`;
 
   return (
     <button
@@ -497,7 +407,7 @@ function DayCell({
 }
 
 function SessionSlice({ session }: { session: DaySession }) {
-  const color = TYPE_COLOR[sessionType(session.code)];
+  const color = TYPE_COLOR[sessionKind(session.code)];
   const upcoming = session.state === "upcoming";
   return (
     <span

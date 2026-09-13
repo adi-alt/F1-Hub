@@ -23,19 +23,12 @@
   --tooltip-border: rgba(255, 255, 255, 0.08);
   --tooltip-blur: 10px;
 
-  /* Aliases for the Season AI layer's components (SeasonStory, WhatChangedRecently,
-     SeasonAtAGlance, BattleDetailPanel, ComparePanel, SeasonCalendar's quick-view panel) - they
-     were written against a --f1-card/--f1-border/--f1-bg/--f1-muted/--f1-accent/--f1-text(-muted)
-     naming scheme that was never actually defined anywhere, so those cards rendered with no
-     background, no border, and browser-default text color. Aliased to the real tokens above
-     instead of rewriting every one of those files' classNames. */
-  --f1-border: var(--f1-line);
-  --f1-card: var(--f1-carbon);
-  --f1-bg: var(--background);
-  --f1-muted: var(--f1-carbon-2);
-  --f1-accent: var(--f1-red);
-  --f1-text: var(--foreground);
-  --f1-text-muted: #a3a3a3;
+  /* A --f1-card/--f1-border/--f1-bg/--f1-muted/--f1-accent/--f1-text alias set used to live here.
+     It existed only because the Season AI components had been written against a token naming
+     scheme that was never defined anywhere, so aliasing was the quick way to stop them rendering
+     with no background and browser-default text. Those components are now written against the
+     real tokens above, nothing in the app references the aliases any more, and keeping a second
+     shadow naming scheme around is an invitation for new code to reach for it again. */
 }
 
 @theme inline {

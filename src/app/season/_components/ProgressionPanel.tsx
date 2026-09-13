@@ -9,15 +9,15 @@ import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
 import { QuietTabs } from "./QuietTabs";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
-import { SeasonInsight } from "./ai/SeasonInsight";
-import type { ConstructorStandingRow, DriverStandingRow } from "../_service/season.service";
+import { SeasonInsight, SeasonInsightSkeleton } from "./ai/SeasonInsight";
+import type { ConstructorStandingRow, DriverStandingRow } from "../_service/season.pure";
 
 type Metric = "points" | "gap";
 type DriverSet = "top5" | "following" | "custom";
 
 const ChampionshipTrajectory = dynamic(() => import("@/components/charts/ChampionshipTrajectory"), {
   ssr: false,
-  loading: () => <div className="h-[300px] w-full animate-pulse rounded-xl bg-white/[0.02]" />,
+  loading: () => <div className="skeleton-shimmer h-[300px] w-full rounded-md bg-white/[0.03]" />,
 });
 
 /** One chart, driven by two small controls (metric, driver-set) instead of several separate
@@ -36,7 +36,7 @@ export function ProgressionPanel({
   progression: Record<string, number | string | null>[];
 }) {
   const { entityType, highlightRound } = useSeasonExplorer();
-  const { intelligence } = useSeasonIntelligence();
+  const { intelligence, loading: intelligenceLoading } = useSeasonIntelligence();
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
   const [metric, setMetric] = useState<Metric>("points");
@@ -140,7 +140,13 @@ export function ProgressionPanel({
 
   return (
     <div>
-      {intelligence?.progressionInsight && <SeasonInsight headline={intelligence.progressionInsight.headline} summary={intelligence.progressionInsight.summary} />}
+      {intelligenceLoading ? (
+        <SeasonInsightSkeleton label="Loading progression insight" />
+      ) : (
+        intelligence?.progressionInsight && (
+          <SeasonInsight eyebrow="Apex on the progression" headline={intelligence.progressionInsight.headline} summary={intelligence.progressionInsight.summary} />
+        )
+      )}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <QuietTabs
           options={[
@@ -181,7 +187,7 @@ export function ProgressionPanel({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="mt-4 flex min-h-[64px] items-center justify-center rounded-lg border border-dashed border-white/10 text-center text-sm text-neutral-500"
+            className="mt-4 flex min-h-[72px] items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-neutral-500"
           >
             {driverSet === "following" ? "No favorites picked yet, mark one in the standings above." : "Pick at least one to plot."}
           </motion.div>

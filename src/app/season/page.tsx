@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { SeasonDetail } from "./_components/SeasonDetail";
 import { getSeasonDetailData } from "./_service/season.service";
@@ -6,6 +7,7 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { FavoritesHydrator } from "@/components/FavoritesHydrator";
 import { getSession } from "@/lib/session/getSession";
 import { archiveSeasonHref } from "@/lib/routes";
+import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 
 export const metadata: Metadata = {
   title: "Season",
@@ -43,20 +45,22 @@ export default async function SeasonPage({
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
       <FavoritesHydrator uid={session.uid} driverIds={data.favoriteDriverIds} teamIds={data.favoriteTeamIds} />
-      <SeasonDetail
-        year={year}
-        status={data.status}
-        drivers={data.drivers}
-        constructors={data.constructors}
-        progression={data.progression}
-        raceSummaries={data.raceSummaries}
-        racesCompleted={data.racesCompleted}
-        racesRemaining={data.racesRemaining}
-        battles={data.battles}
-        records={data.records}
-        favoriteDriverIds={data.favoriteDriverIds}
-        favoriteTeamIds={data.favoriteTeamIds}
-      />
+      <Suspense fallback={<SeasonDetailSkeleton />}>
+        <SeasonDetail
+          year={year}
+          status={data.status}
+          drivers={data.drivers}
+          constructors={data.constructors}
+          progression={data.progression}
+          raceSummaries={data.raceSummaries}
+          racesCompleted={data.racesCompleted}
+          racesRemaining={data.racesRemaining}
+          battles={data.battles}
+          records={data.records}
+          favoriteDriverIds={data.favoriteDriverIds}
+          favoriteTeamIds={data.favoriteTeamIds}
+        />
+      </Suspense>
     </div>
   );
 }

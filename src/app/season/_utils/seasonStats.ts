@@ -1,68 +1,31 @@
-// Small, shared per-driver/per-team derivations over RaceSummary[] — used by both the standings
-// table's row-expansion panel and the Compare workspace, so "recent form"/"avg finish"/etc. mean
-// exactly the same thing in both places instead of two slightly-different reimplementations.
+// Thin re-export shim over season.pure.ts.
+//
+// These derivations (a driver's/team's per-round results, average finish, points-per-race, DNFs,
+// poles, the tug-of-war bar split) used to be DEFINED here, separately from the equivalents the
+// server-side season builders used - two implementations of "what counts as a completed round"
+// and "what is a team's result for a weekend", which is exactly how two components end up
+// disagreeing about the same season. They now live in one place (season.pure.ts, next to
+// completedRaces/completedRoundCount, which the whole page shares); this file stays only so the
+// existing `../_utils/seasonStats` import sites keep reading naturally.
 
-import type { RaceSummary } from "../_service/season.service";
+export {
+  entityResults,
+  recentResults as recentForm,
+  averageFinish,
+  pointsPerRace,
+  dnfCount,
+  poleCount,
+  bestResult,
+  tugPct,
+} from "../_service/season.pure";
+export type { ResultPoint } from "../_service/season.pure";
 
-export type ResultPoint = { round: number; trackShort: string; position: number; points: number; grid: number | null; dnf: boolean };
+import { entityResults, type ResultPoint, type RaceSummary } from "../_service/season.pure";
 
 export function driverResults(raceSummaries: RaceSummary[], code: string): ResultPoint[] {
-  const points: ResultPoint[] = [];
-  for (const r of raceSummaries) {
-    if (r.state !== "completed") continue;
-    const res = r.results.find((x) => x.driver === code);
-    if (res) points.push({ round: r.round, trackShort: r.trackShort, position: res.finishPosition, points: res.points, grid: res.grid, dnf: res.status === "dnf" });
-  }
-  return points;
+  return entityResults(raceSummaries, code, false);
 }
 
-// A team's result each race is whichever of its drivers finished higher that weekend — same
-// convention season.service.ts's old teamBestPositions used.
 export function teamResults(raceSummaries: RaceSummary[], team: string): ResultPoint[] {
-  const points: ResultPoint[] = [];
-  for (const r of raceSummaries) {
-    if (r.state !== "completed") continue;
-    const teamEntries = r.results.filter((x) => x.team === team);
-    if (teamEntries.length === 0) continue;
-    const best = teamEntries.reduce((a, b) => (a.finishPosition < b.finishPosition ? a : b));
-    const teamPoints = teamEntries.reduce((sum, x) => sum + x.points, 0);
-    points.push({ round: r.round, trackShort: r.trackShort, position: best.finishPosition, points: teamPoints, grid: best.grid, dnf: teamEntries.every((x) => x.status === "dnf") });
-  }
-  return points;
-}
-
-export function recentForm(results: ResultPoint[], count = 5): ResultPoint[] {
-  return results.slice(-count);
-}
-
-export function averageFinish(results: ResultPoint[]): number | null {
-  if (results.length === 0) return null;
-  return results.reduce((sum, r) => sum + r.position, 0) / results.length;
-}
-
-export function pointsPerRace(totalPoints: number, results: ResultPoint[]): number | null {
-  if (results.length === 0) return null;
-  return totalPoints / results.length;
-}
-
-export function dnfCount(results: ResultPoint[]): number {
-  return results.filter((r) => r.dnf).length;
-}
-
-export function poleCount(raceSummaries: RaceSummary[], code: string): number {
-  return raceSummaries.filter((r) => r.poleSitter === code).length;
-}
-
-export function bestResult(results: ResultPoint[]): ResultPoint | null {
-  if (results.length === 0) return null;
-  return results.reduce((best, r) => (r.position < best.position ? r : best));
-}
-
-/** Shared by Compare's stat rows and the Battles list: the winning side's bar always reads
- * full-length, the trailing side's bar is drawn to scale against it, so "who's ahead, and by how
- * much" reads at a glance instead of requiring the viewer to compare two numbers themselves. */
-export function tugPct(av: number, bv: number): [number, number] {
-  if (av <= 0 && bv <= 0) return [0, 0];
-  if (av >= bv) return [100, av === 0 ? 0 : Math.round((bv / av) * 100)];
-  return [bv === 0 ? 0 : Math.round((av / bv) * 100), 100];
+  return entityResults(raceSummaries, team, true);
 }

@@ -31,7 +31,11 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
   }, [pathname, container]);
 
   return (
-    <div ref={setContainer} className="scrollbar-hide flex-1 overflow-y-auto">
+    // data-app-scroll marks THE scroll region for anything that needs to freeze the page behind
+    // it (the season page's race window). The document body doesn't scroll in this app - it's
+    // `overflow-hidden` in the root layout - so locking `document.body.style.overflow` from a
+    // modal silently does nothing. This is the node that actually moves.
+    <div ref={setContainer} data-app-scroll className="scrollbar-hide flex-1 overflow-y-auto">
       {/* One wrapper, not two siblings — Lenis measures its `content` node's height as the
           scroll limit, and this hook resolves that to the container's first child, so the
           footer has to live inside the same node as `main` or its height falls outside what

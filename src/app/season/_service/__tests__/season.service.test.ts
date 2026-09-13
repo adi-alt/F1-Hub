@@ -19,7 +19,20 @@ describe("season.service deterministic computations", () => {
         { driver: "PER", driverName: "Sergio Perez", team: "Red Bull", finishPosition: 4, points: 12, grid: 5, status: "finished" },
         { driver: "SAI", driverName: "Carlos Sainz", team: "Ferrari", finishPosition: 20, points: 0, grid: 4, status: "dnf" },
       ],
-      hasQualifying: true
+      hasQualifying: true,
+      circuit: null,
+      country: null,
+      eventFormat: null,
+      isSprintWeekend: false,
+      weekendStatus: "completed",
+      photoUrls: [],
+      forecast: null,
+      raceWeather: null,
+      podium: [],
+      winnerName: null,
+      poleSitterName: "VER",
+      fastestLap: null,
+      predicted: null
     },
     {
       round: 2,
@@ -36,7 +49,20 @@ describe("season.service deterministic computations", () => {
         { driver: "NOR", driverName: "Lando Norris", team: "McLaren", finishPosition: 4, points: 12, grid: 4, status: "finished" },
         { driver: "SAI", driverName: "Carlos Sainz", team: "Ferrari", finishPosition: 19, points: 0, grid: 5, status: "dnf" }, // DNS/DNF
       ],
-      hasQualifying: true
+      hasQualifying: true,
+      circuit: null,
+      country: null,
+      eventFormat: null,
+      isSprintWeekend: false,
+      weekendStatus: "completed",
+      photoUrls: [],
+      forecast: null,
+      raceWeather: null,
+      podium: [],
+      winnerName: null,
+      poleSitterName: "VER",
+      fastestLap: null,
+      predicted: null
     },
     {
       round: 3,
@@ -53,7 +79,20 @@ describe("season.service deterministic computations", () => {
         { driver: "VER", driverName: "Max Verstappen", team: "Red Bull", finishPosition: 20, points: 0, grid: 1, status: "dnf" },
         { driver: "PER", driverName: "Sergio Perez", team: "Red Bull", finishPosition: 5, points: 10, grid: 6, status: "finished" },
       ],
-      hasQualifying: true
+      hasQualifying: true,
+      circuit: null,
+      country: null,
+      eventFormat: null,
+      isSprintWeekend: false,
+      weekendStatus: "completed",
+      photoUrls: [],
+      forecast: null,
+      raceWeather: null,
+      podium: [],
+      winnerName: null,
+      poleSitterName: "VER",
+      fastestLap: null,
+      predicted: null
     }
   ];
 

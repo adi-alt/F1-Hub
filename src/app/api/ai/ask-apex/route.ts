@@ -31,6 +31,12 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
   const data = await getSeasonDetailData(season, userId).catch(() => null);
   if (!data) return null;
 
+  // The race window's round, if one is open. Validated as a real round of THIS season before any
+  // of its facts are read - a hand-edited id resolves to nothing rather than to another season's
+  // round.
+  const rawRound = typeof clientContext.selectedRaceId === "string" ? Number(clientContext.selectedRaceId) : null;
+  const openRace = rawRound !== null && Number.isInteger(rawRound) ? data.raceSummaries.find((r) => r.round === rawRound) ?? null : null;
+
   return {
     page: "season",
     season: { year: data.year, status: data.status, racesCompleted: data.racesCompleted, racesRemaining: data.racesRemaining },
@@ -38,12 +44,29 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
     constructorStandings: data.constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
     battles: data.battles.slice(0, 6),
     records: data.records.slice(0, 8),
+    // Resolved server-side from the round id the client named - the facts come from here, never
+    // from the client.
+    openRace: openRace
+      ? {
+          round: openRace.round,
+          name: openRace.name,
+          circuit: openRace.circuit,
+          country: openRace.country,
+          status: openRace.weekendStatus,
+          sprintWeekend: openRace.isSprintWeekend,
+          winner: openRace.winnerName,
+          pole: openRace.poleSitterName,
+          podium: openRace.podium.map((p) => `P${p.position} ${p.driverName}`),
+          sessions: openRace.sessions.map((sn) => ({ label: sn.label, state: sn.state, result: sn.result?.value ?? null })),
+        }
+      : null,
     // What the user is currently looking at - selection state only, still no numbers of its own.
     viewing: {
       analysisTab: typeof clientContext.selectedAnalysisTab === "string" ? clientContext.selectedAnalysisTab : undefined,
       championshipType: typeof clientContext.selectedChampionship === "string" ? clientContext.selectedChampionship : undefined,
       compareEntityA: typeof clientContext.entityAId === "string" ? clientContext.entityAId : undefined,
       compareEntityB: typeof clientContext.entityBId === "string" ? clientContext.entityBId : undefined,
+      openRaceRound: openRace?.round,
     },
   };
 }

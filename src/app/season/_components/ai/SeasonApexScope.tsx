@@ -3,30 +3,47 @@
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
 
-/** Must be rendered inside <SeasonExplorerProvider> - it reads the live tab/entity-type/compare
- * selection straight from that context instead of taking it as props, so the registered scope
- * (and Ask Apex's suggestions) update automatically as the user switches tabs, with no extra
- * prop-threading through SeasonDetail. */
+/**
+ * Season's contribution to the ONE global Ask Apex.
+ *
+ * There is deliberately no Season-specific Ask Apex UI. The launcher, its placement, its panel,
+ * its animation and its keyboard behaviour are the single global implementation mounted in the
+ * root layout — the homepage doesn't own a special version of it and neither does this page. The
+ * only thing that varies per page is the scope registered here.
+ *
+ * What gets sent is UI SELECTION STATE ONLY: the season, which championship is showing, which
+ * analysis tab is open, which two entities are selected in Compare, and which race window is
+ * open. No standings, no points, no battle data. The route resolves those ids against
+ * authoritative data server-side (see buildSeasonGroundingContext) — a client cannot supply the
+ * facts Apex reasons over, only say what it is looking at.
+ *
+ * Renders nothing.
+ */
 export function SeasonApexScope({ season }: { season: number }) {
-  const { entityType, analysisTab, compareA, compareB } = useSeasonExplorer();
+  const { entityType, analysisTab, compareA, compareB, openRaceRound } = useSeasonExplorer();
 
-  const suggestions = ["What's the overall story of this season?"];
-  if (analysisTab === "compare" && compareA && compareB && compareA !== compareB) {
-    suggestions.unshift("What separates these two in this matchup?", "Who has been stronger recently?");
+  // Only questions the registered scope can actually answer. A starter that leads somewhere Apex
+  // has to decline is worse than no starter.
+  const suggestions: string[] = [];
+  if (openRaceRound !== null) {
+    suggestions.push("What should I know about this round?", "How does this race affect the championship?");
+  } else if (analysisTab === "compare" && compareA && compareB && compareA !== compareB) {
+    suggestions.push("What separates these two?", "Who has been stronger recently?");
   } else if (analysisTab === "battles") {
-    suggestions.unshift("Which championship battle is the tightest?", "Who is winning the momentum?");
+    suggestions.push("Which championship battle is tightest?", "Where is the momentum going?");
   } else if (analysisTab === "records") {
-    suggestions.unshift("What is the most impressive record this season?");
+    suggestions.push("Which record matters most this season?");
   } else if (analysisTab === "progression") {
-    suggestions.unshift("When did the championship start to change?", "Who is gaining momentum?");
-  } else {
-    suggestions.push("What changed recently in the standings?", "Who is currently in the best form?");
+    suggestions.push("When did the championship start to turn?", "Who is gaining ground?");
   }
+  suggestions.push("What's the story of this season?", "What changed in the latest round?");
 
   useRegisterApexScope({
-    key: `season:${season}`,
+    // The key changes when the open race does, which resets the transcript — answers grounded in
+    // one round's facts would be misleading carried into another's.
+    key: openRaceRound !== null ? `season:${season}:race:${openRaceRound}` : `season:${season}`,
     label: `Season ${season}`,
-    sublabel: "Intelligence",
+    sublabel: openRaceRound !== null ? `Round ${openRaceRound}` : "Intelligence",
     context: {
       page: "season",
       season,
@@ -34,6 +51,7 @@ export function SeasonApexScope({ season }: { season: number }) {
       selectedAnalysisTab: analysisTab,
       entityAId: compareA || undefined,
       entityBId: compareB || undefined,
+      selectedRaceId: openRaceRound !== null ? String(openRaceRound) : undefined,
     },
     suggestions: suggestions.slice(0, 4),
   });

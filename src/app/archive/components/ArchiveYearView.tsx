@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { SeasonDetail } from "@/app/season/_components/SeasonDetail";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
 import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "../services/archive.service";
 import { FavoritesHydrator } from "@/components/FavoritesHydrator";
+import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 
 /** The historical counterpart to /season/page.tsx - not a separate implementation, the exact same
  * SeasonDetail component, fed by getSeasonDetailData's archive-backed branch instead of the live
@@ -38,20 +40,25 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
       <FavoritesHydrator uid={uid} driverIds={data.favoriteDriverIds} teamIds={data.favoriteTeamIds} />
-      <SeasonDetail
-        year={year}
-        status={data.status}
-        backHref="/archive"
-        drivers={data.drivers}
-        constructors={data.constructors}
-        progression={data.progression}
-        raceSummaries={data.raceSummaries}
-        racesCompleted={data.racesCompleted}
-        racesRemaining={data.racesRemaining}
-        battles={data.battles}
-        records={data.records}
-        favoriteDriverIds={data.favoriteDriverIds}
-      />
+      {/* Same Suspense boundary /season uses, for the same reason: SeasonDetail's tree reads the
+          race-window round from the query string. */}
+      <Suspense fallback={<SeasonDetailSkeleton />}>
+        <SeasonDetail
+          year={year}
+          status={data.status}
+          backHref="/archive"
+          drivers={data.drivers}
+          constructors={data.constructors}
+          progression={data.progression}
+          raceSummaries={data.raceSummaries}
+          racesCompleted={data.racesCompleted}
+          racesRemaining={data.racesRemaining}
+          battles={data.battles}
+          records={data.records}
+          favoriteDriverIds={data.favoriteDriverIds}
+          favoriteTeamIds={data.favoriteTeamIds}
+        />
+      </Suspense>
     </div>
   );
 }

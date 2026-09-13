@@ -4,16 +4,16 @@ import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getUserProfile } from "@/lib/supabase/users";
 import { parseUtcDateTime } from "@/lib/countdown";
-import { trackShortForm } from "@/lib/format";
+import { formatLapTime, trackShortForm } from "@/lib/format";
 import { computeChampionshipProgression } from "@/lib/personalization";
 import { sessionCode } from "@/lib/sessionCode";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
-import { buildBattles, buildRecords } from "./season.pure";
+import { buildBattles, buildRecords, completedRoundCount } from "./season.pure";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
-import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, RaceSummary } from "./season.pure";
+import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, RacePodiumEntry, RacePredictionSummary, RaceSummary, RaceWeekendStatus } from "./season.pure";
 
 // Every type and pure deterministic computation (buildBattles, buildRecords, computeHeadToHead,
 // computeRecentForm, computeStreaks, computePositionChanges) lives in season.pure.ts instead of
@@ -22,6 +22,33 @@ import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, Race
 // without dragging server-only code into the browser bundle. Re-exported here so every existing
 // server-side caller (and the test file) can keep importing from "./season.service" unchanged.
 export * from "./season.pure";
+
+/** A calendar row's own status column is free-form text. Only the four values that carry real
+ * meaning for the UI are honoured; anything else falls through to the derived state below, rather
+ * than being displayed verbatim as if it were a known lifecycle state. */
+function calendarWeekendStatus(status: string | null): RaceWeekendStatus | null {
+  if (status === "cancelled" || status === "postponed") return status;
+  return null;
+}
+
+function sessionResultFor(code: string, race: RaceDoc | undefined, winnerName: string | null): { label: string; value: string } | null {
+  if (!race) return null;
+  if (code === "R") return winnerName ? { label: "Winner", value: winnerName } : null;
+  if (code === "Q") {
+    const poleName = race.results?.find((r) => r.driver === race.poleSitter)?.driverName ?? race.poleSitter;
+    return poleName ? { label: "Pole", value: poleName } : null;
+  }
+  // FP1/FP2/FP3 - real fastest-lap data from the pipeline's own practice documents. Sprint
+  // sessions genuinely have no stored classification, so they correctly return null here.
+  if (/^P\d$/.test(code)) {
+    const key = `FP${code.slice(1)}` as "FP1" | "FP2" | "FP3";
+    const best = race.practice?.[key]?.bestLaps?.[0];
+    if (!best) return null;
+    const name = race.results?.find((r) => r.driver === best.driver)?.driverName ?? best.driver;
+    return { label: "Fastest", value: `${name} \u00b7 ${formatLapTime(best.lapTimeSec)}` };
+  }
+  return null;
+}
 
 function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]): RaceSummary[] {
   const raceByRound = new Map(races.map((r) => [r.round, r]));
@@ -45,36 +72,88 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]):
   return sorted.map((entry) => {
     const race = raceByRound.get(entry.round);
     const completed = race?.status === "completed" && !!race.results?.length;
+    const results = completed ? race?.results ?? [] : [];
+    const winner = results.find((r) => r.finishPosition === 1) ?? null;
+
+    // "The weekend has physically started" = its earliest session time has passed. Derived from
+    // the same parseUtcDateTime the rest of this function uses, never from a second date parse.
+    const sessionTimes = entry.sessions.map((sx) => parseUtcDateTime(sx.date).getTime());
+    const weekendStart = sessionTimes.length > 0 ? Math.min(...sessionTimes) : entry.raceDate ? parseUtcDateTime(entry.raceDate).getTime() : null;
+    const derivedStatus: RaceWeekendStatus = completed ? "completed" : weekendStart != null && weekendStart <= now ? "live" : "upcoming";
+
+    // The model's own frozen pre-race prediction, for the post-race review. Simulation is
+    // preferred over the ranking model when both exist - it's the one that carries real
+    // probabilities (see RaceDoc's own notes on the two).
+    let predicted: RacePredictionSummary | null = null;
+    const simOrder = race?.simulation?.drivers ? [...race.simulation.drivers].sort((a, b) => a.medianPosition - b.medianPosition) : null;
+    const modelOrder = race?.prediction?.finishOrder ? [...race.prediction.finishOrder].sort((a, b) => a.predictedPosition - b.predictedPosition) : null;
+    const predictedPole = race?.polePrediction?.order?.find((o) => o.predictedQualiPosition === 1)?.driver ?? null;
+    if (simOrder && simOrder.length > 0) {
+      predicted = { winner: simOrder[0]?.driver ?? null, podium: simOrder.slice(0, 3).map((d) => d.driver), pole: predictedPole, source: "simulation" };
+    } else if (modelOrder && modelOrder.length > 0) {
+      predicted = { winner: modelOrder[0]?.driver ?? null, podium: modelOrder.slice(0, 3).map((d) => d.driver), pole: predictedPole, source: "model" };
+    } else if (predictedPole) {
+      predicted = { winner: null, podium: [], pole: predictedPole, source: "model" };
+    }
+
+    const fastest = results.reduce<{ driver: string; driverName: string; lapTimeSec: number } | null>((best, r) => {
+      if (r.fastestLapSec == null) return best;
+      if (!best || r.fastestLapSec < best.lapTimeSec) return { driver: r.driver, driverName: r.driverName, lapTimeSec: r.fastestLapSec };
+      return best;
+    }, null);
+
+    const podium: RacePodiumEntry[] = results
+      .filter((r) => r.finishPosition <= 3)
+      .sort((a, b) => a.finishPosition - b.finishPosition)
+      .map((r) => ({ position: r.finishPosition, driver: r.driver, driverName: r.driverName, team: r.team }));
+
+    const isSprintWeekend = (entry.eventFormat ?? "").toLowerCase().includes("sprint") || entry.sessions.some((sx) => sx.label.toLowerCase().includes("sprint"));
+
     return {
       round: entry.round,
       name: entry.name ?? `Round ${entry.round}`,
       trackShort: trackShortForm(race?.circuit ?? entry.circuit ?? entry.name ?? `R${entry.round}`),
       raceDate: entry.raceDate,
       state: completed ? "completed" : entry.round === nextRound ? "next" : "upcoming",
-      sessions: entry.sessions.map((s) => ({
-        label: s.label,
-        code: sessionCode(s.label),
-        date: s.date,
-        state:
-          parseUtcDateTime(s.date).getTime() <= now
-            ? "completed"
-            : currentSession && currentSession.round === entry.round && currentSession.label === s.label
-              ? "current"
-              : "upcoming",
-      })),
+      sessions: entry.sessions.map((sx) => {
+        const code = sessionCode(sx.label);
+        return {
+          label: sx.label,
+          code,
+          date: sx.date,
+          state:
+            parseUtcDateTime(sx.date).getTime() <= now
+              ? "completed"
+              : currentSession && currentSession.round === entry.round && currentSession.label === sx.label
+                ? "current"
+                : "upcoming",
+          result: parseUtcDateTime(sx.date).getTime() <= now ? sessionResultFor(code, race, winner?.driverName ?? null) : null,
+        };
+      }),
       poleSitter: race?.poleSitter ?? null,
-      results: completed
-        ? (race?.results ?? []).map((r) => ({
-            driver: r.driver,
-            driverName: r.driverName,
-            team: r.team,
-            finishPosition: r.finishPosition,
-            points: r.points,
-            grid: r.grid,
-            status: r.status,
-          }))
-        : [],
-      hasQualifying: entry.sessions.some((s) => s.label.toLowerCase().includes("qualif")),
+      results: results.map((r) => ({
+        driver: r.driver,
+        driverName: r.driverName,
+        team: r.team,
+        finishPosition: r.finishPosition,
+        points: r.points,
+        grid: r.grid,
+        status: r.status,
+      })),
+      hasQualifying: entry.sessions.some((sx) => sx.label.toLowerCase().includes("qualif")),
+      circuit: race?.circuit ?? entry.circuit ?? null,
+      country: race?.country ?? null,
+      eventFormat: entry.eventFormat,
+      isSprintWeekend,
+      weekendStatus: calendarWeekendStatus(entry.status) ?? derivedStatus,
+      photoUrls: race?.photoUrls ?? (race?.photoUrl ? [race.photoUrl] : []),
+      forecast: entry.weatherForecast,
+      raceWeather: race?.weather ?? null,
+      podium,
+      winnerName: winner?.driverName ?? null,
+      poleSitterName: results.find((r) => r.driver === race?.poleSitter)?.driverName ?? race?.poleSitter ?? null,
+      fastestLap: fastest,
+      predicted,
     };
   });
 }
@@ -119,7 +198,7 @@ export async function getSeasonPageData(year: number, uid: string) {
   const progression = scoredCodes.length > 0 ? computeChampionshipProgression(races, scoredCodes) : [];
 
   const raceSummaries = buildRaceSummaries(races, calendarEntries);
-  const completedCount = raceSummaries.filter((r) => r.state === "completed").length;
+  const completedCount = completedRoundCount(raceSummaries);
 
   return {
     year,
@@ -217,15 +296,8 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
   const logoByTeamName = new Map(constructors.map((c) => [c.team, c.logoUrl]));
   for (const d of drivers) d.teamLogoUrl = logoByTeamName.get(d.team) ?? null;
 
-  const raceSummaries: RaceSummary[] = races.map((r) => ({
-    round: r.round,
-    name: r.raceName,
-    trackShort: trackShortForm(r.circuitName ?? r.raceName),
-    raceDate: r.raceDate,
-    state: "completed",
-    sessions: r.raceDate ? [{ label: "Race", code: "R", date: r.raceDate, state: "completed" }] : [],
-    poleSitter: r.qualifying?.find((q) => q.position === 1)?.driverId ?? r.results.find((res) => res.grid === 1)?.driverId ?? null,
-    results: r.results.map((res) => ({
+  const raceSummaries: RaceSummary[] = races.map((r) => {
+    const results = r.results.map((res) => ({
       driver: res.driverId,
       driverName: res.driverName,
       team: res.constructor,
@@ -233,9 +305,43 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       points: res.points,
       grid: res.grid,
       status: archiveFinishStatus(res.status),
-    })),
-    hasQualifying: !!r.qualifying?.length,
-  }));
+    }));
+    const winner = results.find((res) => res.finishPosition === 1) ?? null;
+    const poleSitter = r.qualifying?.find((q) => q.position === 1)?.driverId ?? results.find((res) => res.grid === 1)?.driver ?? null;
+    return {
+      round: r.round,
+      name: r.raceName,
+      trackShort: trackShortForm(r.circuitName ?? r.raceName),
+      raceDate: r.raceDate,
+      state: "completed" as const,
+      sessions: r.raceDate
+        ? [{ label: "Race", code: "R", date: r.raceDate, state: "completed" as const, result: winner ? { label: "Winner", value: winner.driverName } : null }]
+        : [],
+      poleSitter,
+      results,
+      hasQualifying: !!r.qualifying?.length,
+      // Archive rounds are complete by construction. The event-detail fields the race window uses
+      // (photos, forecast, session weather, the model's frozen pre-race prediction) belong to the
+      // live FastF1 pipeline and genuinely don't exist in archive_races - they arrive empty here
+      // rather than being back-filled with plausible-looking substitutes.
+      circuit: r.circuitName ?? null,
+      country: null,
+      eventFormat: null,
+      isSprintWeekend: false,
+      weekendStatus: "completed" as const,
+      photoUrls: [],
+      forecast: null,
+      raceWeather: null,
+      podium: results
+        .filter((res) => res.finishPosition <= 3)
+        .sort((a, b) => a.finishPosition - b.finishPosition)
+        .map((res) => ({ position: res.finishPosition, driver: res.driver, driverName: res.driverName, team: res.team })),
+      winnerName: winner?.driverName ?? null,
+      poleSitterName: results.find((res) => res.driver === poleSitter)?.driverName ?? poleSitter,
+      fastestLap: null,
+      predicted: null,
+    };
+  });
 
   const scoredIds = drivers.filter((d) => d.points > 0).map((d) => d.driver);
   const progression = scoredIds.length > 0 ? computeArchiveProgression(races, scoredIds) : [];

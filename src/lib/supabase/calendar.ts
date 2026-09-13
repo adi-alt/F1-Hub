@@ -26,8 +26,13 @@ export type CalendarEntry = {
   raceDate: string | null;
   /** Calendar-level lifecycle state (sync_calendar.py: "completed" once race_date has passed, else
    * "upcoming") - the same completed/upcoming distinction RaceDoc.status already carries once a
-   * `races` row exists, just available for a round that doesn't have one yet. */
-  status: "completed" | "upcoming" | null;
+   * `races` row exists, just available for a round that doesn't have one yet.
+   *
+   * "cancelled"/"postponed" are also accepted: the column is free-form text, a round really can be
+   * either, and the season page must not show a normal countdown for one. The pipeline doesn't
+   * write them today, so they only ever arrive if the row genuinely says so - narrowing the type to
+   * two values (the previous behaviour) silently discarded that case instead. */
+  status: "completed" | "upcoming" | "cancelled" | "postponed" | null;
 };
 
 type CalendarRow = {
@@ -54,7 +59,7 @@ function fromRow(row: CalendarRow): CalendarEntry {
     sessions: row.sessions ?? [],
     weatherForecast: row.weather_forecast,
     raceDate: row.race_date,
-    status: row.status === "completed" || row.status === "upcoming" ? row.status : null,
+    status: row.status === "completed" || row.status === "upcoming" || row.status === "cancelled" || row.status === "postponed" ? row.status : null,
   };
 }
 

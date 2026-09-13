@@ -27,21 +27,30 @@ export function EntityAvatar({
   fit?: "cover" | "contain";
 }) {
   const [failed, setFailed] = useState(false);
+  // The box was already reserved (explicit width/height below), so nothing ever shifted - but the
+  // space sat empty until the image decoded. A shimmer underneath it reads as loading rather than
+  // as a gap, and costs nothing: it's painted behind the image and simply stops mattering once the
+  // image is opaque.
+  const [loaded, setLoaded] = useState(false);
   // Written as two literal, complete class strings rather than an interpolated `object-${fit}` -
   // Tailwind's build-time scanner only picks up whole class names it can see as-is in the source.
   const rounding = shape === "circle" ? "rounded-full" : "rounded-lg";
   const objectFit = fit === "contain" ? "object-contain" : "object-cover";
   if (imageUrl && !failed) {
     return (
-      <Image
-        src={imageUrl}
-        alt=""
-        width={size}
-        height={size}
-        className={`shrink-0 ${rounding} ${objectFit}`}
-        style={{ width: size, height: size }}
-        onError={() => setFailed(true)}
-      />
+      <span className={`relative block shrink-0 overflow-hidden ${rounding}`} style={{ width: size, height: size }}>
+        {!loaded && <span aria-hidden className={`skeleton-shimmer absolute inset-0 ${rounding} bg-white/[0.05]`} />}
+        <Image
+          src={imageUrl}
+          alt=""
+          width={size}
+          height={size}
+          className={`relative shrink-0 ${rounding} ${objectFit} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+          style={{ width: size, height: size }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+        />
+      </span>
     );
   }
   return (

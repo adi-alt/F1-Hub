@@ -323,81 +323,201 @@ export function generateDeterministicRaceFallback(context: RaceIntelligenceConte
 }
 
 
-import { SharedSeasonIntelligence, SeasonCompareInsight } from "./schemas/seasonIntelligence";
+import type { SharedSeasonIntelligence, SeasonCompareInsight, RaceEventTake } from "./schemas/seasonIntelligence";
+import type { ComparePair, RaceSummary } from "@/app/season/_service/season.pure";
+import type { SeasonNarrativeContext } from "./context/seasonContext";
 
-// Loosely-typed on purpose - this is the same contextSnapshot SeasonDetail.tsx serializes to
-// contextJson, but the fallback only reads a handful of already-real, already-computed fields
-// from it, defensively, and never fails just because the shape doesn't fully match.
-type SeasonFallbackContext = {
-  driverStandings?: { position: number; name: string; team: string; points: number; wins: number }[];
-  battles?: { aLabel: string; bLabel: string; gap: number }[];
-};
+// ─── Season fallbacks ──────────────────────────────────────────────────────────
+//
+// These exist for the minutes when the provider is unavailable, and the bar for them is not
+// "something renders" - it is "a reader cannot tell anything is wrong." So: no implementation
+// vocabulary ever reaches the screen (no "deterministic", "fallback", "AI", "cache", "mode"), and
+// every sentence is assembled from numbers that were already computed upstream. They read thinner
+// than real editorial copy, which is honest; they never read like a status message.
+//
+// The application still knows the difference - see IntelligenceSource - it just doesn't make the
+// reader carry it.
 
-/** Never says "deterministic", "fallback", "cache", or any other implementation term - this reads
- * exactly like normal Apex copy because a real generation failure should be invisible to the
- * user, not a status message about the AI layer's own internal state. Every sentence here is
- * built ONLY from numbers already computed and passed in (season/completedRounds/context) -
- * never a guess or an invented stat, the same rule every other deterministic fallback in this
- * file follows. */
-export function generateDeterministicSeasonFallback(season: number, completedRounds: number, contextJson?: string): SharedSeasonIntelligence {
-  let ctx: SeasonFallbackContext = {};
-  if (contextJson) {
-    try {
-      ctx = JSON.parse(contextJson) as SeasonFallbackContext;
-    } catch {
-      // Malformed/absent context - the generic sentences below still hold up on their own.
-    }
+function plural(n: number, one: string, many = `${one}s`): string {
+  return n === 1 ? one : many;
+}
+
+export function generateSeasonFallbackFromContext(ctx: SeasonNarrativeContext): SharedSeasonIntelligence {
+  const leader = ctx.drivers[0];
+  const second = ctx.drivers[1];
+  const topTeam = ctx.constructors[0];
+  const tightest = ctx.battles[0];
+  const form = ctx.recentForm[0];
+  const mover = ctx.movers.find((m) => m.positionDelta) ?? ctx.movers[0];
+  const gap = leader && second ? leader.points - second.points : null;
+
+  // The story leads with the shape of the championship rather than its scoreline, so it reads as
+  // a claim rather than a table read back.
+  const storyHeadline = !leader
+    ? `The ${ctx.season} season is still taking shape`
+    : gap === null
+      ? `${leader.driverName} sets the early standard`
+      : gap === 0
+        ? `${leader.driverName} and ${second!.driverName} are inseparable at the top`
+        : gap > 50
+          ? `${leader.driverName} has turned a lead into a buffer`
+          : `${leader.driverName} leads, but the margin is still live`;
+
+  const storyParts: string[] = [];
+  if (leader && ctx.completedRounds > 0) {
+    storyParts.push(
+      `${leader.driverName} heads the championship after ${ctx.completedRounds} completed ${plural(ctx.completedRounds, "round")}` +
+        (gap !== null && gap > 0 ? `, ${gap} ${plural(gap, "point")} clear of ${second!.driverName}.` : second ? `, level with ${second.driverName}.` : "."),
+    );
+  } else {
+    storyParts.push(`The ${ctx.season} season has not yet produced a classified round.`);
+  }
+  if (form && ctx.formWindow > 0) {
+    storyParts.push(
+      form.name === leader?.driverName
+        ? `The same driver has scored more than anyone across the last ${ctx.formWindow} rounds, so recent form is reinforcing the order rather than disturbing it.`
+        : `${form.name} has scored more than anyone across the last ${ctx.formWindow} rounds, which is the clearest sign of movement behind the leader.`,
+    );
+  }
+  if (ctx.remainingRounds > 0 && gap !== null) {
+    storyParts.push(
+      gap > 50
+        ? `With ${ctx.remainingRounds} ${plural(ctx.remainingRounds, "round")} left, the pressure sits on the chasing side to force errors rather than wait for them.`
+        : `With ${ctx.remainingRounds} ${plural(ctx.remainingRounds, "round")} still to run, a single weekend can still reorder the top of the table.`,
+    );
   }
 
-  const leader = ctx.driverStandings?.[0];
-  const chaser = ctx.driverStandings?.[1];
-  const closestBattle = ctx.battles?.[0];
+  const themes: string[] = [];
+  if (gap !== null && gap > 50) themes.push("championship control");
+  else if (gap !== null) themes.push("open title fight");
+  if (topTeam) themes.push("constructors' order");
+  if (tightest && tightest.gap === 0) themes.push("level midfield fight");
+  else if (tightest) themes.push("midfield margins");
 
-  const seasonSummary =
-    leader && chaser
-      ? `${leader.name} leads the ${season} championship by ${leader.points - chaser.points} points over ${chaser.name} after ${completedRounds} rounds.`
-      : `${completedRounds} rounds of the ${season} season are complete, with the championship still taking shape.`;
+  const battleSummary = tightest
+    ? tightest.gap === 0
+      ? `${tightest.aLabel} and ${tightest.bLabel} are level on ${tightest.metricLabel.toLowerCase()}, the finest margin anywhere in the standings, which makes every finishing position between them decisive.`
+      : `${tightest.aLabel} and ${tightest.bLabel} are the closest pairing in the standings, separated on ${tightest.metricLabel.toLowerCase()} by an amount a single strong weekend would erase.`
+    : "The standings are not yet close enough anywhere to call a genuine battle.";
 
-  const battleSummary = closestBattle
-    ? closestBattle.gap === 0
-      ? `${closestBattle.aLabel} and ${closestBattle.bLabel} are level on points, the tightest fight in the standings right now.`
-      : `${closestBattle.aLabel} and ${closestBattle.bLabel} are separated by just ${closestBattle.gap} points, the closest battle in the standings.`
-    : "The standings below show how tightly the field is matched this season.";
+  const progressionSummary = leader && ctx.completedRounds > 0
+    ? `${leader.driverName} has won ${leader.wins} of the ${ctx.completedRounds} ${plural(ctx.completedRounds, "round")} run so far; the curve below shows where that advantage was actually built.`
+    : "The points curve below shows how the order has developed round by round.";
+
+  const topRecord = ctx.records[0];
+  const recordSummary = topRecord
+    ? `${topRecord.name} holds the season's ${topRecord.label.toLowerCase()} - ${topRecord.why.toLowerCase()}.`
+    : "Not enough rounds have run for a season record to mean much yet.";
+
+  const whatChangedSummary = mover
+    ? mover.positionDelta
+      ? `${mover.name} ${mover.positionDelta > 0 ? "gained" : "lost"} ground in the latest completed round, the most notable move in the order.`
+      : `Points moved in the latest completed round without reordering the table.`
+    : "The order held after the latest completed round.";
 
   return {
-    seasonStory: {
-      headline: leader ? `${leader.name} sets the pace` : `${season} season`,
-      summary: seasonSummary,
-      themes: [],
-    },
+    seasonStory: { headline: storyHeadline, summary: storyParts.join(" "), themes: themes.slice(0, 3) },
     battleInsight: {
-      headline: "Championship battles",
+      headline: tightest ? "The margin that matters most" : "No close battles yet",
       summary: battleSummary,
       highlightedBattleId: undefined,
     },
-    progressionInsight: {
-      headline: "Season progression",
-      summary: leader ? `${leader.name} has won ${leader.wins} of the ${completedRounds} rounds run so far.` : "The full points progression is charted below.",
-      highlightedEntities: [],
-    },
-    recordInsight: {
-      headline: "Records",
-      summary: leader ? `${leader.name} leads the season with ${leader.points} points and ${leader.wins} wins.` : "The season's key records are listed below.",
-      highlightedRecordIds: [],
-    },
-    whatChangedInsight: {
-      summary: "The latest round's exact position and points changes are listed below.",
-      highlights: [],
-    },
+    progressionInsight: { headline: "How the order was built", summary: progressionSummary, highlightedEntities: [] },
+    recordInsight: { headline: topRecord ? "The season's standout number" : "Records still forming", summary: recordSummary, highlightedRecordIds: [] },
+    whatChangedInsight: { summary: whatChangedSummary, highlights: [] },
   };
 }
 
-export function generateDeterministicCompareFallback(entityA: string, entityB: string): SeasonCompareInsight {
+/** The compare fallback is built from the SAME ComparePair the model would have been given, so it
+ * is about exactly the right two entities by construction - the wrong-pair failure mode simply
+ * cannot occur on this path. It states a real difference rather than deferring to the table
+ * ("See the stats below" was not an insight, it was an apology). */
+export function generateCompareFallbackFromPair(pair: ComparePair): SeasonCompareInsight {
+  const { a, b } = pair;
+  const ahead = pair.aheadId === a.id ? a : pair.aheadId === b.id ? b : null;
+  const behind = ahead === a ? b : ahead === b ? a : null;
+
+  const headline = !ahead
+    ? `${a.name} and ${b.name} are level`
+    : `${ahead.name} is ahead of ${behind!.name} on points`;
+
+  const sentences: string[] = [];
+  if (ahead && behind) {
+    sentences.push(`${ahead.name} holds the advantage in the championship after ${pair.completedRounds} completed ${plural(pair.completedRounds, "round")}.`);
+  } else {
+    sentences.push(`${a.name} and ${b.name} are level in the championship after ${pair.completedRounds} completed ${plural(pair.completedRounds, "round")}.`);
+  }
+  if (pair.h2h.comparableRounds > 0) {
+    const h2hLeader = pair.h2h.aWins > pair.h2h.bWins ? a.name : pair.h2h.bWins > pair.h2h.aWins ? b.name : null;
+    sentences.push(
+      h2hLeader
+        ? `On race classification they have met ${pair.h2h.comparableRounds} ${plural(pair.h2h.comparableRounds, "time")}, and ${h2hLeader} has finished ahead more often.`
+        : `On race classification they are split evenly across ${pair.h2h.comparableRounds} ${plural(pair.h2h.comparableRounds, "meeting")}.`,
+    );
+  }
+  if (pair.momentumWindow > 0) {
+    sentences.push(
+      pair.momentum === "EVEN"
+        ? `Neither has taken an edge across the last ${pair.momentumWindow} rounds.`
+        : `${pair.momentum === "A" ? a.name : b.name} has scored more across the last ${pair.momentumWindow} rounds.`,
+    );
+  }
+
+  const advantage = (side: typeof a, other: typeof a): string => {
+    if (side.wins > other.wins) return "wins more often";
+    if (side.averageFinish !== null && other.averageFinish !== null && side.averageFinish < other.averageFinish) return "finishes higher on average";
+    if (side.dnfs < other.dnfs) return "has been more reliable";
+    if (side.poles !== null && other.poles !== null && side.poles > other.poles) return "is stronger over one lap";
+    if (side.recentPoints > other.recentPoints) return "is in better recent form";
+    return "no clear advantage in these numbers";
+  };
+
   return {
-    headline: `${entityA} vs ${entityB}`,
-    summary: `A written breakdown of ${entityA} against ${entityB} is unavailable right now. The stats below are exact.`,
-    keyAdvantageA: "See the stats below",
-    keyAdvantageB: "See the stats below",
-    momentum: "EVEN"
+    headline,
+    summary: sentences.join(" "),
+    keyAdvantageA: advantage(a, b),
+    keyAdvantageB: advantage(b, a),
+    momentum: pair.momentum,
+  };
+}
+
+/** The race window's compact event take, assembled from the round's own real state. Says nothing
+ * about a race that hasn't run, and forecasts nothing about one that has. */
+export function generateRaceEventFallback(race: RaceSummary): RaceEventTake {
+  if (race.weekendStatus === "cancelled" || race.weekendStatus === "postponed") {
+    return {
+      headline: `${race.name} is ${race.weekendStatus}`,
+      summary: `This round is currently marked ${race.weekendStatus}. The schedule below reflects what is known so far.`,
+    };
+  }
+  if (race.weekendStatus === "completed") {
+    const podium = race.podium.map((p) => p.driverName);
+    return {
+      headline: race.winnerName ? `${race.winnerName} takes round ${race.round}` : `${race.name} is complete`,
+      summary: [
+        race.winnerName ? `${race.winnerName} won the ${race.name}.` : `The ${race.name} has been classified.`,
+        podium.length === 3 ? `${podium[1]} and ${podium[2]} completed the podium.` : null,
+        race.poleSitterName && race.poleSitterName !== race.winnerName ? `${race.poleSitterName} had started from pole.` : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    };
+  }
+  const nextSession = race.sessions.find((s) => s.state === "current" || s.state === "upcoming");
+  if (race.weekendStatus === "live") {
+    return {
+      headline: `${race.name} is under way`,
+      summary: `The weekend has started at ${race.circuit ?? race.name}.${nextSession ? ` ${nextSession.label} is next on the schedule.` : ""} Session results appear below as each one is classified.`,
+    };
+  }
+  return {
+    headline: `Round ${race.round}: ${race.name}`,
+    summary: [
+      `${race.name}${race.circuit ? ` at ${race.circuit}` : ""} is round ${race.round} of the season${race.isSprintWeekend ? ", run to the sprint format" : ""}.`,
+      race.forecast ? `The current forecast puts air temperature near ${Math.round(race.forecast.airTempC)}C with a ${Math.round(race.forecast.rainProbability * 100)}% chance of rain.` : null,
+      nextSession ? `${nextSession.label} opens the weekend's running.` : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
   };
 }

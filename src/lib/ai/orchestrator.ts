@@ -13,7 +13,7 @@ import { buildHomepageContext, type HomepageContextData } from "./context";
 import { formatRaceIntelligenceContext, hasPersonalContext, type RaceIntelligenceContext } from "./context/raceContext";
 import { validateHomepageIntelligence, type HomepageIntelligence } from "./schemas/homepageIntelligence";
 import { validatePersonalOnlyResult, validateRaceIntelligenceResult, type PersonalRaceInsight, type SharedRaceIntelligence } from "./schemas/raceIntelligence";
-import { generateDeterministicFallback, generateDeterministicRaceFallback, generateDeterministicSeasonFallback, generateDeterministicCompareFallback, type FallbackDataContext } from "./fallback";
+import { generateDeterministicFallback, generateDeterministicRaceFallback, type FallbackDataContext } from "./fallback";
 import { logAIOperation, logDeterministicFallback, logAIError } from "./telemetry";
 import { categorizeProviderError, categorizeFallbackReason } from "./errorCategory";
 import type { AgentContext, OrchestratorConfig, StructuredOutput } from "./types";
@@ -151,6 +151,11 @@ const RACE_INTELLIGENCE_MAX_TOKENS = 3000;
 // one-section schema, both with real headroom for the reasoning overhead.
 const SEASON_INTELLIGENCE_MAX_TOKENS = 3000;
 const SEASON_COMPARE_MAX_TOKENS = 1500;
+// The event take is one headline plus 2-3 sentences - far smaller than the 5-section schemas
+// above. Still sized well clear of the hidden reasoning field gpt-oss-120b spends budget on
+// before emitting `content` (see groq.ts), which is what silently starved the season generators
+// at their original 1000/500 caps.
+const RACE_EVENT_MAX_TOKENS = 1200;
 
 /**
  * Direct Mode: Bundled Homepage Intelligence Request.
@@ -658,39 +663,72 @@ export async function generateRaceIntelligence(
 }
 
 
-import { validateSeasonIntelligence, type SharedSeasonIntelligence, type SeasonCompareInsight, SeasonCompareInsightSchema } from "./schemas/seasonIntelligence";
+import {
+  validateSeasonIntelligence,
+  validateSeasonCompareInsight,
+  validateRaceEventTake,
+  type SharedSeasonIntelligence,
+  type SeasonCompareInsight,
+  type RaceEventTake,
+  type IntelligenceSource,
+} from "./schemas/seasonIntelligence";
 import { formatSeasonPrompt, SEASON_PROMPT_VERSION } from "./prompts/seasonPrompt";
 import { formatSeasonComparePrompt, SEASON_COMPARE_PROMPT_VERSION } from "./prompts/seasonComparePrompt";
+import { formatRaceEventPrompt, RACE_EVENT_PROMPT_VERSION } from "./prompts/raceEventPrompt";
+import {
+  formatSeasonNarrativeContext,
+  formatComparePairContext,
+  formatRaceEventContext,
+  seasonValidIds,
+  type SeasonNarrativeContext,
+  type RaceEventContext,
+} from "./context/seasonContext";
+import { generateSeasonFallbackFromContext, generateCompareFallbackFromPair, generateRaceEventFallback } from "./fallback";
+import type { ComparePair } from "@/app/season/_service/season.pure";
+
+/** Every season generator reports which mechanism actually produced the content. Callers must
+ * propagate this rather than inferring it: only a genuinely model-written result may be cached at
+ * the long TTL, and a cached result must keep reporting the mode that produced it even after the
+ * provider recovers. */
+export type SeasonGenerationResult<T> = { data: T; source: IntelligenceSource; fallbackReason?: string };
+
+const SEASON_GROQ_KEY = () => process.env.GROQ_SEASON_INTELLIGENCE_API_KEY;
+const SEASON_OPENROUTER_KEY = () => process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY;
+
+/** Distinguishes this file's own sentinel throws (a real provider response arrived but was
+ * rejected downstream) from a transport-level failure where both providers were unreachable. */
+function classifyThrow(err: unknown): string {
+  if (err instanceof Error && (err.message === "EMPTY_RESPONSE" || err.message === "SCHEMA_VALIDATION_FAILED" || err.message === "ENTITY_SCOPE_VIOLATION")) return err.message;
+  return "PROVIDER_ERROR";
+}
 
 export async function generateSeasonIntelligence(
-  contextJson: string,
-  season: number,
-  completedRounds: number,
-  validIds: string[],
-  ctx: AgentContext
-): Promise<{ data: SharedSeasonIntelligence, generationMode: "ai" | "deterministic" }> {
+  context: SeasonNarrativeContext,
+  ctx: AgentContext,
+): Promise<SeasonGenerationResult<SharedSeasonIntelligence>> {
   const startTime = Date.now();
   const plannedModel = "groq/openai/gpt-oss-120b";
 
   const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
-    return { data: generateDeterministicSeasonFallback(season, completedRounds, contextJson), generationMode: "deterministic" };
+    logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    return { data: generateSeasonFallbackFromContext(context), source: "fallback", fallbackReason: "PROVIDER_RATE_LIMITED" };
   }
 
   const baseConfig = {
     maxTokens: SEASON_INTELLIGENCE_MAX_TOKENS,
     temperature: 0.7,
-    groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
-    openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
+    groqApiKey: SEASON_GROQ_KEY(),
+    openrouterApiKey: SEASON_OPENROUTER_KEY(),
   };
 
   try {
-    const messages = formatSeasonPrompt(contextJson);
+    const messages = formatSeasonPrompt(formatSeasonNarrativeContext(context));
     const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
     if (!result.response.content) throw new Error("EMPTY_RESPONSE");
 
     const parsed = JSON.parse(cleanJsonOutput(result.response.content));
-    const validation = validateSeasonIntelligence(parsed, validIds);
+    const validation = validateSeasonIntelligence(parsed, seasonValidIds(context));
     if (!validation.valid || !validation.data) {
       logAIError(ctx.requestId, "season_intelligence_validation_failure", "Failed to validate season intelligence output", { errors: validation.errors });
       throw new Error("SCHEMA_VALIDATION_FAILED");
@@ -714,10 +752,10 @@ export async function generateSeasonIntelligence(
       fallbackReason: result.fallbackReason,
     });
 
-    return { data: validation.data, generationMode: "ai" };
+    return { data: validation.data, source: "llm" };
   } catch (err) {
     logAIError(ctx.requestId, "season_intelligence_generation_failed", String(err));
-    const reason = err instanceof Error && (err.message === "EMPTY_RESPONSE" || err.message === "SCHEMA_VALIDATION_FAILED") ? err.message : "PROVIDER_ERROR";
+    const reason = classifyThrow(err);
     logAIOperation({
       requestId: ctx.requestId,
       agentType: "season_intelligence",
@@ -734,41 +772,54 @@ export async function generateSeasonIntelligence(
       fallbackReason: reason,
       errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
     });
-    return { data: generateDeterministicSeasonFallback(season, completedRounds, contextJson), generationMode: "deterministic" };
+    return { data: generateSeasonFallbackFromContext(context), source: "fallback", fallbackReason: reason };
   }
 }
 
+/**
+ * Compare, generated from the pair-only deterministic context.
+ *
+ * The pair IS the context: the model is given the two selected entities' facts and nothing else,
+ * so the "wrote about a completely different rivalry" failure has no material to occur from. The
+ * `forbiddenNames` guard in validation is a second line of defence, not the mechanism.
+ */
 export async function generateSeasonCompareInsight(
-  contextJson: string,
-  entityA: string,
-  entityB: string,
-  ctx: AgentContext
-): Promise<{ data: SeasonCompareInsight, generationMode: "ai" | "deterministic" }> {
+  pair: ComparePair,
+  forbiddenNames: string[],
+  ctx: AgentContext,
+): Promise<SeasonGenerationResult<SeasonCompareInsight>> {
   const startTime = Date.now();
   const plannedModel = "groq/openai/gpt-oss-120b";
 
   const capacity = acquireProviderCapacity("groq");
   if (!capacity.allowed) {
-    return { data: generateDeterministicCompareFallback(entityA, entityB), generationMode: "deterministic" };
+    logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    return { data: generateCompareFallbackFromPair(pair), source: "fallback", fallbackReason: "PROVIDER_RATE_LIMITED" };
   }
 
   const baseConfig = {
     maxTokens: SEASON_COMPARE_MAX_TOKENS,
     temperature: 0.7,
-    groqApiKey: process.env.GROQ_SEASON_INTELLIGENCE_API_KEY,
-    openrouterApiKey: process.env.OPENROUTER_SEASON_INTELLIGENCE_API_KEY,
+    groqApiKey: SEASON_GROQ_KEY(),
+    openrouterApiKey: SEASON_OPENROUTER_KEY(),
   };
 
   try {
-    const messages = formatSeasonComparePrompt(contextJson);
+    const messages = formatSeasonComparePrompt(formatComparePairContext(pair), pair.a.name, pair.b.name);
     const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
     if (!result.response.content) throw new Error("EMPTY_RESPONSE");
 
     const parsed = JSON.parse(cleanJsonOutput(result.response.content));
-    const validation = SeasonCompareInsightSchema.safeParse(parsed);
-    if (!validation.success) {
-      logAIError(ctx.requestId, "season_compare_validation_failure", "Failed to validate season compare output", { errors: validation.error.issues });
-      throw new Error("SCHEMA_VALIDATION_FAILED");
+    const validation = validateSeasonCompareInsight(parsed, {
+      aName: pair.a.name,
+      bName: pair.b.name,
+      entityType: pair.entityType,
+      momentum: pair.momentum,
+      forbiddenNames,
+    });
+    if (!validation.valid || !validation.data) {
+      logAIError(ctx.requestId, "season_compare_validation_failure", "Compare output rejected", { errors: validation.errors });
+      throw new Error(typeof validation.errors === "string" ? "ENTITY_SCOPE_VIOLATION" : "SCHEMA_VALIDATION_FAILED");
     }
 
     logAIOperation({
@@ -789,10 +840,10 @@ export async function generateSeasonCompareInsight(
       fallbackReason: result.fallbackReason,
     });
 
-    return { data: validation.data, generationMode: "ai" };
+    return { data: validation.data, source: "llm" };
   } catch (err) {
     logAIError(ctx.requestId, "season_compare_generation_failed", String(err));
-    const reason = err instanceof Error && (err.message === "EMPTY_RESPONSE" || err.message === "SCHEMA_VALIDATION_FAILED") ? err.message : "PROVIDER_ERROR";
+    const reason = classifyThrow(err);
     logAIOperation({
       requestId: ctx.requestId,
       agentType: "season_compare",
@@ -809,6 +860,79 @@ export async function generateSeasonCompareInsight(
       fallbackReason: reason,
       errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
     });
-    return { data: generateDeterministicCompareFallback(entityA, entityB), generationMode: "deterministic" };
+    return { data: generateCompareFallbackFromPair(pair), source: "fallback", fallbackReason: reason };
+  }
+}
+
+/** The race window's compact event take. Same shape as the two above - deliberately the smallest
+ * of the three, since it produces one headline and one short paragraph. */
+export async function generateRaceEventTake(context: RaceEventContext, ctx: AgentContext): Promise<SeasonGenerationResult<RaceEventTake>> {
+  const startTime = Date.now();
+  const plannedModel = "groq/openai/gpt-oss-120b";
+
+  const capacity = acquireProviderCapacity("groq");
+  if (!capacity.allowed) {
+    logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    return { data: generateRaceEventFallback(context.race), source: "fallback", fallbackReason: "PROVIDER_RATE_LIMITED" };
+  }
+
+  const baseConfig = {
+    maxTokens: RACE_EVENT_MAX_TOKENS,
+    temperature: 0.65,
+    groqApiKey: SEASON_GROQ_KEY(),
+    openrouterApiKey: SEASON_OPENROUTER_KEY(),
+  };
+
+  try {
+    const messages = formatRaceEventPrompt(formatRaceEventContext(context));
+    const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+    if (!result.response.content) throw new Error("EMPTY_RESPONSE");
+
+    const parsed = JSON.parse(cleanJsonOutput(result.response.content));
+    const validation = validateRaceEventTake(parsed);
+    if (!validation.valid || !validation.data) {
+      logAIError(ctx.requestId, "race_event_validation_failure", "Race event take rejected", { errors: validation.errors });
+      throw new Error("SCHEMA_VALIDATION_FAILED");
+    }
+
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "season_race_take",
+      userId: ctx.userId,
+      provider: result.providerName,
+      model: result.model,
+      promptVersion: RACE_EVENT_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage: result.response.usage,
+      cacheHit: false,
+      validationSuccess: true,
+      finishReason: result.response.finishReason,
+      fallbackUsed: result.fallbackUsed,
+      fallbackReason: result.fallbackReason,
+    });
+
+    return { data: validation.data, source: "llm" };
+  } catch (err) {
+    logAIError(ctx.requestId, "race_event_generation_failed", String(err));
+    const reason = classifyThrow(err);
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "season_race_take",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: RACE_EVENT_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: reason,
+      errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
+    });
+    return { data: generateRaceEventFallback(context.race), source: "fallback", fallbackReason: reason };
   }
 }

@@ -1,80 +1,34 @@
 "use client";
 
+import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { teamColor } from "@/lib/teamColors";
 import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
-import { averageFinish, dnfCount, driverResults, poleCount, pointsPerRace, teamResults, tugPct } from "../_utils/seasonStats";
 import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
+import { CompareIntelligence } from "./CompareIntelligence";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
-import { useState, useEffect } from "react";
-import type { SeasonCompareInsight } from "@/lib/ai/schemas/seasonIntelligence";
-import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
-import { SeasonInsight } from "./ai/SeasonInsight";
-import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
+import { buildComparePair, tugPct, type ComparePair, type ConstructorStandingRow, type DriverStandingRow, type RaceSummary } from "../_service/season.pure";
 
-type StatRow = { label: string; av: number; bv: number; aText: string; bText: string; lowerIsBetter?: boolean };
-
-function TugRow({ row }: { row: StatRow }) {
-  const { label, av, bv, aText, bText } = row;
-  const [aPct, bPct] = tugPct(av, bv);
-  const aWins = av > bv;
-  const bWins = bv > av;
-  return (
-    <div className="py-2.5">
-      <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{label}</p>
-      <div className="flex items-center gap-3">
-        <span className={`w-12 shrink-0 text-right font-mono text-sm tabular-nums ${aWins ? "font-bold text-white" : "text-neutral-400"}`}>{aText}</span>
-        <div className="flex flex-1 items-center gap-1">
-          <div className="flex h-1.5 flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.05]">
-            <motion.div
-              className="h-full rounded-l-full"
-              initial={false}
-              animate={{ width: `${aPct}%` }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              style={{ background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
-            />
-          </div>
-          <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
-          <div className="flex h-1.5 flex-1 overflow-hidden rounded-r-full bg-white/[0.05]">
-            <motion.div
-              className="h-full rounded-r-full"
-              initial={false}
-              animate={{ width: `${bPct}%` }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
-            />
-          </div>
-        </div>
-        <span className={`w-12 shrink-0 text-left font-mono text-sm tabular-nums ${bWins ? "font-bold text-white" : "text-neutral-400"}`}>{bText}</span>
-      </div>
-    </div>
-  );
-}
-
-// Avg finish / DNFs are "lower is better" — a proportional bar would visually contradict who's
-// actually ahead, so these get emphasis-only rows instead of a tug bar.
-function PlainRow({ row }: { row: StatRow }) {
-  const { label, av, bv, aText, bText } = row;
-  const aWins = av < bv;
-  const bWins = bv < av;
-  return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-2.5">
-      <span className={`text-right font-mono text-sm tabular-nums ${aWins ? "font-bold text-white" : "text-neutral-400"}`}>{aText}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{label}</span>
-      <span className={`text-left font-mono text-sm tabular-nums ${bWins ? "font-bold text-white" : "text-neutral-400"}`}>{bText}</span>
-    </div>
-  );
-}
-
-/** Driver-vs-driver or team-vs-team, whichever the standings' quiet-tab switch currently has
- * active — a central-axis head-to-head (hero points, then tug-of-war stat bars, then a race-by-
- * race breakdown) instead of two flat columns side by side. */
+/**
+ * Driver-vs-driver or team-vs-team.
+ *
+ * Reading order, top to bottom: who you picked, what the headline number is, what Apex makes of
+ * it, then the supporting metrics, then head-to-head, then race-by-race. The previous version put
+ * AI output above the scoreboard and gave every metric a full-width bar, which buried the one
+ * comparison people actually come here for under a stack of identical bars.
+ *
+ * Crucially, everything except the Apex block is computed with `buildComparePair` — the SAME pure
+ * function the server uses to build the model's context. The numbers on screen and the numbers in
+ * the prompt are not two implementations that happen to agree; they are one.
+ */
 export function ComparePanel({
+  season,
   drivers,
   constructors,
   raceSummaries,
 }: {
+  season: number;
   drivers: DriverStandingRow[];
   constructors: ConstructorStandingRow[];
   raceSummaries: RaceSummary[];
@@ -83,29 +37,33 @@ export function ComparePanel({
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
   const isDrivers = entityType === "drivers";
-  // Without this, a wheel scroll inside the race-by-race table also drags the whole page's own
-  // Lenis scroll along with it - the same nested-region registration ChampionshipStandings'
-  // table already uses, so this table's own scroll stays contained to itself.
   const scrollRef = useNestedLenisScroll(`${compareA}-${compareB}`);
-  const { contextArgs } = useSeasonIntelligence();
 
-  // Same option shape (grouped by team, real team color/logo) and the same "Favorites" grouping
-  // Progression's Custom multi-select uses - one visual/data language for every entity picker in
-  // this workspace instead of Compare's own plainer text-input combobox.
-  const options: MultiSelectOption[] = isDrivers
-    ? drivers.map((d) => ({ code: d.driver, label: d.driverName, sublabel: d.driver, group: d.team, color: teamColor(d.team) }))
-    : constructors.map((c) => ({ code: c.team, label: c.team, logoUrl: c.logoUrl }));
-  const favoriteCodes = isDrivers
-    ? new Set(drivers.filter((d) => d.favoriteId && favDrivers.has(d.favoriteId)).map((d) => d.driver))
-    : new Set(constructors.filter((c) => favTeams.has(c.favoriteId)).map((c) => c.team));
+  const options: MultiSelectOption[] = useMemo(
+    () =>
+      isDrivers
+        ? drivers.map((d) => ({ code: d.driver, label: d.driverName, sublabel: d.driver, group: d.team, color: teamColor(d.team) }))
+        : constructors.map((c) => ({ code: c.team, label: c.team, logoUrl: c.logoUrl })),
+    [isDrivers, drivers, constructors],
+  );
 
-  const a = isDrivers ? drivers.find((d) => d.driver === compareA) : constructors.find((c) => c.team === compareA);
-  const b = isDrivers ? drivers.find((d) => d.driver === compareB) : constructors.find((c) => c.team === compareB);
-  const aName = isDrivers ? (a as DriverStandingRow | undefined)?.driverName ?? compareA : compareA;
-  const bName = isDrivers ? (b as DriverStandingRow | undefined)?.driverName ?? compareB : compareB;
+  const favoriteCodes = useMemo(
+    () =>
+      new Set(
+        isDrivers
+          ? drivers.filter((d) => d.favoriteId && favDrivers.has(d.favoriteId)).map((d) => d.driver)
+          : constructors.filter((c) => favTeams.has(c.favoriteId)).map((c) => c.team),
+      ),
+    [isDrivers, drivers, constructors, favDrivers, favTeams],
+  );
+
+  const pair = useMemo(
+    () => buildComparePair(season, entityType, compareA, compareB, drivers, constructors, raceSummaries),
+    [season, entityType, compareA, compareB, drivers, constructors, raceSummaries],
+  );
 
   const picker = (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3">
       <EntityMultiSelect
         multiple={false}
         options={options}
@@ -114,7 +72,9 @@ export function ComparePanel({
         favoriteCodes={favoriteCodes}
         placeholder={isDrivers ? "Driver A" : "Team A"}
       />
-      <span className="text-xs text-neutral-600">vs</span>
+      <span aria-hidden className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600 sm:block">
+        vs
+      </span>
       <EntityMultiSelect
         multiple={false}
         options={options}
@@ -126,142 +86,86 @@ export function ComparePanel({
     </div>
   );
 
-  if (!a || !b) {
+  if (!pair) {
     return (
-      <div className="flex min-h-[180px] flex-col justify-center gap-4">
+      <div className="flex min-h-[200px] flex-col justify-center gap-4">
         {picker}
-        <p className="text-center text-sm text-neutral-500">Pick two to compare.</p>
+        <p className="text-center text-sm text-neutral-500">Pick two {isDrivers ? "drivers" : "teams"} to compare.</p>
       </div>
     );
   }
-
-  const resultsA = isDrivers ? driverResults(raceSummaries, compareA) : teamResults(raceSummaries, compareA);
-  const resultsB = isDrivers ? driverResults(raceSummaries, compareB) : teamResults(raceSummaries, compareB);
-  const avgA = averageFinish(resultsA);
-  const avgB = averageFinish(resultsB);
-  const pprA = pointsPerRace(a.points, resultsA);
-  const pprB = pointsPerRace(b.points, resultsB);
-  const polesA = isDrivers ? poleCount(raceSummaries, compareA) : null;
-  const polesB = isDrivers ? poleCount(raceSummaries, compareB) : null;
-  const dnfA = dnfCount(resultsA);
-  const dnfB = dnfCount(resultsB);
-
-  const barRows: StatRow[] = [
-    { label: "Wins", av: a.wins, bv: b.wins, aText: String(a.wins), bText: String(b.wins) },
-    { label: "Podiums", av: a.podiums, bv: b.podiums, aText: String(a.podiums), bText: String(b.podiums) },
-  ];
-  if (polesA !== null && polesB !== null) barRows.push({ label: "Poles", av: polesA, bv: polesB, aText: String(polesA), bText: String(polesB) });
-  barRows.push({
-    label: "Points / race",
-    av: pprA ?? 0,
-    bv: pprB ?? 0,
-    aText: pprA !== null ? pprA.toFixed(1) : "-",
-    bText: pprB !== null ? pprB.toFixed(1) : "-",
-  });
-
-  const plainRows: StatRow[] = [
-    { label: "Avg finish", av: avgA ?? 99, bv: avgB ?? 99, aText: avgA !== null ? `P${avgA.toFixed(1)}` : "-", bText: avgB !== null ? `P${avgB.toFixed(1)}` : "-" },
-    { label: "DNFs", av: dnfA, bv: dnfB, aText: String(dnfA), bText: String(dnfB) },
-  ];
-
-  const rounds = [...new Set([...resultsA.map((r) => r.round), ...resultsB.map((r) => r.round)])].sort((x, y) => x - y);
-  const raceRows = rounds.map((round) => {
-    const ra = resultsA.find((r) => r.round === round);
-    const rb = resultsB.find((r) => r.round === round);
-    return { round, trackShort: ra?.trackShort ?? rb?.trackShort ?? "", aPos: ra?.position, bPos: rb?.position };
-  });
 
   return (
     <div>
       {picker}
 
-      {contextArgs && (
-        <CompareIntelligence 
-          season={contextArgs.season} 
-          completedRounds={contextArgs.completedRounds} 
-          contextJson={contextArgs.contextJson} 
-          contextHash={contextArgs.contextHash} 
-          entityType={entityType} 
-          entityA={compareA} 
-          entityB={compareB} 
+      {/* 2. What is being compared, stated before anything is claimed about it. */}
+      <div className="mt-5 text-center">
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
+          {pair.a.name} <span className="text-neutral-600">vs</span> {pair.b.name}
+        </h3>
+        <p className="mt-0.5 text-[11px] text-neutral-600">
+          {isDrivers ? "Drivers' championship" : "Constructors' championship"} · {season} season · {pair.completedRounds} round
+          {pair.completedRounds === 1 ? "" : "s"} completed
+        </p>
+      </div>
+
+      {/* 3. The deterministic scoreboard. Rendered immediately, never waits on the model. */}
+      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-baseline gap-3 sm:gap-5">
+        <Score name={pair.a.name} value={pair.a.points} leading={pair.aheadId === pair.a.id} align="right" />
+        <div className="pb-1 text-center">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">pts</p>
+          <p className="mt-0.5 font-mono text-[11px] tabular-nums text-neutral-500">{pair.pointsGap === 0 ? "level" : `+${pair.pointsGap}`}</p>
+        </div>
+        <Score name={pair.b.name} value={pair.b.points} leading={pair.aheadId === pair.b.id} align="left" />
+      </div>
+
+      {/* 4. Apex. Its own loading state, below the facts, never blocking them. */}
+      <div className="mt-6">
+        <CompareIntelligence
+          season={season}
+          entityType={entityType}
+          entityA={pair.a.id}
+          entityB={pair.b.id}
+          aName={pair.a.name}
+          bName={pair.b.name}
         />
-      )}
-      <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-end gap-4 overflow-hidden">
-        <div className="text-right">
-          <p className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-neutral-500">{aName}</p>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.p
-              key={`${compareA}-${a.points}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="mt-1 font-mono text-3xl font-bold tabular-nums text-white"
-            >
-              {a.points}
-            </motion.p>
-          </AnimatePresence>
-        </div>
-        <p className="pb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600">vs</p>
-        <div className="text-left">
-          <p className="truncate text-xs font-semibold uppercase tracking-[0.1em] text-neutral-500">{bName}</p>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.p
-              key={`${compareB}-${b.points}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="mt-1 font-mono text-3xl font-bold tabular-nums text-white"
-            >
-              {b.points}
-            </motion.p>
-          </AnimatePresence>
-        </div>
       </div>
 
-      <div className="mt-5 divide-y divide-white/[0.06] border-y border-white/[0.06]">
-        {barRows.map((row) => (
-          <TugRow key={row.label} row={row} />
-        ))}
-        {plainRows.map((row) => (
-          <PlainRow key={row.label} row={row} />
-        ))}
-      </div>
+      {/* 5. Supporting metrics. Bars only where proportion genuinely reads. */}
+      <MetricRows pair={pair} />
 
-      {raceRows.length > 0 && (
-        <div className="mt-5">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Race-by-race finishing position</p>
-          <div ref={scrollRef} className="max-h-56 overflow-y-auto rounded-lg border border-white/10 scrollbar-hide">
+      {/* 6. Head-to-head, explicitly separated because it is a different metric. */}
+      <HeadToHead pair={pair} />
+
+      {/* 7. Race-by-race. */}
+      {pair.raceByRace.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Race by race · finishing position</p>
+          <div ref={scrollRef} className="max-h-56 overflow-y-auto rounded-md border border-white/[0.07] scrollbar-hide">
             <table className="w-full text-sm">
-              <thead
-                className="sticky top-0 z-10 border-b border-white/[0.08] text-[10px] uppercase tracking-wide text-neutral-500 backdrop-blur-md"
-                style={{ background: "var(--tooltip-surface-strong)" }}
-              >
+              <caption className="sr-only">
+                Finishing position for {pair.a.name} and {pair.b.name} in each completed round
+              </caption>
+              <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[10px] uppercase tracking-wide text-neutral-500 backdrop-blur-md" style={{ background: "var(--tooltip-surface-strong)" }}>
                 <tr>
-                  <th className="px-3 py-1.5 text-left font-semibold">Race</th>
-                  <th className="px-3 py-1.5 text-center font-semibold">{aName}</th>
-                  <th className="px-3 py-1.5 text-center font-semibold">{bName}</th>
+                  <th scope="col" className="px-3 py-1.5 text-left font-semibold">
+                    Round
+                  </th>
+                  <th scope="col" className="px-3 py-1.5 text-center font-semibold">
+                    {pair.a.name}
+                  </th>
+                  <th scope="col" className="px-3 py-1.5 text-center font-semibold">
+                    {pair.b.name}
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.06]">
-                {raceRows.map((r) => (
+              <tbody className="divide-y divide-white/[0.055]">
+                {pair.raceByRace.map((r) => (
                   <tr key={r.round}>
                     <td className="px-3 py-1.5 text-neutral-400">{r.trackShort}</td>
-                    <td
-                      className={`px-3 py-1.5 text-center font-mono tabular-nums ${
-                        r.aPos !== undefined && r.bPos !== undefined && r.aPos < r.bPos ? "font-semibold text-white" : "text-neutral-400"
-                      }`}
-                    >
-                      {r.aPos ?? "-"}
-                    </td>
-                    <td
-                      className={`px-3 py-1.5 text-center font-mono tabular-nums ${
-                        r.aPos !== undefined && r.bPos !== undefined && r.bPos < r.aPos ? "font-semibold text-white" : "text-neutral-400"
-                      }`}
-                    >
-                      {r.bPos ?? "-"}
-                    </td>
+                    <PositionCell mine={r.aPos} theirs={r.bPos} />
+                    <PositionCell mine={r.bPos} theirs={r.aPos} />
                   </tr>
                 ))}
               </tbody>
@@ -273,92 +177,124 @@ export function ComparePanel({
   );
 }
 
-function CompareIntelligence({
-  season,
-  entityType,
-  entityA,
-  entityB,
-  contextJson,
-  contextHash,
-  completedRounds,
-}: {
-  season: number;
-  entityType: "drivers" | "constructors";
-  entityA: string;
-  entityB: string;
-  contextJson: string;
-  contextHash: string;
-  completedRounds: number;
-}) {
-  const [insight, setInsight] = useState<SeasonCompareInsight | null>(null);
-  const [loading, setLoading] = useState(true);
+function Score({ name, value, leading, align }: { name: string; value: number; leading: boolean; align: "left" | "right" }) {
+  return (
+    <div className={align === "right" ? "text-right" : "text-left"}>
+      <p className="truncate text-[11px] font-medium uppercase tracking-[0.1em] text-neutral-500">{name}</p>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p
+          key={`${name}-${value}`}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -5 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className={`mt-0.5 font-mono text-[28px] font-bold leading-none tabular-nums sm:text-[34px] ${leading ? "text-white" : "text-neutral-400"}`}
+        >
+          {value}
+        </motion.p>
+      </AnimatePresence>
+    </div>
+  );
+}
 
-  // Resetting to "loading" for a new pair during render (React's own "adjust state when a prop
-  // changes" pattern, same technique ProgressionPanel already uses for its entityType reset)
-  // instead of calling setLoading(true) synchronously inside the effect below.
-  const pairKey = `${entityType}:${entityA}:${entityB}`;
-  const [prevPairKey, setPrevPairKey] = useState(pairKey);
-  if (prevPairKey !== pairKey) {
-    setPrevPairKey(pairKey);
-    setLoading(true);
-    setInsight(null);
-  }
+function PositionCell({ mine, theirs }: { mine: number | null; theirs: number | null }) {
+  const ahead = mine !== null && theirs !== null && mine < theirs;
+  return <td className={`px-3 py-1.5 text-center font-mono tabular-nums ${ahead ? "font-semibold text-white" : "text-neutral-400"}`}>{mine ?? "—"}</td>;
+}
 
-  useEffect(() => {
-    let active = true;
-    if (!entityA || !entityB) return;
+/** Counting stats get a proportional bar, because "7 against 2" reads instantly as a ratio.
+ * Average finish and retirements deliberately don't: lower is better for both, so a proportional
+ * bar would visually award the bar to whoever is actually worse. */
+function MetricRows({ pair }: { pair: ComparePair }) {
+  const { a, b } = pair;
+  const bars: { label: string; av: number; bv: number; aText: string; bText: string }[] = [
+    { label: "Wins", av: a.wins, bv: b.wins, aText: String(a.wins), bText: String(b.wins) },
+    { label: "Podiums", av: a.podiums, bv: b.podiums, aText: String(a.podiums), bText: String(b.podiums) },
+  ];
+  if (a.poles !== null && b.poles !== null) bars.push({ label: "Poles", av: a.poles, bv: b.poles, aText: String(a.poles), bText: String(b.poles) });
+  bars.push({
+    label: "Points per round",
+    av: a.pointsPerRace ?? 0,
+    bv: b.pointsPerRace ?? 0,
+    aText: a.pointsPerRace !== null ? a.pointsPerRace.toFixed(1) : "—",
+    bText: b.pointsPerRace !== null ? b.pointsPerRace.toFixed(1) : "—",
+  });
 
-    fetch("/api/ai/season-compare", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        season,
-        entityType,
-        entityA,
-        entityB,
-        completedRounds,
-        contextJson,
-        contextHash
-      })
-    })
-    .then(res => {
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    })
-    .then(data => {
-      if (active) {
-        setInsight(data);
-        setLoading(false);
-      }
-    })
-    .catch(() => {
-      if (active) setLoading(false);
-    });
-
-    return () => { active = false; };
-  }, [season, entityType, entityA, entityB, contextHash, contextJson, completedRounds]);
-
-  if (loading) {
-    return (
-      <div className="mb-5">
-        <div className="skeleton-shimmer h-3.5 w-1/3 rounded bg-white/[0.04]" />
-        <div className="skeleton-shimmer mt-2 h-3.5 w-2/3 rounded bg-white/[0.04]" />
-      </div>
-    );
-  }
-
-  if (!insight) return null;
-
-  const momentumLabel = insight.momentum === "EVEN" ? "Momentum is even" : insight.momentum === "A" ? "Momentum favors A" : "Momentum favors B";
+  const plain: { label: string; aText: string; bText: string; aWins: boolean; bWins: boolean }[] = [
+    {
+      label: "Avg finish",
+      aText: a.averageFinish !== null ? `P${a.averageFinish.toFixed(1)}` : "—",
+      bText: b.averageFinish !== null ? `P${b.averageFinish.toFixed(1)}` : "—",
+      aWins: a.averageFinish !== null && b.averageFinish !== null && a.averageFinish < b.averageFinish,
+      bWins: a.averageFinish !== null && b.averageFinish !== null && b.averageFinish < a.averageFinish,
+    },
+    { label: "Retirements", aText: String(a.dnfs), bText: String(b.dnfs), aWins: a.dnfs < b.dnfs, bWins: b.dnfs < a.dnfs },
+  ];
 
   return (
-    <div className="mb-5">
-      <SeasonInsight headline={insight.headline} summary={insight.summary} />
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-neutral-400">
-        <p>{insight.keyAdvantageA}</p>
-        <p>{insight.keyAdvantageB}</p>
+    <div className="mt-1 divide-y divide-white/[0.055] border-y border-white/[0.055]">
+      {bars.map((row) => {
+        const [aPct, bPct] = tugPct(row.av, row.bv);
+        return (
+          <div key={row.label} className="py-2.5">
+            <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{row.label}</p>
+            <div className="flex items-center gap-3">
+              <span className={`w-12 shrink-0 text-right font-mono text-sm tabular-nums ${row.av > row.bv ? "font-bold text-white" : "text-neutral-400"}`}>{row.aText}</span>
+              <div className="flex flex-1 items-center gap-1">
+                <div className="flex h-[5px] flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.05]">
+                  <motion.div className="h-full rounded-l-full" initial={false} animate={{ width: `${aPct}%` }} transition={{ duration: 0.3, ease: "easeOut" }} style={{ background: "linear-gradient(90deg, rgba(225,6,0,0.5), var(--f1-red))" }} />
+                </div>
+                <span aria-hidden className="h-[3px] w-[3px] shrink-0 rounded-full bg-white/25" />
+                <div className="flex h-[5px] flex-1 overflow-hidden rounded-r-full bg-white/[0.05]">
+                  <motion.div className="h-full rounded-r-full" initial={false} animate={{ width: `${bPct}%` }} transition={{ duration: 0.3, ease: "easeOut" }} style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.42), rgba(255,255,255,0.14))" }} />
+                </div>
+              </div>
+              <span className={`w-12 shrink-0 text-left font-mono text-sm tabular-nums ${row.bv > row.av ? "font-bold text-white" : "text-neutral-400"}`}>{row.bText}</span>
+            </div>
+          </div>
+        );
+      })}
+      {plain.map((row) => (
+        <div key={row.label} className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-2.5">
+          <span className={`text-right font-mono text-sm tabular-nums ${row.aWins ? "font-bold text-white" : "text-neutral-400"}`}>{row.aText}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{row.label}</span>
+          <span className={`text-left font-mono text-sm tabular-nums ${row.bWins ? "font-bold text-white" : "text-neutral-400"}`}>{row.bText}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Named, separated, and never blended into the points comparison above — the two answer
+ * different questions and a reader must be able to tell which one a number belongs to. */
+function HeadToHead({ pair }: { pair: ComparePair }) {
+  const { h2h, a, b } = pair;
+  if (h2h.comparableRounds === 0) return null;
+
+  return (
+    <div className="mt-6">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+        Head to head <span className="font-normal normal-case tracking-normal text-neutral-600">· who finished ahead, by race classification</span>
+      </p>
+      <div className="mt-2.5 grid grid-cols-3 items-baseline gap-2 border-y border-white/[0.055] py-3">
+        <div className="text-right">
+          <p className="font-mono text-2xl font-bold tabular-nums text-white">{h2h.aWins}</p>
+          <p className="mt-0.5 truncate text-[11px] text-neutral-500">{a.name}</p>
+        </div>
+        <div className="text-center">
+          <p className="font-mono text-lg font-semibold tabular-nums text-neutral-500">{h2h.ties}</p>
+          <p className="mt-0.5 text-[11px] text-neutral-600">dead heats</p>
+        </div>
+        <div className="text-left">
+          <p className="font-mono text-2xl font-bold tabular-nums text-white">{h2h.bWins}</p>
+          <p className="mt-0.5 truncate text-[11px] text-neutral-500">{b.name}</p>
+        </div>
       </div>
-      <p className="mt-2 text-xs text-neutral-500">{momentumLabel}</p>
+      <p className="mt-2 text-[11px] text-neutral-600">
+        Across {h2h.comparableRounds} round{h2h.comparableRounds === 1 ? "" : "s"} where both were classified
+        {h2h.excludedRounds > 0 && `, with ${h2h.excludedRounds} round${h2h.excludedRounds === 1 ? "" : "s"} excluded because one of them had no result`}
+        {h2h.isTeammates && " · teammates"}.
+      </p>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -12,7 +12,7 @@ import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/fav
 import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
 import { QuietTabs } from "./QuietTabs";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
-import type { ConstructorStandingRow, DriverStandingRow, RaceSummary } from "../_service/season.service";
+import type { ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, RaceSummary } from "../_service/season.pure";
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
@@ -21,6 +21,23 @@ const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wid
 // surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
 // translucent-dark token every other floating/sticky surface on the site already uses.
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
+
+/** Two refs on one node: the shared Lenis nested-scroll registration and this component's own
+ * scroll container ref. A callback ref is the only way to satisfy both. */
+function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
+  return (node: T | null) => {
+    for (const ref of refs) {
+      if (typeof ref === "function") ref(node);
+      else if (ref && typeof ref === "object") (ref as React.MutableRefObject<T | null>).current = node;
+    }
+  };
+}
+
+/** Read at call time rather than through a hook: this is consulted inside an effect, where a
+ * re-render-triggering hook would be the wrong tool. */
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 function gapLabel(points: number, leaderPoints: number): string {
   return points >= leaderPoints ? "-" : `-${leaderPoints - points}`;
@@ -41,12 +58,16 @@ export function ChampionshipStandings({
   drivers,
   constructors,
   raceSummaries,
+  personal,
 }: {
   drivers: DriverStandingRow[];
   constructors: ConstructorStandingRow[];
   raceSummaries: RaceSummary[];
+  personal: PersonalSeasonContext;
 }) {
-  const { entityType, setEntityType, openCompare, setAnalysisTab } = useSeasonExplorer();
+  const { entityType, setEntityType, openCompare, setAnalysisTab, focus } = useSeasonExplorer();
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
+  const [marked, setMarked] = useState<string | null>(null);
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
   const toggleFavorite = useToggleFavorite();
@@ -56,30 +77,39 @@ export function ChampionshipStandings({
   const [sortKey, setSortKey] = useState<SortKey>("points");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const scrollRef = useNestedLenisScroll(entityType);
+  const favoriteCodes = new Set<string>(entityType === "drivers" ? personal.driverCodes : personal.teamNames);
+  const canFilterFavorites = favoriteCodes.size > 0;
 
   const isDrivers = entityType === "drivers";
+  const favoriteDriverCodes = useMemo(() => new Set(personal.driverCodes), [personal.driverCodes]);
+  const favoriteTeamNames = useMemo(() => new Set(personal.teamNames), [personal.teamNames]);
   const leaderPoints = isDrivers
     ? Math.max(0, ...drivers.map((d) => d.points))
     : Math.max(0, ...constructors.map((c) => c.points));
 
   const sortedDrivers = useMemo(() => {
-    const list = drivers.filter((d) => !search || d.driverName.toLowerCase().includes(search.toLowerCase()) || d.team.toLowerCase().includes(search.toLowerCase()));
+    const list = drivers.filter(
+      (d) =>
+        (!search || d.driverName.toLowerCase().includes(search.toLowerCase()) || d.team.toLowerCase().includes(search.toLowerCase())) &&
+        (!favoritesOnly || favoriteDriverCodes.size === 0 || favoriteDriverCodes.has(d.driver)),
+    );
     list.sort((a, b) => {
       const cmp = sortKey === "name" ? a.driverName.localeCompare(b.driverName) : a[sortKey] - b[sortKey];
       return sortDir === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [drivers, search, sortKey, sortDir]);
+  }, [drivers, search, sortKey, sortDir, favoritesOnly, favoriteDriverCodes]);
 
   const sortedConstructors = useMemo(() => {
-    const list = constructors.filter((c) => !search || c.team.toLowerCase().includes(search.toLowerCase()));
+    const list = constructors.filter((c) => (!search || c.team.toLowerCase().includes(search.toLowerCase())) && (!favoritesOnly || favoriteTeamNames.size === 0 || favoriteTeamNames.has(c.team)));
     list.sort((a, b) => {
       const cmp = sortKey === "name" ? a.team.localeCompare(b.team) : a[sortKey] - b[sortKey];
       return sortDir === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [constructors, search, sortKey, sortDir]);
+  }, [constructors, search, sortKey, sortDir, favoritesOnly, favoriteTeamNames]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -92,6 +122,20 @@ export function ChampionshipStandings({
   function toggleExpanded(id: string) {
     setExpanded((prev) => (prev === id ? null : id));
   }
+
+  // Snapshot / What-changed clicks land here. Scrolling INSIDE the table's own scroll container
+  // (rather than scrollIntoView on the page) is what keeps the page position stable while still
+  // bringing the row into view; the mark fades on its own so it never becomes permanent state.
+  useEffect(() => {
+    if (!focus || focus.entityType !== entityType) return;
+    const container = scrollBodyRef.current;
+    const row = container?.querySelector<HTMLElement>(`[data-entity-id="${CSS.escape(focus.entityId)}"]`);
+    if (!container || !row) return;
+    container.scrollTo({ top: Math.max(0, row.offsetTop - container.clientHeight / 2 + row.clientHeight / 2), behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    setMarked(focus.entityId);
+    const timer = window.setTimeout(() => setMarked(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [focus, entityType]);
 
   const driverRows = (): { columns: string[]; rows: (string | number)[][] } => ({
     columns: ["Pos", "Driver", "Team", "Wins", "Podiums", "Points", "Gap"],
@@ -106,7 +150,7 @@ export function ChampionshipStandings({
     <div>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Championship</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Championship</p>
           <div className="mt-2.5">
             <QuietTabs
               options={[
@@ -122,7 +166,20 @@ export function ChampionshipStandings({
             />
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canFilterFavorites && (
+            <button
+              type="button"
+              onClick={() => setFavoritesOnly((v) => !v)}
+              aria-pressed={favoritesOnly}
+              className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
+                favoritesOnly ? "border-[var(--f1-red)]/45 bg-[var(--f1-red)]/[0.09] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/20 hover:text-neutral-200"
+              }`}
+            >
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+              My favorites
+            </button>
+          )}
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -137,8 +194,8 @@ export function ChampionshipStandings({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-        <div ref={scrollRef} className="max-h-[480px] overflow-auto scrollbar-hide">
+      <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="max-h-[520px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[680px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
@@ -170,6 +227,8 @@ export function ChampionshipStandings({
                     return (
                       <RowGroup
                         key={d.driver}
+                        entityId={d.driver}
+                        isMarked={marked === d.driver}
                         isFavorited={isFavorited}
                         isExpanded={isExpanded}
                         colSpan={8}
@@ -224,6 +283,8 @@ export function ChampionshipStandings({
                     return (
                       <RowGroup
                         key={c.team}
+                        entityId={c.team}
+                        isMarked={marked === c.team}
                         isFavorited={isFavorited}
                         isExpanded={isExpanded}
                         colSpan={7}
@@ -272,6 +333,8 @@ export function ChampionshipStandings({
 }
 
 function RowGroup({
+  entityId,
+  isMarked,
   isFavorited,
   isExpanded,
   colSpan,
@@ -279,6 +342,8 @@ function RowGroup({
   cells,
   detail,
 }: {
+  entityId: string;
+  isMarked: boolean;
   isFavorited: boolean;
   isExpanded: boolean;
   colSpan: number;
@@ -296,9 +361,10 @@ function RowGroup({
         variants={staggerItem}
         transition={{ layout: { duration: 0.3, ease: "easeOut" }, opacity: { duration: 0.15 }, y: { duration: 0.15 } }}
         onClick={onRowClick}
-        className={`group cursor-pointer border-l-2 transition-colors duration-150 hover:bg-white/[0.035] ${
+        data-entity-id={entityId}
+        className={`group cursor-pointer border-l-2 transition-colors duration-500 hover:bg-white/[0.035] ${
           isFavorited ? "border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.045]" : "border-l-transparent"
-        } ${isExpanded ? "bg-white/[0.05]" : ""}`}
+        } ${isExpanded ? "bg-white/[0.05]" : ""} ${isMarked ? "bg-[var(--f1-red)]/[0.14]" : ""}`}
         style={isFavorited ? { backgroundImage: "linear-gradient(90deg, rgba(225,6,0,0.055), transparent 55%)" } : undefined}
       >
         {cells}
@@ -332,7 +398,7 @@ function DriverDetail({
   const form = recentForm(results);
 
   return (
-    <div className="glass-surface flex flex-wrap items-center gap-6 rounded-lg px-5 py-4">
+    <div className="surface-inset flex flex-wrap items-center gap-6 rounded-md border border-white/[0.07] bg-white/[0.02] px-5 py-4">
       <Metric label="Wins" value={driver.wins} />
       <Metric label="Podiums" value={driver.podiums} />
       <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
@@ -356,14 +422,14 @@ function DriverDetail({
         {rivalCode && (
           <button
             onClick={() => onCompare(rivalCode)}
-            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
+            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
           >
             Compare
           </button>
         )}
         <button
           onClick={onProgression}
-          className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
+          className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
           Progression
         </button>
@@ -390,7 +456,7 @@ function TeamDetail({
   const form = recentForm(results);
 
   return (
-    <div className="glass-surface flex flex-wrap items-center gap-6 rounded-lg px-5 py-4">
+    <div className="surface-inset flex flex-wrap items-center gap-6 rounded-md border border-white/[0.07] bg-white/[0.02] px-5 py-4">
       <Metric label="Wins" value={team.wins} />
       <Metric label="Podiums" value={team.podiums} />
       <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
@@ -414,14 +480,14 @@ function TeamDetail({
         {rivalId && (
           <button
             onClick={() => onCompare(rivalId)}
-            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
+            className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
           >
             Compare
           </button>
         )}
         <button
           onClick={onProgression}
-          className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white"
+          className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
           Progression
         </button>

@@ -1,15 +1,14 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { staggerContainer, staggerItem } from "@/components/motion/variants";
+import { useCallback, useId, useRef } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
-import { tugPct } from "../_utils/seasonStats";
 import { useSeasonExplorer, type AnalysisTab } from "../_context/SeasonExplorerContext";
+import { BattlesPanel } from "./BattlesPanel";
 import { ComparePanel } from "./ComparePanel";
 import { ProgressionPanel } from "./ProgressionPanel";
-import type { Battle, ConstructorStandingRow, DriverStandingRow, RaceSummary, SeasonRecord } from "../_service/season.service";
-import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
-import { SeasonInsight } from "./ai/SeasonInsight";
+import { RecordsPanel } from "./RecordsPanel";
+import type { Battle, ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, RaceSummary, SeasonRecord } from "../_service/season.pure";
 
 const TABS: { key: AnalysisTab; label: string }[] = [
   { key: "battles", label: "Battles" },
@@ -18,15 +17,23 @@ const TABS: { key: AnalysisTab; label: string }[] = [
   { key: "records", label: "Records" },
 ];
 
-// A sensible floor, not an arbitrary fixed box — short views (an empty state, the Compare
-// picker before two are chosen) get centered inside this instead of collapsing to nothing;
-// taller views (Progression's chart, a full battle list) grow past it freely, animated.
-const MIN_CONTENT_HEIGHT = 220;
+// A floor, not a fixed box — short views get centred inside it instead of collapsing; taller ones
+// grow past it freely.
+const MIN_CONTENT_HEIGHT = 240;
 
-/** The single workspace below the standings — one of four analyses shows at a time, swapped by
- * an in-surface tab strip (sliding red underline, not pill buttons), with the content itself
- * crossfading in place rather than the container resizing. This is what actually keeps the page
- * from turning into a long scroll: depth lives here, not in more sections. */
+/**
+ * The single workspace below the standings. One of four analyses at a time.
+ *
+ * Surface: this used to sit on `.glass-surface`, which is a heavy, near-opaque panel meant for
+ * floating dropdowns and tooltips. At section scale it read as a separate application embedded in
+ * the page — a grey slab with its own edges. It now uses a low-opacity tint and a hairline border
+ * with a light blur, so the page background reads continuously through it and the tab strip looks
+ * part of the page rather than a second navigation bar.
+ *
+ * Tabs are a real ARIA tablist: arrow keys move between them, Home/End jump to the ends, and only
+ * the active tab is in the tab order (roving tabindex), which is how a tablist is supposed to
+ * behave and what the previous plain-buttons version didn't do.
+ */
 export function AnalysisWorkspace({
   battles,
   records,
@@ -34,6 +41,8 @@ export function AnalysisWorkspace({
   constructors,
   progression,
   raceSummaries,
+  season,
+  personal,
 }: {
   battles: Battle[];
   records: SeasonRecord[];
@@ -41,37 +50,76 @@ export function AnalysisWorkspace({
   constructors: ConstructorStandingRow[];
   progression: Record<string, number | string | null>[];
   raceSummaries: RaceSummary[];
+  season: number;
+  personal: PersonalSeasonContext;
 }) {
   const { analysisTab, setAnalysisTab } = useSeasonExplorer();
   const { ref: measureRef, height } = useMeasuredHeight<HTMLDivElement>(analysisTab);
+  const reduceMotion = useReducedMotion();
+  const baseId = useId();
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const index = TABS.findIndex((t) => t.key === analysisTab);
+      let next = index;
+      if (e.key === "ArrowRight") next = (index + 1) % TABS.length;
+      else if (e.key === "ArrowLeft") next = (index - 1 + TABS.length) % TABS.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = TABS.length - 1;
+      else return;
+      e.preventDefault();
+      setAnalysisTab(TABS[next].key);
+      tabRefs.current[TABS[next].key]?.focus();
+    },
+    [analysisTab, setAnalysisTab],
+  );
 
   return (
-    <div className="glass-surface overflow-hidden rounded-2xl">
-      <div className="flex items-baseline gap-1 overflow-x-auto px-5 pt-4 scrollbar-hide">
-        <p className="mr-4 shrink-0 text-xs font-semibold uppercase leading-none tracking-[0.16em] text-neutral-500">Analysis</p>
-        <nav className="flex shrink-0 items-baseline gap-6">
+    <section
+      aria-label="Season analysis"
+      className="overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.012] backdrop-blur-[2px]"
+    >
+      <div className="flex items-baseline gap-4 overflow-x-auto px-4 pt-3.5 sm:px-5 scrollbar-hide">
+        <p className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-neutral-500">Analysis</p>
+        <div role="tablist" aria-label="Season analysis views" onKeyDown={onKeyDown} className="flex shrink-0 items-baseline gap-5 sm:gap-6">
           {TABS.map((t) => {
             const active = analysisTab === t.key;
             return (
               <button
                 key={t.key}
+                ref={(el) => {
+                  tabRefs.current[t.key] = el;
+                }}
+                role="tab"
+                id={`${baseId}-tab-${t.key}`}
+                aria-selected={active}
+                aria-controls={`${baseId}-panel-${t.key}`}
+                // Roving tabindex: Tab reaches the strip once, then arrow keys move within it.
+                tabIndex={active ? 0 : -1}
                 onClick={() => setAnalysisTab(t.key)}
-                className={`relative shrink-0 pb-3 text-sm font-medium leading-none transition-colors duration-200 ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+                className={`relative shrink-0 rounded-[2px] pb-3 text-sm font-medium leading-none transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--f1-red)] ${
+                  active ? "text-white" : "text-neutral-500 hover:text-neutral-300"
+                }`}
               >
                 {t.label}
                 {active && (
-                  <motion.span layoutId="analysis-tab-underline" className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-[var(--f1-red)]" transition={{ duration: 0.2, ease: "easeOut" }} />
+                  <motion.span
+                    layoutId="analysis-tab-underline"
+                    className="absolute inset-x-0 -bottom-px h-[2px] bg-[var(--f1-red)]"
+                    transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
+                  />
                 )}
               </button>
             );
           })}
-        </nav>
+        </div>
       </div>
-      <div className="border-b border-white/[0.07]" />
+      <div aria-hidden className="border-b border-white/[0.06]" />
 
       <motion.div
         animate={{ height: height ?? MIN_CONTENT_HEIGHT }}
-        transition={{ duration: 0.25, ease: "easeInOut" }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 0.25, ease: "easeInOut" }}
         style={{ minHeight: MIN_CONTENT_HEIGHT }}
         className="relative overflow-hidden"
       >
@@ -79,125 +127,24 @@ export function AnalysisWorkspace({
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
               key={analysisTab}
-              initial={{ opacity: 0, y: 6 }}
+              role="tabpanel"
+              id={`${baseId}-panel-${analysisTab}`}
+              aria-labelledby={`${baseId}-tab-${analysisTab}`}
+              tabIndex={0}
+              initial={reduceMotion ? false : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="p-5"
+              className="p-4 focus-visible:outline-none sm:p-5"
             >
-              {analysisTab === "battles" && <BattlesPanel battles={battles} />}
-              {analysisTab === "compare" && <ComparePanel drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} />}
+              {analysisTab === "battles" && <BattlesPanel battles={battles} personal={personal} />}
+              {analysisTab === "compare" && <ComparePanel season={season} drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} />}
               {analysisTab === "progression" && <ProgressionPanel drivers={drivers} constructors={constructors} progression={progression} />}
               {analysisTab === "records" && <RecordsPanel records={records} />}
             </motion.div>
           </AnimatePresence>
         </div>
       </motion.div>
-    </div>
-  );
-}
-
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-[180px] items-center justify-center text-sm text-neutral-500">{children}</div>;
-}
-
-/** One compact row per battle (not a card, not a pair of full-width bars) — a single tug-of-war
- * bar per row, same visual language as Compare's stat rows, so the two tabs read as one system.
- * Battles are pre-sorted tightest-first; the closest gets a thin red accent line instead of extra
- * size, echoing the standings table's own favorite-row treatment. Clicking a row jumps straight
- * into Compare with that pair loaded. */
-function BattlesPanel({ battles }: { battles: Battle[] }) {
-  const { intelligence } = useSeasonIntelligence();
-  const { openCompare } = useSeasonExplorer();
-  if (battles.length === 0) return <EmptyState>No close battles yet, check back once more races are in.</EmptyState>;
-
-  return (
-    <div>
-      {intelligence?.battleInsight && <SeasonInsight headline={intelligence.battleInsight.headline} summary={intelligence.battleInsight.summary} />}
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Closest battles</p>
-      <motion.div initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-white/[0.06]">
-        {battles.map((b, i) => (
-          <motion.div key={i} variants={staggerItem}>
-            <BattleRow battle={b} isClosest={i === 0} onClick={() => openCompare(b.type, b.aId, b.bId)} />
-          </motion.div>
-        ))}
-      </motion.div>
-    </div>
-  );
-}
-
-function BattleRow({ battle, isClosest, onClick }: { battle: Battle; isClosest: boolean; onClick: () => void }) {
-  const [aPct, bPct] = tugPct(battle.aValue, battle.bValue);
-
-  return (
-    <button
-      onClick={onClick}
-      className={`group -mx-2 flex w-full items-center gap-3 rounded-md border-l-2 px-2 py-2 text-left transition-colors duration-150 hover:bg-white/[0.03] ${
-        isClosest ? "border-l-[var(--f1-red)]" : "border-l-transparent"
-      }`}
-    >
-      <span className="w-24 shrink-0 truncate text-right text-sm font-medium text-white sm:w-32">{battle.aLabel}</span>
-      <span className="w-8 shrink-0 text-right font-mono text-sm font-bold tabular-nums text-white">{battle.aValue}</span>
-      <span className="flex flex-1 items-center gap-1">
-        <span className="flex h-1.5 flex-1 justify-end overflow-hidden rounded-l-full bg-white/[0.06]">
-          <motion.span
-            className="h-full rounded-l-full"
-            initial={false}
-            animate={{ width: `${aPct}%` }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            style={{ background: "linear-gradient(90deg, rgba(225,6,0,0.55), var(--f1-red))", boxShadow: aPct > 0 ? "0 0 4px rgba(225,6,0,0.35)" : undefined }}
-          />
-        </span>
-        <span className="h-1 w-1 shrink-0 rounded-full bg-white/20" />
-        <span className="flex h-1.5 flex-1 overflow-hidden rounded-r-full bg-white/[0.06]">
-          <motion.span
-            className="h-full rounded-r-full"
-            initial={false}
-            animate={{ width: `${bPct}%` }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.45), rgba(255,255,255,0.15))" }}
-          />
-        </span>
-      </span>
-      <span className="w-8 shrink-0 text-left font-mono text-sm tabular-nums text-neutral-300">{battle.bValue}</span>
-      <span className="w-24 shrink-0 truncate text-sm text-neutral-300 sm:w-32">{battle.bLabel}</span>
-      <span className="w-14 shrink-0 text-right text-[10px] font-semibold uppercase tracking-wide text-neutral-500 transition-colors group-hover:text-[var(--f1-red)]">
-        {battle.gap === 0 ? "Tied" : `+${battle.gap}`}
-      </span>
-    </button>
-  );
-}
-
-/** One record's label/name/value row. A dedicated component (not an inline map body) so the
- * value column's width is defined in exactly one place: `min-w-[3.5ch]` plus `text-right` keeps
- * its left edge lined up across every row in a column regardless of digit count (a "7" and a
- * "312" both right-align against the same fixed track) - `justify-between` alone doesn't do that,
- * since it only pushes the value to the far edge of its *own* row, not to a shared column. */
-function RecordRow({ record }: { record: SeasonRecord }) {
-  return (
-    <motion.div variants={staggerItem} className="flex items-center gap-4 border-b border-white/[0.06] py-3">
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{record.label}</p>
-        <p className="mt-0.5 truncate text-sm text-neutral-200">{record.name}</p>
-      </div>
-      <p className="min-w-[3.5ch] shrink-0 text-right font-mono text-lg font-bold tabular-nums text-white">{record.value}</p>
-    </motion.div>
-  );
-}
-
-/** A compact editorial leaderboard instead of seven identical icon cards — a two-column grid of
- * quiet label/name/value rows, the number doing the visual work rather than an emoji. */
-function RecordsPanel({ records }: { records: SeasonRecord[] }) {
-  const { intelligence } = useSeasonIntelligence();
-  if (records.length === 0) return <EmptyState>Not enough races yet for season records.</EmptyState>;
-  return (
-    <div>
-      {intelligence?.recordInsight && <SeasonInsight headline={intelligence.recordInsight.headline} summary={intelligence.recordInsight.summary} />}
-      <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-1 gap-x-8 gap-y-0 sm:grid-cols-2">
-      {records.map((r, i) => (
-        <RecordRow key={i} record={r} />
-      ))}
-      </motion.div>
-    </div>
+    </section>
   );
 }

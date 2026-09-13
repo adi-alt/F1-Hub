@@ -228,12 +228,67 @@ export async function withSingleFlight<T>(key: string, generate: () => Promise<T
 }
 
 
-export function buildSeasonCacheKey(season: number, championship: string | undefined, completedRounds: number, contextHash: string): string {
-  return `season:${season}:${championship || 'all'}:rounds${completedRounds}:hash${contextHash}`;
+// ─── Season cache keys ─────────────────────────────────────────────────────────
+// Versioned like the race keys above: bump when the deterministic context shape or the prompt
+// changes, so entries generated under the old logic become unreachable rather than being served
+// as if they came from the new one. SEASON_CONTEXT_VERSION lives with the context builder it
+// describes; the prompt version is imported from the prompt itself.
+
+export function buildSeasonCacheKey(
+  season: number,
+  championship: string | undefined,
+  completedRounds: number,
+  contextHash: string,
+  version: string,
+): string {
+  return `season:${version}:${season}:${championship || "all"}:rounds${completedRounds}:hash${contextHash}`;
 }
 
-export function buildSeasonCompareCacheKey(season: number, entityType: 'drivers' | 'constructors', entityA: string, entityB: string, completedRounds: number, contextHash: string): string {
-  const [canonicalA, canonicalB] = [entityA, entityB].sort();
-  return `season_compare:${season}:${entityType}:${canonicalA}:${canonicalB}:rounds${completedRounds}:hash${contextHash}`;
+/** Ordering matters here, and getting it wrong is a real cache COLLISION, not a cosmetic issue.
+ *
+ * The previous key sorted the two ids, so "Hamilton vs Antonelli" and "Antonelli vs Hamilton"
+ * shared one entry - but the cached value is directional (`keyAdvantageA`/`keyAdvantageB` and
+ * `momentum: "A" | "B"` all refer to whichever side was A at generation time). Reversing the
+ * selection therefore served the stored answer with the two sides silently swapped.
+ *
+ * The pair is still canonicalized (so a reversed selection doesn't pay for a second generation),
+ * and the caller is told which order the cached entry is in via `canonicalOrderMatches`, so it can
+ * mirror the directional fields on the way out rather than pretending direction doesn't exist. */
+export type CanonicalPair = { canonicalA: string; canonicalB: string; canonicalOrderMatches: boolean };
+
+/** One pair, one canonical order - resolved before any context is built, so the pair is computed
+ * and generated in exactly the order it will be cached under. */
+export function canonicalizePair(entityA: string, entityB: string): CanonicalPair {
+  const canonicalOrderMatches = entityA <= entityB;
+  return canonicalOrderMatches
+    ? { canonicalA: entityA, canonicalB: entityB, canonicalOrderMatches }
+    : { canonicalA: entityB, canonicalB: entityA, canonicalOrderMatches };
+}
+
+export function buildSeasonCompareCacheKey(
+  season: number,
+  entityType: "drivers" | "constructors",
+  pair: CanonicalPair,
+  completedRounds: number,
+  contextHash: string,
+  version: string,
+): string {
+  return `season_compare:${version}:${season}:${entityType}:${pair.canonicalA}:vs:${pair.canonicalB}:rounds${completedRounds}:hash${contextHash}`;
+}
+
+/** Mirrors a compare insight generated in canonical (A,B) order back onto a display order of
+ * (B,A). Everything directional flips together - anything less would be the same swapped-sides
+ * bug in a different place. */
+export function mirrorCompareInsight<T extends { keyAdvantageA: string; keyAdvantageB: string; momentum: "A" | "B" | "EVEN" }>(insight: T): T {
+  return {
+    ...insight,
+    keyAdvantageA: insight.keyAdvantageB,
+    keyAdvantageB: insight.keyAdvantageA,
+    momentum: insight.momentum === "A" ? "B" : insight.momentum === "B" ? "A" : "EVEN",
+  };
+}
+
+export function buildRaceEventCacheKey(season: number, round: number, dataVersion: string, version: string): string {
+  return `season_race_take:${version}:${season}:r${round}:${dataVersion}`;
 }
 
