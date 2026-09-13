@@ -34,6 +34,9 @@ export function CompareIntelligence({ season, entityType, entityA, entityB, aNam
   const reduceMotion = useReducedMotion();
 
   const fingerprint = `${season}:${entityType}:${entityA}:${entityB}`;
+  // With no resolvable pair there is nothing to fetch and therefore nothing to wait for - so this
+  // decides the loading state up front rather than having the effect correct it afterwards.
+  const hasPair = !!entityA && !!entityB && entityA !== entityB;
 
   // Reset during render rather than in the effect (React's own "adjust state when a prop changes"
   // pattern): an effect would paint the PREVIOUS pair's narrative once against the new names
@@ -42,14 +45,11 @@ export function CompareIntelligence({ season, entityType, entityA, entityB, aNam
   if (prevFingerprint !== fingerprint) {
     setPrevFingerprint(fingerprint);
     setInsight(null);
-    setLoading(true);
+    setLoading(hasPair);
   }
 
   useEffect(() => {
-    if (!entityA || !entityB || entityA === entityB) {
-      setLoading(false);
-      return;
-    }
+    if (!hasPair) return;
 
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -82,7 +82,7 @@ export function CompareIntelligence({ season, entityType, entityA, entityB, aNam
       clearTimeout(timer);
       controller.abort();
     };
-  }, [season, entityType, entityA, entityB]);
+  }, [season, entityType, entityA, entityB, hasPair]);
 
   return (
     <AnimatePresence mode="wait" initial={false}>

@@ -17,7 +17,7 @@
 // calculates, and it is never given client-supplied statistics.
 
 import type { ComparePair, RaceSummary, SeasonRecord, Battle, DriverStandingRow, ConstructorStandingRow } from "@/app/season/_service/season.pure";
-import { completedRaces } from "@/app/season/_service/season.pure";
+import { RECENT_FORM_WINDOW, completedRaces, computePositionChanges, entityResults, recentResults } from "@/app/season/_service/season.pure";
 
 /** Bumped whenever the shape below or the prompt that consumes it changes, so entries cached
  * under the old shape become unreachable (a new key) rather than being served as if they were
@@ -117,6 +117,64 @@ export function seasonValidIds(ctx: SeasonNarrativeContext): string[] {
 
 export function battleId(b: Battle): string {
   return `${b.type}:${b.aId}-vs-${b.bId}`;
+}
+
+/** The season data this builder reads. Structurally a subset of getSeasonDetailData's return, so
+ * the full result can be passed straight in without the AI layer depending on that function's
+ * exact shape. */
+export type SeasonDataForContext = {
+  year: number;
+  status: "ongoing" | "completed";
+  racesCompleted: number;
+  racesRemaining: number;
+  drivers: DriverStandingRow[];
+  constructors: ConstructorStandingRow[];
+  progression: Record<string, number | string | null>[];
+  raceSummaries: RaceSummary[];
+  battles: Battle[];
+  records: SeasonRecord[];
+};
+
+/** Assembles the deterministic narrative context from authoritative season data. This is the ONLY
+ * thing the model is ever given for the season narrative.
+ *
+ * Lives here rather than in the route that calls it: a Next route module may only export HTTP
+ * handlers and route config, so an exported helper there fails the build. It also belongs next to
+ * the formatter that consumes it.
+ */
+export function buildSeasonNarrativeContext(data: SeasonDataForContext): SeasonNarrativeContext {
+  const nextRace = data.raceSummaries.find((r) => r.state === "next") ?? null;
+  const changes = computePositionChanges(data.drivers, data.constructors, data.progression);
+  const formWindow = Math.min(RECENT_FORM_WINDOW, completedRaces(data.raceSummaries).length);
+
+  const movers = changes.drivers
+    .map((c) => ({
+      name: data.drivers.find((d) => d.driver === c.entityId)?.driverName ?? c.entityId,
+      positionDelta: c.positionDelta,
+      pointsDelta: c.pointsDelta,
+    }))
+    .filter((m) => (m.positionDelta ?? 0) !== 0 || (m.pointsDelta ?? 0) !== 0)
+    .sort((a, b) => Math.abs(b.positionDelta ?? 0) - Math.abs(a.positionDelta ?? 0) || (b.pointsDelta ?? 0) - (a.pointsDelta ?? 0));
+
+  const recentForm = data.drivers
+    .map((d) => ({ name: d.driverName, points: recentResults(entityResults(data.raceSummaries, d.driver, false)).reduce((sum, r) => sum + r.points, 0) }))
+    .sort((a, b) => b.points - a.points);
+
+  return {
+    season: data.year,
+    status: data.status,
+    completedRounds: data.racesCompleted,
+    remainingRounds: data.racesRemaining,
+    nextRace: nextRace ? { round: nextRace.round, name: nextRace.name } : null,
+    drivers: data.drivers,
+    constructors: data.constructors,
+    battles: data.battles,
+    records: data.records,
+    raceSummaries: data.raceSummaries,
+    movers,
+    recentForm,
+    formWindow,
+  };
 }
 
 export function formatSeasonNarrativeContext(ctx: SeasonNarrativeContext): string {

@@ -36,9 +36,18 @@ const SeasonIntelligenceContext = createContext<State>({
 export function SeasonIntelligenceProvider({ children, season }: { children: React.ReactNode; season: number }) {
   const [state, setState] = useState<State>({ intelligence: null, source: null, loading: true, failed: false, season });
 
+  // Reset to "loading" for a new season DURING RENDER (React's own documented "adjust state when
+  // a prop changes" pattern), not at the top of the effect below. Doing it in the effect body
+  // renders the previous season's narrative once under the new year before clearing it, and costs
+  // an extra render every time - which is exactly what react-hooks/set-state-in-effect flags.
+  const [prevSeason, setPrevSeason] = useState(season);
+  if (prevSeason !== season) {
+    setPrevSeason(season);
+    setState({ intelligence: null, source: null, loading: true, failed: false, season });
+  }
+
   useEffect(() => {
     const controller = new AbortController();
-    setState({ intelligence: null, source: null, loading: true, failed: false, season });
 
     (async () => {
       try {

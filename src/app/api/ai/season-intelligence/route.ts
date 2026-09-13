@@ -17,11 +17,10 @@ import { guardAIExecution } from "@/lib/ai/guardrails";
 import { generateSeasonIntelligence } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
 import { buildSeasonCacheKey, computeDataVersion, getCachedIntelligence, setCachedIntelligence, withSingleFlight } from "@/lib/ai/cache";
-import { SEASON_CONTEXT_VERSION, formatSeasonNarrativeContext, type SeasonNarrativeContext } from "@/lib/ai/context/seasonContext";
+import { SEASON_CONTEXT_VERSION, buildSeasonNarrativeContext, formatSeasonNarrativeContext } from "@/lib/ai/context/seasonContext";
 import { SEASON_PROMPT_VERSION } from "@/lib/ai/prompts/seasonPrompt";
 import { generateSeasonFallbackFromContext } from "@/lib/ai/fallback";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
-import { RECENT_FORM_WINDOW, completedRaces, computePositionChanges, entityResults, recentResults } from "@/app/season/_service/season.pure";
 import type { AgentContext } from "@/lib/ai/types";
 import type { SharedSeasonIntelligence, IntelligenceSource } from "@/lib/ai/schemas/seasonIntelligence";
 
@@ -33,43 +32,6 @@ const SEASON_TTL_SECONDS = 60 * 60 * 12;
 const CACHE_VERSION = `${SEASON_CONTEXT_VERSION}+${SEASON_PROMPT_VERSION}`;
 
 type Envelope = { content: SharedSeasonIntelligence; source: IntelligenceSource; generatedAt: string };
-
-/** Assembles the deterministic narrative context from authoritative season data. This is the ONLY
- * thing the model is ever given for this feature. */
-export function buildNarrativeContext(data: Awaited<ReturnType<typeof getSeasonDetailData>>): SeasonNarrativeContext {
-  const nextRace = data.raceSummaries.find((r) => r.state === "next") ?? null;
-  const changes = computePositionChanges(data.drivers, data.constructors, data.progression);
-  const formWindow = Math.min(RECENT_FORM_WINDOW, completedRaces(data.raceSummaries).length);
-
-  const movers = changes.drivers
-    .map((c) => ({
-      name: data.drivers.find((d) => d.driver === c.entityId)?.driverName ?? c.entityId,
-      positionDelta: c.positionDelta,
-      pointsDelta: c.pointsDelta,
-    }))
-    .filter((m) => (m.positionDelta ?? 0) !== 0 || (m.pointsDelta ?? 0) !== 0)
-    .sort((a, b) => Math.abs(b.positionDelta ?? 0) - Math.abs(a.positionDelta ?? 0) || (b.pointsDelta ?? 0) - (a.pointsDelta ?? 0));
-
-  const recentForm = data.drivers
-    .map((d) => ({ name: d.driverName, points: recentResults(entityResults(data.raceSummaries, d.driver, false)).reduce((sum, r) => sum + r.points, 0) }))
-    .sort((a, b) => b.points - a.points);
-
-  return {
-    season: data.year,
-    status: data.status,
-    completedRounds: data.racesCompleted,
-    remainingRounds: data.racesRemaining,
-    nextRace: nextRace ? { round: nextRace.round, name: nextRace.name } : null,
-    drivers: data.drivers,
-    constructors: data.constructors,
-    battles: data.battles,
-    records: data.records,
-    raceSummaries: data.raceSummaries,
-    movers,
-    recentForm,
-    formWindow,
-  };
-}
 
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
@@ -86,7 +48,7 @@ export async function POST(req: Request) {
     }
 
     const data = await getSeasonDetailData(season, userId);
-    const context = buildNarrativeContext(data);
+    const context = buildSeasonNarrativeContext(data);
 
     // The cache key hashes the model's ACTUAL input. Any change to the facts the model would see
     // produces a different key, so a stale entry can never outlive the data it describes - and no

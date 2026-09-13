@@ -15,10 +15,18 @@ export function RaceApexTake({ season, round }: { season: number; round: number 
   const [take, setTake] = useState<RaceEventTake | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  // Same reason as SeasonIntelligenceProvider: pointing the window at another round resets during
+  // render, so the previous round's take is never painted under the new round's heading.
+  const roundKey = `${season}:${round}`;
+  const [prevRoundKey, setPrevRoundKey] = useState(roundKey);
+  if (prevRoundKey !== roundKey) {
+    setPrevRoundKey(roundKey);
     setTake(null);
     setLoading(true);
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
 
     (async () => {
       try {
