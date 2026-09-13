@@ -155,14 +155,20 @@ def fetch_completed_race_docs(conn):
         return docs
 
 
-def upsert(cur, table, rows, conflict_cols, batch_size=500):
+def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
     """Insert-or-update by real primary key — the one write primitive every pipeline script uses
     now, same idempotent-rerun discipline each already has for its own external API calls,
     extended to its own writes too. Dedupes input rows on the conflict key first: Postgres can't
     ON CONFLICT-resolve two rows in the *same* insert statement that target the same key ("cannot
     affect row a second time") - hit live during the one-time migration (some historical race
     genuinely has one driver_id twice in its own results) and just as possible from a normal
-    pipeline run reprocessing overlapping data."""
+    pipeline run reprocessing overlapping data.
+
+    `keep_known_cols` are columns a *less* complete source must not erase: they update via
+    `coalesce(excluded.c, table.c)`, so a NULL from this write leaves whatever was already stored
+    intact. Needed because the two race sources know different things - OpenF1 has no lap-by-lap
+    car position at all (openf1_fallback.py's own _fetch_laps docstring), so a preliminary refresh
+    of a round would otherwise null out per-lap positions FastF1 had already supplied."""
     if not rows:
         print(f"  {table}: nothing to load")
         return
@@ -175,16 +181,56 @@ def upsert(cur, table, rows, conflict_cols, batch_size=500):
 
     cols = list(rows[0].keys())
     update_cols = [c for c in cols if c not in conflict_cols]
+    assignments = [
+        f"{c}=coalesce(excluded.{c}, {table}.{c})" if c in keep_known_cols else f"{c}=excluded.{c}"
+        for c in update_cols
+    ]
     query = (
         f"insert into {table} ({','.join(cols)}) values %s "
         f"on conflict ({','.join(conflict_cols)}) do update set "
-        f"{','.join(f'{c}=excluded.{c}' for c in update_cols)}"
+        f"{','.join(assignments)}"
     )
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
         values = [tuple(r[c] for c in cols) for r in batch]
         psycopg2.extras.execute_values(cur, query, values)
     print(f"  {table}: upserted {len(rows)} rows")
+
+
+def prune(cur, table, scope_col, scope_value, key_cols, keep_keys):
+    """Deletes the rows of one scope (one race, normally) that this write did not produce.
+
+    `upsert` alone can only ever add or update, so a row written under a wrong or superseded
+    reading of a scope survives every later correct write of it. That is not hypothetical: 2026
+    round 14 was briefly populated from the wrong Grand Prix, and after the correct classification
+    replaced all 22 of its drivers, the one driver who appeared only in the wrong one stayed
+    behind - leaving the race with 23 results and two drivers classified sixth, and its lap data
+    carrying the other circuit's 66 laps over this one's 57.
+
+    `key_cols` is the row identity within the scope - a single column name, or a sequence of them
+    for a composite key like race_laps' (lap_number, driver). `keep_keys` are the corresponding
+    values this write produced.
+
+    Deliberately scoped and keyed, never a blanket "delete then insert": it can only remove rows
+    belonging to the scope just written, and only ones absent from that write. Called with an empty
+    `keep_keys` it does nothing at all, so a failed or partial fetch can never empty a race."""
+    if not keep_keys:
+        return 0
+    cols = [key_cols] if isinstance(key_cols, str) else list(key_cols)
+    keys = sorted({k if isinstance(k, tuple) else (k,) for k in keep_keys})
+    # mogrify quotes each key value the same way any other parameterised write here does; only the
+    # table/column identifiers are interpolated, and those are literals in this file's callers.
+    row_sql = "(" + ",".join(["%s"] * len(cols)) + ")"
+    values_sql = ",".join(cur.mogrify(row_sql, k).decode() for k in keys)
+    match = " and ".join(f"keep.{c} = {table}.{c}" for c in cols)
+    cur.execute(
+        f"delete from {table} where {scope_col} = %s "
+        f"and not exists (select 1 from (values {values_sql}) as keep ({','.join(cols)}) where {match})",
+        (scope_value,),
+    )
+    if cur.rowcount:
+        print(f"  {table}: pruned {cur.rowcount} stale row(s) for {scope_value}")
+    return cur.rowcount
 
 
 def clean(value):

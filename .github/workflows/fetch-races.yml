@@ -75,3 +75,13 @@ jobs:
         run: python pipeline/compute_group_scores.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # A smoke alarm, not a transaction guard: this step's own nonzero exit turns this job red in
+      # the Actions tab within 15 minutes of a bad write landing, rather than waiting for a user to
+      # spot a wrong winner in the UI (see pipeline/audit_data_consistency.py's own docstring for
+      # exactly what shapes it checks - the 2026 round 14 corruption is the case this exists for).
+      # Deliberately last and does not roll back anything the steps above already wrote.
+      - name: Audit data consistency
+        run: python pipeline/audit_data_consistency.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

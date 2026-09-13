@@ -49,6 +49,17 @@ export type RacePrediction = {
   // Gap to that race's (unknown) fastest lap, not an absolute lap time — see predictPace.ts.
   predictedPaceGapSec: Record<string, number>;
   backtest: BacktestRow[];
+  // Absent (not `"frozen"`) on every prediction train_predict.py has ever produced live, so every
+  // existing row in the database reads as the default case below without a migration. Only
+  // `pipeline/reconstruct_prediction.py` — a deliberate, by-hand, one-race-at-a-time script, never
+  // part of the automated 15-minute pipeline — ever writes `"reconstructed"`, for the one situation
+  // that script exists to cover: a race whose own qualifying-to-race-day window closed without a
+  // real prediction ever getting frozen (see that script's own docstring for why, and
+  // pipeline/OPENF1_FALLBACK.md for the 2026 round 14 incident that produced it). A consumer that
+  // aggregates prediction accuracy across many races (there is none today - see predictionAccuracy.ts
+  // and predictionPerformance.ts's own docs) must exclude `source === "reconstructed"` rows, the
+  // same way a live run would never have had this race to train on in the first place.
+  source?: "reconstructed";
 };
 
 /**

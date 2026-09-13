@@ -48,6 +48,30 @@ test("comparePrediction pairs each prediction with the SAME driver's actual resu
   assert.equal(accuracy.predictedWinner, "LEC");
   assert.equal(accuracy.actualWinner, "VER");
   assert.equal(accuracy.podiumHits, 3); // same three drivers, different order, still all podium
+  assert.equal(accuracy.reconstructed, false); // no `source` on this prediction - the normal, live-frozen case
+});
+
+test("comparePrediction flags a pipeline/reconstruct_prediction.py backfill as reconstructed, never silently as a real frozen call", () => {
+  const race: RaceDoc = {
+    id: "2026_r",
+    year: 2026,
+    round: 14,
+    circuit: "r",
+    name: "R",
+    status: "completed",
+    results: [result("ANT", 1)],
+    prediction: {
+      generatedAt: "",
+      modelVersion: "v1",
+      finishOrder: [{ driver: "ANT", team: "Mercedes", predictedPosition: 1, predictedScore: 0, spread: null }],
+      finishFeatureImportance: {},
+      predictedPaceGapSec: {},
+      backtest: [],
+      source: "reconstructed",
+    },
+    updatedAt: "",
+  };
+  assert.equal(comparePrediction(race)!.reconstructed, true);
 });
 
 test("comparePrediction returns null when there's no locked-in prediction", () => {

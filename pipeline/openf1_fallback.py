@@ -17,7 +17,7 @@ endpoint before shipping.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -45,6 +45,21 @@ def _get(path: str, **params) -> list:
     resp = requests.get(f"{OPENF1_BASE}/{path}", params=params, timeout=25)
     resp.raise_for_status()
     return resp.json()
+
+
+def _as_date(value) -> date | None:
+    """FastF1 hands EventDate over as a pandas Timestamp, build_and_push already formats it as a
+    plain string elsewhere, and a caller with nothing to offer passes None - all three reach this
+    module, so they are normalised to one `date` here rather than at each call site."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if hasattr(value, "to_pydatetime"):          # pandas Timestamp
+        return value.to_pydatetime().date()
+    return datetime.fromisoformat(str(value)[:19]).date()
 
 
 def _validate(results: list[dict]) -> str | None:
@@ -246,26 +261,89 @@ def _fetch_laps(session_key: int, driver_code_by_number: dict[int, str]) -> list
     return lap_timings, fastest_by_driver, laps_by_driver
 
 
-def fetch_race_openf1(year: int, round_num: int, country: str, qualifying_grid: list[dict]) -> dict | None:
+# How far OpenF1's own session date may sit from FastF1's EventDate before the two are no longer
+# considered the same event. A day either side absorbs the only real, benign sources of drift here
+# (a timezone-boundary race - Las Vegas starts Saturday local, Sunday UTC - and FastF1 dating an
+# event by its race day while OpenF1 dates the session by its UTC start), while staying far tighter
+# than the smallest gap between two Grands Prix in the same country in a season, which is weeks.
+_RACE_DATE_TOLERANCE_DAYS = 1
+
+
+def _pick_race_session(sessions: list[dict], race_date: date | None) -> dict | None:
+    """The one OpenF1 "Race" session that is actually THIS round.
+
+    `country_name` alone does not identify a round: a country can host several Grands Prix in one
+    season (Spain 2026 = Barcelona round 7 + Madrid round 14; Italy = Imola + Monza; the USA runs
+    three), and taking the first "Race" match silently returned the *earlier* round's full
+    classification for the later one - a real, confirmed corruption of 2026 round 14, which was
+    written with round 7's winner and one of round 7's drivers. Matching on the event's own race
+    date is what disambiguates them; if nothing lands within the tolerance, this returns None and
+    the caller falls back to "no preliminary result yet", which is the honest answer - never a
+    different race's results under this round's id.
+    """
+    races = [s for s in sessions if s.get("session_name") == "Race"]
+    if not races:
+        return None
+    if race_date is None:
+        # Nothing to disambiguate with. One candidate is unambiguous anyway; several is a guess,
+        # and guessing here is precisely the bug this function exists to prevent.
+        return races[0] if len(races) == 1 else None
+
+    best, best_delta = None, None
+    for s in races:
+        start = s.get("date_start")
+        if not start:
+            continue
+        delta = abs((datetime.fromisoformat(start).date() - race_date).days)
+        if best_delta is None or delta < best_delta:
+            best, best_delta = s, delta
+    if best is None or best_delta > _RACE_DATE_TOLERANCE_DAYS:
+        return None
+    return best
+
+
+def fetch_race_openf1(year: int, round_num: int, country: str, race_date, qualifying_grid: list[dict]) -> dict | None:
     """Same return shape as fetch_races.fetch_race() (session/results/weather/tireStints/
     trafficStats/safetyCarPeriods/tireCompoundPace/lapTimings), so build_and_push() has exactly one
     downstream code path regardless of which source produced it. Returns None (matching
     fetch_race()'s own contract) if no matching OpenF1 session exists yet, it has no result data, or
     the result fails `_validate()` - never a fabricated or partial classification.
+
+    `race_date` is this round's own race day (FastF1's EventDate) and is what pins the OpenF1
+    meeting to this specific round rather than to whichever round in the same country happens to
+    come back first - see _pick_race_session().
     """
     try:
         sessions = _get("sessions", year=year, country_name=country)
-        race_session = next((s for s in sessions if s.get("session_name") == "Race"), None)
+        race_session = _pick_race_session(sessions, _as_date(race_date))
         if race_session is None:
+            print(f"    openf1: no Race session in {country} {year} matching {race_date} - not guessing")
             return None
         session_key = race_session["session_key"]
+        print(
+            f"    openf1: matched meeting {race_session.get('meeting_key')} "
+            f"({race_session.get('location')}, {race_session.get('date_start')}) for round {round_num}"
+        )
         quali_session = next(
             (s for s in sessions if s.get("meeting_key") == race_session["meeting_key"] and s.get("session_name") == "Qualifying"),
             None,
         )
 
         race_end = datetime.fromisoformat(race_session["date_end"])
-        print(f"    openf1: session_result requested {datetime.now(timezone.utc) - race_end} after race end")
+        if race_end.tzinfo is None:
+            race_end = race_end.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+
+        # Second, independent guard against the same failure mode _pick_race_session() already
+        # guards against: a session that has not actually finished cannot have a real
+        # classification, regardless of which meeting matched. This is what stops a *future*
+        # matching bug (a new endpoint, a looser tolerance someone adds later) from repeating what
+        # happened to 2026 round 14, where the wrong-but-already-finished meeting's classification
+        # was accepted as this round's preliminary result before this round had even raced.
+        if now < race_end:
+            print(f"    openf1: matched session ends {race_end.isoformat()}, still {race_end - now} away - nothing to report yet")
+            return None
+        print(f"    openf1: session_result requested {now - race_end} after race end")
 
         session_result = _get("session_result", session_key=session_key)
         if not session_result:

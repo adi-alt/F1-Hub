@@ -5,6 +5,10 @@ export type PredictionAccuracy = {
   podiumHits: number;
   predictedWinner: string;
   actualWinner: string;
+  /** True only for the handful of races pipeline/reconstruct_prediction.py backfilled by hand -
+   * see RacePrediction.source's own comment. The UI must label these, never show them identically
+   * to a prediction that was genuinely frozen before the race ran. */
+  reconstructed: boolean;
 };
 
 /** Compares a race's locked-in pre-race prediction against its actual result. */
@@ -31,6 +35,7 @@ export function comparePrediction(race: RaceDoc): PredictionAccuracy | null {
     podiumHits,
     predictedWinner: predicted.find((p) => p.predictedPosition === 1)?.driver ?? "",
     actualWinner: race.results.find((r) => r.finishPosition === 1)?.driver ?? "",
+    reconstructed: race.prediction.source === "reconstructed",
   };
 }
 

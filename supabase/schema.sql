@@ -809,3 +809,19 @@ create table schema_migrations (
 -- name and by community_type, so they were backfilled to topic='Formula 1' (see
 -- supabase/migrations/20260911_backfill_topics.sql) rather than shipping Discover's topic filter
 -- with nothing to filter on. Admins can change it from Manage.
+
+-- Postgres `numeric` accepts NaN and `not null` does nothing to stop it; PostgREST then serialises
+-- it as the JSON *string* "NaN" into a field TypeScript declares as `number`, so a running total
+-- like src/lib/standings.ts' `driver.points += result.points` silently becomes string
+-- concatenation ("241.0NaN"), which then sorts as NaN and fails every `> 0` test. 2026 round 14
+-- was written that way for real - see pipeline/fetch_races.py's has_official_classification() for
+-- the source-side fix this backs up, and supabase/migrations/20260913_reject_nan_numerics.sql.
+-- `<> 'NaN'` is a correct rejection on `numeric` specifically: Postgres defines NaN = NaN as true
+-- for that type, unlike `double precision`.
+alter table race_results add constraint race_results_points_not_nan check (points <> 'NaN'::numeric);
+alter table race_results add constraint race_results_finish_gap_not_nan check (finish_gap_sec is null or finish_gap_sec <> 'NaN'::numeric);
+alter table race_results add constraint race_results_fastest_lap_not_nan check (fastest_lap_sec is null or fastest_lap_sec <> 'NaN'::numeric);
+alter table race_inputs add constraint race_inputs_qualifying_gap_not_nan check (qualifying_gap_sec is null or qualifying_gap_sec <> 'NaN'::numeric);
+alter table races add constraint races_pole_time_not_nan check (pole_time_sec is null or pole_time_sec <> 'NaN'::numeric);
+alter table archive_results add constraint archive_results_points_not_nan check (points is null or points <> 'NaN'::numeric);
+alter table archive_pit_stops add constraint archive_pit_stops_duration_not_nan check (duration_sec is null or duration_sec <> 'NaN'::numeric);

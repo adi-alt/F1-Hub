@@ -30,3 +30,27 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+
+  # Separate job, not a step in `build`: these are plain-assert Python scripts (no pytest, see
+  # their own docstrings) that were previously never run by anything - a real gap, since it's what
+  # let 2026 round 14's wrong-meeting/premature-classification bug (see
+  # pipeline/OPENF1_FALLBACK.md) ship silently. Independent of the Node job so a pipeline-only PR
+  # doesn't need to touch the frontend to get checked, and vice versa.
+  pipeline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pipeline/requirements.txt
+
+      - run: pip install -r pipeline/requirements.txt
+
+      - name: Data-consistency and pipeline unit tests
+        working-directory: pipeline
+        run: |
+          python test_fetch_races.py
+          python test_compute_group_scores.py

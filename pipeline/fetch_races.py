@@ -40,6 +40,7 @@ from ergast_utils import (
     format_timedelta,
     init_postgres,
     reconnect_postgres,
+    prune,
     trigger_revalidation,
     upsert,
 )
@@ -57,7 +58,6 @@ def fetch_qualifying(year: int, round_num: int):
         session.load(laps=False, weather=False, telemetry=False)
         if session.results is None or session.results.empty:
             raise fastf1.core.DataNotLoadedError("no results")
-
         results = session.results.sort_values("Position")
         pole_time = results["Q3"].fillna(results["Q2"]).fillna(results["Q1"]).min()
         best_laps = None
@@ -98,6 +98,45 @@ def fetch_qualifying(year: int, round_num: int):
     except Exception as exc:
         print(f"    quali: not available ({exc})")
         return None
+
+
+def has_official_classification(results: pd.DataFrame) -> bool:
+    """Whether FastF1's results frame carries a real classification, or only live timing.
+
+    FastF1 fills `Position` from the live timing feed as soon as the race runs, but `Status`,
+    `Points` and `GridPosition` come from Ergast/Jolpica, which publishes a day or more later (the
+    library says so itself in the load log: "No result data for this session available on Ergast!
+    (This is expected for recent sessions)"). That half-populated frame is not a classification and
+    must never be written as one: `Status` arrives as an empty string, which normalize_status()
+    reads as "dnf", so an entire finishing field gets stored as DNFs with NaN points - and because
+    build_and_push() stamps it `results_source='official'`, is_already_completed() then skips the
+    round forever and the wrong data is permanent. This happened live to 2026 round 14.
+
+    Returning False sends the caller down the OpenF1 preliminary path instead, which is exactly the
+    case that path was built for, and leaves the round flagged for the official upgrade later.
+    """
+    if results is None or results.empty:
+        return False
+    if "Status" not in results or "Points" not in results:
+        return False
+    status_known = results["Status"].astype("string").str.strip().replace("", pd.NA).notna().any()
+    points_known = pd.to_numeric(results["Points"], errors="coerce").notna().any()
+    return bool(status_known and points_known)
+
+
+def points_for(row) -> float:
+    """`race_results.points` is `numeric not null` - and Postgres's numeric type happily stores a
+    NaN, which PostgREST then serialises as the JSON *string* "NaN". On the TypeScript side that
+    field is typed `number`, so `driver.points += result.points` (src/lib/standings.ts) silently
+    becomes string concatenation and every championship total in the season turns into "241.0NaN".
+    A per-driver NaN should be impossible once has_official_classification() has passed, so this is
+    a belt-and-braces coercion rather than the fix - but it is loud about it, because a real NaN
+    here means the frame was less complete than that check believed.
+    """
+    if pd.isna(row.Points):
+        print(f"    race: {row.Abbreviation} has no points value in an otherwise-classified result, storing 0")
+        return 0.0
+    return float(row.Points)
 
 
 # FastF1's raw `Status` covers ~50 distinct values (every mechanical failure gets its own string:
@@ -210,6 +249,13 @@ def fetch_race(year: int, round_num: int):
         if session.results is None or session.results.empty:
             raise fastf1.core.DataNotLoadedError("no results")
 
+        # Live timing alone is not a classification - see has_official_classification(). Returning
+        # None (rather than raising) is the same "nothing official yet" signal build_and_push()
+        # already handles, and is what lets the OpenF1 preliminary path take over for this round.
+        if not has_official_classification(session.results):
+            print("    race: live timing only, no official classification published yet - deferring to the preliminary source")
+            return None
+
         # F1's own timing convention, which FastF1's `Time` column preserves as-is: the winner's
         # `Time` is their absolute race duration, everyone else's is already their gap *to* the
         # winner — not something to compute ourselves, just read correctly per row.
@@ -229,7 +275,7 @@ def fetch_race(year: int, round_num: int):
                     "gridPosition": int(row.GridPosition) if pd.notna(row.GridPosition) else None,
                     "finishPosition": int(row.Position),
                     "status": normalize_status(row.Status),
-                    "points": float(row.Points),
+                    "points": points_for(row),
                     "finishGapSec": 0 if row.Position == 1 else (
                         round(row.Time.total_seconds(), 3) if pd.notna(row.Time) else None
                     ),
@@ -447,7 +493,13 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
     # before this fix. See pipeline/OPENF1_FALLBACK.md for the full architecture.
     already_official = bool(existing) and existing.get("status") == "completed" and existing.get("results_source") == "official"
     if not race and not already_official:
-        race = fetch_race_openf1(year, round_num, str(calendar_event["Country"]), qualifying["grid"] if qualifying else [])
+        race = fetch_race_openf1(
+            year,
+            round_num,
+            str(calendar_event["Country"]),
+            calendar_event["EventDate"],
+            qualifying["grid"] if qualifying else [],
+        )
         if race:
             results_source = "openf1_preliminary"
             print("    race: FastF1/Jolpica had nothing yet, used OpenF1 preliminary classification")
@@ -536,6 +588,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             for g in qualifying["grid"]
         ]
         upsert(cur, "race_inputs", input_rows, ["race_id", "driver"])
+        prune(cur, "race_inputs", "race_id", race_id, "driver", [r["driver"] for r in input_rows])
     if race:
         # status_source: per-driver provenance for the *derived* status specifically (not the
         # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
@@ -564,17 +617,26 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             }
             for r in race["results"]
         ]
+        # Every driver in this round's classification is in `result_rows`, so anything else under
+        # this race_id came from a superseded write and is not part of the result - see prune().
         upsert(cur, "race_results", result_rows, ["race_id", "driver"])
+        prune(cur, "race_results", "race_id", race_id, "driver", [r["driver"] for r in result_rows])
         stint_rows = [
             {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
             for t in race["tireStints"]
         ]
         upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"])
+        prune(cur, "tire_stints", "race_id", race_id, ("driver", "stint_number"), [(t["driver"], t["stint_number"]) for t in stint_rows])
         lap_rows = [
             {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
             for t in race["lapTimings"]
         ]
-        upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"])
+        # position/time are keep_known: the OpenF1 path has no per-lap car position at all, so a
+        # preliminary refresh of a round must not erase positions FastF1 already stored for it.
+        upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"))
+        # Keyed on (lap_number, driver), not driver alone: the wrong-meeting write this guards
+        # against brought a longer race's lap numbers with it, for drivers who were in both.
+        prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows_n = len(race["results"]) if race else 0

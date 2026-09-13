@@ -61,6 +61,23 @@ now returns real `points` directly, used as-is rather than a `0` placeholder.)
 This lives entirely inside the Python pipeline, never the Next.js runtime - the live app never
 calls OpenF1 directly, so its uptime and rate limits are never a page-load dependency.
 
+### "FastF1 succeeds" means a published classification, not a loaded session
+
+The branch above turns on `fetch_race()` returning something, and for a few days after a race that
+is a sharper distinction than it looks. FastF1 fills `Position` from the live timing feed as soon
+as the race runs, but `Status`, `Points` and `GridPosition` come from Ergast/Jolpica, which
+publishes on its own (roughly Monday-after) schedule - the library says as much in its own load
+log: *"No result data for this session available on Ergast! (This is expected for recent
+sessions)"*. A session loaded in that window looks successful and is not: `Status` is an empty
+string, which `normalize_status()` reads as `dnf`, and `Points` is `NaN`.
+
+Written out, that is an entire finishing field stored as DNFs with no points - and because the
+write is stamped `results_source = 'official'`, `is_already_completed()` then skips the round
+forever, so it never self-corrects. 2026 round 14 hit exactly this. `has_official_classification()`
+(pipeline/fetch_races.py) is the gate: no published `Status`/`Points` means `fetch_race()` returns
+None, which routes the round down the preliminary path above - where it belongs, and where it stays
+flagged for the official upgrade.
+
 ## Provenance: two columns, not a new lifecycle status
 
 - `races.results_source` (`'official'` | `'openf1_preliminary'`) - where the race's classification
@@ -92,6 +109,16 @@ real retirees and the exact points for every classified driver). v2 (and now v3)
    `starting_grid`, which is NOT keyed by the Race session - verified live, a Race-keyed request
    returns nothing). `races.country` already stores the exact string OpenF1's `country_name`
    expects (verified live: `"Italy"`).
+
+   **`country_name` does not identify a round.** A country can host several Grands Prix in one
+   season - Spain 2026 is Barcelona (round 7) and Madrid (round 14), Italy has run Imola and Monza,
+   the USA runs three - so this query returns every one of them and taking the first `"Race"` match
+   silently yields the *earliest* round's classification for any later one. That is not
+   theoretical: 2026 round 14 was written with round 7's winner and one of round 7's drivers, and
+   its 57 laps were overlaid with round 7's 66. `_pick_race_session()` therefore matches on the
+   round's own race date (FastF1's `EventDate`, passed in by build_and_push) within
+   `_RACE_DATE_TOLERANCE_DAYS`, and returns None rather than guessing when nothing lands in range -
+   "no preliminary result yet" is always the correct answer over another race's results.
 2. `GET /v1/session_result?session_key=<race>` → `position`, `points`, `dnf`/`dns`/`dsq`,
    `gap_to_leader`, per driver_number. This is the real classification - no longer derived.
 3. `GET /v1/drivers?session_key=<race>` → number → name/team/headshot/color.
