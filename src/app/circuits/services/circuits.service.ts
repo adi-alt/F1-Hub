@@ -23,9 +23,11 @@ import { getRacesByCircuit, getRaceLaps, type RaceLapEntry } from "@/lib/supabas
 import { getAllCurrentDrivers, getAllCurrentTeams, type CurrentDriver, type CurrentTeam } from "@/lib/supabase/media";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getCircuitFacts, type CircuitFacts } from "@/lib/circuitFacts";
-import { buildCircuitTimeline, computeRaceTrends, type CircuitYearRecord } from "@/lib/circuitIntelligence";
+import { buildCircuitTimeline, computeRaceTrends, computeTrackRecords, type CircuitYearRecord, type TrackRecords, type RaceTrends } from "@/lib/circuitIntelligence";
 import type { RaceDoc } from "@/lib/types/race";
 import { slugifyRaceName, archiveDriverHref } from "@/lib/routes";
+import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
+import { getUserProfile } from "@/lib/supabase/users";
 
 export type CircuitExplorerEntry = {
   race: RaceSummary;
@@ -193,6 +195,112 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
     winnerMedia,
     currentDrivers,
     currentTeams,
+  };
+}
+
+export type PersonalDriverHistory = { code: string; name: string; races: number; wins: number; bestFinish: number | null };
+export type PersonalTeamHistory = { name: string; races: number; wins: number; podiums: number };
+
+export type CircuitInsightsData = {
+  location: string;
+  timelineYears: number;
+  trackRecords: TrackRecords;
+  raceTrends: RaceTrends;
+  /** Real career-at-this-circuit stats for the signed-in user's OWN favourite drivers - resolved
+   * from the session server-side (never trusted from the client), and every one of them, not just
+   * favourites[0] - see the Circuits homepage's own personalization requirement. Empty, not
+   * rendered at all by the caller, when the user has no favourite drivers or none of them have
+   * ever raced here. */
+  personalDrivers: PersonalDriverHistory[];
+  personalTeams: PersonalTeamHistory[];
+};
+
+function archiveIsClassified(status: string): boolean {
+  return status === "Finished" || /^\+\d+ Lap/.test(status);
+}
+
+/** The deterministic (non-LLM) half of Circuit Intelligence for the homepage's selected-circuit
+ * focus panel - real computed records/trends (computeTrackRecords/computeRaceTrends, the exact
+ * same functions the circuit detail page's own Track Intelligence section already uses) plus a
+ * personal "your history here" overlay, all from ONE lightweight fetch. Deliberately NOT
+ * getCircuitDetailData - that function also fetches race laps, winner media, and the full current
+ * roster for the detail page's own richer sections, none of which this compact panel needs, and
+ * selecting a new circuit on the homepage happens far more often (every click) than opening the
+ * full detail page. */
+export async function getCircuitInsightsData(location: string, year: number, uid: string): Promise<CircuitInsightsData | null> {
+  const [liveRaces, allCircuits, profile] = await Promise.all([getRacesByCircuit(location), getAllArchiveCircuits(), getUserProfile(uid)]);
+
+  const circuitLocalities = new Map(allCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+  const archiveId = resolveCurrentCircuitToArchiveId(location, circuitLocalities);
+  const archiveRaces = archiveId ? await getArchiveRacesByCircuitId(archiveId) : [];
+  if (liveRaces.length === 0 && archiveRaces.length === 0) return null;
+
+  const timeline = buildCircuitTimeline(liveRaces, archiveRaces);
+
+  const favoriteDrivers = profile?.favoriteDrivers ?? [];
+  const favoriteTeams = profile?.favoriteTeams ?? [];
+
+  const personalDrivers: PersonalDriverHistory[] = favoriteDrivers.map((code) => {
+    let races = 0;
+    let wins = 0;
+    let bestFinish: number | null = null;
+    let name = code;
+    for (const race of liveRaces) {
+      const r = race.results?.find((res) => res.driver === code);
+      if (!r) continue;
+      races += 1;
+      name = r.driverName;
+      if (r.status !== "dnf") {
+        if (r.finishPosition === 1) wins += 1;
+        bestFinish = bestFinish === null ? r.finishPosition : Math.min(bestFinish, r.finishPosition);
+      }
+    }
+    for (const race of archiveRaces) {
+      const r = race.results.find((res) => res.driverCode === code);
+      if (!r) continue;
+      races += 1;
+      name = r.driverName;
+      if (archiveIsClassified(r.status)) {
+        if (r.position === 1) wins += 1;
+        bestFinish = bestFinish === null ? r.position : Math.min(bestFinish, r.position);
+      }
+    }
+    return { code, name, races, wins, bestFinish };
+  });
+
+  const personalTeams: PersonalTeamHistory[] = favoriteTeams.map((teamName) => {
+    let races = 0;
+    let wins = 0;
+    let podiums = 0;
+    const archiveTeamId = archiveSlugForCurrentTeam(teamName);
+    for (const race of liveRaces) {
+      for (const r of race.results ?? []) {
+        if (r.team !== teamName) continue;
+        races += 1;
+        if (r.status === "dnf") continue;
+        if (r.finishPosition === 1) wins += 1;
+        if (r.finishPosition <= 3) podiums += 1;
+      }
+    }
+    for (const race of archiveRaces) {
+      for (const r of race.results) {
+        if (r.teamId !== archiveTeamId) continue;
+        races += 1;
+        if (!archiveIsClassified(r.status)) continue;
+        if (r.position === 1) wins += 1;
+        if (r.position <= 3) podiums += 1;
+      }
+    }
+    return { name: teamName, races, wins, podiums };
+  });
+
+  return {
+    location,
+    timelineYears: timeline.length,
+    trackRecords: computeTrackRecords(timeline),
+    raceTrends: computeRaceTrends(timeline),
+    personalDrivers: personalDrivers.filter((d) => d.races > 0),
+    personalTeams: personalTeams.filter((t) => t.races > 0),
   };
 }
 

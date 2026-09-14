@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { SeasonMap, nodeStatus } from "./SeasonMap";
 import { CircuitFocusPanel } from "./CircuitFocusPanel";
+import { CircuitInsights } from "./CircuitInsights";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import type { CircuitExplorerEntry } from "../services/circuits.service";
 
@@ -35,6 +36,7 @@ export function CircuitsExplorer({ entries, favoriteTracks, year }: { entries: C
       {selected && (
         <>
           <CircuitFocusPanel entry={selected} year={year} />
+          <CircuitInsights location={selected.race.circuit ?? selected.race.name} year={year} />
           <CircuitApexScope
             location={selected.race.circuit ?? selected.race.name}
             circuitName={selected.facts?.venueName ?? selected.race.circuit ?? selected.race.name}
