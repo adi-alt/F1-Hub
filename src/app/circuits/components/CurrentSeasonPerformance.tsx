@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { GridToFinishChart } from "@/components/circuit/GridToFinishChart";
 import { raceHref } from "@/lib/routes";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
 
@@ -21,7 +20,9 @@ export function CurrentSeasonPerformance({ race, year }: { race: RaceSummary; ye
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{year} performance</p>
       <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
 
-      <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      {/* Grid->finish for this same race is already shown once, in Track Experience's right
+          column above - not repeated here, same real data either way. */}
+      <div className="mt-4">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
           {race.winnerName && (
             <div>
@@ -87,11 +88,6 @@ export function CurrentSeasonPerformance({ race, year }: { race: RaceSummary; ye
               View full race detail →
             </Link>
           </div>
-        </div>
-
-        <div className="min-w-0">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
-          <GridToFinishChart results={race.results} tireStints={[]} />
         </div>
       </div>
     </section>

@@ -8,7 +8,6 @@ import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import type { TrackType } from "@/lib/circuitFacts";
 import type { RaceResultEntry, TireStint } from "@/lib/types/race";
 import type { RaceLapEntry } from "@/lib/supabase/races";
-import { GridToFinishChart } from "./GridToFinishChart";
 
 type LapRank = { lap: number; position: number };
 type StintRange = { compound: string; startLap: number; endLap: number };
@@ -576,12 +575,6 @@ export function TrackMap({
         </div>
       )}
 
-      {hasSimulation && (
-        <div>
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Grid → finish</p>
-          <GridToFinishChart results={results ?? []} tireStints={tireStints ?? []} />
-        </div>
-      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { UpcomingCircuitIntelligence } from "./UpcomingCircuitIntelligence";
 import { PastWinnersList } from "./PastWinnersList";
 import { CircuitTrendChart } from "./CircuitTrendChart";
 import { TrackMap, DriverTower } from "@/components/circuit/TrackMap";
+import { GridToFinishChart } from "@/components/circuit/GridToFinishChart";
 import { TrackIntelligence } from "@/components/race/TrackIntelligence";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
@@ -70,6 +71,9 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
         </div>
         <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+          {/* Left: the track map and its own playback controls, legend, and driver readout -
+              nothing else. Right: two stacked cards, classification then grid->finish, both real
+              data about the same `raceForSimulation` race the map itself is replaying. */}
           <TrackMap
             seed={location}
             turns={facts?.turns ?? 14}
@@ -80,9 +84,15 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
             raceLabel={raceForSimulation ? `${raceForSimulation.year} race` : null}
           />
           {raceForSimulation?.results && (
-            <div className="min-w-0">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{raceForSimulation.year} classification</p>
-              <DriverTower results={raceForSimulation.results} />
+            <div className="flex min-w-0 flex-col gap-6">
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{raceForSimulation.year} classification</p>
+                <DriverTower results={raceForSimulation.results} />
+              </div>
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
+                <GridToFinishChart results={raceForSimulation.results} tireStints={raceForSimulation.tireStints ?? []} />
+              </div>
             </div>
           )}
         </div>
