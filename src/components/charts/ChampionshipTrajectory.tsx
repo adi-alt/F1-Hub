@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 
-type Metric = "points" | "gap";
+type Metric = "points" | "gap" | "position";
 type TooltipPayloadEntry = { dataKey?: string | number; value?: number | string; color?: string; payload?: { raceName?: string; round?: number } };
 
 // SVG ids can't safely contain spaces ("Red Bull Racing", "Aston Martin", …) once referenced via
@@ -30,7 +30,8 @@ function ProgressionTooltip({
   const sorted = [...payload].sort((x, y) => {
     const xv = Number(x.value ?? 0);
     const yv = Number(y.value ?? 0);
-    return metric === "gap" ? xv - yv : yv - xv;
+    // gap and position are both "lower is better", so they sort ascending.
+    return metric === "points" ? yv - xv : xv - yv;
   });
   return (
     <div className="min-w-[200px] rounded-lg border px-3 py-2.5 text-xs shadow-xl backdrop-blur-md" style={{ ...tooltipStyle, borderRadius: 8 }}>
@@ -91,7 +92,7 @@ export default function ChampionshipTrajectory({
         </defs>
         <CartesianGrid stroke={chart.gridline} strokeOpacity={0.5} vertical={false} />
         <XAxis dataKey="trackShort" tick={{ fill: chart.mutedInk, fontSize: 11 }} axisLine={{ stroke: chart.gridline }} tickLine={false} interval="preserveStartEnd" />
-        <YAxis reversed={metric === "gap"} tick={{ fill: chart.mutedInk, fontSize: 12 }} axisLine={{ stroke: chart.gridline }} tickLine={false} width={36} />
+        <YAxis reversed={metric !== "points"} tick={{ fill: chart.mutedInk, fontSize: 12 }} axisLine={{ stroke: chart.gridline }} tickLine={false} width={36} allowDecimals={metric !== "position"} />
         {highlightTrack && <ReferenceLine x={highlightTrack} stroke="var(--f1-red)" strokeOpacity={0.55} strokeDasharray="4 4" />}
         <Tooltip content={<ProgressionTooltip labelFor={labelFor} metric={metric} />} cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }} />
         {curves.length > 1 && (

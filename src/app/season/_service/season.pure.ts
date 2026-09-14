@@ -288,6 +288,54 @@ export function buildRecords(drivers: DriverStandingRow[], constructors: Constru
   const topTeam = constructors[0];
   if (topTeam) records.push({ id: "constructors-lead", label: "Constructors lead", name: topTeam.team, value: String(topTeam.points), why: "Leading the teams\u2019 championship" });
 
+  // Streaks and single-round peaks - the records that describe FORM rather than season totals,
+  // which is what stops this reading as the standings table restated in another shape.
+  // computeStreaks already existed and was simply never wired into the records list.
+  let bestStreak: { name: string; length: number } | null = null;
+  for (const d of drivers) {
+    const streak = computeStreaks(d.driver, raceSummaries, false);
+    if (!bestStreak || streak.longestPointsStreak > bestStreak.length) bestStreak = { name: d.driverName, length: streak.longestPointsStreak };
+  }
+  if (bestStreak && bestStreak.length > 1) {
+    records.push({
+      id: "longest-points-streak",
+      label: "Longest scoring run",
+      name: bestStreak.name,
+      value: String(bestStreak.length),
+      why: `Scored in ${bestStreak.length} consecutive rounds`,
+    });
+  }
+
+  let biggestHaul: { name: string; points: number; round: number } | null = null;
+  let biggestComeback: { name: string; gained: number; round: number } | null = null;
+  for (const r of completed) {
+    for (const res of r.results) {
+      if (!biggestHaul || res.points > biggestHaul.points) biggestHaul = { name: res.driverName, points: res.points, round: r.round };
+      if (res.grid != null && res.status !== "dnf") {
+        const gained = res.grid - res.finishPosition;
+        if (gained > 0 && (!biggestComeback || gained > biggestComeback.gained)) biggestComeback = { name: res.driverName, gained, round: r.round };
+      }
+    }
+  }
+  if (biggestHaul && biggestHaul.points > 0) {
+    records.push({
+      id: "biggest-haul",
+      label: "Biggest single round",
+      name: biggestHaul.name,
+      value: String(biggestHaul.points),
+      why: `Most points taken from one round, at round ${biggestHaul.round}`,
+    });
+  }
+  if (biggestComeback && biggestComeback.gained >= 3) {
+    records.push({
+      id: "biggest-comeback",
+      label: "Best comeback",
+      name: biggestComeback.name,
+      value: `+${biggestComeback.gained}`,
+      why: `Places gained from the grid in round ${biggestComeback.round}`,
+    });
+  }
+
   return records;
 }
 

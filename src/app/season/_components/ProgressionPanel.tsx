@@ -12,7 +12,7 @@ import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
 import { SeasonInsight, SeasonInsightSkeleton } from "./ai/SeasonInsight";
 import type { ConstructorStandingRow, DriverStandingRow } from "../_service/season.pure";
 
-type Metric = "points" | "gap";
+type Metric = "points" | "gap" | "position";
 type DriverSet = "top5" | "following" | "custom";
 
 const ChampionshipTrajectory = dynamic(() => import("@/components/charts/ChampionshipTrajectory"), {
@@ -117,6 +117,28 @@ export function ProgressionPanel({
 
   const chartData = useMemo(() => {
     if (metric === "points") return teamProgression;
+
+    // Championship POSITION after each round, ranked on that round's own cumulative points rather
+    // than on the final order - otherwise every line would be flat at its end-of-season place and
+    // the chart would say nothing about how the order actually moved. Ranked against the whole
+    // field, not just the plotted entities, so "P3" means third in the championship.
+    if (metric === "position") {
+      const field = isDrivers ? drivers.map((d) => d.driver) : constructors.map((c) => c.team);
+      return teamProgression.map((row) => {
+        const ranked = field
+          .map((code) => ({ code, points: typeof row[code] === "number" ? (row[code] as number) : 0 }))
+          .sort((a, b) => b.points - a.points);
+        const out: Record<string, number | string | null> = { round: row.round, raceName: row.raceName, trackShort: row.trackShort };
+        for (const code of activeCodes) {
+          const idx = ranked.findIndex((r) => r.code === code);
+          // Null, not 0: an entity that hasn't scored yet has no championship position, and
+          // plotting it at zero would draw a line through the top of the chart.
+          out[code] = idx >= 0 && ranked[idx].points > 0 ? idx + 1 : null;
+        }
+        return out;
+      });
+    }
+
     return teamProgression.map((row) => {
       const leaderValue = typeof row[leaderCode] === "number" ? (row[leaderCode] as number) : 0;
       const out: Record<string, number | string | null> = { round: row.round, raceName: row.raceName, trackShort: row.trackShort };
@@ -126,7 +148,7 @@ export function ProgressionPanel({
       }
       return out;
     });
-  }, [metric, teamProgression, leaderCode, activeCodes]);
+  }, [metric, teamProgression, leaderCode, activeCodes, isDrivers, drivers, constructors]);
 
   const highlightTrack = useMemo(() => {
     if (highlightRound == null) return null;
@@ -151,6 +173,7 @@ export function ProgressionPanel({
         <QuietTabs
           options={[
             { value: "points" as const, label: "Points" },
+            { value: "position" as const, label: "Position" },
             { value: "gap" as const, label: "Gap to leader" },
           ]}
           value={metric}
