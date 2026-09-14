@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { teamColor } from "@/lib/teamColors";
+import { AnimatePresence, motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { WinnerMedia } from "../services/circuits.service";
+import type { CurrentTeam } from "@/lib/supabase/media";
+
+const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
+const HEADER_ROW_CLASS = "sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md";
+const PAGE_SIZE = 8;
 
 /** Wraps a driver's name in a real link to their profile page when this app has resolved one -
  * plain text otherwise, never a link to nowhere. */
@@ -19,12 +23,10 @@ function DriverLink({ href, children }: { href: string | null; children: React.R
   );
 }
 
-const PAGE_SIZE = 8;
-
 function Pagination({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) {
   if (pageCount <= 1) return null;
   return (
-    <div className="mt-3 flex items-center justify-between border-t border-white/[0.055] pt-3">
+    <div className="flex items-center justify-between border-t border-white/[0.07] px-3 py-2">
       <span className="text-[11px] text-neutral-600">
         Page {page} of {pageCount}
       </span>
@@ -50,7 +52,23 @@ function Pagination({ page, pageCount, onChange }: { page: number; pageCount: nu
   );
 }
 
-export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYearRecord[]; winnerMedia: Map<number, WinnerMedia> }) {
+/**
+ * The circuit's own real history - Drivers/Constructors/By Year, all three built on the same
+ * table structure and theme as the Season page's own Championship table (sticky translucent
+ * header, a real team logo via EntityAvatar rather than a plain color dot, bordered card
+ * container), not a bespoke look. A historic team with no current-roster logo just falls back to
+ * EntityAvatar's own initial, same as a driver with no photo - never a broken image, never an
+ * invented one.
+ */
+export function PastWinnersList({
+  timeline,
+  winnerMedia,
+  currentTeams,
+}: {
+  timeline: CircuitYearRecord[];
+  winnerMedia: Map<number, WinnerMedia>;
+  currentTeams: CurrentTeam[];
+}) {
   const [tab, setTab] = useState<"year" | "driver" | "team">("year");
   const [page, setPage] = useState(1);
 
@@ -62,6 +80,7 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
     setPage(1);
   }
 
+  const logoByTeam = useMemo(() => new Map(currentTeams.map((t) => [t.name, t.logoUrl])), [currentTeams]);
   const withWinners = timeline.filter((r) => r.winnerDriver);
 
   const { topDrivers, topTeams } = useMemo(() => {
@@ -99,8 +118,8 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
   const pageTeams = topTeams.slice(start, start + PAGE_SIZE);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1 border-b border-white/[0.06] pb-2">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-1">
         {(["year", "driver", "team"] as const).map((t) => (
           <button
             key={t}
@@ -114,48 +133,42 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
         ))}
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={tab}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.15 }}
-        >
-          {tab === "year" && (
-            <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[500px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/[0.06] text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                    <th className="py-2 pr-4 font-mono font-normal">Year</th>
-                    <th className="py-2 pr-4">Driver</th>
-                    <th className="py-2 pr-4">Team</th>
-                    <th className="py-2 pr-4">Grid</th>
-                    <th className="py-2 text-right">Margin</th>
+      <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+        <AnimatePresence mode="wait">
+          <motion.div key={tab} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}>
+            {tab === "year" && (
+              <table className="w-full text-left text-sm">
+                <thead className={HEADER_ROW_CLASS} style={HEADER_STYLE}>
+                  <tr>
+                    <th className="px-3 py-2.5 font-mono font-semibold">Year</th>
+                    <th className="px-3 py-2.5 font-semibold">Driver</th>
+                    <th className="px-3 py-2.5 font-semibold">Team</th>
+                    <th className="px-3 py-2.5 font-semibold">Grid</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Margin</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.055]">
+                <tbody className="divide-y divide-[var(--f1-line)]">
                   {pageWinners.map((r) => {
                     const media = winnerMedia.get(r.year) ?? null;
                     return (
                       <tr key={r.year} className="group transition-colors hover:bg-white/[0.02]">
-                        <td className="py-2.5 pr-4 font-mono text-[13px] font-medium text-white">{r.year}</td>
-                        <td className="py-2.5 pr-4 text-neutral-200">
+                        <td className="px-3 py-2 font-mono text-[13px] font-medium text-white">{r.year}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-neutral-200">
                           <DriverLink href={media?.href ?? null}>
-                            <div className="flex items-center gap-2">
-                              <EntityAvatar imageUrl={media?.photoUrl ?? null} name={r.winnerDriver as string} size={22} />
-                              {r.winnerDriver}
+                            <div className="flex min-w-0 items-center gap-2">
+                              <EntityAvatar imageUrl={media?.photoUrl ?? null} name={r.winnerDriver as string} size={26} fit="cover" />
+                              <span className="truncate">{r.winnerDriver}</span>
                             </div>
                           </DriverLink>
                         </td>
-                        <td className="py-2.5 pr-4 text-neutral-400">
-                          <span className="flex items-center gap-1.5">
-                            {r.winnerTeam && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: teamColor(r.winnerTeam) }} />}
-                            {r.winnerTeam || "—"}
-                          </span>
+                        <td className="whitespace-nowrap px-3 py-2 text-neutral-400">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            {r.winnerTeam && <EntityAvatar imageUrl={logoByTeam.get(r.winnerTeam) ?? null} name={r.winnerTeam} size={16} shape="square" fit="contain" />}
+                            <span className="truncate">{r.winnerTeam || "—"}</span>
+                          </div>
                         </td>
-                        <td className="py-2.5 pr-4 font-mono text-[11px] text-neutral-500">{r.winnerGrid != null ? `P${r.winnerGrid}` : "—"}</td>
-                        <td className="py-2.5 text-right font-mono text-[11px] tabular-nums text-neutral-400">
+                        <td className="px-3 py-2 font-mono text-[11px] text-neutral-500">{r.winnerGrid != null ? `P${r.winnerGrid}` : "—"}</td>
+                        <td className="px-3 py-2 text-right font-mono text-[11px] tabular-nums text-neutral-400">
                           {r.winningMarginSec != null ? `+${r.winningMarginSec.toFixed(3)}s` : "—"}
                         </td>
                       </tr>
@@ -163,47 +176,71 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
+            )}
 
-          {tab === "driver" && (
-            <ol className="divide-y divide-white/[0.055]">
-              {pageDrivers.map((d, i) => (
-                <li key={d.driver} className="flex items-center justify-between gap-3 py-2.5">
-                  <DriverLink href={d.media?.href ?? null}>
-                    <div className="flex items-center gap-3">
-                      <span className="w-5 font-mono text-[11px] text-neutral-600">{start + i + 1}</span>
-                      <EntityAvatar imageUrl={d.media?.photoUrl ?? null} name={d.driver} size={22} />
-                      {d.team && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: teamColor(d.team) }} />}
-                      <span className="font-medium text-neutral-200">{d.driver}</span>
-                    </div>
-                  </DriverLink>
-                  <span className="font-mono text-xs text-white">
-                    {d.count} win{d.count !== 1 && "s"}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
+            {tab === "driver" && (
+              <table className="w-full text-left text-sm">
+                <thead className={HEADER_ROW_CLASS} style={HEADER_STYLE}>
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold">#</th>
+                    <th className="px-3 py-2.5 font-semibold">Driver</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Wins</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--f1-line)]">
+                  {pageDrivers.map((d, i) => (
+                    <tr key={d.driver} className="transition-colors hover:bg-white/[0.02]">
+                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{start + i + 1}</td>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        <DriverLink href={d.media?.href ?? null}>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <EntityAvatar imageUrl={d.media?.photoUrl ?? null} name={d.driver} size={26} fit="cover" />
+                            {d.team && <EntityAvatar imageUrl={logoByTeam.get(d.team) ?? null} name={d.team} size={14} shape="square" fit="contain" />}
+                            <span className="truncate font-medium text-white">{d.driver}</span>
+                          </div>
+                        </DriverLink>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-white">
+                        {d.count} win{d.count !== 1 && "s"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
-          {tab === "team" && (
-            <ol className="divide-y divide-white/[0.055]">
-              {pageTeams.map((t, i) => (
-                <li key={t.team} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <span className="w-5 font-mono text-[11px] text-neutral-600">{start + i + 1}</span>
-                    <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: teamColor(t.team) }} />
-                    <span className="font-medium text-neutral-200">{t.team}</span>
-                  </div>
-                  <span className="font-mono text-xs text-white">{t.count} win{t.count !== 1 && "s"}</span>
-                </li>
-              ))}
-            </ol>
-          )}
+            {tab === "team" && (
+              <table className="w-full text-left text-sm">
+                <thead className={HEADER_ROW_CLASS} style={HEADER_STYLE}>
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold">#</th>
+                    <th className="px-3 py-2.5 font-semibold">Team</th>
+                    <th className="px-3 py-2.5 text-right font-semibold">Wins</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--f1-line)]">
+                  {pageTeams.map((t, i) => (
+                    <tr key={t.team} className="transition-colors hover:bg-white/[0.02]">
+                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{start + i + 1}</td>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <EntityAvatar imageUrl={logoByTeam.get(t.team) ?? null} name={t.team} size={20} shape="square" fit="contain" />
+                          <span className="truncate font-medium text-white">{t.team}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-white">
+                        {t.count} win{t.count !== 1 && "s"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
-          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
-        </motion.div>
-      </AnimatePresence>
+            <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

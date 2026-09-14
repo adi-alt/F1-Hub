@@ -135,9 +135,18 @@ function angleForRank(rank: number, totalCars: number, circulationT: number, max
 
 function pointAlong(shape: TrackShape, pathEl: SVGPathElement | null, t: number): { x: number; y: number } {
   if (!pathEl) return shape.startFinish;
-  const total = pathEl.getTotalLength();
-  const p = pathEl.getPointAtLength((((t % 1) + 1) % 1) * total);
-  return { x: p.x, y: p.y };
+  // Runs every animation frame, from inside a rAF callback - an exception there executes outside
+  // React's own call stack entirely, so a React error boundary can't catch it; it would just
+  // silently kill that one animation loop (or worse) rather than politely falling back. Same
+  // defensive reasoning as the getBBox() guard above, for the other SVG geometry calls this file
+  // added this session.
+  try {
+    const total = pathEl.getTotalLength();
+    const p = pathEl.getPointAtLength((((t % 1) + 1) % 1) * total);
+    return { x: p.x, y: p.y };
+  } catch {
+    return shape.startFinish;
+  }
 }
 
 /** Pure position computation - takes the path ELEMENT as a plain argument rather than reading a
@@ -348,8 +357,20 @@ export function TrackMap({
       setTightViewBox(null);
       return;
     }
-    const box = el.getBBox();
-    if (box.width <= 0 || box.height <= 0) {
+    // getBBox() is a documented cross-browser crash risk - Firefox and Safari can throw
+    // NS_ERROR_FAILURE rather than return a zero box when the element (or an ancestor) isn't
+    // fully laid out yet, e.g. mid route-transition. The risky call is isolated to its own try
+    // (returning null on failure) rather than wrapping the setState calls themselves - keeping
+    // THOSE in the same plain guard-clause shape React's own set-state-in-effect lint rule
+    // otherwise flags a try/catch around as suspicious, even though nothing about calling
+    // setState synchronously here actually changed.
+    let box: DOMRect | null;
+    try {
+      box = el.getBBox();
+    } catch {
+      box = null;
+    }
+    if (!box || box.width <= 0 || box.height <= 0) {
       setTightViewBox(null);
       return;
     }

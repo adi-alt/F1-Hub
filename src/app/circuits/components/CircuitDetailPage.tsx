@@ -81,7 +81,7 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
       {timeline.length > 0 && (
         <div>
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Past winners</p>
-          <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} />
+          <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
         </div>
       )}
     </div>
