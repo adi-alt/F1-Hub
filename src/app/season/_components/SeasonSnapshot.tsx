@@ -40,7 +40,10 @@ export function SeasonSnapshot({ items, personal }: { items: SnapshotItem[]; per
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Season snapshot</p>
       <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
 
-      <div className="mt-1 grid grid-cols-2 sm:grid-cols-4">
+      {/* `grid-rows-[auto_auto_auto_auto]` on each item, with the items themselves stretched, is
+          what keeps label/name/value/reason on four shared baselines across all four columns -
+          a shared min-height only equalises the box, not the lines inside it. */}
+      <div className="mt-1 grid grid-cols-2 items-stretch sm:grid-cols-4">
         {items.map((item, i) => {
           const isFavorite = item.entityIds.some((id) => favoriteIds.has(id));
           return (
@@ -50,7 +53,7 @@ export function SeasonSnapshot({ items, personal }: { items: SnapshotItem[]; per
               onClick={() => activate(item)}
               // The whole item is one target rather than a small link inside it - these are
               // finger-sized on a phone by construction, not by adding padding to an icon.
-              className="group relative min-h-[76px] rounded-[3px] px-0 py-3.5 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] sm:px-4 sm:first:pl-0"
+              className="group relative grid grid-rows-[auto_auto_auto_auto] content-start gap-y-1 rounded-[3px] px-0 py-3.5 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] sm:px-4 sm:first:pl-0"
               initial={reduceMotion ? false : { opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, delay: reduceMotion ? 0 : i * 0.04, ease: "easeOut" }}
@@ -69,9 +72,9 @@ export function SeasonSnapshot({ items, personal }: { items: SnapshotItem[]; per
                 )}
               </span>
 
-              <span className="mt-1.5 block truncate text-[15px] font-semibold text-white transition-colors group-hover:text-white">{item.name}</span>
-              {item.value && <span className="mt-0.5 block truncate font-mono text-xs tabular-nums text-neutral-400">{item.value}</span>}
-              <span className="mt-1 block truncate text-[11px] text-neutral-600 transition-colors group-hover:text-neutral-400">{item.reason}</span>
+              <span className="block truncate text-[15px] font-semibold leading-tight text-white">{item.name}</span>
+              <span className="block truncate font-mono text-xs leading-tight tabular-nums text-neutral-400">{item.value ?? "\u00a0"}</span>
+              <span className="block truncate text-[11px] leading-tight text-neutral-600 transition-colors group-hover:text-neutral-400">{item.reason}</span>
             </motion.button>
           );
         })}

@@ -111,13 +111,16 @@ export function ComparePanel({
       </div>
 
       {/* 3. The deterministic scoreboard. Rendered immediately, never waits on the model. */}
-      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-baseline gap-3 sm:gap-5">
-        <Score name={pair.a.name} value={pair.a.points} leading={pair.aheadId === pair.a.id} align="right" />
-        <div className="pb-1 text-center">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">pts</p>
-          <p className="mt-0.5 font-mono text-[11px] tabular-nums text-neutral-500">{pair.pointsGap === 0 ? "level" : `+${pair.pointsGap}`}</p>
+      <div className="mt-4">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-baseline gap-3 sm:gap-5">
+          <Score name={pair.a.name} value={pair.a.points} leading={pair.aheadId === pair.a.id} align="right" />
+          <div className="pb-1 text-center">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">vs</p>
+            <p className="mt-0.5 font-mono text-[11px] tabular-nums text-neutral-500">{pair.pointsGap === 0 ? "level" : `+${pair.pointsGap}`}</p>
+          </div>
+          <Score name={pair.b.name} value={pair.b.points} leading={pair.aheadId === pair.b.id} align="left" />
         </div>
-        <Score name={pair.b.name} value={pair.b.points} leading={pair.aheadId === pair.b.id} align="left" />
+        <p className="mt-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Championship points</p>
       </div>
 
       {/* 4. Apex. Its own loading state, below the facts, never blocking them. */}

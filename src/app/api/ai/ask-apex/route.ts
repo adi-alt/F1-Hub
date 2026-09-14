@@ -14,6 +14,7 @@ import { logAIError } from "@/lib/ai/telemetry";
 import { getMemberRole } from "@/lib/supabase/groups";
 import { getUserProfile } from "@/lib/supabase/users";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
+import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
 
@@ -34,6 +35,11 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
   // The race window's round, if one is open. Validated as a real round of THIS season before any
   // of its facts are read - a hand-edited id resolves to nothing rather than to another season's
   // round.
+  const timeline = buildSeasonTimeline(data.drivers, data.raceSummaries, data.progression);
+  const momentumShift = findMomentumShift(timeline);
+  const momentum = computeMomentum(data.drivers, data.raceSummaries);
+  const teamTrends = computeTeamTrends(data.constructors, data.raceSummaries);
+
   const rawRound = typeof clientContext.selectedRaceId === "string" ? Number(clientContext.selectedRaceId) : null;
   const openRace = rawRound !== null && Number.isInteger(rawRound) ? data.raceSummaries.find((r) => r.round === rawRound) ?? null : null;
 
@@ -44,6 +50,41 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
     constructorStandings: data.constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
     battles: data.battles.slice(0, 6),
     records: data.records.slice(0, 8),
+
+    // ── How the season got here ──────────────────────────────────────────────
+    // Without this, questions about CHANGE ("when did the championship turn?", "who has
+    // momentum?", "which team improved most?") had nothing to work from, and Apex correctly but
+    // uselessly replied that it didn't have a race-by-race timeline. One row per completed round
+    // (not per driver per round) keeps it small enough to send in full.
+    timeline: timeline.map((t) => ({
+      round: t.round,
+      race: t.raceName,
+      winner: t.winner,
+      leader: t.leader,
+      leaderPoints: t.leaderPoints,
+      gapToSecond: t.gap,
+      second: t.second,
+    })),
+
+    // The analyses themselves, already computed. The model narrates these; it never derives them,
+    // so a "turning point" answer is reproducible rather than invented.
+    analytics: {
+      momentumShift: momentumShift
+        ? {
+            round: momentumShift.round,
+            race: momentumShift.raceName,
+            gapBefore: momentumShift.gapBefore,
+            gapAfter: momentumShift.gapAfter,
+            swing: momentumShift.swing,
+            leadChangedHands: momentumShift.leadChanged,
+            leaderBefore: momentumShift.leaderBefore,
+            leaderAfter: momentumShift.leaderAfter,
+            surroundingRounds: momentumShift.window.map((w) => `R${w.round} ${w.raceName}: ${w.leader} leads by ${w.gap ?? 0}${w.winner ? `, won by ${w.winner}` : ""}`),
+          }
+        : null,
+      momentum: momentum.slice(0, 6).map((m) => ({ name: m.name, pointsLast3: m.last3, pointsLast5: m.last5 })),
+      teamTrends: teamTrends.slice(0, 5).map((t) => ({ team: t.team, earlyAvgPerRound: t.earlyAvgPoints, recentAvgPerRound: t.recentAvgPoints, change: t.delta })),
+    },
     // Resolved server-side from the round id the client named - the facts come from here, never
     // from the client.
     openRace: openRace
@@ -76,6 +117,11 @@ export const maxDuration = 30;
 const MAX_QUESTION_LENGTH = 500;
 const MAX_HISTORY_TURNS = 6;
 const MAX_INTELLIGENCE_JSON_LENGTH = 6000;
+// Server-built grounding (the season page) is authoritative data this route assembled itself, not
+// an untrusted client payload, so it gets a larger budget. The cap above still governs anything
+// the client supplied. Truncating server context at 6000 chars silently cut the round-by-round
+// timeline in half and left the model with a corrupt JSON tail.
+const MAX_SERVER_CONTEXT_JSON_LENGTH = 18_000;
 // A defensive cap on the raw client payload BEFORE it's ever JSON.stringify'd/sanitized - an
 // untrusted client could send an arbitrarily large object; bail out early rather than paying the
 // cost of serializing/sanitizing something enormous.
@@ -143,16 +189,23 @@ export async function POST(req: Request) {
       ? body.context
       : { page: "home", snapshot: isPlainObject(body.intelligenceSnapshot) ? body.intelligenceSnapshot : {} };
 
+    // Tracks whether the context the model finally receives was assembled HERE from authoritative
+    // data, or echoed from the client - they get different size budgets, and only the latter is
+    // untrusted.
+    let serverBuilt = false;
     if (context.page === "season") {
       const seasonContext = await buildSeasonGroundingContext(userId, context);
-      if (seasonContext) context = seasonContext;
+      if (seasonContext) {
+        context = seasonContext;
+        serverBuilt = true;
+      }
     }
 
     const rawJson = JSON.stringify(context);
     if (rawJson.length > MAX_RAW_PAYLOAD_BYTES) {
       return NextResponse.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
     }
-    const intelligenceJson = sanitizePromptInput(rawJson, MAX_INTELLIGENCE_JSON_LENGTH);
+    const intelligenceJson = sanitizePromptInput(rawJson, serverBuilt ? MAX_SERVER_CONTEXT_JSON_LENGTH : MAX_INTELLIGENCE_JSON_LENGTH);
 
     // Scope assertion. The snapshot is client-supplied, and a client can only ever hold what the
     // server already rendered for it after requireMember - so a non-member's browser physically

@@ -137,6 +137,18 @@ export function ChampionshipStandings({
     return () => window.clearTimeout(timer);
   }, [focus, entityType]);
 
+  // Distinguishes "your filter matched nothing" from "this championship has no rows yet" - the
+  // two need different wording, and a bare empty table answers neither.
+  const visibleCount = isDrivers ? sortedDrivers.length : sortedConstructors.length;
+  const emptyMessage =
+    visibleCount > 0
+      ? null
+      : search.trim()
+        ? `No ${isDrivers ? "drivers" : "teams"} match "${search.trim()}".`
+        : favoritesOnly
+          ? `None of your favorites are in the ${isDrivers ? "drivers'" : "constructors'"} championship yet.`
+          : `No ${isDrivers ? "driver" : "team"} has scored yet this season.`;
+
   const driverRows = (): { columns: string[]; rows: (string | number)[][] } => ({
     columns: ["Pos", "Driver", "Team", "Wins", "Podiums", "Points", "Gap"],
     rows: sortedDrivers.map((d, i) => [i + 1, d.driverName, d.team, d.wins, d.podiums, d.points, gapLabel(d.points, leaderPoints)]),
@@ -147,8 +159,10 @@ export function ChampionshipStandings({
   });
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+    // Fills its grid cell so the table body (not the whole component) is what scrolls - the
+    // header/tabs/search stay pinned and the bottom edge lands exactly where What Changed's does.
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Championship</p>
           <div className="mt-2.5">
@@ -194,8 +208,8 @@ export function ChampionshipStandings({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
-        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="max-h-[520px] overflow-auto scrollbar-hide">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="min-h-0 flex-1 overflow-auto scrollbar-hide">
           <table className="w-full min-w-[680px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
@@ -326,6 +340,11 @@ export function ChampionshipStandings({
               </AnimatePresence>
             </tbody>
           </table>
+          {emptyMessage && (
+            <div className="flex min-h-[140px] items-center justify-center px-6">
+              <p className="text-center text-sm text-neutral-500">{emptyMessage}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -152,15 +152,26 @@ export function SeasonDetail({
         <SeasonSnapshot items={snapshot} personal={personal} />
 
         {/* ── Standings + what changed ─────────────────────────────────────────
-            `items-stretch` with a full-height child is what actually balances this row: the
-            standings table defines the height, and What Changed fills the same row rather than
-            stopping short and leaving a hole under it. No padding is added to fake the match. */}
-        <div className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
-          <div className="min-w-0">
+            The two columns share ONE declared row height and each fills it, scrolling internally.
+            That is what makes their bottom edges line up exactly, and it holds regardless of which
+            championship tab is active, how many rows a search leaves, or how tall the viewport is -
+            none of which a "tallest child wins" stretch could guarantee. No padding is added to
+            fake the match; the space is real and both components use it.
+            Height applies only from `lg`, where they sit side by side. Stacked on smaller screens
+            they size to their own content, because matching heights in a single column is
+            meaningless. */}
+        <div className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
+          <div className="flex min-h-0 min-w-0 flex-col">
             <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} personal={personal} />
           </div>
-          <div className="min-w-0">
-            <WhatChangedRecently drivers={drivers} constructors={constructors} progression={progression} personal={personal} />
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <WhatChangedRecently
+              drivers={drivers}
+              constructors={constructors}
+              raceSummaries={raceSummaries}
+              progression={progression}
+              personal={personal}
+            />
           </div>
         </div>
 
@@ -182,7 +193,7 @@ export function SeasonDetail({
         {/* Rendered once, driven by the route. Mounted here (not inside the calendar) so a race can
             be opened from anywhere on the page, and so a direct link with ?race= opens it without
             the calendar needing to be involved at all. */}
-        <RaceQuickView season={year} raceSummaries={raceSummaries} />
+        <RaceQuickView season={year} raceSummaries={raceSummaries} drivers={drivers} />
       </SeasonIntelligenceProvider>
     </SeasonExplorerProvider>
   );
