@@ -85,6 +85,39 @@ export const RaceEventTakeSchema = z.object({
 
 export type RaceEventTake = z.infer<typeof RaceEventTakeSchema>;
 
+export const CircuitTakeBlockSchema = z.object({
+  headline: z.string(),
+  summary: z.string(),
+  evidenceIds: optionalStringArray,
+});
+
+export const RaceDifferenceBlockSchema = z.object({
+  headline: z.string(),
+  summary: z.string(),
+  factors: z.array(
+    z.object({
+      label: z.string(),
+      evidenceIds: optionalStringArray,
+    })
+  ).nullish().transform((v) => v ?? []),
+});
+
+export const TrackVsSeasonBlockSchema = z.object({
+  headline: z.string(),
+  summary: z.string(),
+  metrics: optionalStringArray,
+  evidenceIds: optionalStringArray,
+});
+
+export const SharedCircuitIntelligenceSchema = z.object({
+  trackTake: CircuitTakeBlockSchema.optional(),
+  raceDifference: RaceDifferenceBlockSchema.optional(),
+  trackVsSeason: TrackVsSeasonBlockSchema.optional(),
+  historicalPattern: CircuitTakeBlockSchema.optional(),
+});
+
+export type SharedCircuitIntelligence = z.infer<typeof SharedCircuitIntelligenceSchema>;
+
 /** The model is asked to copy ids "without the brackets", and mostly does - but observed live, it
  * sometimes returns "[ANT]" verbatim from the context instead of "ANT". Every one of those was
  * then silently filtered out as an unknown id, so highlighting never worked at all. Normalizing
@@ -171,4 +204,41 @@ export function validateRaceEventTake(data: unknown): { valid: boolean; data?: R
   const result = RaceEventTakeSchema.safeParse(data);
   if (!result.success) return { valid: false, errors: result.error };
   return { valid: true, data: result.data };
+}
+
+export function validateSharedCircuitIntelligence(data: unknown, validIds: string[]): { valid: boolean; data?: SharedCircuitIntelligence; errors?: unknown } {
+  const result = SharedCircuitIntelligenceSchema.safeParse(data);
+  if (!result.success) return { valid: false, errors: result.error };
+  
+  const parsed = result.data;
+  const known = new Set(validIds);
+
+  const cleanIds = (ids: string[]) => ids.map(normalizeId).filter((id) => known.has(id));
+
+  // Strip invalid blocks deterministically rather than failing entirely
+  if (parsed.trackTake) {
+    parsed.trackTake.evidenceIds = cleanIds(parsed.trackTake.evidenceIds);
+  }
+  
+  if (parsed.raceDifference) {
+    parsed.raceDifference.factors = parsed.raceDifference.factors.map(f => ({
+      ...f,
+      evidenceIds: cleanIds(f.evidenceIds),
+    }));
+  }
+  
+  if (parsed.trackVsSeason) {
+    parsed.trackVsSeason.evidenceIds = cleanIds(parsed.trackVsSeason.evidenceIds);
+  }
+  
+  if (parsed.historicalPattern) {
+    parsed.historicalPattern.evidenceIds = cleanIds(parsed.historicalPattern.evidenceIds);
+  }
+
+  // Do not cache malformed intelligence if ALL blocks are stripped/empty
+  if (!parsed.trackTake && !parsed.raceDifference && !parsed.trackVsSeason && !parsed.historicalPattern) {
+    return { valid: false, errors: "All blocks stripped or missing." };
+  }
+
+  return { valid: true, data: parsed };
 }

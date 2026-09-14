@@ -19,14 +19,14 @@ import { generateCircuitTakeFallback } from "@/lib/ai/fallback";
 import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
 import { raceTitle } from "@/lib/format";
 import type { AgentContext } from "@/lib/ai/types";
-import type { RaceEventTake, IntelligenceSource } from "@/lib/ai/schemas/seasonIntelligence";
+import type { SharedCircuitIntelligence, IntelligenceSource } from "@/lib/ai/schemas/seasonIntelligence";
 
 export const maxDuration = 45;
 const COMPLETED_TTL_SECONDS = 60 * 60 * 24 * 14; // this season's own result here never changes once it's run
 const ACTIVE_TTL_SECONDS = 60 * 30; // upcoming/next - forecast and form both still move
 const CACHE_VERSION = `circuit-ctx-v1+${CIRCUIT_TAKE_PROMPT_VERSION}`;
 
-type Envelope = { content: RaceEventTake; source: IntelligenceSource; generatedAt: string; location: string };
+type Envelope = { content: SharedCircuitIntelligence; source: IntelligenceSource; generatedAt: string; location: string };
 
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;

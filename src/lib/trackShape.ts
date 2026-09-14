@@ -12,6 +12,11 @@
 // every reload) via a seeded PRNG rather than Math.random.
 
 import type { TrackType } from "./circuitFacts";
+import circuitShapesData from "./circuitShapes.json";
+
+type CircuitShapeEntry = { path: string; viewBox?: string };
+type CircuitShapesFile = { metadata?: unknown; shapes: Record<string, CircuitShapeEntry> };
+const circuitShapes = circuitShapesData as CircuitShapesFile;
 
 // Pure, tiny, dependency-free PRNG (mulberry32) - deterministic across server and client renders
 // from the same string seed, which Math.random() can never be (and which pulling in a package for
@@ -36,23 +41,38 @@ export type TrackPoint = { x: number; y: number };
 export type TurnMarker = TrackPoint & { number: number };
 
 export type TrackShape = {
-  /** A closed SVG path `d` string in a 0-100 x 0-100 viewBox, drawn with cubic Beziers through a
-   * ring of seeded control points - smooth, closed, and stable across renders for the same seed. */
+  /** A closed SVG path `d` string */
   path: string;
-  /** Positions for numbered turn markers, evenly spaced by arc-length-ish placement around the
-   * same control ring the path itself uses (not literally the true apex of each real corner -
-   * this is schematic, so markers are evenly distributed rather than claiming exact corner
-   * placement no real geometry here could actually back up). */
+  /** The SVG viewBox for this path */
+  viewBox: string;
+  /** Positions for numbered turn markers (schematic fallback only, real SVG geometry omits these) */
   turns: TurnMarker[];
-  /** The start/finish point, always the first control point on the ring. */
+  /** The start/finish point */
   startFinish: TrackPoint;
+  /** Whether this is authentic geometry or a schematic fallback */
+  isAuthentic: boolean;
 };
 
-/** More turns and a street layout read as a tighter, more irregular loop; fewer turns and a
- * permanent circuit read as a smoother, more elongated one - a real (if coarse) visual echo of
- * "this is a tight street track" vs. "this is a flowing permanent circuit", without claiming to
- * be either track's real shape. */
+/** Returns authentic SVG geometry if available in the ingested dataset, otherwise falls back to a 
+ * deterministic schematic loop shaped by the circuit's own real characteristics. */
 export function generateTrackShape(seed: string, turns: number, trackType: TrackType): TrackShape {
+  const normalizedId = seed.toLowerCase();
+  const shapesData = circuitShapes.shapes;
+  const data = shapesData[normalizedId];
+
+  if (data) {
+    // Extract first coordinate as an approximation of start/finish for the authentic SVGs
+    const m = data.path.match(/M\s*([0-9.-]+)[, ]([0-9.-]+)/);
+    const startFinish = m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 50, y: 50 };
+    return {
+      path: data.path,
+      viewBox: data.viewBox || "0 0 1000 1000",
+      turns: [], // Authentic maps don't have evenly spaced procedural turns
+      startFinish,
+      isAuthentic: true,
+    };
+  }
+
   const rand = seededRandom(`${seed}:${turns}:${trackType}`);
   const pointCount = Math.max(8, Math.min(22, turns));
   const cx = 50;
@@ -77,7 +97,7 @@ export function generateTrackShape(seed: string, turns: number, trackType: Track
 
   const turnMarkers: TurnMarker[] = ring.slice(0, Math.min(turns, ring.length)).map((p, i) => ({ ...p, number: i + 1 }));
 
-  return { path, turns: turnMarkers, startFinish: ring[0] };
+  return { path, viewBox: "0 0 100 100", turns: turnMarkers, startFinish: ring[0], isAuthentic: false };
 }
 
 function catmullRomClosed(points: TrackPoint[]): string {

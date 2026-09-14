@@ -323,7 +323,7 @@ export function generateDeterministicRaceFallback(context: RaceIntelligenceConte
 }
 
 
-import type { SharedSeasonIntelligence, SeasonCompareInsight, RaceEventTake } from "./schemas/seasonIntelligence";
+import type { SharedSeasonIntelligence, SeasonCompareInsight, RaceEventTake, SharedCircuitIntelligence } from "./schemas/seasonIntelligence";
 import type { ComparePair, RaceSummary } from "@/app/season/_service/season.pure";
 import type { SeasonNarrativeContext } from "./context/seasonContext";
 import type { CircuitContext } from "./context/circuitContext";
@@ -527,10 +527,10 @@ export function generateRaceEventFallback(race: RaceSummary): RaceEventTake {
 /** The circuit take's own fallback - same no-implementation-vocabulary rule as every other
  * fallback here, and state-aware for the same reason the real prompt is: a circuit whose round
  * hasn't run yet must never get a sentence that reads like a result. */
-export function generateCircuitTakeFallback(ctx: CircuitContext): RaceEventTake {
+export function generateCircuitTakeFallback(ctx: CircuitContext): SharedCircuitIntelligence {
   if (ctx.state === "completed" && ctx.currentSeasonResult?.winner) {
     const r = ctx.currentSeasonResult;
-    return {
+    const trackTake = {
       headline: `${r.winner} takes ${ctx.grandPrixName ?? "the race"} at ${ctx.displayName}`,
       summary: [
         `${r.winner} won at ${ctx.displayName} this season.`,
@@ -539,24 +539,28 @@ export function generateCircuitTakeFallback(ctx: CircuitContext): RaceEventTake 
       ]
         .filter(Boolean)
         .join(" "),
+      evidenceIds: [],
     };
+    return { trackTake };
   }
 
   if (ctx.state === "next" || ctx.state === "upcoming") {
     const record = ctx.records.mostWins;
-    return {
+    const trackTake = {
       headline: `${ctx.displayName}${ctx.facts ? `, ${ctx.facts.trackType} circuit` : ""}`,
       summary: [
         ctx.facts ? `${ctx.displayName} runs ${ctx.facts.lengthKm.toFixed(1)}km over ${ctx.facts.turns} turns.` : `Full track characteristics for ${ctx.displayName} aren't recorded yet.`,
-        record ? `${record.driver} has won here more than anyone else on record, ${record.count} times.` : null,
+        record ? `${record.driver} holds the record with ${record.count} win(s) here.` : "No winner history recorded.",
       ]
         .filter(Boolean)
         .join(" "),
+      evidenceIds: [],
     };
+    return { trackTake };
   }
 
   const record = ctx.records.mostWins;
-  return {
+  const trackTake = {
     headline: ctx.displayName,
     summary: [
       ctx.facts ? `${ctx.displayName} is a ${ctx.facts.trackType} circuit of ${ctx.facts.lengthKm.toFixed(1)}km with ${ctx.facts.turns} turns.` : `Detailed characteristics for ${ctx.displayName} aren't recorded yet.`,
@@ -564,5 +568,7 @@ export function generateCircuitTakeFallback(ctx: CircuitContext): RaceEventTake 
     ]
       .filter(Boolean)
       .join(" "),
+    evidenceIds: [],
   };
+  return { trackTake };
 }

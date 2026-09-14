@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { generateTrackShape } from "../trackShape";
 import { describeTrackCharacter, getCircuitFacts, type CircuitFacts } from "../circuitFacts";
-import { buildCircuitContext } from "../ai/context/circuitContext";
+import { buildCircuitContext, circuitValidIds } from "../ai/context/circuitContext";
+import { validateSharedCircuitIntelligence } from "../ai/schemas/seasonIntelligence";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
 
 describe("generateTrackShape", () => {
@@ -19,8 +20,12 @@ describe("generateTrackShape", () => {
     assert.notEqual(monza.path, monaco.path);
   });
 
-  it("always produces a closed path within the declared viewBox", () => {
-    const shape = generateTrackShape("Silverstone", 18, "permanent");
+  it("the schematic fallback always produces a closed path within its own 0-100 viewBox", () => {
+    // "Bahrain" is deliberately a seed circuitShapes.json does NOT cover - this exercises the
+    // procedural fallback specifically, not whichever branch the real dataset happens to hit.
+    const shape = generateTrackShape("Bahrain", 15, "permanent");
+    assert.equal(shape.isAuthentic, false);
+    assert.equal(shape.viewBox, "0 0 100 100");
     assert.match(shape.path, /^M .*Z$/, "path must start with a moveto and close with Z");
     // Every coordinate the generator can produce sits inside its own 0-100 viewBox - a shape that
     // draws outside its box would clip against the SVG's own viewBox silently.
@@ -33,10 +38,31 @@ describe("generateTrackShape", () => {
   });
 
   it("caps turn markers at the ring's own point count rather than fabricating extra points", () => {
-    // 30 requested turns still can't exceed the generator's own 8-22 point-count clamp.
-    const shape = generateTrackShape("Jeddah", 27, "street");
+    // 30 requested turns still can't exceed the generator's own 8-22 point-count clamp. "Bahrain"
+    // again, so this exercises the schematic branch (the only one that produces turn markers at
+    // all) rather than whichever circuit circuitShapes.json happens to cover next.
+    const shape = generateTrackShape("Bahrain", 27, "street");
     assert.ok(shape.turns.length <= 22);
     assert.equal(shape.turns.length, shape.turns[shape.turns.length - 1]?.number);
+  });
+
+  it("prefers real authentic geometry over the schematic fallback when circuitShapes.json covers the circuit", () => {
+    // Silverstone is a real, ingested entry - confirms the dataset is actually wired up, not just
+    // present on disk unused.
+    const shape = generateTrackShape("Silverstone", 18, "permanent");
+    assert.equal(shape.isAuthentic, true);
+    assert.equal(shape.viewBox, "0 0 1000 1000");
+    assert.match(shape.path, /^M/, "an authentic path is still a real SVG path starting with a moveto");
+    // Authentic geometry has no evenly-spaced procedural turn markers to fabricate - an empty
+    // array here is the honest, documented behavior, not a bug (see generateTrackShape's comment).
+    assert.deepEqual(shape.turns, []);
+  });
+
+  it("resolves authentic geometry the same way regardless of casing", () => {
+    const lower = generateTrackShape("silverstone", 18, "permanent");
+    const mixed = generateTrackShape("Silverstone", 18, "permanent");
+    assert.equal(lower.path, mixed.path);
+    assert.equal(lower.isAuthentic, true);
   });
 });
 
@@ -120,6 +146,14 @@ describe("buildCircuitContext", () => {
     assert.deepEqual(ctx.currentSeasonResult?.biggestGainer, { name: "Kimi Antonelli", places: 2 });
   });
 
+  it("evidenceIds carries every real name the formatted context actually shows the model - never an empty list that would silently reject every real citation", () => {
+    const ctx = buildCircuitContext("Monza", "Autodromo Nazionale Monza", "Italian Grand Prix", "Italy", 2026, null, race("completed", "completed"), []);
+    assert.ok(ctx.evidenceIds.includes("Kimi Antonelli"), "the winner must be a valid citation");
+    assert.ok(ctx.evidenceIds.includes("Lando Norris"), "the pole sitter/runner-up must be a valid citation");
+    // Deduplicated - Antonelli appears as winner, podium P1, AND biggest gainer, but only once here.
+    assert.equal(ctx.evidenceIds.filter((id) => id === "Kimi Antonelli").length, 1);
+  });
+
   it("derives 'next'/'upcoming' from a round that hasn't run, with no result attached", () => {
     const ctx = buildCircuitContext("Monza", "Autodromo Nazionale Monza", "Italian Grand Prix", "Italy", 2026, null, race("next", "upcoming"), []);
     assert.equal(ctx.state, "next");
@@ -132,5 +166,69 @@ describe("buildCircuitContext", () => {
     assert.equal(ctx.state, "unscheduled");
     assert.equal(ctx.currentSeasonResult, null);
     assert.equal(ctx.upcoming, null);
+  });
+});
+
+describe("validateSharedCircuitIntelligence", () => {
+  const ctx = buildCircuitContext("Monza", "Autodromo Nazionale Monza", "Italian Grand Prix", "Italy", 2026, null, {
+    round: 14,
+    name: "Italian Grand Prix",
+    trackShort: "MNZ",
+    raceDate: "2026-09-06T13:00:00",
+    state: "completed",
+    sessions: [],
+    poleSitter: "NOR",
+    results: [{ driver: "ANT", driverName: "Kimi Antonelli", team: "Mercedes", finishPosition: 1, points: 25, grid: 3, status: "finished" }],
+    hasQualifying: true,
+    circuit: "Monza",
+    country: "Italy",
+    eventFormat: null,
+    isSprintWeekend: false,
+    weekendStatus: "completed",
+    photoUrls: [],
+    circuitPhotoUrls: [],
+    forecast: null,
+    raceWeather: null,
+    podium: [{ position: 1, driver: "ANT", driverName: "Kimi Antonelli", team: "Mercedes" }],
+    winnerName: "Kimi Antonelli",
+    poleSitterName: "Lando Norris",
+    fastestLap: null,
+    predicted: null,
+  } satisfies RaceSummary, []);
+
+  // Regression test for a real shipped bug: generateCircuitTake once called this validator with a
+  // hardcoded `[]` instead of circuitValidIds(context) - every real evidenceId the model ever
+  // returned was silently stripped, every time, for every circuit. circuitValidIds(ctx) must
+  // return a real, non-empty id space whenever there's real current-season data to cite.
+  it("circuitValidIds is never empty when there's real evidence to cite - the exact condition the shipped bug violated", () => {
+    assert.ok(circuitValidIds(ctx).length > 0);
+  });
+
+  it("keeps a real citation and strips only what the model invented, rather than rejecting the whole response", () => {
+    const result = validateSharedCircuitIntelligence(
+      {
+        trackTake: { headline: "Antonelli wins at Monza", summary: "A real result.", evidenceIds: ["Kimi Antonelli", "Someone Invented"] },
+      },
+      circuitValidIds(ctx),
+    );
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.data?.trackTake?.evidenceIds, ["Kimi Antonelli"]);
+  });
+
+  it("keeps a block's real headline/summary even once every one of its citations gets stripped", () => {
+    // Stripping bad evidenceIds down to [] doesn't throw away the real editorial content sitting
+    // next to it - only a response with no blocks AT ALL is rejected (see the next test).
+    const result = validateSharedCircuitIntelligence(
+      { trackTake: { headline: "x", summary: "y", evidenceIds: ["Someone Invented"] } },
+      circuitValidIds(ctx),
+    );
+    assert.equal(result.valid, true);
+    assert.equal(result.data?.trackTake?.headline, "x");
+    assert.deepEqual(result.data?.trackTake?.evidenceIds, []);
+  });
+
+  it("rejects a response with no recognized blocks at all", () => {
+    const result = validateSharedCircuitIntelligence({}, circuitValidIds(ctx));
+    assert.equal(result.valid, false);
   });
 });

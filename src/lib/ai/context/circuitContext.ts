@@ -38,6 +38,12 @@ export type CircuitContext = {
   topWinners: { driver: string; wins: number }[];
   trends: ReturnType<typeof computeRaceTrends>;
   weather: ReturnType<typeof computeWeatherHistory>;
+  /** Every real name formatCircuitContext actually presents to the model, verbatim - the only
+   * evidenceIds validateSharedCircuitIntelligence should accept as real. Names, not codes: unlike
+   * seasonContext.ts's id space (driver codes, because that's what the Season UI highlights by),
+   * nothing here is presented to the model as a code, so a code-based id space would just reject
+   * every citation the model makes against text it can actually see. */
+  evidenceIds: string[];
 };
 
 export function buildCircuitContext(
@@ -68,6 +74,21 @@ export function buildCircuitContext(
     };
   }
 
+  const trackRecords = computeTrackRecords(timeline);
+  const topWinners = computeTopWinners(timeline, 3);
+  const evidenceIds = [...new Set(
+    [
+      currentSeasonRace?.winnerName,
+      currentSeasonRace?.poleSitterName,
+      currentSeasonRace?.fastestLap?.driverName,
+      currentSeasonResult?.biggestGainer?.name,
+      ...currentSeasonRace?.podium.map((p) => p.driverName) ?? [],
+      trackRecords.mostWins?.driver,
+      trackRecords.mostPoles?.driver,
+      ...topWinners.map((w) => w.driver),
+    ].filter((v): v is string => !!v),
+  )];
+
   let upcoming: CircuitContext["upcoming"] = null;
   if (currentSeasonRace && state !== "completed") {
     upcoming = {
@@ -88,11 +109,19 @@ export function buildCircuitContext(
     currentSeasonResult,
     upcoming,
     timelineYears: timeline.length,
-    records: computeTrackRecords(timeline),
-    topWinners: computeTopWinners(timeline, 3),
+    records: trackRecords,
+    topWinners,
+    evidenceIds,
     trends: computeRaceTrends(timeline),
     weather: computeWeatherHistory(timeline),
   };
+}
+
+/** Every id the model is allowed to cite as evidence - same role as seasonContext.ts's own
+ * seasonValidIds, kept as a thin wrapper (rather than inlining `ctx.evidenceIds` at the one real
+ * call site) for the same calling convention orchestrator.ts already uses for Season. */
+export function circuitValidIds(ctx: CircuitContext): string[] {
+  return ctx.evidenceIds;
 }
 
 export function formatCircuitContext(ctx: CircuitContext): string {

@@ -23,15 +23,22 @@ HARD CONSTRAINTS
 2. STATE DISCIPLINE: ${STATE_FOCUS[state]}
 3. NEVER SCORE A PREDICTION: if you speculate about the coming weekend, frame it plainly as outlook, never as a stated fact.
 4. OUTPUT: raw JSON only. No markdown fences, no commentary.
+5. EXPLICIT EVIDENCE: Always provide evidenceIds for references you make, citing the exact ID from the provided context.
 
 EDITORIAL RULES
-- Two to three sentences. Specific, not atmospheric ("iconic", "legendary" and "unforgiving" used without a reason attached are filler).
+- Two to three sentences per block. Specific, not atmospheric ("iconic", "legendary" and "unforgiving" used without a reason attached are filler).
 - Do not just restate the fact list - say what it MEANS: why the track behaves the way its history shows, or why this season's result here mattered.
-- At most two specific numbers in the whole summary.
+- At most two specific numbers in any summary.
 - Plain motorsport-press register. No hype, no second person, no emoji, no em dash or en dash.
 
-Respond with a JSON object with exactly these keys:
-{"headline": "...", "summary": "..."}`;
+Respond with a JSON object with exactly these blocks, using your judgment to omit any block if there isn't enough data (or if it isn't relevant to the current state). Do NOT output empty blocks, omit them instead.
+
+{
+  "trackTake": { "headline": "...", "summary": "...", "evidenceIds": [] },
+  "raceDifference": { "headline": "...", "summary": "...", "factors": [{"label": "...", "evidenceIds": []}] },
+  "trackVsSeason": { "headline": "...", "summary": "...", "metrics": ["..."], "evidenceIds": [] },
+  "historicalPattern": { "headline": "...", "summary": "...", "evidenceIds": [] }
+}`;
 }
 
 export function formatCircuitTakePrompt(circuitContext: string, state: CircuitAiState): AIMessage[] {

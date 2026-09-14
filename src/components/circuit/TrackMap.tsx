@@ -4,8 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { teamColor } from "@/lib/teamColors";
 import { generateTrackShape, type TrackShape } from "@/lib/trackShape";
+import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import type { TrackType } from "@/lib/circuitFacts";
 import type { RaceResultEntry, TireStint } from "@/lib/types/race";
+import type { RaceLapEntry } from "@/lib/supabase/races";
+import { GridToFinishChart } from "./GridToFinishChart";
+
+type LapRank = { lap: number; position: number };
+type StintRange = { compound: string; startLap: number; endLap: number };
 
 type SimCar = {
   driver: string;
@@ -17,28 +23,30 @@ type SimCar = {
   /** Real classified gap-to-leader in seconds, when this race has one - shown in the driver
    * tower, never fabricated for a race that doesn't have it. */
   finishGapSec: number | null;
-  /** Real pit-stop lap fractions (0-1 of this driver's own race distance) from tire_stints - shown
-   * as track-side pit markers only, never used to infer an intermediate rank this app has no data
-   * for. */
+  /** Real pit-stop lap fractions (0-1 of this driver's own race distance) from tire_stints. */
   pitFractions: number[];
+  /** Real classified position at each lap this driver has a `race_laps` row for, sorted - empty
+   * for a race the lap backfill hasn't reached, in which case this car degrades gracefully to a
+   * two-point grid->finish interpolation (see rankAtLapT). */
+  lapRanks: LapRank[];
+  /** Real cumulative tyre-stint lap ranges, derived from tire_stints the same way pitFractions
+   * is - never a per-lap compound reading (this app has none), only "which stint covers this
+   * lap." */
+  stints: StintRange[];
 };
 
-type RenderCar = { driver: string; x: number; y: number; team: string; finishRank: number; dnf: boolean };
+type RenderCar = { driver: string; x: number; y: number; team: string; finishRank: number; dnf: boolean; rank: number };
 type RenderPit = { key: string; x: number; y: number };
 
 const CIRCULATION_SECONDS = 5.5; // one full lively "lap" of visual circulation, independent of real duration
-const REPLAY_SECONDS = 14; // how long the grid -> finish replay takes to play out, at 1x
-const SPEED_OPTIONS = [1, 2, 5] as const;
+const REPLAY_SECONDS = 22; // how long a full grid -> finish replay takes at 1x
+const SPEED_OPTIONS = [0.5, 1, 2, 5, 10] as const;
 type Speed = (typeof SPEED_OPTIONS)[number];
-type PlaybackView = "race" | "qualifying";
 
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-}
-
-/** Builds the deterministic per-car simulation input from real classification + real stint data.
- * A driver with no grid (DNS) or no finish classification is dropped rather than guessed at. */
-function buildSimCars(results: RaceResultEntry[], stints: TireStint[]): SimCar[] {
+/** Builds the deterministic per-car simulation input from real classification, real stint data,
+ * and (when the backfill has reached this race) real lap-by-lap classified positions. A driver
+ * with no grid (DNS) or no finish classification is dropped rather than guessed at. */
+function buildSimCars(results: RaceResultEntry[], stints: TireStint[], raceLaps: RaceLapEntry[]): SimCar[] {
   const stintsByDriver = new Map<string, TireStint[]>();
   for (const s of stints) {
     const list = stintsByDriver.get(s.driver) ?? [];
@@ -46,19 +54,33 @@ function buildSimCars(results: RaceResultEntry[], stints: TireStint[]): SimCar[]
     stintsByDriver.set(s.driver, list);
   }
 
+  const lapRanksByDriver = new Map<string, LapRank[]>();
+  for (const entry of raceLaps) {
+    for (const t of entry.timings) {
+      if (t.position == null) continue;
+      const list = lapRanksByDriver.get(t.driverId) ?? [];
+      list.push({ lap: entry.lap, position: t.position });
+      lapRanksByDriver.set(t.driverId, list);
+    }
+  }
+  for (const list of lapRanksByDriver.values()) list.sort((a, b) => a.lap - b.lap);
+
   const cars: SimCar[] = [];
   for (const r of results) {
     if (r.grid == null) continue;
     const own = (stintsByDriver.get(r.driver) ?? []).sort((a, b) => a.stintNumber - b.stintNumber);
     const totalLaps = own.reduce((sum, s) => sum + s.lapCount, 0);
     const pitFractions: number[] = [];
+    const stintRanges: StintRange[] = [];
     if (totalLaps > 0) {
       let cumulative = 0;
-      // A pit happens at the END of every stint but the last one - the boundary between stints,
-      // not their own count.
-      for (let i = 0; i < own.length - 1; i++) {
+      for (let i = 0; i < own.length; i++) {
+        const startLap = cumulative + 1;
         cumulative += own[i].lapCount;
-        pitFractions.push(cumulative / totalLaps);
+        stintRanges.push({ compound: own[i].compound, startLap, endLap: cumulative });
+        // A pit happens at the END of every stint but the last one - the boundary between
+        // stints, not their own count.
+        if (i < own.length - 1) pitFractions.push(cumulative / totalLaps);
       }
     }
     cars.push({
@@ -70,20 +92,46 @@ function buildSimCars(results: RaceResultEntry[], stints: TireStint[]): SimCar[]
       dnf: r.status === "dnf",
       finishGapSec: r.finishGapSec,
       pitFractions,
+      lapRanks: lapRanksByDriver.get(r.driver) ?? [],
+      stints: stintRanges,
     });
   }
   return cars;
 }
 
-/** Where a car sits along the closed path: a shared circulation angle (so the pack visually
- * moves, the way a real field does) minus this car's own gap-to-leader fraction, itself
- * interpolated between its real grid and real finish rank over the course of the replay. Nothing
- * here claims to know a driver's position DURING the race - only its two real endpoints. */
-function carProgress(car: SimCar, totalCars: number, circulationT: number, raceT: number, maxGapSpread: number): number {
-  const gridGap = ((car.gridRank - 1) / Math.max(1, totalCars - 1)) * maxGapSpread;
-  const finishGap = ((car.finishRank - 1) / Math.max(1, totalCars - 1)) * maxGapSpread;
-  const gap = gridGap + (finishGap - gridGap) * easeInOutCubic(raceT);
-  return (((circulationT - gap) % 1) + 1) % 1;
+/** Real classified position at a continuous lap-progress value, interpolated between whichever
+ * REAL anchors this car actually has (grid at lap 0, every classified lap `race_laps` covers,
+ * finish at the last lap) - not a two-point guess when the fuller data exists, but degrading
+ * cleanly to exactly that two-point interpolation when it doesn't (a car with zero real lapRanks
+ * has exactly two anchors, which is the original grid->finish behavior). Every anchor is a REAL
+ * classified rank; nothing between two real anchors claims to be more than a straight line. */
+function rankAtLapT(car: SimCar, lapT: number, totalLaps: number): number {
+  const anchors: { lap: number; rank: number }[] = [{ lap: 0, rank: car.gridRank }, ...car.lapRanks.map((r) => ({ lap: r.lap, rank: r.position })), { lap: Math.max(totalLaps, 1), rank: car.finishRank }];
+  anchors.sort((a, b) => a.lap - b.lap);
+  if (lapT <= anchors[0].lap) return anchors[0].rank;
+  for (let i = 1; i < anchors.length; i++) {
+    if (lapT <= anchors[i].lap) {
+      const a = anchors[i - 1];
+      const b = anchors[i];
+      if (b.lap === a.lap) return b.rank;
+      const frac = (lapT - a.lap) / (b.lap - a.lap);
+      return a.rank + (b.rank - a.rank) * frac;
+    }
+  }
+  return anchors[anchors.length - 1].rank;
+}
+
+/** The lap this car last has a real classified position for - where a DNF's dot should freeze
+ * and fade, not an arbitrary fixed fraction of the replay. Falls back to a small fixed fraction
+ * only when there's no real lap data to anchor it to at all. */
+function retiredAtLapT(car: SimCar, totalLaps: number): number {
+  if (car.lapRanks.length > 0) return car.lapRanks[car.lapRanks.length - 1].lap;
+  return Math.max(totalLaps, 1) * 0.05;
+}
+
+function angleForRank(rank: number, totalCars: number, circulationT: number, maxGapSpread: number): number {
+  const gapFrac = ((rank - 1) / Math.max(1, totalCars - 1)) * maxGapSpread;
+  return (((circulationT - gapFrac) % 1) + 1) % 1;
 }
 
 function pointAlong(shape: TrackShape, pathEl: SVGPathElement | null, t: number): { x: number; y: number } {
@@ -95,20 +143,68 @@ function pointAlong(shape: TrackShape, pathEl: SVGPathElement | null, t: number)
 
 /** Pure position computation - takes the path ELEMENT as a plain argument rather than reading a
  * ref itself, so it can be called from wherever a ref read is actually allowed (an effect, a
- * rAF callback), never from the render body directly. React's own rules-of-hooks lint now
- * enforces this (refs and impure calls like performance.now() may not be read during render), and
- * this is the fix: compute positions outside render, store them in state, render only ever reads
- * that state. */
-function computeCarPositions(shape: TrackShape, pathEl: SVGPathElement | null, cars: SimCar[], view: PlaybackView, raceT: number, circulationT: number, maxGapSpread: number): RenderCar[] {
+ * rAF callback), never from the render body directly - React's rules-of-hooks lint enforces this
+ * (refs and impure calls like performance.now() may not be read during render). */
+function computeCarPositions(shape: TrackShape, pathEl: SVGPathElement | null, cars: SimCar[], lapT: number, totalLaps: number, circulationT: number, maxGapSpread: number): RenderCar[] {
   return cars.map((c) => {
-    const t = view === "qualifying" ? ((c.gridRank - 1) / Math.max(1, cars.length - 1)) * maxGapSpread : carProgress(c, cars.length, circulationT, raceT, maxGapSpread);
-    const p = view === "qualifying" ? pointAlong(shape, pathEl, circulationT - t) : pointAlong(shape, pathEl, t);
-    return { driver: c.driver, x: p.x, y: p.y, team: c.team, finishRank: c.finishRank, dnf: c.dnf };
+    const rank = rankAtLapT(c, lapT, totalLaps);
+    const t = angleForRank(rank, cars.length, circulationT, maxGapSpread);
+    const p = pointAlong(shape, pathEl, t);
+    return { driver: c.driver, x: p.x, y: p.y, team: c.team, finishRank: c.finishRank, dnf: c.dnf, rank };
   });
 }
 
 function computePitPositions(shape: TrackShape, pathEl: SVGPathElement | null, cars: SimCar[]): RenderPit[] {
   return cars.flatMap((c) => c.pitFractions.map((f, i) => ({ key: `${c.driver}-pit-${i}`, ...pointAlong(shape, pathEl, f) })));
+}
+
+function compoundAtLap(car: SimCar, lap: number): string | null {
+  return car.stints.find((s) => lap >= s.startLap && lap <= s.endLap)?.compound ?? null;
+}
+
+/** Real cumulative race time per driver per lap, built once from `race_laps.time` (a real lap
+ * time, never a result-row "+2 Laps" style gap - see parseTimeToSeconds's own docstring on why
+ * that distinction matters). Once a lap's time is missing for a driver, every later lap for them
+ * is also marked unavailable rather than silently summing a gap in coverage into a wrong number -
+ * a partial sum that looks like a real gap would be worse than admitting the gap isn't known. */
+function buildCumulativeTime(raceLaps: RaceLapEntry[]): Map<string, Map<number, number>> {
+  const byDriver = new Map<string, { lap: number; time: string | null }[]>();
+  for (const entry of raceLaps) {
+    for (const t of entry.timings) {
+      const list = byDriver.get(t.driverId) ?? [];
+      list.push({ lap: entry.lap, time: t.time });
+      byDriver.set(t.driverId, list);
+    }
+  }
+  const result = new Map<string, Map<number, number>>();
+  for (const [driver, laps] of byDriver) {
+    laps.sort((a, b) => a.lap - b.lap);
+    const cum = new Map<number, number>();
+    let running = 0;
+    let broken = false;
+    for (const { lap, time } of laps) {
+      const sec = parseTimeToSeconds(time);
+      if (sec === null) broken = true;
+      if (!broken) {
+        running += sec as number;
+        cum.set(lap, running);
+      }
+    }
+    result.set(driver, cum);
+  }
+  return result;
+}
+
+function gapToLeaderAt(driver: string, lap: number, cumTime: Map<string, Map<number, number>>): number | null {
+  const own = cumTime.get(driver)?.get(lap);
+  if (own == null) return null;
+  let leader = Infinity;
+  for (const m of cumTime.values()) {
+    const v = m.get(lap);
+    if (v != null && v < leader) leader = v;
+  }
+  if (!Number.isFinite(leader)) return null;
+  return own - leader;
 }
 
 export function TrackMap({
@@ -117,10 +213,12 @@ export function TrackMap({
   trackType,
   results,
   tireStints,
+  raceLaps,
   raceLabel,
 }: {
-  /** Stable per-circuit seed for the deterministic schematic shape - the circuit's own real
-   * location string is used by callers, so the same circuit always draws the same layout. */
+  /** Stable per-circuit seed for the deterministic schematic shape (or the lookup key for real
+   * authentic geometry, when circuitShapes.json covers this circuit) - the circuit's own real
+   * location string. */
   seed: string;
   turns: number;
   trackType: TrackType;
@@ -128,6 +226,9 @@ export function TrackMap({
    * just without cars, per the "upcoming circuit" state. */
   results: RaceResultEntry[] | null;
   tireStints: TireStint[] | null;
+  /** Real per-lap classification for `results`' own race - empty when the lap backfill hasn't
+   * reached it yet, in which case the replay degrades to a labeled grid->finish interpolation. */
+  raceLaps: RaceLapEntry[] | null;
   raceLabel: string | null;
 }) {
   const reduceMotion = useReducedMotion();
@@ -136,31 +237,34 @@ export function TrackMap({
   const [drawn, setDrawn] = useState(reduceMotion ?? false);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<Speed>(1);
-  const [view, setView] = useState<PlaybackView>("race");
   const [visible, setVisible] = useState(true);
   const [raceT, setRaceT] = useState(0); // 0..1 across the whole simulated replay
   const [renderCars, setRenderCars] = useState<RenderCar[]>([]);
   const [renderPits, setRenderPits] = useState<RenderPit[]>([]);
+  const [hoverDriver, setHoverDriver] = useState<string | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
 
-  // A plain mirror of raceT/speed for the animation loop below to read without needing to restart
-  // itself every time either changes (which putting them in that effect's own dependency array
-  // would otherwise force, tearing the rAF loop down and recreating it every single frame).
+  // A plain mirror of raceT for the animation loop below to read without needing to restart
+  // itself every time it changes (which putting it in that effect's own dependency array would
+  // otherwise force, tearing the rAF loop down and recreating it every single frame).
   const raceTRef = useRef(raceT);
   useEffect(() => {
     raceTRef.current = raceT;
   }, [raceT]);
 
   const shape = useMemo(() => generateTrackShape(seed, turns, trackType), [seed, turns, trackType]);
-  const cars = useMemo(() => buildSimCars(results ?? [], tireStints ?? []), [results, tireStints]);
+  const cars = useMemo(() => buildSimCars(results ?? [], tireStints ?? [], raceLaps ?? []), [results, tireStints, raceLaps]);
+  const cumTime = useMemo(() => buildCumulativeTime(raceLaps ?? []), [raceLaps]);
   const hasSimulation = cars.length > 0;
+  const totalLaps = useMemo(() => (raceLaps && raceLaps.length ? Math.max(...raceLaps.map((e) => e.lap)) : 0), [raceLaps]);
+  const hasRealLapData = totalLaps > 0;
   const maxGapSpread = 0.3; // the whole field spans at most 30% of the loop's circumference
+  const lapT = raceT * Math.max(totalLaps, 1);
+  const currentLap = hasRealLapData ? Math.min(totalLaps, Math.max(1, Math.ceil(lapT))) : null;
 
   // Reduced motion adjusts state DURING RENDER (React's own documented pattern for "a prop
   // changed, react to it") rather than inside an effect body - calling setState synchronously at
-  // the top of a useEffect is exactly the pattern React's own lint now rejects. The jump to
-  // raceT=1 is deliberate: reduced motion turns off PLAYBACK, not the information - without it,
-  // cars would sit at the grid forever, since the loop that carries raceT to 1 never runs when
-  // motion is reduced.
+  // the top of a useEffect is exactly the pattern React's own lint now rejects.
   const [prevReduceMotion, setPrevReduceMotion] = useState(reduceMotion);
   if (prevReduceMotion !== reduceMotion) {
     setPrevReduceMotion(reduceMotion);
@@ -171,17 +275,13 @@ export function TrackMap({
     }
   }
 
-  // The non-reduced-motion draw-in delay is genuinely asynchronous (deferred via setTimeout, not
-  // called synchronously at the top of the effect), which is what the lint rule actually
-  // distinguishes - this stays a normal effect.
   useEffect(() => {
     if (reduceMotion) return;
     const t = window.setTimeout(() => setDrawn(true), 60);
     return () => window.clearTimeout(t);
   }, [reduceMotion]);
 
-  // Pause when the tab is hidden or the map has scrolled off-screen - a car animation nobody is
-  // looking at should not keep re-rendering every frame.
+  // Pause when the tab is hidden or the map has scrolled off-screen.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -197,10 +297,7 @@ export function TrackMap({
 
   const animationActive = hasSimulation && playing && visible && !reduceMotion;
 
-  // Advances raceT (grid -> finish) while playing. Reads `speed` fresh each render via the
-  // dependency array (a real, infrequent change) rather than a ref, since restarting this loop
-  // when the SPEED changes is fine - the loop restarting every FRAME is the thing to avoid, and
-  // speed doesn't change every frame.
+  // Advances raceT (grid -> finish) while playing.
   useEffect(() => {
     if (!animationActive) return;
     let raf: number;
@@ -216,54 +313,70 @@ export function TrackMap({
   }, [animationActive, speed]);
 
   // The one place car positions are actually computed - inside a rAF callback, never during
-  // render, so reading pathRef.current and performance.now() here is exactly where React's own
-  // rules say that's allowed. Depends on `cars`/`shape`/`view`, NOT on `raceT` (read via the ref
-  // mirror instead) - putting raceT here would restart this loop on every single frame it itself
-  // produces.
+  // render. Depends on `cars`/`shape`, NOT on `raceT` (read via the ref mirror instead).
   useEffect(() => {
     if (!animationActive) return;
     let raf: number;
     function step() {
       const circulationT = (performance.now() / 1000 / CIRCULATION_SECONDS) % 1;
-      setRenderCars(computeCarPositions(shape, pathRef.current, cars, view, raceTRef.current, circulationT, maxGapSpread));
+      const t = raceTRef.current * Math.max(totalLaps, 1);
+      setRenderCars(computeCarPositions(shape, pathRef.current, cars, t, totalLaps, circulationT, maxGapSpread));
       raf = requestAnimationFrame(step);
     }
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [animationActive, shape, cars, view, maxGapSpread]);
+  }, [animationActive, shape, cars, totalLaps, maxGapSpread]);
 
-  // The static case (paused, reduced motion, or a change in view/raceT while paused) - recomputes
-  // once whenever anything relevant changes, using a fixed circulation angle of 0 so a paused
-  // frame is stable rather than jumping every re-render. Deferred one frame via rAF rather than
-  // called synchronously at the top of the effect - the same "setState in a callback, not
-  // synchronously in the effect body" shape every other effect in this file already uses, not a
-  // bare compute-and-set with no external trigger.
+  // The static case (paused, reduced motion, or a raceT change while paused - including a manual
+  // timeline scrub) - recomputes once whenever anything relevant changes, deferred one frame via
+  // rAF rather than called synchronously at the top of the effect.
   useEffect(() => {
     if (!drawn) return;
     const raf = requestAnimationFrame(() => {
       setRenderPits(computePitPositions(shape, pathRef.current, cars));
       if (!animationActive) {
-        setRenderCars(computeCarPositions(shape, pathRef.current, cars, view, raceT, 0, maxGapSpread));
+        setRenderCars(computeCarPositions(shape, pathRef.current, cars, lapT, totalLaps, 0, maxGapSpread));
       }
     });
     return () => cancelAnimationFrame(raf);
-  }, [drawn, cars, shape, view, raceT, animationActive, maxGapSpread]);
+  }, [drawn, cars, shape, lapT, totalLaps, animationActive, maxGapSpread]);
 
   function restart() {
     setRaceT(0);
     setPlaying(true);
   }
+  function scrub(next: number) {
+    setPlaying(false);
+    setRaceT(Math.min(1, Math.max(0, next)));
+  }
+  function stepLap(delta: number) {
+    if (!hasRealLapData) return;
+    scrub(raceT + delta / totalLaps);
+  }
+
+  const activeDriver = selectedDriver ?? hoverDriver;
+  const activeCar = activeDriver ? cars.find((c) => c.driver === activeDriver) : null;
+  const activeRender = activeDriver ? renderCars.find((c) => c.driver === activeDriver) : null;
+  // Gap/tyre readouts only mean anything against a real, known lap number - without real
+  // per-lap data (currentLap null) there's no honest "which lap is this" to anchor them to.
+  const activeGap = activeCar && currentLap ? gapToLeaderAt(activeCar.driver, currentLap, cumTime) : null;
+  const activeCompound = activeCar && currentLap ? compoundAtLap(activeCar, currentLap) : null;
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="flex flex-col gap-4">
       <div className="relative w-full overflow-hidden rounded-md border border-white/[0.07] bg-white/[0.015]" style={{ aspectRatio: "4 / 3" }}>
-        <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label={`Stylized layout of the circuit, ${turns} turns${raceLabel ? `, showing ${raceLabel}` : ""}`}>
+        <svg
+          viewBox={shape.viewBox || "0 0 100 100"}
+          className="h-full w-full"
+          role="img"
+          aria-label={`${shape.isAuthentic ? "Circuit" : "Stylized"} layout of the circuit, ${turns} turns${raceLabel ? `, showing ${raceLabel}` : ""}`}
+        >
           <path
             ref={pathRef}
             d={shape.path}
             fill="none"
             stroke="rgba(255,255,255,0.28)"
-            strokeWidth={1.4}
+            strokeWidth={shape.isAuthentic ? 3.5 : 1.4}
             strokeLinecap="round"
             pathLength={1}
             style={
@@ -276,14 +389,13 @@ export function TrackMap({
                   }
             }
           />
-          {/* Start/finish */}
           <line
             x1={shape.startFinish.x}
-            y1={shape.startFinish.y - 2.2}
+            y1={shape.startFinish.y - (shape.isAuthentic ? 11 : 2.2)}
             x2={shape.startFinish.x}
-            y2={shape.startFinish.y + 2.2}
+            y2={shape.startFinish.y + (shape.isAuthentic ? 11 : 2.2)}
             stroke="var(--f1-red)"
-            strokeWidth={0.9}
+            strokeWidth={shape.isAuthentic ? 4 : 0.9}
             opacity={drawn ? 1 : 0}
             style={{ transition: "opacity 0.3s ease-out 0.5s" }}
           />
@@ -298,68 +410,85 @@ export function TrackMap({
               </g>
             ))}
 
-          {/* Real pit-stop lap markers - small ticks near the loop, never presented as live cars.
-              Positions come from state (computed in the effect above), never from a ref read here. */}
-          {drawn && renderPits.map((p) => <circle key={p.key} cx={p.x} cy={p.y} r={0.6} fill="rgba(234,179,8,0.55)" />)}
+          {drawn && renderPits.map((p) => <circle key={p.key} cx={p.x} cy={p.y} r={shape.isAuthentic ? 3 : 0.6} fill="rgba(234,179,8,0.55)" />)}
 
           {drawn &&
             hasSimulation &&
-            renderCars.map((c) => (
-              <circle
-                key={c.driver}
-                cx={c.x}
-                cy={c.y}
-                r={c.finishRank <= 3 ? 1.7 : 1.3}
-                fill={teamColor(c.team)}
-                stroke="rgba(0,0,0,0.5)"
-                strokeWidth={0.3}
-                opacity={c.dnf && raceT > 0.05 ? 0.25 : 1}
-              />
-            ))}
+            renderCars.map((c) => {
+              const dimmed = activeDriver !== null && activeDriver !== c.driver;
+              const carScale = shape.isAuthentic ? 2.6 : 1;
+              return (
+                <circle
+                  key={c.driver}
+                  cx={c.x}
+                  cy={c.y}
+                  r={(c.finishRank <= 3 ? 1.7 : 1.3) * carScale}
+                  fill={teamColor(c.team)}
+                  stroke={activeDriver === c.driver ? "white" : "rgba(0,0,0,0.5)"}
+                  strokeWidth={(activeDriver === c.driver ? 0.6 : 0.3) * carScale}
+                  opacity={dimmed ? 0.25 : c.dnf && lapT > retiredAtLapT(cars.find((x) => x.driver === c.driver)!, totalLaps) ? 0.25 : 1}
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoverDriver(c.driver)}
+                  onMouseLeave={() => setHoverDriver(null)}
+                  onClick={() => setSelectedDriver((cur) => (cur === c.driver ? null : c.driver))}
+                >
+                  <title>{c.driver}</title>
+                </circle>
+              );
+            })}
         </svg>
 
-        {hasSimulation && (
-          <span className="absolute bottom-2 left-2 rounded-full border border-white/[0.14] bg-black/50 px-2 py-0.5 text-[9px] font-medium text-neutral-400 backdrop-blur-sm">
-            Simulated from grid, finish &amp; pit data — not live telemetry
-          </span>
-        )}
-        {!hasSimulation && (
-          <span className="absolute bottom-2 left-2 rounded-full border border-white/[0.14] bg-black/50 px-2 py-0.5 text-[9px] font-medium text-neutral-400 backdrop-blur-sm">
-            Stylized layout — schematic, not to scale
-          </span>
-        )}
+        <span className="absolute bottom-2 left-2 rounded-full border border-white/[0.14] bg-black/50 px-2 py-0.5 text-[9px] font-medium text-neutral-400 backdrop-blur-sm">
+          {hasSimulation ? (hasRealLapData ? "Position interpolated from real lap timing — not live telemetry" : "Simulated from grid, finish & pit data — not live telemetry") : shape.isAuthentic ? "Circuit layout" : "Stylized layout — schematic, not to scale"}
+        </span>
       </div>
 
-      {/* No playback controls at all under reduced motion - there's genuinely nothing to control
-          (raceT is pinned at the final result, permanently, rather than offering a Restart that
-          would only strand the view back at the grid with no animation left to advance it out of
-          that state again). */}
       {hasSimulation && !reduceMotion && (
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1" role="group" aria-label="Playback view">
-            {(["race", "qualifying"] as const).map((v) => (
+        <div className="flex flex-col gap-2">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.001}
+            value={raceT}
+            onChange={(e) => scrub(Number(e.target.value))}
+            aria-label={currentLap ? `Race progress, lap ${currentLap} of ${totalLaps}` : "Race progress"}
+            className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/[0.1] accent-[var(--f1-red)]"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
               <button
-                key={v}
                 type="button"
-                onClick={() => setView(v)}
-                aria-pressed={view === v}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium capitalize transition ${
-                  view === v ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
-                }`}
+                onClick={() => stepLap(-1)}
+                disabled={!hasRealLapData}
+                aria-label="Previous lap"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white disabled:opacity-30"
               >
-                {v}
+                <StepIcon back />
               </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => (raceT >= 1 ? restart() : setPlaying((p) => !p))}
-              aria-label={playing ? "Pause simulation" : "Play simulation"}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-            >
-              {raceT >= 1 ? <RestartIcon /> : playing ? <PauseIcon /> : <PlayIcon />}
-            </button>
+              <button
+                type="button"
+                onClick={() => (raceT >= 1 ? restart() : setPlaying((p) => !p))}
+                aria-label={playing ? "Pause simulation" : "Play simulation"}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              >
+                {raceT >= 1 ? <RestartIcon /> : playing ? <PauseIcon /> : <PlayIcon />}
+              </button>
+              <button
+                type="button"
+                onClick={() => stepLap(1)}
+                disabled={!hasRealLapData}
+                aria-label="Next lap"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white disabled:opacity-30"
+              >
+                <StepIcon />
+              </button>
+              {currentLap && (
+                <span className="ml-1 font-mono text-[11px] tabular-nums text-neutral-500">
+                  Lap {currentLap} / {totalLaps}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-0.5" role="group" aria-label="Playback speed">
               {SPEED_OPTIONS.map((s) => (
                 <button
@@ -376,6 +505,51 @@ export function TrackMap({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {hasSimulation && (
+        <div>
+          <div className="mb-2 flex flex-wrap gap-1" role="group" aria-label="Drivers">
+            {cars.map((c) => (
+              <button
+                key={c.driver}
+                type="button"
+                onMouseEnter={() => setHoverDriver(c.driver)}
+                onMouseLeave={() => setHoverDriver(null)}
+                onClick={() => setSelectedDriver((cur) => (cur === c.driver ? null : c.driver))}
+                aria-pressed={selectedDriver === c.driver}
+                className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                  activeDriver === c.driver ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
+                }`}
+              >
+                <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: teamColor(c.team) }} />
+                {c.driver}
+              </button>
+            ))}
+          </div>
+
+          <div className="min-h-[44px] rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs">
+            {activeCar ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-semibold text-white">{activeCar.driverName}</span>
+                <span className="text-neutral-500">{activeCar.team}</span>
+                {activeRender && <span className="font-mono tabular-nums text-neutral-300">P{Math.round(activeRender.rank)}</span>}
+                {currentLap && <span className="text-neutral-500">Lap {currentLap}</span>}
+                {activeGap != null && <span className="font-mono tabular-nums text-neutral-400">{activeGap <= 0.05 ? "Leader" : `+${activeGap.toFixed(1)}s`}</span>}
+                {activeCompound && <span className="text-neutral-500">Tyre: {activeCompound}</span>}
+              </div>
+            ) : (
+              <span className="text-neutral-600">Hover or select a driver above</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {hasSimulation && (
+        <div>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Grid → finish</p>
+          <GridToFinishChart results={results ?? []} tireStints={tireStints ?? []} />
         </div>
       )}
     </div>
@@ -402,6 +576,14 @@ function RestartIcon() {
     <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M13 8A5 5 0 1 1 8 3" strokeLinecap="round" />
       <path d="M8 1v3.2h3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function StepIcon({ back }: { back?: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden style={back ? { transform: "scaleX(-1)" } : undefined}>
+      <path d="M4 2.5v11l7-5.5z" />
+      <rect x="11.5" y="2.5" width="1.5" height="11" />
     </svg>
   );
 }

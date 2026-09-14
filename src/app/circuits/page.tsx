@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { CircuitExplorerHeader } from "./components/CircuitExplorerHeader";
 import { SeasonProgressStrip } from "./components/SeasonProgressStrip";
-import { CircuitGrid } from "./components/CircuitGrid";
-import { CircuitDetailPage } from "./components/CircuitDetailPage";
-import { getCircuitDetailData, getCircuitsExplorerData } from "./services/circuits.service";
+import { CircuitExplorerTimeline } from "./components/CircuitExplorerTimeline";
+import { getCircuitsExplorerData } from "./services/circuits.service";
+import { getUserProfile } from "@/lib/supabase/users";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
+import { slugifyRaceName } from "@/lib/routes";
 
 async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
-  const { entries, completedCount, remainingCount } = await getCircuitsExplorerData(year, uid);
+  const [data, profile] = await Promise.all([
+    getCircuitsExplorerData(year, uid),
+    getUserProfile(uid),
+  ]);
+  const { entries, completedCount, remainingCount } = data;
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
       <CircuitExplorerHeader year={year} totalCircuits={entries.length} completedCount={completedCount} remainingCount={remainingCount} />
       <SeasonProgressStrip races={entries.map((e) => e.race)} />
-      <CircuitGrid entries={entries} />
+      <CircuitExplorerTimeline entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} />
     </div>
   );
 }
@@ -25,14 +30,13 @@ export const metadata: Metadata = {
   description: "Every circuit on the current F1 calendar — track intelligence, race history, and records.",
 };
 
-// The Circuits section stays query-param routed (?circuit=), the same convention Archive, Race and
-// Season's own race window already use and document the reasoning for (lib/routes.ts) - a
-// deliberate architectural choice this section joins rather than a path-segment hierarchy of its
-// own, so the whole app keeps one routing convention instead of two.
+// Dynamic Legacy Route Canonicalization: 
+// The circuits section previously used ?circuit= routing. We dynamically redirect to canonical 
+// /circuits/[slug] paths here, preserving any additional query parameters.
 export default async function CircuitsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ circuit?: string }>;
+  searchParams: Promise<{ circuit?: string; [key: string]: string | string[] | undefined }>;
 }) {
   const session = await getSession();
   if (!session.uid) {
@@ -43,12 +47,27 @@ export default async function CircuitsPage({
     );
   }
 
+  const params = await searchParams;
+  if (params.circuit) {
+    const slug = slugifyRaceName(params.circuit);
+    const newPath = `/circuits/${slug}`;
+    
+    // Preserve other query parameters
+    const otherParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (key !== 'circuit' && value) {
+        if (Array.isArray(value)) {
+          value.forEach(v => otherParams.append(key, v));
+        } else {
+          otherParams.append(key, value);
+        }
+      }
+    }
+    
+    const queryString = otherParams.toString();
+    redirect(queryString ? `${newPath}?${queryString}` : newPath);
+  }
+
   const year = new Date().getFullYear();
-  const { circuit } = await searchParams;
-
-  if (!circuit) return <CircuitsIndex year={year} uid={session.uid} />;
-
-  const data = await getCircuitDetailData(circuit, year, session.uid);
-  if (!data) notFound();
-  return <CircuitDetailPage location={circuit} data={data} />;
+  return <CircuitsIndex year={year} uid={session.uid} />;
 }

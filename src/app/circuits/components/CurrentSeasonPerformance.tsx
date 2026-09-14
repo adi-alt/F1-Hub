@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GridToFinishChart } from "./GridToFinishChart";
+import { GridToFinishChart } from "@/components/circuit/GridToFinishChart";
 import { raceHref } from "@/lib/routes";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
 
@@ -91,7 +91,7 @@ export function CurrentSeasonPerformance({ race, year }: { race: RaceSummary; ye
 
         <div className="min-w-0">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
-          <GridToFinishChart race={race} />
+          <GridToFinishChart results={race.results} tireStints={[]} />
         </div>
       </div>
     </section>

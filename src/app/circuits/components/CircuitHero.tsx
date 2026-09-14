@@ -32,9 +32,17 @@ export function CircuitHero({
 
   return (
     <header className="mb-8">
-      <Link href="/circuits" className="mb-3 inline-block text-xs text-neutral-500 transition hover:text-neutral-300">
-        ← Circuits
-      </Link>
+      <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-xs">
+        <Link href="/circuits" className="text-neutral-500 transition hover:text-neutral-300">
+          Circuits
+        </Link>
+        <span aria-hidden className="text-neutral-700">
+          /
+        </span>
+        <span className="truncate text-neutral-400" aria-current="page">
+          {displayName}
+        </span>
+      </nav>
       <h1 className="text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">{displayName}</h1>
       <p className="mt-2 text-sm text-neutral-400">
         {grandPrixName ?? "Grand Prix"}

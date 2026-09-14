@@ -11,12 +11,21 @@
 
 import { getSeasonPageData } from "@/app/season/_service/season.service";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
-import { getAllArchiveCircuits, getArchiveRacesByCircuitId, type ArchiveCircuit, type ArchiveRaceDoc } from "@/lib/supabase/archive";
-import { getRacesByCircuit } from "@/lib/supabase/races";
+import {
+  getAllArchiveCircuits,
+  getArchiveRacesByCircuitId,
+  getArchiveDriverIdsByCode,
+  getArchiveDriverPhotosByIds,
+  type ArchiveCircuit,
+  type ArchiveRaceDoc,
+} from "@/lib/supabase/archive";
+import { getRacesByCircuit, getRaceLaps, type RaceLapEntry } from "@/lib/supabase/races";
+import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getCircuitFacts, type CircuitFacts } from "@/lib/circuitFacts";
 import { buildCircuitTimeline, computeRaceTrends, type CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { RaceDoc } from "@/lib/types/race";
+import { slugifyRaceName, archiveDriverHref } from "@/lib/routes";
 
 export type CircuitExplorerEntry = {
   race: RaceSummary;
@@ -50,6 +59,62 @@ export async function getCircuitsExplorerData(year: number, uid: string): Promis
   };
 }
 
+/** Resolves a `/circuits/[circuit]` URL slug back to the real, original-cased circuit string
+ * every live-data lookup actually needs (`races.circuit`, e.g. "Spa-Francorchamps", "Monte
+ * Carlo") - NOT a naive `slug.replace(/-/g, " ")`, which is lossy in two ways every slug this app
+ * itself generates can hit: it can't tell a hyphen that came from a space apart from one that was
+ * always part of the name (unslugifying "spa-francorchamps" back to "spa francorchamps" loses the
+ * real hyphen), and it never recovers original casing at all ("melbourne" vs the stored
+ * "Melbourne") - and `getRacesByCircuit`'s own `.eq("circuit", …)` is a case-sensitive exact
+ * match, so a lowercased string silently returns zero rows for every circuit, not just the
+ * hyphenated ones. Matched against this season's own real calendar - the same list circuitHref is
+ * ever generated from - so this is an exact inverse for every link this app actually produces,
+ * not a guess. Falls back to the naive replace only for a slug that doesn't match any current
+ * round (an archive-only circuit with no live link pointing at it) - archive resolution is
+ * case-insensitive already (see circuitSlug.ts's normalizeText/localityMatches), so that fallback
+ * degrades gracefully rather than breaking archive-only lookups too. */
+export async function resolveCircuitSlug(slug: string, year: number, uid: string): Promise<string> {
+  const season = await getSeasonPageData(year, uid);
+  const match = season.raceSummaries.find((r) => slugifyRaceName(r.circuit ?? r.name) === slug);
+  return match?.circuit ?? match?.name ?? slug.replace(/-/g, " ");
+}
+
+export type WinnerMedia = { photoUrl: string | null; href: string | null };
+
+/** A real profile photo + a real link to that driver's own page, for every year in a circuit's
+ * Past Winners table - resolved once, in two batched queries, never one round-trip per row. An
+ * archive-sourced year already carries its own archive_drivers id directly; a live-sourced year
+ * (2018+, wherever `races` replaced the archive copy in buildCircuitTimeline's merge) only has the
+ * winner's 3-letter code, resolved to that SAME archive id via getArchiveDriverIdsByCode - every
+ * current driver has an archive_drivers row too, so this is one profile destination for any
+ * winner regardless of era, not two different link targets. Prefers the current roster's own
+ * headshot over the archive photo when both exist (more likely to be current), falls back to the
+ * archive one otherwise - null, never a broken image, when neither source has one. */
+async function buildWinnerMedia(timeline: CircuitYearRecord[]): Promise<Map<number, WinnerMedia>> {
+  const withWinner = timeline.filter((r) => r.winnerDriver);
+  if (withWinner.length === 0) return new Map();
+
+  const codesNeedingLookup = [...new Set(withWinner.filter((r) => !r.winnerArchiveDriverId && r.winnerCode).map((r) => r.winnerCode as string))];
+  const [currentDrivers, resolvedIds] = await Promise.all([
+    getAllCurrentDrivers(),
+    codesNeedingLookup.length ? getArchiveDriverIdsByCode(codesNeedingLookup) : Promise.resolve(new Map<string, string>()),
+  ]);
+  const currentPhotoByCode = new Map(currentDrivers.map((d) => [d.code, d.headshotUrl]));
+
+  const archiveIdFor = (r: CircuitYearRecord): string | null => r.winnerArchiveDriverId ?? (r.winnerCode ? (resolvedIds.get(r.winnerCode) ?? null) : null);
+  const idsNeedingPhoto = [...new Set(withWinner.map(archiveIdFor).filter((id): id is string => !!id))];
+  const archivePhotos = idsNeedingPhoto.length ? await getArchiveDriverPhotosByIds(idsNeedingPhoto) : new Map<string, string | null>();
+
+  const media = new Map<number, WinnerMedia>();
+  for (const r of withWinner) {
+    const archiveId = archiveIdFor(r);
+    const currentPhoto = r.winnerCode ? (currentPhotoByCode.get(r.winnerCode) ?? null) : null;
+    const archivePhoto = archiveId ? (archivePhotos.get(archiveId) ?? null) : null;
+    media.set(r.year, { photoUrl: currentPhoto ?? archivePhoto, href: archiveId ? archiveDriverHref(archiveId) : null });
+  }
+  return media;
+}
+
 export type CircuitDetailData = {
   year: number;
   /** This season's own round at this circuit, if the calendar has one - null for a circuit that
@@ -70,6 +135,15 @@ export type CircuitDetailData = {
    * with nothing to show is worse than one showing last year's real classification when this
    * year's round hasn't happened yet. */
   raceForSimulation: RaceDoc | null;
+  /** Real classified position-per-lap for `raceForSimulation` - `race_laps`, written straight from
+   * FastF1's own `session.laps` (see races.ts's own doc comment on getRaceLaps). This is what lets
+   * the Track Experience move cars through their ACTUAL lap-by-lap positions instead of a two-point
+   * grid->finish guess - empty, not fabricated, for the real minority of completed races this
+   * backfill hasn't reached yet (TrackMap falls back to the honest grid/finish-only view then). */
+  raceLaps: RaceLapEntry[];
+  /** A real photo + profile link per winning year, keyed by year (buildCircuitTimeline already
+   * dedupes to one record per year, so this is unambiguous) - see buildWinnerMedia's own comment. */
+  winnerMedia: Map<number, WinnerMedia>;
 };
 
 /** `location` is the exact string this app already routes circuits by (circuitHref's own query
@@ -95,6 +169,8 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
 
   const timeline = buildCircuitTimeline(liveRaces, archiveRaces);
   const raceForSimulation = [...liveRaces].filter((r) => r.status === "completed" && !!r.results?.length).sort((a, b) => b.year - a.year)[0] ?? null;
+  const raceLaps = raceForSimulation ? await getRaceLaps(raceForSimulation.year, raceForSimulation.round) : [];
+  const winnerMedia = await buildWinnerMedia(timeline);
 
   return {
     year,
@@ -105,6 +181,8 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
     liveRaces,
     archiveRaces,
     raceForSimulation,
+    raceLaps,
+    winnerMedia,
   };
 }
 

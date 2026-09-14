@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CircuitHero } from "./CircuitHero";
 import { CircuitCharacteristics } from "./CircuitCharacteristics";
 import { CurrentSeasonPerformance } from "./CurrentSeasonPerformance";
@@ -9,6 +10,7 @@ import { TrackIntelligence } from "@/components/race/TrackIntelligence";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { circuitAvgFieldMovement, type CircuitDetailData } from "../services/circuits.service";
+import { raceHref } from "@/lib/routes";
 
 /**
  * The individual circuit page - a circuit INTELLIGENCE page, not a chart and a table. Section
@@ -19,13 +21,27 @@ import { circuitAvgFieldMovement, type CircuitDetailData } from "../services/cir
  * of where the calendar currently sits.
  */
 export function CircuitDetailPage({ location, data }: { location: string; data: CircuitDetailData }) {
-  const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation } = data;
+  const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation, raceLaps, winnerMedia } = data;
   const grandPrixName =
     currentSeasonRace?.name ?? liveRaces.find((r) => r.year === timeline[0]?.year)?.name ?? archiveRaces.find((r) => r.year === timeline[0]?.year)?.raceName ?? null;
   const country = currentSeasonRace?.country ?? archiveRaces[0]?.country ?? null;
   const trend = liveRaces
     .filter((r) => r.status === "completed" && r.poleTimeSec !== undefined)
-    .map((r) => ({ year: r.year, poleTimeSec: r.poleTimeSec as number }))
+    .map((r) => {
+      // r.poleSitter is the raw 3-letter code (see circuitIntelligence.ts's own note on this same
+      // field) - resolved against this race's own results for a real display name/team, exactly
+      // like buildCircuitTimeline's fromLiveRace does, rather than showing the bare code or
+      // comparing it against driverName (which would never match).
+      const entry = r.results?.find((res) => res.driver === r.poleSitter);
+      return {
+        year: r.year,
+        round: r.round,
+        raceName: r.name,
+        poleTimeSec: r.poleTimeSec as number,
+        poleSitter: entry?.driverName ?? r.poleSitter ?? null,
+        team: entry?.team ?? null,
+      };
+    })
     .sort((a, b) => a.year - b.year);
   const avgFieldMovement = circuitAvgFieldMovement(timeline);
 
@@ -36,9 +52,22 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
       <CircuitHero location={location} grandPrixName={grandPrixName} country={country} facts={facts} />
 
       <div className="mb-8">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-          {raceForSimulation ? `Track experience — ${raceForSimulation.year}` : "Track layout"}
-        </p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+            {raceForSimulation ? `Track experience — ${raceForSimulation.year}` : "Track layout"}
+          </p>
+          {/* The one deliberate link out of this circuit-across-time page into the event-specific
+              Race page - "this track's most recent classified race" for full results, laps,
+              strategy and incidents, which the Circuit page itself never duplicates. */}
+          {raceForSimulation && (
+            <Link
+              href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)}
+              className="shrink-0 text-[11px] font-medium text-neutral-500 transition hover:text-white"
+            >
+              Full race analysis →
+            </Link>
+          )}
+        </div>
         <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
           <TrackMap
@@ -47,6 +76,7 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
             trackType={facts?.trackType ?? "permanent"}
             results={raceForSimulation?.results ?? null}
             tireStints={raceForSimulation?.tireStints ?? null}
+            raceLaps={raceForSimulation ? raceLaps : null}
             raceLabel={raceForSimulation ? `${raceForSimulation.year} race` : null}
           />
           {raceForSimulation?.results && (
@@ -93,7 +123,7 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
       {timeline.length > 0 && (
         <div>
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Past winners</p>
-          <PastWinnersList timeline={timeline} />
+          <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} />
         </div>
       )}
     </div>

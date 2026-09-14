@@ -35,7 +35,8 @@ export function seasonHref(year: number): string {
 }
 
 export function circuitHref(circuit: string): string {
-  return `/circuits?circuit=${encodeURIComponent(circuit)}`;
+  // Uses the canonical path segment instead of query param.
+  return `/circuits/${slugifyRaceName(circuit)}`;
 }
 
 export function archiveSeasonHref(year: number): string {

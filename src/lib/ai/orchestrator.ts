@@ -667,9 +667,11 @@ import {
   validateSeasonIntelligence,
   validateSeasonCompareInsight,
   validateRaceEventTake,
+  validateSharedCircuitIntelligence,
   type SharedSeasonIntelligence,
   type SeasonCompareInsight,
   type RaceEventTake,
+  type SharedCircuitIntelligence,
   type IntelligenceSource,
 } from "./schemas/seasonIntelligence";
 import { formatSeasonPrompt, SEASON_PROMPT_VERSION } from "./prompts/seasonPrompt";
@@ -686,7 +688,7 @@ import {
 import { generateSeasonFallbackFromContext, generateCompareFallbackFromPair, generateRaceEventFallback } from "./fallback";
 import { generateCircuitTakeFallback } from "./fallback";
 import { formatCircuitTakePrompt, CIRCUIT_TAKE_PROMPT_VERSION } from "./prompts/circuitTakePrompt";
-import { formatCircuitContext, type CircuitContext } from "./context/circuitContext";
+import { formatCircuitContext, circuitValidIds, type CircuitContext } from "./context/circuitContext";
 import type { ComparePair } from "@/app/season/_service/season.pure";
 
 /** Every season generator reports which mechanism actually produced the content. Callers must
@@ -944,7 +946,7 @@ export async function generateRaceEventTake(context: RaceEventContext, ctx: Agen
 /** The Apex Circuit Take - one shared, cached-once-per-(circuit,season,state) editorial insight.
  * Same shape and guarantees as generateRaceEventTake: state-aware prompt, deterministic fallback
  * that can never disagree with what state the page itself is rendering. */
-export async function generateCircuitTake(context: CircuitContext, ctx: AgentContext): Promise<SeasonGenerationResult<RaceEventTake>> {
+export async function generateCircuitTake(context: CircuitContext, ctx: AgentContext): Promise<SeasonGenerationResult<SharedCircuitIntelligence>> {
   const startTime = Date.now();
   const plannedModel = "groq/openai/gpt-oss-120b";
 
@@ -967,7 +969,7 @@ export async function generateCircuitTake(context: CircuitContext, ctx: AgentCon
     if (!result.response.content) throw new Error("EMPTY_RESPONSE");
 
     const parsed = JSON.parse(cleanJsonOutput(result.response.content));
-    const validation = validateRaceEventTake(parsed);
+    const validation = validateSharedCircuitIntelligence(parsed, circuitValidIds(context));
     if (!validation.valid || !validation.data) {
       logAIError(ctx.requestId, "circuit_take_validation_failure", "Circuit take rejected", { errors: validation.errors });
       throw new Error("SCHEMA_VALIDATION_FAILED");

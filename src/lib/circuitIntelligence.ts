@@ -22,6 +22,19 @@ export type CircuitYearRecord = {
   // data already in hand, not a second fetch. Purely additional; every existing consumer that
   // destructures this type without reading winnerTeam is unaffected.
   winnerTeam: string | null;
+  // Additive, same reasoning as winnerTeam above - both builders already resolve the winner's own
+  // result row, this just keeps two more fields already in hand. Used by circuits.service.ts to
+  // resolve a real profile photo/link for the Past Winners table - never displayed raw here (this
+  // module stays dependency-free, see its own top comment).
+  winnerGrid: number | null;
+  /** The winner's 3-letter code - real for every live-schema (2018+) row, and for an archive row
+   * only once enrich_archive_driver_media.py has backfilled that driver's code (older eras are a
+   * real, honest gap, not a bug). */
+  winnerCode: string | null;
+  /** The winner's own archive_drivers id - set directly for an archive-sourced row (no lookup
+   * needed), null for a live-sourced row (resolved from winnerCode by the caller instead, since
+   * every current driver also has an archive_drivers row). */
+  winnerArchiveDriverId: string | null;
   poleSitter: string | null;
   winnerWasPole: boolean | null;
   winningMarginSec: number | null;
@@ -55,6 +68,9 @@ function fromLiveRace(race: RaceDoc): CircuitYearRecord | null {
     year: race.year,
     winnerDriver: winner?.driverName ?? null,
     winnerTeam: winner?.team ?? null,
+    winnerGrid: winner?.grid ?? null,
+    winnerCode: winner?.driver ?? null,
+    winnerArchiveDriverId: null,
     poleSitter: poleSitterName,
     winnerWasPole: winner && race.poleSitter ? winner.driver === race.poleSitter : null,
     // finishGapSec is P2's own real field - already a clean number, no string parsing needed.
@@ -81,6 +97,9 @@ function fromArchiveRace(race: ArchiveRaceDoc): CircuitYearRecord | null {
     year: race.year,
     winnerDriver: winner?.driverName ?? null,
     winnerTeam: winner?.constructor ?? null,
+    winnerGrid: winner?.grid ?? null,
+    winnerCode: winner?.driverCode ?? null,
+    winnerArchiveDriverId: winner?.driverId ?? null,
     poleSitter: poleSitter?.driverName ?? null,
     winnerWasPole: winner && poleSitter ? winner.driverId === poleSitter.driverId : null,
     winningMarginSec: margin,
