@@ -1,16 +1,11 @@
-import Link from "next/link";
 import { CircuitHero } from "./CircuitHero";
-import { CurrentSeasonPerformance } from "./CurrentSeasonPerformance";
 import { UpcomingCircuitIntelligence } from "./UpcomingCircuitIntelligence";
 import { PastWinnersList } from "./PastWinnersList";
 import { CircuitTrendChart } from "./CircuitTrendChart";
-import { TrackMap, DriverTower } from "@/components/circuit/TrackMap";
-import { GridToFinishChart } from "@/components/circuit/GridToFinishChart";
+import { TrackExperienceGrid } from "./TrackExperienceGrid";
 import { TrackIntelligence } from "@/components/race/TrackIntelligence";
-import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { circuitAvgFieldMovement, type CircuitDetailData } from "../services/circuits.service";
-import { raceHref } from "@/lib/routes";
 
 /**
  * The individual circuit page - a circuit INTELLIGENCE page, not a chart and a table. Section
@@ -22,7 +17,7 @@ import { raceHref } from "@/lib/routes";
  * every time regardless - it's true no matter where the calendar currently sits.
  */
 export function CircuitDetailPage({ location, data }: { location: string; data: CircuitDetailData }) {
-  const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation, raceLaps, winnerMedia } = data;
+  const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation, raceLaps, winnerMedia, currentDrivers, currentTeams } = data;
   const grandPrixName =
     currentSeasonRace?.name ?? liveRaces.find((r) => r.year === timeline[0]?.year)?.name ?? archiveRaces.find((r) => r.year === timeline[0]?.year)?.raceName ?? null;
   const country = currentSeasonRace?.country ?? archiveRaces[0]?.country ?? null;
@@ -52,72 +47,17 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
 
       <CircuitHero location={location} grandPrixName={grandPrixName} country={country} facts={facts} />
 
-      <div className="mb-8">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-            {raceForSimulation ? `Track experience — ${raceForSimulation.year}` : "Track layout"}
-          </p>
-          {/* The one deliberate link out of this circuit-across-time page into the event-specific
-              Race page - "this track's most recent classified race" for full results, laps,
-              strategy and incidents, which the Circuit page itself never duplicates. Styled as a
-              real CTA (not a quiet text link) since it's the one path off this page into the
-              event itself. */}
-          {raceForSimulation && (
-            <Link
-              href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)}
-              className="shrink-0 rounded-lg bg-[var(--f1-red)] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:brightness-110"
-            >
-              Full race analysis →
-            </Link>
-          )}
-        </div>
-        <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
-        <div className="mt-4 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          {/* Left: this season's own real result at this circuit (when it's run, Track Character
-              included), then the track map and its own playback controls/legend/driver readout -
-              the map is flex-1 at lg+ so it fills whatever's left after the performance card,
-              matching the right column's real height instead of leaving dead space under a fixed-
-              aspect map. Right: two stacked cards, classification then grid->finish, both real
-              data about the same `raceForSimulation` race the map itself is replaying. */}
-          <div className="flex min-w-0 flex-col gap-8 lg:h-full">
-            {currentSeasonRace?.state === "completed" && (
-              <CurrentSeasonPerformance race={currentSeasonRace} year={year} facts={facts} avgFieldMovement={avgFieldMovement} />
-            )}
-            <TrackMap
-              className="lg:min-h-0 lg:flex-1"
-              seed={location}
-              turns={facts?.turns ?? 14}
-              trackType={facts?.trackType ?? "permanent"}
-              results={raceForSimulation?.results ?? null}
-              tireStints={raceForSimulation?.tireStints ?? null}
-              raceLaps={raceForSimulation ? raceLaps : null}
-              raceLabel={raceForSimulation ? `${raceForSimulation.year} race` : null}
-            />
-          </div>
-          <div className="flex min-w-0 flex-col gap-6">
-            {raceForSimulation?.results && (
-              <>
-                <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{raceForSimulation.year} classification</p>
-                  <DriverTower results={raceForSimulation.results} />
-                </div>
-                <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
-                  <GridToFinishChart results={raceForSimulation.results} tireStints={raceForSimulation.tireStints ?? []} />
-                </div>
-              </>
-            )}
-            {/* Apex's own editorial read lives here, not as a separate full-width section below
-                the whole grid - this is real space the right column already has (classification
-                and the grid->finish card don't fill the height the left column's now-taller
-                performance-card-plus-map sets), and a tabbed block fits it far better than a long
-                vertical stack of four text sections ever did. Not gated on raceForSimulation -
-                Apex can still have something real to say (state "unscheduled"/"next") for a
-                circuit with no completed live-schema race at all. */}
-            <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
-          </div>
-        </div>
-      </div>
+      <TrackExperienceGrid
+        location={location}
+        year={year}
+        facts={facts}
+        currentSeasonRace={currentSeasonRace}
+        raceForSimulation={raceForSimulation}
+        raceLaps={raceLaps}
+        avgFieldMovement={avgFieldMovement}
+        currentDrivers={currentDrivers}
+        currentTeams={currentTeams}
+      />
 
       {currentSeasonRace && currentSeasonRace.state !== "completed" && (
         <div className="mb-8">

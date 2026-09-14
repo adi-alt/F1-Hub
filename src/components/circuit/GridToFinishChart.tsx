@@ -27,8 +27,22 @@ const PAD_X = 46;
 const PAD_Y = 20;
 const ROW_H = 24; // vertical space per rank - tuned so a 20-driver field stays legible, not cramped
 
-export function GridToFinishChart({ results }: { results: ResultLike[]; tireStints: TireStint[] }) {
-  const [hoverDriver, setHoverDriver] = useState<string | null>(null);
+export function GridToFinishChart({
+  results,
+  hoverDriver: hoverDriverProp,
+  onHoverDriver,
+}: {
+  results: ResultLike[];
+  tireStints: TireStint[];
+  /** Optional external control, e.g. from a parent syncing this chart's hover with the track
+   * map's own driver dots - falls back to real internal state when the caller doesn't pass one,
+   * so this component still works completely on its own. */
+  hoverDriver?: string | null;
+  onHoverDriver?: (driver: string | null) => void;
+}) {
+  const [internalHover, setInternalHover] = useState<string | null>(null);
+  const hoverDriver = hoverDriverProp !== undefined ? hoverDriverProp : internalHover;
+  const setHoverDriver = onHoverDriver ?? setInternalHover;
 
   const drivers = useMemo<DriverMeta[]>(() => {
     return results
@@ -52,46 +66,47 @@ export function GridToFinishChart({ results }: { results: ResultLike[]; tireStin
 
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
-      <div className="w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${WIDTH} ${height}`} className="w-full" style={{ minWidth: 420 }} role="img" aria-label="Grid to finish position change for every classified driver">
-          <text x={xStart} y={8} textAnchor="middle" fontSize={10} fontWeight={600} fill="rgba(255,255,255,0.35)" letterSpacing="0.08em">
-            GRID
-          </text>
-          <text x={xEnd} y={8} textAnchor="middle" fontSize={10} fontWeight={600} fill="rgba(255,255,255,0.35)" letterSpacing="0.08em">
-            FINISH
-          </text>
-          <line x1={xStart} y1={PAD_Y - 8} x2={xStart} y2={height - PAD_Y + 8} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
-          <line x1={xEnd} y1={PAD_Y - 8} x2={xEnd} y2={height - PAD_Y + 8} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+      {/* No overflow-x-auto/min-width here on purpose - the viewBox scales the whole chart down
+          to fit any container width instead of forcing a horizontal scrollbar. Labels shrink
+          proportionally rather than truncating or requiring a scroll to read. */}
+      <svg viewBox={`0 0 ${WIDTH} ${height}`} className="h-auto w-full" role="img" aria-label="Grid to finish position change for every classified driver">
+        <text x={xStart} y={8} textAnchor="middle" fontSize={10} fontWeight={600} fill="rgba(255,255,255,0.35)" letterSpacing="0.08em">
+          GRID
+        </text>
+        <text x={xEnd} y={8} textAnchor="middle" fontSize={10} fontWeight={600} fill="rgba(255,255,255,0.35)" letterSpacing="0.08em">
+          FINISH
+        </text>
+        <line x1={xStart} y1={PAD_Y - 8} x2={xStart} y2={height - PAD_Y + 8} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+        <line x1={xEnd} y1={PAD_Y - 8} x2={xEnd} y2={height - PAD_Y + 8} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
 
-          {drivers.map((d) => {
-            const active = hoverDriver === d.driver;
-            const dimmed = hoverDriver !== null && !active;
-            const color = teamColor(d.team);
-            const y1 = yFor(d.grid);
-            const y2 = yFor(d.finish);
-            const path = `M ${xStart} ${y1} C ${xMid} ${y1} ${xMid} ${y2} ${xEnd} ${y2}`;
-            return (
-              <g
-                key={d.driver}
-                opacity={dimmed ? 0.16 : 1}
-                style={{ transition: "opacity 0.2s ease" }}
-                className="cursor-pointer"
-                onMouseEnter={() => setHoverDriver(d.driver)}
-                onMouseLeave={() => setHoverDriver(null)}
-              >
-                {/* Wide invisible hit area - the visible stroke is thin, this makes the whole curve easy to hover. */}
-                <path d={path} fill="none" stroke="transparent" strokeWidth={14} />
-                <path d={path} fill="none" stroke={color} strokeWidth={active ? 3.5 : 2.25} strokeLinecap="round" />
-                <circle cx={xStart} cy={y1} r={active ? 4 : 3} fill={color} />
-                <circle cx={xEnd} cy={y2} r={active ? 4 : 3} fill={color} />
-                <text x={xEnd + 8} y={y2} dominantBaseline="middle" fontSize={active ? 11 : 9.5} fontWeight={active ? 700 : 500} fill={active ? "white" : "rgba(255,255,255,0.4)"}>
-                  {d.driver}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+        {drivers.map((d) => {
+          const active = hoverDriver === d.driver;
+          const dimmed = hoverDriver !== null && !active;
+          const color = teamColor(d.team);
+          const y1 = yFor(d.grid);
+          const y2 = yFor(d.finish);
+          const path = `M ${xStart} ${y1} C ${xMid} ${y1} ${xMid} ${y2} ${xEnd} ${y2}`;
+          return (
+            <g
+              key={d.driver}
+              opacity={dimmed ? 0.16 : 1}
+              style={{ transition: "opacity 0.2s ease" }}
+              className="cursor-pointer"
+              onMouseEnter={() => setHoverDriver(d.driver)}
+              onMouseLeave={() => setHoverDriver(null)}
+            >
+              {/* Wide invisible hit area - the visible stroke is thin, this makes the whole curve easy to hover. */}
+              <path d={path} fill="none" stroke="transparent" strokeWidth={14} />
+              <path d={path} fill="none" stroke={color} strokeWidth={active ? 3.5 : 2.25} strokeLinecap="round" />
+              <circle cx={xStart} cy={y1} r={active ? 4 : 3} fill={color} />
+              <circle cx={xEnd} cy={y2} r={active ? 4 : 3} fill={color} />
+              <text x={xEnd + 8} y={y2} dominantBaseline="middle" fontSize={active ? 11 : 9.5} fontWeight={active ? 700 : 500} fill={active ? "white" : "rgba(255,255,255,0.4)"}>
+                {d.driver}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
 
       <div className="mt-2 flex min-h-[40px] items-center justify-center text-xs">
         {hovered ? (

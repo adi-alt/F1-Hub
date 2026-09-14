@@ -20,7 +20,7 @@ import {
   type ArchiveRaceDoc,
 } from "@/lib/supabase/archive";
 import { getRacesByCircuit, getRaceLaps, type RaceLapEntry } from "@/lib/supabase/races";
-import { getAllCurrentDrivers } from "@/lib/supabase/media";
+import { getAllCurrentDrivers, getAllCurrentTeams, type CurrentDriver, type CurrentTeam } from "@/lib/supabase/media";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getCircuitFacts, type CircuitFacts } from "@/lib/circuitFacts";
 import { buildCircuitTimeline, computeRaceTrends, type CircuitYearRecord } from "@/lib/circuitIntelligence";
@@ -144,6 +144,12 @@ export type CircuitDetailData = {
   /** A real photo + profile link per winning year, keyed by year (buildCircuitTimeline already
    * dedupes to one record per year, so this is unambiguous) - see buildWinnerMedia's own comment. */
   winnerMedia: Map<number, WinnerMedia>;
+  /** The current roster's own real headshots/logos - for the classification table, which needs a
+   * real photo per row (matching the Season page's own Championship table), not just a team-color
+   * dot. Passed as the raw list rather than a pre-built map so a client component can memoize its
+   * own lookup only if it actually needs one. */
+  currentDrivers: CurrentDriver[];
+  currentTeams: CurrentTeam[];
 };
 
 /** `location` is the exact string this app already routes circuits by (circuitHref's own query
@@ -152,10 +158,12 @@ export type CircuitDetailData = {
  * live `races` table nor the archive has ever recorded anything at this location - a genuinely
  * unknown circuit, not a data gap in one specific source. */
 export async function getCircuitDetailData(location: string, year: number, uid: string): Promise<CircuitDetailData | null> {
-  const [season, liveRaces, allCircuits] = await Promise.all([
+  const [season, liveRaces, allCircuits, currentDrivers, currentTeams] = await Promise.all([
     getSeasonPageData(year, uid),
     getRacesByCircuit(location),
     getAllArchiveCircuits(),
+    getAllCurrentDrivers(),
+    getAllCurrentTeams(),
   ]);
 
   const currentSeasonRace = season.raceSummaries.find((r) => (r.circuit ?? "").toLowerCase() === location.toLowerCase()) ?? null;
@@ -183,6 +191,8 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
     raceForSimulation,
     raceLaps,
     winnerMedia,
+    currentDrivers,
+    currentTeams,
   };
 }
 

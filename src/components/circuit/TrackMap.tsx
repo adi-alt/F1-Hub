@@ -273,6 +273,10 @@ export function TrackMap({
   raceLaps,
   raceLabel,
   className,
+  hoverDriver: hoverDriverProp,
+  onHoverDriver,
+  selectedDriver: selectedDriverProp,
+  onSelectedDriver,
 }: {
   /** Stable per-circuit seed for the deterministic schematic shape (or the lookup key for real
    * authentic geometry, when circuitShapes.json covers this circuit) - the circuit's own real
@@ -291,6 +295,13 @@ export function TrackMap({
   /** Applied to the root element - the caller's own layout classes (e.g. `lg:flex-1 lg:min-h-0`
    * to fill a sibling column's real measured height at desktop widths), never used internally. */
   className?: string;
+  /** Optional external control - e.g. a parent syncing the map's own driver dots with hover on
+   * the grid->finish curve or the classification table. Falls back to real internal state when
+   * the caller doesn't pass one, so this still works completely on its own. */
+  hoverDriver?: string | null;
+  onHoverDriver?: (driver: string | null) => void;
+  selectedDriver?: string | null;
+  onSelectedDriver?: (driver: string | null) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const pathRef = useRef<SVGPathElement>(null);
@@ -302,8 +313,12 @@ export function TrackMap({
   const [raceT, setRaceT] = useState(0); // 0..1 across the whole simulated replay
   const [renderCars, setRenderCars] = useState<RenderCar[]>([]);
   const [renderPits, setRenderPits] = useState<RenderPit[]>([]);
-  const [hoverDriver, setHoverDriver] = useState<string | null>(null);
-  const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
+  const [internalHover, setInternalHover] = useState<string | null>(null);
+  const [internalSelected, setInternalSelected] = useState<string | null>(null);
+  const hoverDriver = hoverDriverProp !== undefined ? hoverDriverProp : internalHover;
+  const setHoverDriver = onHoverDriver ?? setInternalHover;
+  const selectedDriver = selectedDriverProp !== undefined ? selectedDriverProp : internalSelected;
+  const setSelectedDriver = onSelectedDriver ?? setInternalSelected;
 
   // A plain mirror of raceT for the animation loop below to read without needing to restart
   // itself every time it changes (which putting it in that effect's own dependency array would
@@ -534,7 +549,7 @@ export function TrackMap({
                   className="cursor-pointer"
                   onMouseEnter={() => setHoverDriver(c.driver)}
                   onMouseLeave={() => setHoverDriver(null)}
-                  onClick={() => setSelectedDriver((cur) => (cur === c.driver ? null : c.driver))}
+                  onClick={() => setSelectedDriver(selectedDriver === c.driver ? null : c.driver)}
                 >
                   <title>{c.driver}</title>
                 </circle>
@@ -635,7 +650,7 @@ export function TrackMap({
               type="button"
               onMouseEnter={() => setHoverDriver(c.driver)}
               onMouseLeave={() => setHoverDriver(null)}
-              onClick={() => setSelectedDriver((cur) => (cur === c.driver ? null : c.driver))}
+              onClick={() => setSelectedDriver(selectedDriver === c.driver ? null : c.driver)}
               aria-pressed={selectedDriver === c.driver}
               className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
                 activeDriver === c.driver ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
@@ -683,24 +698,6 @@ function StepIcon({ back }: { back?: boolean }) {
   );
 }
 
-/** The compact timing tower - position, driver, team, and a REAL classified gap where the race has
- * one (never a fabricated intermediate gap). Sits beside the track map, not on top of it. */
-export function DriverTower({ results }: { results: RaceResultEntry[] }) {
-  const ranked = [...results].filter((r) => r.grid != null).sort((a, b) => a.finishPosition - b.finishPosition);
-  if (ranked.length === 0) return null;
-
-  return (
-    <ol className="divide-y divide-white/[0.055]">
-      {ranked.slice(0, 10).map((r) => (
-        <li key={r.driver} className="flex items-center gap-2.5 py-1.5 text-sm">
-          <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">P{r.finishPosition}</span>
-          <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: teamColor(r.team) }} />
-          <span className="min-w-0 flex-1 truncate text-neutral-200">{r.driverName}</span>
-          <span className="shrink-0 font-mono text-[11px] tabular-nums text-neutral-500">
-            {r.status === "dnf" ? "DNF" : r.finishPosition === 1 ? "Leader" : r.finishGapSec != null ? `+${r.finishGapSec.toFixed(1)}s` : "—"}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
+// The old plain-list timing tower (DriverTower) has moved to ClassificationTable.tsx - a real
+// table matching the Season page's own Championship table theme (EntityAvatar photos/logos, not
+// a color dot), and wired into the shared hover/select state this file's own driver dots use.
