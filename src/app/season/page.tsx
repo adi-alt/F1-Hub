@@ -17,7 +17,11 @@ export const metadata: Metadata = {
 export default async function SeasonPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  // `race` is the open race window's round - the window's state IS the URL (see
+  // SeasonExplorerProvider), which is what makes it survive a hard refresh and respond to the
+  // browser's back button. The server doesn't read it; it's declared so this type still describes
+  // the route's real contract rather than half of it.
+  searchParams: Promise<{ year?: string; race?: string }>;
 }) {
   const session = await getSession();
   if (!session.uid) {
@@ -34,10 +38,13 @@ export default async function SeasonPage({
   // stale bookmark, a hand-edited URL); a future/garbage value just falls back to the current year
   // rather than erroring on it.
   const currentYear = new Date().getFullYear();
-  const { year: yearParam } = await searchParams;
+  const { year: yearParam, race: raceParam } = await searchParams;
   const requestedYear = yearParam ? Number(yearParam) : null;
   if (requestedYear && requestedYear !== currentYear && requestedYear < currentYear) {
-    redirect(archiveSeasonHref(requestedYear));
+    // Carry the open race across the redirect. Archive renders the same SeasonDetail, race window
+    // included, so dropping it would silently close a window the user had linked to.
+    const target = archiveSeasonHref(requestedYear);
+    redirect(raceParam ? `${target}&race=${encodeURIComponent(raceParam)}` : target);
   }
   const year = currentYear;
   const data = await getSeasonDetailData(year, session.uid);
