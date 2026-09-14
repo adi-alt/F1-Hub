@@ -206,6 +206,64 @@ function gapToLeaderAt(driver: string, lap: number, cumTime: Map<string, Map<num
   return own - leader;
 }
 
+/** The hover/select tooltip, drawn INSIDE the SVG at the active car's own real position rather
+ * than as a separate fixed info panel below the map - it tracks the car (including mid-replay,
+ * since it reads the same per-frame `render` position everything else on the map does), and its
+ * every size is `uiScale`-relative so it reads correctly regardless of which circuit's own
+ * measured viewBox is active. Clamped to stay inside the viewBox rather than running off the edge
+ * for a car near the boundary. */
+function CarTooltip({
+  car,
+  render,
+  currentLap,
+  gap,
+  compound,
+  uiScale,
+  vbX,
+  vbY,
+  vbW,
+  vbH,
+}: {
+  car: SimCar;
+  render: RenderCar;
+  currentLap: number | null;
+  gap: number | null;
+  compound: string | null;
+  uiScale: number;
+  vbX: number;
+  vbY: number;
+  vbW: number;
+  vbH: number;
+}) {
+  const statsLine = [currentLap ? `Lap ${currentLap}` : null, `P${Math.round(render.rank)}`, gap != null ? (gap <= 0.05 ? "Leader" : `+${gap.toFixed(1)}s`) : null, compound]
+    .filter((v): v is string => !!v)
+    .join("  ·  ");
+
+  const boxW = 46 * uiScale;
+  const lineH = 4.4 * uiScale;
+  const padY = 1.8 * uiScale;
+  const boxH = padY * 2 + lineH * 2;
+
+  // Flip below the car if it's in the top ~22% of the box (nowhere above it to draw into), clamp
+  // horizontally so the box never runs past either edge.
+  const flipBelow = render.y - vbY < vbH * 0.22;
+  const boxY = flipBelow ? render.y + 3.5 * uiScale : render.y - 3.5 * uiScale - boxH;
+  const boxX = Math.min(Math.max(render.x - boxW / 2, vbX + 0.5 * uiScale), vbX + vbW - boxW - 0.5 * uiScale);
+  const textX = boxX + boxW / 2;
+
+  return (
+    <g style={{ pointerEvents: "none" }}>
+      <rect x={boxX} y={boxY} width={boxW} height={boxH} rx={1.2 * uiScale} fill="rgba(8,8,10,0.92)" stroke="rgba(255,255,255,0.14)" strokeWidth={0.2 * uiScale} />
+      <text x={textX} y={boxY + padY + lineH * 0.62} textAnchor="middle" fontSize={3.1 * uiScale} fontWeight={700} fill="white">
+        {car.driverName} · {car.team}
+      </text>
+      <text x={textX} y={boxY + padY + lineH * 1.62} textAnchor="middle" fontSize={2.7 * uiScale} fill="rgba(255,255,255,0.65)">
+        {statsLine}
+      </text>
+    </g>
+  );
+}
+
 export function TrackMap({
   seed,
   turns,
@@ -280,6 +338,14 @@ export function TrackMap({
     setTightViewBox(`${box.x - pad} ${box.y - pad} ${box.width + pad * 2} ${box.height + pad * 2}`);
   }, [shape]);
   const effectiveViewBox = tightViewBox ?? shape.viewBox ?? "0 0 100 100";
+  // Every hardcoded size in this file was originally tuned against the schematic fallback's own
+  // fixed "0 0 100 100" box. Authentic geometry's tight viewBox is a different, real, MEASURED
+  // width per circuit (not a guessable constant - see the effect above) - uiScale rescales every
+  // one of those tuned constants proportionally, so a size that looked right at width=100 still
+  // looks right at whatever real width this circuit's own tight box turned out to be, instead of
+  // one fixed multiplier that was only ever a guess for an assumed "typical" authentic width.
+  const [vbX, vbY, vbW, vbH] = effectiveViewBox.split(" ").map(Number);
+  const uiScale = (vbW || 100) / 100;
 
   const cars = useMemo(() => buildSimCars(results ?? [], tireStints ?? [], raceLaps ?? []), [results, tireStints, raceLaps]);
   const cumTime = useMemo(() => buildCumulativeTime(raceLaps ?? []), [raceLaps]);
@@ -404,7 +470,7 @@ export function TrackMap({
             d={shape.path}
             fill="none"
             stroke="rgba(255,255,255,0.55)"
-            strokeWidth={shape.isAuthentic ? 6 : 1.8}
+            strokeWidth={1.8 * uiScale}
             strokeLinecap="round"
             strokeLinejoin="round"
             pathLength={1}
@@ -420,11 +486,11 @@ export function TrackMap({
           />
           <line
             x1={shape.startFinish.x}
-            y1={shape.startFinish.y - (shape.isAuthentic ? 14 : 2.8)}
+            y1={shape.startFinish.y - 2.8 * uiScale}
             x2={shape.startFinish.x}
-            y2={shape.startFinish.y + (shape.isAuthentic ? 14 : 2.8)}
+            y2={shape.startFinish.y + 2.8 * uiScale}
             stroke="var(--f1-red)"
-            strokeWidth={shape.isAuthentic ? 5 : 1.1}
+            strokeWidth={1.1 * uiScale}
             opacity={drawn ? 1 : 0}
             style={{ transition: "opacity 0.3s ease-out 0.5s" }}
           />
@@ -439,22 +505,21 @@ export function TrackMap({
               </g>
             ))}
 
-          {drawn && renderPits.map((p) => <circle key={p.key} cx={p.x} cy={p.y} r={shape.isAuthentic ? 3 : 0.6} fill="rgba(234,179,8,0.55)" />)}
+          {drawn && renderPits.map((p) => <circle key={p.key} cx={p.x} cy={p.y} r={0.6 * uiScale} fill="rgba(234,179,8,0.55)" />)}
 
           {drawn &&
             hasSimulation &&
             renderCars.map((c) => {
               const dimmed = activeDriver !== null && activeDriver !== c.driver;
-              const carScale = shape.isAuthentic ? 2.6 : 1;
               return (
                 <circle
                   key={c.driver}
                   cx={c.x}
                   cy={c.y}
-                  r={(c.finishRank <= 3 ? 1.7 : 1.3) * carScale}
+                  r={(c.finishRank <= 3 ? 1.7 : 1.3) * uiScale}
                   fill={teamColor(c.team)}
                   stroke={activeDriver === c.driver ? "white" : "rgba(0,0,0,0.5)"}
-                  strokeWidth={(activeDriver === c.driver ? 0.6 : 0.3) * carScale}
+                  strokeWidth={(activeDriver === c.driver ? 0.6 : 0.3) * uiScale}
                   opacity={dimmed ? 0.25 : c.dnf && lapT > retiredAtLapT(cars.find((x) => x.driver === c.driver)!, totalLaps) ? 0.25 : 1}
                   className="cursor-pointer"
                   onMouseEnter={() => setHoverDriver(c.driver)}
@@ -465,6 +530,21 @@ export function TrackMap({
                 </circle>
               );
             })}
+
+          {drawn && activeCar && activeRender && (
+            <CarTooltip
+              car={activeCar}
+              render={activeRender}
+              currentLap={currentLap}
+              gap={activeGap}
+              compound={activeCompound}
+              uiScale={uiScale}
+              vbX={vbX}
+              vbY={vbY}
+              vbW={vbW}
+              vbH={vbH}
+            />
+          )}
         </svg>
 
         <span className="absolute bottom-2 left-2 rounded-full border border-white/[0.14] bg-black/50 px-2 py-0.5 text-[9px] font-medium text-neutral-400 backdrop-blur-sm">
@@ -538,43 +618,25 @@ export function TrackMap({
       )}
 
       {hasSimulation && (
-        <div>
-          <div className="mb-2 flex flex-wrap gap-1" role="group" aria-label="Drivers">
-            {cars.map((c) => (
-              <button
-                key={c.driver}
-                type="button"
-                onMouseEnter={() => setHoverDriver(c.driver)}
-                onMouseLeave={() => setHoverDriver(null)}
-                onClick={() => setSelectedDriver((cur) => (cur === c.driver ? null : c.driver))}
-                aria-pressed={selectedDriver === c.driver}
-                className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
-                  activeDriver === c.driver ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
-                }`}
-              >
-                <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: teamColor(c.team) }} />
-                {c.driver}
-              </button>
-            ))}
-          </div>
-
-          <div className="min-h-[44px] rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs">
-            {activeCar ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="font-semibold text-white">{activeCar.driverName}</span>
-                <span className="text-neutral-500">{activeCar.team}</span>
-                {activeRender && <span className="font-mono tabular-nums text-neutral-300">P{Math.round(activeRender.rank)}</span>}
-                {currentLap && <span className="text-neutral-500">Lap {currentLap}</span>}
-                {activeGap != null && <span className="font-mono tabular-nums text-neutral-400">{activeGap <= 0.05 ? "Leader" : `+${activeGap.toFixed(1)}s`}</span>}
-                {activeCompound && <span className="text-neutral-500">Tyre: {activeCompound}</span>}
-              </div>
-            ) : (
-              <span className="text-neutral-600">Hover or select a driver above</span>
-            )}
-          </div>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Drivers">
+          {cars.map((c) => (
+            <button
+              key={c.driver}
+              type="button"
+              onMouseEnter={() => setHoverDriver(c.driver)}
+              onMouseLeave={() => setHoverDriver(null)}
+              onClick={() => setSelectedDriver((cur) => (cur === c.driver ? null : c.driver))}
+              aria-pressed={selectedDriver === c.driver}
+              className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                activeDriver === c.driver ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: teamColor(c.team) }} />
+              {c.driver}
+            </button>
+          ))}
         </div>
       )}
-
     </div>
   );
 }

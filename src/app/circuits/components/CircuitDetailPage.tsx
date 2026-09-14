@@ -71,18 +71,22 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
         </div>
         <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          {/* Left: the track map and its own playback controls, legend, and driver readout -
-              nothing else. Right: two stacked cards, classification then grid->finish, both real
-              data about the same `raceForSimulation` race the map itself is replaying. */}
-          <TrackMap
-            seed={location}
-            turns={facts?.turns ?? 14}
-            trackType={facts?.trackType ?? "permanent"}
-            results={raceForSimulation?.results ?? null}
-            tireStints={raceForSimulation?.tireStints ?? null}
-            raceLaps={raceForSimulation ? raceLaps : null}
-            raceLabel={raceForSimulation ? `${raceForSimulation.year} race` : null}
-          />
+          {/* Left: this season's own real result at this circuit (when it's run), then the track
+              map and its own playback controls/legend/driver readout. Right: two stacked cards,
+              classification then grid->finish, both real data about the same `raceForSimulation`
+              race the map itself is replaying. */}
+          <div className="flex min-w-0 flex-col gap-8">
+            {currentSeasonRace?.state === "completed" && <CurrentSeasonPerformance race={currentSeasonRace} year={year} />}
+            <TrackMap
+              seed={location}
+              turns={facts?.turns ?? 14}
+              trackType={facts?.trackType ?? "permanent"}
+              results={raceForSimulation?.results ?? null}
+              tireStints={raceForSimulation?.tireStints ?? null}
+              raceLaps={raceForSimulation ? raceLaps : null}
+              raceLabel={raceForSimulation ? `${raceForSimulation.year} race` : null}
+            />
+          </div>
           {raceForSimulation?.results && (
             <div className="flex min-w-0 flex-col gap-6">
               <div>
@@ -102,11 +106,6 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
         <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
       </div>
 
-      {currentSeasonRace?.state === "completed" && (
-        <div className="mb-8">
-          <CurrentSeasonPerformance race={currentSeasonRace} year={year} />
-        </div>
-      )}
       {currentSeasonRace && currentSeasonRace.state !== "completed" && (
         <div className="mb-8">
           <UpcomingCircuitIntelligence race={currentSeasonRace} />
