@@ -17,6 +17,10 @@ import { getSeasonDetailData } from "@/app/season/_service/season.service";
 import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
 import { buildCircuitContext, formatCircuitContext } from "@/lib/ai/context/circuitContext";
 import {
+  getActiveIds,
+  getAllArchiveCircuitsData,
+  getAllArchiveDriversData,
+  getAllArchiveTeamsData,
   getArchiveCircuitData,
   getArchiveCircuitHistoryData,
   getArchiveDriverData,
@@ -260,6 +264,156 @@ async function buildArchiveYearBrowserGroundingContext(clientContext: Record<str
   return context;
 }
 
+/** The "By Track" tab's own registered scope (ArchiveTrackBrowserApexScope) sends only its
+ * search/active-historical/country/favorites-only selection, under `snapshot.view:
+ * "trackBrowser"`. Real facts come from getAllArchiveCircuitsData, filtered exactly the way
+ * ArchiveCircuitGrid filters client-side, with "active" resolved by the exact same getActiveIds
+ * reconciliation the grid's own status badges use - never a second, drifting definition of
+ * "active." Capped to the most-raced circuits (not just the first N) so an unfiltered browse
+ * still fits the context budget without losing the circuits most likely to actually be asked
+ * about. */
+async function buildArchiveTrackBrowserGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const snapshot = isPlainObject(clientContext.snapshot) ? clientContext.snapshot : null;
+  if (snapshot?.view !== "trackBrowser") return null;
+  const search = typeof snapshot.search === "string" ? snapshot.search.trim().toLowerCase() : "";
+  const status = snapshot.status === "active" || snapshot.status === "historical" ? snapshot.status : "all";
+  const country = typeof snapshot.country === "string" ? snapshot.country : "";
+  const favoritesOnly = snapshot.favoritesOnly === true;
+
+  const circuits = await getAllArchiveCircuitsData().catch(() => [] as Awaited<ReturnType<typeof getAllArchiveCircuitsData>>);
+  if (circuits.length === 0) return null;
+  const [{ circuitIds: activeCircuitIds }, profile] = await Promise.all([
+    getActiveIds(circuits),
+    favoritesOnly ? getUserProfile(userId).catch(() => null) : Promise.resolve(null),
+  ]);
+  const activeSet = new Set(activeCircuitIds);
+  const favoriteSet = new Set(profile?.favoriteTracks ?? []);
+
+  const filtered = circuits.filter((c) => {
+    if (search && !(c.name ?? c.circuitId).toLowerCase().includes(search)) return false;
+    if (status === "active" && !activeSet.has(c.circuitId)) return false;
+    if (status === "historical" && activeSet.has(c.circuitId)) return false;
+    if (country && c.country !== country) return false;
+    if (favoritesOnly && !favoriteSet.has(c.circuitId)) return false;
+    return true;
+  });
+  if (filtered.length === 0) return null;
+
+  const sorted = [...filtered].sort((a, b) => (b.raceCount ?? 0) - (a.raceCount ?? 0));
+  const context = {
+    page: "archive",
+    tab: "track",
+    viewing: { search: search || undefined, status, country: country || undefined, favoritesOnly: favoritesOnly || undefined },
+    totalMatching: filtered.length,
+    circuits: sorted.slice(0, 50).map((c) => ({
+      name: c.name ?? c.circuitId,
+      country: c.country ?? null,
+      races: c.raceCount ?? null,
+      firstYear: c.firstYear ?? null,
+      lastYear: c.lastYear ?? null,
+      active: activeSet.has(c.circuitId),
+    })),
+  };
+  while (JSON.stringify(context).length > MAX_SERVER_CONTEXT_JSON_LENGTH - 2000 && context.circuits.length > 0) {
+    context.circuits.pop();
+  }
+  return context;
+}
+
+/** The "By Driver" tab's own registered scope (ArchiveDriverBrowserApexScope) sends only its
+ * search/favorites-only selection, under `snapshot.view: "driverBrowser"`. Real facts come from
+ * getAllArchiveDriversData (805 rows) - filtered exactly like ArchiveTable's own client-side
+ * search/favorites, then capped to the most-raced matches. A search narrow enough to already be
+ * small (the common case - a name search) never hits the cap at all; an unfiltered or
+ * favorites-only browse is what the cap actually protects. */
+async function buildArchiveDriverBrowserGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const snapshot = isPlainObject(clientContext.snapshot) ? clientContext.snapshot : null;
+  if (snapshot?.view !== "driverBrowser") return null;
+  const search = typeof snapshot.search === "string" ? snapshot.search.trim().toLowerCase() : "";
+  const favoritesOnly = snapshot.favoritesOnly === true;
+
+  const [drivers, profile] = await Promise.all([
+    getAllArchiveDriversData().catch(() => [] as Awaited<ReturnType<typeof getAllArchiveDriversData>>),
+    favoritesOnly ? getUserProfile(userId).catch(() => null) : Promise.resolve(null),
+  ]);
+  if (drivers.length === 0) return null;
+  const favoriteSet = new Set(profile?.favoriteDrivers ?? []);
+
+  const filtered = drivers.filter((d) => {
+    if (search && !d.name.toLowerCase().includes(search)) return false;
+    if (favoritesOnly && !favoriteSet.has(d.driverId)) return false;
+    return true;
+  });
+  if (filtered.length === 0) return null;
+
+  const sorted = [...filtered].sort((a, b) => b.raceCount - a.raceCount);
+  const context = {
+    page: "archive",
+    tab: "driver",
+    viewing: { search: search || undefined, favoritesOnly: favoritesOnly || undefined },
+    totalMatching: filtered.length,
+    drivers: sorted.slice(0, 40).map((d) => ({
+      name: d.name,
+      firstYear: d.firstYear,
+      lastYear: d.lastYear,
+      races: d.raceCount,
+      constructors: d.constructors?.slice(0, 6) ?? [],
+    })),
+  };
+  while (JSON.stringify(context).length > MAX_SERVER_CONTEXT_JSON_LENGTH - 2000 && context.drivers.length > 0) {
+    context.drivers.pop();
+  }
+  return context;
+}
+
+/** The "By Team" tab's own registered scope (ArchiveTeamBrowserApexScope) sends only its
+ * search/favorites-only selection, under `snapshot.view: "teamBrowser"`. Real facts come from
+ * getAllArchiveTeamsData (171 rows), with "active" resolved by the same getActiveIds
+ * reconciliation the track browser above (and the team table's own status badge) already use. */
+async function buildArchiveTeamBrowserGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const snapshot = isPlainObject(clientContext.snapshot) ? clientContext.snapshot : null;
+  if (snapshot?.view !== "teamBrowser") return null;
+  const search = typeof snapshot.search === "string" ? snapshot.search.trim().toLowerCase() : "";
+  const favoritesOnly = snapshot.favoritesOnly === true;
+
+  const [teams, circuits, profile] = await Promise.all([
+    getAllArchiveTeamsData().catch(() => [] as Awaited<ReturnType<typeof getAllArchiveTeamsData>>),
+    getAllArchiveCircuitsData().catch(() => [] as Awaited<ReturnType<typeof getAllArchiveCircuitsData>>),
+    favoritesOnly ? getUserProfile(userId).catch(() => null) : Promise.resolve(null),
+  ]);
+  if (teams.length === 0) return null;
+  const { teamIds: activeTeamIds } = await getActiveIds(circuits);
+  const activeSet = new Set(activeTeamIds);
+  const favoriteSet = new Set(profile?.favoriteTeams ?? []);
+
+  const filtered = teams.filter((t) => {
+    if (search && !t.name.toLowerCase().includes(search)) return false;
+    if (favoritesOnly && !favoriteSet.has(t.teamId)) return false;
+    return true;
+  });
+  if (filtered.length === 0) return null;
+
+  const sorted = [...filtered].sort((a, b) => b.raceCount - a.raceCount);
+  const context = {
+    page: "archive",
+    tab: "team",
+    viewing: { search: search || undefined, favoritesOnly: favoritesOnly || undefined },
+    totalMatching: filtered.length,
+    teams: sorted.slice(0, 40).map((t) => ({
+      name: t.name,
+      firstYear: t.firstYear,
+      lastYear: t.lastYear,
+      races: t.raceCount,
+      active: activeSet.has(t.teamId),
+      drivers: t.drivers?.slice(0, 8) ?? [],
+    })),
+  };
+  while (JSON.stringify(context).length > MAX_SERVER_CONTEXT_JSON_LENGTH - 2000 && context.teams.length > 0) {
+    context.teams.pop();
+  }
+  return context;
+}
+
 /** Archive's own registered scope (ArchiveApexScope.tsx) sends only {entityType, entityId} under
  * `snapshot` - same rule as circuit/season above. Every real fact (career stats, team stints, win
  * counts) is fetched and computed here, server-side, from the same archive service functions the
@@ -446,16 +600,20 @@ export async function POST(req: Request) {
       }
     }
     if (context.page === "archive") {
-      const yearBrowserContext = await buildArchiveYearBrowserGroundingContext(context);
-      if (yearBrowserContext) {
-        context = yearBrowserContext;
+      // Each builder checks its own `snapshot.view`/`entityType` discriminator and returns null
+      // immediately if it doesn't match - only one of these ever does real work for a given
+      // request, but trying them in sequence means the four Archive browsing tabs and the three
+      // entity-detail pages all share one dispatch point instead of the route needing to know in
+      // advance which of the seven shapes a given request's snapshot is.
+      const resolved =
+        (await buildArchiveYearBrowserGroundingContext(context)) ??
+        (await buildArchiveTrackBrowserGroundingContext(userId, context)) ??
+        (await buildArchiveDriverBrowserGroundingContext(userId, context)) ??
+        (await buildArchiveTeamBrowserGroundingContext(userId, context)) ??
+        (await buildArchiveGroundingContext(userId, context));
+      if (resolved) {
+        context = resolved;
         serverBuilt = true;
-      } else {
-        const archiveContext = await buildArchiveGroundingContext(userId, context);
-        if (archiveContext) {
-          context = archiveContext;
-          serverBuilt = true;
-        }
       }
     }
 

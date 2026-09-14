@@ -13,6 +13,7 @@ import type { ExplorerRow, ResultFilter } from "./components/ArchiveRaceExplorer
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
+  getActiveIds,
   getAllArchiveCircuitsData,
   getAllArchiveDriversData,
   getAllArchiveTeamsData,
@@ -27,13 +28,9 @@ import {
   getArchiveYears,
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
-import type { ArchiveRaceDoc, ArchiveResultEntry, CurrentLeader } from "@/lib/supabase/archive";
+import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
 import { getArchiveDriverPhotosByIds } from "@/lib/supabase/archive";
 import { getAllCurrentTeams } from "@/lib/supabase/media";
-import { getRacesByYear } from "@/lib/supabase/races";
-import { computeStandings } from "@/lib/standings";
-import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { raceHref } from "@/lib/routes";
@@ -55,50 +52,9 @@ type Facet = "year" | "track" | "driver" | "team";
 // A Firestore outage (quota, transient error, anything) degrades this page to empty
 // tabs/favorites instead of crashing it outright — the same "temporarily nothing here" empty
 // states these components already show when a pipeline pass genuinely hasn't reached this data
-// yet double as the degraded view; nothing new to build for that.
-/** Reconciles the current season's own roster against the archive - the same direction of the
- * current-season <-> archive matching problem src/app/profile/page.tsx's mergeCurrentSeason
- * already solves (there: fold this year's names into the archive-sourced favorite lists; here:
- * flag which existing archive circuits/teams are also this year's), reusing the exact same
- * resolver functions rather than writing a second matching implementation. Also derives
- * `currentLeader` from the same current-season fetch, so as not to duplicate it - this year's
- * points leader, computed with the same pure computeStandings the season page itself uses, for
- * the year-card hover tooltip on the in-progress season (which the archive has no rows for at
- * all). Best-effort: if the current season's own data can't be read right now, everything just
- * degrades to "historical, no leader" rather than crashing the whole Archive page over one extra
- * cross-reference. */
-async function getActiveIds(
-  circuits: Awaited<ReturnType<typeof getAllArchiveCircuitsData>>,
-): Promise<{ circuitIds: string[]; teamIds: string[]; currentLeader: CurrentLeader }> {
-  const empty = { circuitIds: [], teamIds: [], currentLeader: { driver: null, team: null } };
-  try {
-    const year = new Date().getFullYear();
-    const [races, currentTeams] = await Promise.all([getRacesByYear(year), getAllCurrentTeams()]);
-    const circuitLocalities = new Map(circuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
-    const circuitIdsByName = new Map(circuits.map((c) => [(c.name ?? c.circuitId).trim().toLowerCase(), c.circuitId]));
-
-    const circuitIds = new Set<string>();
-    for (const race of races) {
-      const resolved = resolveCurrentCircuitToArchiveId(race.circuit, circuitLocalities, circuitIdsByName);
-      if (resolved) circuitIds.add(resolved);
-    }
-    const teamIds = currentTeams.map((t) => archiveSlugForCurrentTeam(t.name));
-
-    const standings = computeStandings(races);
-    const topDriver = standings.drivers[0];
-    const topTeam = standings.constructors[0];
-    const currentLeader: CurrentLeader = {
-      driver: topDriver ? { name: topDriver.driverName, points: topDriver.points } : null,
-      team: topTeam ? { name: topTeam.team, points: topTeam.points } : null,
-    };
-
-    return { circuitIds: [...circuitIds], teamIds, currentLeader };
-  } catch (error) {
-    console.error("ArchiveIndex: current-season reconciliation failed, treating everything as historical:", error);
-    return empty;
-  }
-}
-
+// yet double as the degraded view; nothing new to build for that. getActiveIds itself now lives in
+// archive.service.ts (see its own docstring there) so the ask-apex route's By Track/By Team
+// grounding builders can reuse the exact same "active this season" reconciliation this page uses.
 async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   // Circuits and year-stats are unconditionally eager: circuits because getActiveIds' active/
   // historical reconciliation needs the full list regardless of which tab is open (and its own

@@ -13,7 +13,7 @@ import { useFavoritesHydration } from "@/queries/favorites/useFavoritesHydration
 import { useArchiveDrivers } from "../_hooks/useArchiveDrivers";
 import { useArchiveTeams } from "../_hooks/useArchiveTeams";
 import { ArchiveCircuitGrid } from "./ArchiveCircuitGrid";
-import { ArchiveYearBrowserApexScope } from "./ArchiveApexScope";
+import { ArchiveDriverBrowserApexScope, ArchiveTeamBrowserApexScope, ArchiveTrackBrowserApexScope, ArchiveYearBrowserApexScope } from "./ArchiveApexScope";
 import { ArchiveDriverTable } from "./ArchiveDriverTable";
 import { EraFilterSelect, FavoritesOnlyToggle, TrackFilters } from "./ArchiveFilters";
 import { ArchiveSeasonGrid } from "./ArchiveSeasonGrid";
@@ -144,6 +144,9 @@ export function ArchiveExplorer({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {facet === "year" && <ArchiveYearBrowserApexScope era={era} searchQuery={search} />}
+      {facet === "track" && <ArchiveTrackBrowserApexScope search={search} status={trackStatus} country={country} favoritesOnly={favoritesOnly} />}
+      {facet === "driver" && <ArchiveDriverBrowserApexScope search={search} favoritesOnly={favoritesOnly} />}
+      {facet === "team" && <ArchiveTeamBrowserApexScope search={search} favoritesOnly={favoritesOnly} />}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <QuietTabs options={TABS} value={facet} onChange={switchTo} />
         <input

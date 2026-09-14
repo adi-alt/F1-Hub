@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -8,6 +9,17 @@ import { archiveCircuitHref } from "@/lib/routes";
 import { FavoriteButton } from "./FavoriteButton";
 import { StatusBadge } from "./StatusBadge";
 import type { ArchiveCircuit } from "@/lib/supabase/archive";
+
+/** `c.imageUrl && <Image>` alone only covers "no URL at all" - a URL that 404s (a re-host that
+ * never completed, a deleted Storage object) still rendered nothing where next/image doesn't
+ * paint a broken-image glyph, silently leaving an empty gradient tile with no visual explanation.
+ * `onError` swaps back to that same gradient placeholder explicitly, so a genuinely broken image
+ * reads the same as "no image yet" instead of looking like a rendering bug. */
+function CircuitThumbnail({ src, alt }: { src: string; alt: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+  return <Image src={src} alt={alt} fill className="object-contain p-3" onError={() => setBroken(true)} />;
+}
 
 export function ArchiveCircuitGrid({
   circuits,
@@ -91,7 +103,7 @@ export function ArchiveCircuitGrid({
               className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
             >
               <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
-                {c.imageUrl && <Image src={c.imageUrl} alt={`${c.name ?? c.circuitId} layout`} fill className="object-contain p-3" />}
+                {c.imageUrl && <CircuitThumbnail src={c.imageUrl} alt={`${c.name ?? c.circuitId} layout`} />}
                 <FavoriteButton
                   favorited={favoriteIds.has(c.circuitId)}
                   onToggle={() => onToggleFavorite(c.circuitId)}

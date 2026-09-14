@@ -89,3 +89,132 @@ export function ArchiveYearBrowserApexScope({ era, searchQuery }: { era: string;
 
   return null;
 }
+
+/**
+ * The "By Track" tab's own scope - same rule as ArchiveYearBrowserApexScope: only the visible
+ * filter selection goes over the wire (search/active-historical/country/favorites-only), under
+ * `snapshot.view: "trackBrowser"`. The server resolves it against the real circuit index
+ * (buildArchiveTrackBrowserGroundingContext), reusing the exact same active/historical
+ * reconciliation (getActiveIds) the grid's own status badges already use - never a second
+ * definition of "active."
+ */
+export function ArchiveTrackBrowserApexScope({
+  search,
+  status,
+  country,
+  favoritesOnly,
+}: {
+  search: string;
+  status: "all" | "active" | "historical";
+  country: string;
+  favoritesOnly: boolean;
+}) {
+  const trimmedSearch = search.trim();
+
+  const suggestions: string[] = [];
+  if (trimmedSearch) {
+    suggestions.push(`Tell me about ${trimmedSearch}'s history`, `Who has won the most races at ${trimmedSearch}?`);
+  } else if (status === "active") {
+    suggestions.push("Which tracks are on the current calendar?");
+  } else if (status === "historical") {
+    suggestions.push("Which historic circuits disappeared from F1?");
+  } else if (country) {
+    suggestions.push(`Which circuits has ${country} hosted?`);
+  } else {
+    suggestions.push("Which track has hosted the most F1 races?", "Compare two circuits");
+  }
+  suggestions.push("Most important circuits in F1 history");
+
+  useRegisterApexScope({
+    key: "archive:track-browser",
+    label: "F1 Circuits",
+    sublabel: status !== "all" ? (status === "active" ? "Active tracks" : "Historical tracks") : (country || "1950–Present"),
+    context: {
+      page: "archive",
+      snapshot: {
+        view: "trackBrowser",
+        search: trimmedSearch || undefined,
+        status: status !== "all" ? status : undefined,
+        country: country || undefined,
+        favoritesOnly: favoritesOnly || undefined,
+      },
+    },
+    suggestions: suggestions.slice(0, 4),
+  });
+
+  return null;
+}
+
+/**
+ * The "By Driver" tab's own scope - same rule again: search/favorites-only selection state only,
+ * under `snapshot.view: "driverBrowser"`. The server resolves it against the real driver index
+ * (buildArchiveDriverBrowserGroundingContext), capped to a bounded, most-relevant subset - see
+ * that builder's own comment for why the full 800+ row index is never sent as-is.
+ */
+export function ArchiveDriverBrowserApexScope({ search, favoritesOnly }: { search: string; favoritesOnly: boolean }) {
+  const trimmedSearch = search.trim();
+
+  const suggestions: string[] = [];
+  if (trimmedSearch) {
+    suggestions.push(`Tell me about ${trimmedSearch}'s career`, `Compare ${trimmedSearch} with another driver`);
+  } else if (favoritesOnly) {
+    suggestions.push("Compare my favorite drivers");
+  } else {
+    suggestions.push("Who has the longest career on record?", "Which drivers raced for the most constructors?");
+  }
+  suggestions.push("Compare two drivers");
+
+  useRegisterApexScope({
+    key: "archive:driver-browser",
+    label: "F1 Drivers",
+    sublabel: trimmedSearch ? `Search: ${trimmedSearch}` : favoritesOnly ? "Favorites" : "All-time roster",
+    context: {
+      page: "archive",
+      snapshot: {
+        view: "driverBrowser",
+        search: trimmedSearch || undefined,
+        favoritesOnly: favoritesOnly || undefined,
+      },
+    },
+    suggestions: suggestions.slice(0, 4),
+  });
+
+  return null;
+}
+
+/**
+ * The "By Team" tab's own scope - same shape as the driver browser above, under
+ * `snapshot.view: "teamBrowser"`. The server resolves it against the real constructor index
+ * (buildArchiveTeamBrowserGroundingContext), including the same active/historical reconciliation
+ * the track browser uses (getActiveIds also returns team ids, not a separate lookup).
+ */
+export function ArchiveTeamBrowserApexScope({ search, favoritesOnly }: { search: string; favoritesOnly: boolean }) {
+  const trimmedSearch = search.trim();
+
+  const suggestions: string[] = [];
+  if (trimmedSearch) {
+    suggestions.push(`Tell me about ${trimmedSearch}'s history`, `Which drivers have raced for ${trimmedSearch}?`);
+  } else if (favoritesOnly) {
+    suggestions.push("Compare my favorite teams");
+  } else {
+    suggestions.push("Which constructors are active this season?", "Which team has the most race entries?");
+  }
+  suggestions.push("Compare two teams");
+
+  useRegisterApexScope({
+    key: "archive:team-browser",
+    label: "F1 Constructors",
+    sublabel: trimmedSearch ? `Search: ${trimmedSearch}` : favoritesOnly ? "Favorites" : "All-time roster",
+    context: {
+      page: "archive",
+      snapshot: {
+        view: "teamBrowser",
+        search: trimmedSearch || undefined,
+        favoritesOnly: favoritesOnly || undefined,
+      },
+    },
+    suggestions: suggestions.slice(0, 4),
+  });
+
+  return null;
+}
