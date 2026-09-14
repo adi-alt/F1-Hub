@@ -157,10 +157,15 @@ export function SeasonDetail({
             championship tab is active, how many rows a search leaves, or how tall the viewport is -
             none of which a "tallest child wins" stretch could guarantee. No padding is added to
             fake the match; the space is real and both components use it.
+            `lg:grid-rows-[1fr]` alongside the height, not just the height alone: a single
+            `auto`-sized grid row DOES stretch to absorb a definite container height per spec, but
+            that's a secondary "leftover space" behaviour, not what actually sizes the row - stating
+            the row track itself as `1fr` makes the fill the primary, unambiguous rule instead of
+            leaning on that fallback.
             Height applies only from `lg`, where they sit side by side. Stacked on smaller screens
             they size to their own content, because matching heights in a single column is
             meaningless. */}
-        <div className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[1fr] lg:gap-10">
           <div className="flex min-h-0 min-w-0 flex-col">
             <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} personal={personal} />
           </div>

@@ -39,7 +39,7 @@ export function SeasonDetailSkeleton() {
 
         {/* Standings + what changed. Mirrors the real row exactly, including its declared height,
             so the two columns don't resize the moment content arrives. */}
-        <div className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[1fr] lg:gap-10">
           <div className="flex min-h-0 min-w-0 flex-col">
             <TextSkeleton width={96} height={9} />
             <TextSkeleton className="mt-3" width={190} height={16} />

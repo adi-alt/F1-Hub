@@ -87,8 +87,15 @@ export type RaceSummary = {
   eventFormat: string | null;
   isSprintWeekend: boolean;
   weekendStatus: RaceWeekendStatus;
-  /** Real race photography (Wikimedia Commons, re-hosted in Storage) - not circuit diagrams. */
+  /** Real race photography (Wikimedia Commons, re-hosted in Storage) - not circuit diagrams. Only
+   * exists once this specific round has actually been processed (a `races`/`archive_races` row
+   * with results or at least practice data) - most of a season's still-to-run rounds have none. */
   photoUrls: string[];
+  /** The circuit's own real photography, independent of whether THIS round has run yet - circuits
+   * are known well ahead of the calendar and archive_circuits is backfilled from the venue itself,
+   * not from a specific race weekend. The fallback for every round photoUrls is empty for, never a
+   * fabricated or wrong-venue substitute: null when even the circuit hasn't been matched yet. */
+  circuitPhotoUrls: string[];
   /** Pre-event forecast snapshot, written once by the pipeline when the race was close enough. */
   forecast: WeatherForecast | null;
   /** What the weather actually was during the session, for a race that has run. */

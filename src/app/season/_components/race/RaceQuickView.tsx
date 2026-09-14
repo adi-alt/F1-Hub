@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
 import { buildPredictionReview, type DriverStandingRow, type RaceSummary, type RaceWeekendStatus } from "../../_service/season.pure";
 import { buildRaceInsights } from "../../_service/seasonAnalytics";
@@ -47,6 +48,11 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  // The modal's own inertial scroll, same primitive the standings table/compare/calendar already
+  // use - without it this region scrolls with the browser's plain (non-Lenis) wheel behaviour
+  // while everything else on the page glides. Keyed by round so switching rounds re-measures
+  // against the new content's real height rather than the previous round's.
+  const bodyScrollRef = useNestedLenisScroll(openRaceRound);
 
   // document.body doesn't exist during SSR, so the portal is gated on a real client commit rather
   // than a typeof window check inside render.
@@ -130,7 +136,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
             transition={{ duration: reduceMotion ? 0 : 0.18 }}
             // Dimmed, not blacked out: keeping the page readable behind the window is the whole
             // point of it being a window rather than a drawer.
-            className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-black/35"
           />
 
           <motion.div
@@ -142,7 +148,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.99 }}
             transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-xl border border-white/[0.1] bg-[rgba(20,20,23,0.92)] shadow-[0_24px_70px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:max-h-[88vh] sm:w-[92vw] sm:max-w-[56rem] sm:rounded-lg lg:max-w-[68rem]"
+            className="relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl sm:max-h-[78vh] sm:w-[88vw] sm:max-w-4xl sm:rounded-2xl"
           >
             {/* Phone-only drag affordance - the sheet reads as grabbable even though dismissal is
                 the sticky close button and the backdrop. */}
@@ -168,8 +174,9 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
                 type="button"
                 onClick={closeRace}
                 aria-label="Close race detail"
-                // 40px square: a real touch target, not a 16px glyph.
-                className="-mr-1.5 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+                // Matches the auth dialog's own close affordance - one consistent close control
+                // across every modal on the site, not a bespoke larger one here.
+                className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
               >
                 <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
                   <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -177,7 +184,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
+            <div ref={bodyScrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
               <RaceQuickViewBody season={season} race={race} drivers={drivers} />
             </div>
 
@@ -215,7 +222,7 @@ function RaceQuickViewBody({ season, race, drivers }: { season: number; race: Ra
         <StatusPill status={race.weekendStatus} />
       </div>
 
-      <RaceMedia photoUrls={race.photoUrls} raceName={race.name} circuit={race.circuit} />
+      <RaceMedia photoUrls={race.photoUrls} circuitPhotoUrls={race.circuitPhotoUrls} raceName={race.name} circuit={race.circuit} />
 
       {isOff ? (
         <p className="max-w-2xl text-sm leading-relaxed text-neutral-400">

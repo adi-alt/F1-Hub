@@ -186,11 +186,15 @@ export function ChampionshipStandings({
               type="button"
               onClick={() => setFavoritesOnly((v) => !v)}
               aria-pressed={favoritesOnly}
-              className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
+              // A fixed `h-9` on both this button and the search input beside it, rather than
+              // matching padding - text-xs and text-sm have different line-heights, so identical
+              // padding alone still rendered two different total heights. An explicit height is
+              // the only thing that's actually pixel-exact regardless of font metrics.
+              className={`flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
                 favoritesOnly ? "border-[var(--f1-red)]/45 bg-[var(--f1-red)]/[0.09] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/20 hover:text-neutral-200"
               }`}
             >
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+              <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
               My favorites
             </button>
           )}
@@ -198,7 +202,7 @@ export function ChampionshipStandings({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isDrivers ? "Search drivers or teams…" : "Search teams…"}
-            className="w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
+            className="h-9 w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
           />
           <ExportMenu
             filename={isDrivers ? "drivers-championship" : "constructors-championship"}

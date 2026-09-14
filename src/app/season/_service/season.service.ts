@@ -1,4 +1,4 @@
-import { getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds, getArchiveSeason } from "@/lib/supabase/archive";
+import { findArchiveCircuitByLocation, getAllArchiveCircuits, getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds, getArchiveSeason } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
@@ -11,7 +11,7 @@ import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { buildBattles, buildRecords, completedRoundCount } from "./season.pure";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
-import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
+import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
 import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, RacePodiumEntry, RacePredictionSummary, RaceSummary, RaceWeekendStatus } from "./season.pure";
 
@@ -50,7 +50,7 @@ function sessionResultFor(code: string, race: RaceDoc | undefined, winnerName: s
   return null;
 }
 
-function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]): RaceSummary[] {
+function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], circuits: ArchiveCircuit[]): RaceSummary[] {
   const raceByRound = new Map(races.map((r) => [r.round, r]));
   const sorted = [...calendarEntries].sort((a, b) => a.round - b.round);
 
@@ -147,6 +147,9 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[]):
       isSprintWeekend,
       weekendStatus: calendarWeekendStatus(entry.status) ?? derivedStatus,
       photoUrls: race?.photoUrls ?? (race?.photoUrl ? [race.photoUrl] : []),
+      // Matched on the same (locality, country) pair the archive side already keys circuit
+      // photography by - a FastF1 `location` is a city name, exactly what "locality" means there.
+      circuitPhotoUrls: findArchiveCircuitByLocation(circuits, race?.circuit ?? entry.circuit ?? "", race?.country ?? null)?.imageUrls ?? [],
       forecast: entry.weatherForecast,
       raceWeather: race?.weather ?? null,
       podium,
@@ -166,13 +169,14 @@ export async function getSeasonPageData(year: number, uid: string) {
   const currentDriversPromise = getAllCurrentDrivers();
   const archiveIdByCodePromise = currentDriversPromise.then((d) => getArchiveDriverIdsByCode(d.map((x) => x.code)));
 
-  const [races, calendarEntries, currentDrivers, currentTeams, profile, archiveIdByCode] = await Promise.all([
+  const [races, calendarEntries, currentDrivers, currentTeams, profile, archiveIdByCode, circuits] = await Promise.all([
     getRacesByYear(year),
     getCalendarEntriesByYear(year),
     currentDriversPromise,
     getAllCurrentTeams(),
     getUserProfile(uid),
     archiveIdByCodePromise,
+    getAllArchiveCircuits(),
   ]);
   const standings = computeStandings(races);
 
@@ -197,7 +201,7 @@ export async function getSeasonPageData(year: number, uid: string) {
   const scoredCodes = drivers.filter((d) => d.points > 0).map((d) => d.driver);
   const progression = scoredCodes.length > 0 ? computeChampionshipProgression(races, scoredCodes) : [];
 
-  const raceSummaries = buildRaceSummaries(races, calendarEntries);
+  const raceSummaries = buildRaceSummaries(races, calendarEntries, circuits);
   const completedCount = completedRoundCount(raceSummaries);
 
   return {
@@ -242,7 +246,7 @@ function computeArchiveProgression(races: ArchiveRaceDoc[], driverIds: string[])
  * already over (real pit-stops/qualifying/lap data races.ts never has at all), not a fallback.
  * See getSeasonDetailData below for which of the two this actually calls. */
 async function getArchiveSeasonDetailData(year: number, uid: string) {
-  const [races, currentTeams, profile] = await Promise.all([getArchiveSeason(year), getAllCurrentTeams(), getUserProfile(uid)]);
+  const [races, currentTeams, profile, circuits] = await Promise.all([getArchiveSeason(year), getAllCurrentTeams(), getUserProfile(uid), getAllArchiveCircuits()]);
   // Only this season's own drivers (~20-40 ids), not every driver the archive has ever had (805
   // rows and growing) - getAllArchiveDrivers() was the wrong tool here, a real slowdown on a page
   // that now loads on every single archive year visit, not just the rare "browse all drivers" one.
@@ -320,16 +324,18 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       poleSitter,
       results,
       hasQualifying: !!r.qualifying?.length,
-      // Archive rounds are complete by construction. The event-detail fields the race window uses
-      // (photos, forecast, session weather, the model's frozen pre-race prediction) belong to the
-      // live FastF1 pipeline and genuinely don't exist in archive_races - they arrive empty here
-      // rather than being back-filled with plausible-looking substitutes.
+      // Archive rounds are complete by construction, so forecast/session-weather/pre-race
+      // prediction genuinely don't exist for them (those belong to the live FastF1 pipeline) - but
+      // photos and country DO exist on archive_races and were previously discarded here rather
+      // than actually being absent, which was the real cause of archive rounds showing no image
+      // far more often than the data justified.
       circuit: r.circuitName ?? null,
-      country: null,
+      country: r.country ?? null,
       eventFormat: null,
       isSprintWeekend: false,
       weekendStatus: "completed" as const,
-      photoUrls: [],
+      photoUrls: r.photoUrls ?? (r.photoUrl ? [r.photoUrl] : []),
+      circuitPhotoUrls: findArchiveCircuitByLocation(circuits, r.locality ?? "", r.country)?.imageUrls ?? [],
       forecast: null,
       raceWeather: null,
       podium: results
