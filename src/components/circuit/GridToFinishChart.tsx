@@ -1,89 +1,99 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { teamColor } from "@/lib/teamColors";
 import type { TireStint } from "@/lib/types/race";
-import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 
-// Built on Recharts - the one chart library already established across this app (CircuitTrendChart,
-// ChampionshipTrajectory, every Season/Race analysis chart), not a second one introduced for this
-// single component. Hover-to-dim-the-rest follows the exact same per-series onMouseEnter/activeCode
-// pattern ChampionshipTrajectory already uses, for the same reason: one real convention, not two.
+// A custom SVG bump chart, not Recharts - a real, deliberate exception, not a second charting
+// library creeping in. Recharts' own curve types (monotone/natural/basis) only bend a line that
+// has three or more real data points to bend BETWEEN; a grid->finish series is exactly two real
+// points (nothing happens "during" the race that this app has continuous data for - see
+// TrackMap's own lap-interpolated replay for where real intermediate data exists instead), so
+// asking Recharts for a "curve" here would mean either a dead-straight line (what shipped before)
+// or fabricating a fake third point purely to bend it - exactly the "don't create misleading
+// data" line this app holds everywhere else. A cubic bezier with control points at the horizontal
+// midpoint is the standard, honest "bump chart" curve: it visually eases between two REAL values
+// without asserting a third one ever existed.
 
-type Row = { stage: "Grid" | "Finish"; [driverCode: string]: string | number };
 type DriverMeta = { driver: string; driverName: string; team: string; grid: number; finish: number };
 
 /** Only the fields this chart actually reads - both real callers pass a different result type
  * (TrackMap's full `RaceResultEntry`, CurrentSeasonPerformance's smaller `RaceResultSummary`),
- * and they already agree structurally on every field used here. A narrow local type lets both
- * satisfy this prop for real, instead of one of them reaching for an `any` cast to paper over a
- * mismatch in fields neither caller nor this component ever touches. */
+ * and they already agree structurally on every field used here. */
 type ResultLike = { driver: string; driverName: string; team: string; grid: number | null; finishPosition: number };
 
-// `tireStints` isn't plotted here (this chart is a pure grid->finish slope), but stays part of the
-// prop contract - both real callers (TrackMap, CurrentSeasonPerformance) already pass it, and it's
-// a natural fit for a future pit-stop marker on this same chart.
+const WIDTH = 620;
+const PAD_X = 46;
+const PAD_Y = 20;
+const ROW_H = 24; // vertical space per rank - tuned so a 20-driver field stays legible, not cramped
+
 export function GridToFinishChart({ results }: { results: ResultLike[]; tireStints: TireStint[] }) {
   const [hoverDriver, setHoverDriver] = useState<string | null>(null);
 
-  const { rows, drivers } = useMemo(() => {
-    const valid = results.filter((r) => r.grid != null && r.grid > 0 && r.finishPosition > 0);
-    const drivers: DriverMeta[] = valid.map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team, grid: r.grid as number, finish: r.finishPosition }));
-    const gridRow: Row = { stage: "Grid" };
-    const finishRow: Row = { stage: "Finish" };
-    for (const d of drivers) {
-      gridRow[d.driver] = d.grid;
-      finishRow[d.driver] = d.finish;
-    }
-    return { rows: [gridRow, finishRow], drivers: drivers.sort((a, b) => a.finish - b.finish) };
+  const drivers = useMemo<DriverMeta[]>(() => {
+    return results
+      .filter((r) => r.grid != null && r.grid > 0 && r.finishPosition > 0)
+      .map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team, grid: r.grid as number, finish: r.finishPosition }))
+      .sort((a, b) => a.finish - b.finish);
   }, [results]);
 
   if (drivers.length === 0) {
     return <p className="text-sm text-neutral-500">No position data available for this race.</p>;
   }
 
-  const maxRank = Math.max(...drivers.flatMap((d) => [d.grid, d.finish]), 20);
+  const maxRank = Math.max(...drivers.flatMap((d) => [d.grid, d.finish]));
+  const height = PAD_Y * 2 + (maxRank - 1) * ROW_H;
+  const xStart = PAD_X;
+  const xEnd = WIDTH - PAD_X;
+  const xMid = (xStart + xEnd) / 2;
+  const yFor = (rank: number) => PAD_Y + (rank - 1) * ROW_H;
+
   const hovered = drivers.find((d) => d.driver === hoverDriver) ?? null;
 
   return (
-    <div>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={rows} margin={{ left: 8, right: 24, top: 12, bottom: 4 }}>
-          <XAxis dataKey="stage" type="category" tick={{ fill: chart.mutedInk, fontSize: 12 }} axisLine={{ stroke: chart.gridline }} tickLine={false} />
-          <YAxis
-            reversed
-            domain={[1, maxRank]}
-            tick={{ fill: chart.mutedInk, fontSize: 11 }}
-            axisLine={{ stroke: chart.gridline }}
-            tickLine={false}
-            width={28}
-            allowDecimals={false}
-          />
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+      <div className="w-full overflow-x-auto">
+        <svg viewBox={`0 0 ${WIDTH} ${height}`} className="w-full" style={{ minWidth: 420 }} role="img" aria-label="Grid to finish position change for every classified driver">
+          <text x={xStart} y={8} textAnchor="middle" fontSize={10} fontWeight={600} fill="rgba(255,255,255,0.35)" letterSpacing="0.08em">
+            GRID
+          </text>
+          <text x={xEnd} y={8} textAnchor="middle" fontSize={10} fontWeight={600} fill="rgba(255,255,255,0.35)" letterSpacing="0.08em">
+            FINISH
+          </text>
+          <line x1={xStart} y1={PAD_Y - 8} x2={xStart} y2={height - PAD_Y + 8} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+          <line x1={xEnd} y1={PAD_Y - 8} x2={xEnd} y2={height - PAD_Y + 8} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+
           {drivers.map((d) => {
-            const dimmed = hoverDriver !== null && hoverDriver !== d.driver;
+            const active = hoverDriver === d.driver;
+            const dimmed = hoverDriver !== null && !active;
+            const color = teamColor(d.team);
+            const y1 = yFor(d.grid);
+            const y2 = yFor(d.finish);
+            const path = `M ${xStart} ${y1} C ${xMid} ${y1} ${xMid} ${y2} ${xEnd} ${y2}`;
             return (
-              <Line
+              <g
                 key={d.driver}
-                type="linear"
-                dataKey={d.driver}
-                name={d.driverName}
-                stroke={teamColor(d.team)}
-                strokeWidth={hoverDriver === d.driver ? 3 : 2}
-                strokeOpacity={dimmed ? 0.2 : 1}
-                dot={{ r: hoverDriver === d.driver ? 4 : 3, fill: teamColor(d.team), strokeWidth: 0 }}
-                activeDot={{ r: 5 }}
-                isAnimationActive={false}
+                opacity={dimmed ? 0.16 : 1}
+                style={{ transition: "opacity 0.2s ease" }}
+                className="cursor-pointer"
                 onMouseEnter={() => setHoverDriver(d.driver)}
-                onMouseLeave={() => setHoverDriver((cur) => (cur === d.driver ? null : cur))}
-                style={{ cursor: "pointer" }}
-              />
+                onMouseLeave={() => setHoverDriver(null)}
+              >
+                {/* Wide invisible hit area - the visible stroke is thin, this makes the whole curve easy to hover. */}
+                <path d={path} fill="none" stroke="transparent" strokeWidth={14} />
+                <path d={path} fill="none" stroke={color} strokeWidth={active ? 3.5 : 2.25} strokeLinecap="round" />
+                <circle cx={xStart} cy={y1} r={active ? 4 : 3} fill={color} />
+                <circle cx={xEnd} cy={y2} r={active ? 4 : 3} fill={color} />
+                <text x={xEnd + 8} y={y2} dominantBaseline="middle" fontSize={active ? 11 : 9.5} fontWeight={active ? 700 : 500} fill={active ? "white" : "rgba(255,255,255,0.4)"}>
+                  {d.driver}
+                </text>
+              </g>
             );
           })}
-        </LineChart>
-      </ResponsiveContainer>
+        </svg>
+      </div>
 
-      <div className="mt-1 flex min-h-[52px] items-center justify-center rounded-lg border px-3 py-2 text-xs" style={{ ...tooltipStyle, borderRadius: 8, background: "transparent", border: "1px solid transparent" }}>
+      <div className="mt-2 flex min-h-[40px] items-center justify-center text-xs">
         {hovered ? (
           <div className="flex flex-col items-center gap-1">
             <span className="font-semibold text-white" style={{ color: teamColor(hovered.team) }}>
@@ -97,7 +107,7 @@ export function GridToFinishChart({ results }: { results: ResultLike[]; tireStin
             </span>
           </div>
         ) : (
-          <span className="text-[11px] text-neutral-600">Hover a line for grid → finish detail</span>
+          <span className="text-[11px] text-neutral-600">Hover a curve for grid → finish detail</span>
         )}
       </div>
     </div>

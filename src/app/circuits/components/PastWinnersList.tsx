@@ -19,11 +19,51 @@ function DriverLink({ href, children }: { href: string | null; children: React.R
   );
 }
 
+const PAGE_SIZE = 8;
+
+function Pagination({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="mt-3 flex items-center justify-between border-t border-white/[0.055] pt-3">
+      <span className="text-[11px] text-neutral-600">
+        Page {page} of {pageCount}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(page - 1)}
+          disabled={page <= 1}
+          className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-400 transition hover:text-white disabled:opacity-30 disabled:hover:text-neutral-400"
+        >
+          Prev
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(page + 1)}
+          disabled={page >= pageCount}
+          className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-400 transition hover:text-white disabled:opacity-30 disabled:hover:text-neutral-400"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYearRecord[]; winnerMedia: Map<number, WinnerMedia> }) {
   const [tab, setTab] = useState<"year" | "driver" | "team">("year");
+  const [page, setPage] = useState(1);
+
+  // Reset to page 1 whenever the tab changes - a page number that made sense for "By Year" is
+  // meaningless the instant the list underneath it becomes "Top Drivers" instead.
+  const [prevTab, setPrevTab] = useState(tab);
+  if (prevTab !== tab) {
+    setPrevTab(tab);
+    setPage(1);
+  }
 
   const withWinners = timeline.filter((r) => r.winnerDriver);
-  
+
   const { topDrivers, topTeams } = useMemo(() => {
     const driverCounts = new Map<string, { count: number; team: string | null; media: WinnerMedia | null }>();
     const teamCounts = new Map<string, number>();
@@ -50,6 +90,13 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
   }, [withWinners, winnerMedia]);
 
   if (withWinners.length === 0) return null;
+
+  const activeList = tab === "year" ? withWinners : tab === "driver" ? topDrivers : topTeams;
+  const pageCount = Math.max(1, Math.ceil(activeList.length / PAGE_SIZE));
+  const start = (page - 1) * PAGE_SIZE;
+  const pageWinners = withWinners.slice(start, start + PAGE_SIZE);
+  const pageDrivers = topDrivers.slice(start, start + PAGE_SIZE);
+  const pageTeams = topTeams.slice(start, start + PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,7 +135,7 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.055]">
-                  {withWinners.map((r) => {
+                  {pageWinners.map((r) => {
                     const media = winnerMedia.get(r.year) ?? null;
                     return (
                       <tr key={r.year} className="group transition-colors hover:bg-white/[0.02]">
@@ -121,11 +168,11 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
 
           {tab === "driver" && (
             <ol className="divide-y divide-white/[0.055]">
-              {topDrivers.map((d, i) => (
+              {pageDrivers.map((d, i) => (
                 <li key={d.driver} className="flex items-center justify-between gap-3 py-2.5">
                   <DriverLink href={d.media?.href ?? null}>
                     <div className="flex items-center gap-3">
-                      <span className="w-5 font-mono text-[11px] text-neutral-600">{i + 1}</span>
+                      <span className="w-5 font-mono text-[11px] text-neutral-600">{start + i + 1}</span>
                       <EntityAvatar imageUrl={d.media?.photoUrl ?? null} name={d.driver} size={22} />
                       {d.team && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: teamColor(d.team) }} />}
                       <span className="font-medium text-neutral-200">{d.driver}</span>
@@ -141,10 +188,10 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
 
           {tab === "team" && (
             <ol className="divide-y divide-white/[0.055]">
-              {topTeams.map((t, i) => (
+              {pageTeams.map((t, i) => (
                 <li key={t.team} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="flex items-center gap-3">
-                    <span className="w-5 font-mono text-[11px] text-neutral-600">{i + 1}</span>
+                    <span className="w-5 font-mono text-[11px] text-neutral-600">{start + i + 1}</span>
                     <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: teamColor(t.team) }} />
                     <span className="font-medium text-neutral-200">{t.team}</span>
                   </div>
@@ -153,6 +200,8 @@ export function PastWinnersList({ timeline, winnerMedia }: { timeline: CircuitYe
               ))}
             </ol>
           )}
+
+          <Pagination page={page} pageCount={pageCount} onChange={setPage} />
         </motion.div>
       </AnimatePresence>
     </div>

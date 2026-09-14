@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { teamColor } from "@/lib/teamColors";
 import { generateTrackShape, type TrackShape } from "@/lib/trackShape";
@@ -253,6 +253,35 @@ export function TrackMap({
   }, [raceT]);
 
   const shape = useMemo(() => generateTrackShape(seed, turns, trackType), [seed, turns, trackType]);
+
+  // Real authentic geometry's declared viewBox (0 0 1000 1000, from the source dataset) does NOT
+  // tightly bound the actual path - confirmed live across every circuit (Silverstone's real
+  // coordinates run -128 to 899, Monza -230 to 954, etc.), which is why the track used to render
+  // small and shoved into the top-left corner instead of centered: SVG doesn't auto-crop to
+  // content, so declared-but-unused viewBox space just renders as empty space, and any real
+  // coordinate below 0 (every circuit has some) was being silently clipped outright. getBBox()
+  // reads the path's own true rendered bounds directly from the browser's geometry engine -
+  // exact, not an approximation - and this recomputes a tight viewBox from that, in a
+  // useLayoutEffect (runs before paint, so there's no visible jump from the declared box to the
+  // corrected one). The schematic fallback's own procedurally-generated "0 0 100 100" box is
+  // already tight by construction, so this only ever has real work to do for authentic geometry.
+  const [tightViewBox, setTightViewBox] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    const el = pathRef.current;
+    if (!el || !shape.isAuthentic) {
+      setTightViewBox(null);
+      return;
+    }
+    const box = el.getBBox();
+    if (box.width <= 0 || box.height <= 0) {
+      setTightViewBox(null);
+      return;
+    }
+    const pad = Math.max(box.width, box.height) * 0.05;
+    setTightViewBox(`${box.x - pad} ${box.y - pad} ${box.width + pad * 2} ${box.height + pad * 2}`);
+  }, [shape]);
+  const effectiveViewBox = tightViewBox ?? shape.viewBox ?? "0 0 100 100";
+
   const cars = useMemo(() => buildSimCars(results ?? [], tireStints ?? [], raceLaps ?? []), [results, tireStints, raceLaps]);
   const cumTime = useMemo(() => buildCumulativeTime(raceLaps ?? []), [raceLaps]);
   const hasSimulation = cars.length > 0;
@@ -366,7 +395,7 @@ export function TrackMap({
     <div ref={containerRef} className="flex flex-col gap-4">
       <div className="relative w-full overflow-hidden rounded-md border border-white/[0.07] bg-white/[0.015]" style={{ aspectRatio: "4 / 3" }}>
         <svg
-          viewBox={shape.viewBox || "0 0 100 100"}
+          viewBox={effectiveViewBox}
           className="h-full w-full"
           role="img"
           aria-label={`${shape.isAuthentic ? "Circuit" : "Stylized"} layout of the circuit, ${turns} turns${raceLabel ? `, showing ${raceLabel}` : ""}`}
@@ -375,9 +404,10 @@ export function TrackMap({
             ref={pathRef}
             d={shape.path}
             fill="none"
-            stroke="rgba(255,255,255,0.28)"
-            strokeWidth={shape.isAuthentic ? 3.5 : 1.4}
+            stroke="rgba(255,255,255,0.55)"
+            strokeWidth={shape.isAuthentic ? 6 : 1.8}
             strokeLinecap="round"
+            strokeLinejoin="round"
             pathLength={1}
             style={
               reduceMotion
@@ -391,11 +421,11 @@ export function TrackMap({
           />
           <line
             x1={shape.startFinish.x}
-            y1={shape.startFinish.y - (shape.isAuthentic ? 11 : 2.2)}
+            y1={shape.startFinish.y - (shape.isAuthentic ? 14 : 2.8)}
             x2={shape.startFinish.x}
-            y2={shape.startFinish.y + (shape.isAuthentic ? 11 : 2.2)}
+            y2={shape.startFinish.y + (shape.isAuthentic ? 14 : 2.8)}
             stroke="var(--f1-red)"
-            strokeWidth={shape.isAuthentic ? 4 : 0.9}
+            strokeWidth={shape.isAuthentic ? 5 : 1.1}
             opacity={drawn ? 1 : 0}
             style={{ transition: "opacity 0.3s ease-out 0.5s" }}
           />
