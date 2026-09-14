@@ -6,7 +6,15 @@ import type { CircuitAiState } from "../context/circuitContext";
 // other Apex surface in this app uses. State-aware because the same circuit needs a genuinely
 // different piece of writing depending on whether this season's round here has happened, is
 // coming up, or isn't on the calendar at all this year.
-export const CIRCUIT_TAKE_PROMPT_VERSION = "circuit_take_v1";
+// v2: the response shape changed from the old {headline, summary} pair to the current
+// SharedCircuitIntelligence four-block shape ({trackTake, raceDifference, trackVsSeason,
+// historicalPattern}) - the version string is baked into the cache key specifically so a shape
+// change like this invalidates every old-shaped cached row at once. Confirmed live: Melbourne's
+// own cached row was still the pre-rewrite {headline, summary} shape, which the current client
+// reads as having none of the four expected blocks - not a UI bug, an unbusted cache. Bumping
+// this is the fix, not a manual per-row cache deletion (every other circuit generated before this
+// rewrite has the exact same stale shape sitting in ai_cache, silently, until its own TTL expires).
+export const CIRCUIT_TAKE_PROMPT_VERSION = "circuit_take_v2";
 
 const STATE_FOCUS: Record<CircuitAiState, string> = {
   completed: "Focus on what actually decided THIS SEASON'S race here - the result, what made it happen, and how it fits the circuit's own history. Never forecast; the race is over.",
