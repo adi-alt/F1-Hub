@@ -127,6 +127,7 @@ export type AgentType =
   | "season_intelligence"
   | "season_compare"
   | "season_race_take"
+  | "circuit_take"
   | "race_intelligence"
   | "race_brief"
   | "prediction_coach"

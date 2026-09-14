@@ -292,3 +292,10 @@ export function buildRaceEventCacheKey(season: number, round: number, dataVersio
   return `season_race_take:${version}:${season}:r${round}:${dataVersion}`;
 }
 
+/** Keyed by location + state, not just location - the same circuit needs a genuinely different
+ * cached take once its state changes (upcoming -> completed), and this makes that a different key
+ * rather than a stale "upcoming" take served after the race has actually happened. */
+export function buildCircuitTakeCacheKey(location: string, season: number, state: string, dataVersion: string, version: string): string {
+  return `circuit_take:${version}:${season}:${location.toLowerCase()}:${state}:${dataVersion}`;
+}
+

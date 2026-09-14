@@ -14,6 +14,9 @@ import { logAIError } from "@/lib/ai/telemetry";
 import { getMemberRole } from "@/lib/supabase/groups";
 import { getUserProfile } from "@/lib/supabase/users";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
+import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
+import { buildCircuitContext, formatCircuitContext } from "@/lib/ai/context/circuitContext";
+import { raceTitle } from "@/lib/format";
 import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
@@ -112,6 +115,32 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
   };
 }
 
+/** Circuits' own registered scope (CircuitApexScope.tsx) sends only a location/year/status
+ * triple under `snapshot` - the same "client sends selection, server fetches facts" rule
+ * buildSeasonGroundingContext above already follows. Everything the model actually reasons over -
+ * physical characteristics, this season's result if it happened, the full historical record - is
+ * fetched and computed here from getCircuitDetailData, never trusted from the client. */
+async function buildCircuitGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const snapshot = isPlainObject(clientContext.snapshot) ? clientContext.snapshot : null;
+  const location = typeof snapshot?.location === "string" ? snapshot.location : null;
+  const year = typeof snapshot?.year === "number" ? snapshot.year : null;
+  if (!location || !year) return null;
+
+  const data = await getCircuitDetailData(location, year, userId).catch(() => null);
+  if (!data) return null;
+
+  const grandPrixName =
+    data.currentSeasonRace?.name ??
+    data.liveRaces.find((r) => r.year === data.timeline[0]?.year)?.name ??
+    data.archiveRaces.find((r) => r.year === data.timeline[0]?.year)?.raceName ??
+    null;
+  const country = data.currentSeasonRace?.country ?? data.archiveRaces[0]?.country ?? null;
+  const displayName = data.facts?.venueName ?? raceTitle(location);
+  const ctx = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline);
+
+  return { page: "circuit", circuit: formatCircuitContext(ctx) };
+}
+
 export const maxDuration = 30;
 
 const MAX_QUESTION_LENGTH = 500;
@@ -197,6 +226,13 @@ export async function POST(req: Request) {
       const seasonContext = await buildSeasonGroundingContext(userId, context);
       if (seasonContext) {
         context = seasonContext;
+        serverBuilt = true;
+      }
+    }
+    if (context.page === "circuit") {
+      const circuitContext = await buildCircuitGroundingContext(userId, context);
+      if (circuitContext) {
+        context = circuitContext;
         serverBuilt = true;
       }
     }

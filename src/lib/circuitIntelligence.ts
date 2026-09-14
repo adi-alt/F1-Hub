@@ -18,6 +18,10 @@ import type { RaceDoc } from "@/lib/types/race";
 export type CircuitYearRecord = {
   year: number;
   winnerDriver: string | null;
+  // Additive - both builders below already resolve the winner's own result row, so this is real
+  // data already in hand, not a second fetch. Purely additional; every existing consumer that
+  // destructures this type without reading winnerTeam is unaffected.
+  winnerTeam: string | null;
   poleSitter: string | null;
   winnerWasPole: boolean | null;
   winningMarginSec: number | null;
@@ -50,6 +54,7 @@ function fromLiveRace(race: RaceDoc): CircuitYearRecord | null {
   return {
     year: race.year,
     winnerDriver: winner?.driverName ?? null,
+    winnerTeam: winner?.team ?? null,
     poleSitter: poleSitterName,
     winnerWasPole: winner && race.poleSitter ? winner.driver === race.poleSitter : null,
     // finishGapSec is P2's own real field - already a clean number, no string parsing needed.
@@ -75,6 +80,7 @@ function fromArchiveRace(race: ArchiveRaceDoc): CircuitYearRecord | null {
   return {
     year: race.year,
     winnerDriver: winner?.driverName ?? null,
+    winnerTeam: winner?.constructor ?? null,
     poleSitter: poleSitter?.driverName ?? null,
     winnerWasPole: winner && poleSitter ? winner.driverId === poleSitter.driverId : null,
     winningMarginSec: margin,

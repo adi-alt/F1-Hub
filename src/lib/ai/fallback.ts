@@ -326,6 +326,7 @@ export function generateDeterministicRaceFallback(context: RaceIntelligenceConte
 import type { SharedSeasonIntelligence, SeasonCompareInsight, RaceEventTake } from "./schemas/seasonIntelligence";
 import type { ComparePair, RaceSummary } from "@/app/season/_service/season.pure";
 import type { SeasonNarrativeContext } from "./context/seasonContext";
+import type { CircuitContext } from "./context/circuitContext";
 
 // ─── Season fallbacks ──────────────────────────────────────────────────────────
 //
@@ -516,6 +517,50 @@ export function generateRaceEventFallback(race: RaceSummary): RaceEventTake {
       `${race.name}${race.circuit ? ` at ${race.circuit}` : ""} is round ${race.round} of the season${race.isSprintWeekend ? ", run to the sprint format" : ""}.`,
       race.forecast ? `The current forecast puts air temperature near ${Math.round(race.forecast.airTempC)}C with a ${Math.round(race.forecast.rainProbability * 100)}% chance of rain.` : null,
       nextSession ? `${nextSession.label} opens the weekend's running.` : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+
+/** The circuit take's own fallback - same no-implementation-vocabulary rule as every other
+ * fallback here, and state-aware for the same reason the real prompt is: a circuit whose round
+ * hasn't run yet must never get a sentence that reads like a result. */
+export function generateCircuitTakeFallback(ctx: CircuitContext): RaceEventTake {
+  if (ctx.state === "completed" && ctx.currentSeasonResult?.winner) {
+    const r = ctx.currentSeasonResult;
+    return {
+      headline: `${r.winner} takes ${ctx.grandPrixName ?? "the race"} at ${ctx.displayName}`,
+      summary: [
+        `${r.winner} won at ${ctx.displayName} this season.`,
+        r.biggestGainer ? `${r.biggestGainer.name} made up the most ground from the grid, gaining ${r.biggestGainer.places} places.` : null,
+        r.dnfCount > 0 ? `${r.dnfCount} car${r.dnfCount === 1 ? "" : "s"} retired.` : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    };
+  }
+
+  if (ctx.state === "next" || ctx.state === "upcoming") {
+    const record = ctx.records.mostWins;
+    return {
+      headline: `${ctx.displayName}${ctx.facts ? `, ${ctx.facts.trackType} circuit` : ""}`,
+      summary: [
+        ctx.facts ? `${ctx.displayName} runs ${ctx.facts.lengthKm.toFixed(1)}km over ${ctx.facts.turns} turns.` : `Full track characteristics for ${ctx.displayName} aren't recorded yet.`,
+        record ? `${record.driver} has won here more than anyone else on record, ${record.count} times.` : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    };
+  }
+
+  const record = ctx.records.mostWins;
+  return {
+    headline: ctx.displayName,
+    summary: [
+      ctx.facts ? `${ctx.displayName} is a ${ctx.facts.trackType} circuit of ${ctx.facts.lengthKm.toFixed(1)}km with ${ctx.facts.turns} turns.` : `Detailed characteristics for ${ctx.displayName} aren't recorded yet.`,
+      record ? `${record.driver} holds the record here with ${record.count} wins.` : "This circuit isn't on the current season's calendar.",
     ]
       .filter(Boolean)
       .join(" "),

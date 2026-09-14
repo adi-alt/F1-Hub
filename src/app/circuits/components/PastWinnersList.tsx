@@ -1,37 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { raceHref } from "@/lib/routes";
-import type { RaceDoc } from "@/lib/types/race";
+import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 
-export function PastWinnersList({ races }: { races: RaceDoc[] }) {
+/**
+ * The circuit's full winner history, not just whatever the live `races` table happens to cover
+ * (2018+) - fed from buildCircuitTimeline's own merge of archive_races and `races`, the same real
+ * multi-decade record circuitIntelligence.ts already assembles for the Track Records section
+ * beside this one, so the two can never disagree about who actually won which year.
+ */
+export function PastWinnersList({ timeline }: { timeline: CircuitYearRecord[] }) {
+  const withWinners = timeline.filter((r) => r.winnerDriver);
+  if (withWinners.length === 0) return null;
+
   return (
-    <motion.div
-      initial="hidden"
-      animate="show"
-      variants={staggerContainer}
-      className="divide-y divide-[var(--f1-line)] overflow-hidden rounded-xl border border-[var(--f1-line)]"
-    >
-      {[...races]
-        .sort((a, b) => b.year - a.year)
-        .map((race) => {
-          const winner = race.results?.find((r) => r.finishPosition === 1);
-          return (
-            <motion.div key={race.id} variants={staggerItem}>
-              <Link
-                href={raceHref(race.year, race.round, race.name)}
-                className="flex items-center justify-between bg-[var(--f1-carbon)] px-5 py-3 transition hover:bg-white/[0.05]"
-              >
-                <span className="font-medium text-white">{race.year}</span>
-                <span className="text-sm text-neutral-400">
-                  {winner ? `${winner.driverName} (${winner.team})` : "No result recorded"}
-                </span>
-              </Link>
-            </motion.div>
-          );
-        })}
-    </motion.div>
+    <motion.ol initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-white/[0.055]">
+      {withWinners.map((r) => (
+        <motion.li key={r.year} variants={staggerItem} className="flex items-center justify-between gap-3 py-2.5">
+          <span className="w-14 shrink-0 font-mono text-sm font-semibold tabular-nums text-white">{r.year}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-neutral-300">{r.winnerDriver}</span>
+          {r.winnerTeam && <span className="shrink-0 truncate text-xs text-neutral-500">{r.winnerTeam}</span>}
+        </motion.li>
+      ))}
+    </motion.ol>
   );
 }

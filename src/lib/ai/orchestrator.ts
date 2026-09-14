@@ -684,6 +684,9 @@ import {
   type RaceEventContext,
 } from "./context/seasonContext";
 import { generateSeasonFallbackFromContext, generateCompareFallbackFromPair, generateRaceEventFallback } from "./fallback";
+import { generateCircuitTakeFallback } from "./fallback";
+import { formatCircuitTakePrompt, CIRCUIT_TAKE_PROMPT_VERSION } from "./prompts/circuitTakePrompt";
+import { formatCircuitContext, type CircuitContext } from "./context/circuitContext";
 import type { ComparePair } from "@/app/season/_service/season.pure";
 
 /** Every season generator reports which mechanism actually produced the content. Callers must
@@ -934,5 +937,80 @@ export async function generateRaceEventTake(context: RaceEventContext, ctx: Agen
       errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
     });
     return { data: generateRaceEventFallback(context.race), source: "fallback", fallbackReason: reason };
+  }
+}
+
+
+/** The Apex Circuit Take - one shared, cached-once-per-(circuit,season,state) editorial insight.
+ * Same shape and guarantees as generateRaceEventTake: state-aware prompt, deterministic fallback
+ * that can never disagree with what state the page itself is rendering. */
+export async function generateCircuitTake(context: CircuitContext, ctx: AgentContext): Promise<SeasonGenerationResult<RaceEventTake>> {
+  const startTime = Date.now();
+  const plannedModel = "groq/openai/gpt-oss-120b";
+
+  const capacity = acquireProviderCapacity("groq");
+  if (!capacity.allowed) {
+    logDeterministicFallback(ctx.requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
+    return { data: generateCircuitTakeFallback(context), source: "fallback", fallbackReason: "PROVIDER_RATE_LIMITED" };
+  }
+
+  const baseConfig = {
+    maxTokens: RACE_EVENT_MAX_TOKENS,
+    temperature: 0.65,
+    groqApiKey: SEASON_GROQ_KEY(),
+    openrouterApiKey: SEASON_OPENROUTER_KEY(),
+  };
+
+  try {
+    const messages = formatCircuitTakePrompt(formatCircuitContext(context), context.state);
+    const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
+    if (!result.response.content) throw new Error("EMPTY_RESPONSE");
+
+    const parsed = JSON.parse(cleanJsonOutput(result.response.content));
+    const validation = validateRaceEventTake(parsed);
+    if (!validation.valid || !validation.data) {
+      logAIError(ctx.requestId, "circuit_take_validation_failure", "Circuit take rejected", { errors: validation.errors });
+      throw new Error("SCHEMA_VALIDATION_FAILED");
+    }
+
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "circuit_take",
+      userId: ctx.userId,
+      provider: result.providerName,
+      model: result.model,
+      promptVersion: CIRCUIT_TAKE_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      tokenUsage: result.response.usage,
+      cacheHit: false,
+      validationSuccess: true,
+      finishReason: result.response.finishReason,
+      fallbackUsed: result.fallbackUsed,
+      fallbackReason: result.fallbackReason,
+    });
+
+    return { data: validation.data, source: "llm" };
+  } catch (err) {
+    logAIError(ctx.requestId, "circuit_take_generation_failed", String(err));
+    const reason = classifyThrow(err);
+    logAIOperation({
+      requestId: ctx.requestId,
+      agentType: "circuit_take",
+      userId: ctx.userId,
+      provider: "groq",
+      model: plannedModel,
+      promptVersion: CIRCUIT_TAKE_PROMPT_VERSION,
+      dataVersion: ctx.dataVersion,
+      toolCalls: [],
+      totalDurationMs: Date.now() - startTime,
+      cacheHit: false,
+      validationSuccess: false,
+      fallbackUsed: true,
+      fallbackReason: reason,
+      errorCategory: reason === "PROVIDER_ERROR" ? categorizeProviderError(err) : categorizeFallbackReason(reason),
+    });
+    return { data: generateCircuitTakeFallback(context), source: "fallback", fallbackReason: reason };
   }
 }
