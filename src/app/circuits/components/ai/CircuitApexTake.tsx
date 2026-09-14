@@ -3,15 +3,29 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
-import { Eyebrow } from "@/app/season/_components/ai/SeasonInsight";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
-/** The circuit page's one editorial insight - loads independently of everything else on the page,
- * exactly like RaceApexTake, so the hero/track map/history are all readable the instant the page
- * opens rather than waiting on a model response. */
+type BlockKey = "trackTake" | "raceDifference" | "trackVsSeason" | "historicalPattern";
+
+const TAB_LABEL: Record<BlockKey, string> = {
+  trackTake: "Circuit take",
+  raceDifference: "What changed",
+  trackVsSeason: "Track vs. season",
+  historicalPattern: "History",
+};
+
+const BLOCK_ORDER: BlockKey[] = ["trackTake", "raceDifference", "trackVsSeason", "historicalPattern"];
+
+/** The circuit page's editorial intelligence - up to four real, grounded blocks (see
+ * generateCircuitTake/validateSharedCircuitIntelligence), presented as real tabs rather than one
+ * long stacked read. Only a tab whose block the model actually returned for THIS circuit/state
+ * ever appears - never a placeholder tab for a block that came back empty. Loads independently of
+ * everything else on the page, exactly like RaceApexTake, so the rest of Track Experience is
+ * readable the instant the page opens rather than waiting on a model response. */
 export function CircuitApexTake({ location, year, status }: { location: string; year: number; status: string }) {
   const [take, setTake] = useState<SharedCircuitIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<BlockKey | null>(null);
 
   const key = `${location}:${year}:${status}`;
   const [prevKey, setPrevKey] = useState(key);
@@ -19,6 +33,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
     setPrevKey(key);
     setTake(null);
     setLoading(true);
+    setActiveTab(null);
   }
 
   useEffect(() => {
@@ -55,60 +70,61 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
       </LoadingRegion>
     );
   }
-  const hasAnyBlock = !!(take?.trackTake || take?.raceDifference || take?.trackVsSeason || take?.historicalPattern);
-  if (!take || !hasAnyBlock) return null;
+  if (!take) return null;
+
+  const availableTabs = BLOCK_ORDER.filter((k) => !!take[k]);
+  if (availableTabs.length === 0) return null;
+  const shownTab = activeTab && availableTabs.includes(activeTab) ? activeTab : availableTabs[0];
+  const block = take[shownTab];
+  if (!block) return null;
 
   return (
-    <motion.section initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }} className="flex flex-col gap-5">
-      {take.trackTake && (
-        <div>
-          <Eyebrow>Apex circuit take</Eyebrow>
-          <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{take.trackTake.headline}</p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-400">{take.trackTake.summary}</p>
+    <motion.section initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Apex intelligence</p>
+
+      {availableTabs.length > 1 && (
+        <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Apex circuit intelligence">
+          {availableTabs.map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={shownTab === k}
+              onClick={() => setActiveTab(k)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                shownTab === k ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              {TAB_LABEL[k]}
+            </button>
+          ))}
         </div>
       )}
 
-      {take.raceDifference && (
-        <div>
-          <Eyebrow>What changed this year</Eyebrow>
-          <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{take.raceDifference.headline}</p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-400">{take.raceDifference.summary}</p>
-          {take.raceDifference.factors.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-1.5">
-              {take.raceDifference.factors.map((f) => (
-                <li key={f.label} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-neutral-400">
-                  {f.label}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <motion.div key={shownTab} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} role="tabpanel">
+        <p className="text-[15px] font-semibold leading-snug text-white">{block.headline}</p>
+        <p className="mt-1 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
 
-      {take.trackVsSeason && (
-        <div>
-          <Eyebrow>Track vs. season</Eyebrow>
-          <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{take.trackVsSeason.headline}</p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-400">{take.trackVsSeason.summary}</p>
-          {take.trackVsSeason.metrics.length > 0 && (
-            <ul className="mt-2 flex flex-col gap-1">
-              {take.trackVsSeason.metrics.map((m) => (
-                <li key={m} className="text-xs text-neutral-500">
-                  · {m}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+        {shownTab === "raceDifference" && "factors" in block && block.factors.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {block.factors.map((f) => (
+              <li key={f.label} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-neutral-400">
+                {f.label}
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {take.historicalPattern && (
-        <div>
-          <Eyebrow>Historical pattern</Eyebrow>
-          <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{take.historicalPattern.headline}</p>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-400">{take.historicalPattern.summary}</p>
-        </div>
-      )}
+        {shownTab === "trackVsSeason" && "metrics" in block && block.metrics.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-1">
+            {block.metrics.map((m) => (
+              <li key={m} className="text-xs text-neutral-500">
+                · {m}
+              </li>
+            ))}
+          </ul>
+        )}
+      </motion.div>
     </motion.section>
   );
 }

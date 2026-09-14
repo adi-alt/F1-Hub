@@ -94,23 +94,29 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
               raceLabel={raceForSimulation ? `${raceForSimulation.year} race` : null}
             />
           </div>
-          {raceForSimulation?.results && (
-            <div className="flex min-w-0 flex-col gap-6">
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{raceForSimulation.year} classification</p>
-                <DriverTower results={raceForSimulation.results} />
-              </div>
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
-                <GridToFinishChart results={raceForSimulation.results} tireStints={raceForSimulation.tireStints ?? []} />
-              </div>
-            </div>
-          )}
+          <div className="flex min-w-0 flex-col gap-6">
+            {raceForSimulation?.results && (
+              <>
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{raceForSimulation.year} classification</p>
+                  <DriverTower results={raceForSimulation.results} />
+                </div>
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
+                  <GridToFinishChart results={raceForSimulation.results} tireStints={raceForSimulation.tireStints ?? []} />
+                </div>
+              </>
+            )}
+            {/* Apex's own editorial read lives here, not as a separate full-width section below
+                the whole grid - this is real space the right column already has (classification
+                and the grid->finish card don't fill the height the left column's now-taller
+                performance-card-plus-map sets), and a tabbed block fits it far better than a long
+                vertical stack of four text sections ever did. Not gated on raceForSimulation -
+                Apex can still have something real to say (state "unscheduled"/"next") for a
+                circuit with no completed live-schema race at all. */}
+            <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
+          </div>
         </div>
-      </div>
-
-      <div className="mb-8">
-        <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
       </div>
 
       {currentSeasonRace && currentSeasonRace.state !== "completed" && (
