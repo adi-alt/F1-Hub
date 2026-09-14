@@ -30,9 +30,25 @@ export function ParagraphSkeleton({ lines = 3, className = "" }: { lines?: numbe
   );
 }
 
-/** Reserves an image's box via aspect-ratio, so the layout is already the right shape before the
- * bytes arrive and the crossfade has nothing to push around. */
-export function MediaSkeleton({ ratio = "16 / 9", className = "", rounded = "rounded-lg" }: { ratio?: string; className?: string; rounded?: string }) {
+/** Reserves an image's box so the layout is the right shape before the bytes arrive and the
+ * crossfade has nothing to push around.
+ *
+ * Two modes, because both are real: by default it sizes itself from an aspect ratio, and with
+ * `fill` it stretches inside a parent that is already sized (the race window's hero and its
+ * thumbnails, which set their own dimensions and just need something shimmering behind the image
+ * until it decodes). */
+export function MediaSkeleton({
+  ratio = "16 / 9",
+  className = "",
+  rounded = "rounded-lg",
+  fill = false,
+}: {
+  ratio?: string;
+  className?: string;
+  rounded?: string;
+  fill?: boolean;
+}) {
+  if (fill) return <span aria-hidden className={`${BASE} ${rounded} absolute inset-0 ${className}`} />;
   return <div className={`${BASE} ${rounded} w-full ${className}`} style={{ aspectRatio: ratio, height: "auto" }} />;
 }
 
@@ -42,39 +58,6 @@ export function MetricSkeleton({ className = "" }: { className?: string }) {
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <TextSkeleton width="52%" height={8} />
       <TextSkeleton width="78%" height={14} />
-    </div>
-  );
-}
-
-export function ListSkeleton({ rows = 4, className = "" }: { rows?: number; className?: string }) {
-  return (
-    <div className={`divide-y divide-white/[0.05] ${className}`}>
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex items-center justify-between gap-3 py-2.5">
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <TextSkeleton width={`${58 + ((i * 11) % 26)}%`} height={11} />
-            <TextSkeleton width="34%" height={8} />
-          </div>
-          <TextSkeleton width={28} height={11} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** The weekend timeline's own loading shape - a rail with dots, not a stack of bars, so it reads
- * as the same object that's about to appear. */
-export function TimelineSkeleton({ rows = 5, className = "" }: { rows?: number; className?: string }) {
-  return (
-    <div className={`relative pl-5 ${className}`}>
-      <span aria-hidden className="absolute bottom-2 left-[5px] top-2 w-px bg-white/[0.07]" />
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="relative py-2.5">
-          <span aria-hidden className={`${BASE} absolute -left-5 top-3.5 h-[9px] w-[9px] rounded-full`} />
-          <TextSkeleton width={`${44 + ((i * 13) % 30)}%`} height={11} />
-          <TextSkeleton className="mt-1.5" width="30%" height={8} />
-        </div>
-      ))}
     </div>
   );
 }

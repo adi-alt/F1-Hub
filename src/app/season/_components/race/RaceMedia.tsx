@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { MediaSkeleton } from "@/components/ui/Skeletons";
 
 type State = "loading" | "loaded" | "error";
 
@@ -34,9 +35,7 @@ export function RaceMedia({ photoUrls, raceName, circuit }: { photoUrls: string[
   return (
     <div>
       <div className="relative w-full overflow-hidden rounded-md bg-white/[0.02]" style={{ aspectRatio: "16 / 7" }}>
-        {state !== "loaded" && (
-          <div aria-hidden className="skeleton-shimmer absolute inset-0 rounded-md bg-white/[0.04]" />
-        )}
+        {state !== "loaded" && <MediaSkeleton fill rounded="rounded-md" />}
         {state !== "error" && (
           <Image
             key={current}
@@ -71,7 +70,7 @@ export function RaceMedia({ photoUrls, raceName, circuit }: { photoUrls: string[
                 i === active ? "border-[var(--f1-red)]/60" : "border-white/[0.1] opacity-60 hover:opacity-100"
               }`}
             >
-              {states[url] !== "loaded" && <span aria-hidden className="skeleton-shimmer absolute inset-0 bg-white/[0.04]" />}
+              {states[url] !== "loaded" && <MediaSkeleton fill rounded="rounded-[3px]" />}
               <Image
                 src={url}
                 alt=""
