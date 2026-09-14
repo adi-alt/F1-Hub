@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { raceHref } from "@/lib/routes";
 
@@ -136,9 +136,29 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
         </div>
       )}
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={shown} margin={{ left: 8, right: 16, top: 8 }}>
+        <AreaChart data={shown} margin={{ left: 8, right: 16, top: 8 }}>
+          <defs>
+            <linearGradient id="poleEvolutionFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={chart.sequentialBlue} stopOpacity={0.32} />
+              <stop offset="100%" stopColor={chart.sequentialBlue} stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid stroke={chart.gridline} vertical={false} />
-          <XAxis dataKey="year" tick={{ fill: chart.mutedInk, fontSize: 12 }} axisLine={{ stroke: chart.gridline }} tickLine={false} />
+          {/* type="number" (not the default "category") - years are real elapsed time, not evenly
+              spaced labels. A category axis was compressing a real 3-year gap (2019->2022, no
+              race in 2020/2021) into the same visual width as a 1-year gap, which then made the
+              monotone curve bend through that gap as if it were as sudden as any single-year
+              change - a real distortion, not just a stylistic complaint. Numeric spacing fixes it
+              at the source rather than picking a different curve type to paper over it. */}
+          <XAxis
+            dataKey="year"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            allowDecimals={false}
+            tick={{ fill: chart.mutedInk, fontSize: 12 }}
+            axisLine={{ stroke: chart.gridline }}
+            tickLine={false}
+          />
           <YAxis
             tick={{ fill: chart.mutedInk, fontSize: 12 }}
             axisLine={{ stroke: chart.gridline }}
@@ -148,15 +168,16 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
             domain={["dataMin - 1", "dataMax + 1"]}
           />
           <Tooltip content={<PoleTooltip />} cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }} />
-          <Line
+          <Area
             type="monotone"
             dataKey="poleTimeSec"
             stroke={chart.sequentialBlue}
-            strokeWidth={2}
+            strokeWidth={2.5}
+            fill="url(#poleEvolutionFill)"
             dot={<ClickableDot onSelect={openRace} />}
             activeDot={<ClickableDot onSelect={openRace} />}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
       <p className="sr-only">
         Pole time by year: {shown.map((p) => `${p.year}: ${p.poleTimeSec.toFixed(3)} seconds${p.poleSitter ? ` (${p.poleSitter})` : ""}`).join(", ")}.

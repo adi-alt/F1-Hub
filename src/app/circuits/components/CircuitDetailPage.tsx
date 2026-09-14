@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { CircuitHero } from "./CircuitHero";
-import { CircuitCharacteristics } from "./CircuitCharacteristics";
 import { CurrentSeasonPerformance } from "./CurrentSeasonPerformance";
 import { UpcomingCircuitIntelligence } from "./UpcomingCircuitIntelligence";
 import { PastWinnersList } from "./PastWinnersList";
@@ -16,10 +15,11 @@ import { raceHref } from "@/lib/routes";
 /**
  * The individual circuit page - a circuit INTELLIGENCE page, not a chart and a table. Section
  * order adapts to what this circuit's own current-season race actually is: a completed round gets
- * this year's performance; a round still to come gets upcoming intelligence instead, never both
- * and never an empty "2026 Performance" placeholder for a race that hasn't run. Track
- * characteristics and the full multi-decade history render every time - they're true regardless
- * of where the calendar currently sits.
+ * this year's performance (Track Character folded into that same card, by design - see
+ * CurrentSeasonPerformance's own comment); a round still to come gets upcoming intelligence
+ * instead, never both and never an empty "2026 Performance" placeholder for a race that hasn't
+ * run. The full multi-decade history (Track Intelligence, Pole Evolution, Past Winners) renders
+ * every time regardless - it's true no matter where the calendar currently sits.
  */
 export function CircuitDetailPage({ location, data }: { location: string; data: CircuitDetailData }) {
   const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation, raceLaps, winnerMedia } = data;
@@ -59,25 +59,32 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
           </p>
           {/* The one deliberate link out of this circuit-across-time page into the event-specific
               Race page - "this track's most recent classified race" for full results, laps,
-              strategy and incidents, which the Circuit page itself never duplicates. */}
+              strategy and incidents, which the Circuit page itself never duplicates. Styled as a
+              real CTA (not a quiet text link) since it's the one path off this page into the
+              event itself. */}
           {raceForSimulation && (
             <Link
               href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)}
-              className="shrink-0 text-[11px] font-medium text-neutral-500 transition hover:text-white"
+              className="shrink-0 rounded-lg bg-[var(--f1-red)] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:brightness-110"
             >
               Full race analysis →
             </Link>
           )}
         </div>
         <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
-        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-          {/* Left: this season's own real result at this circuit (when it's run), then the track
-              map and its own playback controls/legend/driver readout. Right: two stacked cards,
-              classification then grid->finish, both real data about the same `raceForSimulation`
-              race the map itself is replaying. */}
-          <div className="flex min-w-0 flex-col gap-8">
-            {currentSeasonRace?.state === "completed" && <CurrentSeasonPerformance race={currentSeasonRace} year={year} />}
+        <div className="mt-4 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+          {/* Left: this season's own real result at this circuit (when it's run, Track Character
+              included), then the track map and its own playback controls/legend/driver readout -
+              the map is flex-1 at lg+ so it fills whatever's left after the performance card,
+              matching the right column's real height instead of leaving dead space under a fixed-
+              aspect map. Right: two stacked cards, classification then grid->finish, both real
+              data about the same `raceForSimulation` race the map itself is replaying. */}
+          <div className="flex min-w-0 flex-col gap-8 lg:h-full">
+            {currentSeasonRace?.state === "completed" && (
+              <CurrentSeasonPerformance race={currentSeasonRace} year={year} facts={facts} avgFieldMovement={avgFieldMovement} />
+            )}
             <TrackMap
+              className="lg:min-h-0 lg:flex-1"
               seed={location}
               turns={facts?.turns ?? 14}
               trackType={facts?.trackType ?? "permanent"}
@@ -111,10 +118,6 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
           <UpcomingCircuitIntelligence race={currentSeasonRace} />
         </div>
       )}
-
-      <div className="mb-8">
-        <CircuitCharacteristics facts={facts} avgFieldMovement={avgFieldMovement} />
-      </div>
 
       {timeline.length > 0 && (
         <div className="mb-8">

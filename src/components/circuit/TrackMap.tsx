@@ -272,6 +272,7 @@ export function TrackMap({
   tireStints,
   raceLaps,
   raceLabel,
+  className,
 }: {
   /** Stable per-circuit seed for the deterministic schematic shape (or the lookup key for real
    * authentic geometry, when circuitShapes.json covers this circuit) - the circuit's own real
@@ -287,6 +288,9 @@ export function TrackMap({
    * reached it yet, in which case the replay degrades to a labeled grid->finish interpolation. */
   raceLaps: RaceLapEntry[] | null;
   raceLabel: string | null;
+  /** Applied to the root element - the caller's own layout classes (e.g. `lg:flex-1 lg:min-h-0`
+   * to fill a sibling column's real measured height at desktop widths), never used internally. */
+  className?: string;
 }) {
   const reduceMotion = useReducedMotion();
   const pathRef = useRef<SVGPathElement>(null);
@@ -457,8 +461,14 @@ export function TrackMap({
   const activeCompound = activeCar && currentLap ? compoundAtLap(activeCar, currentLap) : null;
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-4">
-      <div className="relative w-full overflow-hidden rounded-md border border-white/[0.07] bg-white/[0.015]" style={{ aspectRatio: "4 / 3" }}>
+    <div ref={containerRef} className={`flex min-h-0 flex-col gap-4 ${className ?? ""}`}>
+      {/* Fixed 4:3 by default - a natural, predictable box when this isn't flexed against a
+          sibling column (mobile, or any other caller). The caller's own `lg:flex-1 lg:min-h-0`
+          (on the root above) overrides that at desktop widths, and `lg:aspect-auto` here lets the
+          box actually grow to fill that flexed space instead of staying pinned to 4:3 - the SVG's
+          own viewBox/preserveAspectRatio already handles any resulting aspect ratio correctly, it
+          doesn't need a fixed box to render right. */}
+      <div className="relative w-full overflow-hidden rounded-md border border-white/[0.07] bg-white/[0.015] aspect-[4/3] lg:aspect-auto lg:min-h-[260px] lg:flex-1">
         <svg
           viewBox={effectiveViewBox}
           className="h-full w-full"

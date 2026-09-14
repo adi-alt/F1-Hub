@@ -1,11 +1,24 @@
-import Link from "next/link";
-import { raceHref } from "@/lib/routes";
+import { CircuitCharacteristics } from "./CircuitCharacteristics";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
+import type { CircuitFacts } from "@/lib/circuitFacts";
 
 /** Mandatory the moment this season's own round at this circuit has actually run - what happened
  * here THIS year, not just all-time history. Every number is read straight off the real
- * classification (race.winnerName/poleSitterName/fastestLap/podium), nothing computed twice. */
-export function CurrentSeasonPerformance({ race, year }: { race: RaceSummary; year: number }) {
+ * classification (race.winnerName/poleSitterName/fastestLap/podium), nothing computed twice.
+ * Track Character rides along in this same card now (not its own page section) - `facts` is a
+ * real, nullable value (a circuit this app has no physical facts for yet), not an optional prop;
+ * the card simply omits the Track Character block when it's null. */
+export function CurrentSeasonPerformance({
+  race,
+  year,
+  facts,
+  avgFieldMovement,
+}: {
+  race: RaceSummary;
+  year: number;
+  facts: CircuitFacts | null;
+  avgFieldMovement: number | null;
+}) {
   const podium = race.podium;
   const gainer = [...race.results]
     .filter((r) => r.grid != null && r.status !== "dnf")
@@ -82,13 +95,13 @@ export function CurrentSeasonPerformance({ race, year }: { race: RaceSummary; ye
               )}
             </div>
           )}
-
-          <div className="col-span-2 sm:col-span-3">
-            <Link href={raceHref(year, race.round, race.name)} className="text-xs font-medium text-neutral-400 underline decoration-white/20 underline-offset-4 transition hover:text-white">
-              View full race detail →
-            </Link>
-          </div>
         </div>
+
+        {facts && (
+          <div className="mt-6 border-t border-white/[0.06] pt-5">
+            <CircuitCharacteristics facts={facts} avgFieldMovement={avgFieldMovement} />
+          </div>
+        )}
       </div>
     </section>
   );
