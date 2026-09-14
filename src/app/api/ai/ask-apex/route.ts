@@ -16,6 +16,20 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
 import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
 import { buildCircuitContext, formatCircuitContext } from "@/lib/ai/context/circuitContext";
+import {
+  getArchiveCircuitData,
+  getArchiveCircuitHistoryData,
+  getArchiveDriverData,
+  getArchiveDriverHistoryData,
+  getArchiveTeamData,
+  getArchiveTeamHistoryData,
+  getArchiveYearStatsData,
+  getArchiveYears,
+} from "@/app/archive/services/archive.service";
+import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
+import { ERAS, eraForYear, isVerifiedChampionYear } from "@/lib/eras";
+import { getRacesByYear } from "@/lib/supabase/races";
+import { computeStandings } from "@/lib/standings";
 import { raceTitle } from "@/lib/format";
 import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
 import type { AgentContext } from "@/lib/ai/types";
@@ -141,6 +155,201 @@ async function buildCircuitGroundingContext(userId: string, clientContext: Recor
   return { page: "circuit", circuit: formatCircuitContext(ctx) };
 }
 
+function archiveIsClassified(status: string): boolean {
+  return status === "Finished" || /^\+\d+ Lap/.test(status);
+}
+
+/** Best-effort current-season leader, for when the "By Year" browser's live season card is in
+ * view - the exact same computeStandings(getRacesByYear(year)) pure derivation archive/page.tsx's
+ * own getActiveIds already uses for the year-card hover tooltip, not a second implementation. The
+ * archive has no rows at all for the in-progress season, so this is the only source for it. Best-
+ * effort by design: a transient failure here degrades to "no live season noted" rather than
+ * failing the whole grounding context over one extra cross-reference. */
+async function getCurrentSeasonLeaderSummary(): Promise<{ year: number; driver: { name: string; points: number } | null; team: { name: string; points: number } | null } | null> {
+  try {
+    const year = new Date().getFullYear();
+    const races = await getRacesByYear(year);
+    if (races.length === 0) return null;
+    const standings = computeStandings(races);
+    const topDriver = standings.drivers[0];
+    const topTeam = standings.constructors[0];
+    if (!topDriver && !topTeam) return null;
+    return {
+      year,
+      driver: topDriver ? { name: topDriver.driverName, points: topDriver.points } : null,
+      team: topTeam ? { name: topTeam.team, points: topTeam.points } : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The "By Year" tab's own registered scope (ArchiveYearBrowserApexScope) sends only its era/search
+ * selection, under `snapshot.view: "yearBrowser"` - distinct from the entity-page snapshot shape
+ * buildArchiveGroundingContext below expects, so the two never collide. The real facts are the
+ * exact same per-season champion/leader index getArchiveYearStatsData already computes and caches
+ * for the year cards' own hover tooltip (src/lib/supabase/archive.ts) - reused here as-is, not
+ * refetched or recomputed, so "what happened in 2025" can never drift from what the page itself
+ * shows on hover. Deliberately NOT filtered down to "only the currently visible years": a season
+ * comparison question ("2008 vs 2021") or an era question names years that may not be on screen at
+ * all, and the full index is small enough (~75 seasons, name/points/wins only, no per-race detail)
+ * to send in full rather than guess which years the next question will need. */
+async function buildArchiveYearBrowserGroundingContext(clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const snapshot = isPlainObject(clientContext.snapshot) ? clientContext.snapshot : null;
+  if (snapshot?.view !== "yearBrowser") return null;
+  const era = typeof snapshot.era === "string" ? snapshot.era : null;
+  const searchQuery = typeof snapshot.searchQuery === "string" ? snapshot.searchQuery.trim() : "";
+
+  const [yearStats, currentSeason] = await Promise.all([
+    getArchiveYearStatsData().catch(() => ({}) as Awaited<ReturnType<typeof getArchiveYearStatsData>>),
+    getCurrentSeasonLeaderSummary(),
+  ]);
+
+  // `verified` (bool, not a repeated string label) once per season plus one shared top-level
+  // `note` - a 76-season payload with the honest pre-1991 caveat spelled out per-season, per
+  // champion (the first version of this) ran to ~24,000 chars, comfortably over
+  // MAX_SERVER_CONTEXT_JSON_LENGTH and one hard `.slice()` away from a truncated, corrupt JSON
+  // tail (see this route's own MAX_SERVER_CONTEXT_JSON_LENGTH comment for the last time that
+  // exact failure mode shipped). Measured, not guessed: this compact shape runs ~15,000 chars
+  // unfiltered (all 76 seasons) - the final size check below is the actual guarantee, this is
+  // just what keeps it there in the first place.
+  const seasons = getArchiveYears()
+    .filter((year) => !era || eraForYear(year).id === era)
+    .filter((year) => !searchQuery || String(year).includes(searchQuery))
+    .sort((a, b) => b - a)
+    .map((year) => {
+      const stats = yearStats[year];
+      return {
+        year,
+        races: stats?.raceCount ?? null,
+        verified: isVerifiedChampionYear(year),
+        driverChampion: stats?.driverLeader ? { name: stats.driverLeader.name, wins: stats.driverLeader.wins, points: stats.driverLeader.points } : null,
+        constructorChampion: stats?.teamLeader ? { name: stats.teamLeader.name, wins: stats.teamLeader.wins, points: stats.teamLeader.points } : null,
+      };
+    });
+
+  const showLiveSeason = !!currentSeason && (!era || eraForYear(currentSeason.year).id === era) && (!searchQuery || String(currentSeason.year).includes(searchQuery));
+  if (seasons.length === 0 && !showLiveSeason) return null;
+
+  // Era descriptions are real color for "what was this era" questions, but they're the next-
+  // biggest chunk of this payload after `seasons` itself - only worth their size when a filter has
+  // already narrowed the season list down (era descriptions matter far less once every 76 seasons
+  // are already in view unfiltered).
+  const includeEraDescriptions = seasons.length <= 40;
+
+  const context = {
+    page: "archive",
+    tab: "year",
+    viewing: { era: era ?? "all", searchQuery: searchQuery || undefined },
+    note: "'verified: false' on a season means the points sum is real but pre-1991 F1 scoring didn't simply sum every round, so it may not exactly match that season's actual champion.",
+    eras: ERAS.map((e) => ({ id: e.id, name: e.name, years: `${e.startYear}–${e.endYear ?? "present"}`, ...(includeEraDescriptions ? { description: e.description } : {}) })),
+    seasons,
+    liveSeason: showLiveSeason
+      ? { year: currentSeason!.year, status: "in progress, no verified champion yet", driverLeader: currentSeason!.driver, constructorLeader: currentSeason!.team }
+      : undefined,
+  };
+
+  // Belt-and-braces on top of the measured budget above: real driver/team names vary in length
+  // from the ones this was sized against, so guarantee the hard cap by dropping the oldest
+  // seasons (least likely to be the subject of a follow-up) rather than risk the route's own
+  // later `.slice()` truncating this mid-object into invalid JSON.
+  while (JSON.stringify(context).length > MAX_SERVER_CONTEXT_JSON_LENGTH - 2000 && context.seasons.length > 0) {
+    context.seasons.pop();
+  }
+
+  return context;
+}
+
+/** Archive's own registered scope (ArchiveApexScope.tsx) sends only {entityType, entityId} under
+ * `snapshot` - same rule as circuit/season above. Every real fact (career stats, team stints, win
+ * counts) is fetched and computed here, server-side, from the same archive service functions the
+ * driver/team/circuit detail pages themselves render from - never trusted from the client, and
+ * never a second, drifting definition of "this driver's real record." */
+async function buildArchiveGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  void userId; // archive data has no per-user scoping to check - kept for signature parity with the other builders
+  const snapshot = isPlainObject(clientContext.snapshot) ? clientContext.snapshot : null;
+  const entityType = snapshot?.entityType;
+  const entityId = typeof snapshot?.entityId === "string" ? snapshot.entityId : null;
+  if (!entityId) return null;
+
+  if (entityType === "driver") {
+    const [driver, races] = await Promise.all([getArchiveDriverData(entityId), getArchiveDriverHistoryData(entityId)]);
+    if (races.length === 0) return null;
+    type Entry = { race: ArchiveRaceDoc; result: ArchiveResultEntry };
+    const entries: Entry[] = races
+      .map((race): Entry | null => {
+        const result = race.results.find((r) => r.driverId === entityId);
+        return result ? { race, result } : null;
+      })
+      .filter((e): e is Entry => e !== null);
+    const name = driver?.name ?? entries[0]?.result.driverName ?? entityId;
+    const wins = entries.filter((e) => archiveIsClassified(e.result.status) && e.result.position === 1).length;
+    const podiums = entries.filter((e) => archiveIsClassified(e.result.status) && e.result.position <= 3).length;
+    // Contiguous team stints - "2001-2002 Minardi, 2003-2006 Renault" - the same real, computed
+    // grouping the driver page's own ArchiveEraTimeline shows, not a second invented shape.
+    const stints: { from: number; to: number; team: string }[] = [];
+    for (const e of [...entries].sort((a, b) => a.race.year - b.race.year)) {
+      const last = stints[stints.length - 1];
+      if (last && last.team === e.result.constructor && last.to === e.race.year - 1) last.to = e.race.year;
+      else stints.push({ from: e.race.year, to: e.race.year, team: e.result.constructor });
+    }
+    return {
+      page: "archive",
+      entity: { type: "driver", name, firstYear: driver?.firstYear ?? Math.min(...races.map((r) => r.year)), lastYear: driver?.lastYear ?? Math.max(...races.map((r) => r.year)) },
+      stats: { races: entries.length, wins, podiums },
+      teamStints: stints.map((s) => `${s.from === s.to ? s.from : `${s.from}-${s.to}`}: ${s.team}`),
+      recentResults: entries
+        .slice(-15)
+        .reverse()
+        .map((e) => ({ year: e.race.year, race: e.race.raceName, team: e.result.constructor, result: e.result.positionText })),
+    };
+  }
+
+  if (entityType === "team") {
+    const [team, races] = await Promise.all([getArchiveTeamData(entityId), getArchiveTeamHistoryData(entityId)]);
+    if (!team) return null;
+    const allEntries = races.flatMap((race) => race.results.filter((r) => r.teamId === entityId).map((result) => ({ race, result })));
+    const wins = allEntries.filter((e) => archiveIsClassified(e.result.status) && e.result.position === 1).length;
+    const podiums = allEntries.filter((e) => archiveIsClassified(e.result.status) && e.result.position <= 3).length;
+    const byDriver = new Map<string, { name: string; races: number; wins: number }>();
+    for (const e of allEntries) {
+      const existing = byDriver.get(e.result.driverId) ?? { name: e.result.driverName, races: 0, wins: 0 };
+      existing.races += 1;
+      if (archiveIsClassified(e.result.status) && e.result.position === 1) existing.wins += 1;
+      byDriver.set(e.result.driverId, existing);
+    }
+    return {
+      page: "archive",
+      entity: { type: "team", name: team.name, firstYear: team.firstYear, lastYear: team.lastYear },
+      stats: { races: races.length, wins, podiums },
+      topDrivers: [...byDriver.values()].sort((a, b) => b.races - a.races).slice(0, 8),
+    };
+  }
+
+  if (entityType === "circuit") {
+    const [circuit, races] = await Promise.all([getArchiveCircuitData(entityId), getArchiveCircuitHistoryData(entityId)]);
+    if (!circuit) return null;
+    type WinnerEntry = { year: number; winner: ArchiveResultEntry };
+    const winners: WinnerEntry[] = races
+      .map((race): WinnerEntry | null => {
+        const winner = race.results.find((r) => r.position === 1);
+        return winner ? { year: race.year, winner } : null;
+      })
+      .filter((w): w is WinnerEntry => w !== null);
+    const winCounts = new Map<string, number>();
+    for (const w of winners) winCounts.set(w.winner.driverName, (winCounts.get(w.winner.driverName) ?? 0) + 1);
+    return {
+      page: "archive",
+      entity: { type: "circuit", name: circuit.name ?? circuit.circuitId, country: circuit.country },
+      stats: { races: races.length, firstYear: circuit.firstYear, lastYear: circuit.lastYear },
+      mostWins: [...winCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([driver, count]) => ({ driver, wins: count })),
+      recentWinners: [...winners].sort((a, b) => b.year - a.year).slice(0, 15).map((w) => ({ year: w.year, winner: w.winner.driverName, team: w.winner.constructor })),
+    };
+  }
+
+  return null;
+}
+
 export const maxDuration = 30;
 
 const MAX_QUESTION_LENGTH = 500;
@@ -234,6 +443,19 @@ export async function POST(req: Request) {
       if (circuitContext) {
         context = circuitContext;
         serverBuilt = true;
+      }
+    }
+    if (context.page === "archive") {
+      const yearBrowserContext = await buildArchiveYearBrowserGroundingContext(context);
+      if (yearBrowserContext) {
+        context = yearBrowserContext;
+        serverBuilt = true;
+      } else {
+        const archiveContext = await buildArchiveGroundingContext(userId, context);
+        if (archiveContext) {
+          context = archiveContext;
+          serverBuilt = true;
+        }
       }
     }
 

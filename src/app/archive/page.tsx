@@ -5,6 +5,7 @@ import { ArchiveYearView } from "./components/ArchiveYearView";
 import { RetryBanner } from "./components/RetryBanner";
 import { ArchiveEntityHeader } from "./components/ArchiveEntityHeader";
 import { ArchiveFavoriteToggle } from "./components/ArchiveFavoriteToggle";
+import { ArchiveApexScope } from "./components/ArchiveApexScope";
 import { ArchiveExplorerWithFocus } from "./components/ArchiveExplorerWithFocus";
 import { ArchiveEraTimeline, buildEraSegments } from "./components/ArchiveEraTimeline";
 import { ArchiveDriverRelationships, type DriverRelationship } from "./components/ArchiveDriverRelationships";
@@ -193,6 +194,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <ArchiveApexScope entityType="circuit" entityId={circuitId} name={circuit.name ?? circuit.circuitId} />
       <ArchiveEntityHeader
         backHref="/archive?section=track"
         backLabel="Archive"
@@ -267,6 +269,7 @@ async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
       <ArchiveEntityHeader
         backHref="/archive?section=driver"
         backLabel="Archive"
@@ -360,6 +363,7 @@ async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
       <ArchiveEntityHeader
         backHref="/archive?section=team"
         backLabel="Archive"
