@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { CircuitExplorerHeader } from "./components/CircuitExplorerHeader";
-import { SeasonProgressStrip } from "./components/SeasonProgressStrip";
-import { CircuitExplorerTimeline } from "./components/CircuitExplorerTimeline";
+import { SeasonJourney } from "./components/SeasonJourney";
+import { NextRaceFocus } from "./components/NextRaceFocus";
 import { getCircuitsExplorerData } from "./services/circuits.service";
 import { getUserProfile } from "@/lib/supabase/users";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -17,10 +17,14 @@ async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const { entries, completedCount, remainingCount } = data;
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
       <CircuitExplorerHeader year={year} totalCircuits={entries.length} completedCount={completedCount} remainingCount={remainingCount} />
-      <SeasonProgressStrip races={entries.map((e) => e.race)} />
-      <CircuitExplorerTimeline entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} />
+      {/* The whole season, always visible, in one connected rail - see SeasonJourney's own
+          docstring for why this replaces both the old vertical timeline and the separate
+          SeasonProgressStrip (the two are now one visualization, not a summary bar above a
+          different, disconnected list of cards below it). */}
+      <SeasonJourney entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} />
+      <NextRaceFocus entries={entries} />
     </div>
   );
 }

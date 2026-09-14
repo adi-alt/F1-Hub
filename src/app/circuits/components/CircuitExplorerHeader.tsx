@@ -13,15 +13,10 @@ export function CircuitExplorerHeader({
   remainingCount: number;
 }) {
   return (
-    <header className="mb-8">
+    <header className="mb-5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-500">Circuits</p>
-      <h1 className="mt-2 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">
-        {year} Formula 1 Circuit Explorer
-      </h1>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-400">
-        Explore every circuit on the current calendar, from completed race weekends to tracks still to come.
-      </p>
-      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-neutral-500">
+      <h1 className="mt-2 text-[26px] font-bold leading-[1.1] tracking-[-0.02em] text-white sm:text-[32px]">{year} Formula 1 Circuit Explorer</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-neutral-500">
         <span>
           <span className="font-mono font-semibold text-neutral-300">{totalCircuits}</span> circuits
         </span>
