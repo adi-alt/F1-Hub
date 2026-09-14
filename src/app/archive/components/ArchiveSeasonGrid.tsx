@@ -76,21 +76,31 @@ export function ArchiveSeasonGrid({
 
   return (
     <div className="pb-2">
-      {/* Single era, single group - the common case when a filter's active - doesn't need its own
-          heading repeating what the filter trigger already says. */}
+      {/* Single era, single group - the common case when a filter's active - skips repeating the
+          era's name (the filter trigger already says it) but still surfaces its real year range
+          and description: those aren't shown anywhere else once the page is down to one era. */}
       {groups.length === 1 ? (
-        <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-          {groups[0].years.map((year) => (
-            <SeasonCard
-              key={year}
-              year={year}
-              isLive={showLiveSeason && year === currentYear}
-              raceCount={yearStats[year]?.raceCount}
-              onHoverStart={showTooltip}
-              onHoverEnd={hideTooltip}
-            />
-          ))}
-        </motion.div>
+        <>
+          <p className="mb-3 max-w-2xl text-[11px] text-neutral-600">
+            <span className="text-neutral-500">
+              {groups[0].era.startYear}–{groups[0].era.endYear ?? "present"}.
+            </span>{" "}
+            {groups[0].era.description}
+          </p>
+          <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+            {groups[0].years.map((year) => (
+              <SeasonCard
+                key={year}
+                year={year}
+                isLive={showLiveSeason && year === currentYear}
+                raceCount={yearStats[year]?.raceCount}
+                leaderName={showLiveSeason && year === currentYear ? (currentLeader.driver?.name ?? undefined) : yearStats[year]?.driverLeader?.name}
+                onHoverStart={showTooltip}
+                onHoverEnd={hideTooltip}
+              />
+            ))}
+          </motion.div>
+        </>
       ) : (
         groups.map(({ era, years: eraYears }) => (
           <EraSection
@@ -99,6 +109,7 @@ export function ArchiveSeasonGrid({
             years={eraYears}
             liveYear={showLiveSeason ? currentYear : undefined}
             yearStats={yearStats}
+            currentLeaderName={currentLeader.driver?.name ?? undefined}
             onCardHoverStart={showTooltip}
             onCardHoverEnd={hideTooltip}
           />

@@ -136,6 +136,8 @@ export function ArchiveExplorer({
     return true;
   });
   const showLiveSeason = era === "all" && (!search.trim() || String(currentYear).includes(search.trim()));
+  const totalYearsShown = filteredYears.length + (showLiveSeason && !filteredYears.includes(currentYear) ? 1 : 0);
+  const yearFilterActive = era !== "all" || search.trim() !== "";
 
   const countries = [...new Set(circuits.map((c) => c.country).filter((c): c is string => !!c))].sort();
 
@@ -154,8 +156,15 @@ export function ArchiveExplorer({
       </div>
 
       {facet === "year" && (
-        <div className="mt-3 shrink-0">
+        <div className="mt-3 flex shrink-0 items-center gap-3">
           <EraFilterSelect value={era} onChange={setEra} />
+          {/* Only worth a line when a filter has actually narrowed the count - with no filter
+              active, "76 seasons" states the obvious rather than confirming anything useful. */}
+          {yearFilterActive && (
+            <span className="text-xs text-neutral-500">
+              {totalYearsShown} season{totalYearsShown === 1 ? "" : "s"}
+            </span>
+          )}
         </div>
       )}
       {facet === "track" && (
