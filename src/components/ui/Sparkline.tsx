@@ -4,7 +4,35 @@ import { useId } from "react";
 
 export type SparkPoint = { round: number; points: number; cumulative: number };
 
-type Trend = "up" | "down" | "flat";
+export type Trend = "up" | "down" | "flat";
+
+/**
+ * Classify a cumulative series as accelerating, holding, or tailing off.
+ *
+ * Direction is NOT the signal here. Cumulative championship points can only ever rise, so "is the
+ * line going up" is true for every entity that has scored at all, and colouring by it would paint
+ * the whole column green. What distinguishes these rows is whether the rate is increasing: the
+ * scoring rate across the back half of the window is compared against the front half.
+ *
+ * Exported and pure so the thresholds are testable rather than asserted by eye.
+ */
+export function sparklineTrend(values: number[]): Trend {
+  if (values.length < 2) return "flat";
+  const gained = values[values.length - 1] - values[0];
+  if (gained === 0) return "flat"; // scored nothing across the window
+
+  const mid = Math.floor(values.length / 2);
+  const rate = (from: number, to: number) => (to - from <= 0 ? 0 : (values[to] - values[from]) / (to - from));
+  const earlyRate = rate(0, mid);
+  const lateRate = rate(mid, values.length - 1);
+
+  // A window that only started scoring late is accelerating by definition; guarding the zero case
+  // explicitly avoids treating "0 -> something" as a ratio against zero.
+  if (earlyRate === 0) return "up";
+  if (lateRate > earlyRate * 1.25) return "up";
+  if (lateRate < earlyRate * 0.6) return "down";
+  return "flat";
+}
 
 // Semantic, but deliberately desaturated: a column of these sits inside a mostly-monochrome panel,
 // and fully saturated green/red rows would turn the standings area into a colour chart.
@@ -62,22 +90,7 @@ export function Sparkline({
   const line = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const area = `${line} L${coords[coords.length - 1][0].toFixed(1)},${height - pad} L${coords[0][0].toFixed(1)},${height - pad} Z`;
 
-  // Cumulative points can only ever rise, so "is the line going up" is not a signal - every line
-  // goes up. What actually distinguishes these rows is whether the entity is ACCELERATING or
-  // stalling, so the trend compares the rate across the second half of the window against the
-  // first. That gives the four real shapes: climbing harder, holding, tailing off, or flat.
-  const mid = Math.floor(series.length / 2);
-  const rate = (from: number, to: number) => (to - from <= 0 ? 0 : (values[to] - values[from]) / (to - from));
-  const earlyRate = rate(0, mid);
-  const lateRate = rate(mid, values.length - 1);
-  const gained = values[values.length - 1] - values[0];
-
-  let trend: Trend;
-  if (gained === 0) trend = "flat";                        // scored nothing across the window
-  else if (lateRate > earlyRate * 1.25) trend = "up";      // scoring harder than they were
-  else if (lateRate < earlyRate * 0.6) trend = "down";     // tailing off
-  else trend = "flat";                                     // holding station
-  const tone = TREND[trend];
+  const tone = TREND[sparklineTrend(values)];
   const [lastX, lastY] = coords[coords.length - 1];
 
   const roundsText = series.map((p) => `R${p.round}: ${p.points} pts`).join(", ");
