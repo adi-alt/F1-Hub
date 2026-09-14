@@ -5,6 +5,7 @@ import {
   getAllArchiveDrivers,
   getAllArchiveTeams,
   getArchiveCircuit,
+  getArchiveDriver,
   getArchiveRace,
   getArchiveRaceLaps,
   getArchiveRacesByCircuitId,
@@ -51,6 +52,14 @@ export async function getArchiveCircuitHistoryData(circuitId: string) {
 
 export async function getAllArchiveDriversData() {
   return getAllArchiveDrivers();
+}
+
+// The driver detail page previously never fetched the driver's own archive_drivers row at all -
+// its name was derived from a result row and it had no photo/race-count/first-last-year to build
+// a real header from. This is the single-entity fetch getArchiveTeamData/getArchiveCircuitData
+// already had, that the driver route was missing.
+export async function getArchiveDriverData(driverId: string) {
+  return getArchiveDriver(driverId);
 }
 
 export async function getArchiveDriverHistoryData(driverId: string) {

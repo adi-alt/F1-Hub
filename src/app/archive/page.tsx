@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArchiveExplorer } from "./components/ArchiveExplorer";
 import { ArchiveYearView } from "./components/ArchiveYearView";
-import { CircuitCard } from "./components/CircuitCard";
-import { ArchiveHistoryRaceList } from "./components/ArchiveHistoryRaceList";
 import { RetryBanner } from "./components/RetryBanner";
+import { ArchiveEntityHeader } from "./components/ArchiveEntityHeader";
+import { ArchiveFavoriteToggle } from "./components/ArchiveFavoriteToggle";
+import { ArchiveExplorerWithFocus } from "./components/ArchiveExplorerWithFocus";
+import { ArchiveEraTimeline, buildEraSegments } from "./components/ArchiveEraTimeline";
+import { ArchiveDriverRelationships, type DriverRelationship } from "./components/ArchiveDriverRelationships";
+import type { ExplorerRow, ResultFilter } from "./components/ArchiveRaceExplorer";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
@@ -14,6 +17,7 @@ import {
   getAllArchiveTeamsData,
   getArchiveCircuitData,
   getArchiveCircuitHistoryData,
+  getArchiveDriverData,
   getArchiveDriverHistoryData,
   getArchiveRaceData,
   getArchiveTeamData,
@@ -23,7 +27,8 @@ import {
 } from "./services/archive.service";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
-import type { CurrentLeader } from "@/lib/supabase/archive";
+import type { ArchiveRaceDoc, ArchiveResultEntry, CurrentLeader } from "@/lib/supabase/archive";
+import { getArchiveDriverPhotosByIds } from "@/lib/supabase/archive";
 import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { computeStandings } from "@/lib/standings";
@@ -32,6 +37,17 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+
+// Ergast's own three-way classification status (archiveIsClassified in circuitIntelligence.ts
+// makes the exact same real distinction, not exported from there - a one-line regex check is
+// cheaper duplicated than pulled through a shared module for this).
+function isClassified(status: string): boolean {
+  return status === "Finished" || /^\+\d+ Lap/.test(status);
+}
+
+function finishText(positionText: string): string {
+  return /^\d+$/.test(positionText) ? `P${positionText}` : positionText;
+}
 
 type Facet = "year" | "track" | "driver" | "team";
 
@@ -138,95 +154,236 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   );
 }
 
+/** The circuit's real race-by-race history as an explorer (search/decade filter, dense table,
+ * persistent focused panel) instead of a flat stack of link cards - the "entity" column is the
+ * real classified winner (driverId is on the result row directly, archive has never needed a
+ * code->id resolution step the way live-season data does). */
 async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
-  const [circuit, races] = await Promise.all([
-    getArchiveCircuitData(circuitId),
-    getArchiveCircuitHistoryData(circuitId),
-  ]);
+  const [circuit, races] = await Promise.all([getArchiveCircuitData(circuitId), getArchiveCircuitHistoryData(circuitId)]);
   if (!circuit) notFound();
 
+  const winners = races.map((r) => r.results.find((res) => res.position === 1)).filter((w): w is ArchiveResultEntry => !!w);
+  const photoByDriver = await getArchiveDriverPhotosByIds([...new Set(winners.map((w) => w.driverId))]);
+
+  const rows: ExplorerRow[] = races
+    .map((race): ExplorerRow => {
+      const winner = race.results.find((res) => res.position === 1) ?? null;
+      return {
+        id: race.id,
+        year: race.year,
+        round: race.round,
+        raceName: race.raceName,
+        circuitName: race.circuitName,
+        country: race.country,
+        entityLabel: winner?.driverName ?? null,
+        entityAvatarUrl: winner ? (photoByDriver.get(winner.driverId) ?? null) : undefined,
+        entityIsLogo: false,
+        grid: winner?.grid ?? null,
+        finishText: winner ? finishText(winner.positionText) : "—",
+        finishRank: winner ? 1 : null,
+        points: winner?.points ?? 0,
+      };
+    })
+    .sort((a, b) => b.year - a.year || b.round - a.round);
+
+  const years = races.map((r) => r.year);
+  const winCounts = new Map<string, number>();
+  for (const w of winners) winCounts.set(w.driverName, (winCounts.get(w.driverName) ?? 0) + 1);
+  const topWinner = [...winCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive?section=track" className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← Archive
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold text-white">{circuit.name ?? circuit.circuitId}</h1>
-      <div className="mt-4">
-        <CircuitCard circuit={circuit} />
-      </div>
-      <p className="mt-6 text-sm text-neutral-500">
-        {races.length} race{races.length === 1 ? "" : "s"} on record here
-      </p>
-      <ArchiveHistoryRaceList
-        className="mt-3 space-y-2"
-        races={races.map((r) => ({
-          id: r.id,
-          year: r.year,
-          round: r.round,
-          raceName: r.raceName,
-          secondaryLabel: "Winner",
-          secondaryValue: r.results.find((res) => res.position === 1)?.driverName ?? null,
-        }))}
+    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <ArchiveEntityHeader
+        backHref="/archive?section=track"
+        backLabel="Archive"
+        name={circuit.name ?? circuit.circuitId}
+        photoUrl={circuit.imageUrls?.[0] ?? circuit.imageUrl ?? null}
+        photoShape="square"
+        subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${races.length} race${races.length === 1 ? "" : "s"}`}
+        stats={[{ label: "Races", value: races.length }, ...(topWinner ? [{ label: "Most wins", value: `${topWinner[0]} (${topWinner[1]})` }] : [])]}
+        favoriteButton={<ArchiveFavoriteToggle type="track" id={circuitId} />}
       />
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Winner" />
+      </div>
     </div>
   );
 }
 
+/** A driver's whole career as a real explorer, not 400 stacked cards - search/decade/result-type
+ * filters, a dense table, a persistent focused panel for the selected race, real computed stats,
+ * and a real team-era timeline (contiguous stints, not a fabricated grouping). */
 async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
-  const races = await getArchiveDriverHistoryData(driverId);
+  const [driver, races] = await Promise.all([getArchiveDriverData(driverId), getArchiveDriverHistoryData(driverId)]);
   if (races.length === 0) notFound();
 
-  const name = races[0].results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
+  type Entry = { race: ArchiveRaceDoc; result: ArchiveResultEntry };
+  const entries: Entry[] = races
+    .map((race): Entry | null => {
+      const result = race.results.find((r) => r.driverId === driverId);
+      return result ? { race, result } : null;
+    })
+    .filter((e): e is Entry => e !== null);
+
+  const name = driver?.name ?? entries[0]?.result.driverName ?? driverId;
   const years = races.map((r) => r.year);
+  const currentTeams = await getAllCurrentTeams();
+  const logoByTeam = new Map(currentTeams.map((t) => [t.name, t.logoUrl]));
+
+  const rows: ExplorerRow[] = entries
+    .map(
+      ({ race, result }): ExplorerRow => ({
+        id: race.id,
+        year: race.year,
+        round: race.round,
+        raceName: race.raceName,
+        circuitName: race.circuitName,
+        country: race.country,
+        entityLabel: result.constructor,
+        entityAvatarUrl: logoByTeam.get(result.constructor) ?? null,
+        entityIsLogo: true,
+        grid: result.grid,
+        finishText: finishText(result.positionText),
+        finishRank: isClassified(result.status) ? result.position : null,
+        points: result.points,
+      }),
+    )
+    .sort((a, b) => b.year - a.year || b.round - a.round);
+
+  const wins = rows.filter((r) => r.finishRank === 1).length;
+  const podiums = rows.filter((r) => r.finishRank !== null && r.finishRank <= 3).length;
+  const totalPoints = rows.reduce((sum, r) => sum + r.points, 0);
+  const finishes = rows.filter((r) => r.finishRank !== null).length;
+  const retirements = rows.length - finishes;
+
+  const eraSegments = buildEraSegments(entries.map(({ race, result }) => ({ year: race.year, label: result.constructor, raceCount: 1 })));
+
+  const resultFilters: ResultFilter[] = [
+    { key: "wins", label: "Wins", test: (r) => r.finishRank === 1 },
+    { key: "podiums", label: "Podiums", test: (r) => r.finishRank !== null && r.finishRank <= 3 },
+    { key: "points", label: "Points", test: (r) => r.points > 0 },
+    { key: "dnf", label: "Retirements", test: (r) => r.finishRank === null },
+  ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive?section=driver" className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← Archive
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold text-white">{name}</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        {Math.min(...years)}–{Math.max(...years)} · {races.length} race{races.length === 1 ? "" : "s"}
-      </p>
-      <ArchiveHistoryRaceList
-        races={races.map((r) => ({
-          id: r.id,
-          year: r.year,
-          round: r.round,
-          raceName: r.raceName,
-          secondaryLabel: "Finished",
-          secondaryValue: r.results.find((res) => res.driverId === driverId)?.positionText ?? null,
-        }))}
+    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <ArchiveEntityHeader
+        backHref="/archive?section=driver"
+        backLabel="Archive"
+        name={name}
+        photoUrl={driver?.photoUrl ?? null}
+        subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${races.length} race${races.length === 1 ? "" : "s"}`}
+        stats={[
+          { label: "Wins", value: wins },
+          { label: "Podiums", value: podiums },
+          { label: "Points", value: totalPoints },
+          { label: "Finishes", value: finishes },
+          { label: "Retirements", value: retirements },
+        ]}
+        favoriteButton={<ArchiveFavoriteToggle type="driver" id={driverId} />}
       />
+      {eraSegments.length > 0 && (
+        <div className="mt-4 shrink-0">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Team eras</p>
+          <ArchiveEraTimeline segments={eraSegments} />
+        </div>
+      )}
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilters={resultFilters} />
+      </div>
     </div>
   );
 }
 
+/** A constructor's whole history as a real explorer - the entity column is this team's own
+ * best-placed finisher per race (never the overall race winner if that happened to be a rival),
+ * plus a real driver-relationships table (every driver who's carried this team's colours, with
+ * their own real race/win counts against THIS team specifically). */
 async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
   const [team, races] = await Promise.all([getArchiveTeamData(teamId), getArchiveTeamHistoryData(teamId)]);
   if (!team) notFound();
-
   const years = races.map((r) => r.year);
 
+  type Entry = { race: ArchiveRaceDoc; result: ArchiveResultEntry };
+  const allEntries: Entry[] = races.flatMap((race) => race.results.filter((r) => r.teamId === teamId).map((result) => ({ race, result })));
+  const photoByDriver = await getArchiveDriverPhotosByIds([...new Set(allEntries.map((e) => e.result.driverId))]);
+
+  const byRace = new Map<string, Entry[]>();
+  for (const e of allEntries) {
+    const list = byRace.get(e.race.id) ?? [];
+    list.push(e);
+    byRace.set(e.race.id, list);
+  }
+
+  const rows: ExplorerRow[] = [...byRace.values()]
+    .map((raceEntries): ExplorerRow => {
+      const race = raceEntries[0].race;
+      const best = [...raceEntries].sort((a, b) => (a.result.position ?? 999) - (b.result.position ?? 999))[0];
+      const others = raceEntries.length - 1;
+      return {
+        id: race.id,
+        year: race.year,
+        round: race.round,
+        raceName: race.raceName,
+        circuitName: race.circuitName,
+        country: race.country,
+        entityLabel: others > 0 ? `${best.result.driverName} +${others}` : best.result.driverName,
+        entityAvatarUrl: photoByDriver.get(best.result.driverId) ?? null,
+        entityIsLogo: false,
+        grid: best.result.grid,
+        finishText: finishText(best.result.positionText),
+        finishRank: isClassified(best.result.status) ? best.result.position : null,
+        points: raceEntries.reduce((sum, e) => sum + e.result.points, 0),
+      };
+    })
+    .sort((a, b) => b.year - a.year || b.round - a.round);
+
+  const wins = rows.filter((r) => r.finishRank === 1).length;
+  const podiums = rows.filter((r) => r.finishRank !== null && r.finishRank <= 3).length;
+  const totalPoints = allEntries.reduce((sum, e) => sum + e.result.points, 0);
+
+  const byDriver = new Map<string, { name: string; races: Set<string>; wins: number }>();
+  for (const e of allEntries) {
+    const existing = byDriver.get(e.result.driverId) ?? { name: e.result.driverName, races: new Set<string>(), wins: 0 };
+    existing.races.add(e.race.id);
+    if (e.result.position === 1 && isClassified(e.result.status)) existing.wins += 1;
+    byDriver.set(e.result.driverId, existing);
+  }
+  const relationships: DriverRelationship[] = [...byDriver.entries()]
+    .map(([id, v]) => ({ driverId: id, name: v.name, photoUrl: photoByDriver.get(id) ?? null, races: v.races.size, wins: v.wins }))
+    .sort((a, b) => b.races - a.races);
+
+  const resultFilters: ResultFilter[] = [
+    { key: "wins", label: "Wins", test: (r) => r.finishRank === 1 },
+    { key: "podiums", label: "Podiums", test: (r) => r.finishRank !== null && r.finishRank <= 3 },
+  ];
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <Link href="/archive?section=team" className="text-sm text-neutral-500 hover:text-neutral-300">
-        ← Archive
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold text-white">{team.name}</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        {Math.min(...years)}–{Math.max(...years)} · {races.length} race{races.length === 1 ? "" : "s"}
-      </p>
-      <ArchiveHistoryRaceList
-        races={races.map((r) => ({
-          id: r.id,
-          year: r.year,
-          round: r.round,
-          raceName: r.raceName,
-          secondaryLabel: "Winner",
-          secondaryValue: r.results.find((res) => res.position === 1)?.driverName ?? null,
-        }))}
+    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <ArchiveEntityHeader
+        backHref="/archive?section=team"
+        backLabel="Archive"
+        name={team.name}
+        photoUrl={null}
+        photoShape="square"
+        subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${races.length} race${races.length === 1 ? "" : "s"}`}
+        stats={[
+          { label: "Wins", value: wins },
+          { label: "Podiums", value: podiums },
+          { label: "Points", value: totalPoints },
+          { label: "Drivers", value: relationships.length },
+        ]}
+        favoriteButton={<ArchiveFavoriteToggle type="team" id={teamId} />}
       />
+      {relationships.length > 0 && (
+        <div className="mt-4 shrink-0">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Drivers</p>
+          <ArchiveDriverRelationships drivers={relationships} maxHeightPx={160} />
+        </div>
+      )}
+      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilters={resultFilters} />
+      </div>
     </div>
   );
 }
