@@ -257,26 +257,35 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[10px] text-neutral-500">
-          <span className="flex items-center gap-3">
+        {/* The legend has to render each state the SAME WAY the grid does, or it teaches the wrong
+            mapping. A cell encodes two things at once: fill vs outline is its STATE, and hue is
+            its SESSION TYPE. The previous legend drew "upcoming" as a grey outline and "completed"
+            as a grey fill, neither of which ever appears in the grid - every real cell is tinted
+            by session type - and drew "current" in red, implying live sessions are always red when
+            a live practice session is blue. The state swatches below are drawn in one type colour
+            and labelled as such, so the two dimensions stay separable. */}
+        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-neutral-500">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-neutral-600">State</span>
             <span className="flex items-center gap-1.5">
               <span className="h-[10px] w-[10px] rounded-[2px] bg-white/[0.05]" />
               No session
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-[10px] w-[10px] rounded-[2px] border border-neutral-500" />
+              <span className="h-[10px] w-[10px] rounded-[2px]" style={{ border: `1px solid ${TYPE_COLOR.race}`, opacity: 0.7 }} />
               Upcoming
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-[10px] w-[10px] rounded-[2px] bg-neutral-400" />
+              <span className="h-[10px] w-[10px] rounded-[2px]" style={{ background: TYPE_COLOR.race }} />
               Completed
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="pulse-ring h-[10px] w-[10px] rounded-[2px] bg-[var(--f1-red)]" />
+              <span className="pulse-ring h-[10px] w-[10px] rounded-[2px]" style={{ background: TYPE_COLOR.race }} />
               Current
             </span>
           </span>
-          <span className="flex items-center gap-3">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="text-neutral-600">Session</span>
             {(["practice", "qualifying", "sprint", "race"] as const).map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-[2px]" style={{ background: TYPE_COLOR[t] }} />
@@ -284,6 +293,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
               </span>
             ))}
           </span>
+          <span className="w-full text-neutral-600">Outline means still to come, solid means run. Colour shows which session it is.</span>
         </div>
       </div>
 

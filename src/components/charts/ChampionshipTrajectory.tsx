@@ -70,7 +70,28 @@ export default function ChampionshipTrajectory({
 }) {
   const [activeCode, setActiveCode] = useState<string | null>(null);
 
+  // A line chart is an SVG with no text alternative, so to a screen reader it is simply absent.
+  // This states what is plotted and where each series ends, which is the part of a trajectory
+  // chart that carries the meaning. Colour is never the only carrier either way: the legend names
+  // each series in text.
+  const metricName = metric === "points" ? "cumulative championship points" : metric === "position" ? "championship position" : "points behind the leader";
+  const lastRow = chartData[chartData.length - 1];
+  const summary =
+    lastRow && curves.length > 0
+      ? `Line chart of ${metricName} across ${chartData.length} rounds. ` +
+        curves
+          .map(({ code }) => {
+            const v = lastRow[code];
+            if (v === null || v === undefined) return `${labelFor(code)}: no data`;
+            return `${labelFor(code)}: ${metric === "position" ? `P${v}` : v}`;
+          })
+          .join(". ") +
+        ` after the latest round.`
+      : "Line chart with no series currently selected.";
+
   return (
+    <figure className="m-0">
+      <figcaption className="sr-only">{summary}</figcaption>
     <ResponsiveContainer width="100%" height={300}>
       <AreaChart data={chartData} margin={{ left: 0, right: 16, top: 8, bottom: 8 }}>
         <defs>
@@ -139,5 +160,6 @@ export default function ChampionshipTrajectory({
         })}
       </AreaChart>
     </ResponsiveContainer>
+    </figure>
   );
 }
