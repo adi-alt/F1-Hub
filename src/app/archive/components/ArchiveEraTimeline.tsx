@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { teamColor } from "@/lib/teamColors";
+import type { EraSegment } from "./eraSegments";
 
-export type EraSegment = { from: number; to: number; label: string; raceCount: number };
+export type { EraSegment };
 
 /**
  * A driver's real team-by-team history, collapsed into contiguous stints (2001-2002 Minardi,
  * 2003-2006 Renault, 2007 McLaren, ...) and drawn as one proportional segmented bar rather than a
  * list of year-by-year cards - the "represent visually, not as a stack of cards" requirement for
  * this specific shape of data (a small number of real, contiguous ranges, not a long series to
- * plot). Segments are computed by the caller (buildEraSegments below) directly from real per-year
+ * plot). Segments are computed by the caller (buildEraSegments, now in ./eraSegments.ts - NOT this
+ * file, since this file is "use client" and buildEraSegments is called directly from server code in
+ * archive/page.tsx; see that module's own comment for why it moved) directly from real per-year
  * results - nothing here invents a grouping.
  */
 export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
@@ -55,22 +58,4 @@ export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
       </div>
     </div>
   );
-}
-
-/** Collapses a real year -> label series (a driver's own team each season, say) into contiguous
- * runs - "2003, 2004, 2005 all Renault" becomes one 2003-2005 segment, not three. Skips years with
- * no real label (a gap season) rather than inventing a continuation across it. */
-export function buildEraSegments(yearLabels: { year: number; label: string; raceCount: number }[]): EraSegment[] {
-  const sorted = [...yearLabels].sort((a, b) => a.year - b.year);
-  const segments: EraSegment[] = [];
-  for (const { year, label, raceCount } of sorted) {
-    const last = segments[segments.length - 1];
-    if (last && last.label === label && last.to === year - 1) {
-      last.to = year;
-      last.raceCount += raceCount;
-    } else {
-      segments.push({ from: year, to: year, label, raceCount });
-    }
-  }
-  return segments;
 }

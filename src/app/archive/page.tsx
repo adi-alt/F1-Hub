@@ -7,7 +7,8 @@ import { ArchiveEntityHeader } from "./components/ArchiveEntityHeader";
 import { ArchiveFavoriteToggle } from "./components/ArchiveFavoriteToggle";
 import { ArchiveApexScope } from "./components/ArchiveApexScope";
 import { ArchiveExplorerWithFocus } from "./components/ArchiveExplorerWithFocus";
-import { ArchiveEraTimeline, buildEraSegments } from "./components/ArchiveEraTimeline";
+import { ArchiveEraTimeline } from "./components/ArchiveEraTimeline";
+import { buildEraSegments } from "./components/eraSegments";
 import { ArchiveDriverRelationships, type DriverRelationship } from "./components/ArchiveDriverRelationships";
 import type { ExplorerRow, ResultFilter } from "./components/ArchiveRaceExplorer";
 import {
