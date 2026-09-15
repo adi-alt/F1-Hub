@@ -6,19 +6,36 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveCircuitHref } from "@/lib/routes";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { FavoriteButton } from "./FavoriteButton";
 import { StatusBadge } from "./StatusBadge";
 import type { ArchiveCircuit } from "@/lib/supabase/archive";
 
-/** `c.imageUrl && <Image>` alone only covers "no URL at all" - a URL that 404s (a re-host that
- * never completed, a deleted Storage object) still rendered nothing where next/image doesn't
- * paint a broken-image glyph, silently leaving an empty gradient tile with no visual explanation.
- * `onError` swaps back to that same gradient placeholder explicitly, so a genuinely broken image
- * reads the same as "no image yet" instead of looking like a rendering bug. */
+/** Three real states, not the previous two: a `c.imageUrl` that exists still has to actually
+ * finish downloading/decoding before there's anything to show, and until now that gap rendered
+ * nothing at all over the gradient placeholder - the photo just popped in whenever the browser
+ * got to it, on every single card in the grid, with no loading affordance in between. `status`
+ * tracks that third state explicitly: a pulsing Skeleton covers the tile until `onLoad` actually
+ * fires, then fades out as the real image fades in (no layout shift either way - both are
+ * absolutely positioned over the same `fill` box). `onError` still swaps to `"broken"` - a 404'd
+ * re-host - which renders nothing over the gradient, same as no image ever existing, rather than a
+ * broken-image glyph. */
 function CircuitThumbnail({ src, alt }: { src: string; alt: string }) {
-  const [broken, setBroken] = useState(false);
-  if (broken) return null;
-  return <Image src={src} alt={alt} fill className="object-contain p-3" onError={() => setBroken(true)} />;
+  const [status, setStatus] = useState<"loading" | "loaded" | "broken">("loading");
+  if (status === "broken") return null;
+  return (
+    <>
+      {status === "loading" && <Skeleton className="absolute inset-0 rounded-none" />}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className={`object-contain p-3 transition-opacity duration-300 ${status === "loaded" ? "opacity-100" : "opacity-0"}`}
+        onLoad={() => setStatus("loaded")}
+        onError={() => setStatus("broken")}
+      />
+    </>
+  );
 }
 
 export function ArchiveCircuitGrid({
