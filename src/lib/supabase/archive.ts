@@ -607,26 +607,65 @@ export async function getArchiveDriverIdsByCode(codes: string[]): Promise<Map<st
   return new Map([...bestByCode].map(([code, v]) => [code, v.driverId]));
 }
 
+// PostgREST encodes an `.in("id", raceIds)` filter as literal, comma-separated ids in the request
+// URL - fine for a handful of ids, but confirmed live to come back a flat "Bad Request" (not a
+// data error - a rejected request) once raceIds gets into four figures: Ferrari's real 1123-race
+// id list was long enough on its own to break the request before it ever reached a query planner.
+// Paginating the *response* (fetchAllRows) doesn't touch this - the request itself is what's too
+// large. Chunking the id list keeps every request's URL short regardless of how many races an
+// entity has, and fetching the chunks in parallel means this costs one wave of round trips, not
+// one per chunk in series. Each chunk is well under PAGE_SIZE (1000) by construction, so no
+// per-chunk pagination is needed on top of this - only the final merge needs its own sort, since
+// Promise.all's chunk order has no relationship to year/round order once merged.
+const RACE_ID_FILTER_CHUNK_SIZE = 150;
+
+async function fetchArchiveRacesByIds(raceIds: string[]): Promise<ArchiveRaceDoc[]> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < raceIds.length; i += RACE_ID_FILTER_CHUNK_SIZE) chunks.push(raceIds.slice(i, i + RACE_ID_FILTER_CHUNK_SIZE));
+
+  const pages = await Promise.all(chunks.map((chunk) => queryWithRetry(() => supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", chunk))));
+  const failed = pages.find((p) => p.error);
+  if (failed?.error) throw new Error(`fetchArchiveRacesByIds: ${failed.error.message}`);
+
+  const rows = pages.flatMap((p) => (p.data ?? []) as ArchiveRaceRow[]);
+  return rows.map(toArchiveRaceDoc).sort((a, b) => a.year - b.year || a.round - b.round);
+}
+
 /** A driver's career — every race archive_results has this driver_id in, oldest first. A real
  * join now, not the Firestore version's flat driverIds array-contains workaround (Postgres never
  * needed that limitation in the first place). */
-export const getArchiveRacesByDriver = unstable_cache(
-  async (driverId: string): Promise<ArchiveRaceDoc[]> => {
-    const { data: idRows, error: idError } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_results").select("archive_race_id").eq("driver_id", driverId),
-    );
-    if (idError) throw new Error(`getArchiveRacesByDriver(${driverId}): ${idError.message}`);
-    const raceIds = (idRows ?? []).map((r) => r.archive_race_id as string);
-    if (raceIds.length === 0) return [];
-    const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", raceIds).order("year"),
-    );
-    if (error) throw new Error(`getArchiveRacesByDriver(${driverId}): ${error.message}`);
-    return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
-  },
-  ["get-archive-races-by-driver"],
-  { revalidate: false, tags: [ARCHIVE_TAG] },
-);
+// NOT unstable_cache'd, unlike almost everything else in this file - confirmed live: a prolific
+// driver's full race history (Alonso, 428 races, each race document carrying every driver's
+// result on the grid that day, not just this one) serializes past Next's hard 2MB per-entry data-
+// cache limit ("items over 2MB can not be cached"). unstable_cache doesn't degrade gracefully past
+// that ceiling - the cache-write throws as an unhandled rejection, which crashed the entire request
+// (surfaced to a real user as the root error boundary's generic "Something went wrong", not a
+// bounded degradation) - this was the actual cause of the driver detail page failing for exactly
+// the drivers people are most likely to click. A circuit's own history stays naturally small
+// enough to cache safely (even Monza, the most-raced circuit, is ~75 races) - this function alone
+// isn't, and there's no reduced-payload shape worth inventing just to keep it under a cache limit
+// that has nothing to do with the actual data model. A plain, uncached read here costs one Supabase
+// round trip on a page that's visited far less often than the archive's own list/grid views.
+//
+// The id-lookup query below goes through fetchAllRows, not a single queryWithRetry call -
+// PAGE_SIZE's own docstring above already documents that this project's Supabase API caps any
+// unfiltered/simple query at 1000 rows; a single un-paginated call here doesn't error past that
+// cap, it just silently truncates. No driver is anywhere near 1000 races today (Alonso, the most
+// prolific, is 428), but this was one editorial judgment call away from quietly losing a driver's
+// early career the moment one crosses it - the same real bug getArchiveRacesByTeam just below has
+// today, at Ferrari's 1123.
+export async function getArchiveRacesByDriver(driverId: string): Promise<ArchiveRaceDoc[]> {
+  const { data: idRows, error: idError } = await fetchAllRows<{ archive_race_id: string }>(
+    (from, to) =>
+      supabaseAdmin.from("archive_results").select("archive_race_id", { count: "exact" }).eq("driver_id", driverId).range(from, to) as unknown as QueryPage<{
+        archive_race_id: string;
+      }>,
+  );
+  if (idError) throw new Error(`getArchiveRacesByDriver(${driverId}): ${idError.message}`);
+  const raceIds = idRows.map((r) => r.archive_race_id);
+  if (raceIds.length === 0) return [];
+  return fetchArchiveRacesByIds(raceIds);
+}
 
 type ArchiveTeamRow = { team_id: string; name: string; first_year: number; last_year: number; race_count: number; drivers: string[] | null };
 
@@ -706,23 +745,28 @@ export const getArchiveTeamHomeCircuits = unstable_cache(
 /** A team's history — every race archive_results has this team_id in, oldest first. Deduplicated
  * in JS (one race can have 2+ of this team's drivers, i.e. 2+ matching result rows) rather than a
  * SQL DISTINCT, which the query builder doesn't expose directly for this shape. */
-export const getArchiveRacesByTeam = unstable_cache(
-  async (teamId: string): Promise<ArchiveRaceDoc[]> => {
-    const { data: idRows, error: idError } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_results").select("archive_race_id").eq("team_id", teamId),
-    );
-    if (idError) throw new Error(`getArchiveRacesByTeam(${teamId}): ${idError.message}`);
-    const raceIds = [...new Set((idRows ?? []).map((r) => r.archive_race_id as string))];
-    if (raceIds.length === 0) return [];
-    const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).in("id", raceIds).order("year"),
-    );
-    if (error) throw new Error(`getArchiveRacesByTeam(${teamId}): ${error.message}`);
-    return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
-  },
-  ["get-archive-races-by-team"],
-  { revalidate: false, tags: [ARCHIVE_TAG] },
-);
+// NOT unstable_cache'd - same reason as getArchiveRacesByDriver just above, and worse here:
+// Ferrari alone is 1123 races, the single largest per-entity payload this file ever produces.
+//
+// This is also the one entity that already crosses PAGE_SIZE (1000) for real, today - a team's own
+// archive_results rows (one per car per race, so up to ~2x its race count) definitely does for
+// Ferrari, and its own id list is exactly the case fetchArchiveRacesByIds' chunking exists for
+// (a single `.in()` call with all 1123 ids inline came back a flat "Bad Request" before that fix -
+// confirmed live). Before either fix, the id-lookup query was a single un-paginated call too - not
+// slow-but-correct, but silently truncated to PostgREST's first 1000 rows, meaning Ferrari's own
+// team history page was quietly missing real races even before the unstable_cache crash ever fired.
+export async function getArchiveRacesByTeam(teamId: string): Promise<ArchiveRaceDoc[]> {
+  const { data: idRows, error: idError } = await fetchAllRows<{ archive_race_id: string }>(
+    (from, to) =>
+      supabaseAdmin.from("archive_results").select("archive_race_id", { count: "exact" }).eq("team_id", teamId).range(from, to) as unknown as QueryPage<{
+        archive_race_id: string;
+      }>,
+  );
+  if (idError) throw new Error(`getArchiveRacesByTeam(${teamId}): ${idError.message}`);
+  const raceIds = [...new Set(idRows.map((r) => r.archive_race_id))];
+  if (raceIds.length === 0) return [];
+  return fetchArchiveRacesByIds(raceIds);
+}
 
 /** Lap-by-lap timing, read on demand (LapChart's "Show lap chart" click, via
  * /api/archive/laps) rather than as part of getArchiveRace — a separate table, not a field on the
