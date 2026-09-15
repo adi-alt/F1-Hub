@@ -172,7 +172,12 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
  * filters, a dense table, a persistent focused panel for the selected race, real computed stats,
  * and a real team-era timeline (contiguous stints, not a fabricated grouping). */
 async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
-  const [driver, races] = await Promise.all([getArchiveDriverData(driverId), getArchiveDriverHistoryData(driverId)]);
+  // currentTeams doesn't depend on driver/races at all (it's only used below to look up each
+  // result's own logo) - folded into the same Promise.all instead of a separate `await` after,
+  // which was pure sequential latency on top of the driver/race fetch for no reason. Small on its
+  // own (getAllCurrentTeams is cached), but real time on a route that didn't have much margin to
+  // spare for a prolific driver even before this.
+  const [driver, races, currentTeams] = await Promise.all([getArchiveDriverData(driverId), getArchiveDriverHistoryData(driverId), getAllCurrentTeams()]);
   if (races.length === 0) notFound();
 
   type Entry = { race: ArchiveRaceDoc; result: ArchiveResultEntry };
@@ -185,7 +190,6 @@ async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
 
   const name = driver?.name ?? entries[0]?.result.driverName ?? driverId;
   const years = races.map((r) => r.year);
-  const currentTeams = await getAllCurrentTeams();
   const logoByTeam = new Map(currentTeams.map((t) => [t.name, t.logoUrl]));
 
   const rows: ExplorerRow[] = entries
@@ -347,6 +351,16 @@ async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
     </div>
   );
 }
+
+// Only ever mattered once a prolific driver/team's own real, un-cached data fetch (see
+// getArchiveRacesByDriver/getArchiveRacesByTeam in lib/supabase/archive.ts) started taking real
+// multi-second wall time - a local dev server has no execution ceiling at all, but a Vercel
+// serverless function does, and this route never declared one, so it was falling back to whatever
+// the platform's own default is. Alonso/Ferrari's real fetch alone measured single digit seconds
+// in isolation; a full page render on top of that (photo lookups, favorites, JSX) had real room to
+// cross a short default before this existed. Same order of magnitude as this app's own
+// season-compare/season-intelligence AI routes, which already run this long routinely.
+export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Archive",
