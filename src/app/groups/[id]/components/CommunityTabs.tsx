@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
-import { communityTypeMeta, MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
+import { MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupPrediction } from "@/lib/groupPredictionTypes";
 import type { GroupDetail, LeaderboardRow } from "@/lib/supabase/groups";
@@ -83,10 +83,13 @@ export function CommunityTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.id]);
 
-  // What Apex sees inside a community. Scoped to THIS community and nothing else, and built only
-  // from data this member has already been served - the page itself ran requireMember to get any
-  // of it. A non-member never reaches this component, so this snapshot cannot exist for them.
-  const meta = communityTypeMeta(group.communityType);
+  // What Apex sees inside a community - only WHICH community and WHICH tab, both safe UI
+  // selection state. The route's own buildCommunityGroundingContext resolves the real facts
+  // (community meta, recent posts, predictions, leaderboard, members - whichever the active tab
+  // actually needs) server-side via the exact same requireMember-gated functions this page itself
+  // renders from, never trusting this client snapshot for content. This used to build and send the
+  // full snapshot itself (post excerpts, prediction state, leaderboard rows) with no server builder
+  // to catch it - moved server-side for the same reason every other page's scope already is one.
   useRegisterApexScope({
     key: `community:${group.id}:${tab}`,
     label: group.name,
@@ -100,38 +103,8 @@ export function CommunityTabs({
     context: {
       page: "community",
       snapshot: {
-      community: {
-        name: group.name,
-        type: meta.label,
-        topic: group.topic,
-        tags: group.tags,
-        description: group.description,
-        visibility: group.visibility,
-        memberCount,
-        enabledSections: modules.map((m) => MODULE_LABELS[m]),
-        yourRole: group.myRole,
-        currentTab: tab,
+        community: { currentTab: tab },
       },
-      // Trimmed hard: the route caps the whole payload, and a feed page is far bigger than an
-      // answer needs. Titles/authors/scores are enough to summarise a discussion.
-      recentPosts: posts.slice(0, 12).map((p) => ({
-        author: p.authorName,
-        title: p.title,
-        excerpt: p.content.slice(0, 240),
-        score: p.score,
-        comments: p.commentCount,
-        postedAt: p.createdAt,
-      })),
-      predictions: predictions.slice(0, 8).map((p) => ({
-        race: p.raceName,
-        type: p.type,
-        status: p.status,
-        entryPoints: p.entryPoints,
-        entries: p.entryCount,
-        youEntered: !!p.myEntry,
-      })),
-      leaderboard: leaderboard.slice(0, 10).map((row) => ({ name: row.displayName ?? row.username, rank: row.rank, score: row.totalScore })),
-      }
     },
   });
 

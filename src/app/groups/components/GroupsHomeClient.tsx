@@ -37,9 +37,14 @@ export function GroupsHomeClient({
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
 
-  // The communities index: what you're in and what's happening across them. Deliberately no
-  // per-community post bodies here beyond the feed you're already looking at - this scope is
-  // "your communities overview", not a way to pull one community's contents into another context.
+  // The communities index: what you're in and what's happening across them. Sends only selection
+  // state (no communityId - this scope isn't about any one community) - the route's own
+  // buildCommunityIndexGroundingContext re-derives the real facts (your groups, open predictions,
+  // recent feed posts) server-side from the same getUserGroups/listMyOpenPredictions/listFeedPosts
+  // queries this page's own server component already used, rather than trusting this client
+  // snapshot. Same rule every other page's scope already follows (Season/Archive/Circuit) - this
+  // one used to be the exception, computing and sending the facts itself with no server builder to
+  // catch it; nothing here is trusted for facts anymore, only for "what page/tab is open."
   useRegisterApexScope({
     key: "communities-index",
     label: "Your communities",
@@ -47,20 +52,7 @@ export function GroupsHomeClient({
     suggestions: ["What's happening across my communities?", "Which predictions close soonest?", "Which of my communities is most active?"],
     context: {
       page: "community",
-      snapshot: {
-      yourCommunities: groups.map((g) => ({
-        name: g.name,
-        type: g.communityType,
-        topic: g.topic,
-        members: g.memberCount,
-        yourRole: g.myRole,
-        openPredictions: g.activePredictions,
-        postsThisWeek: g.weeklyPosts,
-      })),
-      openPredictions: predictions.map((p) => ({ race: p.raceName, type: p.type, community: p.groupName, entryPoints: p.entryPoints, youEntered: p.hasEntered })),
-      nextRace: nextRace ? { name: nextRace.name, round: nextRace.round, date: nextRace.raceDate } : null,
-      recentPosts: initialPosts.slice(0, 10).map((p) => ({ community: p.groupName, author: p.authorName, title: p.title, excerpt: p.content.slice(0, 200) })),
-      }
+      snapshot: { view: "index" },
     },
   });
 
