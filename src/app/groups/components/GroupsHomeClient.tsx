@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
+import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary } from "@/lib/supabase/groups";
@@ -18,10 +19,14 @@ type NextRace = { year: number; round: number; name: string; raceDate: string | 
  * sidebar is F1 context (real active predictions, the real next race). No more My Groups/Discover
  * Groups as separate top-level tabs - Discover is one modal away from either sidebar.
  *
- * Responsive via order-* on one flex/grid, not three separately-maintained layouts: mobile stacks
- * feed first (the actual content), then the groups list, then predictions/next race below - a
- * real, considered order, not the desktop grid simply squished into one column. lg+ becomes the
- * real three-column layout, both sidebars sticky under the header. */
+ * At <lg this is a plain stacked flex column with no scroll behavior of its own - the document
+ * scrolls it exactly like every other page, feed first (the actual content), then the community
+ * selector, then predictions/next race below. At lg+, the page (see page.tsx) becomes a fixed-
+ * height application workspace and this component's three regions each own a real, independent
+ * scroll region within it (`useNestedLenisScroll` - the same primitive Archive's own card grids
+ * and tables already use for exactly this), rather than one shared page scroll moving all three at
+ * once. Sticky positioning (what this used before) doesn't apply here anymore: there's no longer a
+ * page scroll for a rail to stick relative to. */
 export function GroupsHomeClient({
   groups,
   initialPosts,
@@ -42,6 +47,20 @@ export function GroupsHomeClient({
   // fetch) need it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
+
+  // Three independent scroll regions, not one shared page scroll (lg+ only - see this
+  // component's own top comment). `centerScrollRef` doubles as a plain element ref so switching
+  // communities can reset its native scrollTop directly below - re-registering the Lenis instance
+  // on its own (the dependency key) tears down and recreates the smoothing layer, but never moves
+  // the container's own scroll position by itself.
+  const leftScrollRef = useNestedLenisScroll();
+  const centerContainerRef = useRef<HTMLDivElement | null>(null);
+  const setCenterLenisContainer = useNestedLenisScroll(selectedId);
+  const rightScrollRef = useNestedLenisScroll();
+
+  useEffect(() => {
+    centerContainerRef.current?.scrollTo({ top: 0 });
+  }, [selectedId]);
 
   // The communities index: what you're in and what's happening across them. Sends only selection
   // state (which community the rail has selected, if any - not communityId as "this is a
@@ -64,25 +83,40 @@ export function GroupsHomeClient({
   });
 
   return (
-    // The structural change this pass makes: neither rail is a boxed panel anymore (see
+    // The structural change from the previous pass: neither rail is a boxed panel anymore (see
     // GroupsLeftSidebar/GroupsRightSidebar - both are now plain content, no outer card). The ONLY
     // surface line on this page is a pair of thin vertical rules bracketing the center column
     // (below), the same way an editorial layout uses a rule to separate a margin note from the
-    // column it annotates - not three same-weight boxes sitting side by side. That's what actually
-    // stops this from reading as "left card + center card + right card": there are no side cards
-    // left to read as one.
-    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_280px] lg:gap-0 lg:items-start">
-      <aside className="order-2 lg:order-1 lg:sticky lg:top-4 lg:pr-6">
-        <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
+    // column it annotates - not three same-weight boxes sitting side by side.
+    //
+    // lg:h-full here (this component fills the fixed-height workspace page.tsx builds) and
+    // lg:items-stretch (was lg:items-start) so all three grid tracks are the SAME full height,
+    // which is what lets each one scroll independently within it - items-start would size every
+    // column to its own content height instead, leaving nothing for "the rest" to scroll inside.
+    <div className="flex flex-col gap-5 lg:grid lg:h-full lg:grid-cols-[220px_minmax(0,1fr)_280px] lg:items-stretch lg:gap-0">
+      <aside className="order-2 min-h-0 lg:order-1 lg:h-full lg:pr-6">
+        <div ref={leftScrollRef} className="lg:h-full lg:overflow-y-auto lg:scrollbar-hide">
+          <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
+        </div>
       </aside>
 
-      <main className="order-1 min-w-0 space-y-4 lg:order-2 lg:border-l lg:border-r lg:border-[var(--f1-line)] lg:px-8">
-        <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-        <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} />
+      <main className="order-1 min-h-0 min-w-0 lg:order-2 lg:h-full lg:border-l lg:border-r lg:border-[var(--f1-line)] lg:px-8">
+        <div
+          ref={(el) => {
+            centerContainerRef.current = el;
+            setCenterLenisContainer(el);
+          }}
+          className="space-y-4 lg:h-full lg:overflow-y-auto lg:scrollbar-hide"
+        >
+          <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+          <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} />
+        </div>
       </main>
 
-      <aside className="order-3 lg:sticky lg:top-4 lg:pl-6">
-        <GroupsRightSidebar predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
+      <aside className="order-3 min-h-0 lg:h-full lg:pl-6">
+        <div ref={rightScrollRef} className="lg:h-full lg:overflow-y-auto lg:scrollbar-hide">
+          <GroupsRightSidebar predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
+        </div>
       </aside>
 
       <AnimatePresence>{showDiscover && <DiscoverSheet onClose={() => setShowDiscover(false)} />}</AnimatePresence>

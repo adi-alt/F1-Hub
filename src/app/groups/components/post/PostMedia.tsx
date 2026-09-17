@@ -14,6 +14,11 @@ const DOC_ICON: Record<string, string> = { pdf: "📄", doc: "📄", docx: "📄
 export function PostMedia({ url }: { url: string }) {
   const kind = mediaKind(url);
   const [open, setOpen] = useState(false);
+  // Declared unconditionally (before the video/document early returns) even though only the image
+  // branch below reads them - conditionally calling a hook after an early return is exactly what
+  // React's rules of hooks forbid.
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   if (kind === "video") {
     return (
@@ -42,11 +47,27 @@ export function PostMedia({ url }: { url: string }) {
     );
   }
 
+  if (failed) {
+    return <div className="mt-2 flex h-40 w-full items-center justify-center rounded-lg border border-[var(--f1-line)] bg-white/[0.02] text-xs text-neutral-600">Image unavailable</div>;
+  }
+
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="mt-2 block w-full overflow-hidden rounded-lg border border-[var(--f1-line)]">
+      <button type="button" onClick={() => setOpen(true)} disabled={!loaded} className="relative mt-2 block min-h-[10rem] w-full overflow-hidden rounded-lg border border-[var(--f1-line)] bg-black/20">
+        {/* No stored width/height for an arbitrary upload, so this can't reserve its EXACT final
+            box - but a real minimum height (above) plus this shimmer means the space is never
+            just empty/collapsed while the image decodes, and the fade-in (below) means it never
+            pops in abruptly either. */}
+        {!loaded && <span aria-hidden className="skeleton-shimmer absolute inset-0 bg-white/[0.04]" />}
         {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize */}
-        <img src={url} alt="" className="max-h-[420px] w-full bg-black/30 object-contain" loading="lazy" />
+        <img
+          src={url}
+          alt=""
+          className={`max-h-[420px] w-full object-contain transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+        />
       </button>
       {open &&
         createPortal(

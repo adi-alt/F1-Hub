@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { CommentThread } from "./CommentThread";
 import { PostActionBar } from "./PostActionBar";
 import { PostContent } from "./PostContent";
+import { PostDetailWindow } from "./PostDetailWindow";
 import { PostHeader } from "./PostHeader";
 import { PostMedia } from "./PostMedia";
 import type { PostCardData } from "./types";
@@ -39,9 +39,10 @@ export function PostCard({
   variant?: "default" | "compact";
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
-  const [showComments, setShowComments] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const status = post.status ?? "published";
+  const roleLabel = post.authorRole && post.authorRole !== "member" ? ROLE_LABEL[post.authorRole] : undefined;
 
   async function moderate(action: "approve" | "reject") {
     if (!post.groupId) return;
@@ -61,12 +62,12 @@ export function PostCard({
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
       className={variant === "compact" ? "border-b border-white/[0.06] py-3 last:border-b-0" : "border-b border-white/[0.06] py-4 first:pt-0 last:border-b-0"}
     >
-      <PostHeader post={post} showGroup={showGroup} roleLabel={post.authorRole && post.authorRole !== "member" ? ROLE_LABEL[post.authorRole] : undefined} pending={status === "pending"} />
+      <PostHeader post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
 
       <PostContent title={post.title} content={post.content} />
       {post.mediaUrl && <PostMedia url={post.mediaUrl} />}
 
-      <PostActionBar score={score} myVote={myVote} onVote={vote} commentCount={commentCount} showComments={showComments} onToggleComments={() => setShowComments((v) => !v)} />
+      <PostActionBar score={score} myVote={myVote} onVote={vote} commentCount={commentCount} onOpenComments={() => setDetailOpen(true)} />
 
       {canModerate && status === "pending" && (
         <div className="mt-2 flex gap-3 border-t border-[var(--f1-line)] pt-2">
@@ -86,9 +87,19 @@ export function PostCard({
         </div>
       )}
 
-      {/* The thread needs the whole post now, not just its id - the discussion panel shows the post
-          it belongs to at the top so replies have their subject in view. */}
-      {showComments && <CommentThread post={post} onCountChange={setCommentCount} />}
+      {detailOpen && (
+        <PostDetailWindow
+          post={post}
+          score={score}
+          myVote={myVote}
+          onVote={vote}
+          roleLabel={roleLabel}
+          pending={status === "pending"}
+          focusCommentId={null}
+          onClose={() => setDetailOpen(false)}
+          onCountChange={setCommentCount}
+        />
+      )}
     </motion.div>
   );
 }

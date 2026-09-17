@@ -28,6 +28,13 @@ import type { PostCardData } from "./types";
  * author correctly still falls through to EntityAvatar's initials fallback, because no real photo
  * for them exists anywhere in this data model - not a guess, not a community/author mismatch, just
  * the actual data that exists.
+ *
+ * `C/` and `U/` prefixes make which identity is which unambiguous at a glance - community and
+ * author are two different concepts that happen to sit on adjacent lines, and a prefix says which
+ * is which without relying on position or color alone (real for anyone who can't rely on either -
+ * screen magnification, a fast skim, color vision deficiency). Rendered quieter than the name it
+ * labels (its own dimmer tone, monospace so it never gets mistaken for prose), same idea as F1
+ * timing screens' own single-letter status prefixes.
  */
 export function PostHeader({
   post,
@@ -52,8 +59,13 @@ export function PostHeader({
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
           {post.groupId ? (
             <Link href={groupHref(post.groupId)} className="flex min-w-0 items-center gap-1.5 hover:text-neutral-300">
-              <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} size={16} />
-              <span className="truncate normal-case tracking-normal text-neutral-400">{post.groupName}</span>
+              <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId} size={16} />
+              <span className="truncate normal-case tracking-normal text-neutral-400">
+                <span aria-hidden className="mr-0.5 font-mono text-neutral-600">
+                  C/
+                </span>
+                {post.groupName}
+              </span>
             </Link>
           ) : (
             <span className="flex items-center gap-1.5">
@@ -64,8 +76,13 @@ export function PostHeader({
         </div>
       )}
       <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-neutral-500 ${showGroup ? "mt-1" : ""}`}>
-        <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} size={18} />
-        <span className="font-medium text-neutral-300">{post.authorName}</span>
+        <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={18} />
+        <span className="font-medium text-neutral-300">
+          <span aria-hidden className="mr-0.5 font-mono text-neutral-600">
+            U/
+          </span>
+          {post.authorName}
+        </span>
         {roleLabel && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
         <span aria-hidden>·</span>
         <span>{timeAgo(post.createdAt)}</span>

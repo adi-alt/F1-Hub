@@ -1,17 +1,16 @@
 import type { VoteValue } from "@/lib/supabase/groupPosts";
 
-/** Compact vertical Reddit-style vote control - arrows either side of the score, not the old
- * "↑ 2" single-button count. Upvote uses F1 HUB's own red accent for its active state (not
- * Reddit's orange) so it still reads as this product; downvote gets a distinct (cool/blue) active
- * state so the two are never confusable at a glance. Purely presentational - onVote just reports
- * which arrow was clicked, the caller (useOptimisticVote) owns the actual state machine. */
+/** A compact up/down vote control - arrows either side of the score, not a single "↑ 2" button.
+ * Upvote uses F1 HUB's own red accent for its active state; downvote gets a distinct (cool/blue)
+ * active state so the two are never confusable at a glance. Purely presentational - onVote just
+ * reports which arrow was clicked, the caller (useOptimisticVote) owns the actual state machine. */
 export function VoteControl({ score, myVote, onVote, compact = false }: { score: number; myVote: VoteValue; onVote: (direction: 1 | -1) => void; compact?: boolean }) {
   return (
     <div className={compact ? "flex items-center gap-1" : "flex flex-col items-center gap-0.5"}>
       {/* h-7 w-7 (28px), not the 20px this used to be - matches the smallest icon-button target
-          already established elsewhere in this app (CommentDrawer's own close button, say), not a
-          new size invented for this one control. The glyph itself stays 14px; only the tap target
-          grows. */}
+          already established elsewhere in this app (a floating window's own close button, say),
+          not a new size invented for this one control. The glyph itself stays 14px; only the tap
+          target grows. */}
       <button
         type="button"
         aria-label="Upvote"

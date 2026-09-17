@@ -176,7 +176,7 @@ export function PostComposer({
               "group flex w-full items-center gap-3 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-4 py-3.5 text-left text-sm text-neutral-500 transition hover:border-white/20 hover:bg-[var(--f1-carbon)]/80 focus-visible:border-white/20"
         }
       >
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} size={bare ? 28 : 34} />
+        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={bare ? 28 : 34} />
         <span className={`min-w-0 flex-1 truncate ${bare ? "" : "text-[15px] transition group-hover:text-neutral-300"}`}>{placeholder ?? "Start a discussion..."}</span>
         <span
           aria-hidden

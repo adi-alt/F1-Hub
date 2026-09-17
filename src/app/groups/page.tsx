@@ -41,30 +41,34 @@ export default async function GroupsPage() {
   ]);
 
   return (
-    // Fixed max-width, not sm:max-w-[80vw] - every other top-level F1 HUB page (Season, Circuits,
-    // Archive, Users, Models) sizes its content against a fixed pixel cap, never the viewport, so a
-    // wide monitor doesn't stretch three columns of feed/rail content arbitrarily wider than the
-    // composition below (240/1fr/300, gap-6) is actually designed for.
-    <div className="mx-auto max-w-[1320px] px-5 py-6 sm:px-8 lg:px-10">
-      {/* One compact line, not a stacked title + subtitle block - the masthead's job is to say
-          where you are and what this place is for, then get out of the way of the actual
-          workspace beneath it. Real count folded into the same tagline rather than sat beside it
-          as a separate metric - "7 communities" as bare metadata read as generic dashboard
-          chrome; said in a sentence, it's just a true fact about your own account. */}
-      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-        <h1 className="text-2xl font-bold text-white">Communities</h1>
-        <p className="text-sm text-neutral-500">
-          {groups.length > 0 ? (
-            <>
-              Race-weekend discussion and predictions across your {groups.length} {groups.length === 1 ? "community" : "communities"}.
-            </>
-          ) : (
-            "Your F1 conversation, predictions and race-weekend discussion."
-          )}
-        </p>
+    // Same effective width as the Race page (max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16) - not a
+    // width invented for Communities alone. At <lg this is a plain block: the header takes its
+    // natural height and GroupsHomeClient's own content flows underneath it, scrolled by the
+    // document exactly like every other page. At lg+ it becomes a fixed-height application
+    // workspace instead - the same h-[calc(100dvh-4rem)] pattern Archive's own explorer already
+    // uses (4rem is the header's real height, Header.tsx's own h-16) - so the header stays put and
+    // GroupsHomeClient's three regions can each scroll independently within the space that's left,
+    // rather than the whole page scrolling as one long document. That split is deliberate, not a
+    // half-finished responsive pass: three columns each scrolling on their own is a real desktop
+    // workspace idiom, and a genuinely bad one on a phone, where it fights the one scroll gesture a
+    // touch screen actually has.
+    <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden lg:px-16 lg:py-8">
+      <div className="lg:shrink-0">
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+          <h1 className="text-2xl font-bold text-white">Communities</h1>
+          <p className="text-sm text-neutral-500">
+            {groups.length > 0 ? (
+              <>
+                Race-weekend discussion and predictions across your {groups.length} {groups.length === 1 ? "community" : "communities"}.
+              </>
+            ) : (
+              "Your F1 conversation, predictions and race-weekend discussion."
+            )}
+          </p>
+        </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-5 lg:mt-6 lg:min-h-0 lg:flex-1">
         <GroupsHomeClient groups={groups} initialPosts={feed.posts} initialCursor={feed.nextCursor} predictions={predictions} nextRace={nextRace} />
       </div>
     </div>

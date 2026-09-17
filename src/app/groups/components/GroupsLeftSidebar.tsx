@@ -56,7 +56,11 @@ export function GroupsLeftSidebar({
             </button>
           </div>
         ) : (
-          <motion.div initial="hidden" animate="show" className="mt-1.5 max-h-[60vh] space-y-px overflow-y-auto scrollbar-subtle lg:max-h-[calc(100vh-280px)]">
+          // No max-h/overflow of its own anymore - GroupsHomeClient's own wrapper is now the one
+          // real scroll region this rail lives inside (a second nested overflow-y-auto here would
+          // be exactly the "broken nested scroll, double scrollbars" this app's scroll model
+          // explicitly avoids).
+          <motion.div initial="hidden" animate="show" className="mt-1.5 space-y-px">
             <NavRow label="All" active={selectedId === null} onClick={() => onSelect(null)} icon={<AllIcon />} />
             {groups.map((g, i) => {
               const active = selectedId === g.id;
@@ -73,7 +77,7 @@ export function GroupsLeftSidebar({
                       aria-current={active}
                       className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-sm"
                     >
-                      <EntityAvatar imageUrl={g.avatarUrl} name={g.name} size={24} />
+                      <EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={24} />
                       <span className={`min-w-0 flex-1 truncate ${active ? "font-semibold text-white" : "text-neutral-300 group-hover:text-white"}`}>{g.name}</span>
                       {g.activePredictions > 0 && (
                         <span className="shrink-0 rounded-full bg-[var(--f1-red)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--f1-red)]">{g.activePredictions}</span>
@@ -150,13 +154,13 @@ export function MobileCommunitySelector({ groups, selectedId, onSelect }: { grou
     <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 lg:hidden">
       <Chip label="All" active={selectedId === null} onClick={() => onSelect(null)} />
       {groups.map((g) => (
-        <Chip key={g.id} label={g.name} avatarUrl={g.avatarUrl} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
+        <Chip key={g.id} label={g.name} seed={g.id} avatarUrl={g.avatarUrl} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
       ))}
     </div>
   );
 }
 
-function Chip({ label, avatarUrl, active, onClick }: { label: string; avatarUrl?: string | null; active: boolean; onClick: () => void }) {
+function Chip({ label, seed, avatarUrl, active, onClick }: { label: string; seed?: string; avatarUrl?: string | null; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -166,7 +170,7 @@ function Chip({ label, avatarUrl, active, onClick }: { label: string; avatarUrl?
         active ? "bg-white/[0.1] text-white" : "bg-white/[0.03] text-neutral-400 hover:text-neutral-200"
       }`}
     >
-      {avatarUrl !== undefined && <EntityAvatar imageUrl={avatarUrl} name={label} size={16} />}
+      {avatarUrl !== undefined && <EntityAvatar imageUrl={avatarUrl} name={label} seed={seed} size={16} />}
       <span className="max-w-[7rem] truncate">{label}</span>
     </button>
   );

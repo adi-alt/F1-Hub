@@ -192,7 +192,7 @@ export function GroupsFeed({
         // convenience.
         <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
           <div className="flex items-center gap-2 px-3.5 py-2.5">
-            <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} size={22} />
+            <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={22} />
             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{selectedCommunity.name}</p>
             <Link href={groupHref(selectedCommunity.id)} className="shrink-0 text-xs font-medium text-neutral-500 transition hover:text-white">
               Open community →
