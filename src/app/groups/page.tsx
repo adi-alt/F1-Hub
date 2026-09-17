@@ -5,25 +5,44 @@ import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
 import { getRacesByYear } from "@/lib/supabase/races";
+import { getAllArchiveCircuits } from "@/lib/supabase/archive";
+import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getSession } from "@/lib/session/getSession";
 
-/** The next race on the real calendar, plus the two extra real fields the context rail renders:
- * its own country (for the flag) and the first of the pipeline's real race photos (for the rail's
- * header image). Both are optional on RaceDoc and stay null when the pipeline hasn't written them
- * - the rail degrades to a plain header rather than a broken image or a wrong flag. */
+/** The next race on the real calendar, plus the extra real fields the context rail renders: its
+ * own country (for the flag), a real photo, and its circuit (which is what Apex's own circuit take
+ * is keyed by - see RaceWeekendTake).
+ *
+ * The photo follows the SAME two-tier fallback chain the homepage's own season strip already uses
+ * (see app/page.tsx's circuitImageByRound): the round's own pipeline photo first, then the archive
+ * circuit's image, resolved through resolveCurrentCircuitToArchiveId. The rail previously used only
+ * the first tier, which is why an upcoming round the pipeline hasn't photographed yet - the common
+ * case, since those photos land with the race itself - showed no image at all while the homepage
+ * showed one for the very same round. A circuit genuinely missing from archive_circuits still
+ * resolves to null and the widget degrades to its plain header, rather than to a placeholder. */
 async function getNextRace() {
   const races = await getRacesByYear(new Date().getFullYear());
   const upcoming = races.filter((r) => r.status !== "completed").sort((a, b) => a.round - b.round)[0];
-  return upcoming
-    ? {
-        year: upcoming.year,
-        round: upcoming.round,
-        name: upcoming.name,
-        raceDate: upcoming.raceDate ?? null,
-        country: upcoming.country ?? null,
-        photoUrl: upcoming.photoUrls?.[0] ?? upcoming.photoUrl ?? null,
-      }
-    : null;
+  if (!upcoming) return null;
+
+  let photoUrl = upcoming.photoUrls?.[0] ?? upcoming.photoUrl ?? null;
+  if (!photoUrl && upcoming.circuit) {
+    const archiveCircuits = await getAllArchiveCircuits();
+    const localities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+    const idsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
+    const archiveId = resolveCurrentCircuitToArchiveId(upcoming.circuit, localities, idsByName);
+    photoUrl = (archiveId && archiveCircuits.find((c) => c.circuitId === archiveId)?.imageUrl) || null;
+  }
+
+  return {
+    year: upcoming.year,
+    round: upcoming.round,
+    name: upcoming.name,
+    raceDate: upcoming.raceDate ?? null,
+    country: upcoming.country ?? null,
+    circuit: upcoming.circuit ?? null,
+    photoUrl,
+  };
 }
 
 /** Groups home - feed-first (see GroupsHomeClient's own comment for the full reasoning). Every

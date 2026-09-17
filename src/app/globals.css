@@ -68,12 +68,16 @@ body::after {
 /* Scroll still works (native or Lenis-driven) — this only hides the visible track/thumb, for
    regions (standings tables, the calendar strip) where a scrollbar is a distraction rather than a
    necessary affordance, the content itself already makes it obvious there's more to scroll to. */
-.scrollbar-hide {
+/* Declared with @utility, not as a plain `.scrollbar-hide` rule, so Tailwind's own variants apply
+   to it: a plain class is invisible to the variant system, which made `lg:scrollbar-hide` (the
+   Communities workspace centre column, whose scroll container only exists at lg+) generate no CSS
+   at all and leave a native scrollbar on hover over the feed. */
+@utility scrollbar-hide {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, modern Edge */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, modern Edge */
+  }
 }
 
 /* The single "current session" cell in the season calendar — a slow, low-amplitude breathing

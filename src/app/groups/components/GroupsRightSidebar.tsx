@@ -12,8 +12,9 @@ import { groupHref, raceHref } from "@/lib/routes";
 import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { RaceWeekendTake } from "./RaceWeekendTake";
 
-export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; photoUrl: string | null } | null;
+export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; circuit: string | null; photoUrl: string | null } | null;
 
 /**
  * Race-weekend context, as ONE frosted widget with internal sections - not three cards stacked
@@ -194,6 +195,8 @@ function RaceWeekend({ race }: { race: NextRace }) {
               <CalendarIcon />
               View race
             </Link>
+
+            {race.circuit && <RaceWeekendTake location={race.circuit} year={race.year} />}
           </>
         )}
       </div>
@@ -201,47 +204,95 @@ function RaceWeekend({ race }: { race: NextRace }) {
   );
 }
 
-/** Real closing signal, not a fabricated "closing soon" badge - the same raceDate each row already
- * carries, through the exact countdown utility PredictionCard itself uses, ticked off the shared
- * per-minute clock rather than a second interval. */
+/**
+ * Every prediction gets its own surface and three real lines - what it is, where it lives, and
+ * what its actual state is - instead of one cramped row that put the type, the community and the
+ * countdown on a single truncating line, where the countdown (the one time-sensitive thing here)
+ * was always the part that got cut off.
+ *
+ * Nothing here is a fabricated status. listMyOpenPredictions only ever returns rows that really
+ * are `status: "open"`, so no "Open" badge is claimed on top of that - the useful state is instead
+ * the real one derived from data each row already carries: whether the viewer has entered
+ * (`hasEntered`, a real group_prediction_entries lookup), how long until the race locks it
+ * (`raceDate`, through the same formatCountdown/useMinuteClock pair PredictionCard uses), and - for
+ * a round whose race has already started - that it is waiting on a result rather than still
+ * counting down. A row with no raceDate makes no timing claim at all.
+ */
 function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
 
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Active predictions</p>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Active predictions</p>
+        {predictions.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{predictions.length}</span>}
+      </div>
+
       {predictions.length === 0 ? (
         <p className="mt-2 text-xs leading-relaxed text-neutral-600">No active predictions. New rounds open as a race weekend approaches.</p>
       ) : (
-        <div className="-mx-2 mt-1.5">
+        <div className="mt-2 space-y-1.5">
           {predictions.map((p) => {
             const raceAt = p.raceDate ? parseUtcDateTime(p.raceDate).getTime() : null;
             const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
+            const awaitingResult = !!raceAt && raceAt <= now;
+            // Under a day left is the point at which "when" stops being background information.
+            const urgent = !!raceAt && raceAt > now && raceAt - now < 24 * 60 * 60 * 1000;
             return (
               // Deep-links straight to that community's Predictions tab - CommunityTabs puts the
               // active tab in ?tab=, so there is a real target to link to.
-              <Link key={p.id} href={`${groupHref(p.groupId)}?tab=predictions`} className="group flex items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-white/[0.04]">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-semibold text-white">{p.raceName}</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-neutral-500">
-                    {predictionTypeLabels[p.type]} · {p.groupName}
-                    {countdown && <span className="text-neutral-600"> · closes in {countdown}</span>}
+              <Link
+                key={p.id}
+                href={`${groupHref(p.groupId)}?tab=predictions`}
+                className="group block rounded-xl border border-white/[0.06] bg-white/[0.03] px-2.5 py-2 transition hover:border-white/[0.14] hover:bg-white/[0.06]"
+              >
+                <div className="flex items-start gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold leading-tight text-white">{p.raceName}</span>
+                    <span className="mt-0.5 block truncate text-[11px] leading-tight text-neutral-500">
+                      {predictionTypeLabels[p.type]} · {p.groupName}
+                    </span>
                   </span>
-                </span>
-                {p.hasEntered ? (
-                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-400/80">Entered</span>
-                ) : (
-                  <span className="shrink-0 whitespace-nowrap text-[12px] font-semibold text-neutral-300">{p.entryPoints} pts</span>
-                )}
-                <span className="shrink-0 text-neutral-700 transition group-hover:text-neutral-300">
-                  <ChevronIcon />
-                </span>
+                  <span className="shrink-0 whitespace-nowrap rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-neutral-200">{p.entryPoints} pts</span>
+                </div>
+
+                <div className="mt-1.5 flex items-center gap-2">
+                  {p.hasEntered ? (
+                    <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-400/90">
+                      <CheckIcon />
+                      Entered
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Not entered</span>
+                  )}
+
+                  {countdown ? (
+                    <span className={`flex min-w-0 items-center gap-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-[var(--f1-red)]" : "text-neutral-500"}`}>
+                      <ClockIcon />
+                      <span className="truncate">Closes in {countdown}</span>
+                    </span>
+                  ) : awaitingResult ? (
+                    <span className="min-w-0 truncate text-[11px] text-neutral-500">Awaiting result</span>
+                  ) : null}
+
+                  <span className="ml-auto shrink-0 text-neutral-700 transition group-hover:text-neutral-300">
+                    <ChevronIcon />
+                  </span>
+                </div>
               </Link>
             );
           })}
         </div>
       )}
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 14 14" width="10" height="10" fill="none" aria-hidden>
+      <path d="m2.8 7.4 2.6 2.6 5.8-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

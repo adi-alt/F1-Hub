@@ -50,6 +50,31 @@ export function GroupsFeed({
 }) {
   const communityId = selectedCommunity?.id ?? null;
 
+  // The composer only exists at the very top of the stream, so someone twenty posts down had no
+  // way to start one without scrolling all the way back by hand. This watches whether it's still
+  // on screen and, when it isn't, offers a real way back to it - the same composer, focused, not a
+  // second one duplicated at the bottom.
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [composerOffscreen, setComposerOffscreen] = useState(false);
+
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setComposerOffscreen(!entry.isIntersecting), { threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  function jumpToComposer() {
+    const el = composerRef.current;
+    if (!el) return;
+    const reduceMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+    // preventScroll: the smooth scroll above owns the movement - letting focus() jump as well
+    // lands hard on the element and cancels the animation it's meant to complement.
+    el.querySelector("textarea")?.focus({ preventScroll: true });
+  }
+
   // ---- Aggregate (cross-community) feed - identical behavior to before this pass ----
   const [feedType, setFeedType] = useState<FeedType>("following");
   const [posts, setPosts] = useState(initialPosts);
@@ -203,13 +228,15 @@ export function GroupsFeed({
         </div>
       )}
 
-      <PostComposer
-        key={communityId ?? "all"}
-        groups={groups}
-        onPosted={communityId ? refreshCommunity : refreshAggregate}
-        fixedGroupId={communityId ?? undefined}
-        placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : undefined}
-      />
+      <div ref={composerRef}>
+        <PostComposer
+          key={communityId ?? "all"}
+          groups={groups}
+          onPosted={communityId ? refreshCommunity : refreshAggregate}
+          fixedGroupId={communityId ?? undefined}
+          placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : undefined}
+        />
+      </div>
 
       {!selectedCommunity && (
         <div className="flex items-center justify-between gap-3">
@@ -302,6 +329,25 @@ export function GroupsFeed({
               )}
             </div>
           )}
+
+      {/* Sticky rather than fixed: it belongs to the feed column and pins to the bottom of
+          whichever scroll container that column actually is (its own at lg+, the document below
+          that), so it can't drift over the rails or collide with Ask Apex's launcher at
+          bottom-left. Only rendered while the composer is genuinely off screen. */}
+      {composerOffscreen && (
+        <div className="pointer-events-none sticky bottom-4 z-20 flex justify-center">
+          <button
+            type="button"
+            onClick={jumpToComposer}
+            className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.12] bg-zinc-900/90 px-4 py-2 text-[13px] font-semibold text-white shadow-lg backdrop-blur-md transition hover:border-white/25 hover:bg-zinc-800/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          >
+            <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden>
+              <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            New post
+          </button>
+        </div>
+      )}
     </div>
   );
 }

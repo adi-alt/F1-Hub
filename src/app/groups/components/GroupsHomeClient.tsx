@@ -118,8 +118,14 @@ export function GroupsHomeClient({
           stretched to the full viewport with a pool of dead space under the last action. Past that
           height the list inside it scrolls instead, which is the point at which a fixed height
           starts being the right answer rather than the wrong one. */}
+      {/* The wrapper keeps the full workspace height (a DEFINITE height, which is the only thing a
+          percentage max-height on the card inside it can resolve against - against an auto-height
+          parent it computes to none and the cap silently stops existing), while being a flex
+          column means the card itself is still free to size to its own content inside it. Net
+          effect: a rail that ends under its last action instead of stretching to the viewport, but
+          still never overflows it. */}
       <aside className="order-2 min-h-0 lg:order-1 lg:h-full">
-        <div ref={leftScrollRef} className="lg:max-h-full">
+        <div ref={leftScrollRef} className="lg:flex lg:h-full lg:flex-col">
           <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>

@@ -22,6 +22,43 @@ const FALLBACK_PALETTE = [
   "bg-indigo-500/20 text-indigo-400",
 ] as const;
 
+/** The one host next.config.ts's `remotePatterns` actually allow-lists, derived from the same
+ * public env var that file derives it from. Anything else Next's image optimizer refuses outright,
+ * which surfaces as an `onError` and - before this - a silent fall through to initials. */
+const STORAGE_HOST = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : null;
+  } catch {
+    return null;
+  }
+})();
+
+/**
+ * Whether Next's optimizer will actually accept this URL, or whether it has to be passed through
+ * untouched.
+ *
+ * This component was written for Storage-hosted media (driver headshots, team logos, group
+ * avatars) and hardcoded the optimizer on. But the signed-in user's own photo is an OAuth avatar
+ * (`session.photoURL`, captured from `user_metadata.avatar_url` at sign-in - so a Google/GitHub
+ * CDN URL), and that host is not in remotePatterns. Every surface that showed the viewer their own
+ * photo through this component - the post composer, their own posts, their own comments, the
+ * comment composer - therefore got an optimizer rejection and rendered a letter avatar, while the
+ * header's ProfileMenu, which renders the identical URL with `unoptimized`, showed the real photo
+ * a few hundred pixels away. Same identity source all along; only the optimizer differed.
+ *
+ * Detecting the host rather than adding an `unoptimized` prop at the four OAuth call sites: the
+ * next provider added would otherwise reintroduce exactly this bug, silently and in the same way.
+ */
+function canOptimize(url: string): boolean {
+  if (url.startsWith("/")) return true; // same-origin asset
+  if (!STORAGE_HOST) return false;
+  try {
+    return new URL(url).hostname === STORAGE_HOST;
+  } catch {
+    return false;
+  }
+}
+
 function hashSeed(seed: string): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -108,6 +145,7 @@ export function EntityAvatar({
           height={size}
           className={`relative shrink-0 ${rounding} ${objectFit} transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
           style={{ width: size, height: size }}
+          unoptimized={!canOptimize(imageUrl)}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
         />

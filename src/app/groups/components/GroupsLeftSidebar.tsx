@@ -36,6 +36,10 @@ export function GroupsLeftSidebar({
   return (
     // Desktop only - a full vertical rail is the wrong idiom on a phone (see
     // MobileCommunitySelector below, which GroupsHomeClient renders instead at <lg).
+    // max-h-full, never h-full: the card ends where its content ends (see GroupsHomeClient, which
+    // gives this a definite-height flex parent so that percentage actually resolves) and only caps
+    // at the workspace height once there are enough communities to need it, at which point the
+    // list inside it starts scrolling instead.
     <div className="hidden max-h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm lg:flex">
       <div className="shrink-0">
         <h1 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
@@ -58,7 +62,7 @@ export function GroupsLeftSidebar({
       ) : (
         // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
         // actions below stay pinned and reachable instead of being pushed out of the card.
-        <div className="mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-hide">
+        <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto scrollbar-hide">
           <NavRow
             label="All"
             sublabel="All communities"
@@ -122,10 +126,15 @@ export function GroupsLeftSidebar({
 }
 
 /**
- * One navigation row. The selected state is a real, single visual language - a red-tinted wash
- * fading out to the right, a red accent edge, and brighter type - not a solid red block, and not a
- * border-per-row (which is what made the rail read as a stack of little cards rather than
- * navigation). Unselected rows carry no border at all and only lift on hover.
+ * One navigation row, on its own frosted surface.
+ *
+ * These used to be borderless until hovered, so a rail of seven communities read as one
+ * undifferentiated column of text and the boundary between two of them only existed under the
+ * cursor. Each row now carries a real (quiet) surface of its own at rest - the separation is a
+ * property of the row, not of the pointer - while staying lighter than a post card, which is the
+ * distinction that keeps this reading as navigation rather than a stack of content cards. The
+ * selected state layers a red wash and accent edge over the same surface rather than swapping it
+ * for a different one.
  */
 function NavRow({
   label,
@@ -148,8 +157,10 @@ function NavRow({
 }) {
   return (
     <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-1.5 transition ${
-        active ? "border border-[var(--f1-red)]/25 bg-gradient-to-r from-[var(--f1-red)]/[0.16] to-transparent" : "border border-transparent hover:bg-white/[0.04]"
+      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 backdrop-blur-sm transition ${
+        active
+          ? "border-[var(--f1-red)]/30 bg-gradient-to-r from-[var(--f1-red)]/[0.16] to-[var(--f1-red)]/[0.03]"
+          : "border-white/[0.06] bg-white/[0.035] hover:border-white/[0.12] hover:bg-white/[0.07]"
       }`}
     >
       {active && <span aria-hidden className="absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
