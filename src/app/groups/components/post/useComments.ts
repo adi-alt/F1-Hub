@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PostComment } from "@/lib/supabase/groupPosts";
 
 export type CommentSort = "top" | "newest";
@@ -67,6 +67,16 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
   const [comments, setComments] = useState<LocalComment[] | null>(null);
   const [sort, setSort] = useState<CommentSort>("top");
   const [error, setError] = useState(false);
+  // `add` below is a useCallback keyed only on `postId` (deliberately - see its own comment), so
+  // its closure over `comments` is captured once and never updates for the life of this postId,
+  // even though `comments` state itself does. Confirmed live: every `add()` call was reporting
+  // count 1 to onCountChange regardless of how many comments actually existed, since the closure's
+  // `comments` was permanently the initial `null`. A ref sidesteps that - always read at call time,
+  // never captured.
+  const commentsRef = useRef<LocalComment[] | null>(null);
+  useEffect(() => {
+    commentsRef.current = comments;
+  }, [comments]);
 
   // No synchronous setState anywhere in here: every write happens in a promise callback. The old
   // `setError(false)` reset at the top meant calling load() from an effect body WAS a synchronous
@@ -109,7 +119,7 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
         pending: true,
       };
       setComments((prev) => [...(prev ?? []), optimistic]);
-      onCountChange?.((comments?.length ?? 0) + 1);
+      onCountChange?.((commentsRef.current?.length ?? 0) + 1);
 
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST",
@@ -126,8 +136,9 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
       setComments((prev) => (prev ?? []).map((c) => (c.id === tempId ? { ...c, id: body?.id ?? c.id, pending: false } : c)));
       return true;
     },
-    // `comments` is only read for the count callback; adding it here would rebuild this on every
-    // keystroke elsewhere in the tree.
+    // Deliberately just [postId] - onCountChange is a fresh closure every render from the caller's
+    // own setState, and the count itself now comes from commentsRef (always current, see above),
+    // not from `comments` directly - neither belongs in this dependency list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [postId],
   );

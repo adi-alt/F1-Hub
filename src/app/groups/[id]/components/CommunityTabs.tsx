@@ -90,8 +90,15 @@ export function CommunityTabs({
   // renders from, never trusting this client snapshot for content. This used to build and send the
   // full snapshot itself (post excerpts, prediction state, leaderboard rows) with no server builder
   // to catch it - moved server-side for the same reason every other page's scope already is one.
+  //
+  // `key` deliberately does NOT include `tab` - same rule SeasonApexScope already follows (its own
+  // key changes on `season`/`openRaceRound`, never on analysisTab/compareA/compareB). Switching
+  // Feed -> Predictions -> Leaderboard is still the same community and the same conversation; only
+  // switching to a genuinely different community should reset it. The context object below still
+  // updates live on every tab change (ApexLauncher re-sends whatever's current with each question),
+  // so Apex never answers from a stale tab - it just doesn't forget the conversation to get there.
   useRegisterApexScope({
-    key: `community:${group.id}:${tab}`,
+    key: `community:${group.id}`,
     label: group.name,
     sublabel: tab === "manage" ? "Manage" : MODULE_LABELS[tab as CommunityModule],
     communityId: group.id,
