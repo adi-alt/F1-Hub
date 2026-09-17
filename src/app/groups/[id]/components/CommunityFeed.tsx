@@ -161,7 +161,10 @@ export function CommunityFeed({
         <span className="text-sm text-neutral-500">Start a discussion...</span>
       </button>
 
-      <div className="mt-3 space-y-3">
+      {/* No space-y here - PostCard's own default variant now provides its own separation (a
+          bottom divider per post, not a bordered box), so an extra gap on top of it would double
+          up the spacing between posts. */}
+      <div className="mt-3">
         {posts.map((post, i) =>
           post.failed ? (
             <FailedPost key={post.id} post={post} onRetry={() => retry(post)} onDiscard={() => setPosts((prev) => prev.filter((p) => p.id !== post.id))} />
@@ -225,7 +228,7 @@ export function CommunityFeed({
  * writing survives the failure. */
 function FailedPost({ post, onRetry, onDiscard }: { post: OptimisticPost; onRetry: () => void; onDiscard: () => void }) {
   return (
-    <div className="rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05] p-3.5">
+    <div className="mb-3 rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05] p-3.5">
       <p className="text-xs font-semibold text-[var(--f1-red)]">Couldn&apos;t post this.</p>
       {post.title && <p className="mt-1.5 text-sm font-semibold text-neutral-200">{post.title}</p>}
       <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">{post.content}</p>

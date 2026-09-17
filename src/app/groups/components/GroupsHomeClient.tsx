@@ -8,7 +8,7 @@ import type { GroupSummary } from "@/lib/supabase/groups";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
-import { GroupsLeftSidebar } from "./GroupsLeftSidebar";
+import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar } from "./GroupsRightSidebar";
 
 type NextRace = { year: number; round: number; name: string; raceDate: string | null } | null;
@@ -36,15 +36,22 @@ export function GroupsHomeClient({
   nextRace: NextRace;
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
+  // The one piece of real interaction state this page adds: which community (if any) the left
+  // rail has selected, which is what actually feeds the center column now - see GroupsFeed's own
+  // comment. Lives here because both the rail (which row is active) and the feed (which stream to
+  // fetch) need it.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
 
   // The communities index: what you're in and what's happening across them. Sends only selection
-  // state (no communityId - this scope isn't about any one community) - the route's own
+  // state (which community the rail has selected, if any - not communityId as "this is a
+  // community page", just "this UI element is focused") - the route's own
   // buildCommunityIndexGroundingContext re-derives the real facts (your groups, open predictions,
   // recent feed posts) server-side from the same getUserGroups/listMyOpenPredictions/listFeedPosts
   // queries this page's own server component already used, rather than trusting this client
   // snapshot. Same rule every other page's scope already follows (Season/Archive/Circuit) - this
   // one used to be the exception, computing and sending the facts itself with no server builder to
-  // catch it; nothing here is trusted for facts anymore, only for "what page/tab is open."
+  // catch it; nothing here is trusted for facts anymore, only for "what's currently in view."
   useRegisterApexScope({
     key: "communities-index",
     label: "Your communities",
@@ -52,20 +59,21 @@ export function GroupsHomeClient({
     suggestions: ["What's happening across my communities?", "Which predictions close soonest?", "Which of my communities is most active?"],
     context: {
       page: "community",
-      snapshot: { view: "index" },
+      snapshot: { view: "index", selectedCommunityId: selectedId },
     },
   });
 
   return (
-    // 240 / 1fr / 280 at a 1240px container (page.tsx) leaves the center column at ~660px - clearly
-    // the dominant surface, not a third column of visually equal weight next to two rails.
-    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_280px] lg:gap-5 lg:items-start">
+    // 240 / 1fr / 300 at a 1320px container (page.tsx) - the center column is the ~700-780px
+    // remainder, clearly the dominant surface, not a third rail of equal visual weight.
+    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:items-start">
       <aside className="order-2 lg:order-1 lg:sticky lg:top-4">
-        <GroupsLeftSidebar groups={groups} onDiscover={() => setShowDiscover(true)} />
+        <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
       </aside>
 
-      <main className="order-1 min-w-0 lg:order-2">
-        <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} />
+      <main className="order-1 min-w-0 space-y-3 lg:order-2">
+        <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+        <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} />
       </main>
 
       <aside className="order-3 lg:sticky lg:top-4">

@@ -18,11 +18,11 @@ const ROLE_LABEL: Record<string, string> = { admin: "ADMIN", moderator: "MODERAT
  * difference: the home feed needs the group identity in the header, a group's own feed doesn't
  * (you're already looking at that group's page).
  *
- * `variant` is additive - defaults to `"default"`, the exact appearance every existing call site
- * (`GroupsFeed.tsx`, `GroupFeed.tsx`) already renders and keeps rendering since neither passes it.
- * `"compact"` is only used by the homepage's `CommunitySection.tsx`, for a lighter "activity feed"
- * feel (tighter padding, a bottom divider instead of a full border-per-item) - real behavior/data
- * is unchanged either way, this only affects the outer container's presentation. */
+ * The default container is a borderless row with a bottom divider, not a bordered box - a stream of
+ * boxed cards is exactly the "card soup" a discussion feed shouldn't be; a divider is enough
+ * separation once the post's own content (title/body) already carries the real visual weight.
+ * `"compact"` (only `CommunitySection.tsx`, the homepage's activity feed) is unchanged - tighter
+ * padding, same divider idea, it was already right about this. */
 export function PostCard({
   post,
   index = 0,
@@ -59,19 +59,9 @@ export function PostCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className={
-        variant === "compact"
-          ? "border-b border-white/[0.06] py-3 last:border-b-0"
-          : "rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5"
-      }
+      className={variant === "compact" ? "border-b border-white/[0.06] py-3 last:border-b-0" : "border-b border-white/[0.06] py-4 first:pt-0 last:border-b-0"}
     >
-      <div className="flex items-center gap-2">
-        <PostHeader post={post} showGroup={showGroup} />
-        {post.authorRole && post.authorRole !== "member" && (
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{ROLE_LABEL[post.authorRole]}</span>
-        )}
-        {status === "pending" && <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
-      </div>
+      <PostHeader post={post} showGroup={showGroup} roleLabel={post.authorRole && post.authorRole !== "member" ? ROLE_LABEL[post.authorRole] : undefined} pending={status === "pending"} />
 
       <PostContent title={post.title} content={post.content} />
       {post.mediaUrl && <PostMedia url={post.mediaUrl} />}
