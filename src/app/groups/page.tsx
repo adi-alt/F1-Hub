@@ -7,6 +7,7 @@ import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
+import { getRecentCircuitPhotos } from "@/lib/personalization";
 import { getSession } from "@/lib/session/getSession";
 
 /** The next race on the real calendar, plus the extra real fields the context rail renders: its
@@ -31,7 +32,12 @@ async function getNextRace() {
     const localities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
     const idsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
     const archiveId = resolveCurrentCircuitToArchiveId(upcoming.circuit, localities, idsByName);
-    photoUrl = (archiveId && archiveCircuits.find((c) => c.circuitId === archiveId)?.imageUrl) || null;
+    // Photos of past races AT this circuit - the same real source the homepage's rotating backdrop
+    // draws on, and the tier that actually resolves for an upcoming round: the round itself has no
+    // photo yet precisely because it hasn't been run, but the venue has been raced at before.
+    // Sorted ascending by year, so the last entry is the most recent one.
+    const recent = await getRecentCircuitPhotos(archiveId, upcoming.circuit, upcoming.year);
+    photoUrl = recent.at(-1)?.url ?? (archiveId ? (archiveCircuits.find((c) => c.circuitId === archiveId)?.imageUrl ?? null) : null);
   }
 
   return {

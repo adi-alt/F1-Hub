@@ -159,8 +159,8 @@ function NavRow({
     <div
       className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 backdrop-blur-sm transition ${
         active
-          ? "border-[var(--f1-red)]/30 bg-gradient-to-r from-[var(--f1-red)]/[0.16] to-[var(--f1-red)]/[0.03]"
-          : "border-white/[0.06] bg-white/[0.035] hover:border-white/[0.12] hover:bg-white/[0.07]"
+          ? "border-[var(--f1-red)]/35 bg-gradient-to-r from-[var(--f1-red)]/[0.18] to-[var(--f1-red)]/[0.04]"
+          : "border-white/[0.09] bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]"
       }`}
     >
       {active && <span aria-hidden className="absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
