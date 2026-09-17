@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { Picker } from "@/components/ui/Picker";
+import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import {
   COMMUNITY_TOPICS,
   COMMUNITY_TYPES,
@@ -153,6 +154,15 @@ function GeneralSection({ group }: { group: GroupDetail }) {
   const [topic, setTopic] = useState(group.topic ?? "");
   const [communityType, setCommunityType] = useState<CommunityType>(group.communityType);
   const [visibility, setVisibility] = useState<CommunityVisibility>(group.visibility);
+  // Compared straight against the `group` prop, not against `status === "saved"` - useSave's own
+  // status never resets away from "saved" on a later edit (nothing tells it to), so gating on that
+  // would silently disable this warning for good after the first successful save. `group` itself
+  // catches up once router.refresh() lands post-save, which is what actually clears this - a
+  // save-then-immediately-close-the-tab race in the meantime is real but momentary enough not to
+  // build a second synchronization mechanism just to close it.
+  const isDirty =
+    name !== group.name || description !== (group.description ?? "") || topic !== (group.topic ?? "") || communityType !== group.communityType || visibility !== group.visibility;
+  useUnsavedChangesWarning(isDirty);
 
   return (
     <Section title="General" description="Name, description and how this community is found.">
@@ -247,6 +257,7 @@ function AppearanceSection({ group }: { group: GroupDetail }) {
 function FeaturesSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [features, setFeatures] = useState(group.features);
+  useUnsavedChangesWarning(JSON.stringify(features) !== JSON.stringify(group.features));
   const enabled = resolveModules(group.communityType, features);
   const toggles = toggleableModules(group.communityType);
 
@@ -300,6 +311,7 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
 function PermissionsSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [permissions, setPermissions] = useState<CommunityPermissions>(group.permissions ?? {});
+  useUnsavedChangesWarning(JSON.stringify(permissions) !== JSON.stringify(group.permissions ?? {}));
 
   return (
     <Section title="Permissions" description="Who can do what. Every one of these is enforced on the server, not just hidden in the UI.">
@@ -330,6 +342,7 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
 function ModerationSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [moderationEnabled, setModerationEnabled] = useState(group.moderationEnabled);
+  useUnsavedChangesWarning(moderationEnabled !== group.moderationEnabled);
 
   return (
     <Section title="Moderation" description="Review posts before they appear in the feed.">

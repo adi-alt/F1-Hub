@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedPost, FeedType } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import { PostCard } from "./post/PostCard";
@@ -42,7 +42,15 @@ export function GroupsFeed({ groups, initialPosts, initialCursor }: { groups: Gr
       .finally(() => setLoading(false));
   }
 
-  async function loadMore() {
+  // useCallback with loadingMore in its own deps (not a plain function) is what makes the guard
+  // below actually work: the sibling infinite-scroll implementations this was copied from
+  // (CommunityFeed.tsx, DiscoverSheet.tsx) both memoize loadMore this way and list it in their own
+  // IntersectionObserver effect's deps, so the observer's callback always closes over the CURRENT
+  // loadMore, not whichever one existed when the effect last ran. This one didn't - a plain
+  // function meant the observer callback held a stale closure with loadingMore permanently baked in
+  // as `false` (from whenever the effect last set up), so the guard never actually caught a second
+  // overlapping request if the observer fired again before the first one finished.
+  const loadMore = useCallback(async () => {
     if (loadingMore || !cursor) return;
     setLoadingMore(true);
     setError(false);
@@ -57,7 +65,7 @@ export function GroupsFeed({ groups, initialPosts, initialCursor }: { groups: Gr
     } finally {
       setLoadingMore(false);
     }
-  }
+  }, [cursor, feedType, loadingMore]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -70,8 +78,7 @@ export function GroupsFeed({ groups, initialPosts, initialCursor }: { groups: Gr
     );
     observer.observe(el);
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursor, feedType]);
+  }, [cursor, loadMore]);
 
   function refreshCurrent() {
     fetch(`/api/groups/feed?feedType=${feedType}`)

@@ -54,7 +54,15 @@ export function PostComposer({ groups, onPosted, fixedGroupId, placeholder }: { 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
+  // A blob: URL (createObjectURL below) holds its referenced data in memory until explicitly
+  // revoked or the document unloads - real, if minor, for a composer someone can attach/remove
+  // several files through in one sitting without ever navigating away.
+  function releasePreview() {
+    if (mediaPreview?.startsWith("blob:")) URL.revokeObjectURL(mediaPreview);
+  }
+
   function reset() {
+    releasePreview();
     setExpanded(false);
     setTitle("");
     setContent("");
@@ -77,6 +85,7 @@ export function PostComposer({ groups, onPosted, fixedGroupId, placeholder }: { 
       setMediaError(`This file type is limited to ${maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB"}.`);
       return;
     }
+    releasePreview(); // a file already attached is being replaced - its own blob URL is done for
     setMediaPreview(URL.createObjectURL(file));
     setMediaFileName(file.name);
     setMediaUrl(null);
@@ -95,6 +104,7 @@ export function PostComposer({ groups, onPosted, fixedGroupId, placeholder }: { 
   }
 
   function removeMedia() {
+    releasePreview();
     setMediaPreview(null);
     setMediaFileName(null);
     setMediaUrl(null);

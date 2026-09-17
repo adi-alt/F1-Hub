@@ -8,12 +8,16 @@ import type { VoteValue } from "@/lib/supabase/groupPosts";
 export function VoteControl({ score, myVote, onVote, compact = false }: { score: number; myVote: VoteValue; onVote: (direction: 1 | -1) => void; compact?: boolean }) {
   return (
     <div className={compact ? "flex items-center gap-1" : "flex flex-col items-center gap-0.5"}>
+      {/* h-7 w-7 (28px), not the 20px this used to be - matches the smallest icon-button target
+          already established elsewhere in this app (CommentDrawer's own close button, say), not a
+          new size invented for this one control. The glyph itself stays 14px; only the tap target
+          grows. */}
       <button
         type="button"
         aria-label="Upvote"
         aria-pressed={myVote === 1}
         onClick={() => onVote(1)}
-        className={`flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/[0.06] ${myVote === 1 ? "text-[var(--f1-red)]" : "text-neutral-500 hover:text-neutral-300"}`}
+        className={`flex h-7 w-7 items-center justify-center rounded transition hover:bg-white/[0.06] ${myVote === 1 ? "text-[var(--f1-red)]" : "text-neutral-500 hover:text-neutral-300"}`}
       >
         <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden>
           <path d="M10 4l6 7h-4v5H8v-5H4z" />
@@ -25,7 +29,7 @@ export function VoteControl({ score, myVote, onVote, compact = false }: { score:
         aria-label="Downvote"
         aria-pressed={myVote === -1}
         onClick={() => onVote(-1)}
-        className={`flex h-5 w-5 items-center justify-center rounded transition hover:bg-white/[0.06] ${myVote === -1 ? "text-sky-400" : "text-neutral-500 hover:text-neutral-300"}`}
+        className={`flex h-7 w-7 items-center justify-center rounded transition hover:bg-white/[0.06] ${myVote === -1 ? "text-sky-400" : "text-neutral-500 hover:text-neutral-300"}`}
       >
         <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden>
           <path d="M10 16l-6-7h4V4h4v5h4z" />
