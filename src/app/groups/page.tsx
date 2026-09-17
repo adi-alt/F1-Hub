@@ -41,13 +41,18 @@ export default async function GroupsPage() {
   ]);
 
   return (
-    <div className="mx-auto sm:max-w-[80vw] px-5 py-8 sm:px-8 lg:px-16">
+    // Fixed max-width, not sm:max-w-[80vw] - every other top-level F1 HUB page (Season, Circuits,
+    // Archive, Users, Models) sizes its content against a fixed pixel cap, never the viewport, so a
+    // wide monitor doesn't stretch three columns of feed/rail content across arbitrarily more space
+    // than the rest of the app ever does. 1240px keeps the three-column grid below (240/1fr/280,
+    // gap-5) at the composition this page is actually designed for.
+    <div className="mx-auto max-w-[1240px] px-5 py-8 sm:px-8 lg:px-10">
       <div>
         <h1 className="text-3xl font-bold text-white">Communities</h1>
         <p className="mt-1 text-sm text-neutral-400">Find people and spaces around the things you care about.</p>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-6">
         <GroupsHomeClient groups={groups} initialPosts={feed.posts} initialCursor={feed.nextCursor} predictions={predictions} nextRace={nextRace} />
       </div>
     </div>

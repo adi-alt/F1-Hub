@@ -57,7 +57,9 @@ export function GroupsHomeClient({
   });
 
   return (
-    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-5 lg:items-start">
+    // 240 / 1fr / 280 at a 1240px container (page.tsx) leaves the center column at ~660px - clearly
+    // the dominant surface, not a third column of visually equal weight next to two rails.
+    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_280px] lg:gap-5 lg:items-start">
       <aside className="order-2 lg:order-1 lg:sticky lg:top-4">
         <GroupsLeftSidebar groups={groups} onDiscover={() => setShowDiscover(true)} />
       </aside>
@@ -67,10 +69,7 @@ export function GroupsHomeClient({
       </main>
 
       <aside className="order-3 lg:sticky lg:top-4">
-        <GroupsRightSidebar predictions={predictions} nextRace={nextRace} />
-        <button onClick={() => setShowDiscover(true)} className="mt-3 block w-full text-center text-xs text-neutral-500 transition hover:text-white">
-          Discover more communities →
-        </button>
+        <GroupsRightSidebar predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
       </aside>
 
       <AnimatePresence>{showDiscover && <DiscoverSheet onClose={() => setShowDiscover(false)} />}</AnimatePresence>

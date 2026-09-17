@@ -36,7 +36,23 @@ const FILE_ACCEPT = Object.keys(MEDIA_MAX_BYTES).join(",");
  * `fixedGroupId` is the one thing that changes when a group's own page renders this (GroupFeed.tsx)
  * instead of the Groups home feed - the target is already known, so the selector itself is
  * pointless there and hidden entirely rather than shown pre-filled and disabled. */
-export function PostComposer({ groups, onPosted, fixedGroupId, placeholder }: { groups: GroupSummary[]; onPosted: () => void; fixedGroupId?: string; placeholder?: string }) {
+export function PostComposer({
+  groups,
+  onPosted,
+  fixedGroupId,
+  placeholder,
+  bare = false,
+}: {
+  groups: GroupSummary[];
+  onPosted: () => void;
+  fixedGroupId?: string;
+  placeholder?: string;
+  /** Additive, default false. `true` (only GroupsFeed.tsx, the Groups home feed, opts in) omits
+   * this component's own outer border/background so the parent can place it inside its OWN shared
+   * surface alongside the feed tabs, rather than two separately-bordered boxes stacked with a gap
+   * between them. */
+  bare?: boolean;
+}) {
   const { user, displayName } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState("");
@@ -150,16 +166,21 @@ export function PostComposer({ groups, onPosted, fixedGroupId, placeholder }: { 
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="flex w-full items-center gap-3 rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-3.5 py-2.5 text-left text-sm text-neutral-500 transition hover:border-white/20"
+        className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-left text-sm text-neutral-500 transition ${
+          bare ? "hover:bg-white/[0.03]" : "border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 hover:border-white/20"
+        }`}
       >
         <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} size={28} />
-        {placeholder ?? "What's happening in F1?"}
+        <span className="min-w-0 flex-1 truncate">{placeholder ?? "Start a discussion..."}</span>
+        <span aria-hidden className="shrink-0 text-neutral-600">
+          +
+        </span>
       </button>
     );
   }
 
   return (
-    <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5">
+    <div className={bare ? "p-3.5" : "rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5"}>
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-white">Create a post</p>
         <button type="button" onClick={reset} className="text-xs text-neutral-500 hover:text-white">

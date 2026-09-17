@@ -93,19 +93,24 @@ export function GroupsFeed({ groups, initialPosts, initialCursor }: { groups: Gr
 
   return (
     <div className="space-y-3">
-      <PostComposer groups={groups} onPosted={refreshCurrent} />
-
-      <div className="flex items-center gap-1 border-b border-[var(--f1-line)]">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => switchTab(t.value)}
-            className={`relative px-3 py-2 text-xs font-semibold transition ${feedType === t.value ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
-          >
-            {t.label}
-            {feedType === t.value && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[var(--f1-red)]" />}
-          </button>
-        ))}
+      {/* Composer and feed tabs as one surface, not two independently-bordered boxes stacked with
+          a gap between them - PostComposer's own border/background is switched off (`bare`) so
+          this shell is the only outer surface either of them belongs to; the border-t reads as an
+          internal divider inside one system rather than a second box starting. */}
+      <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
+        <PostComposer groups={groups} onPosted={refreshCurrent} bare />
+        <div className="flex items-center gap-1 border-t border-white/[0.06] px-1">
+          {TABS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => switchTab(t.value)}
+              className={`relative px-3 py-2 text-xs font-semibold transition ${feedType === t.value ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+            >
+              {t.label}
+              {feedType === t.value && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[var(--f1-red)]" />}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
