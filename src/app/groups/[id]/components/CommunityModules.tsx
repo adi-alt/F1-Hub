@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { communityTypeMeta, visibilityLabel, MODULE_LABELS, type CommunityModule } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupDetail } from "@/lib/supabase/groups";
@@ -60,8 +61,7 @@ export function MediaTab({ groupId }: { groupId: string }) {
           {isVideo(post.mediaUrl) ? (
             <video src={post.mediaUrl ?? undefined} controls preload="metadata" className="aspect-square w-full bg-black object-cover" />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.mediaUrl ?? ""} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+            <MediaThumbnail url={post.mediaUrl} />
           )}
           <figcaption className="px-2.5 py-2">
             <p className="line-clamp-2 text-[11px] leading-snug text-neutral-400">{post.title ?? post.content}</p>
@@ -77,6 +77,25 @@ export function MediaTab({ groupId }: { groupId: string }) {
 
 function isVideo(url: string | null): boolean {
   return !!url && /\.(mp4|webm)(\?|$)/i.test(url);
+}
+
+/** next/image, not a plain `<img>` - this media is re-hosted in Supabase Storage, which
+ * next.config.ts's remotePatterns already covers, so there's real optimization to gain (resizing,
+ * lazy loading, format negotiation) for no cost. `onError` falls back to an honest "image
+ * unavailable" placeholder instead of a browser's broken-image glyph or a silently blank tile - a
+ * deleted/expired Storage object is a real state, not a bug to hide. */
+function MediaThumbnail({ url }: { url: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (!url || broken) {
+    return (
+      <div className="flex aspect-square w-full items-center justify-center bg-white/[0.03] text-[10px] text-neutral-600">Image unavailable</div>
+    );
+  }
+  return (
+    <div className="relative aspect-square w-full">
+      <Image src={url} alt="" fill sizes="(min-width: 640px) 33vw, 50vw" className="object-cover" onError={() => setBroken(true)} />
+    </div>
+  );
 }
 
 /** What this community is, who runs it, and what it has switched on. Everything here is read
