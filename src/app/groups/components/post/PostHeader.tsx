@@ -8,15 +8,22 @@ import { groupHref } from "@/lib/routes";
 import type { PostCardData } from "./types";
 
 /**
- * A post carries two identities - the community it lives in, and the person who wrote it - and
- * they need to read as two different things, not one packed line. Community is the eyebrow: quiet,
- * small, identifies where this is. Author + time is the real byline underneath it: still quiet
- * relative to the post body, but the one line a reader actually looks at to know who said this.
+ * A post has exactly ONE primary visual identity, not two avatars stacked on top of each other:
  *
- * `showGroup` is only true on the Groups home feed (a cross-community stream, where "which
- * community" is real information); a community's own Feed tab passes false because the page itself
- * already establishes that. Either way the author byline renders the same way - one shared design,
- * not two different post headers living in the same component.
+ *  - inside a community (`showGroup` true and `post.groupId` set - the Groups home feed showing a
+ *    post that belongs to a real community): the COMMUNITY is what anchors it - [community pfp]
+ *    C/{community name}. Who specifically wrote it is real information a reader still needs (to
+ *    reply meaningfully, to recognise a regular, for moderation), so it's kept, but as a quiet
+ *    secondary line with no avatar of its own - not a second same-weight identity competing with
+ *    the community's.
+ *  - everywhere else (a personal post with no community, or a community's own Feed tab where the
+ *    page itself already establishes which community this is) - the AUTHOR is the primary identity:
+ *    [author pfp] U/{author name}, with time/role/pending as the quiet secondary line under it.
+ *
+ * `C/` and `U/` prefixes say which kind of identity is showing without relying on position or
+ * color alone (real for anyone who can't rely on either - screen magnification, a fast skim, color
+ * vision deficiency) - rendered quieter than the name they label (their own dimmer, monospace
+ * tone), the same idea as F1 timing screens' own single-letter status prefixes.
  *
  * Author avatar: `profiles` has no avatar_url column anywhere in this app (traced - the only
  * per-user photo this product has is `session.photoURL`, an OAuth provider's avatar_url captured
@@ -25,16 +32,9 @@ import type { PostCardData } from "./types";
  * screen - the viewer's own posts - and this is that one honest case: when `post.userId` matches
  * the signed-in user's own id, their own real `session.photoURL` (the exact same value ProfileMenu's
  * header avatar and the composer already render) is used instead of a blank initial. Every other
- * author correctly still falls through to EntityAvatar's initials fallback, because no real photo
- * for them exists anywhere in this data model - not a guess, not a community/author mismatch, just
- * the actual data that exists.
- *
- * `C/` and `U/` prefixes make which identity is which unambiguous at a glance - community and
- * author are two different concepts that happen to sit on adjacent lines, and a prefix says which
- * is which without relying on position or color alone (real for anyone who can't rely on either -
- * screen magnification, a fast skim, color vision deficiency). Rendered quieter than the name it
- * labels (its own dimmer tone, monospace so it never gets mistaken for prose), same idea as F1
- * timing screens' own single-letter status prefixes.
+ * author correctly still falls through to EntityAvatar's deterministic initials fallback, because
+ * no real photo for them exists anywhere in this data model - not a guess, not a community/author
+ * mismatch, just the actual data that exists.
  */
 export function PostHeader({
   post,
@@ -44,50 +44,72 @@ export function PostHeader({
 }: {
   post: PostCardData;
   showGroup: boolean;
-  /** ADMIN/MODERATOR, when the author holds one - rendered on the quiet byline line, not stacked
-   * as a separate same-weight badge next to the community eyebrow. */
+  /** ADMIN/MODERATOR, when the author holds one - rendered on the quiet secondary line, never
+   * stacked as a separate same-weight badge next to the primary identity. */
   roleLabel?: string;
   pending?: boolean;
 }) {
   const { user } = useAuth();
   const isMe = !!user && user.uid === post.userId;
   const authorAvatarUrl = isMe ? (user.photoURL ?? null) : null;
+  const communityIsPrimary = showGroup && !!post.groupId;
 
+  const secondary = (
+    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-neutral-500">
+      {communityIsPrimary && (
+        <>
+          <span className="font-medium text-neutral-400">
+            <span aria-hidden className="mr-0.5 font-mono text-neutral-600">
+              U/
+            </span>
+            {post.authorName}
+          </span>
+          <span aria-hidden>·</span>
+        </>
+      )}
+      {roleLabel && (
+        <>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>
+          <span aria-hidden>·</span>
+        </>
+      )}
+      <span>{timeAgo(post.createdAt)}</span>
+      {pending && <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">· Pending approval</span>}
+    </p>
+  );
+
+  if (communityIsPrimary) {
+    return (
+      <div className="min-w-0">
+        <Link href={groupHref(post.groupId as string)} className="group flex min-w-0 items-center gap-2 hover:opacity-90">
+          <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={26} />
+          <span className="min-w-0 truncate text-sm font-semibold text-white">
+            <span aria-hidden className="mr-0.5 font-mono text-[11px] font-normal text-neutral-600">
+              C/
+            </span>
+            {post.groupName}
+          </span>
+        </Link>
+        {secondary}
+      </div>
+    );
+  }
+
+  // No community (a personal post) or the community's own Feed tab (showGroup=false, since the
+  // page itself already establishes which community this is) - the author is the one identity to
+  // show, at the same primary weight the community gets above.
   return (
     <div className="min-w-0">
-      {showGroup && (
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-          {post.groupId ? (
-            <Link href={groupHref(post.groupId)} className="flex min-w-0 items-center gap-1.5 hover:text-neutral-300">
-              <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId} size={16} />
-              <span className="truncate normal-case tracking-normal text-neutral-400">
-                <span aria-hidden className="mr-0.5 font-mono text-neutral-600">
-                  C/
-                </span>
-                {post.groupName}
-              </span>
-            </Link>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden className="h-1 w-1 rounded-full bg-neutral-600" />
-              Personal post
-            </span>
-          )}
-        </div>
-      )}
-      <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-neutral-500 ${showGroup ? "mt-1" : ""}`}>
-        <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={18} />
-        <span className="font-medium text-neutral-300">
-          <span aria-hidden className="mr-0.5 font-mono text-neutral-600">
+      <div className="flex min-w-0 items-center gap-2">
+        <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={26} />
+        <span className="min-w-0 truncate text-sm font-semibold text-white">
+          <span aria-hidden className="mr-0.5 font-mono text-[11px] font-normal text-neutral-600">
             U/
           </span>
           {post.authorName}
         </span>
-        {roleLabel && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
-        <span aria-hidden>·</span>
-        <span>{timeAgo(post.createdAt)}</span>
-        {pending && <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">· Pending approval</span>}
       </div>
+      {secondary}
     </div>
   );
 }

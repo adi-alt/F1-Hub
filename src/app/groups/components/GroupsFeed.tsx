@@ -194,8 +194,11 @@ export function GroupsFeed({
           <div className="flex items-center gap-2 px-3.5 py-2.5">
             <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={22} />
             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{selectedCommunity.name}</p>
-            <Link href={groupHref(selectedCommunity.id)} className="shrink-0 text-xs font-medium text-neutral-500 transition hover:text-white">
-              Open community →
+            <Link href={groupHref(selectedCommunity.id)} className="flex shrink-0 items-center gap-1 text-xs font-medium text-neutral-500 transition hover:text-white">
+              Open community
+              <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
+                <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </Link>
           </div>
           <div className="border-t border-white/[0.06]">

@@ -30,7 +30,8 @@ function NextRaceWidget({ race }: { race: NextRace }) {
             <p className="mt-0.5 text-xs text-neutral-500">{new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</p>
           )}
           <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-neutral-400 transition group-hover:text-white">
-            View race <span aria-hidden>→</span>
+            View race
+            <ChevronIcon />
           </span>
         </Link>
       )}
@@ -81,24 +82,35 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   );
 }
 
+/** A plain chevron, not "->" - every directional affordance in this rail uses this instead of an
+ * ASCII arrow. */
+function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
+      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** F1-specific context, not more group metadata, and not a second content column - real active
  * predictions across joined groups, the real next race, an explore module, nothing fabricated.
  *
- * No outer card at all. This used to be a bordered box (before that, two separate bordered boxes) -
- * still its own visually-competing rectangle next to the feed either way. This rail now has no
- * surface of its own: it's plain content sitting in the page's own background, exactly like the
- * left rail beside it, with the thin vertical rule GroupsHomeClient draws around the center column
- * doing the one job of separating "context" from "the actual product" - not a boxed panel trying
- * to look like a smaller feed. "Race weekend" groups the two F1-specific modules under one eyebrow;
- * a horizontal rule (not a card boundary) separates that group from Explore below it. */
+ * ONE frosted surface for the whole rail - the same static-surface treatment (rounded-xl border
+ * bg-carbon/60) every other real content surface in this app already uses, not three separate
+ * boxes and not zero surface at all (both tried in earlier passes - the first read as "another
+ * card column", the second read as it belonged to no surface at all). "Race weekend" groups the
+ * two F1-specific modules under one eyebrow; a horizontal rule (not a second card boundary)
+ * separates that group from Explore below it - one widget with internal structure, not three. */
 export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { predictions: FeedPrediction[]; nextRace: NextRace; onDiscover: () => void }) {
   return (
-    <div>
-      <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Race weekend</p>
-      <NextRaceWidget race={nextRace} />
-      <ActivePredictions predictions={predictions} />
+    <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 py-3">
+      <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Race weekend</p>
+      <div className="px-3">
+        <NextRaceWidget race={nextRace} />
+        <ActivePredictions predictions={predictions} />
+      </div>
 
-      <div className="mt-4 border-t border-[var(--f1-line)] pt-4">
+      <div className="mt-1 border-t border-[var(--f1-line)] px-3 pt-4">
         <button type="button" onClick={onDiscover} className="group flex w-full items-center gap-2.5 px-1 text-left">
           <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-neutral-500 transition group-hover:text-neutral-300">
             <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
@@ -106,10 +118,11 @@ export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { pred
               <path d="m11.8 7.2-1.5 3.8a1 1 0 0 1-.5.5l-3.8 1.5 1.5-3.8a1 1 0 0 1 .5-.5l3.8-1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Explore</span>
-            <span className="block text-xs font-medium text-neutral-300 transition group-hover:text-white">Discover communities →</span>
+            <span className="block text-xs font-medium text-neutral-300 transition group-hover:text-white">Discover communities</span>
           </span>
+          <ChevronIcon />
         </button>
       </div>
     </div>

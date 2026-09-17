@@ -51,8 +51,9 @@ export function GroupsLeftSidebar({
         {groups.length === 0 ? (
           <div className="mt-2.5 rounded-lg border border-dashed border-[var(--f1-line)] px-3 py-4 text-center">
             <p className="text-xs text-neutral-500">You&apos;re not following any communities yet.</p>
-            <button type="button" onClick={onDiscover} className="mt-2 text-xs font-semibold text-[var(--f1-red)] transition hover:brightness-125">
-              Discover communities →
+            <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--f1-red)] transition hover:brightness-125">
+              Discover communities
+              <ChevronIcon />
             </button>
           </div>
         ) : (
@@ -101,13 +102,21 @@ export function GroupsLeftSidebar({
         )}
       </div>
 
-      <div className="flex items-center gap-3 border-t border-[var(--f1-line)] px-2.5 pt-3">
-        <button onClick={() => setShowCreate(true)} className="rounded-full bg-[var(--f1-red)] px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110">
+      {/* flex-wrap on the row (not on either button's own text) - if the rail is ever narrower
+          than both actions fit on one line, Discover drops to its own line whole rather than
+          either button's label wrapping mid-word. shrink-0 + whitespace-nowrap on each button is
+          what actually stops that: without them a flex item can be compressed below its content's
+          natural width, which is what was wrapping "+ New community" onto two lines. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[var(--f1-line)] px-2.5 pt-3">
+        <button
+          onClick={() => setShowCreate(true)}
+          className="shrink-0 whitespace-nowrap rounded-full bg-[var(--f1-red)] px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+        >
           + New community
         </button>
         {groups.length > 0 && (
-          <button type="button" onClick={onDiscover} className="text-xs font-medium text-neutral-500 transition hover:text-white">
-            Discover →
+          <button type="button" onClick={onDiscover} className="shrink-0 whitespace-nowrap text-xs font-medium text-neutral-500 transition hover:text-white">
+            Discover
           </button>
         )}
       </div>
@@ -126,6 +135,16 @@ function NavRow({ label, active, onClick, icon }: { label: string; active: boole
         <span className={active ? "font-semibold text-white" : "text-neutral-300 group-hover:text-white"}>{label}</span>
       </button>
     </div>
+  );
+}
+
+/** A plain chevron, not "->" - every directional affordance in this section uses this instead of
+ * an ASCII arrow. */
+function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
+      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

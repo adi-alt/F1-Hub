@@ -62,25 +62,47 @@ export function GroupsHomeClient({
     centerContainerRef.current?.scrollTo({ top: 0 });
   }, [selectedId]);
 
-  // The communities index: what you're in and what's happening across them. Sends only selection
-  // state (which community the rail has selected, if any - not communityId as "this is a
-  // community page", just "this UI element is focused") - the route's own
-  // buildCommunityIndexGroundingContext re-derives the real facts (your groups, open predictions,
-  // recent feed posts) server-side from the same getUserGroups/listMyOpenPredictions/listFeedPosts
-  // queries this page's own server component already used, rather than trusting this client
-  // snapshot. Same rule every other page's scope already follows (Season/Archive/Circuit) - this
-  // one used to be the exception, computing and sending the facts itself with no server builder to
-  // catch it; nothing here is trusted for facts anymore, only for "what's currently in view."
-  useRegisterApexScope({
-    key: "communities-index",
-    label: "Your communities",
-    sublabel: `${groups.length} joined`,
-    suggestions: ["What's happening across my communities?", "Which predictions close soonest?", "Which of my communities is most active?"],
-    context: {
-      page: "community",
-      snapshot: { view: "index", selectedCommunityId: selectedId },
-    },
-  });
+  // Two real scopes, not one that quietly ignores half its own state:
+  //
+  //  - "All" selected: the communities index - what you're in and what's happening across them.
+  //    No communityId, so the route's own buildCommunityIndexGroundingContext re-derives the real
+  //    facts (your groups, open predictions, recent feed posts) server-side from the same
+  //    getUserGroups/listMyOpenPredictions/listFeedPosts queries this page's own server component
+  //    already used.
+  //  - a community selected: communityId is set, which routes the SAME request through
+  //    buildCommunityGroundingContext instead - the exact server builder the community's own page
+  //    uses (getGroupDetail + requireMember, real membership-verified data), not a second, weaker
+  //    version built for this page alone. snapshot.community.currentTab mirrors CommunityTabs.tsx's
+  //    own shape ("feed" - this rail shows that community's feed, nothing else) so one builder
+  //    serves both surfaces without needing to know which one asked.
+  //
+  // Either way, nothing here is trusted for facts, only for "what's currently in view" - and the
+  // suggestions only ever promise what that specific server builder can actually answer.
+  const scopeKey = selectedCommunity ? `community:${selectedCommunity.id}` : "communities-index";
+  useRegisterApexScope(
+    selectedCommunity
+      ? {
+          key: scopeKey,
+          label: selectedCommunity.name,
+          sublabel: "Feed",
+          communityId: selectedCommunity.id,
+          suggestions: ["What is this community discussing most?", "Summarise the recent posts here.", "Are there any open predictions in this community?"],
+          context: {
+            page: "community",
+            snapshot: { community: { currentTab: "feed" } },
+          },
+        }
+      : {
+          key: scopeKey,
+          label: "Your communities",
+          sublabel: `${groups.length} joined`,
+          suggestions: ["What's happening across my communities?", "Which predictions close soonest?", "Which of my communities is most active?"],
+          context: {
+            page: "community",
+            snapshot: { view: "index" },
+          },
+        },
+  );
 
   return (
     // The structural change from the previous pass: neither rail is a boxed panel anymore (see
