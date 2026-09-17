@@ -24,8 +24,16 @@ export function GroupsRightSidebarSkeleton() {
           ))}
         </div>
       </div>
-      <div className="border-t border-white/[0.06] p-4">
+      <div className="border-t border-white/[0.06] p-3.5">
         <Skeleton className="h-14 w-full rounded-xl" />
+      </div>
+      <div className="border-t border-white/[0.06] p-3.5">
+        <Skeleton className="h-2.5 w-28" />
+        <div className="mt-2.5 space-y-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-3 w-full" />
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -18,8 +18,15 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [ta
  * `panelRef` is created and attached by the caller (to whichever element is the actual dialog
  * surface) rather than returned, since the caller already owns that ref for its own layout/portal
  * needs.
+ *
+ * `lockScroll` (default true) is the one thing a real blocking modal (RaceQuickView, Discover,
+ * Create Post/Community) needs that a persistent, non-blocking floating panel doesn't - the post
+ * detail window is deliberately meant to coexist with the rest of the page (and with Ask Apex's
+ * own floating launcher) rather than freeze it, so it opts out with `lockScroll: false` while still
+ * getting focus trap/restoration and Escape from this same hook.
  */
-export function useModalFocusTrap(panelRef: RefObject<HTMLElement | null>, isOpen: boolean, onClose: () => void) {
+export function useModalFocusTrap(panelRef: RefObject<HTMLElement | null>, isOpen: boolean, onClose: () => void, options?: { lockScroll?: boolean }) {
+  const lockScroll = options?.lockScroll ?? true;
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -57,7 +64,7 @@ export function useModalFocusTrap(panelRef: RefObject<HTMLElement | null>, isOpe
     if (!isOpen) return;
     document.addEventListener("keydown", onKeyDown, true);
 
-    const scroller = document.querySelector<HTMLElement>("[data-app-scroll]");
+    const scroller = lockScroll ? document.querySelector<HTMLElement>("[data-app-scroll]") : null;
     const previousOverflow = scroller?.style.overflow ?? "";
     if (scroller) scroller.style.overflow = "hidden";
 
@@ -75,5 +82,5 @@ export function useModalFocusTrap(panelRef: RefObject<HTMLElement | null>, isOpe
       if (scroller) scroller.style.overflow = previousOverflow;
       window.clearTimeout(timer);
     };
-  }, [isOpen, onKeyDown, panelRef]);
+  }, [isOpen, onKeyDown, panelRef, lockScroll]);
 }

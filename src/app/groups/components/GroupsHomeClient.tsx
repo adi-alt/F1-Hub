@@ -112,7 +112,7 @@ export function GroupsHomeClient({
     // it - items-start would size each column to its own content instead, leaving nothing for the
     // rest to scroll within. Both rails are full-height cards that handle their own internal
     // scrolling, so only the centre column needs a scroll wrapper out here.
-    <div className="flex flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[286px_minmax(0,1fr)_306px] lg:items-stretch lg:gap-4">
+    <div className="flex flex-col gap-3 lg:grid lg:h-full lg:grid-cols-[280px_minmax(0,1fr)_300px] lg:items-stretch lg:gap-3">
       <aside className="order-2 min-h-0 lg:order-1 lg:h-full">
         <div ref={leftScrollRef} className="lg:h-full">
           <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
@@ -134,7 +134,7 @@ export function GroupsHomeClient({
 
       <aside className="order-3 min-h-0 lg:h-full">
         <div ref={rightScrollRef} className="lg:h-full">
-          <GroupsRightSidebar predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
+          <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>
 

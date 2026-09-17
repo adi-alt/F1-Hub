@@ -21,12 +21,13 @@ import { VoteControl } from "./VoteControl";
 const THREADS_PER_PAGE = 8;
 
 /**
- * Opening a post's comments opens THIS - the post itself as a floating window with the discussion
- * beneath it, so the thing being replied to stays on screen the whole time.
- *
- * Same floating-window family as RaceQuickView: a centred panel on desktop, a bottom sheet on
- * phones, the identical border/backdrop/shadow/close-button contract, and focus trap + focus
- * restoration + app-scroll locking via `useModalFocusTrap`.
+ * Opening a post's comments opens THIS - anchored bottom-right on desktop, a bottom sheet on
+ * phones - not a centred, page-blocking dialog. It's meant to coexist with the feed behind it and
+ * with Ask Apex's own launcher (bottom-left): no full-viewport backdrop, no scroll lock, so the
+ * feed stays scrollable and clickable while this is open, the same non-blocking contract
+ * ApexLauncher's own panel already follows. `useModalFocusTrap(..., { lockScroll: false })` still
+ * gives it focus trap, focus restoration and Escape - just not the page-freeze a real modal needs
+ * and this deliberately doesn't.
  *
  * Vote state (`score`/`myVote`/`onVote`) comes from the SAME `useOptimisticVote` instance the feed
  * row behind it already owns, not a second copy - voting here and voting there are one action on
@@ -60,7 +61,7 @@ export function PostDetailWindow({
   const panelRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const [visibleThreads, setVisibleThreads] = useState(THREADS_PER_PAGE);
-  useModalFocusTrap(panelRef, true, onClose);
+  useModalFocusTrap(panelRef, true, onClose, { lockScroll: false });
 
   const focused = useMemo<LocalComment | null>(() => (focusCommentId ? ((comments ?? []).find((c) => c.id === focusCommentId) ?? null) : null), [comments, focusCommentId]);
   const allRoots = focused ? [focused] : tree.roots;
@@ -70,18 +71,21 @@ export function PostDetailWindow({
   const isImage = post.mediaUrl ? mediaKind(post.mediaUrl) === "image" : false;
 
   return createPortal(
-    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/55 backdrop-blur-[2px] sm:items-center sm:p-6" onClick={onClose}>
+    // No backdrop element at all: on desktop this sits over nothing, so the feed underneath stays
+    // fully visible, scrollable and clickable. On phones there's no room to coexist beside content,
+    // so the panel itself goes full-width/full-height instead of gaining a separate scrim - inset-0
+    // there is the sheet, not a dimmed overlay behind it.
+    <div className="pointer-events-none fixed inset-0 z-[100] flex items-end justify-center sm:inset-auto sm:bottom-5 sm:right-5 sm:items-start sm:justify-start">
       <motion.div
         ref={panelRef}
         role="dialog"
-        aria-modal="true"
+        aria-modal="false"
         aria-label="Discussion"
-        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.985 }}
+        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.99 }}
-        transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/80 shadow-2xl backdrop-blur-xl sm:max-h-[82vh] sm:w-[92vw] sm:max-w-2xl sm:rounded-2xl"
+        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.98 }}
+        transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="pointer-events-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl sm:max-h-[min(78vh,640px)] sm:w-[27rem] sm:rounded-2xl"
       >
         {/* Phone-only drag affordance, the same convention RaceQuickView's own sheet uses. */}
         <div aria-hidden className="flex shrink-0 justify-center pt-2.5 sm:hidden">
@@ -89,7 +93,7 @@ export function PostDetailWindow({
         </div>
 
         {/* The post, pinned above the scrolling discussion so it never leaves the screen. */}
-        <div className="shrink-0 border-b border-white/[0.07] px-4 pb-4 pt-3 sm:px-5 sm:pt-4">
+        <div className="shrink-0 border-b border-white/[0.07] px-4 pb-3.5 pt-3 sm:px-4 sm:pt-3.5">
           <div className="flex items-start gap-2">
             {/* showGroup is always true here - the window is effectively the post's own page,
                 where "which community" is always relevant, not something a surrounding page has
@@ -99,34 +103,34 @@ export function PostDetailWindow({
               type="button"
               onClick={onClose}
               aria-label="Close discussion"
-              className="-mr-1 -mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              className="-mr-1 -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
             >
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
+              <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden>
                 <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
               </svg>
             </button>
           </div>
 
-          <div className="mt-3 flex items-start gap-4">
+          <div className="mt-2.5 flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              {post.title && <p className="text-[15px] font-semibold text-white">{post.title}</p>}
-              <p className={`whitespace-pre-wrap break-words text-[15px] leading-relaxed text-neutral-300 ${post.title ? "mt-1" : ""}`}>{post.content}</p>
+              {post.title && <p className="text-sm font-semibold text-white">{post.title}</p>}
+              <p className={`whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-neutral-300 ${post.title ? "mt-1" : ""}`}>{post.content}</p>
             </div>
-            {/* A thumbnail, not the full-bleed image: the discussion is what this window is for,
+            {/* A thumbnail, not the full-bleed image: the discussion is what this panel is for,
                 and the media is context for it. Non-image media (video/documents) has no useful
                 still to show at this size, so it isn't faked with a generic tile. */}
             {post.mediaUrl && isImage && (
               // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize
-              <img src={post.mediaUrl} alt="" className="hidden h-20 w-28 shrink-0 rounded-lg border border-white/[0.08] object-cover sm:block" />
+              <img src={post.mediaUrl} alt="" className="h-16 w-20 shrink-0 rounded-lg border border-white/[0.08] object-cover" />
             )}
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2.5 flex items-center gap-2">
             <div className="rounded-full border border-white/[0.08] bg-white/[0.03] px-1 py-0.5">
               <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
             </div>
-            <span className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-neutral-400">
-              <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden>
+            <span className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-neutral-400">
+              <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
                 <path d="M3 4.5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-3.5 3v-3H3a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
               </svg>
               <span className="tabular-nums">{totalCount}</span>
@@ -134,16 +138,13 @@ export function PostDetailWindow({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 scrollbar-subtle sm:px-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5 scrollbar-subtle">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-white">{focused ? "This thread" : "Comments"}</p>
-            <div className="flex items-center gap-2">
-              {!focused && totalCount > 1 && <CommentSortControl value={sort} onChange={setSort} />}
-              {!loading && !error && <span className="text-[11px] text-neutral-500">{totalCount} comments</span>}
-            </div>
+            <p className="text-[13px] font-semibold text-white">{focused ? "This thread" : "Comments"}</p>
+            {!focused && totalCount > 1 && <CommentSortControl value={sort} onChange={setSort} />}
           </div>
 
-          <div className="mt-3">
+          <div className="mt-2.5">
             {loading ? (
               <CommentsSkeleton count={3} />
             ) : error ? (
@@ -154,7 +155,7 @@ export function PostDetailWindow({
                 </button>
               </p>
             ) : allRoots.length === 0 ? (
-              <div className="py-6 text-center">
+              <div className="py-5 text-center">
                 <p className="text-sm font-medium text-neutral-300">No comments yet</p>
                 <p className="mt-1 text-xs text-neutral-500">Be the first to reply.</p>
               </div>
@@ -167,7 +168,7 @@ export function PostDetailWindow({
                   <button
                     type="button"
                     onClick={() => setVisibleThreads((n) => n + THREADS_PER_PAGE)}
-                    className="mt-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-[13px] font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+                    className="mt-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
                   >
                     Load more comments
                   </button>
@@ -177,7 +178,7 @@ export function PostDetailWindow({
           </div>
         </div>
 
-        <footer className="shrink-0 border-t border-white/10 px-4 py-3 sm:px-5">
+        <footer className="shrink-0 border-t border-white/10 px-4 py-3">
           <CommentComposer variant="inline" onSubmit={(content) => add(content, focused ? focused.id : null)} placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."} />
         </footer>
       </motion.div>

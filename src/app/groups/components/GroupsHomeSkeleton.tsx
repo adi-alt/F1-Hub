@@ -8,8 +8,8 @@ import { PostCardSkeleton } from "./post/PostCardSkeleton";
  * three. */
 export function GroupsHomeSkeleton() {
   return (
-    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[286px_minmax(0,1fr)_306px] lg:items-start lg:gap-4">
-      <aside className="order-2 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-5 lg:order-1">
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[280px_minmax(0,1fr)_300px] lg:items-start lg:gap-3">
+      <aside className="order-2 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 lg:order-1">
         <Skeleton className="h-6 w-40" />
         <Skeleton className="mt-2.5 h-3 w-full" />
         <Skeleton className="mt-1.5 h-3 w-2/3" />

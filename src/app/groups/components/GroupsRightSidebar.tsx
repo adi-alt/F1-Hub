@@ -7,6 +7,7 @@ import Link from "next/link";
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
+import type { GroupSummary } from "@/lib/supabase/groups";
 import { groupHref, raceHref } from "@/lib/routes";
 import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
@@ -20,25 +21,38 @@ export type NextRace = { year: number; round: number; name: string; raceDate: st
  *
  * Every value here is real: the round/name/date/country/photo are the pipeline's own race row, the
  * countdown is that row's real `race_date` run through the same formatCountdown/useMinuteClock pair
- * PredictionCard already uses, and the predictions are listMyOpenPredictions' real open rounds.
- * Nothing is a placeholder. Where a field is genuinely absent (a calendar round the pipeline hasn't
- * dated yet, a race with no photo) that piece simply doesn't render.
+ * PredictionCard already uses, the predictions are listMyOpenPredictions' real open rounds, and the
+ * pulse widget at the bottom is real weeklyPosts/activePredictions counts getUserGroups already
+ * computes for every group on this page (groupActivitySignals - a real 7-day post count off
+ * group_posts, not invented). Nothing here is a placeholder; where a field is genuinely absent (a
+ * calendar round the pipeline hasn't dated yet, a race with no photo) that piece simply doesn't
+ * render.
  */
-export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { predictions: FeedPrediction[]; nextRace: NextRace; onDiscover: () => void }) {
+export function GroupsRightSidebar({
+  groups,
+  predictions,
+  nextRace,
+  onDiscover,
+}: {
+  groups: GroupSummary[];
+  predictions: FeedPrediction[];
+  nextRace: NextRace;
+  onDiscover: () => void;
+}) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
         <RaceWeekend race={nextRace} />
 
-        <div className="border-t border-white/[0.06] px-4 py-4">
+        <div className="border-t border-white/[0.06] px-4 py-3.5">
           <ActivePredictions predictions={predictions} />
         </div>
 
-        <div className="border-t border-white/[0.06] p-4">
+        <div className="border-t border-white/[0.06] p-3.5">
           <button
             type="button"
             onClick={onDiscover}
-            className="group flex w-full items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+            className="group flex w-full items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
           >
             <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--f1-red)]/15 text-[var(--f1-red)]">
               <CompassIcon />
@@ -52,8 +66,74 @@ export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { pred
             </span>
           </button>
         </div>
+
+        <div className="border-t border-white/[0.06] p-3.5">
+          <CommunityPulse groups={groups} />
+        </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A real, computed digest - not a live model call. Every number here (weeklyPosts,
+ * activePredictions) is already sitting on the `groups` prop this page fetches with getUserGroups,
+ * itself real (group_posts/group_predictions counts, see groupActivitySignals) - so this reuses the
+ * exact same data Ask Apex's own community-index grounding builder answers from, rather than
+ * standing up a second, parallel "AI summary" endpoint that fires unprompted on every homepage
+ * load. Framed as Apex's own digest (its accent mark, its name) because it IS Apex's data - just
+ * rendered directly instead of paraphrased through a model call nobody asked a question of yet.
+ * Genuinely quiet communities get the honest "no major changes" state, never a manufactured one.
+ */
+function CommunityPulse({ groups }: { groups: GroupSummary[] }) {
+  const weeklyPosts = groups.reduce((sum, g) => sum + g.weeklyPosts, 0);
+  const openPredictions = groups.reduce((sum, g) => sum + g.activePredictions, 0);
+  const mostActive = groups.reduce<GroupSummary | null>((best, g) => (g.weeklyPosts > 0 && (!best || g.weeklyPosts > best.weeklyPosts) ? g : best), null);
+  const hasActivity = weeklyPosts > 0 || openPredictions > 0;
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">
+        <span aria-hidden className="text-[var(--f1-red)]">
+          ✦
+        </span>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community pulse</p>
+      </div>
+
+      {!hasActivity ? (
+        <p className="mt-2 text-xs leading-relaxed text-neutral-600">No major activity across your communities this week.</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {weeklyPosts > 0 && (
+            <PulseLine>
+              {weeklyPosts} new {weeklyPosts === 1 ? "discussion" : "discussions"} this week across your {groups.length === 1 ? "community" : "communities"}
+            </PulseLine>
+          )}
+          {openPredictions > 0 && (
+            <PulseLine>
+              {openPredictions} open prediction{openPredictions === 1 ? "" : "s"} waiting for entries
+            </PulseLine>
+          )}
+          {mostActive && (
+            <PulseLine>
+              <Link href={groupHref(mostActive.id)} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                {mostActive.name}
+              </Link>{" "}
+              is the most active community right now
+            </PulseLine>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function PulseLine({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-baseline gap-2 text-xs leading-relaxed text-neutral-400">
+      <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-neutral-600" />
+      <span className="min-w-0">{children}</span>
+    </li>
   );
 }
 
@@ -78,7 +158,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
         </div>
       )}
 
-      <div className="relative px-4 pb-4 pt-4">
+      <div className="relative px-4 pb-3.5 pt-3.5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">Race weekend</p>
 
         {!race ? (

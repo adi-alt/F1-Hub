@@ -36,7 +36,7 @@ export function GroupsLeftSidebar({
   return (
     // Desktop only - a full vertical rail is the wrong idiom on a phone (see
     // MobileCommunitySelector below, which GroupsHomeClient renders instead at <lg).
-    <div className="hidden h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-5 backdrop-blur-sm lg:flex">
+    <div className="hidden h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm lg:flex">
       <div className="shrink-0">
         <h1 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
         <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">Race-weekend discussion and predictions across your communities.</p>
@@ -58,7 +58,7 @@ export function GroupsLeftSidebar({
       ) : (
         // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
         // actions below stay pinned and reachable instead of being pushed out of the card.
-        <div className="mt-2.5 min-h-0 flex-1 space-y-1 overflow-y-auto scrollbar-hide">
+        <div className="mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-hide">
           <NavRow
             label="All"
             sublabel="All communities"
@@ -148,7 +148,7 @@ function NavRow({
 }) {
   return (
     <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 transition ${
+      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-1.5 transition ${
         active ? "border border-[var(--f1-red)]/25 bg-gradient-to-r from-[var(--f1-red)]/[0.16] to-transparent" : "border border-transparent hover:bg-white/[0.04]"
       }`}
     >
