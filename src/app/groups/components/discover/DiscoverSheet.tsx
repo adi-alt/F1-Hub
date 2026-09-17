@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Picker } from "@/components/ui/Picker";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { DISCOVER_SORTS, type DiscoverSort } from "@/lib/communities";
 import type { PublicGroupSummary } from "@/lib/supabase/groups";
 import { CommunityCard } from "../CommunityCard";
@@ -44,8 +45,14 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
   const [listError, setListError] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  // Same focus-trap/scroll-lock/Escape contract every floating window in this app should have -
+  // this sheet previously only had a bare Escape listener, with no focus trap (Tab could reach the
+  // page behind it), no focus restoration on close, and no scroll lock on the real scrolling
+  // element (see the hook's own comment on why `document.body` wouldn't have worked anyway).
+  useModalFocusTrap(panelRef, true, onClose);
 
   const buildUrl = useCallback(
     (nextCursor?: string) => {
@@ -124,19 +131,12 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
     return () => observer.disconnect();
   }, [cursor, loadMore]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const activeFilters = topics.length > 0 || query.trim().length > 0;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/50 backdrop-blur-[2px] sm:items-start sm:p-6 sm:pt-10" onClick={onClose}>
       <motion.div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Discover communities"

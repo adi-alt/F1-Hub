@@ -12,8 +12,9 @@ import { GroupBanner } from "../../components/GroupBanner";
  * The community identity block: banner, avatar, name, what kind of community it is, and the two
  * actions that belong at this level (the membership menu and sharing).
  *
- * Deliberately NOT enormous - a 16:5 banner, a 64px avatar and three lines of metadata, so the
- * actual content starts near the top of the viewport rather than a screen down.
+ * Deliberately NOT enormous - GroupBanner's flatter "header" ratio (not the card grid's own 4:1,
+ * genuinely tall at full page width), a 64px avatar, and three lines of metadata, so the actual
+ * content starts near the top of the viewport rather than a screen down.
  *
  * There is no per-community notification setting in the membership menu. `profiles` has two global
  * notification flags and nothing per-community, so "All activity / Highlights / Muted" would be
@@ -69,7 +70,7 @@ export function CommunityHeader({
   return (
     <header>
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-        <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} />
+        <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} variant="header" />
       </div>
 
       <div className="px-1">
