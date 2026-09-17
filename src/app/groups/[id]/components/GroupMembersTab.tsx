@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import { Picker } from "@/components/ui/Picker";
 import type { GroupMember, GroupRole } from "@/lib/supabase/groups";
 
@@ -91,6 +92,13 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
 }
 
 export function GroupMembersTab({ groupId, members, myRole, myUserId }: { groupId: string; members: GroupMember[]; myRole: GroupRole; myUserId: string }) {
+  // Every real community has at least its creator (createGroup inserts them as admin in the same
+  // write that makes the row) - this is defensive, not a state the product flow can actually reach,
+  // but an honest empty state costs nothing and a bare blank grid would look broken if it ever did.
+  if (members.length === 0) {
+    return <EmptyState icon={EmptyIcons.members} title="This community is waiting for its first members." />;
+  }
+
   return (
     <ul className="grid gap-2 sm:grid-cols-2">
       {members.map((m) => (

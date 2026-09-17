@@ -10,6 +10,7 @@ import { predictionTypeLabels, type GroupPrediction, type PredictionType } from 
 import { PredictionCard } from "./PredictionCard";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
+import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import type { GroupRole } from "@/lib/supabase/groups";
 
 const ENTRY_PRESETS = [10, 20, 50, 100];
@@ -151,20 +152,22 @@ export function GroupPredictions({
             <PredictionCard key={p.id} groupId={groupId} prediction={p} myRole={myRole} drivers={driversByRace[p.raceId] ?? []} pointsBalance={pointsBalance} onChanged={() => router.refresh()} />
           ))}
         {predictions.length === 0 && (
-          <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-10 text-center">
-            <p className="text-sm font-semibold text-neutral-300">No predictions are active yet.</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              {myRole === "admin" ? "Open a round and the community can start predicting." : "An admin opens rounds ahead of a race weekend."}
-            </p>
-            {myRole === "admin" && !showNew && (
-              <button
-                onClick={() => setShowNew(true)}
-                className="mt-4 rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
-              >
-                Create a prediction round
-              </button>
-            )}
-          </div>
+          <EmptyState
+            icon={EmptyIcons.trophy}
+            title="No prediction rounds are active."
+            description={myRole === "admin" ? "Open a round and the community can start predicting." : "An admin opens rounds ahead of a race weekend."}
+            action={
+              myRole === "admin" &&
+              !showNew && (
+                <button
+                  onClick={() => setShowNew(true)}
+                  className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+                >
+                  Create a prediction round
+                </button>
+              )
+            }
+          />
         )}
       </div>
     </div>

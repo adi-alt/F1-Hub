@@ -6,6 +6,7 @@ import { communityTypeMeta, visibilityLabel, MODULE_LABELS, type CommunityModule
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupDetail } from "@/lib/supabase/groups";
 import { timeAgo } from "@/lib/format";
+import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 
 /**
  * Media is a *view over the feed*, not a second store - it lists the posts in this community that
@@ -32,7 +33,7 @@ export function MediaTab({ groupId }: { groupId: string }) {
   }, [groupId]);
 
   if (error) {
-    return <p className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-8 text-center text-sm text-neutral-500">Couldn&apos;t load media.</p>;
+    return <EmptyState icon={EmptyIcons.media} title="Couldn't load media." description="Something went wrong reaching this community's posts." />;
   }
 
   if (posts === null) {
@@ -47,10 +48,11 @@ export function MediaTab({ groupId }: { groupId: string }) {
 
   if (posts.length === 0) {
     return (
-      <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-10 text-center">
-        <p className="text-sm font-semibold text-neutral-300">No photos or video yet.</p>
-        <p className="mt-1 text-xs text-neutral-500">Anything posted with an image shows up here.</p>
-      </div>
+      <EmptyState
+        icon={EmptyIcons.media}
+        title="No race moments here yet."
+        description="Anything posted with a photo or video in this community's feed shows up here automatically."
+      />
     );
   }
 

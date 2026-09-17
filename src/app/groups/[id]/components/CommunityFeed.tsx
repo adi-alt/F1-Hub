@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import { postKindsFor, type CommunityFeatures, type PostKind } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupRole } from "@/lib/supabase/groups";
@@ -173,17 +174,20 @@ export function CommunityFeed({
         )}
 
         {posts.length === 0 && (
-          <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-10 text-center">
-            <p className="text-sm font-semibold text-neutral-300">This community is quiet.</p>
-            <p className="mt-1 text-xs text-neutral-500">Start the first conversation.</p>
-            <button
-              type="button"
-              onClick={() => setComposerOpen(true)}
-              className="mt-4 rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
-            >
-              Start Discussion
-            </button>
-          </div>
+          <EmptyState
+            icon={EmptyIcons.post}
+            title="Nothing has been posted here yet."
+            description="Start the first conversation."
+            action={
+              <button
+                type="button"
+                onClick={() => setComposerOpen(true)}
+                className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+              >
+                Start Discussion
+              </button>
+            }
+          />
         )}
       </div>
 

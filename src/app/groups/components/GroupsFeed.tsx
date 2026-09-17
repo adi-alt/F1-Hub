@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedPost, FeedType } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
+import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import { PostCard } from "./post/PostCard";
 import { PostCardSkeleton } from "./post/PostCardSkeleton";
 import { PostComposer } from "./PostComposer";
@@ -114,12 +115,11 @@ export function GroupsFeed({ groups, initialPosts, initialCursor }: { groups: Gr
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-8 text-center">
-          <p className="text-sm font-semibold text-neutral-300">Nothing here yet.</p>
-          <p className="mt-1 text-sm text-neutral-500">
-            {feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
-          </p>
-        </div>
+        <EmptyState
+          icon={EmptyIcons.post}
+          title="Nothing here yet."
+          description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
+        />
       ) : (
         <div className="space-y-3">
           {posts.map((post, i) => (
