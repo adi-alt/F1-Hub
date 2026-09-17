@@ -10,7 +10,7 @@ import { ArchiveExplorerWithFocus } from "./components/ArchiveExplorerWithFocus"
 import { ArchiveEraTimeline } from "./components/ArchiveEraTimeline";
 import { buildEraSegments } from "./components/eraSegments";
 import { ArchiveDriverRelationships, type DriverRelationship } from "./components/ArchiveDriverRelationships";
-import type { ExplorerRow, ResultFilter } from "./components/ArchiveRaceExplorer";
+import type { ExplorerRow } from "./components/ArchiveRaceExplorer";
 import {
   ARCHIVE_EARLIEST_YEAR,
   ARCHIVE_LATEST_YEAR,
@@ -266,13 +266,6 @@ async function ArchiveDriverHistoryInner(driverId: string) {
 
   const eraSegments = buildEraSegments(entries.map(({ race, result }) => ({ year: race.year, label: result.constructor, raceCount: 1 })));
 
-  const resultFilters: ResultFilter[] = [
-    { key: "wins", label: "Wins", test: (r) => r.finishRank === 1 },
-    { key: "podiums", label: "Podiums", test: (r) => r.finishRank !== null && r.finishRank <= 3 },
-    { key: "points", label: "Points", test: (r) => r.points > 0 },
-    { key: "dnf", label: "Retirements", test: (r) => r.finishRank === null },
-  ];
-
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
       <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
@@ -298,7 +291,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
         </div>
       )}
       <div className="mt-4 flex min-h-0 flex-1 flex-col">
-        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilters={resultFilters} />
+        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilterKeys={["wins", "podiums", "points", "dnf"]} />
       </div>
     </div>
   );
@@ -370,11 +363,6 @@ async function ArchiveTeamHistoryInner(teamId: string) {
     .map(([id, v]) => ({ driverId: id, name: v.name, photoUrl: photoByDriver.get(id) ?? null, races: v.races.size, wins: v.wins }))
     .sort((a, b) => b.races - a.races);
 
-  const resultFilters: ResultFilter[] = [
-    { key: "wins", label: "Wins", test: (r) => r.finishRank === 1 },
-    { key: "podiums", label: "Podiums", test: (r) => r.finishRank !== null && r.finishRank <= 3 },
-  ];
-
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
       <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
@@ -400,7 +388,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
         </div>
       )}
       <div className="mt-4 flex min-h-0 flex-1 flex-col">
-        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilters={resultFilters} />
+        <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilterKeys={["wins", "podiums"]} />
       </div>
     </div>
   );

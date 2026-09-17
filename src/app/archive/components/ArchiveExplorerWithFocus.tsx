@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArchiveRaceExplorer, type ExplorerRow, type ResultFilter } from "./ArchiveRaceExplorer";
+import { ArchiveRaceExplorer, type ExplorerRow, type ResultFilterKey } from "./ArchiveRaceExplorer";
 import { ArchiveFocusedRacePanel } from "./ArchiveFocusedRacePanel";
 
 /**
@@ -13,11 +13,11 @@ import { ArchiveFocusedRacePanel } from "./ArchiveFocusedRacePanel";
 export function ArchiveExplorerWithFocus({
   rows,
   entityColumnLabel,
-  resultFilters,
+  resultFilterKeys,
 }: {
   rows: ExplorerRow[];
   entityColumnLabel: string;
-  resultFilters?: ResultFilter[];
+  resultFilterKeys?: ResultFilterKey[];
 }) {
   const mostRecent = useMemo(() => [...rows].sort((a, b) => b.year - a.year || b.round - a.round)[0] ?? null, [rows]);
   const [selectedId, setSelectedId] = useState<string | null>(mostRecent?.id ?? null);
@@ -29,7 +29,7 @@ export function ArchiveExplorerWithFocus({
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-      <ArchiveRaceExplorer rows={rows} entityColumnLabel={entityColumnLabel} resultFilters={resultFilters} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
+      <ArchiveRaceExplorer rows={rows} entityColumnLabel={entityColumnLabel} resultFilterKeys={resultFilterKeys} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
       <div className="min-w-0">{selected && <ArchiveFocusedRacePanel row={selected} entityColumnLabel={entityColumnLabel} />}</div>
     </div>
   );

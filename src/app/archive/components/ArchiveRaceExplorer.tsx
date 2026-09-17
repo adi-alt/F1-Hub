@@ -23,7 +23,25 @@ export type ExplorerRow = {
   points: number;
 };
 
-export type ResultFilter = { key: string; label: string; test: (row: ExplorerRow) => boolean };
+export type ResultFilterKey = "wins" | "podiums" | "points" | "dnf";
+type ResultFilter = { key: ResultFilterKey; label: string; test: (row: ExplorerRow) => boolean };
+
+// A fixed registry, not a value the caller builds - a driver/team page (the two callers that use
+// this at all) only ever wants some subset of these same four generic result types, and the actual
+// predicates are pure ExplorerRow logic with nothing driver/team-specific in them. This used to be
+// built server-side in archive/page.tsx as {key, label, test} objects and passed down as a prop -
+// confirmed live (a real `next build`, not `next dev`) to throw "Functions cannot be passed
+// directly to Client Components" the moment React tried to serialize that prop, since a closure
+// isn't valid RSC payload data. The server now sends only which keys it wants
+// (`resultFilterKeys: ResultFilterKey[]`, plain strings, always serializable); the actual filter
+// objects - including their functions - are resolved here, entirely client-side, where they're the
+// only thing that ever calls them anyway.
+const RESULT_FILTERS: Record<ResultFilterKey, ResultFilter> = {
+  wins: { key: "wins", label: "Wins", test: (r) => r.finishRank === 1 },
+  podiums: { key: "podiums", label: "Podiums", test: (r) => r.finishRank !== null && r.finishRank <= 3 },
+  points: { key: "points", label: "Points", test: (r) => r.points > 0 },
+  dnf: { key: "dnf", label: "Retirements", test: (r) => r.finishRank === null },
+};
 
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 const PAGE_SIZE = 20;
@@ -43,7 +61,7 @@ function decadeLabel(year: number): string {
 export function ArchiveRaceExplorer({
   rows,
   entityColumnLabel,
-  resultFilters,
+  resultFilterKeys,
   selectedId,
   onSelect,
 }: {
@@ -51,11 +69,13 @@ export function ArchiveRaceExplorer({
   entityColumnLabel: string;
   /** Optional result-type filter chips (Wins/Podiums/Points/Retirements, say) - omitted entirely
    * when the caller has nothing meaningful to offer (a circuit explorer has no "this entity's own
-   * result type" to filter by, for instance). */
-  resultFilters?: ResultFilter[];
+   * result type" to filter by, for instance). Just the keys - see RESULT_FILTERS above for why the
+   * actual filter objects (and their functions) are resolved here, not passed in. */
+  resultFilterKeys?: ResultFilterKey[];
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const resultFilters = useMemo(() => resultFilterKeys?.map((key) => RESULT_FILTERS[key]), [resultFilterKeys]);
   const [search, setSearch] = useState("");
   const [decade, setDecade] = useState<string | null>(null);
   const [resultKey, setResultKey] = useState<string>("all");
