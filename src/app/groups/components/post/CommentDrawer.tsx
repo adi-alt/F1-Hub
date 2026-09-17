@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { timeAgo } from "@/lib/format";
 import type { PostCardData } from "./types";
 import { CommentComposer } from "./CommentComposer";
@@ -36,14 +37,8 @@ export function CommentDrawer({
   onCountChange?: (count: number) => void;
 }) {
   const { comments, tree, sort, setSort, add, discard, reload, error, loading } = useComments(post.id, onCountChange);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const panelRef = useRef<HTMLElement>(null);
+  useModalFocusTrap(panelRef, true, onClose);
 
   // When focused on a sub-thread, that comment becomes the root of what's rendered.
   const focused = useMemo<LocalComment | null>(() => (focusCommentId ? ((comments ?? []).find((c) => c.id === focusCommentId) ?? null) : null), [comments, focusCommentId]);
@@ -52,6 +47,7 @@ export function CommentDrawer({
   return createPortal(
     <div className="fixed inset-0 z-[110] flex justify-end bg-black/50 backdrop-blur-[2px]" onClick={onClose}>
       <motion.aside
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Discussion"

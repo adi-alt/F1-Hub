@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Picker } from "@/components/ui/Picker";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import {
   COMMUNITY_TOPICS,
   COMMUNITY_TYPES,
@@ -115,16 +116,17 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
 
   const canAdvance = step !== "identity" || (trimmedName.length >= MIN_NAME && !nameError);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !submitting) onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, submitting]);
+  // Tab-trap/restore-on-close/scroll-lock shared with every other floating window (see the hook's
+  // own comment); Escape itself still respects mid-submit the same way the backdrop click below
+  // does. This used to be its own bare Escape-only listener with none of the rest.
+  useModalFocusTrap(panelRef, true, () => {
+    if (!submitting) onClose();
+  });
 
   // Focus moves to the panel on each step change so a screen reader announces the new step rather
-  // than leaving focus on a button that no longer exists.
+  // than leaving focus on a button that no longer exists. Runs independently of the hook's own
+  // one-time "focus something on open" effect above - this one intentionally re-fires on every
+  // step, not just mount.
   useEffect(() => {
     panelRef.current?.focus();
   }, [step]);

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { POST_KIND_HINTS, POST_KIND_LABELS, type PostKind } from "@/lib/communities";
 
 const MAX_CONTENT = 2000;
@@ -53,15 +54,22 @@ export function CreatePostModal({
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
 
+  // Focus trap/restoration/scroll-lock shared with every other floating window (see the hook's
+  // own comment) - Escape is guarded against closing mid-submit, same as the backdrop click below.
+  useModalFocusTrap(panelRef, true, () => {
+    if (!submitting) onClose();
+  });
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !submitting) onClose();
       // Cmd/Ctrl+Enter submits - the convention everywhere else a composer lives in a modal.
+      // Escape itself is handled by useModalFocusTrap above.
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
     }
     document.addEventListener("keydown", onKey);
@@ -110,6 +118,7 @@ export function CreatePostModal({
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-6" onClick={() => !submitting && onClose()}>
       <motion.div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Create a post"
