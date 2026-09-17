@@ -85,7 +85,7 @@ export function PostDetailWindow({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.98 }}
         transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="pointer-events-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl sm:max-h-[min(78vh,640px)] sm:w-[27rem] sm:rounded-2xl"
+        className="pointer-events-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl sm:max-h-[min(78vh,640px)] sm:w-[min(33rem,calc(100vw-2.5rem))] sm:rounded-2xl"
       >
         {/* Phone-only drag affordance, the same convention RaceQuickView's own sheet uses. */}
         <div aria-hidden className="flex shrink-0 justify-center pt-2.5 sm:hidden">
@@ -139,8 +139,11 @@ export function PostDetailWindow({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5 scrollbar-subtle">
-          <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold text-white">{focused ? "This thread" : "Comments"}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[13px] font-semibold text-white">
+              {focused ? "This thread" : "Comments"}
+              {!focused && totalCount > 0 && <span className="ml-1.5 text-xs font-normal tabular-nums text-neutral-500">{totalCount}</span>}
+            </p>
             {!focused && totalCount > 1 && <CommentSortControl value={sort} onChange={setSort} />}
           </div>
 

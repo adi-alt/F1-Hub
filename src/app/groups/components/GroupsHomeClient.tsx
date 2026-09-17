@@ -113,8 +113,13 @@ export function GroupsHomeClient({
     // rest to scroll within. Both rails are full-height cards that handle their own internal
     // scrolling, so only the centre column needs a scroll wrapper out here.
     <div className="flex flex-col gap-3 lg:grid lg:h-full lg:grid-cols-[280px_minmax(0,1fr)_300px] lg:items-stretch lg:gap-3">
+      {/* The rail sizes to its own content and only grows as tall as the workspace allows
+          (lg:max-h-full, not lg:h-full) - seven communities should end in a card that ends, not one
+          stretched to the full viewport with a pool of dead space under the last action. Past that
+          height the list inside it scrolls instead, which is the point at which a fixed height
+          starts being the right answer rather than the wrong one. */}
       <aside className="order-2 min-h-0 lg:order-1 lg:h-full">
-        <div ref={leftScrollRef} className="lg:h-full">
+        <div ref={leftScrollRef} className="lg:max-h-full">
           <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>

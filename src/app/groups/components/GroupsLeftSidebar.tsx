@@ -36,7 +36,7 @@ export function GroupsLeftSidebar({
   return (
     // Desktop only - a full vertical rail is the wrong idiom on a phone (see
     // MobileCommunitySelector below, which GroupsHomeClient renders instead at <lg).
-    <div className="hidden h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm lg:flex">
+    <div className="hidden max-h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm lg:flex">
       <div className="shrink-0">
         <h1 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
         <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">Race-weekend discussion and predictions across your communities.</p>

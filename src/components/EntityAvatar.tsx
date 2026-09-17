@@ -31,15 +31,29 @@ function hashSeed(seed: string): number {
   return Math.abs(hash);
 }
 
-/** Initials from up to the first two meaningful (non-space) words - "Champion Club" -> "CC",
- * "Aditya Verma" -> "AV", a single word like "asdf" -> "A". Never more than 2 characters: this
- * sits in a small circle, not a badge built to hold an acronym. */
+/** First letter of every meaningful word, so a multi-word identity reads as its own real acronym
+ * rather than a truncated two-letter stub of it: "Ferrari Tifosi Hub" -> "FTH", "Red Bull Racing
+ * Fans" -> "RBRF", "Aditya Verma" -> "AV", "Apex" -> "A". Purely-punctuation words ("&", "-") are
+ * skipped - they carry no letter worth standing for. Capped at 4 because that is where a circle
+ * this size stops being legible, and because every name long enough to exceed it (a five-word
+ * community title) is already better served by its own uploaded avatar. */
+const MAX_INITIALS = 4;
+
 function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].charAt(0).toUpperCase();
-  return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  const letters = name
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.match(/\p{L}|\p{N}/u)?.[0] ?? "")
+    .filter(Boolean);
+  if (letters.length === 0) return "?";
+  return letters.slice(0, MAX_INITIALS).join("").toUpperCase();
 }
+
+/** Initials wider than two characters need a smaller glyph to stay inside the same circle - the
+ * circle's size is fixed by the layout around it, so the type is what gives. Not a continuous
+ * formula: four hand-checked steps, each the largest size that still clears the circle's edge at
+ * that length. */
+const FONT_DIVISOR: Record<number, number> = { 1: 2.4, 2: 2.4, 3: 3.1, 4: 3.9 };
 
 /** A driver headshot, team logo, or group avatar — anything backed by the shared Supabase
  * Storage `media`/`group-avatars` buckets — or a deterministic initials fallback when there's no
@@ -101,12 +115,13 @@ export function EntityAvatar({
     );
   }
   const tone = FALLBACK_PALETTE[hashSeed(seed ?? (name || "?")) % FALLBACK_PALETTE.length];
+  const initials = initialsOf(name);
   return (
     <span
       className={`flex shrink-0 items-center justify-center ${rounding} font-semibold ${tone}`}
-      style={{ width: size, height: size, fontSize: size / 2.4 }}
+      style={{ width: size, height: size, fontSize: size / (FONT_DIVISOR[initials.length] ?? 2.4) }}
     >
-      {initialsOf(name)}
+      {initials}
     </span>
   );
 }
