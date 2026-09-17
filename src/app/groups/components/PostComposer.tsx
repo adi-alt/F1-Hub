@@ -166,13 +166,26 @@ export function PostComposer({
     return (
       <button
         onClick={() => setExpanded(true)}
-        className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-left text-sm text-neutral-500 transition ${
-          bare ? "hover:bg-white/[0.03]" : "border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 hover:border-white/20"
-        }`}
+        className={
+          bare
+            ? "flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-left text-sm text-neutral-500 transition hover:bg-white/[0.03]"
+            : // The page's own strongest call to action, not a plain input look-alike - a real
+              // avatar at hero size, a visible red "+" that only fully lights up on hover/focus (so
+              // the affordance reads as "click me to post", not as decoration), and a border that
+              // brightens together with it rather than the two changing independently.
+              "group flex w-full items-center gap-3 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-4 py-3.5 text-left text-sm text-neutral-500 transition hover:border-white/20 hover:bg-[var(--f1-carbon)]/80 focus-visible:border-white/20"
+        }
       >
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} size={28} />
-        <span className="min-w-0 flex-1 truncate">{placeholder ?? "Start a discussion..."}</span>
-        <span aria-hidden className="shrink-0 text-neutral-600">
+        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} size={bare ? 28 : 34} />
+        <span className={`min-w-0 flex-1 truncate ${bare ? "" : "text-[15px] transition group-hover:text-neutral-300"}`}>{placeholder ?? "Start a discussion..."}</span>
+        <span
+          aria-hidden
+          className={
+            bare
+              ? "shrink-0 text-neutral-600"
+              : "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-base leading-none text-neutral-500 transition group-hover:bg-[var(--f1-red)] group-hover:text-white"
+          }
+        >
           +
         </span>
       </button>

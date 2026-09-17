@@ -46,13 +46,22 @@ export default async function GroupsPage() {
     // wide monitor doesn't stretch three columns of feed/rail content arbitrarily wider than the
     // composition below (240/1fr/300, gap-6) is actually designed for.
     <div className="mx-auto max-w-[1320px] px-5 py-6 sm:px-8 lg:px-10">
-      {/* One line, not a stacked title + subtitle block - the masthead's job is to say where you
-          are and get out of the way of the actual workspace beneath it, the same restraint every
-          other F1 HUB page's own header already uses. Community count is real (groups.length,
-          the same array the rail itself renders), never a fabricated metric. */}
-      <div className="flex items-baseline gap-2.5">
+      {/* One compact line, not a stacked title + subtitle block - the masthead's job is to say
+          where you are and what this place is for, then get out of the way of the actual
+          workspace beneath it. Real count folded into the same tagline rather than sat beside it
+          as a separate metric - "7 communities" as bare metadata read as generic dashboard
+          chrome; said in a sentence, it's just a true fact about your own account. */}
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         <h1 className="text-2xl font-bold text-white">Communities</h1>
-        <span className="text-sm text-neutral-500">{groups.length > 0 ? `${groups.length} ${groups.length === 1 ? "community" : "communities"}` : "Find your people in F1"}</span>
+        <p className="text-sm text-neutral-500">
+          {groups.length > 0 ? (
+            <>
+              Race-weekend discussion and predictions across your {groups.length} {groups.length === 1 ? "community" : "communities"}.
+            </>
+          ) : (
+            "Your F1 conversation, predictions and race-weekend discussion."
+          )}
+        </p>
       </div>
 
       <div className="mt-5">

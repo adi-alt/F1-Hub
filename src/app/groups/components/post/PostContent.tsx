@@ -13,9 +13,9 @@ export function PostContent({ title, content }: { title: string | null; content:
   const shown = isLong && !expanded ? `${content.slice(0, TRUNCATE_AT).trimEnd()}…` : content;
 
   return (
-    <div className="mt-1">
-      {title && <p className="font-semibold text-white">{title}</p>}
-      <p className={`whitespace-pre-wrap text-sm text-neutral-300 ${title ? "mt-1" : ""}`}>{shown}</p>
+    <div className="mt-1.5">
+      {title && <p className="text-[15px] font-semibold text-white">{title}</p>}
+      <p className={`whitespace-pre-wrap text-[15px] leading-relaxed text-neutral-300 ${title ? "mt-1" : ""}`}>{shown}</p>
       {isLong && (
         <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-xs font-medium text-neutral-500 hover:text-white">
           {expanded ? "Show less" : "Show more"}

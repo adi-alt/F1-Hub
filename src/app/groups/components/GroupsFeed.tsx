@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { Tabs } from "@/components/ui/Tabs";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost, FeedType, GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
@@ -11,10 +12,14 @@ import { PostCard } from "./post/PostCard";
 import { PostCardSkeleton } from "./post/PostCardSkeleton";
 import { PostComposer } from "./PostComposer";
 
-const TABS: { value: FeedType; label: string }[] = [
-  { value: "following", label: "Following" },
-  { value: "forYou", label: "For You" },
-  { value: "latest", label: "Latest" },
+// The same segmented Tabs primitive Your F1's cockpit and the Apex Intelligence workspace already
+// use (src/components/ui/Tabs.tsx) - a real sliding-capsule pill group with full APG tab semantics,
+// not a hand-rolled row of underlined text buttons. Reusing it is the actual "use the existing F1
+// HUB tab language" fix, not a second, visually-unrelated tab control that merely looks similar.
+const TAB_ITEMS = [
+  { key: "following", label: "Following" },
+  { key: "forYou", label: "For You" },
+  { key: "latest", label: "Latest" },
 ];
 
 /**
@@ -179,12 +184,13 @@ export function GroupsFeed({
   }
 
   return (
-    <div className="space-y-3">
-      {/* Identity strip (community mode only) + composer + tabs (aggregate mode only), one shared
-          surface - PostComposer's own border/background is switched off (`bare`) so this shell is
-          the only outer surface any of them belong to. */}
-      <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-        {selectedCommunity && (
+    <div className="space-y-4">
+      {selectedCommunity ? (
+        // A community is selected: identity strip + composer are one small attached unit (posting
+        // into THIS community), the one case where merging them into a shared surface is actually
+        // right - they're the same action, not two different systems sharing a box out of
+        // convenience.
+        <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
           <div className="flex items-center gap-2 px-3.5 py-2.5">
             <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} size={22} />
             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{selectedCommunity.name}</p>
@@ -192,77 +198,80 @@ export function GroupsFeed({
               Open community →
             </Link>
           </div>
-        )}
-        <div className={selectedCommunity ? "border-t border-white/[0.06]" : ""}>
-          <PostComposer
-            key={communityId ?? "all"}
-            groups={groups}
-            onPosted={communityId ? refreshCommunity : refreshAggregate}
-            bare
-            fixedGroupId={communityId ?? undefined}
-            placeholder={selectedCommunity ? `Post to ${selectedCommunity.name}...` : undefined}
-          />
+          <div className="border-t border-white/[0.06]">
+            <PostComposer key={communityId ?? "all"} groups={groups} onPosted={refreshCommunity} bare fixedGroupId={communityId ?? undefined} placeholder={`Post to ${selectedCommunity.name}...`} />
+          </div>
         </div>
-        {!selectedCommunity && (
-          <div className="flex items-center gap-1 border-t border-white/[0.06] px-1">
-            {TABS.map((t) => (
-              <button
-                key={t.value}
-                onClick={() => switchTab(t.value)}
-                className={`relative px-3 py-2 text-xs font-semibold transition ${feedType === t.value ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
-              >
-                {t.label}
-                {feedType === t.value && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[var(--f1-red)]" />}
-              </button>
+      ) : (
+        // "All": the composer is the page's own strongest call to action, not a component sharing
+        // a box with feed controls underneath it - PostComposer's default (non-bare) surface is
+        // tuned for exactly this, its only real caller.
+        <PostComposer key="all" groups={groups} onPosted={refreshAggregate} />
+      )}
+
+      {!selectedCommunity && (
+        <div className="flex items-center justify-between gap-3">
+          <Tabs items={TAB_ITEMS} activeKey={feedType} onChange={(key) => switchTab(key as FeedType)} layoutId="groups-feed-tabs" panelId="groups-feed-panel" />
+          {/* Real, not decorative - "Following" is genuinely every community you've joined
+              aggregated together (see listFeedPosts), so this is what the request's own "All"
+              view asked to communicate. For You/Latest widen to public communities and personal
+              posts too, which this line would misdescribe, so it only shows for Following. */}
+          {feedType === "following" && groups.length > 0 && (
+            <p className="hidden shrink-0 text-[11px] text-neutral-600 sm:block">
+              Aggregating {groups.length} {groups.length === 1 ? "community" : "communities"}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* role="tabpanel" only applies to the aggregate mode - that's the only content the Tabs
+          strip above actually controls; a selected community's own stream isn't one of its tabs. */}
+      <div role={selectedCommunity ? undefined : "tabpanel"} id={selectedCommunity ? undefined : `groups-feed-panel-tab-${feedType}`}>
+        {selectedCommunity ? (
+          communityPosts === null ? (
+            communityInitialError ? (
+              <p className="py-6 text-center text-xs text-neutral-500">
+                Couldn&apos;t load this community&apos;s feed.{" "}
+                <button type="button" onClick={refreshCommunity} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                  Retry
+                </button>
+              </p>
+            ) : (
+              <div>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <PostCardSkeleton key={i} />
+                ))}
+              </div>
+            )
+          ) : communityPosts.length === 0 ? (
+            <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
+          ) : (
+            <div>
+              {communityPosts.map((post, i) => (
+                <PostCard key={post.id} post={post} index={i} showGroup={false} />
+              ))}
+            </div>
+          )
+        ) : loading ? (
+          <div>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <PostCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : posts.length === 0 ? (
+          <EmptyState
+            icon={EmptyIcons.post}
+            title="Nothing here yet."
+            description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
+          />
+        ) : (
+          <div>
+            {posts.map((post, i) => (
+              <PostCard key={post.id} post={post} index={i} showGroup />
             ))}
           </div>
         )}
       </div>
-
-      {selectedCommunity ? (
-        communityPosts === null ? (
-          communityInitialError ? (
-            <p className="py-6 text-center text-xs text-neutral-500">
-              Couldn&apos;t load this community&apos;s feed.{" "}
-              <button type="button" onClick={refreshCommunity} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                Retry
-              </button>
-            </p>
-          ) : (
-            <div>
-              {Array.from({ length: 3 }).map((_, i) => (
-                <PostCardSkeleton key={i} />
-              ))}
-            </div>
-          )
-        ) : communityPosts.length === 0 ? (
-          <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
-        ) : (
-          <div>
-            {communityPosts.map((post, i) => (
-              <PostCard key={post.id} post={post} index={i} showGroup={false} />
-            ))}
-          </div>
-        )
-      ) : loading ? (
-        <div>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <PostCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <EmptyState
-          icon={EmptyIcons.post}
-          title="Nothing here yet."
-          description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
-        />
-      ) : (
-        <div>
-          {posts.map((post, i) => (
-            <PostCard key={post.id} post={post} index={i} showGroup />
-          ))}
-        </div>
-      )}
 
       {selectedCommunity
         ? communityCursor && (

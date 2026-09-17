@@ -125,13 +125,14 @@ function NavRow({ label, active, onClick, icon }: { label: string; active: boole
   );
 }
 
+/** A real globe, not a 4-square grid glyph - "All" means every followed community's feed
+ * aggregated together, and a globe is the honest icon for "everything", the same way it reads on
+ * any real navigation system. */
 function AllIcon() {
   return (
     <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
-      <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M2 8h12M8 2c1.8 1.7 2.8 3.8 2.8 6S9.8 12.3 8 14c-1.8-1.7-2.8-3.8-2.8-6S6.2 3.7 8 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   );
 }

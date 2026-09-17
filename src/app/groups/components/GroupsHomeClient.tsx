@@ -64,19 +64,24 @@ export function GroupsHomeClient({
   });
 
   return (
-    // 240 / 1fr / 300 at a 1320px container (page.tsx) - the center column is the ~700-780px
-    // remainder, clearly the dominant surface, not a third rail of equal visual weight.
-    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_300px] lg:gap-6 lg:items-start">
-      <aside className="order-2 lg:order-1 lg:sticky lg:top-4">
+    // The structural change this pass makes: neither rail is a boxed panel anymore (see
+    // GroupsLeftSidebar/GroupsRightSidebar - both are now plain content, no outer card). The ONLY
+    // surface line on this page is a pair of thin vertical rules bracketing the center column
+    // (below), the same way an editorial layout uses a rule to separate a margin note from the
+    // column it annotates - not three same-weight boxes sitting side by side. That's what actually
+    // stops this from reading as "left card + center card + right card": there are no side cards
+    // left to read as one.
+    <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_280px] lg:gap-0 lg:items-start">
+      <aside className="order-2 lg:order-1 lg:sticky lg:top-4 lg:pr-6">
         <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
       </aside>
 
-      <main className="order-1 min-w-0 space-y-3 lg:order-2">
+      <main className="order-1 min-w-0 space-y-4 lg:order-2 lg:border-l lg:border-r lg:border-[var(--f1-line)] lg:px-8">
         <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
         <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} />
       </main>
 
-      <aside className="order-3 lg:sticky lg:top-4">
+      <aside className="order-3 lg:sticky lg:top-4 lg:pl-6">
         <GroupsRightSidebar predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
       </aside>
 

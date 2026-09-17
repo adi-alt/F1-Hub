@@ -19,7 +19,7 @@ type NextRace = { year: number; round: number; name: string; raceDate: string | 
  * doesn't fetch), just the actual date. */
 function NextRaceWidget({ race }: { race: NextRace }) {
   return (
-    <div className="px-3.5 pb-3.5 pt-1">
+    <div className="px-1 pb-4 pt-2">
       {!race ? (
         <p className="text-xs leading-relaxed text-neutral-600">No upcoming race is scheduled yet.</p>
       ) : (
@@ -46,12 +46,12 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
 
   return (
-    <div className="px-3.5 py-3">
+    <div className="border-t border-white/[0.06] px-1 pt-3">
       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Active predictions</p>
       {predictions.length === 0 ? (
         <p className="mt-1.5 text-xs leading-relaxed text-neutral-600">No active predictions. New markets appear as race weekend approaches.</p>
       ) : (
-        <div className="-mx-3.5 mt-1">
+        <div className="-mx-1 mt-1">
           {predictions.map((p) => {
             const raceAt = p.raceDate ? parseUtcDateTime(p.raceDate).getTime() : null;
             const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
@@ -59,7 +59,7 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
               // Deep-links straight to the Predictions tab. This used to be a plain groupHref with
               // a note explaining that tab state wasn't URL-backed so there was nothing to link to
               // - CommunityTabs puts the active tab in ?tab= now, so there is.
-              <Link key={p.id} href={`${groupHref(p.groupId)}?tab=predictions`} className="block px-3.5 py-1.5 transition hover:bg-white/[0.04]">
+              <Link key={p.id} href={`${groupHref(p.groupId)}?tab=predictions`} className="block rounded-md px-1 py-1.5 transition hover:bg-white/[0.04]">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="min-w-0 truncate text-xs font-semibold text-white">{p.raceName}</p>
                   {p.hasEntered ? (
@@ -81,41 +81,37 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   );
 }
 
-/** F1-specific context, not more group metadata - real active predictions across joined groups,
- * the real next race, an explore module, nothing fabricated.
+/** F1-specific context, not more group metadata, and not a second content column - real active
+ * predictions across joined groups, the real next race, an explore module, nothing fabricated.
  *
- * One quieter shell, not a stack of separately-bordered cards each at the same visual weight as
- * the center feed's own content - a single lighter-weight surface (bg-carbon/40, vs. the feed's own
- * bg-carbon/60) with `divide-y` sections and a "Race weekend" eyebrow grouping the two F1-specific
- * modules together, so the rail reads as one coherent piece of context rather than three unrelated
- * widgets that happen to be stacked. */
+ * No outer card at all. This used to be a bordered box (before that, two separate bordered boxes) -
+ * still its own visually-competing rectangle next to the feed either way. This rail now has no
+ * surface of its own: it's plain content sitting in the page's own background, exactly like the
+ * left rail beside it, with the thin vertical rule GroupsHomeClient draws around the center column
+ * doing the one job of separating "context" from "the actual product" - not a boxed panel trying
+ * to look like a smaller feed. "Race weekend" groups the two F1-specific modules under one eyebrow;
+ * a horizontal rule (not a card boundary) separates that group from Explore below it. */
 export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { predictions: FeedPrediction[]; nextRace: NextRace; onDiscover: () => void }) {
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40">
-        <p className="px-3.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Race weekend</p>
-        <NextRaceWidget race={nextRace} />
-        <div className="border-t border-white/[0.06]">
-          <ActivePredictions predictions={predictions} />
-        </div>
-      </div>
+    <div>
+      <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Race weekend</p>
+      <NextRaceWidget race={nextRace} />
+      <ActivePredictions predictions={predictions} />
 
-      <button
-        type="button"
-        onClick={onDiscover}
-        className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-[var(--f1-line)] px-3.5 py-3 text-left transition hover:border-white/25 hover:bg-white/[0.03]"
-      >
-        <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-neutral-400">
-          <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
-            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
-            <path d="m11.8 7.2-1.5 3.8a1 1 0 0 1-.5.5l-3.8 1.5 1.5-3.8a1 1 0 0 1 .5-.5l3.8-1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Explore</span>
-          <span className="block text-xs font-medium text-neutral-300">Discover communities →</span>
-        </span>
-      </button>
+      <div className="mt-4 border-t border-[var(--f1-line)] pt-4">
+        <button type="button" onClick={onDiscover} className="group flex w-full items-center gap-2.5 px-1 text-left">
+          <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-neutral-500 transition group-hover:text-neutral-300">
+            <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
+              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
+              <path d="m11.8 7.2-1.5 3.8a1 1 0 0 1-.5.5l-3.8 1.5 1.5-3.8a1 1 0 0 1 .5-.5l3.8-1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Explore</span>
+            <span className="block text-xs font-medium text-neutral-300 transition group-hover:text-white">Discover communities →</span>
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
