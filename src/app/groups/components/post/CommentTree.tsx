@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { EntityAvatar } from "@/components/EntityAvatar";
+import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { CommentComposer } from "./CommentComposer";
 import { useOptimisticVote } from "./useOptimisticVote";
@@ -65,8 +67,14 @@ function CommentNode({
   onOpenConversation?: (commentId: string) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${postId}/comments/${comment.id}/vote`, comment.score, comment.myVote);
+  const { user } = useAuth();
   const [replying, setReplying] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  // Same rule as a post's own author avatar: session.photoURL is the only real per-user photo this
+  // app has, and it's only knowable for the viewer themselves. Everyone else gets EntityAvatar's
+  // deterministic initials, because no photo for them exists anywhere to show.
+  const isMe = !!user && !!comment.userId && user.uid === comment.userId;
+  const avatarUrl = isMe ? (user.photoURL ?? null) : null;
 
   const children = childrenOf.get(comment.id) ?? [];
   const atDepthLimit = depth >= MAX_VISIBLE_DEPTH;
@@ -93,30 +101,41 @@ function CommentNode({
 
   return (
     <div className={indent(depth)}>
-      <div className={comment.pending ? "opacity-60" : ""}>
-        <p className="text-xs">
-          <span className="font-semibold text-neutral-300">{comment.authorName}</span>{" "}
-          <span className="text-neutral-600">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
-        </p>
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-neutral-300">{comment.content}</p>
+      <div className={`flex gap-2.5 ${comment.pending ? "opacity-60" : ""}`}>
+        <EntityAvatar imageUrl={avatarUrl} name={comment.authorName} seed={comment.userId || comment.authorName} size={28} />
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-x-1.5 text-xs">
+            <span className="font-semibold text-neutral-200">
+              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-neutral-600">
+                U/
+              </span>
+              {comment.authorName}
+            </span>
+            <span className="text-neutral-600">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
+          </p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-neutral-300">{comment.content}</p>
 
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <VoteControl score={score} myVote={myVote} onVote={vote} compact />
-          {!comment.pending && (
-            <button type="button" onClick={() => setReplying((v) => !v)} className="text-xs text-neutral-500 transition hover:text-white">
-              Reply
-            </button>
-          )}
-          {!atDepthLimit && children.length > 0 && (
-            <button type="button" onClick={() => setCollapsed((v) => !v)} className="text-xs text-neutral-500 transition hover:text-white">
-              {collapsed ? `Show ${children.length} repl${children.length === 1 ? "y" : "ies"}` : "Collapse"}
-            </button>
-          )}
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <VoteControl score={score} myVote={myVote} onVote={vote} compact />
+            {!comment.pending && (
+              <button type="button" onClick={() => setReplying((v) => !v)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-neutral-500 transition hover:bg-white/[0.05] hover:text-white">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
+                  <path d="M2.5 4h11a.8.8 0 0 1 .8.8v6a.8.8 0 0 1-.8.8H6.2L3.5 14v-2.4H2.5a.8.8 0 0 1-.8-.8v-6A.8.8 0 0 1 2.5 4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                </svg>
+                Reply
+              </button>
+            )}
+            {!atDepthLimit && children.length > 0 && (
+              <button type="button" onClick={() => setCollapsed((v) => !v)} className="rounded-lg px-2 py-1 text-xs text-neutral-500 transition hover:bg-white/[0.05] hover:text-white">
+                {collapsed ? `Show ${children.length} repl${children.length === 1 ? "y" : "ies"}` : "Collapse"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {replying && (
-        <div className="mt-2">
+        <div className="ml-[38px] mt-2">
           <CommentComposer
             autoFocus
             onCancel={() => setReplying(false)}
@@ -137,14 +156,14 @@ function CommentNode({
         <button
           type="button"
           onClick={() => onOpenConversation(comment.id)}
-          className="mt-1.5 text-xs font-medium text-neutral-400 underline-offset-2 transition hover:text-white hover:underline"
+          className="ml-[38px] mt-1.5 text-xs font-medium text-neutral-400 underline-offset-2 transition hover:text-white hover:underline"
         >
           View conversation ({hiddenCount} more)
         </button>
       )}
 
       {!collapsed && children.length > 0 && (!atDepthLimit || !onOpenConversation) && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-3">
           {children.map((child) => (
             <CommentNode
               key={child.id}
@@ -165,8 +184,10 @@ function CommentNode({
   );
 }
 
+/** Replies sit under their parent's avatar column, with a hairline rule marking the thread - enough
+ * to read as nested without marching right until the text is one word wide. */
 function indent(depth: number): string {
-  return depth > 0 ? "ml-3 border-l border-[var(--f1-line)] pl-3" : "";
+  return depth > 0 ? "ml-[38px] border-l border-white/[0.07] pl-3" : "";
 }
 
 export function CommentSortControl({ value, onChange }: { value: "top" | "newest"; onChange: (sort: "top" | "newest") => void }) {

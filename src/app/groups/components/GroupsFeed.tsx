@@ -185,42 +185,41 @@ export function GroupsFeed({
 
   return (
     <div className="space-y-4">
-      {selectedCommunity ? (
-        // A community is selected: identity strip + composer are one small attached unit (posting
-        // into THIS community), the one case where merging them into a shared surface is actually
-        // right - they're the same action, not two different systems sharing a box out of
-        // convenience.
-        <div className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-          <div className="flex items-center gap-2 px-3.5 py-2.5">
-            <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={22} />
-            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{selectedCommunity.name}</p>
-            <Link href={groupHref(selectedCommunity.id)} className="flex shrink-0 items-center gap-1 text-xs font-medium text-neutral-500 transition hover:text-white">
-              Open community
-              <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
-                <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
-          </div>
-          <div className="border-t border-white/[0.06]">
-            <PostComposer key={communityId ?? "all"} groups={groups} onPosted={refreshCommunity} bare fixedGroupId={communityId ?? undefined} placeholder={`Post to ${selectedCommunity.name}...`} />
-          </div>
+      {selectedCommunity && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 backdrop-blur-sm">
+          <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={28} />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
+              C/
+            </span>
+            {selectedCommunity.name}
+          </p>
+          <Link href={groupHref(selectedCommunity.id)} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-neutral-400 transition hover:text-white">
+            Open community
+            <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
+              <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
         </div>
-      ) : (
-        // "All": the composer is the page's own strongest call to action, not a component sharing
-        // a box with feed controls underneath it - PostComposer's default (non-bare) surface is
-        // tuned for exactly this, its only real caller.
-        <PostComposer key="all" groups={groups} onPosted={refreshAggregate} />
       )}
+
+      <PostComposer
+        key={communityId ?? "all"}
+        groups={groups}
+        onPosted={communityId ? refreshCommunity : refreshAggregate}
+        fixedGroupId={communityId ?? undefined}
+        placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : undefined}
+      />
 
       {!selectedCommunity && (
         <div className="flex items-center justify-between gap-3">
           <Tabs items={TAB_ITEMS} activeKey={feedType} onChange={(key) => switchTab(key as FeedType)} layoutId="groups-feed-tabs" panelId="groups-feed-panel" />
           {/* Real, not decorative - "Following" is genuinely every community you've joined
-              aggregated together (see listFeedPosts), so this is what the request's own "All"
-              view asked to communicate. For You/Latest widen to public communities and personal
-              posts too, which this line would misdescribe, so it only shows for Following. */}
+              aggregated together (see listFeedPosts), so this is what the "All" view actually
+              means. For You/Latest widen to public communities and personal posts too, which this
+              line would misdescribe, so it only shows for Following. */}
           {feedType === "following" && groups.length > 0 && (
-            <p className="hidden shrink-0 text-[11px] text-neutral-600 sm:block">
+            <p className="hidden shrink-0 text-[11px] text-neutral-500 sm:block">
               Aggregating {groups.length} {groups.length === 1 ? "community" : "communities"}
             </p>
           )}
@@ -240,7 +239,7 @@ export function GroupsFeed({
                 </button>
               </p>
             ) : (
-              <div>
+              <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <PostCardSkeleton key={i} />
                 ))}
@@ -249,14 +248,14 @@ export function GroupsFeed({
           ) : communityPosts.length === 0 ? (
             <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
           ) : (
-            <div>
+            <div className="space-y-3">
               {communityPosts.map((post, i) => (
                 <PostCard key={post.id} post={post} index={i} showGroup={false} />
               ))}
             </div>
           )
         ) : loading ? (
-          <div>
+          <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <PostCardSkeleton key={i} />
             ))}
@@ -268,7 +267,7 @@ export function GroupsFeed({
             description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
           />
         ) : (
-          <div>
+          <div className="space-y-3">
             {posts.map((post, i) => (
               <PostCard key={post.id} post={post} index={i} showGroup />
             ))}

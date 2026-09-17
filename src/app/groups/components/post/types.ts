@@ -1,3 +1,4 @@
+import type { PostKind } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
 
@@ -7,6 +8,10 @@ import type { PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
  * optional, groupName/groupAvatarUrl carried explicitly, no authorRole) satisfy this structurally
  * without either one needing to change shape or the caller needing to remap fields. */
 export type PostCardData = {
+  /** Both GroupPost and FeedPost already carry this - surfaced on the card as a small chip for the
+   * kinds that actually say something (Question / Race Discussion / Prediction); a plain
+   * "discussion" post shows none, since labelling the default adds noise, not information. */
+  kind?: PostKind;
   id: string;
   groupId: string | null;
   groupName?: string | null;

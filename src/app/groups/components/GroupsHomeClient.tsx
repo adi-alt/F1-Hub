@@ -10,9 +10,7 @@ import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
-import { GroupsRightSidebar } from "./GroupsRightSidebar";
-
-type NextRace = { year: number; round: number; name: string; raceDate: string | null } | null;
+import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
 
 /** Groups is now feed-first: the center column (real posts across every group you've joined) is
  * the actual content, the left sidebar is navigation (your groups + create/discover), the right
@@ -105,24 +103,23 @@ export function GroupsHomeClient({
   );
 
   return (
-    // The structural change from the previous pass: neither rail is a boxed panel anymore (see
-    // GroupsLeftSidebar/GroupsRightSidebar - both are now plain content, no outer card). The ONLY
-    // surface line on this page is a pair of thin vertical rules bracketing the center column
-    // (below), the same way an editorial layout uses a rule to separate a margin note from the
-    // column it annotates - not three same-weight boxes sitting side by side.
+    // Three columns, each its own frosted surface starting at the same top baseline - navigation,
+    // the conversation, race context - sized so the centre is unmistakably the widest and the
+    // rails read as supporting it.
     //
-    // lg:h-full here (this component fills the fixed-height workspace page.tsx builds) and
-    // lg:items-stretch (was lg:items-start) so all three grid tracks are the SAME full height,
-    // which is what lets each one scroll independently within it - items-start would size every
-    // column to its own content height instead, leaving nothing for "the rest" to scroll inside.
-    <div className="flex flex-col gap-5 lg:grid lg:h-full lg:grid-cols-[220px_minmax(0,1fr)_280px] lg:items-stretch lg:gap-0">
-      <aside className="order-2 min-h-0 lg:order-1 lg:h-full lg:pr-6">
-        <div ref={leftScrollRef} className="lg:h-full lg:overflow-y-auto lg:scrollbar-hide">
+    // lg:h-full (this fills the fixed-height workspace page.tsx builds) + lg:items-stretch so all
+    // three tracks are the SAME full height, which is what lets each scroll independently inside
+    // it - items-start would size each column to its own content instead, leaving nothing for the
+    // rest to scroll within. Both rails are full-height cards that handle their own internal
+    // scrolling, so only the centre column needs a scroll wrapper out here.
+    <div className="flex flex-col gap-4 lg:grid lg:h-full lg:grid-cols-[286px_minmax(0,1fr)_306px] lg:items-stretch lg:gap-4">
+      <aside className="order-2 min-h-0 lg:order-1 lg:h-full">
+        <div ref={leftScrollRef} className="lg:h-full">
           <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>
 
-      <main className="order-1 min-h-0 min-w-0 lg:order-2 lg:h-full lg:border-l lg:border-r lg:border-[var(--f1-line)] lg:px-8">
+      <main className="order-1 min-h-0 min-w-0 lg:order-2 lg:h-full">
         <div
           ref={(el) => {
             centerContainerRef.current = el;
@@ -135,8 +132,8 @@ export function GroupsHomeClient({
         </div>
       </main>
 
-      <aside className="order-3 min-h-0 lg:h-full lg:pl-6">
-        <div ref={rightScrollRef} className="lg:h-full lg:overflow-y-auto lg:scrollbar-hide">
+      <aside className="order-3 min-h-0 lg:h-full">
+        <div ref={rightScrollRef} className="lg:h-full">
           <GroupsRightSidebar predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>

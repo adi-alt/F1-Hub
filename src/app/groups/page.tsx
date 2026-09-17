@@ -7,10 +7,23 @@ import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
 
+/** The next race on the real calendar, plus the two extra real fields the context rail renders:
+ * its own country (for the flag) and the first of the pipeline's real race photos (for the rail's
+ * header image). Both are optional on RaceDoc and stay null when the pipeline hasn't written them
+ * - the rail degrades to a plain header rather than a broken image or a wrong flag. */
 async function getNextRace() {
   const races = await getRacesByYear(new Date().getFullYear());
   const upcoming = races.filter((r) => r.status !== "completed").sort((a, b) => a.round - b.round)[0];
-  return upcoming ? { year: upcoming.year, round: upcoming.round, name: upcoming.name, raceDate: upcoming.raceDate ?? null } : null;
+  return upcoming
+    ? {
+        year: upcoming.year,
+        round: upcoming.round,
+        name: upcoming.name,
+        raceDate: upcoming.raceDate ?? null,
+        country: upcoming.country ?? null,
+        photoUrl: upcoming.photoUrls?.[0] ?? upcoming.photoUrl ?? null,
+      }
+    : null;
 }
 
 /** Groups home - feed-first (see GroupsHomeClient's own comment for the full reasoning). Every
@@ -52,23 +65,12 @@ export default async function GroupsPage() {
     // half-finished responsive pass: three columns each scrolling on their own is a real desktop
     // workspace idiom, and a genuinely bad one on a phone, where it fights the one scroll gesture a
     // touch screen actually has.
-    <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden lg:px-16 lg:py-8">
-      <div className="lg:shrink-0">
-        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-          <h1 className="text-2xl font-bold text-white">Communities</h1>
-          <p className="text-sm text-neutral-500">
-            {groups.length > 0 ? (
-              <>
-                Race-weekend discussion and predictions across your {groups.length} {groups.length === 1 ? "community" : "communities"}.
-              </>
-            ) : (
-              "Your F1 conversation, predictions and race-weekend discussion."
-            )}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 lg:mt-6 lg:min-h-0 lg:flex-1">
+    <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden lg:px-10 lg:py-6">
+      {/* No separate page header above the workspace anymore - the page title and its one-line
+          description live at the top of the navigation rail itself (GroupsLeftSidebar), so the
+          three columns start at the same baseline and the feed is the first thing at eye level
+          rather than sitting a header's height below it. */}
+      <div className="lg:min-h-0 lg:flex-1">
         <GroupsHomeClient groups={groups} initialPosts={feed.posts} initialCursor={feed.nextCursor} predictions={predictions} nextRace={nextRace} />
       </div>
     </div>

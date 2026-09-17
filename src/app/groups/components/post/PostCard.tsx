@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Popover } from "@/components/ui/Popover";
+import { POST_KIND_LABELS } from "@/lib/communities";
 import { PostActionBar } from "./PostActionBar";
 import { PostContent } from "./PostContent";
 import { PostDetailWindow } from "./PostDetailWindow";
@@ -12,17 +14,18 @@ import { useOptimisticVote } from "./useOptimisticVote";
 
 const ROLE_LABEL: Record<string, string> = { admin: "ADMIN", moderator: "MODERATOR" };
 
-/** The one post card every surface in Groups renders - the home feed, a group's own Feed tab, and
- * (later, if a permalink page gets built) a post's own page all use this exact component, not
- * three parallel implementations of the same row. `showGroup` is the only real behavioral
- * difference: the home feed needs the group identity in the header, a group's own feed doesn't
- * (you're already looking at that group's page).
+/**
+ * The one post card every surface in Groups renders - the home feed, a community's own Feed tab,
+ * and the discussion window's own header all build from these same pieces rather than three
+ * parallel implementations. `showGroup` is the only real behavioural difference: the cross-
+ * community home feed leads with the community, a community's own feed leads with the author (see
+ * PostHeader).
  *
- * The default container is a borderless row with a bottom divider, not a bordered box - a stream of
- * boxed cards is exactly the "card soup" a discussion feed shouldn't be; a divider is enough
- * separation once the post's own content (title/body) already carries the real visual weight.
- * `"compact"` (only `CommunitySection.tsx`, the homepage's activity feed) is unchanged - tighter
- * padding, same divider idea, it was already right about this. */
+ * `variant`: the default is a real frosted card - a post is a discrete thing worth anchoring, and
+ * a stream of them needs to read as distinct items, not one undifferentiated column of text.
+ * `"compact"` (only `CommunitySection.tsx`, the homepage's activity strip) stays a divider-
+ * separated row, which is right for a small preview list.
+ */
 export function PostCard({
   post,
   index = 0,
@@ -43,6 +46,9 @@ export function PostCard({
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const status = post.status ?? "published";
   const roleLabel = post.authorRole && post.authorRole !== "member" ? ROLE_LABEL[post.authorRole] : undefined;
+  // "discussion" is the default every post gets when nothing more specific was chosen - chipping
+  // it would label every single post with the word "Discussion" for no information gained.
+  const kindChip = post.kind && post.kind !== "discussion" ? POST_KIND_LABELS[post.kind] : null;
 
   async function moderate(action: "approve" | "reject") {
     if (!post.groupId) return;
@@ -55,37 +61,91 @@ export function PostCard({
   }
 
   return (
-    <motion.div
+    <motion.article
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className={variant === "compact" ? "border-b border-white/[0.06] py-3 last:border-b-0" : "border-b border-white/[0.06] py-4 first:pt-0 last:border-b-0"}
+      className={
+        variant === "compact"
+          ? "border-b border-white/[0.06] py-3 last:border-b-0"
+          : "rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm transition hover:border-white/[0.12]"
+      }
     >
-      <PostHeader post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
+      <div className="flex items-start gap-2">
+        <PostHeader post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
+        {/* The overflow menu only exists where it has something real to hold - moderation actions
+            for someone who can actually moderate. For everyone else there is no menu at all rather
+            than a "..." that opens an empty panel. */}
+        {canModerate && post.groupId && (
+          <Popover
+            align="end"
+            ariaLabel="Post actions"
+            panelClassName="w-44"
+            trigger={({ open, toggle, ref }) => (
+              <button
+                ref={ref}
+                type="button"
+                onClick={toggle}
+                aria-expanded={open}
+                aria-label="Post actions"
+                className={`-mr-1 -mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition ${open ? "bg-white/[0.08] text-white" : "text-neutral-500 hover:bg-white/[0.06] hover:text-white"}`}
+              >
+                <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden>
+                  <circle cx="4" cy="10" r="1.5" />
+                  <circle cx="10" cy="10" r="1.5" />
+                  <circle cx="16" cy="10" r="1.5" />
+                </svg>
+              </button>
+            )}
+          >
+            {({ close }) => (
+              <div className="p-1">
+                {status === "pending" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      void moderate("approve");
+                    }}
+                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-emerald-400 transition hover:bg-emerald-400/10"
+                  >
+                    Approve post
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    void moderate("reject");
+                  }}
+                  className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-[var(--f1-red)] transition hover:bg-[var(--f1-red)]/10"
+                >
+                  Remove post
+                </button>
+              </div>
+            )}
+          </Popover>
+        )}
+      </div>
 
-      <PostContent title={post.title} content={post.content} />
-      {post.mediaUrl && <PostMedia url={post.mediaUrl} />}
+      <div className={variant === "compact" ? "" : "mt-2.5"}>
+        <PostContent title={post.title} content={post.content} />
+        {post.mediaUrl && <PostMedia url={post.mediaUrl} />}
+      </div>
 
-      <PostActionBar score={score} myVote={myVote} onVote={vote} commentCount={commentCount} onOpenComments={() => setDetailOpen(true)} />
-
-      {canModerate && status === "pending" && (
-        <div className="mt-2 flex gap-3 border-t border-[var(--f1-line)] pt-2">
-          <button type="button" onClick={() => void moderate("approve")} className="text-xs font-medium text-emerald-400 hover:text-emerald-300">
-            Approve
-          </button>
-          <button type="button" onClick={() => void moderate("reject")} className="text-xs font-medium text-[var(--f1-red)] hover:brightness-125">
-            Remove
-          </button>
-        </div>
-      )}
-      {canModerate && status === "published" && (
-        <div className="mt-2 border-t border-[var(--f1-line)] pt-2 text-right">
-          <button type="button" onClick={() => void moderate("reject")} className="text-xs text-neutral-600 hover:text-[var(--f1-red)]">
-            Remove
-          </button>
-        </div>
-      )}
+      <PostActionBar
+        score={score}
+        myVote={myVote}
+        onVote={vote}
+        commentCount={commentCount}
+        onOpenComments={() => setDetailOpen(true)}
+        trailing={
+          kindChip ? (
+            <span className="block truncate rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-neutral-400">{kindChip}</span>
+          ) : undefined
+        }
+      />
 
       {detailOpen && (
         <PostDetailWindow
@@ -100,6 +160,6 @@ export function PostCard({
           onCountChange={setCommentCount}
         />
       )}
-    </motion.div>
+    </motion.article>
   );
 }

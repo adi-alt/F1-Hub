@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
@@ -7,72 +8,154 @@ import Link from "next/link";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { groupHref, raceHref } from "@/lib/routes";
+import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 
-type NextRace = { year: number; round: number; name: string; raceDate: string | null } | null;
+export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; photoUrl: string | null } | null;
 
-/** The rail's own top module - the real next race on the calendar, styled like the rest of this
- * app's race surfaces (RaceQuickView's own "Round N" eyebrow over the race name) rather than a
- * generic "card with a title" - this is what makes the rail read as F1 HUB context, not a second
- * feed. Real data only: no live countdown clock here (that needs session-level timing this widget
- * doesn't fetch), just the actual date. */
-function NextRaceWidget({ race }: { race: NextRace }) {
+/**
+ * Race-weekend context, as ONE frosted widget with internal sections - not three cards stacked
+ * next to the feed, and not three pieces of bare content either.
+ *
+ * Every value here is real: the round/name/date/country/photo are the pipeline's own race row, the
+ * countdown is that row's real `race_date` run through the same formatCountdown/useMinuteClock pair
+ * PredictionCard already uses, and the predictions are listMyOpenPredictions' real open rounds.
+ * Nothing is a placeholder. Where a field is genuinely absent (a calendar round the pipeline hasn't
+ * dated yet, a race with no photo) that piece simply doesn't render.
+ */
+export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { predictions: FeedPrediction[]; nextRace: NextRace; onDiscover: () => void }) {
   return (
-    <div className="px-1 pb-4 pt-2">
-      {!race ? (
-        <p className="text-xs leading-relaxed text-neutral-600">No upcoming race is scheduled yet.</p>
-      ) : (
-        <Link href={raceHref(race.year, race.round, race.name)} className="group block">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Round {race.round}</p>
-          <p className="mt-1 truncate text-base font-semibold tracking-[-0.01em] text-white transition group-hover:text-neutral-200">{race.name}</p>
-          {race.raceDate && (
-            <p className="mt-0.5 text-xs text-neutral-500">{new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</p>
-          )}
-          <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-neutral-400 transition group-hover:text-white">
-            View race
-            <ChevronIcon />
-          </span>
-        </Link>
-      )}
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+        <RaceWeekend race={nextRace} />
+
+        <div className="border-t border-white/[0.06] px-4 py-4">
+          <ActivePredictions predictions={predictions} />
+        </div>
+
+        <div className="border-t border-white/[0.06] p-4">
+          <button
+            type="button"
+            onClick={onDiscover}
+            className="group flex w-full items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+          >
+            <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--f1-red)]/15 text-[var(--f1-red)]">
+              <CompassIcon />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Explore communities</span>
+              <span className="mt-0.5 block truncate text-[11px] text-neutral-500">Find new communities to join</span>
+            </span>
+            <span className="shrink-0 text-neutral-600 transition group-hover:text-white">
+              <ChevronIcon />
+            </span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-/** Real closing signal, not a fabricated "closing soon" badge - the same raceDate this row already
- * carries, run through the exact countdown utility PredictionCard itself uses, ticked off the same
- * shared per-minute clock rather than a second interval. Null when there's no date yet, which
- * `listMyOpenPredictions` already returns honestly for a round the pipeline hasn't dated. */
+/** The header module: the real next race, over its own real photo where the pipeline has one. The
+ * countdown counts to the race itself, which is the one session time this row actually carries -
+ * there is no per-session (qualifying/sprint) start time on a race row to count to, so none is
+ * claimed. */
+function RaceWeekend({ race }: { race: NextRace }) {
+  const now = useMinuteClock();
+  const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
+  const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
+  const flag = countryFlag(race?.country);
+
+  return (
+    <div className="relative">
+      {race?.photoUrl && (
+        <div aria-hidden className="absolute inset-0 overflow-hidden">
+          <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover opacity-45" />
+          {/* Scrim, so the type on top keeps real contrast against whatever the photo happens to
+              be - not a decorative gradient for its own sake. */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/75 to-[var(--f1-carbon)]" />
+        </div>
+      )}
+
+      <div className="relative px-4 pb-4 pt-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">Race weekend</p>
+
+        {!race ? (
+          <p className="mt-2 text-xs leading-relaxed text-neutral-500">No upcoming race is scheduled yet.</p>
+        ) : (
+          <>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">Round {race.round}</p>
+            <h2 className="mt-1 flex items-start gap-2 text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">
+              {flag && (
+                <span aria-hidden className="shrink-0 text-base leading-tight">
+                  {flag}
+                </span>
+              )}
+              <span className="min-w-0">{race.name}</span>
+            </h2>
+            {race.raceDate && (
+              <p className="mt-1 text-xs text-neutral-400">
+                {new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+              </p>
+            )}
+
+            {countdown && (
+              <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-1 text-[11px] font-semibold text-[var(--f1-red)]">
+                <ClockIcon />
+                Lights out in {countdown}
+              </p>
+            )}
+
+            <Link
+              href={raceHref(race.year, race.round, race.name)}
+              className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2.5 text-[13px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+            >
+              <CalendarIcon />
+              View race
+            </Link>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Real closing signal, not a fabricated "closing soon" badge - the same raceDate each row already
+ * carries, through the exact countdown utility PredictionCard itself uses, ticked off the shared
+ * per-minute clock rather than a second interval. */
 function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
 
   return (
-    <div className="border-t border-white/[0.06] px-1 pt-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Active predictions</p>
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Active predictions</p>
       {predictions.length === 0 ? (
-        <p className="mt-1.5 text-xs leading-relaxed text-neutral-600">No active predictions. New markets appear as race weekend approaches.</p>
+        <p className="mt-2 text-xs leading-relaxed text-neutral-600">No active predictions. New rounds open as a race weekend approaches.</p>
       ) : (
-        <div className="-mx-1 mt-1">
+        <div className="-mx-2 mt-1.5">
           {predictions.map((p) => {
             const raceAt = p.raceDate ? parseUtcDateTime(p.raceDate).getTime() : null;
             const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
             return (
-              // Deep-links straight to the Predictions tab. This used to be a plain groupHref with
-              // a note explaining that tab state wasn't URL-backed so there was nothing to link to
-              // - CommunityTabs puts the active tab in ?tab= now, so there is.
-              <Link key={p.id} href={`${groupHref(p.groupId)}?tab=predictions`} className="block rounded-md px-1 py-1.5 transition hover:bg-white/[0.04]">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="min-w-0 truncate text-xs font-semibold text-white">{p.raceName}</p>
-                  {p.hasEntered ? (
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-400/80">Entered</span>
-                  ) : (
-                    <span className="shrink-0 text-[11px] font-medium text-neutral-400">{p.entryPoints} pts</span>
-                  )}
-                </div>
-                <p className="mt-0.5 truncate text-[11px] text-neutral-500">
-                  {predictionTypeLabels[p.type]} · {p.groupName}
-                  {countdown && <span className="text-neutral-600"> · Closes in {countdown}</span>}
-                </p>
+              // Deep-links straight to that community's Predictions tab - CommunityTabs puts the
+              // active tab in ?tab=, so there is a real target to link to.
+              <Link key={p.id} href={`${groupHref(p.groupId)}?tab=predictions`} className="group flex items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-white/[0.04]">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold text-white">{p.raceName}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-neutral-500">
+                    {predictionTypeLabels[p.type]} · {p.groupName}
+                    {countdown && <span className="text-neutral-600"> · closes in {countdown}</span>}
+                  </span>
+                </span>
+                {p.hasEntered ? (
+                  <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-400/80">Entered</span>
+                ) : (
+                  <span className="shrink-0 whitespace-nowrap text-[12px] font-semibold text-neutral-300">{p.entryPoints} pts</span>
+                )}
+                <span className="shrink-0 text-neutral-700 transition group-hover:text-neutral-300">
+                  <ChevronIcon />
+                </span>
               </Link>
             );
           })}
@@ -82,49 +165,37 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   );
 }
 
-/** A plain chevron, not "->" - every directional affordance in this rail uses this instead of an
- * ASCII arrow. */
 function ChevronIcon() {
   return (
-    <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
+    <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden>
       <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-/** F1-specific context, not more group metadata, and not a second content column - real active
- * predictions across joined groups, the real next race, an explore module, nothing fabricated.
- *
- * ONE frosted surface for the whole rail - the same static-surface treatment (rounded-xl border
- * bg-carbon/60) every other real content surface in this app already uses, not three separate
- * boxes and not zero surface at all (both tried in earlier passes - the first read as "another
- * card column", the second read as it belonged to no surface at all). "Race weekend" groups the
- * two F1-specific modules under one eyebrow; a horizontal rule (not a second card boundary)
- * separates that group from Explore below it - one widget with internal structure, not three. */
-export function GroupsRightSidebar({ predictions, nextRace, onDiscover }: { predictions: FeedPrediction[]; nextRace: NextRace; onDiscover: () => void }) {
+function ClockIcon() {
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 py-3">
-      <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600">Race weekend</p>
-      <div className="px-3">
-        <NextRaceWidget race={nextRace} />
-        <ActivePredictions predictions={predictions} />
-      </div>
+    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" aria-hidden>
+      <circle cx="7" cy="7" r="5.2" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M7 4.2V7l1.9 1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
-      <div className="mt-1 border-t border-[var(--f1-line)] px-3 pt-4">
-        <button type="button" onClick={onDiscover} className="group flex w-full items-center gap-2.5 px-1 text-left">
-          <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-neutral-500 transition group-hover:text-neutral-300">
-            <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
-              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
-              <path d="m11.8 7.2-1.5 3.8a1 1 0 0 1-.5.5l-3.8 1.5 1.5-3.8a1 1 0 0 1 .5-.5l3.8-1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Explore</span>
-            <span className="block text-xs font-medium text-neutral-300 transition group-hover:text-white">Discover communities</span>
-          </span>
-          <ChevronIcon />
-        </button>
-      </div>
-    </div>
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden>
+      <rect x="2.2" y="3.4" width="11.6" height="10.4" rx="2" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M2.2 6.6h11.6M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CompassIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden>
+      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path d="m13 7-1.8 4.4a1 1 0 0 1-.6.6L6.5 13.5l1.8-4.4a1 1 0 0 1 .6-.6L13 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }
