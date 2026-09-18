@@ -132,6 +132,10 @@ export function PostComposer({
   const canOpenPrediction = upcomingRaces.length > 0 && predictionCommunities.length > 0;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // What the Emoji and GIF panels anchor to. They're portaled out of this component entirely (the
+  // centre column's scroll container would otherwise clip them), so they need a real element to
+  // measure against rather than an offsetParent.
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const targetGroupId = fixedGroupId ?? groupId;
   const targetGroup = targetGroupId ? groups.find((g) => g.id === targetGroupId) : undefined;
@@ -266,7 +270,7 @@ export function PostComposer({
   }
 
   return (
-    <div className="relative rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5 backdrop-blur-sm">
+    <div className="relative rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm">
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
@@ -294,10 +298,10 @@ export function PostComposer({
       )}
 
       {mode === "prediction" ? (
-        <div className="flex items-start gap-2.5">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={30} />
+        <div className="flex items-start gap-3">
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--f1-red)]">New prediction round</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">New prediction round</p>
             <PredictionComposer
               communities={predictionCommunities}
               races={upcomingRaces}
@@ -310,8 +314,8 @@ export function PostComposer({
         </div>
       ) : (
         <>
-      <div className="flex items-start gap-2.5">
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={30} />
+      <div className="flex items-start gap-3">
+        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
 
         <div className="min-w-0 flex-1">
           {isOpen && (
@@ -320,7 +324,7 @@ export function PostComposer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Add a title (optional)"
               maxLength={300}
-              className="mb-1.5 w-full rounded-lg border border-white/[0.07] bg-black/25 py-1.5 pl-3 pr-9 text-[13px] font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+              className="mb-2 w-full rounded-xl border border-white/[0.07] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
             />
           )}
           <textarea
@@ -331,7 +335,7 @@ export function PostComposer({
             placeholder={placeholder ?? "Share your thoughts with the community..."}
             rows={isOpen ? 3 : 1}
             maxLength={2000}
-            className="w-full resize-none rounded-lg border border-white/[0.07] bg-black/25 px-3 py-1.5 text-[13px] leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-white/[0.07] bg-black/25 px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
           />
         </div>
       </div>
@@ -341,7 +345,7 @@ export function PostComposer({
         // where it doesn't - rather than a bare paperclip next to whatever filename happened to
         // survive. min-w-0 + truncate throughout: a 90-character filename shortens, it never widens
         // the composer or pushes the remove button off the edge.
-        <div className="ml-10 mt-2 flex max-w-full items-center gap-2.5 rounded-lg border border-white/[0.07] bg-black/25 p-2">
+        <div className="ml-[52px] mt-2.5 flex max-w-full items-center gap-2.5 rounded-xl border border-white/[0.07] bg-black/25 p-2.5">
           {/* Classified by the real filename's extension (mediaFileName), not the blob preview
               URL itself - a blob: URL has no extension to read. */}
           {mediaKind(mediaFileName ?? "") === "image" ? (
@@ -375,10 +379,10 @@ export function PostComposer({
           </button>
         </div>
       )}
-      {mediaError && <p className="ml-10 mt-1 text-[11px] text-[var(--f1-red)]">{mediaError}</p>}
+      {mediaError && <p className="ml-[52px] mt-1.5 text-xs text-[var(--f1-red)]">{mediaError}</p>}
 
       {showSchedule && (
-        <div className="ml-10 mt-2 flex flex-wrap items-center gap-2">
+        <div className="ml-[52px] mt-2.5 flex flex-wrap items-center gap-2">
           <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500" htmlFor="composer-schedule">
             Publish at
           </label>
@@ -399,7 +403,7 @@ export function PostComposer({
       )}
 
       {scheduledConfirmation && (
-        <div className="ml-10 mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
+        <div className="ml-[52px] mt-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
           <p className="min-w-0 flex-1 text-[11.5px] text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
           <button type="button" onClick={() => setScheduledConfirmation("")} aria-label="Dismiss" className="shrink-0 text-[11.5px] font-medium text-neutral-300 transition hover:text-white">
             Got it
@@ -407,7 +411,7 @@ export function PostComposer({
         </div>
       )}
 
-      <div className="relative mt-2 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
+      <div ref={toolbarRef} className="relative mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
         <ToolButton onClick={() => fileInputRef.current?.click()} icon={<MediaIcon />} label="Add media" />
         <Divider />
         <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<GifIcon />} label="GIF" compactLabel />
@@ -415,8 +419,6 @@ export function PostComposer({
         <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<EmojiIcon />} label="Emoji" />
         <Divider />
         <ComposeAssist draft={content} onReplace={setContent} />
-        <Divider />
-        <ToolButton onClick={() => setShowSchedule((v) => !v)} active={showSchedule || !!scheduledAt} icon={<ClockIcon />} label={scheduledAt ? "Scheduled" : "Schedule"} />
         {canPredict && (
           <>
             <Divider />
@@ -445,27 +447,45 @@ export function PostComposer({
           }}
         />
 
-        <div className="ml-auto flex items-center gap-2">
-          {notice && <span className="text-[11px] text-[var(--f1-red)]">{notice}</span>}
+        <div className="ml-auto flex items-center gap-2.5">
+          {notice && <span className="text-xs text-[var(--f1-red)]">{notice}</span>}
           {!fixedGroupId && isOpen && (
-            <div className="w-40">
+            <div className="w-48">
               <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={posting || uploadingMedia || !content.trim()}
-            className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-[12px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-          >
-            {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
-          </button>
+          {/* Scheduling lives INSIDE the post control, not as a separate toolbar button - it isn't
+              a thing you attach to a post, it's a choice about how this post gets published. The
+              caret only appears when there's a real alternative to offer. */}
+          <div className="flex shrink-0 items-stretch overflow-hidden rounded-xl">
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={posting || uploadingMedia || !content.trim()}
+              className="bg-[var(--f1-red)] px-6 py-2 text-[13px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+            >
+              {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSchedule((v) => !v)}
+              aria-expanded={showSchedule}
+              aria-label={scheduledAt ? "Change publish time" : "Schedule this post"}
+              title={scheduledAt ? "Change publish time" : "Schedule this post"}
+              className="flex items-center border-l border-black/20 bg-[var(--f1-red)] px-2 text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+            >
+              <svg viewBox="0 0 10 10" width="9" height="9" fill="none" aria-hidden className={showSchedule ? "rotate-180 transition-transform" : "transition-transform"}>
+                <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <AnimatePresence>
-          {showEmoji && <EmojiPicker onSelect={insertAtCursor} onClose={() => setShowEmoji(false)} />}
+          {showEmoji && <EmojiPicker anchorRef={toolbarRef} onSelect={insertAtCursor} onClose={() => setShowEmoji(false)} />}
           {showGif && (
             <GifPicker
+              anchorRef={toolbarRef}
               onSelect={(url) => {
                 setMediaUrl(url);
                 setMediaPreview(url);
@@ -493,7 +513,7 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-[11.5px] font-medium transition ${
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition ${
         active ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
       }`}
     >
@@ -514,15 +534,6 @@ function localZoneLabel(): string {
   } catch {
     return "local time";
   }
-}
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M9 5.4V9l2.4 1.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
 }
 
 function RoundIcon() {

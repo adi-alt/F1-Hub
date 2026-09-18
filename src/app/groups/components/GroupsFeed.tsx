@@ -235,17 +235,17 @@ export function GroupsFeed({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-4">
       {selectedCommunity && (
-        <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2 backdrop-blur-sm">
-          <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={22} />
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">
+        <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 backdrop-blur-sm">
+          <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={28} />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
             <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
               C/
             </span>
             {selectedCommunity.name}
           </p>
-          <Link href={groupHref(selectedCommunity.id)} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11.5px] font-medium text-neutral-400 transition hover:text-white">
+          <Link href={groupHref(selectedCommunity.id)} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-neutral-400 transition hover:text-white">
             Open community
             <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
               <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -293,7 +293,7 @@ export function GroupsFeed({
                 </button>
               </p>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <PostCardSkeleton key={i} />
                 ))}
@@ -302,7 +302,7 @@ export function GroupsFeed({
           ) : communityPosts.length === 0 ? (
             <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {interleave(communityPosts, communityPredictions).map((item, i) =>
                 item.kind === "post" ? (
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
@@ -313,7 +313,7 @@ export function GroupsFeed({
             </div>
           )
         ) : loading ? (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <PostCardSkeleton key={i} />
             ))}
@@ -325,7 +325,7 @@ export function GroupsFeed({
             description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
           />
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {interleave(posts, predictions).map((item, i) =>
               item.kind === "post" ? (
                 <PostCard key={item.key} post={item.post} index={i} showGroup />

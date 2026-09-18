@@ -24,6 +24,9 @@ export function CommunitySelector({ groups, value, onChange }: { groups: GroupSu
       onChange={(codes) => onChange(codes[0] ?? NO_COMMUNITY)}
       placeholder="No community (personal post)"
       surfaceClassName="border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 backdrop-blur-md"
+      // Matches the Post button's own height exactly, so the composer's trailing row reads as one
+      // control group rather than a tall dropdown next to a short button.
+      triggerClassName="h-[38px] rounded-xl text-[13px]"
     />
   );
 }

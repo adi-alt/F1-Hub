@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { motion } from "framer-motion";
 import type { GifResult } from "@/lib/gifProvider";
-import { usePanelDirection } from "./usePanelDirection";
+import { createPortal } from "react-dom";
+import { useAnchoredPanel } from "./usePanelDirection";
 
-/** Same positioning approach as EmojiPicker (absolute within the caller's own relative toolbar,
- * not portaled) and the same honesty principle as gifProvider.ts itself: if no provider is
- * configured, this says so plainly instead of showing an empty grid that looks broken. */
-export function GifPicker({ onSelect, onClose }: { onSelect: (url: string) => void; onClose: () => void }) {
+/** Same positioning approach as EmojiPicker (portaled to document.body, anchored in viewport
+ * coordinates, so the centre column's scroll container can't clip it) and the same honesty
+ * principle as gifProvider.ts itself: if no provider is configured, this says so plainly instead of
+ * showing an empty grid that looks broken. */
+export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: string) => void; onClose: () => void; anchorRef: RefObject<HTMLElement | null> }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GifResult[] | null>(null);
   const [configured, setConfigured] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
-  // Same fix as EmojiPicker: this was pinned to `bottom-full` regardless of available space, which
-  // is the one direction with no room when the composer sits at the top of the centre column.
-  const { panelRef, positionClass } = usePanelDirection(340);
+  const style = useAnchoredPanel(anchorRef, 288, 340);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,17 +49,17 @@ export function GifPicker({ onSelect, onClose }: { onSelect: (url: string) => vo
     };
   }, [onClose]);
 
-  return (
+  if (typeof document === "undefined" || !style) return null;
+
+  return createPortal(
     <motion.div
-      ref={(el) => {
-        rootRef.current = el;
-        panelRef.current = el;
-      }}
+      ref={rootRef}
       initial={{ opacity: 0, y: 4, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 4, scale: 0.98 }}
       transition={{ duration: 0.12 }}
-      className={`absolute z-[150] w-72 rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 backdrop-blur-md ${positionClass}`}
+      style={style}
+      className="overflow-y-auto rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 shadow-2xl backdrop-blur-md scrollbar-hide"
     >
       <input
         autoFocus
@@ -86,6 +86,7 @@ export function GifPicker({ onSelect, onClose }: { onSelect: (url: string) => vo
           </div>
         )}
       </div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }

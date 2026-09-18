@@ -60,12 +60,12 @@ export function RaceWeekendTake({ location, year }: { location: string; year: nu
 
   if (loading) {
     return (
-      <div className="mt-2.5 border-t border-white/[0.07] pt-2" aria-busy>
+      <div className="mt-3.5 border-t border-white/[0.08] pt-3" aria-busy>
         <ApexLabel />
-        <div className="mt-1.5 space-y-1">
-          <span className="skeleton-shimmer block h-2 w-4/5 rounded bg-white/[0.06]" />
-          <span className="skeleton-shimmer block h-2 w-full rounded bg-white/[0.06]" />
-          <span className="skeleton-shimmer block h-2 w-2/3 rounded bg-white/[0.06]" />
+        <div className="mt-2 space-y-1.5">
+          <span className="skeleton-shimmer block h-2.5 w-4/5 rounded bg-white/[0.06]" />
+          <span className="skeleton-shimmer block h-2.5 w-full rounded bg-white/[0.06]" />
+          <span className="skeleton-shimmer block h-2.5 w-2/3 rounded bg-white/[0.06]" />
         </div>
       </div>
     );
@@ -75,21 +75,21 @@ export function RaceWeekendTake({ location, year }: { location: string; year: nu
   if (!block) return null;
 
   return (
-    <div className="mt-2.5 border-t border-white/[0.07] pt-2">
+    <div className="mt-3.5 border-t border-white/[0.08] pt-3">
       <ApexLabel />
-      <p className="mt-1 text-[11.5px] font-semibold leading-snug text-white">{block.headline}</p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-neutral-400">{block.summary}</p>
+      <p className="mt-1.5 text-[12.5px] font-semibold leading-snug text-white">{block.headline}</p>
+      <p className="mt-1 text-[11.5px] leading-relaxed text-neutral-400">{block.summary}</p>
     </div>
   );
 }
 
 function ApexLabel() {
   return (
-    <div className="flex items-center gap-1">
-      <span aria-hidden className="text-[10px] text-[var(--f1-red)]">
+    <div className="flex items-center gap-1.5">
+      <span aria-hidden className="text-[var(--f1-red)]">
         ✦
       </span>
-      <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Apex on this circuit</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">Apex on this circuit</p>
     </div>
   );
 }

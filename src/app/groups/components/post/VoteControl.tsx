@@ -6,31 +6,31 @@ import type { VoteValue } from "@/lib/supabase/groupPosts";
  * reports which arrow was clicked, the caller (useOptimisticVote) owns the actual state machine. */
 export function VoteControl({ score, myVote, onVote, compact = false }: { score: number; myVote: VoteValue; onVote: (direction: 1 | -1) => void; compact?: boolean }) {
   return (
-    <div className={compact ? "flex items-center gap-0.5" : "flex flex-col items-center gap-0.5"}>
-      {/* The painted control is 22px, but `before:-inset-1` extends each button's own hit area to
-          ~30px of transparent, still-clickable space. That's the whole point: a dense desktop
-          control does not have to mean a small tap target, and shrinking the two apart is what
-          lets this sit inside a compact post card without becoming a large pill. */}
+    <div className={compact ? "flex items-center gap-1" : "flex flex-col items-center gap-0.5"}>
+      {/* h-7 w-7 (28px), not the 20px this used to be - matches the smallest icon-button target
+          already established elsewhere in this app (a floating window's own close button, say),
+          not a new size invented for this one control. The glyph itself stays 14px; only the tap
+          target grows. */}
       <button
         type="button"
         aria-label="Upvote"
         aria-pressed={myVote === 1}
         onClick={() => onVote(1)}
-        className={`relative flex h-[22px] w-[22px] items-center justify-center rounded transition before:absolute before:-inset-1 before:content-[''] hover:bg-white/[0.06] ${myVote === 1 ? "text-[var(--f1-red)]" : "text-neutral-500 hover:text-neutral-300"}`}
+        className={`flex h-7 w-7 items-center justify-center rounded transition hover:bg-white/[0.06] ${myVote === 1 ? "text-[var(--f1-red)]" : "text-neutral-500 hover:text-neutral-300"}`}
       >
-        <svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor" aria-hidden>
+        <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden>
           <path d="M10 4l6 7h-4v5H8v-5H4z" />
         </svg>
       </button>
-      <span className="min-w-[1.1rem] text-center text-[11px] font-semibold tabular-nums text-neutral-300">{score}</span>
+      <span className="min-w-[1.25rem] text-center text-xs font-semibold tabular-nums text-neutral-300">{score}</span>
       <button
         type="button"
         aria-label="Downvote"
         aria-pressed={myVote === -1}
         onClick={() => onVote(-1)}
-        className={`relative flex h-[22px] w-[22px] items-center justify-center rounded transition before:absolute before:-inset-1 before:content-[''] hover:bg-white/[0.06] ${myVote === -1 ? "text-sky-400" : "text-neutral-500 hover:text-neutral-300"}`}
+        className={`flex h-7 w-7 items-center justify-center rounded transition hover:bg-white/[0.06] ${myVote === -1 ? "text-sky-400" : "text-neutral-500 hover:text-neutral-300"}`}
       >
-        <svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor" aria-hidden>
+        <svg viewBox="0 0 20 20" width="14" height="14" fill="currentColor" aria-hidden>
           <path d="M10 16l-6-7h4V4h4v5h4z" />
         </svg>
       </button>

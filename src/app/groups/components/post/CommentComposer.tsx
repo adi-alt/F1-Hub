@@ -31,6 +31,9 @@ export function CommentComposer({
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // The emoji panel is portaled to document.body, so it anchors to this button's real viewport
+  // rect - which is also what lets it work inside the floating post-detail window's own scroller.
+  const emojiAnchorRef = useRef<HTMLButtonElement>(null);
 
   async function submit() {
     const trimmed = content.trim();
@@ -71,6 +74,7 @@ export function CommentComposer({
             className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
           />
           <button
+            ref={emojiAnchorRef}
             type="button"
             onClick={() => setShowEmoji((v) => !v)}
             aria-label="Add emoji"
@@ -92,7 +96,7 @@ export function CommentComposer({
         >
           {posting ? "Posting…" : "Post"}
         </button>
-        {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
+        {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
       </div>
     );
   }
@@ -130,7 +134,7 @@ export function CommentComposer({
           </button>
         </div>
       </div>
-      {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
+      {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
     </div>
   );
 }

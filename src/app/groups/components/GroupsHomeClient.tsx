@@ -118,7 +118,7 @@ export function GroupsHomeClient({
     // it - items-start would size each column to its own content instead, leaving nothing for the
     // rest to scroll within. Both rails are full-height cards that handle their own internal
     // scrolling, so only the centre column needs a scroll wrapper out here.
-    <div className="flex flex-col gap-3 lg:grid lg:h-full lg:grid-cols-[212px_minmax(0,1fr)_268px] lg:items-stretch lg:gap-4">
+    <div className="flex flex-col gap-3 lg:grid lg:h-full lg:grid-cols-[280px_minmax(0,1fr)_300px] lg:items-stretch lg:gap-3">
       {/* The rail sizes to its own content and only grows as tall as the workspace allows
           (lg:max-h-full, not lg:h-full) - seven communities should end in a card that ends, not one
           stretched to the full viewport with a pool of dead space under the last action. Past that
@@ -142,7 +142,7 @@ export function GroupsHomeClient({
             centerContainerRef.current = el;
             setCenterLenisContainer(el);
           }}
-          className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:scrollbar-hide"
+          className="space-y-4 lg:h-full lg:overflow-y-auto lg:scrollbar-hide"
         >
           <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
           <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} />

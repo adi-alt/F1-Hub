@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePanelDirection } from "./usePanelDirection";
+import { createPortal } from "react-dom";
+import { useAnchoredPanel } from "./usePanelDirection";
 
 // A curated, hand-picked set (~70), not the full Unicode CLDR list - a real, searchable-by-keyword
 // picker (not a fake one), just scoped to what a motorsport community actually reaches for instead
@@ -49,12 +50,11 @@ const EMOJI: { char: string; keywords: string }[] = [
   { char: "🇲🇨", keywords: "monaco flag" },
 ];
 
-/** Positioned absolute within whatever the caller's own `relative` wrapper is (the composer's
- * toolbar row) - not portaled to document.body, unlike this app's other floating popovers. Those
- * need fixed/viewport-based positioning because they escape scrolling containers (a table, a
- * grid); a composer toolbar is a small, static, non-scrolling area, so a plain CSS-anchored
- * popover is simpler and correct here without rect math. */
-export function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) {
+/** Portaled to document.body and positioned against `anchorRef` in viewport coordinates. It used
+ * to be absolutely positioned inside the composer's toolbar, which sits inside the centre column's
+ * own scroll container - and a scroll container clips its descendants no matter what z-index they
+ * carry, which is why the panel appeared to slide under the feed. See useAnchoredPanel. */
+export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji: string) => void; onClose: () => void; anchorRef: RefObject<HTMLElement | null> }) {
   const [query, setQuery] = useState("");
   // Lazy initializer, not an effect - reads localStorage exactly once, on mount, with no extra
   // render in between (an effect calling setState right after mount is the cascading-render
@@ -98,22 +98,22 @@ export function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) =
 
   const q = query.trim().toLowerCase();
   const filtered = q ? EMOJI.filter((e) => e.keywords.includes(q)) : EMOJI;
-  // Opens downward when there's room below the toolbar, which in the Communities composer (top of
-  // the centre column) there almost always is - this used to be pinned upward unconditionally.
-  const { panelRef, positionClass } = usePanelDirection(320);
+  // Portaled to document.body with real viewport coordinates - see useAnchoredPanel for why an
+  // absolutely-positioned panel could never work here.
+  const style = useAnchoredPanel(anchorRef, 256, 320);
 
-  return (
+  if (typeof document === "undefined" || !style) return null;
+
+  return createPortal(
     <AnimatePresence>
       <motion.div
-        ref={(el) => {
-          rootRef.current = el;
-          panelRef.current = el;
-        }}
+        ref={rootRef}
         initial={{ opacity: 0, y: 4, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 4, scale: 0.98 }}
         transition={{ duration: 0.12 }}
-        className={`absolute z-[150] w-64 rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 backdrop-blur-md ${positionClass}`}
+        style={style}
+        className="overflow-y-auto rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 shadow-2xl backdrop-blur-md scrollbar-hide"
       >
         <input
           autoFocus
@@ -143,6 +143,7 @@ export function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) =
           {filtered.length === 0 && <p className="col-span-8 py-3 text-center text-xs text-neutral-600">No matches.</p>}
         </div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

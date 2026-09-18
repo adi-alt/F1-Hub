@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { usePanelDirection } from "./usePanelDirection";
+import { useAnchoredPanel } from "./usePanelDirection";
 
 const ACTIONS: { key: string; label: string }[] = [
   { key: "improve", label: "Improve writing" },
@@ -28,7 +29,9 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
   const [busy, setBusy] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const { panelRef, positionClass } = usePanelDirection(280);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Portaled for the same reason the Emoji and GIF panels are - see useAnchoredPanel.
+  const style = useAnchoredPanel(triggerRef, 288, 300);
 
   const hasDraft = draft.trim().length > 0;
 
@@ -58,13 +61,14 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={!hasDraft}
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-[11.5px] font-medium transition disabled:opacity-40 ${
+        className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition disabled:opacity-40 ${
           open ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
         }`}
       >
@@ -73,14 +77,14 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
       </button>
 
       <AnimatePresence>
-        {open && (
+        {open && style && typeof document !== "undefined" && createPortal(
           <motion.div
-            ref={panelRef}
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
-            className={`absolute left-0 z-[150] w-72 rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 backdrop-blur-md ${positionClass}`}
+            style={style}
+            className="overflow-y-auto rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 shadow-2xl backdrop-blur-md scrollbar-hide"
           >
             {suggestion === null ? (
               <>
@@ -132,7 +136,8 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
                 </div>
               </>
             )}
-          </motion.div>
+          </motion.div>,
+          document.body,
         )}
       </AnimatePresence>
     </div>
