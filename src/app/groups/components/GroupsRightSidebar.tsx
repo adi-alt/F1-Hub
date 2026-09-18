@@ -44,35 +44,39 @@ export function GroupsRightSidebar({
   onDiscover: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
+    // One surface with internal rules, not five floating cards: the rail reads as a single column
+    // of race context whose sections are separated by hairlines, the same way the rest of F1 HUB
+    // groups related blocks. Explore sits last because it leaves the page - everything above it is
+    // about what's already happening.
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
         <RaceWeekend race={nextRace} />
 
-        <div className="border-t border-white/[0.06] px-4 py-3.5">
+        <div className="border-t border-white/[0.06] px-3 py-3">
           <ActivePredictions predictions={predictions} />
         </div>
 
-        <div className="border-t border-white/[0.06] p-3.5">
+        <div className="border-t border-white/[0.06] px-3 py-3">
+          <CommunityPulse groups={groups} pulse={pulse} />
+        </div>
+
+        <div className="border-t border-white/[0.06] p-2.5">
           <button
             type="button"
             onClick={onDiscover}
-            className="group flex w-full items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+            className="group flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
           >
-            <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--f1-red)]/15 text-[var(--f1-red)]">
+            <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/15 text-[var(--f1-red)]">
               <CompassIcon />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Explore communities</span>
-              <span className="mt-0.5 block truncate text-[11px] text-neutral-500">Find new communities to join</span>
+              <span className="mt-px block truncate text-[10.5px] text-neutral-500">Find new communities to join</span>
             </span>
             <span className="shrink-0 text-neutral-600 transition group-hover:text-white">
               <ChevronIcon />
             </span>
           </button>
-        </div>
-
-        <div className="border-t border-white/[0.06] p-3.5">
-          <CommunityPulse groups={groups} pulse={pulse} />
         </div>
       </div>
     </div>
@@ -113,7 +117,7 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
         <span aria-hidden className="text-[var(--f1-red)]">
           ✦
         </span>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community pulse</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Community pulse</p>
       </div>
 
       {pulse.hasPriorVisit ? (
@@ -200,15 +204,15 @@ function RaceWeekend({ race }: { race: NextRace }) {
         </div>
       )}
 
-      <div className="relative px-4 pb-3.5 pt-3.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/90">Race weekend</p>
+      <div className="relative px-3 pb-3 pt-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">Race weekend</p>
 
         {!race ? (
           <p className="mt-2 text-xs leading-relaxed text-neutral-500">No upcoming race is scheduled yet.</p>
         ) : (
           <>
-            <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">Round {race.round}</p>
-            <h2 className="mt-1 flex items-start gap-2 text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">
+            <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Round {race.round}</p>
+            <h2 className="mt-0.5 flex items-start gap-1.5 text-[15px] font-bold leading-tight tracking-[-0.01em] text-white">
               {flag && (
                 <span aria-hidden className="shrink-0 text-base leading-tight">
                   {flag}
@@ -217,13 +221,13 @@ function RaceWeekend({ race }: { race: NextRace }) {
               <span className="min-w-0">{race.name}</span>
             </h2>
             {race.raceDate && (
-              <p className="mt-1 text-xs text-neutral-400">
+              <p className="mt-0.5 text-[11.5px] text-neutral-400">
                 {new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
               </p>
             )}
 
             {countdown && (
-              <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-1 text-[11px] font-semibold text-[var(--f1-red)]">
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--f1-red)]">
                 <ClockIcon />
                 Lights out in {countdown}
               </p>
@@ -231,7 +235,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
 
             <Link
               href={raceHref(race.year, race.round, race.name)}
-              className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2.5 text-[13px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+              className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-1.5 text-[12.5px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
             >
               <CalendarIcon />
               View race
@@ -265,14 +269,14 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Active predictions</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Active predictions</p>
         {predictions.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{predictions.length}</span>}
       </div>
 
       {predictions.length === 0 ? (
         <p className="mt-2 text-xs leading-relaxed text-neutral-600">No active predictions. New rounds open as a race weekend approaches.</p>
       ) : (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-1.5 space-y-1">
           {predictions.map((p) => {
             const raceAt = p.raceDate ? parseUtcDateTime(p.raceDate).getTime() : null;
             const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
@@ -285,7 +289,7 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
               <Link
                 key={p.id}
                 href={`${groupHref(p.groupId)}?tab=predictions`}
-                className="group block rounded-xl border border-white/[0.06] bg-white/[0.03] px-2.5 py-2 transition hover:border-white/[0.14] hover:bg-white/[0.06]"
+                className="group block rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 transition hover:border-white/[0.14] hover:bg-white/[0.06]"
               >
                 <div className="flex items-start gap-2">
                   <span className="min-w-0 flex-1">

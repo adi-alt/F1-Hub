@@ -235,7 +235,7 @@ export function GroupsFeed({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {selectedCommunity && (
         <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 backdrop-blur-sm">
           <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={28} />
@@ -293,7 +293,7 @@ export function GroupsFeed({
                 </button>
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <PostCardSkeleton key={i} />
                 ))}
@@ -302,7 +302,7 @@ export function GroupsFeed({
           ) : communityPosts.length === 0 ? (
             <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {interleave(communityPosts, communityPredictions).map((item, i) =>
                 item.kind === "post" ? (
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
@@ -313,7 +313,7 @@ export function GroupsFeed({
             </div>
           )
         ) : loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {Array.from({ length: 3 }).map((_, i) => (
               <PostCardSkeleton key={i} />
             ))}
@@ -325,7 +325,7 @@ export function GroupsFeed({
             description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {interleave(posts, predictions).map((item, i) =>
               item.kind === "post" ? (
                 <PostCard key={item.key} post={item.post} index={i} showGroup />

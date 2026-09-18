@@ -8,19 +8,22 @@ import { groupHref } from "@/lib/routes";
 import type { PostCardData } from "./types";
 
 /**
- * One line, one avatar, one identity.
+ * One avatar, two lines of context.
  *
- * A post has two identities available - the community it lives in and the person who wrote it -
- * and showing both as equals is what made this header feel cramped. Whichever one actually
- * anchors the post in its context is the one that gets the avatar and the name:
+ * A post in a community has two facts worth stating - where it lives and who wrote it - but only
+ * ONE of them owns the post's identity, and that's the one that gets the avatar:
  *
- *  - in the cross-community home feed, a post that belongs to a community is anchored by the
- *    COMMUNITY: [community pfp] C/{name}
- *  - a personal post, or any post inside a community's own Feed tab (where the page itself already
- *    says which community this is), is anchored by the AUTHOR: [author pfp] U/{name}
+ *   [community pfp]  C/ Ferrari Tifosi Hub
+ *                    U/ Aditya Verma · 2h ago · ADMIN
  *
- * The `C/` and `U/` prefixes say which kind of identity is showing without relying on the avatar
- * alone - quieter than the name they label, monospace so they never read as part of it.
+ * A personal post has no community, so it gets the author's avatar and the author line alone -
+ * nothing is invented to sit above it:
+ *
+ *   [user pfp]  U/ Sneha Iyer · 8h ago
+ *
+ * The earlier version of this stacked TWO avatars, which made the header taller than the post it
+ * introduced. One avatar plus a quiet second line carries the same information in roughly half the
+ * height, which is the whole point.
  *
  * Author avatar: `profiles` has no avatar_url column anywhere in this app (traced - the only
  * per-user photo this product has is `session.photoURL`, an OAuth avatar captured into the session
@@ -44,49 +47,64 @@ export function PostHeader({
   const { user } = useAuth();
   const isMe = !!user && user.uid === post.userId;
   const authorAvatarUrl = isMe ? (user.photoURL ?? null) : null;
-  const communityIsPrimary = showGroup && !!post.groupId;
+  const inCommunity = showGroup && !!post.groupId;
 
-  const meta = (
-    <>
+  const author = (
+    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] leading-tight text-neutral-500">
+      <span className="min-w-0 truncate font-medium text-neutral-300">
+        <span aria-hidden className="mr-1 font-mono text-[10.5px] font-normal text-neutral-600">
+          U/
+        </span>
+        {post.authorName}
+      </span>
       <span aria-hidden className="text-neutral-700">
         ·
       </span>
-      <span className="shrink-0 whitespace-nowrap text-xs text-neutral-500">{timeAgo(post.createdAt)}</span>
-      {roleLabel && <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
-      {pending && <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
-    </>
+      <span className="shrink-0 whitespace-nowrap">{timeAgo(post.createdAt)}</span>
+      {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
+      {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
+    </span>
   );
 
-  if (communityIsPrimary) {
-    return (
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <Link href={groupHref(post.groupId as string)} className="shrink-0">
-          <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={36} />
-        </Link>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-sm font-semibold text-white transition hover:text-neutral-300">
-            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
-              C/
-            </span>
-            {post.groupName}
-          </Link>
-          {meta}
-        </div>
-      </div>
-    );
-  }
+  // The avatar always belongs to whichever identity leads the post, never to the other one.
+  const avatar = inCommunity ? (
+    <Link href={groupHref(post.groupId as string)} className="shrink-0">
+      <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={34} />
+    </Link>
+  ) : (
+    <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={34} />
+  );
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2.5">
-      <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={36} />
-      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span className="min-w-0 truncate text-sm font-semibold text-white">
-          <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
-            U/
+      {avatar}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {inCommunity ? (
+          <>
+            <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-[13px] font-semibold leading-tight text-white transition hover:text-neutral-300">
+              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-neutral-500">
+                C/
+              </span>
+              {post.groupName}
+            </Link>
+            {author}
+          </>
+        ) : (
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[13px] leading-tight">
+            <span className="min-w-0 truncate font-semibold text-white">
+              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-neutral-500">
+                U/
+              </span>
+              {post.authorName}
+            </span>
+            <span aria-hidden className="text-neutral-700">
+              ·
+            </span>
+            <span className="shrink-0 whitespace-nowrap text-[11.5px] text-neutral-500">{timeAgo(post.createdAt)}</span>
+            {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
+            {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
           </span>
-          {post.authorName}
-        </span>
-        {meta}
+        )}
       </div>
     </div>
   );

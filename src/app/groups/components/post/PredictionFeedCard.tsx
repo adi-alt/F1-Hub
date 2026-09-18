@@ -38,14 +38,14 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm transition hover:border-white/[0.12]"
+      className="relative overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/55 px-3.5 py-3 backdrop-blur-sm transition hover:border-white/[0.12]"
     >
       <span aria-hidden className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-[var(--f1-red)]/70 to-transparent" />
 
       <div className="flex items-center gap-2.5">
         {showGroup ? (
           <Link href={groupHref(prediction.groupId)} className="flex min-w-0 items-center gap-2.5 transition hover:opacity-80">
-            <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={36} />
+            <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={34} />
             <span className="min-w-0 truncate text-sm font-semibold text-white">
               <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
                 C/
@@ -56,16 +56,16 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
         ) : (
           <span className="text-sm font-semibold text-white">Prediction round</span>
         )}
-        <span className="ml-auto shrink-0 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--f1-red)]">
+        <span className="ml-auto shrink-0 rounded-md border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.12em] text-[var(--f1-red)]">
           Prediction
         </span>
       </div>
 
-      <p className="mt-2.5 text-[15px] font-semibold leading-snug text-white">{prediction.raceName}</p>
-      <p className="mt-0.5 text-[13px] text-neutral-400">{predictionTypeLabels[prediction.type]}</p>
+      <p className="mt-2 text-[15px] font-semibold leading-snug text-white">{prediction.raceName}</p>
+      <p className="mt-0.5 text-[12px] text-neutral-400">{predictionTypeLabels[prediction.type]}</p>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-neutral-200">{prediction.entryPoints} pts to enter</span>
+        <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-neutral-200">{prediction.entryPoints} pts to enter</span>
         {countdown ? (
           <span className={`rounded-full px-2.5 py-1 text-[11px] tabular-nums ${urgent ? "bg-[var(--f1-red)]/[0.12] font-semibold text-[var(--f1-red)]" : "text-neutral-500"}`}>Closes in {countdown}</span>
         ) : closed ? (
@@ -75,9 +75,9 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
 
       <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {prediction.hasEntered ? (
-          <span className="flex min-w-0 items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/[0.08] px-3 py-1.5 text-xs text-emerald-200/90">
+          <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.08] px-2.5 text-[11.5px] text-emerald-200/90">
             <CheckIcon />
             <span className="shrink-0 font-semibold">Entered</span>
             {prediction.myGuessLabel && <span className="min-w-0 truncate text-neutral-300">· {prediction.myGuessLabel}</span>}
@@ -87,7 +87,7 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
         ) : (
           <Link
             href={`${groupHref(prediction.groupId)}?tab=predictions`}
-            className="flex items-center gap-1.5 rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+            className="flex h-7 items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110"
           >
             Enter prediction
             <ChevronIcon />

@@ -68,7 +68,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition disabled:opacity-40 ${
+        className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-medium transition disabled:opacity-40 ${
           open ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
         }`}
       >

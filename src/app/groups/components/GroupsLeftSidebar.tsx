@@ -40,13 +40,13 @@ export function GroupsLeftSidebar({
     // gives this a definite-height flex parent so that percentage actually resolves) and only caps
     // at the workspace height once there are enough communities to need it, at which point the
     // list inside it starts scrolling instead.
-    <div className="hidden max-h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm lg:flex">
-      <div className="shrink-0">
-        <h1 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
-        <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">Race-weekend discussion and predictions across your communities.</p>
+    <div className="hidden max-h-full flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex">
+      <div className="shrink-0 px-1">
+        <h1 className="text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
+        <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-500">Race-weekend discussion and predictions across your communities.</p>
       </div>
 
-      <div className="mt-6 flex shrink-0 items-center justify-between">
+      <div className="mt-3.5 flex shrink-0 items-center justify-between px-1">
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Your communities</p>
         {groups.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{groups.length}</span>}
       </div>
@@ -62,14 +62,17 @@ export function GroupsLeftSidebar({
       ) : (
         // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
         // actions below stay pinned and reachable instead of being pushed out of the card.
-        <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto scrollbar-hide">
+        // divide-y, not space-y: seven rows each carrying their own border read as seven cards
+        // competing with the feed. One hairline between neighbours separates them at a fraction of
+        // the visual weight, and only the selected row gets a surface of its own.
+        <div className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-hide">
           <NavRow
             label="All"
             sublabel="All communities"
             active={selectedId === null}
             onClick={() => onSelect(null)}
             icon={
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${selectedId === null ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"}`}>
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${selectedId === null ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"}`}>
                 <AllIcon />
               </span>
             }
@@ -82,7 +85,7 @@ export function GroupsLeftSidebar({
                   label={g.name}
                   active={active}
                   onClick={() => onSelect(g.id)}
-                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />}
+                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={32} />}
                   badge={
                     g.activePredictions > 0 ? (
                       <span
@@ -102,10 +105,10 @@ export function GroupsLeftSidebar({
         </div>
       )}
 
-      <div className="mt-4 shrink-0 space-y-2 border-t border-white/[0.07] pt-4">
+      <div className="mt-3 shrink-0 space-y-1.5 border-t border-white/[0.07] pt-3">
         <button
           onClick={() => setShowCreate(true)}
-          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[var(--f1-red)] px-3 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--f1-red)] px-3 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
           <PlusIcon />
           New community
@@ -113,7 +116,7 @@ export function GroupsLeftSidebar({
         <button
           type="button"
           onClick={onDiscover}
-          className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/[0.09] bg-white/[0.02] px-3 py-2.5 text-[13px] font-medium text-neutral-200 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-white/[0.09] bg-white/[0.02] px-3 py-2 text-[12.5px] font-medium text-neutral-200 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
         >
           <CompassIcon />
           Discover communities
@@ -126,15 +129,13 @@ export function GroupsLeftSidebar({
 }
 
 /**
- * One navigation row, on its own frosted surface.
+ * One navigation row, roughly 48px tall.
  *
- * These used to be borderless until hovered, so a rail of seven communities read as one
- * undifferentiated column of text and the boundary between two of them only existed under the
- * cursor. Each row now carries a real (quiet) surface of its own at rest - the separation is a
- * property of the row, not of the pointer - while staying lighter than a post card, which is the
- * distinction that keeps this reading as navigation rather than a stack of content cards. The
- * selected state layers a red wash and accent edge over the same surface rather than swapping it
- * for a different one.
+ * Rows carry no surface of their own: separation comes from the hairline the list draws between
+ * neighbours (divide-y above). Giving every row a border and a fill turned the rail into seven
+ * little cards that competed with the feed for attention, which is exactly what navigation must
+ * not do. Only the SELECTED row gets a surface - a red-to-transparent wash with a matching edge -
+ * so the one row that needs to stand out is the only one that does.
  */
 function NavRow({
   label,
@@ -157,18 +158,18 @@ function NavRow({
 }) {
   return (
     <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 backdrop-blur-sm transition ${
+      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-2 py-1.5 transition ${
         active
-          ? "border-[var(--f1-red)]/35 bg-gradient-to-r from-[var(--f1-red)]/[0.18] to-[var(--f1-red)]/[0.04]"
-          : "border-white/[0.09] bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]"
+          ? "border border-[var(--f1-red)]/30 bg-gradient-to-r from-[var(--f1-red)]/[0.16] via-[var(--f1-red)]/[0.05] to-transparent"
+          : "border border-transparent hover:bg-white/[0.045]"
       }`}
     >
-      {active && <span aria-hidden className="absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
-      <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+      {active && <span aria-hidden className="absolute left-0 top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
+      <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]">
         {icon}
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[13.5px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
-          {sublabel && <span className="mt-0.5 block truncate text-[11px] leading-tight text-neutral-500">{sublabel}</span>}
+          <span className={`block truncate text-[13px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
+          {sublabel && <span className="mt-0.5 block truncate text-[10.5px] leading-tight text-neutral-500">{sublabel}</span>}
         </span>
       </button>
       {badge}
@@ -177,7 +178,7 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="shrink-0 rounded p-1 text-neutral-600 opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded p-0.5 text-neutral-600 opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
         >
           <ChevronIcon />
         </Link>

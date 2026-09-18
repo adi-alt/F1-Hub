@@ -19,13 +19,16 @@ export function PostContent({ title, content }: { title: string | null; content:
   const previewUrl = firstUrlIn(content);
 
   return (
-    <div className="mt-1.5">
-      {title && <p className="text-[15px] font-semibold text-white">{title}</p>}
+    // Title 15px / body 14px: the body is still the strongest block of text in the card, but a
+    // three-line post no longer occupies a screenful. Hierarchy comes from weight and the quieter
+    // 11px metadata above it, not from making the body large.
+    <div>
+      {title && <p className="text-[15px] font-semibold leading-snug text-white">{title}</p>}
       {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
           otherwise set the card's minimum width and push the whole column sideways. */}
-      <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[15px] leading-relaxed text-neutral-300 ${title ? "mt-1" : ""}`}>{linkify(shown)}</p>
+      <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[14px] leading-[1.55] text-neutral-300 ${title ? "mt-0.5" : ""}`}>{linkify(shown)}</p>
       {isLong && (
-        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-xs font-medium text-neutral-500 hover:text-white">
+        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-[11.5px] font-medium text-neutral-500 hover:text-white">
           {expanded ? "Show less" : "Show more"}
         </button>
       )}
