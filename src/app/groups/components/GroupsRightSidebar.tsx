@@ -13,6 +13,7 @@ import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { RaceWeekendTake } from "./RaceWeekendTake";
+import { PredictionTrendBars } from "./post/PredictionTrendBars";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
 export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; circuit: string | null; photoUrl: string | null } | null;
@@ -48,8 +49,8 @@ export function GroupsRightSidebar({
     // of race context whose sections are separated by hairlines, the same way the rest of F1 HUB
     // groups related blocks. Explore sits last because it leaves the page - everything above it is
     // about what's already happening.
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+    <div className="flex max-h-full flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
+      <div className="min-h-0 overflow-y-auto scrollbar-hide">
         <RaceWeekend race={nextRace} />
 
         <div className="border-t border-white/[0.06] px-3 py-3">
@@ -97,19 +98,27 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
   const weeklyPosts = groups.reduce((sum, g) => sum + g.weeklyPosts, 0);
   const openPredictions = groups.reduce((sum, g) => sum + g.activePredictions, 0);
   const weeklyMostActive = groups.reduce<GroupSummary | null>((best, g) => (g.weeklyPosts > 0 && (!best || g.weeklyPosts > best.weeklyPosts) ? g : best), null);
-  const hasActivity = weeklyPosts > 0 || openPredictions > 0;
 
   // Two genuinely different digests, and which one shows depends on whether there IS a previous
   // visit to diff against - not on which reads better. A returning viewer gets the delta since they
   // were last here; a first-time one gets the standing picture, because "nothing has changed since
   // your last visit" would be a claim about a visit that never happened.
-  const sinceLines = pulse.hasPriorVisit
+  //
+  // Every row is {count, label} rather than a sentence: the number is the thing being scanned, so
+  // it gets the weight and a column of its own, and rows with a zero count are dropped entirely
+  // rather than rendered as "0 new discussions".
+  const rows = pulse.hasPriorVisit
     ? [
-        pulse.newPosts > 0 ? `${pulse.newPosts} new ${pulse.newPosts === 1 ? "discussion" : "discussions"}` : null,
-        pulse.repliesToYou > 0 ? `${pulse.repliesToYou} new ${pulse.repliesToYou === 1 ? "reply" : "replies"} to your posts` : null,
-        pulse.newPredictionEntries > 0 ? `${pulse.newPredictionEntries} new prediction ${pulse.newPredictionEntries === 1 ? "entry" : "entries"}` : null,
-      ].filter((line): line is string => line !== null)
-    : [];
+        { key: "posts", tone: "sky" as const, icon: <DiscussionIcon />, count: pulse.newPosts, label: pulse.newPosts === 1 ? "new discussion" : "new discussions" },
+        { key: "replies", tone: "emerald" as const, icon: <ReplyIcon />, count: pulse.repliesToYou, label: pulse.repliesToYou === 1 ? "reply to your posts" : "replies to your posts" },
+        { key: "entries", tone: "amber" as const, icon: <TrendIcon />, count: pulse.newPredictionEntries, label: pulse.newPredictionEntries === 1 ? "new prediction entry" : "new prediction entries" },
+      ].filter((r) => r.count > 0)
+    : [
+        { key: "posts", tone: "sky" as const, icon: <DiscussionIcon />, count: weeklyPosts, label: weeklyPosts === 1 ? "discussion this week" : "discussions this week" },
+        { key: "open", tone: "amber" as const, icon: <TrendIcon />, count: openPredictions, label: openPredictions === 1 ? "open prediction" : "open predictions" },
+      ].filter((r) => r.count > 0);
+
+  const trending = pulse.hasPriorVisit ? pulse.mostActive : weeklyMostActive ? { id: weeklyMostActive.id, name: weeklyMostActive.name } : null;
 
   return (
     <div>
@@ -119,54 +128,32 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
         </span>
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Community pulse</p>
       </div>
+      <p className="mt-1 text-[10.5px] text-neutral-600">{pulse.hasPriorVisit ? "Since you were last here" : "Across your communities"}</p>
 
-      {pulse.hasPriorVisit ? (
-        <>
-          <p className="mt-2 text-[11px] text-neutral-600">Since you were last here</p>
-          {sinceLines.length === 0 ? (
-            <p className="mt-1.5 text-xs leading-relaxed text-neutral-600">No major changes since your last visit.</p>
-          ) : (
-            <ul className="mt-1.5 space-y-1.5">
-              {sinceLines.map((line) => (
-                <PulseLine key={line}>{line}</PulseLine>
-              ))}
-              {pulse.mostActive && (
-                <PulseLine>
-                  <Link href={groupHref(pulse.mostActive.id)} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                    {pulse.mostActive.name}
-                  </Link>{" "}
-                  has been the most active
-                </PulseLine>
-              )}
-            </ul>
-          )}
-          {pulse.openPredictions > 0 && (
-            <p className="mt-2 border-t border-white/[0.06] pt-2 text-xs text-neutral-500">
-              {pulse.openPredictions} open prediction{pulse.openPredictions === 1 ? "" : "s"} waiting for entries
-            </p>
-          )}
-        </>
-      ) : !hasActivity ? (
-        <p className="mt-2 text-xs leading-relaxed text-neutral-600">No major activity across your communities this week.</p>
+      {rows.length === 0 && !trending ? (
+        <p className="mt-2 text-[11.5px] leading-relaxed text-neutral-600">
+          {pulse.hasPriorVisit ? "You're caught up. No major changes since your last visit." : "No activity across your communities yet."}
+        </p>
       ) : (
         <ul className="mt-2 space-y-1.5">
-          {weeklyPosts > 0 && (
-            <PulseLine>
-              {weeklyPosts} new {weeklyPosts === 1 ? "discussion" : "discussions"} this week across your {groups.length === 1 ? "community" : "communities"}
-            </PulseLine>
-          )}
-          {openPredictions > 0 && (
-            <PulseLine>
-              {openPredictions} open prediction{openPredictions === 1 ? "" : "s"} waiting for entries
-            </PulseLine>
-          )}
-          {weeklyMostActive && (
-            <PulseLine>
-              <Link href={groupHref(weeklyMostActive.id)} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                {weeklyMostActive.name}
-              </Link>{" "}
-              is the most active community right now
-            </PulseLine>
+          {rows.map((r) => (
+            <li key={r.key} className="flex items-center gap-2">
+              <span aria-hidden className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${TONE[r.tone]}`}>
+                {r.icon}
+              </span>
+              <span className="text-[13px] font-semibold tabular-nums leading-none text-white">{r.count}</span>
+              <span className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-400">{r.label}</span>
+            </li>
+          ))}
+          {trending && (
+            <li className="flex items-center gap-2">
+              <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]">
+                <TrendIcon />
+              </span>
+              <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                {trending.name} is trending
+              </Link>
+            </li>
           )}
         </ul>
       )}
@@ -174,14 +161,40 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
   );
 }
 
-function PulseLine({ children }: { children: React.ReactNode }) {
+/** Restrained, fixed tones - one per kind of activity, so a row is identifiable by its colour
+ * without the widget turning into a palette. */
+const TONE = {
+  sky: "bg-sky-500/[0.14] text-sky-400",
+  emerald: "bg-emerald-500/[0.14] text-emerald-400",
+  amber: "bg-amber-500/[0.14] text-amber-400",
+} as const;
+
+function DiscussionIcon() {
   return (
-    <li className="flex items-baseline gap-2 text-xs leading-relaxed text-neutral-400">
-      <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-neutral-600" />
-      <span className="min-w-0">{children}</span>
-    </li>
+    <svg viewBox="0 0 20 20" width="11" height="11" fill="none" aria-hidden>
+      <path d="M3 4.5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-3.5 3v-3H3a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }
+
+function ReplyIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden>
+      <path d="M6 4 2.5 7.5 6 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2.5 7.5H9a4.5 4.5 0 0 1 4.5 4.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrendIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden>
+      <path d="M2 11.5 6 7l3 2.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10.5 4H14v3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 
 /** The header module: the real next race, over its own real photo where the pipeline has one. The
  * countdown counts to the race itself, which is the one session time this row actually carries -
@@ -327,6 +340,11 @@ function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
                     <ChevronIcon />
                   </span>
                 </div>
+
+                {/* What the community has actually entered, so the rail answers "which way is this
+                    going" and not just "this exists". Real aggregate only - below three entries it
+                    says how many there are rather than drawing a consensus from two people. */}
+                <PredictionTrendBars groupId={p.groupId} predictionId={p.id} isPodium={p.type === "podium"} compact />
               </Link>
             );
           })}

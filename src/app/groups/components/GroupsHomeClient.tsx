@@ -152,8 +152,13 @@ export function GroupsHomeClient({
         </div>
       </main>
 
+      {/* Same height model as the navigation rail: the wrapper holds the workspace height (the
+          definite height a percentage max-height inside it can resolve against), while being a flex
+          column lets the card size to its own content. A rail with four short widgets ends under
+          the last one instead of stretching to the viewport with dead space below it, and only
+          starts scrolling internally once it genuinely outgrows the space. */}
       <aside className="order-3 min-h-0 lg:h-full">
-        <div ref={rightScrollRef} className="lg:h-full">
+        <div ref={rightScrollRef} className="lg:flex lg:h-full lg:flex-col">
           <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>
