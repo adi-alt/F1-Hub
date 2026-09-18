@@ -7,6 +7,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { canDo, postKindsFor } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
+import { SchedulePost } from "./post/SchedulePost";
 import type { PostStatus } from "@/lib/supabase/groupPosts";
 import { fileNameFromUrl, mediaKind } from "@/lib/mediaKind";
 import { CommunitySelector } from "./post/CommunitySelector";
@@ -136,7 +137,6 @@ export function PostComposer({
   // real UTC instant only at submit (new Date(local).toISOString()), which is what makes "7:30 PM"
   // mean 7:30 PM where they are - the server stores and compares instants, never wall clocks.
   const [scheduledAt, setScheduledAt] = useState("");
-  const [showSchedule, setShowSchedule] = useState(false);
   const [scheduledConfirmation, setScheduledConfirmation] = useState("");
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
@@ -188,7 +188,6 @@ export function PostComposer({
     setNotice("");
     setConfirmDiscard(false);
     setScheduledAt("");
-    setShowSchedule(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
@@ -408,27 +407,6 @@ export function PostComposer({
       )}
       {mediaError && <p className="ml-[44px] mt-1 text-[11.5px] text-[var(--f1-red)]">{mediaError}</p>}
 
-      {showSchedule && (
-        <div className="ml-[44px] mt-2 flex flex-wrap items-center gap-2">
-          <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500" htmlFor="composer-schedule">
-            Publish at
-          </label>
-          <input
-            id="composer-schedule"
-            type="datetime-local"
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-            className="rounded-md border border-white/[0.07] bg-black/25 px-2 py-1 text-[11.5px] text-white focus:border-white/20 focus:outline-none"
-          />
-          <span className="text-[10.5px] text-neutral-500">{localZoneLabel()}</span>
-          {scheduledAt && (
-            <button type="button" onClick={() => setScheduledAt("")} className="text-[11px] font-medium text-neutral-400 transition hover:text-white">
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
       {scheduledConfirmation && (
         <div className="ml-[44px] mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
           <p className="min-w-0 flex-1 text-[11.5px] text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
@@ -501,18 +479,7 @@ export function PostComposer({
             >
               {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
             </button>
-            <button
-              type="button"
-              onClick={() => setShowSchedule((v) => !v)}
-              aria-expanded={showSchedule}
-              aria-label={scheduledAt ? "Change publish time" : "Schedule this post"}
-              title={scheduledAt ? "Change publish time" : "Schedule this post"}
-              className="flex items-center border-l border-black/20 bg-[var(--f1-red)] px-2 text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-            >
-              <svg viewBox="0 0 10 10" width="9" height="9" fill="none" aria-hidden className={showSchedule ? "rotate-180 transition-transform" : "transition-transform"}>
-                <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
+            <SchedulePost value={scheduledAt} onChange={setScheduledAt} />
           </div>
         </div>
 
@@ -560,15 +527,6 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
 
 function Divider() {
   return <span aria-hidden className="h-4 w-px shrink-0 bg-white/[0.08]" />;
-}
-
-/** The viewer's own timezone, named - so "7:30 PM" is unambiguous about whose 7:30 it is. */
-function localZoneLabel(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local time";
-  } catch {
-    return "local time";
-  }
 }
 
 function RoundIcon() {
