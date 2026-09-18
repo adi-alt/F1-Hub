@@ -30,6 +30,36 @@ const MEDIA_MAX_BYTES: Record<string, number> = {
 };
 const FILE_ACCEPT = Object.keys(MEDIA_MAX_BYTES).join(",");
 
+/** Human labels for exactly the mime types this composer actually accepts (the map above), so an
+ * attachment row reads "Excel spreadsheet · 240 KB" rather than the raw mime string. Falls back to
+ * the filename's own extension when the mime is unknown - which is the GIF-picker path, where
+ * there's a real URL but no File object to read a type off. */
+const MEDIA_LABELS: Record<string, string> = {
+  "image/png": "PNG image",
+  "image/jpeg": "JPEG image",
+  "image/webp": "WebP image",
+  "image/gif": "GIF",
+  "video/mp4": "MP4 video",
+  "video/webm": "WebM video",
+  "application/pdf": "PDF",
+  "application/msword": "Word document",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word document",
+  "application/vnd.ms-excel": "Excel spreadsheet",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel spreadsheet",
+};
+
+function describeMedia(mime: string | null, fileName: string | null): string {
+  if (mime && MEDIA_LABELS[mime]) return MEDIA_LABELS[mime];
+  const ext = fileName?.includes(".") ? fileName.split(".").pop() : null;
+  return ext ? ext.toUpperCase() : "File";
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /**
  * The feed's own composer: avatar, one real input, and a row of the attachments/post-type controls
  * underneath it - always visible, not collapsed behind a placeholder row that has to be clicked
@@ -65,6 +95,8 @@ export function PostComposer({
   const [isPrediction, setIsPrediction] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaFileName, setMediaFileName] = useState<string | null>(null);
+  const [mediaSize, setMediaSize] = useState<number | null>(null);
+  const [mediaMime, setMediaMime] = useState<string | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -72,6 +104,7 @@ export function PostComposer({
   const [showGif, setShowGif] = useState(false);
   const [posting, setPosting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -99,9 +132,22 @@ export function PostComposer({
     setIsPrediction(false);
     setMediaPreview(null);
     setMediaFileName(null);
+    setMediaSize(null);
+    setMediaMime(null);
     setMediaUrl(null);
     setMediaError("");
     setNotice("");
+    setConfirmDiscard(false);
+  }
+
+  /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
+   * viewer typed is thrown away on a single stray click. */
+  function requestClose() {
+    if (title.trim() || content.trim() || mediaPreview) {
+      setConfirmDiscard(true);
+      return;
+    }
+    reset();
   }
 
   async function pickMedia(file: File) {
@@ -118,6 +164,8 @@ export function PostComposer({
     releasePreview(); // a file already attached is being replaced - its own blob URL is done for
     setMediaPreview(URL.createObjectURL(file));
     setMediaFileName(file.name);
+    setMediaSize(file.size);
+    setMediaMime(file.type);
     setMediaUrl(null);
     setUploadingMedia(true);
     const form = new FormData();
@@ -137,6 +185,8 @@ export function PostComposer({
     releasePreview();
     setMediaPreview(null);
     setMediaFileName(null);
+    setMediaSize(null);
+    setMediaMime(null);
     setMediaUrl(null);
     setMediaError("");
   }
@@ -183,7 +233,33 @@ export function PostComposer({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5 backdrop-blur-sm">
+    <div className="relative rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5 backdrop-blur-sm">
+      {isOpen && (
+        <button
+          type="button"
+          onClick={requestClose}
+          aria-label="Close composer"
+          title="Close composer"
+          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-neutral-500 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+        >
+          <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
+            <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+
+      {confirmDiscard && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-2.5 py-1.5">
+          <p className="min-w-0 flex-1 text-[11.5px] font-medium text-amber-200/90">Discard this draft?</p>
+          <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 text-[11.5px] font-medium text-neutral-300 transition hover:text-white">
+            Keep editing
+          </button>
+          <button type="button" onClick={reset} className="shrink-0 text-[11.5px] font-semibold text-[var(--f1-red)] transition hover:brightness-125">
+            Discard
+          </button>
+        </div>
+      )}
+
       <div className="flex items-start gap-2.5">
         <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={30} />
 
@@ -194,7 +270,7 @@ export function PostComposer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Add a title (optional)"
               maxLength={300}
-              className="mb-1.5 w-full rounded-lg border border-white/[0.07] bg-black/25 px-3 py-1.5 text-[13px] font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+              className="mb-1.5 w-full rounded-lg border border-white/[0.07] bg-black/25 py-1.5 pl-3 pr-9 text-[13px] font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
             />
           )}
           <textarea
@@ -211,31 +287,42 @@ export function PostComposer({
       </div>
 
       {mediaPreview && (
-        <div className="relative ml-10 mt-2 inline-block">
+        // One attachment row for every file type - a real thumbnail where one exists, a typed icon
+        // where it doesn't - rather than a bare paperclip next to whatever filename happened to
+        // survive. min-w-0 + truncate throughout: a 90-character filename shortens, it never widens
+        // the composer or pushes the remove button off the edge.
+        <div className="ml-10 mt-2 flex max-w-full items-center gap-2.5 rounded-lg border border-white/[0.07] bg-black/25 p-2">
           {/* Classified by the real filename's extension (mediaFileName), not the blob preview
               URL itself - a blob: URL has no extension to read. */}
-          {mediaKind(mediaFileName ?? "") === "video" ? (
-            <video controls className="max-h-48 rounded-xl border border-white/[0.07] bg-black">
-              <source src={mediaPreview} />
-            </video>
-          ) : mediaKind(mediaFileName ?? "") === "document" ? (
-            <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-black/20 px-3 py-2.5 text-sm text-neutral-300">
-              <span aria-hidden>📎</span>
-              <span className="max-w-[16rem] truncate">{mediaFileName}</span>
-            </div>
+          {mediaKind(mediaFileName ?? "") === "image" ? (
+            // eslint-disable-next-line @next/next/no-img-element -- blob:/arbitrary Storage URL, not a known-domain asset next/image can optimize
+            <img src={mediaPreview} alt="" className="h-10 w-10 shrink-0 rounded border border-white/[0.07] object-cover" />
+          ) : mediaKind(mediaFileName ?? "") === "video" ? (
+            <video src={mediaPreview} muted playsInline className="h-10 w-10 shrink-0 rounded border border-white/[0.07] bg-black object-cover" />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={mediaPreview} alt="" className="max-h-48 rounded-xl border border-white/[0.07] object-contain" />
+            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-white/[0.07] bg-white/[0.04] text-neutral-400">
+              <DocumentIcon />
+            </span>
           )}
+
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12px] font-medium text-neutral-200">{mediaFileName ?? "Attachment"}</span>
+            <span className="mt-0.5 block truncate text-[10.5px] text-neutral-500">
+              {uploadingMedia ? "Uploading…" : [describeMedia(mediaMime, mediaFileName), mediaSize != null ? formatBytes(mediaSize) : null].filter(Boolean).join(" · ")}
+            </span>
+          </span>
+
           <button
             type="button"
             onClick={removeMedia}
-            aria-label="Remove media"
-            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white/80 hover:bg-black/90 hover:text-white"
+            aria-label="Remove attachment"
+            title="Remove attachment"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-500 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
           >
-            ×
+            <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
+              <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
           </button>
-          {uploadingMedia && <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/50 text-xs text-white">Uploading…</div>}
         </div>
       )}
       {mediaError && <p className="ml-10 mt-1 text-[11px] text-[var(--f1-red)]">{mediaError}</p>}
@@ -272,11 +359,6 @@ export function PostComposer({
               <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
             </div>
           )}
-          {isOpen && (
-            <button type="button" onClick={reset} className="text-[11.5px] text-neutral-500 transition hover:text-white">
-              Cancel
-            </button>
-          )}
           <button
             type="button"
             onClick={() => void submit()}
@@ -295,6 +377,10 @@ export function PostComposer({
                 setMediaUrl(url);
                 setMediaPreview(url);
                 setMediaFileName(fileNameFromUrl(url));
+                // A picked GIF is a remote URL, not a File - there is no byte count to state, so
+                // none is claimed. The type is known from the source itself.
+                setMediaSize(null);
+                setMediaMime("image/gif");
                 setShowGif(false);
               }}
               onClose={() => setShowGif(false)}
@@ -324,6 +410,15 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
 
 function Divider() {
   return <span aria-hidden className="h-4 w-px shrink-0 bg-white/[0.08]" />;
+}
+
+function DocumentIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden>
+      <path d="M11.5 2.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5l-4-4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M11.5 2.5v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function MediaIcon() {

@@ -309,8 +309,16 @@ export function EntityMultiSelect({
                               ) : o.color ? (
                                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: o.color }} />
                               ) : null}
-                              <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                              {o.sublabel && <span className="shrink-0 truncate text-xs text-neutral-500">{o.sublabel}</span>}
+                              {/* The name is the primary line and always wins the space. The
+                                  sublabel used to sit beside it as `shrink-0`, so a long one (a
+                                  community's full description, say) took its natural width and
+                                  squeezed the name down to a few characters - the option read as
+                                  its description rather than its name. It now sits underneath,
+                                  truncated, and can only ever use the width the name leaves. */}
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate">{o.label}</span>
+                                {o.sublabel && <span className="mt-0.5 block truncate text-xs font-normal text-neutral-500">{o.sublabel}</span>}
+                              </span>
                             </button>
                           );
                         })}

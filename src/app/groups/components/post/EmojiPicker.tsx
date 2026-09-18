@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { usePanelDirection } from "./usePanelDirection";
 
 // A curated, hand-picked set (~70), not the full Unicode CLDR list - a real, searchable-by-keyword
 // picker (not a fake one), just scoped to what a motorsport community actually reaches for instead
@@ -97,16 +98,22 @@ export function EmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) =
 
   const q = query.trim().toLowerCase();
   const filtered = q ? EMOJI.filter((e) => e.keywords.includes(q)) : EMOJI;
+  // Opens downward when there's room below the toolbar, which in the Communities composer (top of
+  // the centre column) there almost always is - this used to be pinned upward unconditionally.
+  const { panelRef, positionClass } = usePanelDirection(320);
 
   return (
     <AnimatePresence>
       <motion.div
-        ref={rootRef}
+        ref={(el) => {
+          rootRef.current = el;
+          panelRef.current = el;
+        }}
         initial={{ opacity: 0, y: 4, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 4, scale: 0.98 }}
         transition={{ duration: 0.12 }}
-        className="absolute bottom-full z-[150] mb-2 w-64 rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 backdrop-blur-md"
+        className={`absolute z-[150] w-64 rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 backdrop-blur-md ${positionClass}`}
       >
         <input
           autoFocus
