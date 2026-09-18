@@ -90,7 +90,7 @@ export default async function GroupsPage() {
     // half-finished responsive pass: three columns each scrolling on their own is a real desktop
     // workspace idiom, and a genuinely bad one on a phone, where it fights the one scroll gesture a
     // touch screen actually has.
-    <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden lg:px-10 lg:py-6">
+    <div className="mx-auto max-w-[1440px] px-4 py-4 sm:px-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden lg:px-8 lg:py-4">
       {/* No separate page header above the workspace anymore - the page title and its one-line
           description live at the top of the navigation rail itself (GroupsLeftSidebar), so the
           three columns start at the same baseline and the feed is the first thing at eye level

@@ -68,8 +68,8 @@ export function PostCard({
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
       className={
         variant === "compact"
-          ? "border-b border-white/[0.06] py-3 last:border-b-0"
-          : "rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm transition hover:border-white/[0.12]"
+          ? "border-b border-white/[0.06] py-2.5 last:border-b-0"
+          : "rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/55 px-3.5 py-3 backdrop-blur-sm transition hover:border-white/[0.12]"
       }
     >
       <div className="flex items-start gap-2">
@@ -129,7 +129,7 @@ export function PostCard({
         )}
       </div>
 
-      <div className={variant === "compact" ? "" : "mt-2.5"}>
+      <div className={variant === "compact" ? "" : "mt-1.5"}>
         <PostContent title={post.title} content={post.content} />
         {post.mediaUrl && <PostMedia url={post.mediaUrl} />}
       </div>
@@ -142,7 +142,7 @@ export function PostCard({
         onOpenComments={() => setDetailOpen(true)}
         trailing={
           kindChip ? (
-            <span className="block truncate rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-neutral-400">{kindChip}</span>
+            <span className="block truncate rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[10.5px] font-medium text-neutral-400">{kindChip}</span>
           ) : undefined
         }
       />

@@ -183,9 +183,9 @@ export function PostComposer({
   }
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm">
-      <div className="flex items-start gap-3">
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
+    <div className="rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5 backdrop-blur-sm">
+      <div className="flex items-start gap-2.5">
+        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={30} />
 
         <div className="min-w-0 flex-1">
           {isOpen && (
@@ -194,7 +194,7 @@ export function PostComposer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Add a title (optional)"
               maxLength={300}
-              className="mb-2 w-full rounded-xl border border-white/[0.07] bg-black/25 px-3.5 py-2.5 text-sm font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+              className="mb-1.5 w-full rounded-lg border border-white/[0.07] bg-black/25 px-3 py-1.5 text-[13px] font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
             />
           )}
           <textarea
@@ -205,13 +205,13 @@ export function PostComposer({
             placeholder={placeholder ?? "Share your thoughts with the community..."}
             rows={isOpen ? 3 : 1}
             maxLength={2000}
-            className="w-full resize-none rounded-xl border border-white/[0.07] bg-black/25 px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
+            className="w-full resize-none rounded-lg border border-white/[0.07] bg-black/25 px-3 py-1.5 text-[13px] leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
           />
         </div>
       </div>
 
       {mediaPreview && (
-        <div className="relative ml-[52px] mt-2.5 inline-block">
+        <div className="relative ml-10 mt-2 inline-block">
           {/* Classified by the real filename's extension (mediaFileName), not the blob preview
               URL itself - a blob: URL has no extension to read. */}
           {mediaKind(mediaFileName ?? "") === "video" ? (
@@ -238,9 +238,9 @@ export function PostComposer({
           {uploadingMedia && <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/50 text-xs text-white">Uploading…</div>}
         </div>
       )}
-      {mediaError && <p className="ml-[52px] mt-1.5 text-xs text-[var(--f1-red)]">{mediaError}</p>}
+      {mediaError && <p className="ml-10 mt-1 text-[11px] text-[var(--f1-red)]">{mediaError}</p>}
 
-      <div className="relative mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+      <div className="relative mt-2 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
         <ToolButton onClick={() => fileInputRef.current?.click()} icon={<MediaIcon />} label="Add media" />
         <Divider />
         <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<GifIcon />} label="GIF" compactLabel />
@@ -265,15 +265,15 @@ export function PostComposer({
           }}
         />
 
-        <div className="ml-auto flex items-center gap-2.5">
-          {notice && <span className="text-xs text-[var(--f1-red)]">{notice}</span>}
+        <div className="ml-auto flex items-center gap-2">
+          {notice && <span className="text-[11px] text-[var(--f1-red)]">{notice}</span>}
           {!fixedGroupId && isOpen && (
-            <div className="w-48">
+            <div className="w-40">
               <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
             </div>
           )}
           {isOpen && (
-            <button type="button" onClick={reset} className="text-xs text-neutral-500 transition hover:text-white">
+            <button type="button" onClick={reset} className="text-[11.5px] text-neutral-500 transition hover:text-white">
               Cancel
             </button>
           )}
@@ -281,7 +281,7 @@ export function PostComposer({
             type="button"
             onClick={() => void submit()}
             disabled={posting || uploadingMedia || !content.trim()}
-            className="rounded-xl bg-[var(--f1-red)] px-6 py-2 text-[13px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+            className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-[12px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
           >
             {posting ? "Posting…" : "Post"}
           </button>
@@ -312,7 +312,7 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition ${
+      className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-[11.5px] font-medium transition ${
         active ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
       }`}
     >

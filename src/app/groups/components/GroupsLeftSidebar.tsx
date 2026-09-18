@@ -9,16 +9,17 @@ import type { GroupSummary } from "@/lib/supabase/groups";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
 
 /**
- * The navigation rail: one frosted surface holding the page's own identity (title + description -
- * there is no separate page header above the workspace, see page.tsx), the community list, and the
- * two community-level actions.
+ * The navigation rail. Deliberately NOT wrapped in a card of its own - a card around the rail, a
+ * card around the feed and a card around the context rail turns the page into three boxes with
+ * cards inside them. Navigation sits directly on the page background here; the only real surfaces
+ * in this column are the selected row's own tint and the primary action.
  *
  * Selecting a row doesn't navigate away - it switches the center feed to that one community's own
  * stream in place (GroupsFeed owns the actual fetch), the way a mail client's folder list changes
- * what's shown without leaving the page. "All" is the default and returns to the cross-community
- * feed. A small arrow appears on hover for the different, real need underneath it - opening that
- * community's own full page (Predictions, Members, Manage) - so selecting-to-filter and
- * opening-the-real-page stay two distinct actions rather than one overloaded click.
+ * what's shown without leaving the page. A chevron appears on hover for the different, real need
+ * underneath it - opening that community's own full page (Predictions, Members, Manage) - so
+ * selecting-to-filter and opening-the-real-page stay two distinct actions rather than one
+ * overloaded click.
  */
 export function GroupsLeftSidebar({
   groups,
@@ -35,77 +36,83 @@ export function GroupsLeftSidebar({
 
   return (
     // Desktop only - a full vertical rail is the wrong idiom on a phone (see
-    // MobileCommunitySelector below, which GroupsHomeClient renders instead at <lg).
-    // max-h-full, never h-full: the card ends where its content ends (see GroupsHomeClient, which
-    // gives this a definite-height flex parent so that percentage actually resolves) and only caps
-    // at the workspace height once there are enough communities to need it, at which point the
-    // list inside it starts scrolling instead.
-    <div className="hidden max-h-full flex-col rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-4 backdrop-blur-sm lg:flex">
-      <div className="shrink-0">
-        <h1 className="text-[22px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
-        <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">Race-weekend discussion and predictions across your communities.</p>
+    // MobileCommunitySelector below, which GroupsHomeClient renders instead at <lg). max-h-full,
+    // never h-full: the rail ends where its content ends and only caps at the workspace height
+    // once there are enough communities to need it.
+    <div className="hidden max-h-full flex-col lg:flex">
+      <div className="shrink-0 px-1">
+        <h1 className="text-[15px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
+        <p className="mt-0.5 text-[11px] leading-snug text-neutral-500">Race-weekend discussion and predictions.</p>
       </div>
 
-      <div className="mt-6 flex shrink-0 items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Your communities</p>
-        {groups.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{groups.length}</span>}
+      {/* The scope control, above the list and separated from it: "All communities" is not an
+          eighth community, it's the filter that decides whether the centre column shows the
+          combined feed or one community's own. Hence a collection icon in a squared tile rather
+          than a circular avatar, and a divider under it rather than membership in the list. */}
+      <div className="mt-3 shrink-0">
+        <NavRow
+          label="All communities"
+          active={selectedId === null}
+          onClick={() => onSelect(null)}
+          icon={
+            <span
+              aria-hidden
+              className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md transition ${
+                selectedId === null ? "bg-[var(--f1-red)]/15 text-[var(--f1-red)]" : "bg-white/[0.06] text-neutral-400"
+              }`}
+            >
+              <CollectionIcon />
+            </span>
+          }
+        />
+      </div>
+
+      <div className="mt-2.5 flex shrink-0 items-center justify-between border-t border-white/[0.06] px-1 pt-2.5">
+        <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Your communities</p>
+        {groups.length > 0 && <span className="text-[10.5px] tabular-nums text-neutral-600">{groups.length}</span>}
       </div>
 
       {groups.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-white/[0.09] px-3 py-5 text-center">
-          <p className="text-xs text-neutral-500">No communities yet.</p>
-          <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--f1-red)] transition hover:brightness-125">
+        <div className="mt-2 px-1">
+          <p className="text-[11.5px] font-medium text-neutral-400">No communities yet</p>
+          <button type="button" onClick={onDiscover} className="mt-1 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--f1-red)] transition hover:brightness-125">
             Discover communities
             <ChevronIcon />
           </button>
         </div>
       ) : (
         // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
-        // actions below stay pinned and reachable instead of being pushed out of the card.
-        <div className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto scrollbar-hide">
-          <NavRow
-            label="All"
-            sublabel="All communities"
-            active={selectedId === null}
-            onClick={() => onSelect(null)}
-            icon={
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${selectedId === null ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"}`}>
-                <AllIcon />
-              </span>
-            }
-          />
-          {groups.map((g, i) => {
-            const active = selectedId === g.id;
-            return (
-              <motion.div key={g.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03 }}>
-                <NavRow
-                  label={g.name}
-                  active={active}
-                  onClick={() => onSelect(g.id)}
-                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />}
-                  badge={
-                    g.activePredictions > 0 ? (
-                      <span
-                        title={`${g.activePredictions} open prediction${g.activePredictions === 1 ? "" : "s"}`}
-                        className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--f1-red)] px-1.5 text-[10px] font-bold tabular-nums text-white"
-                      >
-                        {g.activePredictions}
-                      </span>
-                    ) : undefined
-                  }
-                  openHref={groupHref(g.id)}
-                  openLabel={`Open ${g.name}`}
-                />
-              </motion.div>
-            );
-          })}
+        // actions below stay pinned and reachable instead of being pushed out of view.
+        <div className="mt-1 min-h-0 flex-1 space-y-px overflow-y-auto scrollbar-hide">
+          {groups.map((g, i) => (
+            <motion.div key={g.id} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.18, delay: Math.min(i, 8) * 0.025 }}>
+              <NavRow
+                label={g.name}
+                active={selectedId === g.id}
+                onClick={() => onSelect(g.id)}
+                icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={26} />}
+                badge={
+                  g.activePredictions > 0 ? (
+                    <span
+                      title={`${g.activePredictions} open prediction${g.activePredictions === 1 ? "" : "s"}`}
+                      className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[var(--f1-red)] px-1 text-[9.5px] font-bold tabular-nums text-white"
+                    >
+                      {g.activePredictions}
+                    </span>
+                  ) : undefined
+                }
+                openHref={groupHref(g.id)}
+                openLabel={`Open ${g.name}`}
+              />
+            </motion.div>
+          ))}
         </div>
       )}
 
-      <div className="mt-4 shrink-0 space-y-2 border-t border-white/[0.07] pt-4">
+      <div className="mt-2.5 shrink-0 border-t border-white/[0.06] pt-2.5">
         <button
           onClick={() => setShowCreate(true)}
-          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[var(--f1-red)] px-3 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--f1-red)] px-3 py-1.5 text-[12px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
           <PlusIcon />
           New community
@@ -113,10 +120,10 @@ export function GroupsLeftSidebar({
         <button
           type="button"
           onClick={onDiscover}
-          className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/[0.09] bg-white/[0.02] px-3 py-2.5 text-[13px] font-medium text-neutral-200 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+          className="mt-1 flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11.5px] font-medium text-neutral-400 transition hover:bg-white/[0.05] hover:text-white"
         >
-          <CompassIcon />
           Discover communities
+          <ChevronIcon />
         </button>
       </div>
 
@@ -126,19 +133,16 @@ export function GroupsLeftSidebar({
 }
 
 /**
- * One navigation row, on its own frosted surface.
+ * One navigation row - roughly 40px tall, which is navigation scale, not card scale.
  *
- * These used to be borderless until hovered, so a rail of seven communities read as one
- * undifferentiated column of text and the boundary between two of them only existed under the
- * cursor. Each row now carries a real (quiet) surface of its own at rest - the separation is a
- * property of the row, not of the pointer - while staying lighter than a post card, which is the
- * distinction that keeps this reading as navigation rather than a stack of content cards. The
- * selected state layers a red wash and accent edge over the same surface rather than swapping it
- * for a different one.
+ * Idle rows carry no surface and no border at all: seven bordered rectangles stacked in a column
+ * read as seven dashboard cards competing with the feed, which is exactly what this column must
+ * not do. Separation comes from the rows' own rhythm and their avatars. Hover gets a quiet wash;
+ * the selected row gets a tint plus a thin red accent edge - the red is an active INDICATOR, not
+ * the row's decoration.
  */
 function NavRow({
   label,
-  sublabel,
   active,
   onClick,
   icon,
@@ -147,7 +151,6 @@ function NavRow({
   openLabel,
 }: {
   label: string;
-  sublabel?: string;
   active: boolean;
   onClick: () => void;
   icon: ReactNode;
@@ -157,19 +160,19 @@ function NavRow({
 }) {
   return (
     <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 backdrop-blur-sm transition ${
-        active
-          ? "border-[var(--f1-red)]/35 bg-gradient-to-r from-[var(--f1-red)]/[0.18] to-[var(--f1-red)]/[0.04]"
-          : "border-white/[0.09] bg-white/[0.06] hover:border-white/20 hover:bg-white/[0.1]"
+      className={`group relative flex items-center gap-2 overflow-hidden rounded-lg px-1.5 py-1.5 transition ${
+        active ? "bg-[var(--f1-red)]/[0.1]" : "hover:bg-white/[0.045]"
       }`}
     >
-      {active && <span aria-hidden className="absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
-      <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+      {active && <span aria-hidden className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
+      <button
+        type="button"
+        onClick={onClick}
+        aria-current={active}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+      >
         {icon}
-        <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[13.5px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
-          {sublabel && <span className="mt-0.5 block truncate text-[11px] leading-tight text-neutral-500">{sublabel}</span>}
-        </span>
+        <span className={`min-w-0 flex-1 truncate text-[12.5px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
       </button>
       {badge}
       {openHref && (
@@ -177,7 +180,7 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="shrink-0 rounded p-1 text-neutral-600 opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded p-0.5 text-neutral-600 opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
         >
           <ChevronIcon />
         </Link>
@@ -198,26 +201,17 @@ function ChevronIcon() {
 
 function PlusIcon() {
   return (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden>
+    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden>
       <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
 
-function CompassIcon() {
+/** A collection of tiles - "everything you follow, together". Deliberately not a globe or a
+ * community-shaped avatar: this row is a scope, and its icon should read as one. */
+function CollectionIcon() {
   return (
-    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden>
-      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path d="m13 7-1.8 4.4a1 1 0 0 1-.6.6L6.5 13.5l1.8-4.4a1 1 0 0 1 .6-.6L13 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** A real globe - "All" means every followed community's feed aggregated together, and a globe is
- * the honest icon for "everything". */
-function AllIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden>
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
       <rect x="2" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
       <rect x="9" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
       <rect x="2" y="9" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
@@ -249,7 +243,7 @@ function Chip({ label, seed, avatarUrl, active, onClick }: { label: string; seed
       type="button"
       onClick={onClick}
       aria-current={active}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition ${
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-medium transition ${
         active ? "bg-[var(--f1-red)]/[0.16] text-white ring-1 ring-[var(--f1-red)]/30" : "bg-white/[0.04] text-neutral-400 hover:text-neutral-200"
       }`}
     >

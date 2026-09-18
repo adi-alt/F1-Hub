@@ -51,21 +51,21 @@ export function PostHeader({
       <span aria-hidden className="text-neutral-700">
         ·
       </span>
-      <span className="shrink-0 whitespace-nowrap text-xs text-neutral-500">{timeAgo(post.createdAt)}</span>
-      {roleLabel && <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
-      {pending && <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
+      <span className="shrink-0 whitespace-nowrap text-[11px] text-neutral-500">{timeAgo(post.createdAt)}</span>
+      {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
+      {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
     </>
   );
 
   if (communityIsPrimary) {
     return (
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         <Link href={groupHref(post.groupId as string)} className="shrink-0">
-          <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={36} />
+          <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={26} />
         </Link>
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-sm font-semibold text-white transition hover:text-neutral-300">
-            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
+          <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-[13px] font-semibold text-white transition hover:text-neutral-300">
+            <span aria-hidden className="mr-1 font-mono text-[10.5px] font-normal text-neutral-500">
               C/
             </span>
             {post.groupName}
@@ -77,11 +77,11 @@ export function PostHeader({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2.5">
-      <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={36} />
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={26} />
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-        <span className="min-w-0 truncate text-sm font-semibold text-white">
-          <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
+        <span className="min-w-0 truncate text-[13px] font-semibold text-white">
+          <span aria-hidden className="mr-1 font-mono text-[10.5px] font-normal text-neutral-500">
             U/
           </span>
           {post.authorName}
