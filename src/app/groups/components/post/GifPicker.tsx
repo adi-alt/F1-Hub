@@ -70,11 +70,11 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
       />
       <div className="mt-2 max-h-52 overflow-y-auto">
         {!configured ? (
-          <p className="p-3 text-center text-xs text-neutral-500">GIF search isn&apos;t configured yet - needs a Tenor API key (see gifProvider.ts).</p>
+          <p className="p-3 text-center text-xs text-neutral-500">GIF search isn&apos;t configured yet - needs KLIPY_API_KEY set (see gifProvider.ts).</p>
         ) : results === null ? (
           <p className="p-3 text-center text-xs text-neutral-600">Searching…</p>
         ) : results.length === 0 ? (
-          <p className="p-3 text-center text-xs text-neutral-600">{query.trim() ? "No GIFs found." : "Type to search."}</p>
+          <p className="p-3 text-center text-xs text-neutral-600">No GIFs found.</p>
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {results.map((g) => (
