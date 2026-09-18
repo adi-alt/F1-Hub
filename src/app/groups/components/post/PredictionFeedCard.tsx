@@ -2,6 +2,7 @@
 
 
 import Link from "next/link";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
@@ -10,6 +11,7 @@ import { PredictionTrendBars } from "./PredictionTrendBars";
 import { groupHref } from "@/lib/routes";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { PredictionEntry, type DriverOption } from "./PredictionEntry";
 
 /**
  * An open prediction round, rendered in the feed alongside discussions rather than hidden behind a
@@ -26,8 +28,23 @@ import { useMinuteClock } from "@/hooks/useMinuteClock";
  * card carries everything needed to DECIDE - cost, deadline, what the community thinks, what you
  * picked - and hands off for the act itself.
  */
-export function PredictionFeedCard({ prediction, index = 0, showGroup }: { prediction: FeedPrediction; index?: number; showGroup: boolean }) {
+export function PredictionFeedCard({
+  prediction,
+  index = 0,
+  showGroup,
+  drivers = [],
+}: {
+  prediction: FeedPrediction;
+  index?: number;
+  showGroup: boolean;
+  /** Real roster for THIS round's race, so entry can happen here rather than by navigating to the
+   * community page. Empty is a real state - PredictionEntry says so instead of offering nothing. */
+  drivers?: DriverOption[];
+}) {
   const now = useMinuteClock();
+  // Entry updates the card in place. Seeded from the server value, then owned locally once the
+  // viewer enters, so the feed never has to refetch to show back what they just picked.
+  const [entered, setEntered] = useState<{ label: string | null } | null>(prediction.hasEntered ? { label: prediction.myGuessLabel } : null);
   const raceAt = prediction.raceDate ? parseUtcDateTime(prediction.raceDate).getTime() : null;
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
   const closed = !!raceAt && raceAt <= now;
@@ -75,34 +92,26 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
 
       <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        {prediction.hasEntered ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {entered ? (
           <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.08] px-2.5 text-[11.5px] text-emerald-200/90">
             <CheckIcon />
             <span className="shrink-0 font-semibold">Entered</span>
-            {prediction.myGuessLabel && <span className="min-w-0 truncate text-neutral-300">· {prediction.myGuessLabel}</span>}
+            {entered.label && <span className="min-w-0 truncate text-neutral-300">· {entered.label}</span>}
           </span>
-        ) : closed ? (
-          <span className="text-xs text-neutral-500">You didn&apos;t enter this round.</span>
         ) : (
-          <Link
-            href={`${groupHref(prediction.groupId)}?tab=predictions`}
-            className="flex h-7 items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110"
-          >
-            Enter prediction
-            <ChevronIcon />
-          </Link>
+          <PredictionEntry
+            groupId={prediction.groupId}
+            predictionId={prediction.id}
+            type={prediction.type}
+            entryPoints={prediction.entryPoints}
+            drivers={drivers}
+            closed={closed}
+            onEntered={(_guess, label) => setEntered({ label })}
+          />
         )}
       </div>
     </motion.article>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden>
-      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 

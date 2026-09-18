@@ -61,6 +61,7 @@ export function GroupsFeed({
   selectedCommunity,
   predictions,
   upcomingRaces,
+  driversByRace,
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -72,6 +73,8 @@ export function GroupsFeed({
   predictions: FeedPrediction[];
   /** This season's un-finished rounds, for opening a prediction from the composer. */
   upcomingRaces: RaceOption[];
+  /** Driver roster per race id, so a round can be entered from the feed itself. */
+  driversByRace: Record<string, { code: string; name: string }[]>;
 }) {
   const communityId = selectedCommunity?.id ?? null;
   const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;
@@ -307,7 +310,7 @@ export function GroupsFeed({
                 item.kind === "post" ? (
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
                 ) : (
-                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup={false} />
+                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} />
                 ),
               )}
             </div>
@@ -330,7 +333,7 @@ export function GroupsFeed({
               item.kind === "post" ? (
                 <PostCard key={item.key} post={item.post} index={i} showGroup />
               ) : (
-                <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup />
+                <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} />
               ),
             )}
           </div>

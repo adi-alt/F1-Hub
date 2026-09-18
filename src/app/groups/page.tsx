@@ -4,7 +4,7 @@ import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
-import { getRacesByYear } from "@/lib/supabase/races";
+import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
@@ -22,6 +22,30 @@ async function getRaceContext() {
     .sort((a, b) => a.round - b.round)
     .map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
   return { nextRace: await getNextRace(races), upcomingRaces };
+}
+
+/**
+ * Driver rosters for exactly the races the viewer's own open rounds reference - the same handful of
+ * small fetches a community's own page already does (see groups/[id]/page.tsx), not the whole
+ * season.
+ *
+ * This is what lets a prediction be entered from the feed itself. Without a real roster the card
+ * could only ever link away to the community page, which is what "Enter prediction" used to do -
+ * a navigation dressed up as an action.
+ */
+async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string }[]>> {
+  const unique = [...new Set(raceIds)];
+  const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
+  const byRace: Record<string, { code: string; name: string }[]> = {};
+  unique.forEach((raceId, i) => {
+    const race = races[i];
+    // `inputs` is the entry list for a race that hasn't run; `results` is what actually happened.
+    // Either is a real roster; an empty one is a real state too (the pipeline has neither yet), and
+    // the card says so rather than offering an empty picker.
+    const roster = race?.inputs?.length ? race.inputs : (race?.results ?? []);
+    byRace[raceId] = roster.map((r) => ({ code: r.driver, name: r.driverName }));
+  });
+  return byRace;
 }
 
 /** Groups home - feed-first (see GroupsHomeClient's own comment for the full reasoning). Every
@@ -54,6 +78,9 @@ export default async function GroupsPage() {
     getCommunityPulse(session.uid),
   ]);
 
+  // Sequential on purpose: it depends on which rounds came back above.
+  const driversByRace = await getDriversByRace(predictions.map((p) => p.raceId));
+
   return (
     // Same effective width as the Race page (max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16) - not a
     // width invented for Communities alone. At <lg this is a plain block: the header takes its
@@ -80,6 +107,7 @@ export default async function GroupsPage() {
           nextRace={raceContext.nextRace}
           upcomingRaces={raceContext.upcomingRaces}
           pulse={pulse}
+          driversByRace={driversByRace}
         />
       </div>
     </div>

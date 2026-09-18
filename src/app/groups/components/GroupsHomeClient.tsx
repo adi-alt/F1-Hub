@@ -35,6 +35,7 @@ export function GroupsHomeClient({
   nextRace,
   upcomingRaces,
   pulse,
+  driversByRace,
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -43,6 +44,8 @@ export function GroupsHomeClient({
   nextRace: NextRace;
   upcomingRaces: RaceOption[];
   pulse: CommunityPulseData;
+  /** Driver roster per race id, for the open rounds shown in the feed. */
+  driversByRace: Record<string, { code: string; name: string }[]>;
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   // The one piece of real interaction state this page adds: which community (if any) the left
@@ -145,7 +148,7 @@ export function GroupsHomeClient({
           className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:scrollbar-hide"
         >
           <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-          <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} />
+          <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
         </div>
       </main>
 
