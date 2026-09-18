@@ -11,6 +11,7 @@ import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
+import type { RaceOption } from "./post/PredictionComposer";
 
 /** Groups is now feed-first: the center column (real posts across every group you've joined) is
  * the actual content, the left sidebar is navigation (your groups + create/discover), the right
@@ -31,12 +32,14 @@ export function GroupsHomeClient({
   initialCursor,
   predictions,
   nextRace,
+  upcomingRaces,
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
   initialCursor: string | null;
   predictions: FeedPrediction[];
   nextRace: NextRace;
+  upcomingRaces: RaceOption[];
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   // The one piece of real interaction state this page adds: which community (if any) the left
@@ -139,7 +142,7 @@ export function GroupsHomeClient({
           className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:scrollbar-hide"
         >
           <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-          <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} />
+          <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} />
         </div>
       </main>
 

@@ -1,6 +1,7 @@
 import { creditPoints, spendPoints } from "@/lib/supabase/points";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
+import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { canDo } from "@/lib/communities";
 import { requireAdmin, requireMember } from "@/lib/supabase/groups";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -15,10 +16,114 @@ export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType } from "@/lib/groupPredictionTypes";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 
-// Omit entryCount/myEntry, not reuse them with placeholder values - this summary genuinely
-// doesn't fetch either (see listMyOpenPredictions' own comment), and a fabricated 0/null would
-// look like real data to any caller that didn't already know better.
-export type FeedPrediction = Omit<GroupPrediction, "entryCount" | "myEntry"> & { groupName: string; hasEntered: boolean };
+// Omit entryCount, not reuse it with a placeholder value - this summary genuinely doesn't fetch it
+// (see listMyOpenPredictions' own comment), and a fabricated 0 would look like real data to any
+// caller that didn't already know better. `myGuess` IS fetched, because the same query that
+// establishes `hasEntered` already has to read the row it lives on - so "Your pick: VER" costs
+// nothing beyond selecting one more column.
+export type FeedPrediction = Omit<GroupPrediction, "entryCount" | "myEntry"> & {
+  groupName: string;
+  hasEntered: boolean;
+  myGuess: PredictionGuess | null;
+  /** The viewer's own pick, resolved to real driver names server-side ("Max Verstappen", not
+   * "VER"). Null when they haven't entered - never a placeholder. */
+  myGuessLabel: string | null;
+};
+
+/** A stored guess rendered as something a person can read. Driver codes become real names where
+ * the roster knows them and stay as the code where it doesn't, which is the honest outcome for a
+ * driver who has since left the grid. */
+export function describeGuess(type: PredictionType, guess: PredictionGuess, driverNameByCode: Map<string, string>): string {
+  if (type === "dnf_count") return typeof guess === "number" ? `${guess} ${guess === 1 ? "retirement" : "retirements"}` : String(guess);
+  if (type === "podium" && Array.isArray(guess)) return guess.map((code) => driverNameByCode.get(code) ?? code).join(", ");
+  return typeof guess === "string" ? (driverNameByCode.get(guess) ?? guess) : String(guess);
+}
+
+/** One aggregated option in a prediction's community trend. `pct` is a real share of `total`,
+ * rounded for display only. */
+export type PredictionTrendOption = { key: string; label: string; count: number; pct: number };
+
+export type PredictionTrend = {
+  /** Real number of entries behind this aggregate. The UI decides what counts as "enough to
+   * show" - this never hides or pads it. */
+  total: number;
+  options: PredictionTrendOption[];
+};
+
+/** How many distinct options a trend lists before the remainder is grouped into "Other". */
+const TREND_TOP_N = 4;
+
+/**
+ * What the community has actually entered for one prediction round, aggregated server-side.
+ *
+ * Every number comes from real `group_prediction_entries` rows - there is no sampling, no
+ * estimate, and no fallback that invents a distribution when nobody has entered yet (`total: 0`
+ * with no options is a real, representable answer, and the card says so rather than drawing empty
+ * bars).
+ *
+ * Individual entries are never returned, only counts: a member should be able to see which way the
+ * community is leaning without seeing who picked what, which would leak other members' picks while
+ * the round is still open. Membership is required to see even the aggregate.
+ */
+export async function getPredictionTrend(predictionId: string, uid: string): Promise<PredictionTrend> {
+  const { data: prediction, error: predictionError } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_predictions").select("id, group_id, type").eq("id", predictionId).maybeSingle(),
+  );
+  if (predictionError) throw new Error(`getPredictionTrend(${predictionId}): ${predictionError.message}`);
+  if (!prediction) throw new ServiceError("That prediction doesn't exist.", 404);
+
+  await requireMember(prediction.group_id as string, uid);
+
+  const { data: entries, error } = await queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("guess").eq("prediction_id", predictionId));
+  if (error) throw new Error(`getPredictionTrend(${predictionId}): ${error.message}`);
+
+  const rows = entries ?? [];
+  if (rows.length === 0) return { total: 0, options: [] };
+
+  const type = prediction.type as PredictionType;
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = trendKeyFor(type, row.guess as PredictionGuess);
+    if (key === null) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
+  if (total === 0) return { total: 0, options: [] };
+
+  // Driver names only matter for the types whose key IS a driver code - a DNF-count trend's keys
+  // are numbers, and looking up a roster for them would be a wasted query.
+  const needsDriverNames = type === "winner" || type === "podium" || type === "fastest_lap" || type === "pole";
+  const driverNameByCode = needsDriverNames ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
+
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const top = sorted.slice(0, TREND_TOP_N);
+  const restCount = sorted.slice(TREND_TOP_N).reduce((sum, [, n]) => sum + n, 0);
+
+  const options: PredictionTrendOption[] = top.map(([key, count]) => ({
+    key,
+    label: labelForTrendKey(type, key, driverNameByCode),
+    count,
+    pct: Math.round((count / total) * 100),
+  }));
+  if (restCount > 0) options.push({ key: "__other__", label: "Other", count: restCount, pct: Math.round((restCount / total) * 100) });
+
+  return { total, options };
+}
+
+/** The one facet of a guess a trend groups by. A podium guess is three drivers, which has no
+ * single meaningful distribution - the winner pick is the part members actually compare, so that's
+ * what's aggregated, and the card labels it as such rather than implying the whole podium matched. */
+function trendKeyFor(type: PredictionType, guess: PredictionGuess): string | null {
+  if (type === "podium") return Array.isArray(guess) && typeof guess[0] === "string" ? guess[0] : null;
+  if (type === "dnf_count") return typeof guess === "number" ? String(guess) : null;
+  return typeof guess === "string" ? guess : null;
+}
+
+function labelForTrendKey(type: PredictionType, key: string, driverNameByCode: Map<string, string>): string {
+  if (type === "dnf_count") return `${key} ${key === "1" ? "retirement" : "retirements"}`;
+  return driverNameByCode.get(key) ?? key;
+}
 
 /** Groups home's right-sidebar widget: open predictions across every group the user has joined,
  * most recent first - a real cross-group query, not a per-group fetch repeated N times. Kept to a
@@ -44,7 +149,7 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
   const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("races").select("id, name, race_date, status").in("id", raceIds)),
     queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").in("id", predictionGroupIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id").eq("user_id", uid).in("prediction_id", predictionIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id, guess").eq("user_id", uid).in("prediction_id", predictionIds)),
   ]);
   if (racesError) throw new Error(`listMyOpenPredictions: ${racesError.message}`);
   if (groupsError) throw new Error(`listMyOpenPredictions: ${groupsError.message}`);
@@ -52,7 +157,11 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
 
   const raceById = new Map((races ?? []).map((r) => [r.id as string, r]));
   const groupNameById = new Map((groupsData ?? []).map((g) => [g.id as string, g.name as string]));
-  const enteredSet = new Set((myEntries ?? []).map((e) => e.prediction_id as string));
+  const myGuessByPrediction = new Map((myEntries ?? []).map((e) => [e.prediction_id as string, (e.guess as PredictionGuess | null) ?? null]));
+  // Only pay for the roster when the viewer has actually entered something that needs naming -
+  // the common case (nothing entered yet) skips the lookup entirely. getAllCurrentDrivers is
+  // itself cached, so even when it does run it is not a fresh round trip per request.
+  const driverNameByCode = myGuessByPrediction.size > 0 ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
 
   return predictions.map((p) => ({
     id: p.id as string,
@@ -68,8 +177,14 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
     correctAnswer: (p.correct_answer as PredictionGuess | null) ?? null,
     createdAt: p.created_at as string,
     resolvedAt: (p.resolved_at as string | null) ?? null,
-    hasEntered: enteredSet.has(p.id as string),
+    hasEntered: myGuessByPrediction.has(p.id as string),
+    myGuess: myGuessByPrediction.get(p.id as string) ?? null,
+    myGuessLabel: resolveMyGuessLabel(p.type as PredictionType, myGuessByPrediction.get(p.id as string) ?? null, driverNameByCode),
   }));
+}
+
+function resolveMyGuessLabel(type: PredictionType, guess: PredictionGuess | null, driverNameByCode: Map<string, string>): string | null {
+  return guess === null ? null : describeGuess(type, guess, driverNameByCode);
 }
 
 export async function createPrediction(

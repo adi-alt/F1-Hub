@@ -21,8 +21,19 @@ import { getSession } from "@/lib/session/getSession";
  * case, since those photos land with the race itself - showed no image at all while the homepage
  * showed one for the very same round. A circuit genuinely missing from archive_circuits still
  * resolves to null and the widget degrades to its plain header, rather than to a placeholder. */
-async function getNextRace() {
+/** The rounds a prediction can still be opened on: this season's own races that haven't finished,
+ * in calendar order. Exactly what createPrediction will accept (it rejects a completed race
+ * server-side), so the composer's picker can't offer something the server will refuse. */
+async function getRaceContext() {
   const races = await getRacesByYear(new Date().getFullYear());
+  const upcomingRaces = races
+    .filter((r) => r.status !== "completed")
+    .sort((a, b) => a.round - b.round)
+    .map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
+  return { nextRace: await getNextRace(races), upcomingRaces };
+}
+
+async function getNextRace(races: Awaited<ReturnType<typeof getRacesByYear>>) {
   const upcoming = races.filter((r) => r.status !== "completed").sort((a, b) => a.round - b.round)[0];
   if (!upcoming) return null;
 
@@ -71,11 +82,11 @@ export default async function GroupsPage() {
     );
   }
 
-  const [groups, feed, predictions, nextRace] = await Promise.all([
+  const [groups, feed, predictions, raceContext] = await Promise.all([
     getUserGroups(session.uid),
     listFeedPosts(session.uid),
     listMyOpenPredictions(session.uid),
-    getNextRace(),
+    getRaceContext(),
   ]);
 
   return (
@@ -96,7 +107,14 @@ export default async function GroupsPage() {
           three columns start at the same baseline and the feed is the first thing at eye level
           rather than sitting a header's height below it. */}
       <div className="lg:min-h-0 lg:flex-1">
-        <GroupsHomeClient groups={groups} initialPosts={feed.posts} initialCursor={feed.nextCursor} predictions={predictions} nextRace={nextRace} />
+        <GroupsHomeClient
+          groups={groups}
+          initialPosts={feed.posts}
+          initialCursor={feed.nextCursor}
+          predictions={predictions}
+          nextRace={raceContext.nextRace}
+          upcomingRaces={raceContext.upcomingRaces}
+        />
       </div>
     </div>
   );

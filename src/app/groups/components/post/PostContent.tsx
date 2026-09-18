@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import { firstUrlIn, safeHttpUrl } from "@/lib/linkPreview";
+import { LinkPreview } from "./LinkPreview";
 
 const TRUNCATE_AT = 500;
+const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/gi;
 
 /** The complete post, not a preview - the whole point of removing "View in group ->" is that the
  * feed itself is where a post gets read. Only genuinely long posts get a "Show more" expansion
@@ -11,18 +14,48 @@ export function PostContent({ title, content }: { title: string | null; content:
   const [expanded, setExpanded] = useState(false);
   const isLong = content.length > TRUNCATE_AT;
   const shown = isLong && !expanded ? `${content.slice(0, TRUNCATE_AT).trimEnd()}…` : content;
+  // Previewed from the full content, not the truncated view: collapsing a long post shouldn't make
+  // its link preview appear and disappear.
+  const previewUrl = firstUrlIn(content);
 
   return (
     // 13.5px, not 15: the body stays the strongest text in the card (every other string around it
     // is 9.5-13px now) without being the thing that made a three-line post occupy a screenful.
     <div className="mt-1">
       {title && <p className="text-[13.5px] font-semibold text-white">{title}</p>}
-      <p className={`whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-neutral-300 ${title ? "mt-0.5" : ""}`}>{shown}</p>
+      {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
+          otherwise set the card's minimum width and push the whole column sideways. */}
+      <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13.5px] leading-relaxed text-neutral-300 ${title ? "mt-0.5" : ""}`}>{linkify(shown)}</p>
       {isLong && (
         <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-[11px] font-medium text-neutral-500 hover:text-white">
           {expanded ? "Show less" : "Show more"}
         </button>
       )}
+      {previewUrl && <LinkPreview url={previewUrl} />}
     </div>
   );
+}
+
+/**
+ * Turns bare URLs in post text into real links.
+ *
+ * Every candidate goes through the same safeHttpUrl check the server uses, so a `javascript:` or
+ * `data:` URL is never given an href - it stays plain text. Everything else is rendered by React as
+ * text, so there is no path here from post content to markup.
+ */
+function linkify(text: string) {
+  return text.split(URL_PATTERN).map((part, i) => {
+    if (i % 2 === 0) return <Fragment key={i}>{part}</Fragment>;
+    const trimmed = part.replace(/[.,;:!?)\]}]+$/, "");
+    const trailing = part.slice(trimmed.length);
+    if (!safeHttpUrl(trimmed)) return <Fragment key={i}>{part}</Fragment>;
+    return (
+      <Fragment key={i}>
+        <a href={trimmed} target="_blank" rel="noopener noreferrer" className="text-[var(--f1-red)] underline-offset-2 hover:underline">
+          {trimmed}
+        </a>
+        {trailing}
+      </Fragment>
+    );
+  });
 }

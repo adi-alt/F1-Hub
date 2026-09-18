@@ -10,7 +10,24 @@ import type { FeedPost, FeedType, GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import { PostCard } from "./post/PostCard";
 import { PostCardSkeleton } from "./post/PostCardSkeleton";
+import { PredictionFeedCard } from "./post/PredictionFeedCard";
 import { PostComposer } from "./PostComposer";
+import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
+import type { RaceOption } from "./post/PredictionComposer";
+import type { PostCardData } from "./post/types";
+
+/** One row of the stream: a discussion or an open prediction round, ordered together by the time
+ * each was actually created. Keeping them in one list (rather than a predictions strip above the
+ * feed) is what makes a prediction read as something the community posted, which is what it is. */
+type FeedItem = { key: string; at: number } & ({ kind: "post"; post: PostCardData } | { kind: "prediction"; prediction: FeedPrediction });
+
+function interleave(posts: PostCardData[], predictions: FeedPrediction[]): FeedItem[] {
+  const items: FeedItem[] = [
+    ...posts.map((post) => ({ key: `post:${post.id}`, at: new Date(post.createdAt).getTime(), kind: "post" as const, post })),
+    ...predictions.map((prediction) => ({ key: `prediction:${prediction.id}`, at: new Date(prediction.createdAt).getTime(), kind: "prediction" as const, prediction })),
+  ];
+  return items.sort((a, b) => b.at - a.at);
+}
 
 // The same segmented Tabs primitive Your F1's cockpit and the Apex Intelligence workspace already
 // use (src/components/ui/Tabs.tsx) - a real sliding-capsule pill group with full APG tab semantics,
@@ -42,13 +59,22 @@ export function GroupsFeed({
   initialPosts,
   initialCursor,
   selectedCommunity,
+  predictions,
+  upcomingRaces,
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
   initialCursor: string | null;
   selectedCommunity: GroupSummary | null;
+  /** The viewer's real open prediction rounds - the SAME array the context rail renders, fetched
+   * once by the page, not a second query. Interleaved into the stream below by their own
+   * createdAt so a round shows up where it actually happened rather than pinned to the top. */
+  predictions: FeedPrediction[];
+  /** This season's un-finished rounds, for opening a prediction from the composer. */
+  upcomingRaces: RaceOption[];
 }) {
   const communityId = selectedCommunity?.id ?? null;
+  const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;
 
   // The composer only exists at the very top of the stream, so someone twenty posts down had no
   // way to start one without scrolling all the way back by hand. This watches whether it's still
@@ -235,6 +261,7 @@ export function GroupsFeed({
           onPosted={communityId ? refreshCommunity : refreshAggregate}
           fixedGroupId={communityId ?? undefined}
           placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : undefined}
+          upcomingRaces={upcomingRaces}
         />
       </div>
 
@@ -276,9 +303,13 @@ export function GroupsFeed({
             <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
           ) : (
             <div className="space-y-2.5">
-              {communityPosts.map((post, i) => (
-                <PostCard key={post.id} post={post} index={i} showGroup={false} />
-              ))}
+              {interleave(communityPosts, communityPredictions).map((item, i) =>
+                item.kind === "post" ? (
+                  <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
+                ) : (
+                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup={false} />
+                ),
+              )}
             </div>
           )
         ) : loading ? (
@@ -295,9 +326,13 @@ export function GroupsFeed({
           />
         ) : (
           <div className="space-y-2.5">
-            {posts.map((post, i) => (
-              <PostCard key={post.id} post={post} index={i} showGroup />
-            ))}
+            {interleave(posts, predictions).map((item, i) =>
+              item.kind === "post" ? (
+                <PostCard key={item.key} post={item.post} index={i} showGroup />
+              ) : (
+                <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup />
+              ),
+            )}
           </div>
         )}
       </div>

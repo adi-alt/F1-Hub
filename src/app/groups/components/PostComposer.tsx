@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
-import { postKindsFor } from "@/lib/communities";
+import { canDo, postKindsFor } from "@/lib/communities";
+import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
+import { ComposeAssist } from "./post/ComposeAssist";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import { fileNameFromUrl, mediaKind } from "@/lib/mediaKind";
 import { CommunitySelector } from "./post/CommunitySelector";
@@ -81,11 +83,15 @@ export function PostComposer({
   onPosted,
   fixedGroupId,
   placeholder,
+  upcomingRaces = [],
 }: {
   groups: GroupSummary[];
   onPosted: () => void;
   fixedGroupId?: string;
   placeholder?: string;
+  /** This season's un-finished rounds, for opening a prediction. Empty (the default) simply means
+   * no prediction mode is offered - every other caller of this composer passes nothing. */
+  upcomingRaces?: RaceOption[];
 }) {
   const { user, displayName } = useAuth();
   const [focused, setFocused] = useState(false);
@@ -105,6 +111,18 @@ export function PostComposer({
   const [posting, setPosting] = useState(false);
   const [notice, setNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [mode, setMode] = useState<"discussion" | "prediction">("discussion");
+
+  // The communities this viewer can genuinely open a round in - their real role in each, against
+  // that community's own permission map, through the exact helper createPrediction uses
+  // server-side. Not "is signed in", and not "is an admin somewhere": a community that has opened
+  // prediction creation up to all members qualifies, and one where they're only a member and it's
+  // admins-only does not. When `fixedGroupId` is set (the rail has a community selected) the
+  // choice is narrowed to that community, so the composer can't open a round somewhere else.
+  const predictionCommunities = groups.filter(
+    (g) => (!fixedGroupId || g.id === fixedGroupId) && canDo(g.permissions, "createPredictions", g.myRole),
+  );
+  const canOpenPrediction = upcomingRaces.length > 0 && predictionCommunities.length > 0;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -234,12 +252,12 @@ export function PostComposer({
 
   return (
     <div className="relative rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5 backdrop-blur-sm">
-      {isOpen && (
+      {(isOpen || mode === "prediction") && (
         <button
           type="button"
-          onClick={requestClose}
-          aria-label="Close composer"
-          title="Close composer"
+          onClick={mode === "prediction" ? () => setMode("discussion") : requestClose}
+          aria-label={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
+          title={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
           className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-neutral-500 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
           <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
@@ -260,6 +278,23 @@ export function PostComposer({
         </div>
       )}
 
+      {mode === "prediction" ? (
+        <div className="flex items-start gap-2.5">
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={30} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--f1-red)]">New prediction round</p>
+            <PredictionComposer
+              communities={predictionCommunities}
+              races={upcomingRaces}
+              onCreated={() => {
+                setMode("discussion");
+                onPosted();
+              }}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="flex items-start gap-2.5">
         <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={30} />
 
@@ -333,10 +368,21 @@ export function PostComposer({
         <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<GifIcon />} label="GIF" compactLabel />
         <Divider />
         <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<EmojiIcon />} label="Emoji" />
+        <Divider />
+        <ComposeAssist draft={content} onReplace={setContent} />
         {canPredict && (
           <>
             <Divider />
             <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={<PredictionIcon />} label="Prediction" />
+          </>
+        )}
+        {/* A different thing from the chip above it: that tags THIS post as prediction talk, this
+            opens a real prediction round the community can enter. Only shown where the viewer
+            genuinely holds the permission, and the server re-checks it regardless. */}
+        {canOpenPrediction && (
+          <>
+            <Divider />
+            <ToolButton onClick={() => setMode("prediction")} icon={<RoundIcon />} label="New round" />
           </>
         )}
 
@@ -388,6 +434,8 @@ export function PostComposer({
           )}
         </AnimatePresence>
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -410,6 +458,15 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
 
 function Divider() {
   return <span aria-hidden className="h-4 w-px shrink-0 bg-white/[0.08]" />;
+}
+
+function RoundIcon() {
+  return (
+    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
+      <path d="M9 2.2v3.1M9 12.7v3.1M2.2 9h3.1M12.7 9h3.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="9" cy="9" r="3.1" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
 }
 
 function DocumentIcon() {
