@@ -3,12 +3,17 @@ import { VoteControl } from "./VoteControl";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
 
 /**
- * Vote and comments as two compact pill clusters, with room on the right for whatever the caller
+ * Vote, comments and share as compact pill clusters, with room on the right for whatever the caller
  * wants to sit at the end of the row (the post's own kind chip).
  *
- * Still only vote + comments - not Share/Save/Report. Share needs a permalink page, Save needs a
- * bookmarks table, Report needs a moderation destination beyond what group moderation already
- * covers; each would be a button that opens nothing.
+ * Share exists because there is now a real permalink for it to copy: `/groups/{id}?post={postId}`,
+ * which the community page resolves through `GET /api/posts/{postId}` and opens as that post's own
+ * discussion window. It is omitted entirely for a post with no community (a personal post has no
+ * page to open it on) rather than copying a link to nowhere - which is why `onShare` is optional
+ * and not every caller passes it.
+ *
+ * Still no Save or Report: Save needs a bookmarks table and Report needs a moderation destination
+ * beyond what group moderation already covers. Each would be a button that opens nothing.
  */
 export function PostActionBar({
   score,
@@ -16,6 +21,8 @@ export function PostActionBar({
   onVote,
   commentCount,
   onOpenComments,
+  onShare,
+  shareLabel,
   trailing,
 }: {
   score: number;
@@ -24,6 +31,10 @@ export function PostActionBar({
   commentCount: number;
   /** Opens the post's own floating discussion window - a real action, not an inline toggle. */
   onOpenComments: () => void;
+  /** Omitted where there is no permalink to share - see the docstring. */
+  onShare?: () => void;
+  /** "Share", or "Link copied" for the couple of seconds after a successful copy. */
+  shareLabel?: string;
   trailing?: ReactNode;
 }) {
   return (
@@ -42,6 +53,21 @@ export function PostActionBar({
         </svg>
         <span className="tabular-nums">{commentCount}</span>
       </button>
+      {onShare && (
+        <button
+          type="button"
+          onClick={onShare}
+          className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-neutral-400 transition hover:border-white/20 hover:text-white"
+        >
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
+            <circle cx="12.4" cy="3.6" r="2" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="3.6" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="12.4" cy="12.4" r="2" stroke="currentColor" strokeWidth="1.3" />
+            <path d="m5.4 7 5.2-2.6M5.4 9l5.2 2.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          {shareLabel ?? "Share"}
+        </button>
+      )}
       {trailing && <div className="ml-auto min-w-0">{trailing}</div>}
     </div>
   );

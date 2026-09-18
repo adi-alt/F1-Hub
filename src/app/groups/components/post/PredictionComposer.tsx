@@ -5,7 +5,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { Picker } from "@/components/ui/Picker";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { predictionTypeLabels, type PredictionType } from "@/lib/groupPredictionTypes";
-import type { GroupSummary } from "@/lib/supabase/groups";
+import type { ComposerCommunity } from "../PostComposer";
 
 export type RaceOption = { id: string; name: string; round: number; status: string };
 
@@ -31,7 +31,7 @@ export function PredictionComposer({
   races,
   onCreated,
 }: {
-  communities: GroupSummary[];
+  communities: ComposerCommunity[];
   races: RaceOption[];
   onCreated: (groupId: string) => void;
 }) {

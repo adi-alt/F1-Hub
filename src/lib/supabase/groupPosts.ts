@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
-import { requireMember, type GroupRole } from "@/lib/supabase/groups";
+import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { ServiceError } from "@/services/errors";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
@@ -109,7 +109,10 @@ export async function createPost(
     }
 
     if (input.kind) {
-      const allowed = postKindsFor(group?.community_type as string | null, group?.features);
+      // `role` is the real, database-resolved membership role from requireMember above - which is
+      // what makes Announcement genuinely moderator-only rather than a composer-side convention a
+      // hand-crafted request could ignore.
+      const allowed = postKindsFor(group?.community_type as string | null, group?.features, role);
       if (!allowed.includes(input.kind)) throw new ServiceError("That post type isn't available in this community.", 400);
       kind = input.kind;
     }
@@ -195,32 +198,74 @@ const GROUP_PAGE_SIZE = 15;
 export async function listPosts(
   groupId: string,
   uid: string,
-  opts: { cursor?: string; limit?: number; mediaOnly?: boolean } = {},
+  opts: ListPostsOptions = {},
 ): Promise<{ posts: GroupPost[]; nextCursor: string | null }> {
   const role = await requireMember(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
   const limit = opts.limit ?? GROUP_PAGE_SIZE;
+  const sort: PostSort = opts.sort ?? "new";
+  // "top" and "discussed" rank on counts that live in other tables, which is what makes them a
+  // different pagination model from the two chronological sorts - see the comment below.
+  const ranked = sort === "top" || sort === "discussed";
 
   const visibilityFilter = canModerate ? `status.eq.published,status.eq.pending,user_id.eq.${uid}` : `status.eq.published,user_id.eq.${uid}`;
-  let builder = supabaseAdmin
-    .from("group_posts")
-    .select("*")
-    .eq("group_id", groupId)
-    .or(visibilityFilter)
-    .order("created_at", { ascending: false })
-    .limit(limit + 1);
-  if (opts.cursor) builder = builder.lt("created_at", opts.cursor);
-  if (opts.mediaOnly) builder = builder.not("media_url", "is", null);
 
-  const { data: rows, error } = await queryWithRetry(() => builder);
-  if (error) throw new Error(`listPosts(${groupId}): ${error.message}`);
-  if (!rows?.length) return { posts: [], nextCursor: null };
+  /** One place that turns the caller's filters into a query, so the two pagination branches below
+   * can't drift apart on what they're actually filtering. */
+  function filtered() {
+    let b = supabaseAdmin.from("group_posts").select("*").eq("group_id", groupId).or(visibilityFilter);
+    if (opts.mediaOnly) b = b.not("media_url", "is", null);
+    if (opts.kind) b = b.eq("kind", opts.kind);
+    if (opts.authorId) b = b.eq("user_id", opts.authorId);
+    // The moderation queue as its own view. Only a moderator can ask for it - for anyone else the
+    // `or(...)` above already limits pending posts to their own, so this would quietly be a
+    // "my posts awaiting approval" filter rather than the queue they asked for.
+    if (opts.pendingOnly && canModerate) b = b.eq("status", "pending");
+    const term = postgrestLikeTerm(opts.query);
+    // Title AND content, so searching for a word that only appears in the body still finds the
+    // thread. Case-insensitive, and escaped (see postgrestLikeTerm) because a bare comma or
+    // parenthesis in a search term is PostgREST's own `or()` syntax.
+    if (term) b = b.or(`title.ilike.${term},content.ilike.${term}`);
+    return b;
+  }
 
-  const hasMore = rows.length > limit;
-  const posts = hasMore ? rows.slice(0, limit) : rows;
+  // Two genuinely different pagination models, because "newest first" and "highest score" are
+  // different questions:
+  //
+  //  - new/old: a real keyset cursor on created_at - O(page), unbounded history, and stable while
+  //    people keep posting. Unchanged from before this existed.
+  //  - top/discussed: score and comment count are not columns on group_posts (they're counts over
+  //    group_post_votes / group_post_comments), so the database cannot order or keyset-paginate on
+  //    them. This ranks a bounded, explicit window - the community's most recent RANKED_WINDOW
+  //    posts - and pages through it by offset. The bound is the honest trade, and it's stated in
+  //    the UI: "top posts of this community's recent history", not a claim to have ranked all of
+  //    it. Ranking the whole table would mean loading the whole table.
+  let rows: Record<string, unknown>[];
+  let offset = 0;
 
-  const postIds = posts.map((p) => p.id as string);
-  const authorIds = [...new Set(posts.map((p) => p.user_id as string))];
+  if (ranked) {
+    offset = parseOffsetCursor(opts.cursor);
+    const { data, error } = await queryWithRetry(() => filtered().order("created_at", { ascending: false }).limit(RANKED_WINDOW));
+    if (error) throw new Error(`listPosts(${groupId}): ${error.message}`);
+    if (!data?.length) return { posts: [], nextCursor: null };
+    rows = data as Record<string, unknown>[];
+  } else {
+    const ascending = sort === "old";
+    let b = filtered().order("created_at", { ascending }).limit(limit + 1);
+    if (opts.cursor) b = ascending ? b.gt("created_at", opts.cursor) : b.lt("created_at", opts.cursor);
+    const { data, error } = await queryWithRetry(() => b);
+    if (error) throw new Error(`listPosts(${groupId}): ${error.message}`);
+    if (!data?.length) return { posts: [], nextCursor: null };
+    rows = data as Record<string, unknown>[];
+  }
+
+  const hasMoreChronological = !ranked && rows.length > limit;
+  // The ranked branch enriches its whole window (it has to - it can't know which posts rank highest
+  // until every candidate's score is counted), then slices the requested page out afterwards.
+  const enriching = ranked ? rows : hasMoreChronological ? rows.slice(0, limit) : rows;
+
+  const postIds = enriching.map((p) => p.id as string);
+  const authorIds = [...new Set(enriching.map((p) => p.user_id as string))];
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: members, error: membersError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
     queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds)),
@@ -236,7 +281,7 @@ export async function listPosts(
   const commentCounts = new Map<string, number>();
   for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
 
-  const mapped: GroupPost[] = posts.map((p) => ({
+  const mapped: GroupPost[] = enriching.map((p) => ({
     id: p.id as string,
     groupId: p.group_id as string,
     userId: p.user_id as string,
@@ -253,7 +298,125 @@ export async function listPosts(
     commentCount: commentCounts.get(p.id as string) ?? 0,
   }));
 
-  return { posts: mapped, nextCursor: hasMore ? (posts[posts.length - 1].created_at as string) : null };
+  if (ranked) {
+    const rank = (post: GroupPost) => (sort === "top" ? post.score : post.commentCount);
+    // createdAt breaks ties, so a window full of zero-score posts still comes back newest-first
+    // rather than in whatever order the rows happened to arrive.
+    mapped.sort((a, b) => rank(b) - rank(a) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const page = mapped.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+    return { posts: page, nextCursor: nextOffset < mapped.length ? `${OFFSET_CURSOR_PREFIX}${nextOffset}` : null };
+  }
+
+  return { posts: mapped, nextCursor: hasMoreChronological ? (enriching[enriching.length - 1].created_at as string) : null };
+}
+
+/**
+ * One post by id, with the same enrichment (author, role, score, the viewer's own vote, comment
+ * count) every feed row gets - so a permalink opens the exact same card the feed would have shown.
+ *
+ * Membership is re-derived from the post's OWN group here, never trusted from a caller: a member of
+ * community A cannot read community B's post by guessing an id. A personal post (group_id null) has
+ * no membership to check and is readable by anyone signed in, matching listFeedPosts' own treatment
+ * of personal posts. A post that isn't published is visible only to its author and, in a community,
+ * to someone who can moderate it - the same visibility rule listPosts applies.
+ */
+export async function getPostById(postId: string, uid: string): Promise<GroupPost | null> {
+  const { data: post, error } = await queryWithRetry(() => supabaseAdmin.from("group_posts").select("*").eq("id", postId).maybeSingle());
+  if (error) throw new Error(`getPostById(${postId}): ${error.message}`);
+  if (!post) return null;
+
+  const groupId = (post.group_id as string | null) ?? null;
+  const role = groupId ? await requireMember(groupId, uid) : null;
+  const canModerate = role === "admin" || role === "moderator";
+  const status = post.status as PostStatus;
+  const isMine = (post.user_id as string) === uid;
+  if (status !== "published" && !isMine && !canModerate) return null;
+
+  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, profileById] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").eq("post_id", postId)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").eq("post_id", postId)),
+    profilesById([post.user_id as string]),
+  ]);
+  if (votesError) throw new Error(`getPostById(${postId}): ${votesError.message}`);
+  if (commentsError) throw new Error(`getPostById(${postId}): ${commentsError.message}`);
+
+  const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
+  const authorRole = groupId ? ((await getMemberRole(groupId, post.user_id as string)) ?? "member") : "member";
+
+  return {
+    id: post.id as string,
+    groupId: (groupId ?? "") as string,
+    userId: post.user_id as string,
+    authorName: nameFor(profileById.get(post.user_id as string), post.user_id as string),
+    authorRole,
+    title: (post.title as string | null) ?? null,
+    content: post.content as string,
+    mediaUrl: (post.media_url as string | null) ?? null,
+    kind: (post.kind as PostKind | null) ?? "discussion",
+    status,
+    createdAt: post.created_at as string,
+    score: scoreByTarget.get(postId) ?? 0,
+    myVote: myVoteByTarget.get(postId) ?? 0,
+    commentCount: (comments ?? []).length,
+  };
+}
+
+/** How a community's feed is ordered. Every one of these is computed from data that really exists:
+ * two chronological, two from real vote/comment counts. */
+export type PostSort = "new" | "old" | "top" | "discussed";
+
+export type ListPostsOptions = {
+  cursor?: string;
+  limit?: number;
+  mediaOnly?: boolean;
+  sort?: PostSort;
+  /** One `group_posts.kind` - what the feed's Announcements / Race Weekend / Predictions chips do. */
+  kind?: PostKind;
+  /** Free text, matched case-insensitively against title and content. */
+  query?: string;
+  /** Narrows to one author - the feed's "Only my posts" filter passes the viewer's own id. */
+  authorId?: string;
+  /** The moderation queue. Ignored for anyone who can't moderate this community. */
+  pendingOnly?: boolean;
+};
+
+/** How many recent posts a "top"/"most discussed" page ranks over. Large enough that the top of a
+ * real community's recent history is genuinely in it, small enough that the vote/comment enrichment
+ * below stays three bounded `in (...)` queries rather than a table scan. */
+const RANKED_WINDOW = 200;
+
+const OFFSET_CURSOR_PREFIX = "off:";
+
+/** The ranked sorts page by position within their window, so their cursor is an offset rather than
+ * a timestamp. Prefixed so the two cursor vocabularies can never be confused for one another - a
+ * timestamp cursor arriving on a ranked request (switching sort mid-scroll, a stale client) parses
+ * to 0 and restarts the list rather than throwing or silently skipping posts. */
+function parseOffsetCursor(cursor: string | undefined): number {
+  if (!cursor?.startsWith(OFFSET_CURSOR_PREFIX)) return 0;
+  const parsed = Number.parseInt(cursor.slice(OFFSET_CURSOR_PREFIX.length), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/** The longest search term accepted. Past this it's not a search, it's a way to make the database
+ * scan every post in a community for a string nobody typed on purpose. */
+const MAX_SEARCH_CHARS = 80;
+
+/**
+ * A user's search text as a PostgREST `ilike` pattern, or null when there's nothing to search for.
+ *
+ * Two real hazards, both closed here rather than at each call site:
+ *  - `,` `(` `)` `.` and `:` are PostgREST's own `or()` filter syntax. Left raw, a term containing
+ *    one either errors or - worse - parses as extra filter clauses.
+ *  - `%` and `_` are SQL LIKE wildcards. A search for "100%" must look for a literal percent sign,
+ *    not "anything at all".
+ */
+function postgrestLikeTerm(raw: string | undefined): string | null {
+  const trimmed = raw?.trim().slice(0, MAX_SEARCH_CHARS);
+  if (!trimmed) return null;
+  const escaped = trimmed.replace(/[\\%_]/g, (c) => `\\${c}`).replace(/[,().:]/g, " ");
+  const collapsed = escaped.replace(/\s+/g, " ").trim();
+  return collapsed ? `*${collapsed}*` : null;
 }
 
 // Shared by post votes and comment votes - same {target_id, user_id, value} shape either way.

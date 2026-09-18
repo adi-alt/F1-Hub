@@ -7,7 +7,6 @@ import { useAuth } from "@/providers/AuthProvider";
 import { canDo, postKindsFor } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
-import type { GroupSummary } from "@/lib/supabase/groups";
 import type { PostStatus } from "@/lib/supabase/groupPosts";
 import { fileNameFromUrl, mediaKind } from "@/lib/mediaKind";
 import { CommunitySelector } from "./post/CommunitySelector";
@@ -79,6 +78,22 @@ function formatBytes(bytes: number): string {
  * passes when the target is already known (the rail has a community selected), which hides the
  * selector rather than showing it pre-filled and disabled.
  */
+/** What the composer actually needs to know about a community: enough to name it, to work out
+ * which post kinds it offers, and to check the viewer's permissions in it. Structural rather than
+ * GroupSummary itself, so a surface that only holds ONE community (a community's own page, which
+ * has a GroupDetail and no summary rows at all) can use this composer without assembling a fake
+ * GroupSummary around it. Every existing caller passes GroupSummary[], which satisfies this. */
+export type ComposerCommunity = {
+  id: string;
+  name: string;
+  description: string | null;
+  avatarUrl: string | null;
+  communityType: string;
+  features: unknown;
+  permissions: unknown;
+  myRole: string;
+};
+
 export function PostComposer({
   groups,
   onPosted,
@@ -86,8 +101,12 @@ export function PostComposer({
   placeholder,
   upcomingRaces = [],
 }: {
-  groups: GroupSummary[];
+  groups: ComposerCommunity[];
   onPosted: () => void;
+  /** The community this composer always posts to. The selector is replaced by a plain "posting to"
+   * chip rather than hidden: on a community's own page the target is never in doubt, but it should
+   * still be visible, and offering a dropdown there would invite cross-posting away from the page
+   * the person is looking at. */
   fixedGroupId?: string;
   placeholder?: string;
   /** This season's un-finished rounds, for opening a prediction. Empty (the default) simply means
@@ -139,6 +158,7 @@ export function PostComposer({
 
   const targetGroupId = fixedGroupId ?? groupId;
   const targetGroup = targetGroupId ? groups.find((g) => g.id === targetGroupId) : undefined;
+  const fixedCommunity = fixedGroupId ? targetGroup : undefined;
   // Real availability, read off that community's own type/features through the same helper the
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
@@ -335,7 +355,14 @@ export function PostComposer({
             placeholder={placeholder ?? "Share your thoughts with the community..."}
             rows={isOpen ? 3 : 1}
             maxLength={2000}
-            className="w-full resize-none rounded-xl border border-white/[0.07] bg-black/25 px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
+            // Collapsed, this is one row tall and shows nothing but the placeholder - which now
+            // carries a community name and so runs long. Left to wrap it spills onto a second line
+            // the single row can't show, and at phone width the prompt reads as a sentence cut in
+            // half. Held to one line and clipped instead; the moment it's focused it opens to three
+            // rows and wraps normally again.
+            className={`w-full resize-none rounded-xl border border-white/[0.07] bg-black/25 px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none ${
+              isOpen ? "" : "overflow-hidden text-ellipsis whitespace-nowrap"
+            }`}
           />
         </div>
       </div>
@@ -449,11 +476,19 @@ export function PostComposer({
 
         <div className="ml-auto flex items-center gap-2.5">
           {notice && <span className="text-xs text-[var(--f1-red)]">{notice}</span>}
-          {!fixedGroupId && isOpen && (
-            <div className="w-48">
-              <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
-            </div>
-          )}
+          {fixedGroupId
+            ? isOpen &&
+              fixedCommunity && (
+                <span className="flex h-[38px] min-w-0 items-center gap-2 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-2.5 text-[13px] text-neutral-300">
+                  <EntityAvatar imageUrl={fixedCommunity.avatarUrl} name={fixedCommunity.name} seed={fixedCommunity.id} size={18} shape="square" />
+                  <span className="min-w-0 max-w-[10rem] truncate">{fixedCommunity.name}</span>
+                </span>
+              )
+            : isOpen && (
+                <div className="w-48">
+                  <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
+                </div>
+              )}
           {/* Scheduling lives INSIDE the post control, not as a separate toolbar button - it isn't
               a thing you attach to a post, it's a choice about how this post gets published. The
               caret only appears when there's a real alternative to offer. */}

@@ -62,6 +62,29 @@ test("postKindsFor stays generic off F1, and only offers Prediction when that mo
   assert.deepEqual(postKindsFor("f1", { predictions: false }), ["discussion", "question", "race_discussion"]);
 });
 
+test("postKindsFor offers Announcement to moderators and admins only, on every community type", () => {
+  // Role-gated rather than type-gated: every community can have announcements, only some people
+  // can write one. An omitted role is the member case, which is what every read-only caller passes.
+  assert.deepEqual(postKindsFor("general", {}, "member"), ["discussion", "question"]);
+  assert.deepEqual(postKindsFor("general", {}), ["discussion", "question"]);
+  assert.deepEqual(postKindsFor("general", {}, "moderator"), ["discussion", "question", "announcement"]);
+  assert.deepEqual(postKindsFor("general", {}, "admin"), ["discussion", "question", "announcement"]);
+  assert.deepEqual(postKindsFor("f1", {}, "admin"), ["discussion", "question", "race_discussion", "prediction", "announcement"]);
+});
+
+test("postKindsFor keeps 'discussion' first, so no composer defaults to Announcement", () => {
+  // The first entry is what a composer selects by default (CreatePostModal's own useState).
+  for (const role of [undefined, "member", "moderator", "admin"]) {
+    assert.equal(postKindsFor("f1", {}, role)[0], "discussion");
+    assert.equal(postKindsFor("general", {}, role)[0], "discussion");
+  }
+});
+
+test("postKindsFor ignores a role it doesn't recognise rather than trusting it", () => {
+  assert.deepEqual(postKindsFor("general", {}, "owner"), ["discussion", "question"]);
+  assert.deepEqual(postKindsFor("general", {}, null), ["discussion", "question"]);
+});
+
 test("normalizeTopic trims, caps length, and rejects blanks", () => {
   assert.equal(normalizeTopic("  Photography  "), "Photography");
   assert.equal(normalizeTopic("   "), null);

@@ -2,6 +2,7 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import {
   canDo,
   isCommunityType,
+  MAX_TAGLINE_CHARS,
   isVisibility,
   normalizeTags,
   normalizeTopic,
@@ -121,6 +122,11 @@ export type GroupDetail = CommunityShape & {
   id: string;
   name: string;
   description: string | null;
+  /** A short line rendered OVER the cover image (see the 20260918_community_page migration for why
+   * it isn't just `description`). Read only here, from a `select("*")`, so a deploy that hasn't
+   * applied that migration yet reads it as null and the overlay simply doesn't render - rather than
+   * every community query failing on an unknown column. */
+  tagline: string | null;
   avatarUrl: string | null;
   bannerUrl: string | null;
   visibility: GroupVisibility;
@@ -593,6 +599,7 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
     id: group.id as string,
     name: group.name as string,
     description: (group.description as string | null) ?? null,
+    tagline: (group.tagline as string | null) ?? null,
     avatarUrl: (group.avatar_url as string | null) ?? null,
     bannerUrl: (group.banner_url as string | null) ?? null,
     visibility: group.visibility as GroupVisibility,
@@ -696,6 +703,7 @@ export async function updateGroupSettings(
   updates: {
     name?: string;
     description?: string | null;
+    tagline?: string | null;
     visibility?: GroupVisibility;
     moderationEnabled?: boolean;
     communityType?: CommunityType;
@@ -716,6 +724,13 @@ export async function updateGroupSettings(
     const trimmed = updates.description?.trim() || null;
     if (trimmed && trimmed.length > 280) throw new ServiceError("Description must be 280 characters or fewer.", 400);
     patch.description = trimmed;
+  }
+  if (updates.tagline !== undefined) {
+    const trimmed = updates.tagline?.trim() || null;
+    // Short on purpose: it sits over a cover image at any width, and anything longer stops being a
+    // tagline and starts being a paragraph competing with the description right below it.
+    if (trimmed && trimmed.length > MAX_TAGLINE_CHARS) throw new ServiceError(`Tagline must be ${MAX_TAGLINE_CHARS} characters or fewer.`, 400);
+    patch.tagline = trimmed;
   }
   if (updates.visibility !== undefined) {
     if (!isVisibility(updates.visibility)) throw new ServiceError("Unknown visibility.", 400);

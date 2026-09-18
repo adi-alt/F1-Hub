@@ -13,6 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     description?: string | null;
+    tagline?: string | null;
     visibility?: GroupVisibility;
     moderationEnabled?: boolean;
     communityType?: CommunityType;

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
-import type { FeedPrediction, PredictionTrend } from "@/lib/supabase/groupPredictions";
+import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
+import { PredictionTrendBars } from "./PredictionTrendBars";
 import { groupHref } from "@/lib/routes";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
@@ -72,7 +73,7 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
         ) : null}
       </div>
 
-      <PredictionTrendBars prediction={prediction} />
+      <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {prediction.hasEntered ? (
@@ -94,69 +95,6 @@ export function PredictionFeedCard({ prediction, index = 0, showGroup }: { predi
         )}
       </div>
     </motion.article>
-  );
-}
-
-/**
- * What the community has actually entered, fetched per card only after it mounts so a feed of
- * predictions doesn't block on N aggregate queries before rendering anything.
- *
- * Renders nothing at all until there is something real to show, and says so plainly below the
- * threshold rather than drawing bars from two entries as though they were a consensus.
- */
-const MIN_ENTRIES_FOR_TREND = 3;
-
-function PredictionTrendBars({ prediction }: { prediction: FeedPrediction }) {
-  const [trend, setTrend] = useState<PredictionTrend | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/groups/${prediction.groupId}/predictions/${prediction.id}/trend`, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`trend: ${res.status}`);
-        return res.json() as Promise<PredictionTrend>;
-      })
-      .then(setTrend)
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
-      });
-    return () => controller.abort();
-  }, [prediction.groupId, prediction.id]);
-
-  // A failed aggregate is context this card can do without - the cost, deadline and entry action
-  // above it are all still correct and usable, so this stays silent rather than showing an error
-  // for a supporting detail.
-  if (failed || !trend) return null;
-
-  if (trend.total < MIN_ENTRIES_FOR_TREND) {
-    return <p className="mt-2.5 text-xs text-neutral-600">{trend.total === 0 ? "No entries yet." : `Not enough responses yet (${trend.total}).`}</p>;
-  }
-
-  return (
-    <div className="mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-          Community trend{prediction.type === "podium" ? " · winner pick" : ""}
-        </p>
-        <span className="text-[11px] tabular-nums text-neutral-600">
-          {trend.total} {trend.total === 1 ? "entry" : "entries"}
-        </span>
-      </div>
-      <ul className="mt-2 space-y-1.5">
-        {trend.options.map((o, i) => (
-          <li key={o.key} className="flex items-center gap-2.5">
-            <span className="min-w-0 flex-1 truncate text-xs text-neutral-300">{o.label}</span>
-            <span className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-white/[0.06]" role="presentation">
-              {/* The leader is the only bar that gets the accent - four equally red bars would
-                  say nothing about which way the community is actually leaning. */}
-              <span className={`block h-full rounded-full ${i === 0 ? "bg-[var(--f1-red)]" : "bg-white/25"}`} style={{ width: `${o.pct}%` }} />
-            </span>
-            <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-neutral-300">{o.pct}%</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

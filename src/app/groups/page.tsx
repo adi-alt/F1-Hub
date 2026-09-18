@@ -5,26 +5,16 @@ import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
 import { getRacesByYear } from "@/lib/supabase/races";
-import { getAllArchiveCircuits } from "@/lib/supabase/archive";
-import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
-import { getRecentCircuitPhotos } from "@/lib/personalization";
+import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
 
-/** The next race on the real calendar, plus the extra real fields the context rail renders: its
- * own country (for the flag), a real photo, and its circuit (which is what Apex's own circuit take
- * is keyed by - see RaceWeekendTake).
- *
- * The photo follows the SAME two-tier fallback chain the homepage's own season strip already uses
- * (see app/page.tsx's circuitImageByRound): the round's own pipeline photo first, then the archive
- * circuit's image, resolved through resolveCurrentCircuitToArchiveId. The rail previously used only
- * the first tier, which is why an upcoming round the pipeline hasn't photographed yet - the common
- * case, since those photos land with the race itself - showed no image at all while the homepage
- * showed one for the very same round. A circuit genuinely missing from archive_circuits still
- * resolves to null and the widget degrades to its plain header, rather than to a placeholder. */
 /** The rounds a prediction can still be opened on: this season's own races that haven't finished,
  * in calendar order. Exactly what createPrediction will accept (it rejects a completed race
- * server-side), so the composer's picker can't offer something the server will refuse. */
+ * server-side), so the composer's picker can't offer something the server will refuse.
+ *
+ * getNextRace itself now lives in lib/supabase/nextRace.ts - a single community's own context rail
+ * renders the same widget, and a copied photo-fallback chain is how two callers drift apart. */
 async function getRaceContext() {
   const races = await getRacesByYear(new Date().getFullYear());
   const upcomingRaces = races
@@ -32,35 +22,6 @@ async function getRaceContext() {
     .sort((a, b) => a.round - b.round)
     .map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
   return { nextRace: await getNextRace(races), upcomingRaces };
-}
-
-async function getNextRace(races: Awaited<ReturnType<typeof getRacesByYear>>) {
-  const upcoming = races.filter((r) => r.status !== "completed").sort((a, b) => a.round - b.round)[0];
-  if (!upcoming) return null;
-
-  let photoUrl = upcoming.photoUrls?.[0] ?? upcoming.photoUrl ?? null;
-  if (!photoUrl && upcoming.circuit) {
-    const archiveCircuits = await getAllArchiveCircuits();
-    const localities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
-    const idsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
-    const archiveId = resolveCurrentCircuitToArchiveId(upcoming.circuit, localities, idsByName);
-    // Photos of past races AT this circuit - the same real source the homepage's rotating backdrop
-    // draws on, and the tier that actually resolves for an upcoming round: the round itself has no
-    // photo yet precisely because it hasn't been run, but the venue has been raced at before.
-    // Sorted ascending by year, so the last entry is the most recent one.
-    const recent = await getRecentCircuitPhotos(archiveId, upcoming.circuit, upcoming.year);
-    photoUrl = recent.at(-1)?.url ?? (archiveId ? (archiveCircuits.find((c) => c.circuitId === archiveId)?.imageUrl ?? null) : null);
-  }
-
-  return {
-    year: upcoming.year,
-    round: upcoming.round,
-    name: upcoming.name,
-    raceDate: upcoming.raceDate ?? null,
-    country: upcoming.country ?? null,
-    circuit: upcoming.circuit ?? null,
-    photoUrl,
-  };
 }
 
 /** Groups home - feed-first (see GroupsHomeClient's own comment for the full reasoning). Every

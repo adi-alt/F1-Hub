@@ -44,11 +44,28 @@ export function PostCard({
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
   const [detailOpen, setDetailOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
+  const [shareLabel, setShareLabel] = useState("Share");
   const status = post.status ?? "published";
   const roleLabel = post.authorRole && post.authorRole !== "member" ? ROLE_LABEL[post.authorRole] : undefined;
   // "discussion" is the default every post gets when nothing more specific was chosen - chipping
   // it would label every single post with the word "Discussion" for no information gained.
   const kindChip = post.kind && post.kind !== "discussion" ? POST_KIND_LABELS[post.kind] : null;
+
+  /** Copies the post's real permalink. The community page reads `?post=` and opens exactly this
+   * post's discussion window - see CommunityFeed. A personal post has no community page to open on,
+   * so no Share button is rendered for one at all (the `post.groupId` guard below). */
+  async function share() {
+    const url = `${window.location.origin}/groups/${post.groupId}?post=${post.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareLabel("Link copied");
+      setTimeout(() => setShareLabel("Share"), 2000);
+    } catch {
+      // Clipboard can be blocked (insecure context, denied permission). Showing the URL to select
+      // by hand beats a label claiming a copy that didn't happen.
+      window.prompt("Copy this post's link:", url);
+    }
+  }
 
   async function moderate(action: "approve" | "reject") {
     if (!post.groupId) return;
@@ -140,6 +157,8 @@ export function PostCard({
         onVote={vote}
         commentCount={commentCount}
         onOpenComments={() => setDetailOpen(true)}
+        onShare={post.groupId ? () => void share() : undefined}
+        shareLabel={shareLabel}
         trailing={
           kindChip ? (
             <span className="block truncate rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-neutral-400">{kindChip}</span>

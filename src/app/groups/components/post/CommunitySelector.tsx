@@ -1,7 +1,7 @@
 "use client";
 
 import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
-import type { GroupSummary } from "@/lib/supabase/groups";
+import type { ComposerCommunity } from "../PostComposer";
 
 const NO_COMMUNITY = "";
 
@@ -10,7 +10,7 @@ const NO_COMMUNITY = "";
  * than a second custom dropdown implementation. "No community" is a real, always-first option,
  * not a placeholder - selecting it is what makes a post personal (see createPost's own null-
  * groupId handling), never assumed or defaulted silently. */
-export function CommunitySelector({ groups, value, onChange }: { groups: GroupSummary[]; value: string; onChange: (groupId: string) => void }) {
+export function CommunitySelector({ groups, value, onChange }: { groups: ComposerCommunity[]; value: string; onChange: (groupId: string) => void }) {
   const options: MultiSelectOption[] = [
     { code: NO_COMMUNITY, label: "No community (personal post)" },
     ...groups.map((g) => ({ code: g.id, label: g.name, sublabel: g.description ?? undefined, logoUrl: g.avatarUrl })),

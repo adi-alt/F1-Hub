@@ -8,6 +8,7 @@ import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import {
   COMMUNITY_TOPICS,
   COMMUNITY_TYPES,
+  MAX_TAGLINE_CHARS,
   MODULE_DESCRIPTIONS,
   MODULE_LABELS,
   PERMISSION_ACTIONS,
@@ -151,6 +152,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description ?? "");
+  const [tagline, setTagline] = useState(group.tagline ?? "");
   const [topic, setTopic] = useState(group.topic ?? "");
   const [communityType, setCommunityType] = useState<CommunityType>(group.communityType);
   const [visibility, setVisibility] = useState<CommunityVisibility>(group.visibility);
@@ -161,7 +163,12 @@ function GeneralSection({ group }: { group: GroupDetail }) {
   // save-then-immediately-close-the-tab race in the meantime is real but momentary enough not to
   // build a second synchronization mechanism just to close it.
   const isDirty =
-    name !== group.name || description !== (group.description ?? "") || topic !== (group.topic ?? "") || communityType !== group.communityType || visibility !== group.visibility;
+    name !== group.name ||
+    description !== (group.description ?? "") ||
+    tagline !== (group.tagline ?? "") ||
+    topic !== (group.topic ?? "") ||
+    communityType !== group.communityType ||
+    visibility !== group.visibility;
   useUnsavedChangesWarning(isDirty);
 
   return (
@@ -186,6 +193,22 @@ function GeneralSection({ group }: { group: GroupDetail }) {
             rows={3}
             className="mt-1 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
           />
+        </label>
+
+        <label className="block text-xs text-neutral-400">
+          Tagline
+          <input
+            value={tagline}
+            onChange={(e) => setTagline(e.target.value)}
+            maxLength={MAX_TAGLINE_CHARS}
+            placeholder="A short line shown over the cover image"
+            className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+          />
+          {/* Stated rather than silently truncated - it sits over an image at any width, which is
+              why it's capped at all. */}
+          <span className="mt-1 block text-[11px] text-neutral-600">
+            {tagline.length}/{MAX_TAGLINE_CHARS} · appears over the cover, not under the name
+          </span>
         </label>
 
         <div className="text-xs text-neutral-400">
@@ -234,7 +257,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
         status={status}
         error={error}
         disabled={name.trim().length < 3}
-        onSave={() => void save({ name, description: description || null, topic: topic || null, communityType, visibility })}
+        onSave={() => void save({ name, description: description || null, tagline: tagline || null, topic: topic || null, communityType, visibility })}
       />
     </Section>
   );

@@ -1,0 +1,89 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
+
+/** Below this many entries there is no consensus to draw - two entries rendered as bars would read
+ * as "the community thinks X" on the strength of two people. */
+export const MIN_ENTRIES_FOR_TREND = 3;
+
+/**
+ * What the community has actually entered for one prediction round.
+ *
+ * One implementation, two ways in:
+ *  - `trend` supplied: the caller already has the aggregate (a server component that fetched it
+ *    alongside the rest of the page), so nothing is fetched here at all.
+ *  - `trend` omitted: fetched on mount, per card, so a feed of predictions doesn't block on N
+ *    aggregate queries before rendering anything.
+ *
+ * A failed aggregate renders nothing. The cost, deadline and entry action around this are all still
+ * correct and usable without it, so a supporting detail stays silent rather than showing an error.
+ */
+export function PredictionTrendBars({
+  groupId,
+  predictionId,
+  isPodium,
+  trend: provided,
+  compact = false,
+}: {
+  groupId: string;
+  predictionId: string;
+  /** A podium round aggregates on the WINNER pick only - three drivers have no single meaningful
+   * distribution - so the heading says so rather than implying the whole podium matched. */
+  isPodium: boolean;
+  trend?: PredictionTrend | null;
+  /** Drops the heading row - for a rail card that already names the round above these bars. */
+  compact?: boolean;
+}) {
+  const [fetched, setFetched] = useState<PredictionTrend | null>(null);
+  const [failed, setFailed] = useState(false);
+  const needsFetch = provided === undefined;
+
+  useEffect(() => {
+    if (!needsFetch) return;
+    const controller = new AbortController();
+    fetch(`/api/groups/${groupId}/predictions/${predictionId}/trend`, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`trend: ${res.status}`);
+        return res.json() as Promise<PredictionTrend>;
+      })
+      .then(setFetched)
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      });
+    return () => controller.abort();
+  }, [groupId, predictionId, needsFetch]);
+
+  const trend = needsFetch ? fetched : provided;
+  if (failed || !trend) return null;
+
+  if (trend.total < MIN_ENTRIES_FOR_TREND) {
+    return <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs text-neutral-600`}>{trend.total === 0 ? "No entries yet." : `Not enough responses yet (${trend.total}).`}</p>;
+  }
+
+  return (
+    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
+      {!compact && (
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community trend{isPodium ? " · winner pick" : ""}</p>
+          <span className="text-[11px] tabular-nums text-neutral-600">
+            {trend.total} {trend.total === 1 ? "entry" : "entries"}
+          </span>
+        </div>
+      )}
+      <ul className={compact ? "space-y-1.5" : "mt-2 space-y-1.5"}>
+        {trend.options.map((o, i) => (
+          <li key={o.key} className="flex items-center gap-2.5">
+            <span className="min-w-0 flex-1 truncate text-xs text-neutral-300">{o.label}</span>
+            <span className={`h-1.5 ${compact ? "w-20" : "w-24"} shrink-0 overflow-hidden rounded-full bg-white/[0.06]`} role="presentation">
+              {/* The leader is the only bar that gets the accent - four equally red bars would say
+                  nothing about which way the community is actually leaning. */}
+              <span className={`block h-full rounded-full ${i === 0 ? "bg-[var(--f1-red)]" : "bg-white/25"}`} style={{ width: `${o.pct}%` }} />
+            </span>
+            <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-neutral-300">{o.pct}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

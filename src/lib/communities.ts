@@ -34,7 +34,7 @@ export type CommunityModule = "feed" | "predictions" | "leaderboard" | "media" |
 
 /** What a post *is* (`group_posts.kind`), separate from its moderation `status`.
  * No 'poll' - see the migration's own note on why. */
-export type PostKind = "discussion" | "question" | "race_discussion" | "prediction";
+export type PostKind = "discussion" | "question" | "race_discussion" | "prediction" | "announcement";
 
 // ---------------------------------------------------------------- community types
 
@@ -170,6 +170,7 @@ export const POST_KIND_LABELS: Record<PostKind, string> = {
   question: "Question",
   race_discussion: "Race Discussion",
   prediction: "Prediction",
+  announcement: "Announcement",
 };
 
 export const POST_KIND_HINTS: Record<PostKind, string> = {
@@ -177,15 +178,26 @@ export const POST_KIND_HINTS: Record<PostKind, string> = {
   question: "Ask the community something.",
   race_discussion: "Tie the thread to a specific race.",
   prediction: "Call a result and stand behind it.",
+  announcement: "Something the whole community needs to read.",
 };
 
 /** Only the kinds that make sense here - a Photography community never offers Race Discussion, and
- * Prediction only appears where the predictions module is actually on. */
-export function postKindsFor(type: string | null | undefined, features: unknown): PostKind[] {
+ * Prediction only appears where the predictions module is actually on.
+ *
+ * `role` gates exactly one kind, and gates it differently from the rest: Announcement isn't a
+ * property of the community's TYPE (every community can have announcements) but of who is writing,
+ * so it's offered to moderators and admins only. Omitting `role` returns the kinds any member can
+ * use - which is why createPost passes the real role it has already resolved rather than letting a
+ * hand-crafted request name a kind the writer isn't allowed to use. */
+export function postKindsFor(type: string | null | undefined, features: unknown, role?: string | null): PostKind[] {
+  // Order matters: the first entry is what a composer defaults to, so "discussion" stays first and
+  // Announcement is appended last rather than silently becoming every moderator's default kind.
   const kinds: PostKind[] = ["discussion", "question"];
-  if (!isF1Type(type)) return kinds;
-  kinds.push("race_discussion");
-  if (hasModule(type, features, "predictions")) kinds.push("prediction");
+  if (isF1Type(type)) {
+    kinds.push("race_discussion");
+    if (hasModule(type, features, "predictions")) kinds.push("prediction");
+  }
+  if (role === "admin" || role === "moderator") kinds.push("announcement");
   return kinds;
 }
 
@@ -214,6 +226,12 @@ export const COMMUNITY_TOPICS: string[] = [
   "Students",
   "Other",
 ];
+
+/** The banner tagline's cap. Lives in this pure module, not in groups.ts, for the reason that
+ * file's own neighbours document at length: groups.ts reaches nodemailer through its import chain,
+ * and a client component importing a runtime value from it crashes the browser bundle. Manage's
+ * character counter is a client component. */
+export const MAX_TAGLINE_CHARS = 60;
 
 const MAX_TOPIC_LENGTH = 40;
 
