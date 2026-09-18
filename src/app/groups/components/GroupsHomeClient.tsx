@@ -12,6 +12,7 @@ import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
 import type { RaceOption } from "./post/PredictionComposer";
+import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
 /** Groups is now feed-first: the center column (real posts across every group you've joined) is
  * the actual content, the left sidebar is navigation (your groups + create/discover), the right
@@ -33,6 +34,7 @@ export function GroupsHomeClient({
   predictions,
   nextRace,
   upcomingRaces,
+  pulse,
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -40,6 +42,7 @@ export function GroupsHomeClient({
   predictions: FeedPrediction[];
   nextRace: NextRace;
   upcomingRaces: RaceOption[];
+  pulse: CommunityPulseData;
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   // The one piece of real interaction state this page adds: which community (if any) the left
@@ -148,7 +151,7 @@ export function GroupsHomeClient({
 
       <aside className="order-3 min-h-0 lg:h-full">
         <div ref={rightScrollRef} className="lg:h-full">
-          <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} onDiscover={() => setShowDiscover(true)} />
+          <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>
 

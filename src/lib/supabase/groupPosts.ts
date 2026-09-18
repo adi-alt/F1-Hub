@@ -4,7 +4,7 @@ import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
 import { requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { ServiceError } from "@/services/errors";
 
-export type PostStatus = "published" | "pending" | "rejected";
+export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
 export type VoteValue = 1 | -1 | 0;
 export type FeedType = "following" | "latest" | "forYou";
 
@@ -85,8 +85,8 @@ async function requireMemberIfGrouped(groupId: string | null, uid: string): Prom
 export async function createPost(
   groupId: string | null,
   uid: string,
-  input: { title?: string; content: string; mediaUrl?: string | null; kind?: PostKind },
-): Promise<{ id: string; status: PostStatus }> {
+  input: { title?: string; content: string; mediaUrl?: string | null; kind?: PostKind; scheduledAt?: string | null },
+): Promise<{ id: string; status: PostStatus; scheduledAt: string | null }> {
   const trimmedContent = input.content.trim();
   if (!trimmedContent) throw new ServiceError("Write something first.", 400);
   if (trimmedContent.length > MAX_POST_CHARS) throw new ServiceError(`Posts are limited to ${MAX_POST_CHARS} characters.`, 400);
@@ -119,13 +119,64 @@ export async function createPost(
     status = needsApproval ? "pending" : "published";
   }
 
+  // Scheduling is resolved AFTER moderation, and deliberately never overrides it: a post that would
+  // have gone to a community's approval queue still does, at the time it is published, rather than
+  // using a future timestamp to slip past the queue. Only a post that would have gone straight live
+  // can be scheduled.
+  const scheduledAt = parseScheduledAt(input.scheduledAt);
+  if (scheduledAt && status === "published") status = "scheduled";
+
   const { data, error } = await supabaseAdmin
     .from("group_posts")
-    .insert({ group_id: groupId, user_id: uid, title: trimmedTitle, content: trimmedContent, media_url: input.mediaUrl ?? null, status, kind })
+    .insert({
+      group_id: groupId,
+      user_id: uid,
+      title: trimmedTitle,
+      content: trimmedContent,
+      media_url: input.mediaUrl ?? null,
+      status,
+      kind,
+      scheduled_at: status === "scheduled" ? scheduledAt : null,
+    })
     .select("id")
     .single();
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
-  return { id: data.id as string, status };
+  return { id: data.id as string, status, scheduledAt: status === "scheduled" ? scheduledAt : null };
+}
+
+/** How far ahead a post may be scheduled. A year is generous for a race calendar and still bounds
+ * the queue - a post dated 3024 would otherwise sit in `scheduled` forever. */
+const MAX_SCHEDULE_AHEAD_MS = 365 * 24 * 60 * 60 * 1000;
+/** Anything less than this is "now" in practice, and treating it as a schedule would mean the post
+ * vanishes until the next publisher run for no benefit. */
+const MIN_SCHEDULE_AHEAD_MS = 60 * 1000;
+
+function parseScheduledAt(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const at = new Date(raw);
+  if (Number.isNaN(at.getTime())) throw new ServiceError("That scheduled time isn't a valid date.", 400);
+  const delta = at.getTime() - Date.now();
+  if (delta < MIN_SCHEDULE_AHEAD_MS) throw new ServiceError("Pick a time at least a minute from now.", 400);
+  if (delta > MAX_SCHEDULE_AHEAD_MS) throw new ServiceError("Posts can be scheduled up to a year ahead.", 400);
+  return at.toISOString();
+}
+
+/**
+ * Publishes every scheduled post whose time has come. Idempotent by construction: the update is
+ * filtered on `status = 'scheduled'`, so a second run (an overlapping cron invocation, a manual
+ * trigger) matches nothing already published and cannot double-publish or reorder anything.
+ *
+ * Returns the number actually flipped, so the caller can log something real.
+ */
+export async function publishDueScheduledPosts(now = new Date()): Promise<number> {
+  const { data, error } = await supabaseAdmin
+    .from("group_posts")
+    .update({ status: "published" })
+    .eq("status", "scheduled")
+    .lte("scheduled_at", now.toISOString())
+    .select("id");
+  if (error) throw new Error(`publishDueScheduledPosts: ${error.message}`);
+  return (data ?? []).length;
 }
 
 /** Everyone sees published posts; a post's own author also sees it while pending/rejected; an

@@ -8,6 +8,7 @@ import { canDo, postKindsFor } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
 import type { GroupSummary } from "@/lib/supabase/groups";
+import type { PostStatus } from "@/lib/supabase/groupPosts";
 import { fileNameFromUrl, mediaKind } from "@/lib/mediaKind";
 import { CommunitySelector } from "./post/CommunitySelector";
 import { EmojiPicker } from "./post/EmojiPicker";
@@ -112,6 +113,12 @@ export function PostComposer({
   const [notice, setNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [mode, setMode] = useState<"discussion" | "prediction">("discussion");
+  // A `datetime-local` value, i.e. wall-clock time in the viewer's own timezone. Converted to a
+  // real UTC instant only at submit (new Date(local).toISOString()), which is what makes "7:30 PM"
+  // mean 7:30 PM where they are - the server stores and compares instants, never wall clocks.
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduledConfirmation, setScheduledConfirmation] = useState("");
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
   // that community's own permission map, through the exact helper createPrediction uses
@@ -156,6 +163,8 @@ export function PostComposer({
     setMediaError("");
     setNotice("");
     setConfirmDiscard(false);
+    setScheduledAt("");
+    setShowSchedule(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
@@ -238,10 +247,16 @@ export function PostComposer({
         content: trimmed,
         mediaUrl,
         kind: isPrediction && canPredict ? "prediction" : undefined,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       }),
     });
-    const body = (await res.json().catch(() => null)) as { status?: "published" | "pending"; error?: string } | null;
+    const body = (await res.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
     if (res.ok) {
+      // A scheduled post deliberately does NOT appear in the feed yet, so say where it went -
+      // otherwise a successful schedule is indistinguishable from a post that vanished.
+      if (body?.status === "scheduled" && body.scheduledAt) {
+        setScheduledConfirmation(new Date(body.scheduledAt).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }));
+      }
       onPosted();
       reset();
     } else {
@@ -362,6 +377,36 @@ export function PostComposer({
       )}
       {mediaError && <p className="ml-10 mt-1 text-[11px] text-[var(--f1-red)]">{mediaError}</p>}
 
+      {showSchedule && (
+        <div className="ml-10 mt-2 flex flex-wrap items-center gap-2">
+          <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500" htmlFor="composer-schedule">
+            Publish at
+          </label>
+          <input
+            id="composer-schedule"
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+            className="rounded-md border border-white/[0.07] bg-black/25 px-2 py-1 text-[11.5px] text-white focus:border-white/20 focus:outline-none"
+          />
+          <span className="text-[10.5px] text-neutral-500">{localZoneLabel()}</span>
+          {scheduledAt && (
+            <button type="button" onClick={() => setScheduledAt("")} className="text-[11px] font-medium text-neutral-400 transition hover:text-white">
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {scheduledConfirmation && (
+        <div className="ml-10 mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
+          <p className="min-w-0 flex-1 text-[11.5px] text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
+          <button type="button" onClick={() => setScheduledConfirmation("")} aria-label="Dismiss" className="shrink-0 text-[11.5px] font-medium text-neutral-300 transition hover:text-white">
+            Got it
+          </button>
+        </div>
+      )}
+
       <div className="relative mt-2 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
         <ToolButton onClick={() => fileInputRef.current?.click()} icon={<MediaIcon />} label="Add media" />
         <Divider />
@@ -370,6 +415,8 @@ export function PostComposer({
         <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<EmojiIcon />} label="Emoji" />
         <Divider />
         <ComposeAssist draft={content} onReplace={setContent} />
+        <Divider />
+        <ToolButton onClick={() => setShowSchedule((v) => !v)} active={showSchedule || !!scheduledAt} icon={<ClockIcon />} label={scheduledAt ? "Scheduled" : "Schedule"} />
         {canPredict && (
           <>
             <Divider />
@@ -411,7 +458,7 @@ export function PostComposer({
             disabled={posting || uploadingMedia || !content.trim()}
             className="rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-[12px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
           >
-            {posting ? "Posting…" : "Post"}
+            {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
           </button>
         </div>
 
@@ -458,6 +505,24 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
 
 function Divider() {
   return <span aria-hidden className="h-4 w-px shrink-0 bg-white/[0.08]" />;
+}
+
+/** The viewer's own timezone, named - so "7:30 PM" is unambiguous about whose 7:30 it is. */
+function localZoneLabel(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local time";
+  } catch {
+    return "local time";
+  }
+}
+
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
+      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M9 5.4V9l2.4 1.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 function RoundIcon() {

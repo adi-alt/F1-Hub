@@ -8,6 +8,7 @@ import { getRacesByYear } from "@/lib/supabase/races";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getRecentCircuitPhotos } from "@/lib/personalization";
+import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
 
 /** The next race on the real calendar, plus the extra real fields the context rail renders: its
@@ -82,11 +83,14 @@ export default async function GroupsPage() {
     );
   }
 
-  const [groups, feed, predictions, raceContext] = await Promise.all([
+  const [groups, feed, predictions, raceContext, pulse] = await Promise.all([
     getUserGroups(session.uid),
     listFeedPosts(session.uid),
     listMyOpenPredictions(session.uid),
     getRaceContext(),
+    // Reads the previous visit timestamp and stamps a new one - so it must run exactly once per
+    // page load, here, not inside a client component that could re-run and collapse the window.
+    getCommunityPulse(session.uid),
   ]);
 
   return (
@@ -114,6 +118,7 @@ export default async function GroupsPage() {
           predictions={predictions}
           nextRace={raceContext.nextRace}
           upcomingRaces={raceContext.upcomingRaces}
+          pulse={pulse}
         />
       </div>
     </div>

@@ -14,6 +14,7 @@ import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { RaceWeekendTake } from "./RaceWeekendTake";
+import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
 export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; circuit: string | null; photoUrl: string | null } | null;
 
@@ -37,11 +38,13 @@ export function GroupsRightSidebar({
   groups,
   predictions,
   nextRace,
+  pulse,
   onDiscover,
 }: {
   groups: GroupSummary[];
   predictions: FeedPrediction[];
   nextRace: NextRace;
+  pulse: CommunityPulseData;
   onDiscover: () => void;
 }) {
   return (
@@ -70,7 +73,7 @@ export function GroupsRightSidebar({
       </button>
 
       <Widget>
-        <CommunityPulse groups={groups} />
+        <CommunityPulse groups={groups} pulse={pulse} />
       </Widget>
     </div>
   );
@@ -101,11 +104,23 @@ function WidgetLabel({ children, trailing }: { children: ReactNode; trailing?: R
  * rendered directly instead of paraphrased through a model call nobody asked a question of yet.
  * Genuinely quiet communities get the honest "no major changes" state, never a manufactured one.
  */
-function CommunityPulse({ groups }: { groups: GroupSummary[] }) {
+function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: CommunityPulseData }) {
   const weeklyPosts = groups.reduce((sum, g) => sum + g.weeklyPosts, 0);
   const openPredictions = groups.reduce((sum, g) => sum + g.activePredictions, 0);
-  const mostActive = groups.reduce<GroupSummary | null>((best, g) => (g.weeklyPosts > 0 && (!best || g.weeklyPosts > best.weeklyPosts) ? g : best), null);
-  const hasActivity = weeklyPosts > 0 || openPredictions > 0;
+  const weeklyMostActive = groups.reduce<GroupSummary | null>((best, g) => (g.weeklyPosts > 0 && (!best || g.weeklyPosts > best.weeklyPosts) ? g : best), null);
+
+  // Two genuinely different digests, and which one shows depends on whether there IS a previous
+  // visit to diff against - not on which reads better. A returning viewer gets the delta since
+  // they were last here; a first-time one gets the standing picture, honestly labelled as such,
+  // because "nothing has changed since your last visit" would be a claim about a visit that never
+  // happened.
+  const sinceLines = pulse.hasPriorVisit
+    ? [
+        pulse.newPosts > 0 ? `${pulse.newPosts} new ${pulse.newPosts === 1 ? "discussion" : "discussions"}` : null,
+        pulse.repliesToYou > 0 ? `${pulse.repliesToYou} new ${pulse.repliesToYou === 1 ? "reply" : "replies"} to your posts` : null,
+        pulse.newPredictionEntries > 0 ? `${pulse.newPredictionEntries} new prediction ${pulse.newPredictionEntries === 1 ? "entry" : "entries"}` : null,
+      ].filter((line): line is string => line !== null)
+    : [];
 
   return (
     <div>
@@ -119,8 +134,34 @@ function CommunityPulse({ groups }: { groups: GroupSummary[] }) {
         Community pulse
       </WidgetLabel>
 
-      {!hasActivity ? (
-        <p className="mt-1.5 text-[11.5px] leading-relaxed text-neutral-600">No major activity across your communities this week.</p>
+      {pulse.hasPriorVisit ? (
+        <>
+          <p className="mt-1.5 text-[10.5px] text-neutral-600">Since you were last here</p>
+          {sinceLines.length === 0 ? (
+            <p className="mt-1 text-[11.5px] leading-relaxed text-neutral-600">No major changes since your last visit.</p>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {sinceLines.map((line) => (
+                <PulseLine key={line}>{line}</PulseLine>
+              ))}
+              {pulse.mostActive && (
+                <PulseLine>
+                  <Link href={groupHref(pulse.mostActive.id)} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                    {pulse.mostActive.name}
+                  </Link>{" "}
+                  has been the most active
+                </PulseLine>
+              )}
+            </ul>
+          )}
+          {pulse.openPredictions > 0 && (
+            <p className="mt-1.5 border-t border-white/[0.06] pt-1.5 text-[11px] text-neutral-500">
+              {pulse.openPredictions} open prediction{pulse.openPredictions === 1 ? "" : "s"} waiting for entries
+            </p>
+          )}
+        </>
+      ) : weeklyPosts === 0 && openPredictions === 0 ? (
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-neutral-600">No activity across your communities yet.</p>
       ) : (
         <ul className="mt-1.5 space-y-1">
           {weeklyPosts > 0 && (
@@ -133,10 +174,10 @@ function CommunityPulse({ groups }: { groups: GroupSummary[] }) {
               {openPredictions} open prediction{openPredictions === 1 ? "" : "s"} waiting for entries
             </PulseLine>
           )}
-          {mostActive && (
+          {weeklyMostActive && (
             <PulseLine>
-              <Link href={groupHref(mostActive.id)} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                {mostActive.name}
+              <Link href={groupHref(weeklyMostActive.id)} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                {weeklyMostActive.name}
               </Link>{" "}
               is the most active right now
             </PulseLine>
