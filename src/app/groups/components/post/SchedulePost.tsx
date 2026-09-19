@@ -86,11 +86,10 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
         </svg>
       </button>
 
-      <AnimatePresence>
-        {open &&
-          style &&
-          typeof document !== "undefined" &&
-          createPortal(
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && style && (
             <motion.div
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -173,10 +172,11 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                   </button>
                 </div>
               </div>
-            </motion.div>,
-            document.body,
-          )}
-      </AnimatePresence>
+            </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </>
   );
 }

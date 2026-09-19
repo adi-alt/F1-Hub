@@ -76,8 +76,10 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         Apex
       </button>
 
-      <AnimatePresence>
-        {open && style && typeof document !== "undefined" && createPortal(
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && style && (
           <motion.div
             initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -136,10 +138,11 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
                 </div>
               </>
             )}
-          </motion.div>,
+          </motion.div>
+            )}
+          </AnimatePresence>,
           document.body,
         )}
-      </AnimatePresence>
     </div>
   );
 }
