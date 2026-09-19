@@ -18,6 +18,11 @@ import { useEffect, useState, type CSSProperties, type RefObject } from "react";
  * Re-measured on scroll (capture: true, so it also catches the inner column scrolling, not just the
  * window) and on resize.
  */
+/** Below the app header's own z-50 on purpose: an anchored panel is attached to content, so it
+ * should slide UNDER the sticky header as the page scrolls rather than float over the site's
+ * primary navigation. Still far above normal flow, so it covers the feed as intended. */
+const PANEL_Z = 40;
+
 export function useAnchoredPanel(anchorRef: RefObject<HTMLElement | null>, width: number, estimatedHeight: number): CSSProperties | null {
   const [style, setStyle] = useState<CSSProperties | null>(null);
 
@@ -35,8 +40,8 @@ export function useAnchoredPanel(anchorRef: RefObject<HTMLElement | null>, width
 
       setStyle(
         openDown
-          ? { position: "fixed", top: rect.bottom + 6, left, width, maxHeight, zIndex: 150 }
-          : { position: "fixed", bottom: window.innerHeight - rect.top + 6, left, width, maxHeight, zIndex: 150 },
+          ? { position: "fixed", top: rect.bottom + 6, left, width, maxHeight, zIndex: PANEL_Z }
+          : { position: "fixed", bottom: window.innerHeight - rect.top + 6, left, width, maxHeight, zIndex: PANEL_Z },
       );
     }
 

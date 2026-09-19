@@ -475,7 +475,7 @@ export function PostComposer({
               type="button"
               onClick={() => void submit()}
               disabled={posting || uploadingMedia || !content.trim()}
-              className="bg-[var(--f1-red)] px-4 py-1.5 text-[12.5px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              className="bg-[var(--f1-red)] px-4 py-1.5 text-[12.5px] font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
             >
               {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
             </button>

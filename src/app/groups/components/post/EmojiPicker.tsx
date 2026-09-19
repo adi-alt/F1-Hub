@@ -113,7 +113,7 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji
         exit={{ opacity: 0, y: 4, scale: 0.98 }}
         transition={{ duration: 0.12 }}
         style={style}
-        className="overflow-y-auto rounded-lg border border-[var(--f1-line)] bg-[var(--tooltip-surface-strong)] p-2 shadow-2xl backdrop-blur-md scrollbar-hide"
+        className="overflow-y-auto rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/70 shadow-2xl backdrop-blur-2xl p-2 scrollbar-hide"
       >
         <input
           autoFocus
