@@ -37,6 +37,7 @@ export function useLenisContainer(
   useEffect(() => {
     let cancelled = false;
     let unregister: (() => void) | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     async function initializeWithDelay() {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -86,6 +87,25 @@ export function useLenisContainer(
           }
         }
         rafIdRef.current = requestAnimationFrame(raf);
+
+        // Lenis measures the wrapper and its content ONCE at construction and caches the scroll
+        // limit from it. Every region this hook drives holds content that changes height after
+        // that: a post expanding, a link preview resolving, prediction trend bars arriving, an
+        // entry panel opening. When it grows, the cached limit is too small and the tail of the
+        // content simply cannot be scrolled to - which reads as the feed "cutting off" its last
+        // posts, with no error anywhere.
+        //
+        // Observing BOTH matters: content height changes when items grow, wrapper height changes
+        // when the viewport or surrounding layout does, and either invalidates the same cache.
+        if (typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => {
+            // rAF-deferred: a resize callback fires mid-layout, and measuring there can read a
+            // half-applied box. One frame later the DOM has settled.
+            requestAnimationFrame(() => lenisRef.current?.resize());
+          });
+          resizeObserver.observe(content);
+          if (content !== container) resizeObserver.observe(container);
+        }
       } catch (error) {
         console.error("useLenisContainer: failed to initialize", error);
       }
@@ -96,6 +116,8 @@ export function useLenisContainer(
     return () => {
       cancelled = true;
       unregister?.();
+      resizeObserver?.disconnect();
+      resizeObserver = null;
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;

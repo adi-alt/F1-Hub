@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import type { LinkPreviewData } from "@/lib/linkPreview";
 
 /**
@@ -52,7 +53,10 @@ export function LinkPreview({ url }: { url: string }) {
   }
 
   return (
-    <a
+    <motion.a
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.18 }}
       href={data.url}
       target="_blank"
       rel="noopener noreferrer"
@@ -70,7 +74,7 @@ export function LinkPreview({ url }: { url: string }) {
         {data.title && <p className="mt-1 line-clamp-2 text-[12.5px] font-semibold leading-snug text-neutral-100">{data.title}</p>}
         {data.description && <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-neutral-400">{data.description}</p>}
       </div>
-    </a>
+    </motion.a>
   );
 }
 

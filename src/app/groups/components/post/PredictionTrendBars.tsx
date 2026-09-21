@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
 
 /** Below this many entries there is no consensus to draw - two entries rendered as bars would read
@@ -62,7 +63,7 @@ export function PredictionTrendBars({
   }
 
   return (
-    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community trend{isPodium ? " · winner pick" : ""}</p>
@@ -78,12 +79,17 @@ export function PredictionTrendBars({
             <span className={`h-1.5 ${compact ? "w-20" : "w-24"} shrink-0 overflow-hidden rounded-full bg-white/[0.06]`} role="presentation">
               {/* The leader is the only bar that gets the accent - four equally red bars would say
                   nothing about which way the community is actually leaning. */}
-              <span className={`block h-full rounded-full ${i === 0 ? "bg-[var(--f1-red)]" : "bg-white/25"}`} style={{ width: `${o.pct}%` }} />
+              <motion.span
+                initial={{ width: 0 }}
+                animate={{ width: `${o.pct}%` }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }}
+                className={`block h-full rounded-full ${i === 0 ? "bg-[var(--f1-red)]" : "bg-white/25"}`}
+              />
             </span>
             <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-neutral-300">{o.pct}%</span>
           </li>
         ))}
       </ul>
-    </div>
+    </motion.div>
   );
 }

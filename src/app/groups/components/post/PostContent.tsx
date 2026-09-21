@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { motion } from "framer-motion";
 import { firstUrlIn, safeHttpUrl } from "@/lib/linkPreview";
 import { LinkPreview } from "./LinkPreview";
 
@@ -26,7 +27,11 @@ export function PostContent({ title, content }: { title: string | null; content:
       {title && <p className="text-[15px] font-semibold leading-snug text-white">{title}</p>}
       {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
           otherwise set the card's minimum width and push the whole column sideways. */}
-      <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[14px] leading-[1.55] text-neutral-300 ${title ? "mt-0.5" : ""}`}>{linkify(shown)}</p>
+      {/* layout: expanding a long post changes the card's height, and animating it keeps the rest
+          of the feed from snapping upward under the reader. */}
+      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[14px] leading-[1.55] text-neutral-300 ${title ? "mt-0.5" : ""}`}>
+        {linkify(shown)}
+      </motion.p>
       {isLong && (
         <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-[11.5px] font-medium text-neutral-500 hover:text-white">
           {expanded ? "Show less" : "Show more"}

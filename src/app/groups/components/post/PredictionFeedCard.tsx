@@ -52,12 +52,17 @@ export function PredictionFeedCard({
 
   return (
     <motion.article
+      // layout: the card grows when the trend bars resolve and when the entry panel opens. Without
+      // this it snaps; with it the height eases and the feed below slides rather than jumps.
+      layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className="relative overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/55 px-3.5 py-3 backdrop-blur-sm transition hover:border-white/[0.12]"
+      className="relative rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/55 px-3.5 py-3 backdrop-blur-sm transition hover:border-white/[0.12]"
     >
-      <span aria-hidden className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-[var(--f1-red)]/70 to-transparent" />
+      {/* Rounded on its own rather than clipped by an overflow-hidden parent - that clip also
+          cut off content while the card animated to a new height. */}
+      <span aria-hidden className="absolute inset-x-0 top-0 h-[2px] rounded-t-xl bg-gradient-to-r from-[var(--f1-red)]/70 to-transparent" />
 
       <div className="flex items-center gap-2.5">
         {showGroup ? (

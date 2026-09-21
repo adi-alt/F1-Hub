@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { DriverPicker } from "@/components/ui/F1Pickers";
 import { useAuth } from "@/providers/AuthProvider";
@@ -132,7 +133,19 @@ export function PredictionEntry({
   }
 
   return (
-    <div className="mt-2.5 rounded-lg border border-white/[0.08] bg-black/25 p-2.5">
+    // height:auto through AnimatePresence, with overflow-hidden only for the duration of the
+    // transition - the panel grows the card, and easing that is the difference between the feed
+    // sliding and the feed jumping under the cursor.
+    <AnimatePresence initial={false}>
+      <motion.div
+        key="entry"
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: "auto", opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="overflow-hidden"
+      >
+        <div className="mt-2.5 rounded-lg border border-white/[0.08] bg-black/25 p-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
         {type === "podium" ? "Pick your podium" : type === "dnf_count" ? "How many retirements?" : "Your pick"}
       </p>
@@ -189,7 +202,9 @@ export function PredictionEntry({
         >
           {saving ? "Entering…" : "Confirm entry"}
         </button>
-      </div>
-    </div>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -63,16 +63,15 @@ export function GroupsLeftSidebar({
         // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
         // actions below stay pinned and reachable instead of being pushed out of the card.
         //
-        // No hairline between every row: with an avatar on each, rows are already legible, and a
-        // rule per row turns clean navigation into a ledger. The ONE rule here sits under the All
-        // filter, because that is a real boundary - a scope control above, the communities it
-        // scopes below - rather than decoration repeated seven times.
-        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+        // divide-y at very low contrast: each community is a distinct destination and the hairline
+        // between them is what makes the list scan as rows rather than a run-on column. Kept to
+        // white/[0.05] so it separates without drawing the borders-everywhere look.
+        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-hide">
           {/* The scope control. Same row grammar as a community - same inset, same 36px icon
               slot, same selected treatment - so the list reads as one navigation system, with a
               squared tile instead of a circular avatar to say it is a filter and not a community.
               Never carries an unread badge: "All" has no membership to have unread activity in. */}
-          <div data-tour="community-filter" className="mb-1 border-b border-white/[0.06] pb-1">
+          <div data-tour="community-filter" className="mb-1 border-b border-white/[0.08] pb-1">
             <NavRow
               label="All"
               sublabel="Everything you\u2019re in"
