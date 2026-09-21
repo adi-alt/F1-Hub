@@ -21,7 +21,27 @@ const MEDIA_TYPES: Record<string, { ext: string; maxBytes: number }> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { ext: "docx", maxBytes: OTHER_MAX_BYTES },
   "application/vnd.ms-excel": { ext: "xls", maxBytes: OTHER_MAX_BYTES },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { ext: "xlsx", maxBytes: OTHER_MAX_BYTES },
+  "application/vnd.ms-powerpoint": { ext: "ppt", maxBytes: OTHER_MAX_BYTES },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": { ext: "pptx", maxBytes: OTHER_MAX_BYTES },
+  "text/plain": { ext: "txt", maxBytes: OTHER_MAX_BYTES },
+  "text/markdown": { ext: "md", maxBytes: OTHER_MAX_BYTES },
+  "text/csv": { ext: "csv", maxBytes: OTHER_MAX_BYTES },
+  "application/json": { ext: "json", maxBytes: OTHER_MAX_BYTES },
+  "application/zip": { ext: "zip", maxBytes: OTHER_MAX_BYTES },
+  "video/quicktime": { ext: "mov", maxBytes: OTHER_MAX_BYTES },
+  "audio/mpeg": { ext: "mp3", maxBytes: OTHER_MAX_BYTES },
+  "audio/wav": { ext: "wav", maxBytes: OTHER_MAX_BYTES },
+  "audio/mp4": { ext: "m4a", maxBytes: OTHER_MAX_BYTES },
 };
+
+/** Storage paths are random by design (no collisions, no guessable URLs), so the ONLY place the
+ * file's real name can survive is metadata carried alongside it. Sanitised, not trusted: a name
+ * is display text, and control characters or a path separator in it have no business reaching a
+ * download attribute. */
+function safeOriginalName(raw: string): string {
+  const base = raw.split(/[/\\]/).pop() ?? raw;
+  return base.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 200).trim() || "attachment";
+}
 
 /** Post media upload - images (500KB), video and documents (2MB each, the product's own stated
  * caps - different types, different limits, not one flat number for everything). Unlike group
@@ -50,5 +70,30 @@ export async function POST(request: Request) {
   if (uploadError) return NextResponse.json({ error: "Upload failed." }, { status: 500 });
 
   const { data: publicUrl } = supabaseAdmin.storage.from("post-media").getPublicUrl(path);
-  return NextResponse.json({ mediaUrl: publicUrl.publicUrl, fileName: file.name });
+
+  // An optional first-page/frame image, rendered by the client at pick time and sent with the
+  // file. Generated once, at upload, rather than per feed render - a feed of fifty posts must
+  // never rasterise fifty PDFs. A thumbnail that fails to upload is simply absent: the post still
+  // publishes and the attachment falls back to its typed card.
+  let thumbUrl: string | null = null;
+  const thumb = form.get("thumbnail");
+  if (thumb instanceof File && thumb.size > 0 && thumb.size <= IMAGE_MAX_BYTES && thumb.type === "image/png") {
+    const thumbPath = `${session.uid}/${randomUUID()}.png`;
+    const { error: thumbError } = await supabaseAdmin.storage
+      .from("post-media")
+      .upload(thumbPath, Buffer.from(await thumb.arrayBuffer()), { contentType: "image/png" });
+    if (!thumbError) thumbUrl = supabaseAdmin.storage.from("post-media").getPublicUrl(thumbPath).data.publicUrl;
+  }
+
+  const pagesRaw = form.get("pages");
+  const pages = typeof pagesRaw === "string" && /^\d{1,5}$/.test(pagesRaw) ? Number(pagesRaw) : null;
+
+  return NextResponse.json({
+    mediaUrl: publicUrl.publicUrl,
+    name: safeOriginalName(file.name),
+    mime: file.type,
+    size: file.size,
+    thumbUrl,
+    pages,
+  });
 }

@@ -254,6 +254,10 @@ export function CommunityFeed({
         title: draft.title,
         content: draft.content,
         mediaUrl: draft.mediaUrl,
+        // The optimistic row has no server metadata yet - it fills in on the refetch that
+        // follows. Null is the honest placeholder; the attachment renders its typed card until
+        // the real name and size arrive.
+        attachment: null,
         kind: draft.kind,
         status: moderationEnabled && myRole === "member" ? "pending" : "published",
         createdAt: new Date().toISOString(),

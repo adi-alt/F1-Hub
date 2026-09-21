@@ -7,9 +7,11 @@ import { useAuth } from "@/providers/AuthProvider";
 import { canDo, postKindsFor } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
+import { PostAttachment, type AttachmentView } from "./post/PostAttachment";
+import { renderPdfFirstPage } from "./post/pdfThumbnail";
 import { SchedulePost } from "./post/SchedulePost";
 import type { PostStatus } from "@/lib/supabase/groupPosts";
-import { fileNameFromUrl, mediaKind } from "@/lib/mediaKind";
+import { fileNameFromUrl } from "@/lib/mediaKind";
 import { CommunitySelector } from "./post/CommunitySelector";
 import { EmojiPicker } from "./post/EmojiPicker";
 import { GifPicker } from "./post/GifPicker";
@@ -32,36 +34,6 @@ const MEDIA_MAX_BYTES: Record<string, number> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": OTHER_MAX_BYTES,
 };
 const FILE_ACCEPT = Object.keys(MEDIA_MAX_BYTES).join(",");
-
-/** Human labels for exactly the mime types this composer actually accepts (the map above), so an
- * attachment row reads "Excel spreadsheet · 240 KB" rather than the raw mime string. Falls back to
- * the filename's own extension when the mime is unknown - which is the GIF-picker path, where
- * there's a real URL but no File object to read a type off. */
-const MEDIA_LABELS: Record<string, string> = {
-  "image/png": "PNG image",
-  "image/jpeg": "JPEG image",
-  "image/webp": "WebP image",
-  "image/gif": "GIF",
-  "video/mp4": "MP4 video",
-  "video/webm": "WebM video",
-  "application/pdf": "PDF",
-  "application/msword": "Word document",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word document",
-  "application/vnd.ms-excel": "Excel spreadsheet",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel spreadsheet",
-};
-
-function describeMedia(mime: string | null, fileName: string | null): string {
-  if (mime && MEDIA_LABELS[mime]) return MEDIA_LABELS[mime];
-  const ext = fileName?.includes(".") ? fileName.split(".").pop() : null;
-  return ext ? ext.toUpperCase() : "File";
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /**
  * The feed's own composer: avatar, one real input, and a row of the attachments/post-type controls
@@ -121,10 +93,10 @@ export function PostComposer({
   const [groupId, setGroupId] = useState(fixedGroupId ?? "");
   const [isPrediction, setIsPrediction] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-  const [mediaFileName, setMediaFileName] = useState<string | null>(null);
-  const [mediaSize, setMediaSize] = useState<number | null>(null);
-  const [mediaMime, setMediaMime] = useState<string | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  // The attachment exactly as it will be stored and rendered - so the composer preview below is
+  // the same component, with the same data, that the published post will show.
+  const [attachment, setAttachment] = useState<AttachmentView | null>(null);
   const [mediaError, setMediaError] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -180,9 +152,7 @@ export function PostComposer({
     setGroupId(fixedGroupId ?? "");
     setIsPrediction(false);
     setMediaPreview(null);
-    setMediaFileName(null);
-    setMediaSize(null);
-    setMediaMime(null);
+    setAttachment(null);
     setMediaUrl(null);
     setMediaError("");
     setNotice("");
@@ -204,7 +174,7 @@ export function PostComposer({
     setMediaError("");
     const maxBytes = MEDIA_MAX_BYTES[file.type];
     if (!maxBytes) {
-      setMediaError("Images, video (MP4/WEBM), PDF, Word, or Excel files only.");
+      setMediaError("Images, video, audio, PDF, Word, Excel, PowerPoint, text or ZIP files only.");
       return;
     }
     if (file.size > maxBytes) {
@@ -212,21 +182,43 @@ export function PostComposer({
       return;
     }
     releasePreview(); // a file already attached is being replaced - its own blob URL is done for
-    setMediaPreview(URL.createObjectURL(file));
-    setMediaFileName(file.name);
-    setMediaSize(file.size);
-    setMediaMime(file.type);
+    const localUrl = URL.createObjectURL(file);
+    setMediaPreview(localUrl);
     setMediaUrl(null);
+    // Shown immediately from the real File, so the preview names the actual file the moment it is
+    // picked rather than after the round trip.
+    setAttachment({ url: localUrl, name: file.name, mime: file.type, size: file.size, thumbUrl: null, pages: null });
     setUploadingMedia(true);
+
+    // Rendered before upload so the PNG can travel with it in one request.
+    const preview = file.type === "application/pdf" ? await renderPdfFirstPage(file) : null;
+
     const form = new FormData();
     form.append("media", file);
+    if (preview) {
+      form.append("thumbnail", new File([preview.thumbnail], "thumb.png", { type: "image/png" }));
+      form.append("pages", String(preview.pages));
+    }
+
     const res = await fetch("/api/posts/media", { method: "POST", body: form });
-    const body = (await res.json().catch(() => null)) as { mediaUrl?: string; error?: string } | null;
+    const body = (await res.json().catch(() => null)) as
+      | { mediaUrl?: string; name?: string; mime?: string; size?: number; thumbUrl?: string | null; pages?: number | null; error?: string }
+      | null;
+
     if (res.ok && body?.mediaUrl) {
       setMediaUrl(body.mediaUrl);
+      setAttachment({
+        url: body.mediaUrl,
+        name: body.name ?? file.name,
+        mime: body.mime ?? file.type,
+        size: body.size ?? file.size,
+        thumbUrl: body.thumbUrl ?? null,
+        pages: body.pages ?? preview?.pages ?? null,
+      });
     } else {
       setMediaError(body?.error ?? "Upload failed.");
       setMediaPreview(null);
+      setAttachment(null);
     }
     setUploadingMedia(false);
   }
@@ -234,9 +226,7 @@ export function PostComposer({
   function removeMedia() {
     releasePreview();
     setMediaPreview(null);
-    setMediaFileName(null);
-    setMediaSize(null);
-    setMediaMime(null);
+    setAttachment(null);
     setMediaUrl(null);
     setMediaError("");
   }
@@ -269,6 +259,7 @@ export function PostComposer({
         title: title.trim() || undefined,
         content: trimmed,
         mediaUrl,
+        attachment: attachment ? { name: attachment.name, mime: attachment.mime, size: attachment.size, thumbUrl: attachment.thumbUrl, pages: attachment.pages } : null,
         kind: isPrediction && canPredict ? "prediction" : undefined,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       }),
@@ -366,43 +357,12 @@ export function PostComposer({
         </div>
       </div>
 
-      {mediaPreview && (
-        // One attachment row for every file type - a real thumbnail where one exists, a typed icon
-        // where it doesn't - rather than a bare paperclip next to whatever filename happened to
-        // survive. min-w-0 + truncate throughout: a 90-character filename shortens, it never widens
-        // the composer or pushes the remove button off the edge.
-        <div className="ml-[44px] mt-2 flex max-w-full items-center gap-2.5 rounded-lg border border-white/[0.07] bg-black/25 p-2">
-          {/* Classified by the real filename's extension (mediaFileName), not the blob preview
-              URL itself - a blob: URL has no extension to read. */}
-          {mediaKind(mediaFileName ?? "") === "image" ? (
-            // eslint-disable-next-line @next/next/no-img-element -- blob:/arbitrary Storage URL, not a known-domain asset next/image can optimize
-            <img src={mediaPreview} alt="" className="h-10 w-10 shrink-0 rounded border border-white/[0.07] object-cover" />
-          ) : mediaKind(mediaFileName ?? "") === "video" ? (
-            <video src={mediaPreview} muted playsInline className="h-10 w-10 shrink-0 rounded border border-white/[0.07] bg-black object-cover" />
-          ) : (
-            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-white/[0.07] bg-white/[0.04] text-neutral-400">
-              <DocumentIcon />
-            </span>
-          )}
-
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-medium text-neutral-200">{mediaFileName ?? "Attachment"}</span>
-            <span className="mt-0.5 block truncate text-[10.5px] text-neutral-500">
-              {uploadingMedia ? "Uploading…" : [describeMedia(mediaMime, mediaFileName), mediaSize != null ? formatBytes(mediaSize) : null].filter(Boolean).join(" · ")}
-            </span>
-          </span>
-
-          <button
-            type="button"
-            onClick={removeMedia}
-            aria-label="Remove attachment"
-            title="Remove attachment"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-neutral-500 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-          >
-            <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
-              <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </button>
+      {attachment && (
+        // The SAME component the published post renders, so what is previewed here is literally
+        // what will appear in the feed - no second attachment design to drift out of sync.
+        <div className="ml-[44px] max-w-full">
+          <PostAttachment attachment={attachment} onRemove={removeMedia} />
+          {uploadingMedia && <p className="mt-1 text-[11px] text-neutral-500">Uploading…</p>}
         </div>
       )}
       {mediaError && <p className="ml-[44px] mt-1 text-[11.5px] text-[var(--f1-red)]">{mediaError}</p>}
@@ -491,11 +451,7 @@ export function PostComposer({
               onSelect={(url) => {
                 setMediaUrl(url);
                 setMediaPreview(url);
-                setMediaFileName(fileNameFromUrl(url));
-                // A picked GIF is a remote URL, not a File - there is no byte count to state, so
-                // none is claimed. The type is known from the source itself.
-                setMediaSize(null);
-                setMediaMime("image/gif");
+                setAttachment({ url, name: fileNameFromUrl(url), mime: "image/gif", size: null, thumbUrl: null, pages: null });
                 setShowGif(false);
               }}
               onClose={() => setShowGif(false)}
@@ -534,15 +490,6 @@ function RoundIcon() {
     <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
       <path d="M9 2.2v3.1M9 12.7v3.1M2.2 9h3.1M12.7 9h3.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <circle cx="9" cy="9" r="3.1" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
-function DocumentIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden>
-      <path d="M11.5 2.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 17.5h8a1.5 1.5 0 0 0 1.5-1.5V6.5l-4-4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M11.5 2.5v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   );
 }

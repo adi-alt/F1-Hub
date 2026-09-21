@@ -1,6 +1,6 @@
 import type { PostKind } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
-import type { PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
+import type { PostAttachment, PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
 
 /** The one post shape every shared post component (PostCard/PostHeader/PostActionBar/...) works
  * against - both GroupPost (a specific group's own feed, always a real group, so groupName/
@@ -22,6 +22,10 @@ export type PostCardData = {
   title: string | null;
   content: string;
   mediaUrl: string | null;
+  /** Real upload metadata - original filename, type, size, generated preview. Null for posts made
+   * before it was captured; the attachment renders its typed card in that case rather than
+   * falling back to the storage UUID. */
+  attachment?: PostAttachment | null;
   status?: PostStatus;
   createdAt: string;
   score: number;

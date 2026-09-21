@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     title?: string;
     content?: string;
     mediaUrl?: string | null;
+    attachment?: { name?: string | null; mime?: string | null; size?: number | null; thumbUrl?: string | null; pages?: number | null } | null;
     kind?: PostKind;
     scheduledAt?: string | null;
   };
@@ -33,6 +34,17 @@ export async function POST(request: Request) {
       title: body.title,
       content: body.content,
       mediaUrl: body.mediaUrl,
+      // Metadata only - the URL itself is the server's own, from the upload route. Name is
+      // re-sanitised there; size/pages are descriptive and not trusted for any decision.
+      attachment: body.attachment
+        ? {
+            name: typeof body.attachment.name === "string" ? body.attachment.name.slice(0, 200) : null,
+            mime: typeof body.attachment.mime === "string" ? body.attachment.mime.slice(0, 120) : null,
+            size: typeof body.attachment.size === "number" && body.attachment.size >= 0 ? body.attachment.size : null,
+            thumbUrl: typeof body.attachment.thumbUrl === "string" ? body.attachment.thumbUrl : null,
+            pages: typeof body.attachment.pages === "number" && body.attachment.pages > 0 ? body.attachment.pages : null,
+          }
+        : null,
       kind: body.kind,
       scheduledAt: body.scheduledAt,
     });

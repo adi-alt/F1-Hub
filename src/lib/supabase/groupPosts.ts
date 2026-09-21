@@ -5,6 +5,19 @@ import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/gro
 import { ServiceError } from "@/services/errors";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
+
+/** What a post's one attachment really is. Everything here is metadata captured at upload - the
+ * storage path is deliberately NOT the source of the display name, because it is a random UUID. */
+export type PostAttachment = {
+  url: string;
+  /** The filename the person actually attached. Null only for posts created before this existed. */
+  name: string | null;
+  mime: string | null;
+  size: number | null;
+  /** Generated first page/frame, when one could be produced. */
+  thumbUrl: string | null;
+  pages: number | null;
+};
 export type VoteValue = 1 | -1 | 0;
 export type FeedType = "following" | "latest" | "forYou";
 
@@ -18,6 +31,7 @@ export type GroupPost = {
   title: string | null;
   content: string;
   mediaUrl: string | null;
+  attachment: PostAttachment | null;
   status: PostStatus;
   createdAt: string;
   score: number;
@@ -48,11 +62,28 @@ export type FeedPost = {
   title: string | null;
   content: string;
   mediaUrl: string | null;
+  attachment: PostAttachment | null;
   createdAt: string;
   score: number;
   myVote: VoteValue;
   commentCount: number;
 };
+
+/** Builds the attachment from whatever metadata the row actually has. A row with a media_url but
+ * no name (posted before metadata existed) still renders - it just has nothing better than its
+ * type to show, which is the honest outcome rather than resurrecting the UUID as a "name". */
+function attachmentFromRow(row: Record<string, unknown>): PostAttachment | null {
+  const url = (row.media_url as string | null) ?? null;
+  if (!url) return null;
+  return {
+    url,
+    name: (row.media_name as string | null) ?? null,
+    mime: (row.media_mime as string | null) ?? null,
+    size: (row.media_size as number | null) ?? null,
+    thumbUrl: (row.media_thumb_url as string | null) ?? null,
+    pages: (row.media_pages as number | null) ?? null,
+  };
+}
 
 const MAX_POST_CHARS = 2000;
 const MAX_TITLE_CHARS = 300;
@@ -85,7 +116,7 @@ async function requireMemberIfGrouped(groupId: string | null, uid: string): Prom
 export async function createPost(
   groupId: string | null,
   uid: string,
-  input: { title?: string; content: string; mediaUrl?: string | null; kind?: PostKind; scheduledAt?: string | null },
+  input: { title?: string; content: string; mediaUrl?: string | null; attachment?: Omit<PostAttachment, "url"> | null; kind?: PostKind; scheduledAt?: string | null },
 ): Promise<{ id: string; status: PostStatus; scheduledAt: string | null }> {
   const trimmedContent = input.content.trim();
   if (!trimmedContent) throw new ServiceError("Write something first.", 400);
@@ -137,6 +168,11 @@ export async function createPost(
       title: trimmedTitle,
       content: trimmedContent,
       media_url: input.mediaUrl ?? null,
+      media_name: input.attachment?.name ?? null,
+      media_mime: input.attachment?.mime ?? null,
+      media_size: input.attachment?.size ?? null,
+      media_thumb_url: input.attachment?.thumbUrl ?? null,
+      media_pages: input.attachment?.pages ?? null,
       status,
       kind,
       scheduled_at: status === "scheduled" ? scheduledAt : null,
@@ -290,6 +326,7 @@ export async function listPosts(
     title: (p.title as string | null) ?? null,
     content: p.content as string,
     mediaUrl: (p.media_url as string | null) ?? null,
+    attachment: attachmentFromRow(p as Record<string, unknown>),
     kind: (p.kind as PostKind | null) ?? "discussion",
     status: p.status as PostStatus,
     createdAt: p.created_at as string,
@@ -353,6 +390,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     title: (post.title as string | null) ?? null,
     content: post.content as string,
     mediaUrl: (post.media_url as string | null) ?? null,
+    attachment: attachmentFromRow(post as Record<string, unknown>),
     kind: (post.kind as PostKind | null) ?? "discussion",
     status,
     createdAt: post.created_at as string,
@@ -502,6 +540,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       title: (p.title as string | null) ?? null,
       content: p.content as string,
       mediaUrl: (p.media_url as string | null) ?? null,
+      attachment: attachmentFromRow(p as Record<string, unknown>),
       kind: (p.kind as PostKind | null) ?? "discussion",
       createdAt: p.created_at as string,
       score: scoreByTarget.get(p.id as string) ?? 0,

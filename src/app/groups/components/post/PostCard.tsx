@@ -9,6 +9,7 @@ import { PostContent } from "./PostContent";
 import { PostDetailWindow } from "./PostDetailWindow";
 import { PostHeader } from "./PostHeader";
 import { PostMedia } from "./PostMedia";
+import { PostAttachment } from "./PostAttachment";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
 
@@ -151,7 +152,9 @@ export function PostCard({
 
       <div className={variant === "compact" ? "" : "mt-2"}>
         <PostContent title={post.title} content={post.content} />
-        {post.mediaUrl && <PostMedia url={post.mediaUrl} />}
+        {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
+            rows uploaded before it existed, which have a URL and nothing else. */}
+        {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
         {kindChip && (
           <span className="mt-2 inline-block rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10.5px] font-medium text-neutral-400">{kindChip}</span>
         )}

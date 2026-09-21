@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
+import { attachmentBadge, attachmentKind, displayName } from "./attachmentMeta";
 import { mediaKind } from "@/lib/mediaKind";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
 import { CommentComposer } from "./CommentComposer";
@@ -68,7 +69,10 @@ export function PostDetailWindow({
   const roots = allRoots.slice(0, visibleThreads);
   const remaining = allRoots.length - roots.length;
   const totalCount = comments?.length ?? 0;
-  const isImage = post.mediaUrl ? mediaKind(post.mediaUrl) === "image" : false;
+  // The still to show beside the discussion: the image itself, or - for a document - the first
+  // page rendered at upload. A file with neither gets a named chip below, not an empty slot.
+  const isImage = post.attachment ? attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url) === "image" : post.mediaUrl ? mediaKind(post.mediaUrl) === "image" : false;
+  const thumbSrc = post.attachment?.thumbUrl ?? (isImage ? post.mediaUrl : null);
 
   return createPortal(
     // No backdrop element at all: on desktop this sits over nothing, so the feed underneath stays
@@ -119,11 +123,27 @@ export function PostDetailWindow({
             {/* A thumbnail, not the full-bleed image: the discussion is what this panel is for,
                 and the media is context for it. Non-image media (video/documents) has no useful
                 still to show at this size, so it isn't faked with a generic tile. */}
-            {post.mediaUrl && isImage && (
+            {thumbSrc && (
               // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize
-              <img src={post.mediaUrl} alt="" className="h-16 w-20 shrink-0 rounded-lg border border-white/[0.08] object-cover" />
+              <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-lg border border-white/[0.08] object-cover" />
             )}
           </div>
+
+          {/* Its real name, never the storage UUID - the same rule the feed card follows. Only for
+              files with no still of their own; anything with a preview is already shown above. */}
+          {post.attachment && !thumbSrc && (
+            <a
+              href={post.attachment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex max-w-full items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-neutral-300 transition hover:border-white/[0.16] hover:text-white"
+            >
+              <span aria-hidden className="shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-neutral-300">
+                {attachmentBadge(attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url), post.attachment.name)}
+              </span>
+              <span className="truncate">{displayName(post.attachment.name, attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url))}</span>
+            </a>
+          )}
 
           <div className="mt-2.5 flex items-center gap-2">
             <div className="rounded-full border border-white/[0.08] bg-white/[0.03] px-1 py-0.5">
