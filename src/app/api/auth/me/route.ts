@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPointsBalance } from "@/lib/supabase/points";
+import { getUserProfile } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
 
 /** Reads whatever session already exists (a normal persisted cookie, same as any other page
@@ -18,7 +19,11 @@ export async function GET() {
   // Defensive, not expected: a session with no matching profiles row shouldn't exist, but this
   // endpoint is on the critical path of every page's auth hydration - one missing profile must
   // not 500 the whole thing and strand a real user on a broken nav bar.
-  const pointsBalance = await getPointsBalance(session.uid).catch(() => null);
+  // Onboarding rides along here rather than being its own request: the tour has to be able to
+  // start on ANY route (someone can arrive on a deep link, not just the homepage), and this is the
+  // one call every route already makes to hydrate auth. `null` on failure means "don't know", and
+  // the tour treats not-knowing as "don't show" - never as "show it again".
+  const [pointsBalance, profile] = await Promise.all([getPointsBalance(session.uid).catch(() => null), getUserProfile(session.uid).catch(() => null)]);
   return NextResponse.json({
     signedIn: true,
     role: session.role ?? "user",
@@ -27,5 +32,6 @@ export async function GET() {
     email: session.email ?? null,
     photoURL: session.photoURL ?? null,
     pointsBalance,
+    onboardingDone: profile ? profile.onboardingCompletedAt != null : true,
   });
 }

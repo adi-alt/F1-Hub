@@ -5,6 +5,7 @@ import { MotionConfig } from "framer-motion";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppRealtimeSync } from "@/components/AppRealtimeSync";
+import { ProductTourProvider } from "@/components/onboarding/ProductTour";
 
 /** One place to add the next provider (a toast system, etc.) instead of nesting another one
  * directly into layout.tsx. reducedMotion="user" makes every framer-motion animation in the app
@@ -19,7 +20,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryProvider>
       <AuthProvider>
         <AppRealtimeSync />
-        <MotionConfig reducedMotion="user">{children}</MotionConfig>
+        <MotionConfig reducedMotion="user">
+          <ProductTourProvider>{children}</ProductTourProvider>
+        </MotionConfig>
       </AuthProvider>
     </QueryProvider>
   );

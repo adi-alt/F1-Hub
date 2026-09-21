@@ -247,8 +247,15 @@ export async function setArchiveFavorite(
 /** The one-way flag OnboardingTour.tsx checks — once set, the tutorial stops showing on every
  * homepage visit. No "show me again" path yet since nothing asked for one; this is the same kind
  * of dismiss-once state as any other one-shot product tour. */
-export async function markOnboardingComplete(uid: string): Promise<void> {
-  await supabaseAdmin.from("profiles").update({ onboarding_completed_at: new Date().toISOString() }).eq("id", uid);
+export async function markOnboardingComplete(uid: string, outcome: "completed" | "skipped" = "completed"): Promise<void> {
+  await supabaseAdmin.from("profiles").update({ onboarding_completed_at: new Date().toISOString(), onboarding_outcome: outcome }).eq("id", uid);
+  revalidateTag(USER_PROFILE_TAG, "max");
+}
+
+/** Clears the stamp so the tour runs again from step 1. Only the two onboarding columns are
+ * touched - replaying a tour must never reset favourites, communities or preferences. */
+export async function resetOnboarding(uid: string): Promise<void> {
+  await supabaseAdmin.from("profiles").update({ onboarding_completed_at: null, onboarding_outcome: null }).eq("id", uid);
   revalidateTag(USER_PROFILE_TAG, "max");
 }
 

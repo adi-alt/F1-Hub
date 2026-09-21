@@ -43,26 +43,26 @@ export function Header() {
           </nav>
         ) : (
           isAuthorized && (
-            <nav className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
-              <Link href={seasonHref(2026)} className="transition hover:text-white">
+            <nav data-tour="global-nav" className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
+              <Link href={seasonHref(2026)} data-tour="nav-season" className="transition hover:text-white">
                 Season
               </Link>
-              <Link href="/circuits" className="transition hover:text-white">
+              <Link href="/circuits" data-tour="nav-circuits" className="transition hover:text-white">
                 Circuits
               </Link>
-              <Link href="/archive" className="transition hover:text-white">
+              <Link href="/archive" data-tour="nav-archive" className="transition hover:text-white">
                 Archive
               </Link>
-              <Link href="/groups" className="transition hover:text-white">
+              <Link href="/groups" data-tour="nav-communities" className="transition hover:text-white">
                 Communities
               </Link>
               {showUsers && (
-                <Link href="/users" className="transition hover:text-white">
+                <Link href="/users" data-tour="nav-users" className="transition hover:text-white">
                   Users
                 </Link>
               )}
               {showModels && (
-                <Link href="/models" className="transition hover:text-white">
+                <Link href="/models" data-tour="nav-models" className="transition hover:text-white">
                   Models
                 </Link>
               )}

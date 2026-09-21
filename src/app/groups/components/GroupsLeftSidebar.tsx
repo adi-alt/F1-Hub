@@ -67,12 +67,12 @@ export function GroupsLeftSidebar({
         // rule per row turns clean navigation into a ledger. The ONE rule here sits under the All
         // filter, because that is a real boundary - a scope control above, the communities it
         // scopes below - rather than decoration repeated seven times.
-        <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 overflow-y-auto scrollbar-hide">
           {/* The scope control. Same row grammar as a community - same inset, same 36px icon
               slot, same selected treatment - so the list reads as one navigation system, with a
               squared tile instead of a circular avatar to say it is a filter and not a community.
               Never carries an unread badge: "All" has no membership to have unread activity in. */}
-          <div className="mb-1 border-b border-white/[0.06] pb-1">
+          <div data-tour="community-filter" className="mb-1 border-b border-white/[0.06] pb-1">
             <NavRow
               label="All"
               sublabel="All communities"

@@ -257,7 +257,7 @@ export function GroupsFeed({
         </div>
       )}
 
-      <div ref={composerRef}>
+      <div ref={composerRef} data-tour="create-post">
         <PostComposer
           key={communityId ?? "all"}
           groups={groups}
@@ -270,7 +270,9 @@ export function GroupsFeed({
 
       {!selectedCommunity && (
         <div className="flex items-center justify-between gap-3">
-          <Tabs items={TAB_ITEMS} activeKey={feedType} onChange={(key) => switchTab(key as FeedType)} layoutId="groups-feed-tabs" panelId="groups-feed-panel" />
+          <div data-tour="feed-tabs">
+            <Tabs items={TAB_ITEMS} activeKey={feedType} onChange={(key) => switchTab(key as FeedType)} layoutId="groups-feed-tabs" panelId="groups-feed-panel" />
+          </div>
           {/* Real, not decorative - "Following" is genuinely every community you've joined
               aggregated together (see listFeedPosts), so this is what the "All" view actually
               means. For You/Latest widen to public communities and personal posts too, which this

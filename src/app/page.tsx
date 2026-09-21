@@ -1,5 +1,4 @@
 import { HomeShell } from "@/components/home/HomeShell";
-import { OnboardingTour } from "@/components/home/OnboardingTour";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { trackShortForm } from "@/lib/format";
 import { getPersonalHomeData } from "@/lib/homeData";
@@ -146,7 +145,6 @@ export default async function HomePage() {
 
   return (
     <>
-      {personalData && <OnboardingTour initiallyOpen={!personalData.profile?.onboardingCompletedAt} />}
       <HomeShell publicData={publicData} initialPersonalData={personalData} serverAuthed={!!session.uid} />
     </>
   );

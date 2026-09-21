@@ -49,7 +49,7 @@ export function GroupsRightSidebar({
     // of race context whose sections are separated by hairlines, the same way the rest of F1 HUB
     // groups related blocks. Explore sits last because it leaves the page - everything above it is
     // about what's already happening.
-    <div className="flex max-h-full flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
+    <div data-tour="race-weekend" className="flex max-h-full flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
       <div className="min-h-0 overflow-y-auto scrollbar-hide">
         <RaceWeekend race={nextRace} />
 

@@ -6,6 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/providers/AuthProvider";
+import { useProductTour } from "@/components/onboarding/ProductTour";
 import { StarIcon, SlidersIcon, BellIcon, PencilIcon, LogOutIcon } from "@/components/icons/HomeIcons";
 
 const ITEMS = [
@@ -30,6 +31,7 @@ type Rect = { top: number; right: number };
 
 export function ProfileMenu() {
   const { user, displayName, isAuthorized, signOut, pointsBalance } = useAuth();
+  const { start: startTour } = useProductTour();
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -154,6 +156,21 @@ export function ProfileMenu() {
                       ))}
                     </nav>
                     <div className="border-t border-white/10 p-1.5">
+                      {/* Replays the product tour from step 1. Clears only the onboarding stamp -
+                          communities, predictions and preferences are untouched. */}
+                      <button
+                        onClick={() => {
+                          setOpen(false);
+                          void fetch("/api/users/onboarding", { method: "DELETE" }).catch(() => {});
+                          startTour();
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                      >
+                        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-neutral-500">
+                          ✦
+                        </span>
+                        Replay F1 Hub tour
+                      </button>
                       <button
                         onClick={() => {
                           setOpen(false);

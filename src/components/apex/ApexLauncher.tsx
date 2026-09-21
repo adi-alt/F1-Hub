@@ -112,6 +112,7 @@ export function ApexLauncher() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Ask Apex"
+        data-tour="apex-launcher"
         className="fixed bottom-4 left-4 z-[90] flex items-center gap-1.5 rounded-full border border-white/15 bg-zinc-900/90 px-3.5 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition hover:border-white/30 hover:bg-zinc-800/90 sm:bottom-5 sm:left-5"
       >
         <span aria-hidden className="text-[var(--f1-red)]">

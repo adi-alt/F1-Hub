@@ -79,6 +79,9 @@ export function PostCard({
 
   return (
     <motion.article
+      /* Only the first card is a tour target - the tour needs one real post to point at, and
+         tagging every card would make the selector ambiguous. */
+      data-tour={index === 0 ? "post" : undefined}
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}

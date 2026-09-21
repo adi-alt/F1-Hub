@@ -26,6 +26,11 @@ type AuthContextValue = {
   // isn't session-cached (it changes on every prediction entry/payout, which the session cookie
   // never sees), so it's re-fetched, not just hydrated once - see refreshPointsBalance.
   pointsBalance: number | null;
+  /** Whether this user has already been through (or dismissed) the product tour. `null` while the
+   * session is still resolving - the tour waits for a real answer rather than flashing on and off
+   * during hydration. */
+  onboardingDone: boolean | null;
+  setOnboardingDone: (done: boolean) => void;
   isAuthorized: boolean;
   loading: boolean;
   setRole: (role: Role | null) => void;
@@ -43,13 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
 
   // Hydrates from whatever server session already exists (a normal persisted cookie) on first
   // load. The real sign-in flow (AuthDialog) sets these directly from its own response once OTP +
   // (for new accounts) the profile step finish; this fetch is just the fallback for "I already
   // have a valid session, who am I."
-  type MeResponse = { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null; pointsBalance?: number | null };
+  type MeResponse = { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null; pointsBalance?: number | null; onboardingDone?: boolean };
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
@@ -59,6 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setDisplayName(body.displayName ?? null);
           setPointsBalance(body.pointsBalance ?? null);
           if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
+          setOnboardingDone(body.onboardingDone ?? true);
+        } else {
+          // A confirmed guest has no tour to run; resolving this to true keeps the tour from
+          // waiting forever on an answer that will never come.
+          setOnboardingDone(true);
         }
       })
       .catch(() => {})
@@ -84,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDisplayName(null);
     setUser(null);
     setPointsBalance(null);
+    setOnboardingDone(true);
     // The rest of the current route (everything below the header, which reacts to `role`
     // directly) is Server-Component-rendered from the session cookie at request time — without
     // this, signed-in-only content stays visible/stale until a hard reload clears it.
@@ -102,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       displayName,
       pointsBalance,
+      onboardingDone,
+      setOnboardingDone,
       isAuthorized: role !== null,
       loading: !sessionChecked,
       setRole,
@@ -110,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshPointsBalance,
       signOut,
     }),
-    [user, role, displayName, pointsBalance, sessionChecked, refreshPointsBalance, signOut],
+    [user, role, displayName, pointsBalance, onboardingDone, sessionChecked, refreshPointsBalance, signOut],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
