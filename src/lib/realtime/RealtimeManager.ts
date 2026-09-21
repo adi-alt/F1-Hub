@@ -44,6 +44,7 @@ class RealtimeManagerClass {
   private channels = new Map<string, ChannelEntry>();
   private resyncTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingResyncs = new Set<() => void>();
+  private awaitingReady = false;
 
   subscribe(
     channelKey: string,
@@ -143,12 +144,53 @@ class RealtimeManagerClass {
     for (const cb of callbacks) this.pendingResyncs.add(cb);
     if (this.resyncTimer) clearTimeout(this.resyncTimer);
     this.resyncTimer = setTimeout(() => {
-      const toRun = [...this.pendingResyncs];
-      this.pendingResyncs.clear();
       this.resyncTimer = null;
-      realtimeLog.debug(`resync: running ${toRun.length} coalesced callback(s)`);
-      for (const cb of toRun) cb();
+      this.runResyncWhenReady();
     }, RESYNC_DEBOUNCE_MS);
+  }
+
+  /**
+   * A resync means router.refresh(), which issues a real RSC request. Firing that the instant a
+   * socket reconnects is what made the app land on "Something went wrong" after being left alone:
+   * on a laptop wake or a network blip the channel resubscribes almost immediately, while the tab
+   * is often still hidden and the network stack still settling, so the refresh's fetch fails and
+   * the failure surfaces as a full-page error boundary.
+   *
+   * The pending callbacks are kept and replayed once the page is genuinely visible AND online, so
+   * the data still resyncs - just at the first moment the request can actually succeed.
+   */
+  private runResyncWhenReady() {
+    if (!this.canResyncNow()) {
+      realtimeLog.debug("resync: deferred until the page is visible and online");
+      this.waitForReady();
+      return;
+    }
+    const toRun = [...this.pendingResyncs];
+    this.pendingResyncs.clear();
+    if (toRun.length === 0) return;
+    realtimeLog.debug(`resync: running ${toRun.length} coalesced callback(s)`);
+    for (const cb of toRun) cb();
+  }
+
+  private canResyncNow(): boolean {
+    // SSR/tests have no document - nothing to defer for.
+    if (typeof document === "undefined") return true;
+    const online = typeof navigator === "undefined" || navigator.onLine !== false;
+    return document.visibilityState === "visible" && online;
+  }
+
+  private waitForReady() {
+    if (this.awaitingReady || typeof document === "undefined") return;
+    this.awaitingReady = true;
+    const onReady = () => {
+      if (!this.canResyncNow()) return;
+      document.removeEventListener("visibilitychange", onReady);
+      window.removeEventListener("online", onReady);
+      this.awaitingReady = false;
+      this.runResyncWhenReady();
+    };
+    document.addEventListener("visibilitychange", onReady);
+    window.addEventListener("online", onReady);
   }
 
   private destroyChannel(channelKey: string) {
