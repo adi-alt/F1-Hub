@@ -107,7 +107,7 @@ export function PredictionEntry({
 
   if (blocker) {
     return (
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <span className="text-[11.5px] text-neutral-500">{blocker}</span>
         <Link href={`${groupHref(groupId)}?tab=predictions`} className="text-[11.5px] font-medium text-neutral-400 underline-offset-2 hover:text-white hover:underline">
           View in community
@@ -118,7 +118,7 @@ export function PredictionEntry({
 
   if (!open) {
     return (
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setOpen(true)}

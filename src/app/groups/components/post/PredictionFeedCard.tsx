@@ -78,17 +78,25 @@ export function PredictionFeedCard({
         </span>
       </div>
 
-      <p className="mt-2 text-[15px] font-semibold leading-snug text-white">{prediction.raceName}</p>
-      <p className="mt-0.5 text-[12px] text-neutral-400">{predictionTypeLabels[prediction.type]}</p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-neutral-200">{prediction.entryPoints} pts to enter</span>
+      <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{prediction.raceName}</p>
+      {/* Type, cost and deadline are one line of metadata, not three stacked blocks - together
+          they answer "what is this and should I act now", which is a single question. */}
+      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] leading-tight text-neutral-500">
+        <span>{predictionTypeLabels[prediction.type]}</span>
+        <span aria-hidden className="text-neutral-700">·</span>
+        <span className="font-semibold tabular-nums text-neutral-300">{prediction.entryPoints} pts</span>
         {countdown ? (
-          <span className={`rounded-full px-2.5 py-1 text-[11px] tabular-nums ${urgent ? "bg-[var(--f1-red)]/[0.12] font-semibold text-[var(--f1-red)]" : "text-neutral-500"}`}>Closes in {countdown}</span>
+          <>
+            <span aria-hidden className="text-neutral-700">·</span>
+            <span className={`tabular-nums ${urgent ? "font-semibold text-[var(--f1-red)]" : ""}`}>closes in {countdown}</span>
+          </>
         ) : closed ? (
-          <span className="text-[11px] text-neutral-500">Closed · awaiting result</span>
+          <>
+            <span aria-hidden className="text-neutral-700">·</span>
+            <span>closed, awaiting result</span>
+          </>
         ) : null}
-      </div>
+      </p>
 
       <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
 

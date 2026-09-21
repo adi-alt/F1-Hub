@@ -75,12 +75,12 @@ export function GroupsLeftSidebar({
           <div data-tour="community-filter" className="mb-1 border-b border-white/[0.06] pb-1">
             <NavRow
               label="All"
-              sublabel="All communities"
+              sublabel="Everything you\u2019re in"
               active={selectedId === null}
               onClick={() => onSelect(null)}
               icon={
                 <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition ${
+                  className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition ${
                     selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"
                   }`}
                 >
@@ -97,7 +97,7 @@ export function GroupsLeftSidebar({
                   label={g.name}
                   active={active}
                   onClick={() => onSelect(g.id)}
-                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />}
+                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={34} />}
                   badge={
                     g.activePredictions > 0 ? (
                       <span
@@ -174,7 +174,7 @@ function NavRow({
 }) {
   return (
     <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-3 py-2 transition ${
+      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-3 py-1.5 transition ${
         active ? "bg-gradient-to-r from-[var(--f1-red)]/[0.11] via-[var(--f1-red)]/[0.04] to-transparent" : "hover:bg-white/[0.045]"
       }`}
     >

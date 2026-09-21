@@ -278,8 +278,8 @@ export function GroupsFeed({
               means. For You/Latest widen to public communities and personal posts too, which this
               line would misdescribe, so it only shows for Following. */}
           {feedType === "following" && groups.length > 0 && (
-            <p className="hidden shrink-0 text-[11px] text-neutral-500 sm:block">
-              Aggregating {groups.length} {groups.length === 1 ? "community" : "communities"}
+            <p className="hidden shrink-0 text-[11.5px] font-medium text-neutral-400 sm:block">
+              {groups.length} {groups.length === 1 ? "community" : "communities"}
             </p>
           )}
         </div>

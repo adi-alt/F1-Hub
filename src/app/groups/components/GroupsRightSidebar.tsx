@@ -130,32 +130,62 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
       </div>
       <p className="mt-1 text-[10.5px] text-neutral-600">{pulse.hasPriorVisit ? "Since you were last here" : "Across your communities"}</p>
 
-      {rows.length === 0 && !trending ? (
+      {rows.length === 0 && !trending && !pulse.mostDiscussed && !pulse.predictionPulse ? (
         <p className="mt-2 text-[11.5px] leading-relaxed text-neutral-600">
           {pulse.hasPriorVisit ? "You're caught up. No major changes since your last visit." : "No activity across your communities yet."}
         </p>
       ) : (
-        <ul className="mt-2 space-y-1.5">
-          {rows.map((r) => (
-            <li key={r.key} className="flex items-center gap-2">
-              <span aria-hidden className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${TONE[r.tone]}`}>
-                {r.icon}
-              </span>
-              <span className="text-[13px] font-semibold tabular-nums leading-none text-white">{r.count}</span>
-              <span className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-400">{r.label}</span>
-            </li>
-          ))}
-          {trending && (
-            <li className="flex items-center gap-2">
-              <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]">
-                <TrendIcon />
-              </span>
-              <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                {trending.name} is trending
-              </Link>
-            </li>
+        <>
+          {rows.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {rows.map((r) => (
+                <li key={r.key} className="flex items-center gap-2">
+                  <span aria-hidden className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${TONE[r.tone]}`}>
+                    {r.icon}
+                  </span>
+                  <span className="text-[13px] font-semibold tabular-nums leading-none text-white">{r.count}</span>
+                  <span className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-400">{r.label}</span>
+                </li>
+              ))}
+              {trending && (
+                <li className="flex items-center gap-2">
+                  <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]">
+                    <TrendIcon />
+                  </span>
+                  <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                    {trending.name} is trending
+                  </Link>
+                </li>
+              )}
+            </ul>
           )}
-        </ul>
+
+          {/* Named, not counted: the widget points at one real conversation to go and read. The
+              link opens that post's own discussion on its community page. */}
+          {pulse.mostDiscussed && (
+            <Link href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
+              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Most discussed</p>
+              <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-neutral-300">{pulse.mostDiscussed.excerpt}</p>
+              <p className="mt-0.5 text-[10.5px] tabular-nums text-neutral-500">
+                {pulse.mostDiscussed.comments} {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
+              </p>
+            </Link>
+          )}
+
+          {/* A real split from real entries - the leading pick and its actual share, only once
+              enough people have entered for that to mean anything. */}
+          {pulse.predictionPulse && (
+            <Link href={`${groupHref(pulse.predictionPulse.groupId)}?tab=predictions`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
+              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Prediction activity</p>
+              <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-300">
+                <span className="font-semibold text-white">{pulse.predictionPulse.pct}%</span> backing {pulse.predictionPulse.leader}
+              </p>
+              <p className="mt-0.5 truncate text-[10.5px] text-neutral-500">
+                {pulse.predictionPulse.raceName} · {pulse.predictionPulse.total} entries
+              </p>
+            </Link>
+          )}
+        </>
       )}
     </div>
   );
@@ -210,10 +240,17 @@ function RaceWeekend({ race }: { race: NextRace }) {
     <div className="relative">
       {race?.photoUrl && (
         <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover opacity-45" />
-          {/* Scrim, so the type on top keeps real contrast against whatever the photo happens to
-              be - not a decorative gradient for its own sake. */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/75 to-[var(--f1-carbon)]" />
+          {/* Near-full opacity: the photo is allowed to look like a photo, because the two
+              gradients below - not a washed-out image - are what guarantee the text stays legible.
+              Dimming the image instead costs the picture AND still can't promise contrast against
+              a bright patch. */}
+          <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover opacity-90" />
+          {/* Vertical ramp: transparent at the top so the image reads, solid carbon by the bottom
+              where the round/name/date sit. */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-[var(--f1-carbon)]" />
+          {/* Left-weighted wash: every line of type in this widget starts at the left edge, so
+              that column gets its own guaranteed floor regardless of what the photo is doing. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[var(--f1-carbon)]/90 via-[var(--f1-carbon)]/35 to-transparent" />
         </div>
       )}
 
