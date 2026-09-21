@@ -62,30 +62,42 @@ export function GroupsLeftSidebar({
       ) : (
         // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
         // actions below stay pinned and reachable instead of being pushed out of the card.
-        // divide-y, not space-y: seven rows each carrying their own border read as seven cards
-        // competing with the feed. One hairline between neighbours separates them at a fraction of
-        // the visual weight, and only the selected row gets a surface of its own.
-        <div className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-hide">
-          <NavRow
-            label="All"
-            sublabel="All communities"
-            active={selectedId === null}
-            onClick={() => onSelect(null)}
-            icon={
-              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${selectedId === null ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"}`}>
-                <AllIcon />
-              </span>
-            }
-          />
+        //
+        // No hairline between every row: with an avatar on each, rows are already legible, and a
+        // rule per row turns clean navigation into a ledger. The ONE rule here sits under the All
+        // filter, because that is a real boundary - a scope control above, the communities it
+        // scopes below - rather than decoration repeated seven times.
+        <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+          {/* The scope control. Same row grammar as a community - same inset, same 36px icon
+              slot, same selected treatment - so the list reads as one navigation system, with a
+              squared tile instead of a circular avatar to say it is a filter and not a community.
+              Never carries an unread badge: "All" has no membership to have unread activity in. */}
+          <div className="mb-1 border-b border-white/[0.06] pb-1">
+            <NavRow
+              label="All"
+              sublabel="All communities"
+              active={selectedId === null}
+              onClick={() => onSelect(null)}
+              icon={
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition ${
+                    selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"
+                  }`}
+                >
+                  <AllIcon />
+                </span>
+              }
+            />
+          </div>
           {groups.map((g, i) => {
             const active = selectedId === g.id;
             return (
-              <motion.div key={g.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03 }}>
+              <motion.div key={g.id} className="mt-px" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03 }}>
                 <NavRow
                   label={g.name}
                   active={active}
                   onClick={() => onSelect(g.id)}
-                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={32} />}
+                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />}
                   badge={
                     g.activePredictions > 0 ? (
                       <span
@@ -129,13 +141,17 @@ export function GroupsLeftSidebar({
 }
 
 /**
- * One navigation row, roughly 48px tall.
+ * One navigation row - the single row grammar this rail has, used by both the All filter and every
+ * community, which is what makes the list read as one system rather than a widget above a list.
  *
- * Rows carry no surface of their own: separation comes from the hairline the list draws between
- * neighbours (divide-y above). Giving every row a border and a fill turned the rail into seven
- * little cards that competed with the feed for attention, which is exactly what navigation must
- * not do. Only the SELECTED row gets a surface - a red-to-transparent wash with a matching edge -
- * so the one row that needs to stand out is the only one that does.
+ * The selected state is ONE accent, not three. It previously stacked a red border, a red gradient
+ * wash AND a red edge bar on top of a red-filled icon tile, which made the selected row read as an
+ * important card rather than as the current filter - the accents compounded instead of combining.
+ * Now: a faint red wash that fades out to the right, anchored by a thin edge bar at its left so
+ * the tint looks attached to something rather than floating, and brighter label text. No border,
+ * no glow.
+ *
+ * Idle rows carry no surface at all, so nothing competes with the feed.
  */
 function NavRow({
   label,
@@ -158,18 +174,16 @@ function NavRow({
 }) {
   return (
     <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-2 py-1.5 transition ${
-        active
-          ? "border border-[var(--f1-red)]/30 bg-gradient-to-r from-[var(--f1-red)]/[0.16] via-[var(--f1-red)]/[0.05] to-transparent"
-          : "border border-transparent hover:bg-white/[0.045]"
+      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-3 py-2 transition ${
+        active ? "bg-gradient-to-r from-[var(--f1-red)]/[0.11] via-[var(--f1-red)]/[0.04] to-transparent" : "hover:bg-white/[0.045]"
       }`}
     >
-      {active && <span aria-hidden className="absolute left-0 top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-r-full bg-[var(--f1-red)]" />}
+      {active && <span aria-hidden className="absolute inset-y-1 left-0 w-[2px] rounded-r-full bg-[var(--f1-red)]/80" />}
       <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]">
         {icon}
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[13px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
-          {sublabel && <span className="mt-0.5 block truncate text-[10.5px] leading-tight text-neutral-500">{sublabel}</span>}
+          <span className={`block truncate text-[14px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
+          {sublabel && <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-neutral-500">{sublabel}</span>}
         </span>
       </button>
       {badge}
