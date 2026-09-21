@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { motion } from "framer-motion";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
@@ -138,24 +139,39 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
         <>
           {rows.length > 0 && (
             <ul className="mt-2 space-y-1.5">
-              {rows.map((r) => (
-                <li key={r.key} className="flex items-center gap-2">
+              {/* Staggered, not all at once: the rows are a short list of counts, and letting
+                  them arrive in order is what makes the widget read as being filled in rather
+                  than as having always been there. 40ms apart - enough to see, not enough to
+                  wait for. */}
+              {rows.map((r, i) => (
+                <motion.li
+                  key={r.key}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: i * 0.04 }}
+                  className="flex items-center gap-2"
+                >
                   <span aria-hidden className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${TONE[r.tone]}`}>
                     {r.icon}
                   </span>
                   <span className="text-[13px] font-semibold tabular-nums leading-none text-white">{r.count}</span>
                   <span className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-400">{r.label}</span>
-                </li>
+                </motion.li>
               ))}
               {trending && (
-                <li className="flex items-center gap-2">
+                <motion.li
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: rows.length * 0.04 }}
+                  className="flex items-center gap-2"
+                >
                   <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]">
                     <TrendIcon />
                   </span>
                   <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                     {trending.name} is trending
                   </Link>
-                </li>
+                </motion.li>
               )}
             </ul>
           )}
@@ -163,6 +179,7 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
           {/* Named, not counted: the widget points at one real conversation to go and read. The
               link opens that post's own discussion on its community page. */}
           {pulse.mostDiscussed && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 1) * 0.04 }}>
             <Link href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
               <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Most discussed</p>
               <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-neutral-300">{pulse.mostDiscussed.excerpt}</p>
@@ -170,20 +187,35 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
                 {pulse.mostDiscussed.comments} {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
               </p>
             </Link>
+            </motion.div>
           )}
 
           {/* A real split from real entries - the leading pick and its actual share, only once
               enough people have entered for that to mean anything. */}
           {pulse.predictionPulse && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 2) * 0.04 }}>
             <Link href={`${groupHref(pulse.predictionPulse.groupId)}?tab=predictions`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
               <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Prediction activity</p>
               <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-300">
                 <span className="font-semibold text-white">{pulse.predictionPulse.pct}%</span> backing {pulse.predictionPulse.leader}
               </p>
-              <p className="mt-0.5 truncate text-[10.5px] text-neutral-500">
+              {/* The share, drawn - the same bar language the prediction cards in the feed use,
+                  so "62% backing Norris" is something you can see the size of rather than only
+                  read. It grows from zero on arrival, which is the motion this widget was
+                  missing entirely. */}
+              <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/[0.06]" role="presentation">
+                <motion.span
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pulse.predictionPulse.pct}%` }}
+                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 2) * 0.04 + 0.1 }}
+                  className="block h-full rounded-full bg-[var(--f1-red)]"
+                />
+              </span>
+              <p className="mt-1 truncate text-[10.5px] text-neutral-500">
                 {pulse.predictionPulse.raceName} · {pulse.predictionPulse.total} entries
               </p>
             </Link>
+            </motion.div>
           )}
         </>
       )}

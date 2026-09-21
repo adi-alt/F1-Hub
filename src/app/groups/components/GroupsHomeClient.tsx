@@ -145,7 +145,11 @@ export function GroupsHomeClient({
             centerContainerRef.current = el;
             setCenterLenisContainer(el);
           }}
-          className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:scrollbar-hide"
+          // pb-3 at lg+: the last card ended flush against the bottom edge of its own scroll
+          // region, which reads as the feed being cut rather than finished. Padding on the
+          // scroll container is part of its scrollable extent, so it's reachable space, not a
+          // margin that collapses away.
+          className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:pb-3 lg:scrollbar-hide"
         >
           <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
           <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />

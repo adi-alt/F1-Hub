@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Lenis, { type LenisOptions } from "lenis";
 import { isRegisteredNestedLenisRegion, registerNestedLenisRegion } from "./nestedLenisRegistry";
+import { resolveScrollContent } from "./scrollContentNode";
 
 type NestedScrollOptions = {
   // Set on the page's own root instance (SmoothScroll.tsx): defers to whichever *specific*
@@ -38,6 +39,7 @@ export function useLenisContainer(
     let cancelled = false;
     let unregister: (() => void) | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
 
     async function initializeWithDelay() {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -46,7 +48,16 @@ export function useLenisContainer(
       if (!(container instanceof HTMLElement)) return;
       if (container.children.length === 0) return;
 
-      const content = (container.querySelector(":scope > *") ?? container.firstElementChild ?? container) as HTMLElement;
+      // Lenis derives the scroll limit from `content`'s height, so picking the wrong node caps
+      // scrolling short and the tail of the region becomes unreachable - the "feed cuts off its
+      // last posts" bug, with no error anywhere to explain it.
+      //
+      // The first child is only the content when it is the ONLY child. A region with several
+      // children (the Communities centre column: a mobile-only selector, then the feed) would
+      // otherwise be measured by its first child alone - and when that child is `hidden` at this
+      // breakpoint, the measured height is zero and the limit collapses entirely. With more than
+      // one child the container measures itself: its own scrollHeight already spans all of them.
+      const content = resolveScrollContent(container) as HTMLElement;
 
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
 
@@ -98,13 +109,33 @@ export function useLenisContainer(
         // Observing BOTH matters: content height changes when items grow, wrapper height changes
         // when the viewport or surrounding layout does, and either invalidates the same cache.
         if (typeof ResizeObserver !== "undefined") {
-          resizeObserver = new ResizeObserver(() => {
+          const observer = new ResizeObserver(() => {
             // rAF-deferred: a resize callback fires mid-layout, and measuring there can read a
             // half-applied box. One frame later the DOM has settled.
             requestAnimationFrame(() => lenisRef.current?.resize());
           });
-          resizeObserver.observe(content);
-          if (content !== container) resizeObserver.observe(container);
+          resizeObserver = observer;
+
+          // The direct children are observed too, not just the container: when `content` IS the
+          // container (the multi-child case above), its own border box never changes - it's a
+          // fixed-height scroll region - so a child growing would go completely unnoticed. What
+          // changes is the child's box, which is exactly what has to invalidate the cached limit.
+          function observeChildren(el: HTMLElement) {
+            observer.observe(el);
+            for (const child of Array.from(el.children)) observer.observe(child);
+          }
+          observeChildren(container);
+          if (content !== container) observer.observe(content);
+
+          // Posts are appended as you scroll, and a child that appears after setup would
+          // otherwise never be observed - the same stale limit, one page further down.
+          if (typeof MutationObserver !== "undefined") {
+            mutationObserver = new MutationObserver(() => {
+              observeChildren(container);
+              requestAnimationFrame(() => lenisRef.current?.resize());
+            });
+            mutationObserver.observe(container, { childList: true });
+          }
         }
       } catch (error) {
         console.error("useLenisContainer: failed to initialize", error);
@@ -118,6 +149,8 @@ export function useLenisContainer(
       unregister?.();
       resizeObserver?.disconnect();
       resizeObserver = null;
+      mutationObserver?.disconnect();
+      mutationObserver = null;
       if (rafIdRef.current) {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;

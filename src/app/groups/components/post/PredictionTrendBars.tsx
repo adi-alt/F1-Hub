@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
 
 /** Below this many entries there is no consensus to draw - two entries rendered as bars would read
@@ -56,14 +56,37 @@ export function PredictionTrendBars({
   }, [groupId, predictionId, needsFetch]);
 
   const trend = needsFetch ? fetched : provided;
-  if (failed || !trend) return null;
 
-  if (trend.total < MIN_ENTRIES_FOR_TREND) {
-    return <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs text-neutral-600`}>{trend.total === 0 ? "No entries yet." : `Not enough responses yet (${trend.total}).`}</p>;
-  }
-
+  // The whole block - including the "not enough responses" line - lives inside one AnimatePresence
+  // that owns its height. This data arrives well after the card is on screen, and appearing at
+  // full height in a single frame shoves everything below it down with no warning. Animating
+  // height here rather than relying on the parent card's `layout` means it eases whatever the
+  // card around it is doing, and it is the same easing the entry panel uses.
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
+    <AnimatePresence initial={false}>
+      {!failed && trend && (
+        <motion.div
+          key="trend"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          className="overflow-hidden"
+        >
+          {trend.total < MIN_ENTRIES_FOR_TREND ? (
+            <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs text-neutral-600`}>{trend.total === 0 ? "No entries yet." : `Not enough responses yet (${trend.total}).`}</p>
+          ) : (
+            <TrendBody trend={trend} isPodium={isPodium} compact={compact} />
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function TrendBody({ trend, isPodium, compact }: { trend: PredictionTrend; isPodium: boolean; compact: boolean }) {
+  return (
+    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community trend{isPodium ? " · winner pick" : ""}</p>
@@ -90,6 +113,6 @@ export function PredictionTrendBars({
           </li>
         ))}
       </ul>
-    </motion.div>
+    </div>
   );
 }
