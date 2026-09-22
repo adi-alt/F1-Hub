@@ -178,6 +178,70 @@ export async function listUsersPage(
   return { users: rows.map(fromRow), nextCursor };
 }
 
+export type UserCounts = { total: number; admins: number; moderators: number; onboarded: number };
+
+/** Four `head: true` COUNT queries rather than tallying whatever the client happens to have
+ * loaded. listUsersPage hands out 50 rows at a time, so a count derived from the loaded pages
+ * silently means "…of the first 50" — a different, and wrong, number the moment a second page
+ * exists. `head: true` fetches no rows at all (PostgREST answers from the Content-Range header),
+ * so all four together cost far less than one page of profiles. */
+export async function countUsers(): Promise<UserCounts> {
+  const head = () => supabaseAdmin.from("profiles").select("id", { count: "exact", head: true });
+
+  const [total, admins, moderators, onboarded] = await Promise.all([
+    queryWithRetry(() => head()),
+    queryWithRetry(() => head().eq("role", "admin")),
+    queryWithRetry(() => head().eq("role", "moderator")),
+    queryWithRetry(() => head().not("onboarding_completed_at", "is", null)),
+  ]);
+
+  const failed = [total, admins, moderators, onboarded].find((r) => r.error);
+  if (failed?.error) throw new Error(`countUsers: ${failed.error.message}`);
+
+  return {
+    total: total.count ?? 0,
+    admins: admins.count ?? 0,
+    moderators: moderators.count ?? 0,
+    onboarded: onboarded.count ?? 0,
+  };
+}
+
+/** Substring, case-insensitive, across the four fields a human actually recognises someone by.
+ * The old exact-`eq("email")` lookup meant the search box only ever answered when you already
+ * knew the full address — typing a name, a username, or half an email returned nothing at all,
+ * which reads as "no such user" rather than "wrong kind of query".
+ *
+ * `ilike` with a leading wildcard can't use a plain B-tree index, so this is a sequential scan;
+ * capped at `limit` and gated behind a 2-character minimum in the UI to keep that bounded. At
+ * this table's size that's the right trade against the operational cost of a real text index —
+ * revisit (pg_trgm GIN on these columns) if profiles grows past the low tens of thousands. */
+export async function searchUsers(term: string, limit = 50): Promise<UserProfile[]> {
+  // Two separate escaping layers, applied in this order — they compose, and getting either wrong
+  // is a live bug rather than a nicety:
+  //
+  //  1. SQL LIKE: `%` and `_` are wildcards, so a literal one in the term (a legitimate
+  //     character in a display name) would otherwise match anything at all. `\` is LIKE's own
+  //     default escape character and so has to escape itself.
+  //  2. PostgREST's `or=(...)` grammar: it splits that string on commas and parentheses, so a
+  //     term containing either — "Doe, John", or a nickname in brackets — would be parsed as
+  //     filter syntax and 400 the whole request. Double-quoting the value is PostgREST's
+  //     sanctioned way to carry reserved characters, and inside those quotes `"` and `\` each
+  //     need a backslash of their own.
+  const likeEscaped = term.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const value = `"${`%${likeEscaped}%`.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin
+      .from("profiles")
+      .select("*")
+      .or(`email.ilike.${value},display_name.ilike.${value},username.ilike.${value},first_name.ilike.${value}`)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  );
+  if (error) throw new Error(`searchUsers(${term}): ${error.message}`);
+  return ((data ?? []) as ProfileRow[]).map(fromRow);
+}
+
 /** Exact-match lookup, deliberately not substring/prefix search — same v1-not-a-promise framing
  * as the Firestore version; a real search index isn't warranted at this stage. */
 export async function getUserByEmail(email: string): Promise<UserProfile | null> {

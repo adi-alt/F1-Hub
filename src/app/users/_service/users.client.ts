@@ -9,8 +9,11 @@ export async function fetchUsersPage(cursor: string | null): Promise<UsersPage> 
   return res.json();
 }
 
-export async function fetchUsersByEmail(email: string): Promise<UserProfile[]> {
-  const res = await fetch(`/api/users?email=${encodeURIComponent(email)}`);
+/** Server-side substring search across email/display name/username/first name — the counterpart
+ * to the client-side filter in UserManagement, used when the term matches nothing in the pages
+ * already loaded and the answer might still be further down the table. */
+export async function searchUsers(term: string): Promise<UserProfile[]> {
+  const res = await fetch(`/api/users?q=${encodeURIComponent(term)}`);
   if (!res.ok) throw new Error(`${res.status}`);
   const body = (await res.json()) as UsersPage;
   return body.users;

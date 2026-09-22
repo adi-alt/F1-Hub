@@ -1,7 +1,12 @@
+import { useEffect, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserProfile } from "@/lib/supabase/users";
 import { usersKeys } from "../_queries/usersKeys";
-import { fetchUsersByEmail, fetchUsersPage, postRoleUpdate } from "../_service/users.client";
+import { fetchUsersPage, postRoleUpdate, searchUsers } from "../_service/users.client";
+
+/** Mirrors MIN_SEARCH_LENGTH in users.service.ts — below this the server declines to search at
+ * all and returns a normal first page, so firing the request would be pure waste. */
+export const MIN_SEARCH_LENGTH = 2;
 
 /** Cursor-paginated user list, seeded from the Server Component's initial page so the first
  * render needs no client fetch at all. staleTime: Infinity — AppRealtimeSync's admin `profiles`
@@ -18,14 +23,27 @@ export function useUsersList(initialUsers: UserProfile[], initialCursor: string 
   });
 }
 
-/** Exact-email search box — fires on every change (no debounce; email search wasn't something
- * asked to change), only enabled once there's something to search for. Same staleTime: Infinity
- * reasoning as useUsersList above. */
-export function useUserSearch(email: string) {
+/** Holds a value back until it has stopped changing for `delayMs`. Search now hits the database
+ * with a full-scan `ilike` rather than an indexed exact-match, so firing one per keystroke is a
+ * real cost — this turns a typed word into one query instead of eight. */
+export function useDebounced<T>(value: T, delayMs = 300): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return settled;
+}
+
+/** The server-side half of search, and deliberately only half: UserManagement filters the pages
+ * it already holds on every keystroke (instant, no network), and only enables this when that
+ * local filter comes up empty — the case where the match may exist but simply hasn't been paged
+ * in yet. staleTime: Infinity for the same reason as useUsersList. */
+export function useUserSearch(term: string, enabled: boolean) {
   return useQuery({
-    queryKey: usersKeys.search(email),
-    queryFn: () => fetchUsersByEmail(email),
-    enabled: email.trim().length > 0,
+    queryKey: usersKeys.search(term),
+    queryFn: () => searchUsers(term),
+    enabled: enabled && term.trim().length >= MIN_SEARCH_LENGTH,
     staleTime: Infinity,
   });
 }

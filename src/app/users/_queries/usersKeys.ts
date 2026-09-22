@@ -3,6 +3,6 @@
  * the search key intentionally isn't a child of the list key. */
 export const usersKeys = {
   list: () => ["users"] as const,
-  search: (email: string) => ["users-search", email] as const,
+  search: (term: string) => ["users-search", term] as const,
   searchAll: () => ["users-search"] as const,
 };
