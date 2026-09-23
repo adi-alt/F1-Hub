@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import { Tabs } from "@/components/ui/Tabs";
@@ -342,33 +343,37 @@ export function GroupsFeed({
         )}
       </div>
 
-      {selectedCommunity
-        ? communityCursor && (
-            <div ref={communitySentinelRef} className="py-2">
-              {communityLoadingMore && <PostCardSkeleton />}
-              {communityMoreError && (
-                <p className="text-center text-xs text-neutral-500">
-                  Couldn&apos;t load more.{" "}
-                  <button type="button" onClick={() => void loadMoreCommunity()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                    Try again
-                  </button>
-                </p>
-              )}
-            </div>
-          )
-        : cursor && (
-            <div ref={sentinelRef} className="py-2">
-              {loadingMore && <PostCardSkeleton />}
-              {error && (
-                <p className="text-center text-xs text-neutral-500">
-                  Couldn&apos;t load more.{" "}
-                  <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
-                    Try again
-                  </button>
-                </p>
-              )}
-            </div>
+      {selectedCommunity ? (
+        communityCursor ? (
+          <div ref={communitySentinelRef} className="py-2">
+            {communityLoadingMore && <PostCardSkeleton />}
+            {communityMoreError && (
+              <p className="text-center text-xs text-neutral-500">
+                Couldn&apos;t load more.{" "}
+                <button type="button" onClick={() => void loadMoreCommunity()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                  Try again
+                </button>
+              </p>
+            )}
+          </div>
+        ) : (
+          (communityPosts?.length ?? 0) > 0 && <EndOfFeed />
+        )
+      ) : cursor ? (
+        <div ref={sentinelRef} className="py-2">
+          {loadingMore && <PostCardSkeleton />}
+          {error && (
+            <p className="text-center text-xs text-neutral-500">
+              Couldn&apos;t load more.{" "}
+              <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                Try again
+              </button>
+            </p>
           )}
+        </div>
+      ) : (
+        !loading && posts.length > 0 && <EndOfFeed />
+      )}
 
       {/* Sticky rather than fixed: it belongs to the feed column and pins to the bottom of
           whichever scroll container that column actually is (its own at lg+, the document below
@@ -389,5 +394,34 @@ export function GroupsFeed({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The real end of what's loaded - shown once there's no more cursor to page through and at least
+ * one post already rendered above it (an empty stream gets EmptyState instead, not this).
+ *
+ * The centre column is a fixed-height scroll region (it has to be - see GroupsHomeClient's own
+ * comment on why all three tracks share one height, which is what lets each scroll independently),
+ * so a short stream still sits inside a tall box and leaves real space below the last card. Without
+ * this, that space was just silent - nothing said whether the stream had genuinely run out or was
+ * quietly stuck, and the floating "New post" pill above it read as orphaned rather than as the
+ * last thing in a finished list. This doesn't reclaim the space (nothing here safely can without
+ * breaking that independent-scroll behavior for the much more common case of a stream that
+ * actually overflows), it just says plainly that the list is finished.
+ */
+function EndOfFeed() {
+  return (
+    <motion.p
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
+      className="flex items-center justify-center gap-1.5 py-5 text-[11.5px] text-neutral-600"
+    >
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
+        <path d="M3 8.5 6.2 11.5 13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      You&apos;re all caught up
+    </motion.p>
   );
 }
