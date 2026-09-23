@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
-import { predictionTypeLabels, type GroupPrediction, type PredictionType } from "@/lib/groupPredictionTypes";
+import { predictionTypeLabels, type GroupPrediction, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { DriverPicker } from "@/components/ui/F1Pickers";
+import { useAuth } from "@/providers/AuthProvider";
 import type { GroupRole } from "@/lib/supabase/groups";
+// From the feed's own post/ tree, not a second copy - the same community-trend bars a prediction
+// gets when it shows up in the feed, so "what did everyone else pick" reads identically wherever a
+// round is shown.
+import { PredictionTrendBars } from "../../components/post/PredictionTrendBars";
 
 type DriverOption = { code: string; name: string };
 
@@ -20,7 +25,7 @@ type Blocker =
   | { kind: "noPoints"; message: string }
   | null;
 
-function blockerFor(prediction: GroupPrediction, drivers: DriverOption[], pointsBalance: number): Blocker {
+function blockerFor(prediction: GroupPrediction, drivers: DriverOption[], pointsBalance: number, hasEntry: boolean): Blocker {
   if (prediction.status === "resolved") return { kind: "resolved", message: "Results are in." };
   if (prediction.status === "locked") return { kind: "locked", message: "Predictions are locked. Results appear after the race." };
   // A round left open past its own race is a real state (nobody locked it): treat it as closed for
@@ -33,7 +38,10 @@ function blockerFor(prediction: GroupPrediction, drivers: DriverOption[], points
   if (drivers.length === 0 && prediction.type !== "dnf_count") {
     return { kind: "noDrivers", message: "No driver line-up is available yet for this season." };
   }
-  if (!prediction.myEntry && pointsBalance < prediction.entryPoints) {
+  // `hasEntry` covers the optimistic copy too (see PredictionCard's own comment) - otherwise a
+  // stale, not-yet-refreshed pointsBalance prop could flash this at someone re-opening the form to
+  // edit a pick they already successfully paid for a moment ago.
+  if (!hasEntry && pointsBalance < prediction.entryPoints) {
     return { kind: "noPoints", message: `You need ${prediction.entryPoints} points to enter. You have ${pointsBalance}.` };
   }
   return null;
@@ -67,13 +75,28 @@ export function PredictionCard({
   onChanged: () => void;
 }) {
   const now = useMinuteClock();
+  const { refreshPointsBalance } = useAuth();
   const [guess, setGuess] = useState<unknown>(prediction.myEntry?.guess ?? (prediction.type === "podium" ? ["", "", ""] : ""));
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving">("idle");
   const [error, setError] = useState("");
 
+  // `prediction` is a prop from the page's own server component, refreshed only by `onChanged`
+  // (router.refresh() - see GroupPredictions' own comment), which re-runs this whole page's data
+  // fetch and can genuinely take a few seconds. Without this, a successful submit left the form
+  // sitting there and the entry count unchanged for however long that took - looking like nothing
+  // happened even though the points had already been spent - rather than showing what just
+  // happened immediately. Cleared the moment the real prop catches up, so there's only ever one
+  // source of truth once it does, never two copies that could disagree.
+  const [optimisticEntry, setOptimisticEntry] = useState<GroupPrediction["myEntry"]>(null);
+  useEffect(() => {
+    if (prediction.myEntry) setOptimisticEntry(null);
+  }, [prediction.myEntry]);
+  const myEntry = prediction.myEntry ?? optimisticEntry;
+  const entryCount = prediction.entryCount + (!prediction.myEntry && optimisticEntry ? 1 : 0);
+
   const isAdmin = myRole === "admin";
-  const blocker = blockerFor(prediction, drivers, pointsBalance);
+  const blocker = blockerFor(prediction, drivers, pointsBalance, myEntry !== null);
   const raceAt = prediction.raceDate ? parseUtcDateTime(prediction.raceDate).getTime() : null;
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : "";
 
@@ -91,6 +114,11 @@ export function PredictionCard({
       setStatus("idle");
       return;
     }
+    setOptimisticEntry({ guess: guess as PredictionGuess, pointsWagered: prediction.entryPoints, pointsAwarded: null });
+    // Entering spends points server-side immediately - the header's own balance (a separate client
+    // store, not this page's props) is stale the instant that happens, not just after this page's
+    // own refresh eventually lands.
+    refreshPointsBalance();
     setStatus("idle");
     setEditing(false);
     onChanged();
@@ -106,6 +134,8 @@ export function PredictionCard({
       setStatus("idle");
       return;
     }
+    // Resolving pays out - including, if the resolving admin also entered, to themself.
+    refreshPointsBalance();
     setStatus("idle");
     onChanged();
   }
@@ -143,8 +173,14 @@ export function PredictionCard({
 
       <div className="px-4 py-3.5">
         <p className="text-xs text-neutral-500">
-          {prediction.entryCount} {prediction.entryCount === 1 ? "person has" : "people have"} entered
+          {entryCount} {entryCount === 1 ? "person has" : "people have"} entered
         </p>
+
+        {/* The community's own split of picks - the same bars a round gets in the feed, so a
+            round reads like a real betting slip (what's the field think, not just what I picked)
+            wherever it's shown, not just there. Self-fetches and degrades to nothing on its own if
+            it can't load - see its own comment. */}
+        <PredictionTrendBars groupId={groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
 
         {/* Resolved: the real answer and what it actually paid this user. */}
         {prediction.status === "resolved" && (
@@ -171,12 +207,15 @@ export function PredictionCard({
           </div>
         )}
 
-        {/* Entered and still open: show it back, with a way to change it while there's time. */}
-        {prediction.status !== "resolved" && prediction.myEntry && !editing && (
-          <div className="mt-3">
-            <Row label="Your prediction" value={formatGuess(prediction.type, prediction.myEntry.guess, drivers)} />
+        {/* Entered and still open: show it back, with what it's actually worth if it lands (the
+            real double-or-nothing payout resolvePrediction pays out - see its own comment) and a
+            way to change it while there's time. */}
+        {prediction.status !== "resolved" && myEntry && !editing && (
+          <div className="mt-3 space-y-2">
+            <Row label="Your prediction" value={formatGuess(prediction.type, myEntry.guess, drivers)} />
+            <Row label="Potential payout" value={payoutPreview(prediction.type, myEntry.pointsWagered)} highlight />
             {!blocker && (
-              <button type="button" onClick={() => setEditing(true)} className="mt-2 text-xs font-medium text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+              <button type="button" onClick={() => setEditing(true)} className="mt-1 text-xs font-medium text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
                 Change prediction
               </button>
             )}
@@ -184,7 +223,7 @@ export function PredictionCard({
         )}
 
         {/* The entry form, only when entering is genuinely possible. */}
-        {prediction.status !== "resolved" && !blocker && (!prediction.myEntry || editing) && (
+        {prediction.status !== "resolved" && !blocker && (!myEntry || editing) && (
           <div className="mt-3">
             <GuessInput type={prediction.type} drivers={drivers} value={guess} onChange={setGuess} />
             <div className="mt-3 flex items-center gap-3">
@@ -194,14 +233,14 @@ export function PredictionCard({
                 disabled={status === "saving" || !guessComplete}
                 className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
               >
-                {status === "saving" ? "Submitting…" : prediction.myEntry ? "Update prediction" : "Submit prediction"}
+                {status === "saving" ? "Submitting…" : myEntry ? "Update prediction" : "Submit prediction"}
               </button>
               {editing && (
                 <button
                   type="button"
                   onClick={() => {
                     setEditing(false);
-                    setGuess(prediction.myEntry?.guess ?? "");
+                    setGuess(myEntry?.guess ?? "");
                   }}
                   className="text-xs text-neutral-500 transition hover:text-white"
                 >
@@ -258,6 +297,16 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
       <span className={`text-right font-medium ${highlight ? "text-emerald-400" : "text-neutral-200"}`}>{value}</span>
     </div>
   );
+}
+
+/** What entering actually pays, said in the same terms resolvePrediction (groupPredictions.ts) pays
+ * out at - `round(wagered * payoutFraction * 2)`, so nothing shown here can drift from the real
+ * scoring math. A single-guess type either lands exactly or doesn't (`payoutFraction` is 1 or 0),
+ * so its payout is a real number; podium scores per slot (right driver, right podium spot = full
+ * credit; right driver, wrong spot = partial), so its payout is a range rather than one figure. */
+function payoutPreview(type: PredictionType, wagered: number): string {
+  if (type === "podium") return `Up to +${wagered * 2} pts, by slots right`;
+  return `+${wagered * 2} pts if correct`;
 }
 
 /** Driver codes become real names where the roster is known - "HAM" alone is fine for an F1 regular
