@@ -28,8 +28,10 @@ import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
 import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
+import { listMyOpenPredictions, type FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
 import { listRecentTransactions, type PointsReason } from "@/lib/supabase/points";
+import { getRaceById, getRaceRoster } from "@/lib/supabase/races";
 import { getUserProfile, type UserProfile } from "@/lib/supabase/users";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -72,6 +74,7 @@ export type PublicHomeData = {
 // A homepage teaser, not a second Groups feed — same cap FavoritesSection/GroupsPreview already
 // used for the equivalent reason.
 const FEED_POST_LIMIT = 5;
+const FEED_PREDICTION_LIMIT = 5;
 const RECENT_TRANSACTIONS_LIMIT = 5;
 const RECENT_ACTIVITY_LIMIT = 5;
 const DISCOVER_GROUPS_LIMIT = 3;
@@ -97,6 +100,14 @@ export type PersonalHomeData = {
    * joined, for the "Your Community" section's discovery fallback. */
   discoverGroups: PublicGroupSummary[];
   feedPosts: FeedPost[];
+  /** Open prediction rounds from the same 7-day window as feedPosts, same joined-groups scope -
+   * "community activity" was only ever reading group_posts, so a community that had been active
+   * exclusively through prediction rounds (no discussion posts) read as dead for a week straight
+   * even with real, recent activity happening in it. See getPersonalHomeData's own comment. */
+  recentPredictions: FeedPrediction[];
+  /** Real rosters for exactly recentPredictions' races, so one of them can be entered right from
+   * this widget the same way it can from the Groups feed - not a link dressed up as an action. */
+  predictionDriversByRace: Record<string, { code: string; name: string }[]>;
   /** The user's pick for `nextRace`, if any — the "your pick" half of PickVsModel. */
   myPick: UserPick | null;
   predictionPerformance: PredictionPerformance;
@@ -177,14 +188,29 @@ function computeNextAction(
 }
 
 export async function getPersonalHomeData(uid: string, year: number, nextRace: RaceDoc | null, races: RaceDoc[]): Promise<PersonalHomeData> {
-  const [profile, groups, feed, picks, recentTransactions, predictionPolls] = await Promise.all([
+  const [profile, groups, feed, groupPredictions, picks, recentTransactions, predictionPolls] = await Promise.all([
     getUserProfile(uid),
     getUserGroups(uid),
     listFeedPosts(uid, { feedType: "following", limit: FEED_POST_LIMIT }),
+    listMyOpenPredictions(uid, FEED_PREDICTION_LIMIT),
     getUserPicksForYear(uid, year),
     listRecentTransactions(uid, RECENT_TRANSACTIONS_LIMIT),
     getRecentPredictionPolls(uid),
   ]);
+  const recentPredictions = groupPredictions.filter((p) => Date.now() - new Date(p.createdAt).getTime() <= COMMUNITY_ACTIVITY_WINDOW_DAYS * 86_400_000);
+  // races is this year's calendar, already fetched by the caller - a round's own race is almost
+  // always in it; getRaceById only runs for the rare one that isn't (a round just opened for a
+  // race whose year boundary this list doesn't cover).
+  const predictionRosters = await Promise.all(
+    recentPredictions.map(async (p) => {
+      const race = races.find((r) => r.id === p.raceId) ?? (await getRaceById(p.raceId));
+      return race ? getRaceRoster(race) : [];
+    }),
+  );
+  const predictionDriversByRace: Record<string, { code: string; name: string }[]> = {};
+  recentPredictions.forEach((p, i) => {
+    predictionDriversByRace[p.raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName }));
+  });
 
   const [favoriteDrivers, favoriteTeams, discoverGroups, myPick] = await Promise.all([
     Promise.all((profile?.favoriteDrivers ?? []).map((id) => getFavoriteDriverCard(id).catch(() => null))).then(
@@ -222,6 +248,8 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     recentActivity: buildRecentActivity(picks, races, recentTransactions),
     predictionPolls,
     feedPosts: feed.posts.filter((p) => Date.now() - new Date(p.createdAt).getTime() <= COMMUNITY_ACTIVITY_WINDOW_DAYS * 86_400_000),
+    recentPredictions,
+    predictionDriversByRace,
     tier: computeTier(hasFavorites, groups.length, picks.length),
     nextAction: computeNextAction(nextRace, myPick, picks, races, hasFavorites, groups.length),
   };

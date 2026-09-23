@@ -129,6 +129,8 @@ function PersonalHomeInner({
             content: (
               <CommunitySection
                 posts={personalData.feedPosts}
+                predictions={personalData.recentPredictions}
+                driversByRace={personalData.predictionDriversByRace}
                 groups={personalData.groups}
                 discoverGroups={personalData.discoverGroups}
               />

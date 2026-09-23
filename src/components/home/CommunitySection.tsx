@@ -3,12 +3,30 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { PostCard } from "@/app/groups/components/post/PostCard";
+import { PredictionFeedCard } from "@/app/groups/components/post/PredictionFeedCard";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { activityDensity } from "@/lib/density";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
+import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
+
+/** A post or an open prediction round, ordered together by when each actually happened - "activity"
+ * was only ever reading group_posts, so a community whose last 7 days were entirely prediction
+ * rounds (no discussion posts) read as dead even with real, recent activity in it. Same interleave
+ * GroupsFeed.tsx already does for the real feed; this is the homepage's own smaller-scale copy of
+ * it, not a shared import, since this widget's activityItem type carries neither cursor/pagination
+ * state nor the full FeedPost/FeedPrediction unions that module's version threads through. */
+type ActivityItem = { key: string; at: number } & ({ kind: "post"; post: FeedPost } | { kind: "prediction"; prediction: FeedPrediction });
+
+function interleaveActivity(posts: FeedPost[], predictions: FeedPrediction[]): ActivityItem[] {
+  const items: ActivityItem[] = [
+    ...posts.map((post) => ({ key: `post:${post.id}`, at: new Date(post.createdAt).getTime(), kind: "post" as const, post })),
+    ...predictions.map((prediction) => ({ key: `prediction:${prediction.id}`, at: new Date(prediction.createdAt).getTime(), kind: "prediction" as const, prediction })),
+  ];
+  return items.sort((a, b) => b.at - a.at);
+}
 
 function formatActivityLabel(g: GroupSummary): string {
   if (g.weeklyPosts > 0) return `${g.weeklyPosts} post${g.weeklyPosts === 1 ? "" : "s"} this week`;
@@ -28,14 +46,22 @@ function byRecentActivity(groups: GroupSummary[]): GroupSummary[] {
 
 export function CommunitySection({
   posts,
+  predictions = [],
+  driversByRace = {},
   groups,
   discoverGroups = [],
 }: {
   posts: FeedPost[];
+  /** Open rounds from the same 7-day window as `posts`, same joined-groups scope - see
+   * CommunitySection's own ActivityItem comment for why these have to be merged in, not appended
+   * after, for the "N Active" count and the empty state to both be honest. */
+  predictions?: FeedPrediction[];
+  driversByRace?: Record<string, { code: string; name: string }[]>;
   groups: GroupSummary[];
   discoverGroups?: PublicGroupSummary[];
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const activity = useMemo(() => interleaveActivity(posts, predictions), [posts, predictions]);
 
   // Client-side filter of user's communities, most-recently-active first.
   const filteredGroups = useMemo(() => {
@@ -50,7 +76,7 @@ export function CommunitySection({
   // Shared homepage density rule (see lib/density.ts) - a 1-3 post week gets the compact header
   // (no subtitle line) instead of a panel chrome sized for many, matching Recent Activity/
   // Prediction Intelligence's own sparse-state treatment instead of a fourth invented condition.
-  const postsCompact = activityDensity(posts.length) !== "full" && posts.length > 0;
+  const postsCompact = activityDensity(activity.length) !== "full" && activity.length > 0;
 
   return (
     <section>
@@ -86,12 +112,12 @@ export function CommunitySection({
               )}
             </div>
             <span className="rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
-              {posts.length} Active
+              {activity.length} Active
             </span>
           </div>
 
           <div className="scrollbar-subtle flex-1 overflow-y-auto pr-1">
-            {posts.length === 0 ? (
+            {activity.length === 0 ? (
               <div className="flex h-32 flex-col items-center justify-center text-center">
                 <p className="text-sm text-neutral-400">No community activity in the last 7 days.</p>
                 <Link
@@ -102,9 +128,13 @@ export function CommunitySection({
                 </Link>
               </div>
             ) : (
-              posts.map((post, i) => (
-                <PostCard key={post.id} post={post} index={i} showGroup variant="compact" />
-              ))
+              activity.map((item, i) =>
+                item.kind === "post" ? (
+                  <PostCard key={item.key} post={item.post} index={i} showGroup variant="compact" />
+                ) : (
+                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} />
+                ),
+              )
             )}
           </div>
         </div>
