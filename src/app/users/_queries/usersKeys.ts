@@ -5,4 +5,5 @@ export const usersKeys = {
   list: () => ["users"] as const,
   search: (term: string) => ["users-search", term] as const,
   searchAll: () => ["users-search"] as const,
+  invites: () => ["user-invites"] as const,
 };

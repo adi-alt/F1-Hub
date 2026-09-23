@@ -11,9 +11,12 @@ import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useSignupOptions } from "@/queries/useSignupOptions";
 import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
+import type { PendingInvite } from "@/store/useAuthDialogStore";
 import type { Role } from "@/lib/rbac";
 
 type Step = "method" | "otp" | "profile";
+
+const INVITE_ROLE_LABEL: Record<string, string> = { admin: "an admin", moderator: "a moderator", member: "a member" };
 type OAuthProvider = "google" | "github" | "discord" | "gitlab";
 
 // Matches the backend's own resend cooldown (lib/otp.ts) so the button's countdown never
@@ -254,7 +257,15 @@ function OtpStep({
 // it fresh state for free, no reset-on-open effect required. `resumeAtOtp` is the one exception:
 // set when this mount is the OAuth-redirect round trip resuming (see AuthDialogHost.tsx) rather
 // than a normal open, so it starts straight on the OTP step instead of "method".
-export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => void; resumeAtOtp?: boolean }) {
+export function AuthDialog({
+  onClose,
+  resumeAtOtp = false,
+  invite = null,
+}: {
+  onClose: () => void;
+  resumeAtOtp?: boolean;
+  invite?: PendingInvite | null;
+}) {
   const { setRole, setDisplayName, setUser, refreshPointsBalance } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<Step>(resumeAtOtp ? "otp" : "method");
@@ -262,7 +273,10 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [email, setEmail] = useState("");
+  // An invitation link pre-fills the address it was issued to. Editable rather than locked: the
+  // invite is matched at signup on whatever address the OTP actually verifies, so typing a
+  // different one simply signs that person up normally instead of silently failing.
+  const [email, setEmail] = useState(invite?.email ?? "");
   const [password, setPassword] = useState("");
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const [code, setCode] = useState("");
@@ -538,8 +552,16 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
             transition={{ duration: 0.2 }}
             className="space-y-3"
           >
-            <h2 className="text-lg font-bold text-white">Sign in or sign up</h2>
-            <p className="text-sm text-neutral-400">One account either way — we&apos;ll figure out which.</p>
+            <h2 className="text-lg font-bold text-white">{invite ? "Accept your invitation" : "Sign in or sign up"}</h2>
+            <p className="text-sm text-neutral-400">
+              {invite ? "Finish setting up your account below." : "One account either way — we\u2019ll figure out which."}
+            </p>
+            {invite && (
+              <div className="rounded-lg border border-[var(--f1-red)]/35 bg-[var(--f1-red)]/[0.08] px-3 py-2 text-xs leading-relaxed text-neutral-200">
+                You&apos;ve been invited as <span className="font-semibold text-white">{INVITE_ROLE_LABEL[invite.role ?? "member"]}</span>. Sign up with{" "}
+                <span className="font-semibold text-white">{invite.email}</span> and we&apos;ll apply it automatically.
+              </div>
+            )}
             <input
               type="email"
               placeholder="Email"

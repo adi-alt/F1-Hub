@@ -14,6 +14,7 @@ function OAuthResumeWatcher() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const openAtOtp = useAuthDialogStore((s) => s.openAtOtp);
+  const openWithInvite = useAuthDialogStore((s) => s.openWithInvite);
 
   useEffect(() => {
     if (searchParams.get("authStep") === "otp") {
@@ -23,6 +24,32 @@ function OAuthResumeWatcher() {
       router.replace("/", { scroll: false });
     }
   }, [searchParams, openAtOtp, router]);
+
+  // `?invite=` is where an invitation email lands. The token is resolved server-side into just
+  // an address and a role, then dropped from the URL — so a shared screenshot or a pasted link
+  // from the address bar doesn't carry the token any further than it already went. Resolving to
+  // nothing (expired, revoked, already used, made up) is silent on purpose: the homepage is a
+  // perfectly good place to land, and "that invite is dead" is not something to tell whoever is
+  // holding the link rather than the admin who sent it.
+  useEffect(() => {
+    const token = searchParams.get("invite");
+    if (!token) return;
+
+    let cancelled = false;
+    fetch(`/api/invites/peek?token=${encodeURIComponent(token)}`)
+      .then((res) => res.json())
+      .then((body: { invite?: { email: string; role: "admin" | "moderator" | null } | null }) => {
+        if (!cancelled && body.invite) openWithInvite(body.invite);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) router.replace("/", { scroll: false });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, openWithInvite, router]);
 
   return null;
 }
@@ -34,6 +61,7 @@ function OAuthResumeWatcher() {
 export function AuthDialogHost() {
   const isOpen = useAuthDialogStore((s) => s.isOpen);
   const resumeAtOtp = useAuthDialogStore((s) => s.resumeAtOtp);
+  const invite = useAuthDialogStore((s) => s.invite);
   const close = useAuthDialogStore((s) => s.close);
 
   return (
@@ -41,7 +69,7 @@ export function AuthDialogHost() {
       <Suspense fallback={null}>
         <OAuthResumeWatcher />
       </Suspense>
-      {isOpen && <AuthDialog onClose={close} resumeAtOtp={resumeAtOtp} />}
+      {isOpen && <AuthDialog onClose={close} resumeAtOtp={resumeAtOtp} invite={invite} />}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseUser } from "@/lib/supabase/server";
-import { createUserProfile, getUserProfile, isUsernameTaken } from "@/lib/supabase/users";
+import { createUserProfile, getUserProfile, isUsernameTaken, setUserRole } from "@/lib/supabase/users";
+import { getPendingInviteForEmail, markInviteAccepted } from "@/lib/supabase/invites";
 import { createSessionFor } from "@/lib/session/createSession";
 import { clearOtp, isOtpVerified, prepareOtp, verifyOtp } from "@/lib/otp";
 import type { Role } from "@/lib/rbac";
@@ -59,6 +60,34 @@ export async function verifyOtpAndLogin(code: string): Promise<OtpLoginResult> {
   return { status: "logged-in", role, displayName: profile.firstName ?? null, uid: user.id, email: user.email, photoURL };
 }
 
+/**
+ * Applies a pending admin invitation to an account that has just been created.
+ *
+ * Keyed on the email address rather than on the token from the invite link, and that is the
+ * whole security argument for this design: by the time this runs, the OTP step has proven that
+ * whoever is signing up actually receives mail at this address. A forwarded or intercepted
+ * invite link therefore grants nothing on its own — the link only carries someone to the signup
+ * form, while the role comes from matching a verified address against an invite an admin issued.
+ *
+ * Signing up without an invite is completely unaffected: no pending row means no role change,
+ * which is the ordinary self-signup path and by far the common one.
+ *
+ * Never throws into the signup flow. An invite that fails to redeem is a role an admin can still
+ * grant by hand from /users, whereas a signup that fails at the very last step — after the
+ * profile row already exists — leaves an account that can't be created again (createUserProfile
+ * would now report a duplicate) and no obvious way forward for the person stuck in it.
+ */
+async function redeemInvite(uid: string, email: string): Promise<void> {
+  try {
+    const invite = await getPendingInviteForEmail(email);
+    if (!invite) return;
+    if (invite.role) await setUserRole(uid, invite.role);
+    await markInviteAccepted(invite.id, uid);
+  } catch (err) {
+    console.error(`[invites] failed to redeem for ${email}:`, err);
+  }
+}
+
 export type CompleteSignupInput = {
   firstName: string;
   lastName: string;
@@ -108,8 +137,12 @@ export async function completeSignup(
     favoriteTracks: input.favoriteTracks,
   });
   await clearOtp(user.email);
+  await redeemInvite(user.id, user.email);
 
   const firstName = input.firstName.trim();
+  // Must come after redeemInvite: createSessionFor reads the role off the freshly-written profile
+  // to stamp it into the cookie, so redeeming afterwards would leave an invited admin holding a
+  // plain-member session until their next sign-in.
   const role = await createSessionFor(user, firstName);
   const photoURL = (user.user_metadata?.avatar_url as string | undefined) ?? null;
   return { status: "logged-in", role, displayName: firstName, uid: user.id, email: user.email, photoURL };

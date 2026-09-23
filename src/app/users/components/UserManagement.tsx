@@ -68,19 +68,6 @@ function StatusBadge({ onboarded }: { onboarded: boolean }) {
   );
 }
 
-/** Stat-tile contract: sentence-case label, semibold value in a text token (never a series
- * colour), and no delta/trend — nothing here is measured against a previous period, and a
- * fabricated one would be worse than none. Proportional figures, not tabular: these are
- * standalone values, not a column that has to align vertically. */
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-white">{value.toLocaleString()}</p>
-    </div>
-  );
-}
-
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: SortDir) {
   if (key !== sortKey) return null;
   return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
@@ -211,15 +198,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Total users" value={counts.total} />
-        <StatTile label="Admins" value={counts.admins} />
-        <StatTile label="Moderators" value={counts.moderators} />
-        <StatTile label="Onboarded" value={counts.onboarded} />
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
+    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
         <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-5 w-5 text-neutral-500">
@@ -397,7 +376,6 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
               {usersList.isFetchingNextPage ? "Loading…" : "Load more"}
             </button>
           )}
-        </div>
       </div>
     </div>
   );
