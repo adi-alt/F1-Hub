@@ -16,7 +16,10 @@ export type DriverOption = { code: string; name: string };
  * and the wallet), so this is about telling the truth in the UI, not about access control. */
 function blockerFor(args: { closed: boolean; drivers: DriverOption[]; type: PredictionType; entryPoints: number; pointsBalance: number | null; alreadyEntered: boolean }): string | null {
   if (args.closed) return "This race has already started. Waiting for the result.";
-  if (args.type !== "dnf_count" && args.drivers.length === 0) return "The driver list for this race isn't available yet.";
+  // See PredictionCard's own blockerFor (and getRaceRoster in lib/supabase/races.ts) - the roster
+  // falls back to the most recently known line-up, so this is now the genuine edge case, not the
+  // common state of "opened a round for next weekend before the pipeline caught up".
+  if (args.type !== "dnf_count" && args.drivers.length === 0) return "No driver line-up is available yet for this season.";
   if (!args.alreadyEntered && args.pointsBalance !== null && args.pointsBalance < args.entryPoints) {
     return `You need ${args.entryPoints} points to enter. You have ${args.pointsBalance}.`;
   }

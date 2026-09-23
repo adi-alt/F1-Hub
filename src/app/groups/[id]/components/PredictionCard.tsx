@@ -26,10 +26,12 @@ function blockerFor(prediction: GroupPrediction, drivers: DriverOption[], points
   // A round left open past its own race is a real state (nobody locked it): treat it as closed for
   // entry rather than letting someone predict a result that already happened.
   if (prediction.raceStatus === "completed") return { kind: "raceRun", message: "This race has already run. Waiting for an admin to resolve it." };
-  // The roster comes from the race's own session data; before the pipeline has it there's nothing
-  // honest to offer in a driver picker.
+  // The roster prefers this race's own session data but falls back to the most recently known
+  // line-up otherwise (getRaceRoster, in lib/supabase/races.ts) - so this now only fires in the
+  // genuine edge case where NO race, this season or last, has one yet (a brand new season's
+  // opener, asked about before the pipeline has touched anything).
   if (drivers.length === 0 && prediction.type !== "dnf_count") {
-    return { kind: "noDrivers", message: "The driver list for this race isn't available yet. Check back closer to the weekend." };
+    return { kind: "noDrivers", message: "No driver line-up is available yet for this season." };
   }
   if (!prediction.myEntry && pointsBalance < prediction.entryPoints) {
     return { kind: "noPoints", message: `You need ${prediction.entryPoints} points to enter. You have ${pointsBalance}.` };
