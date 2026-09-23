@@ -4,7 +4,7 @@ import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
-import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
+import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
@@ -31,19 +31,16 @@ async function getRaceContext() {
  *
  * This is what lets a prediction be entered from the feed itself. Without a real roster the card
  * could only ever link away to the community page, which is what "Enter prediction" used to do -
- * a navigation dressed up as an action.
+ * a navigation dressed up as an action. getRaceRoster is what keeps that roster real even for a
+ * race the pipeline hasn't reached yet - see its own comment.
  */
 async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string }[]>> {
   const unique = [...new Set(raceIds)];
   const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
+  const rosters = await Promise.all(races.map((race) => (race ? getRaceRoster(race) : [])));
   const byRace: Record<string, { code: string; name: string }[]> = {};
   unique.forEach((raceId, i) => {
-    const race = races[i];
-    // `inputs` is the entry list for a race that hasn't run; `results` is what actually happened.
-    // Either is a real roster; an empty one is a real state too (the pipeline has neither yet), and
-    // the card says so rather than offering an empty picker.
-    const roster = race?.inputs?.length ? race.inputs : (race?.results ?? []);
-    byRace[raceId] = roster.map((r) => ({ code: r.driver, name: r.driverName }));
+    byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName }));
   });
   return byRace;
 }

@@ -18,7 +18,7 @@ import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/gr
 import { getPredictionTrend, listPredictions } from "@/lib/supabase/groupPredictions";
 import { listPosts } from "@/lib/supabase/groupPosts";
 import { getPointsBalance } from "@/lib/supabase/points";
-import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
+import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
@@ -117,13 +117,15 @@ export default async function CommunityPage({
 
   // Driver rosters only for races an existing prediction already references - a handful of small
   // fetches, not the whole season, so a guess picker has real names to offer instead of free text.
+  // getRaceRoster falls back to the most recently known line-up when this specific race's own
+  // entry list or grid hasn't landed yet - see its own comment for why an empty picker here was
+  // blocking every prediction on a freshly-opened round, not just an occasional one.
   const predictionRaceIds = [...new Set(predictions.map((p) => p.raceId))];
   const predictionRaces = await Promise.all(predictionRaceIds.map((raceId) => getRaceById(raceId)));
+  const predictionRosters = await Promise.all(predictionRaces.map((race) => (race ? getRaceRoster(race) : [])));
   const driversByRace: Record<string, { code: string; name: string }[]> = {};
   predictionRaceIds.forEach((raceId, i) => {
-    const race = predictionRaces[i];
-    const roster = race?.inputs?.length ? race.inputs : (race?.results ?? []);
-    driversByRace[raceId] = roster.map((r) => ({ code: r.driver, name: r.driverName }));
+    driversByRace[raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName }));
   });
 
   // The rail's own rounds: the open ones, soonest first, with their community trend fetched here

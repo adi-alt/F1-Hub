@@ -338,6 +338,30 @@ export async function getCurrentEntrants(year: number): Promise<{ driver: string
     : (withEntrants.inputs ?? []).map((i) => ({ driver: i.driver, driverName: i.driverName, team: i.team }));
 }
 
+/**
+ * A prediction round's own driver picker, for a race the pipeline hasn't touched yet.
+ *
+ * A community can open a prediction round for any upcoming race the moment the previous one closes
+ * - well before that race's own entry list or qualifying grid exists - and the round sat unusable
+ * until it did (`drivers.length === 0` reads as "the driver list for this race isn't available
+ * yet", and blocks entering entirely). Line-ups change rarely and are announced well ahead of the
+ * race they take effect at, so the most recent KNOWN roster is right far more often than an empty
+ * picker is honest, and the moment this race's own inputs or results actually land, they're
+ * preferred automatically - a genuine mid-season seat change (the real edge case) resolves itself
+ * the moment the pipeline has session data for it, with no special casing needed here.
+ *
+ * The one case the season's own current roster can't answer is its own opener, asked about before
+ * any race that year has entrants yet - the prior season's final line-up is the closest real
+ * answer there is at that point, not an empty picker for the season's first few weeks.
+ */
+export async function getRaceRoster(race: RaceDoc): Promise<{ driver: string; driverName: string; team: string }[]> {
+  if (race.inputs?.length) return race.inputs;
+  if (race.results?.length) return race.results;
+  const current = await getCurrentEntrants(race.year);
+  if (current.length) return current;
+  return getCurrentEntrants(race.year - 1);
+}
+
 /** Deliberately not the `unstable_cache`-wrapped `getRace` — this exists only to enforce the pick
  * lock server-side (saveUserPick, src/lib/supabase/picks.ts), where a stale up-to-300s-old
  * "still upcoming" reading would let someone sneak a pick in after the race actually started. */
