@@ -41,3 +41,18 @@ export const predictionTypeLabels: Record<PredictionType, string> = {
   pole: "Pole position",
   dnf_count: "Number of DNFs",
 };
+
+/** A real community card for the race page's own discovery section - defined here (not in
+ * groupPredictions.ts) for the exact reason every other type on this page is: a client component
+ * rendering this (RaceCommunitiesSection) must never import from the real service module, which
+ * reaches otp.ts's nodemailer import through groups.ts and crashes the client bundle the instant
+ * it's pulled in (see this file's own top comment). */
+export type RaceCommunityCard = {
+  groupId: string;
+  name: string;
+  avatarUrl: string | null;
+  memberCount: number;
+  memberPreview: { id: string; name: string }[];
+  isMember: boolean;
+  prediction: { id: string; type: PredictionType; status: PredictionStatus; entryCount: number; entryPoints: number } | null;
+};

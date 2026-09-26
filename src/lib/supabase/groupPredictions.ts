@@ -3,7 +3,7 @@ import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { canDo } from "@/lib/communities";
-import { requireAdmin, requireMember } from "@/lib/supabase/groups";
+import { listPublicGroups, requireAdmin, requireMember } from "@/lib/supabase/groups";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ServiceError } from "@/services/errors";
 import type { RaceDoc } from "@/lib/types/race";
@@ -11,9 +11,9 @@ import type { RaceDoc } from "@/lib/types/race";
 // file's own comment for why a client component importing them from *this* module (which reaches
 // otp.ts's nodemailer import through groups.ts) crashed the production build. Re-exported so every
 // existing server-side import of `@/lib/supabase/groupPredictions` keeps working unchanged.
-export type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType } from "@/lib/groupPredictionTypes";
+export type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
 export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
-import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType } from "@/lib/groupPredictionTypes";
+import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 
 // Omit entryCount, not reuse it with a placeholder value - this summary genuinely doesn't fetch it
@@ -185,6 +185,118 @@ export async function listMyOpenPredictions(uid: string, limit = 5): Promise<Fee
 
 function resolveMyGuessLabel(type: PredictionType, guess: PredictionGuess | null, driverNameByCode: Map<string, string>): string | null {
   return guess === null ? null : describeGuess(type, guess, driverNameByCode);
+}
+
+/**
+ * "Communities predicting this race" - real groups, filtered to public ones (or ones the viewer
+ * already belongs to, so a private group's own name never leaks to someone outside it), ranked by
+ * real entry counts on a real prediction tied to this exact raceId - never an invented "trending"
+ * signal.
+ *
+ * Falls back to general discovery (listPublicGroups' own recommendation order) when literally
+ * nothing has a prediction for this race yet - true for most races most of the time (predictions
+ * open, but not every public group opens one for every round), and the section should still be
+ * useful rather than empty in that case, just reframed ("communities to join" instead of
+ * "communities predicting this race").
+ */
+export async function listRaceCommunities(raceId: string, uid: string | null, limit = 6): Promise<{ mode: "predicting" | "discover"; communities: RaceCommunityCard[] }> {
+  const { data: predictionRows, error: predError } = await queryWithRetry(() => supabaseAdmin.from("group_predictions").select("*").eq("race_id", raceId));
+  if (predError) throw new Error(`listRaceCommunities(${raceId}): ${predError.message}`);
+
+  if (!predictionRows?.length) {
+    const discovered = await listPublicGroups(undefined, uid ?? undefined);
+    return { mode: "discover", communities: await hydrateCommunityCards(discovered.slice(0, limit).map((g) => ({ id: g.id, name: g.name, avatarUrl: g.avatarUrl, isMember: g.isMember })), uid, new Map()) };
+  }
+
+  const predictionGroupIds = [...new Set(predictionRows.map((p) => p.group_id as string))];
+  const [{ data: groupsData, error: groupsError }, { data: myMemberships, error: membershipError }, { data: entryRows, error: entryError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url, visibility").in("id", predictionGroupIds)),
+    uid ? queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid).in("group_id", predictionGroupIds)) : Promise.resolve({ data: [], error: null }),
+    queryWithRetry(() =>
+      supabaseAdmin
+        .from("group_prediction_entries")
+        .select("prediction_id")
+        .in(
+          "prediction_id",
+          predictionRows.map((p) => p.id as string),
+        ),
+    ),
+  ]);
+  if (groupsError) throw new Error(`listRaceCommunities(${raceId}): ${groupsError.message}`);
+  if (membershipError) throw new Error(`listRaceCommunities(${raceId}): ${membershipError.message}`);
+  if (entryError) throw new Error(`listRaceCommunities(${raceId}): ${entryError.message}`);
+
+  const myGroupIds = new Set((myMemberships ?? []).map((m) => m.group_id as string));
+  // Public, or a private group the viewer already belongs to - never a private group's name shown
+  // to someone outside it, the same visibility rule discoverCommunities already enforces.
+  const visibleGroups = (groupsData ?? []).filter((g) => g.visibility === "public" || myGroupIds.has(g.id as string));
+  if (visibleGroups.length === 0) return { mode: "discover", communities: [] };
+
+  const entryCountByPrediction = new Map<string, number>();
+  for (const e of entryRows ?? []) entryCountByPrediction.set(e.prediction_id as string, (entryCountByPrediction.get(e.prediction_id as string) ?? 0) + 1);
+
+  const predictionByGroup = new Map(predictionRows.filter((p) => visibleGroups.some((g) => g.id === p.group_id)).map((p) => [p.group_id as string, p]));
+  const ranked = visibleGroups
+    .map((g) => ({ group: g, prediction: predictionByGroup.get(g.id as string), entryCount: entryCountByPrediction.get(predictionByGroup.get(g.id as string)?.id as string) ?? 0 }))
+    .sort((a, b) => b.entryCount - a.entryCount)
+    .slice(0, limit);
+
+  const communities = await hydrateCommunityCards(
+    ranked.map((r) => ({ id: r.group.id as string, name: r.group.name as string, avatarUrl: r.group.avatar_url as string | null, isMember: myGroupIds.has(r.group.id as string) })),
+    uid,
+    new Map(
+      ranked
+        .filter((r) => r.prediction)
+        .map((r) => [
+          r.group.id as string,
+          { id: r.prediction!.id as string, type: r.prediction!.type as PredictionType, status: r.prediction!.status as PredictionStatus, entryCount: r.entryCount, entryPoints: r.prediction!.entry_points as number },
+        ]),
+    ),
+  );
+  return { mode: "predicting", communities };
+}
+
+/** Member count + a real, small member preview for each card - one batched query for however many
+ * groups are being shown (never one round-trip per card). Most recently active member first
+ * (last_visit_at), which is the closest real signal this schema has to "who'd actually show up in
+ * an avatar stack" without inventing one. */
+async function hydrateCommunityCards(
+  groups: { id: string; name: string; avatarUrl: string | null; isMember: boolean }[],
+  uid: string | null,
+  predictionByGroup: Map<string, RaceCommunityCard["prediction"]>,
+): Promise<RaceCommunityCard[]> {
+  if (groups.length === 0) return [];
+  const groupIds = groups.map((g) => g.id);
+  const { data: memberRows, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_members").select("group_id, user_id, last_visit_at").in("group_id", groupIds).order("last_visit_at", { ascending: false, nullsFirst: false }),
+  );
+  if (error) throw new Error(`hydrateCommunityCards: ${error.message}`);
+
+  const memberIdsByGroup = new Map<string, string[]>();
+  const countByGroup = new Map<string, number>();
+  for (const row of memberRows ?? []) {
+    const gid = row.group_id as string;
+    countByGroup.set(gid, (countByGroup.get(gid) ?? 0) + 1);
+    const existing = memberIdsByGroup.get(gid) ?? [];
+    if (existing.length < 3) existing.push(row.user_id as string);
+    memberIdsByGroup.set(gid, existing);
+  }
+  const allPreviewIds = [...new Set([...memberIdsByGroup.values()].flat())];
+  const { data: profileRows, error: profileError } = allPreviewIds.length
+    ? await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, first_name").in("id", allPreviewIds))
+    : { data: [], error: null };
+  if (profileError) throw new Error(`hydrateCommunityCards: ${profileError.message}`);
+  const nameById = new Map((profileRows ?? []).map((p) => [p.id as string, (p.display_name as string | null) ?? (p.username as string | null) ?? (p.first_name as string | null) ?? "Member"]));
+
+  return groups.map((g) => ({
+    groupId: g.id,
+    name: g.name,
+    avatarUrl: g.avatarUrl,
+    memberCount: countByGroup.get(g.id) ?? 0,
+    memberPreview: (memberIdsByGroup.get(g.id) ?? []).map((id) => ({ id, name: nameById.get(id) ?? "Member" })),
+    isMember: g.isMember,
+    prediction: predictionByGroup.get(g.id) ?? null,
+  }));
 }
 
 export async function createPrediction(
