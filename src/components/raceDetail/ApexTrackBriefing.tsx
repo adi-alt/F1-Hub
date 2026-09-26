@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { RaceSectionCard } from "./RaceSectionCard";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type Block = { headline: string; summary: string };
@@ -72,14 +70,24 @@ function ApexLabel({ isAi }: { isAi?: boolean }) {
 }
 
 /**
- * The compact render - just the headline block (`trackTake`), no card of its own. For Race
- * Story's own pre-race column, where the surrounding RaceSectionCard already has a title and
- * description; this only ever adds its own small label above the text. Renders nothing (not an
- * empty slot) once loading resolves to no grounded take or a genuine failure - a real outcome for
- * a venue with little history, not something to fill with a placeholder.
+ * No card of its own - this lives directly in Race Story's own pre-race column, where the
+ * surrounding RaceSectionCard already has a title and description. Used to be two separate
+ * things: this compact headline (`trackTake`) here, and a whole second top-level "Race
+ * Intelligence Summary" section below the fold for `raceDifference`/`historicalPattern` - two AI
+ * cards on one page for what's really one circuit take. `raceDifference`/`historicalPattern` are
+ * folded in here now, behind a "Show more" disclosure rather than always-expanded prose, so this
+ * stays a short, skimmable brief by default with the fuller analysis one click away instead of a
+ * second section repeating the same voice. `trackVsSeason` is left out entirely: it's about how
+ * this circuit compares to the season's own aggregate pace/strategy trends, which is Season's own
+ * subject, not a race page's.
+ *
+ * Renders nothing at all (not an empty slot) once loading resolves to no grounded take, or on a
+ * genuine failure - a real outcome for a venue with little history, not something to fill with a
+ * placeholder.
  */
 export function ApexTrackBriefing({ location, year }: { location: string; year: number }) {
   const state = useCircuitTake(location, year);
+  const [expanded, setExpanded] = useState(false);
 
   if (state.status === "failed") return null;
   if (state.status === "loading") {
@@ -94,64 +102,37 @@ export function ApexTrackBriefing({ location, year }: { location: string; year: 
     );
   }
 
-  const block = state.take?.trackTake;
-  if (!block) return null;
+  const headline = state.take?.trackTake;
+  const moreRaw: (Block | undefined)[] = [state.take?.raceDifference, state.take?.historicalPattern];
+  const more = moreRaw.filter((b): b is Block => !!b);
+  if (!headline && more.length === 0) return null;
 
   return (
     <div>
       <ApexLabel isAi={state.isAi} />
-      <p className="mt-2 text-[13px] font-semibold leading-snug text-white">{block.headline}</p>
-      <p className="mt-0.5 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
+      {headline && (
+        <>
+          <p className="mt-2 text-[13px] font-semibold leading-snug text-white">{headline.headline}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-neutral-400">{headline.summary}</p>
+        </>
+      )}
+      {more.length > 0 && (
+        <>
+          {expanded && (
+            <div className="mt-3 space-y-3 border-t border-white/[0.06] pt-3">
+              {more.map((block) => (
+                <div key={block.headline}>
+                  <p className="text-[13px] font-semibold leading-snug text-white">{block.headline}</p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 text-xs font-medium text-neutral-500 transition hover:text-white">
+            {expanded ? "Show less ↑" : "Show more ↓"}
+          </button>
+        </>
+      )}
     </div>
-  );
-}
-
-/**
- * The full render - the page's own "Race Intelligence Summary" section, `raceDifference` and
- * `historicalPattern` where the model returned them. Deliberately NOT `trackTake` - the compact
- * render above already puts that exact block in Race Story's own pre-race column, and repeating
- * it here would be the literal same headline and summary appearing twice on one page. Also not
- * `trackVsSeason`: it's about how this circuit compares to the season's own aggregate pace/
- * strategy trends, which is Season's own subject, not a race page's.
- *
- * Owns its own RaceSectionCard - and only renders it once there's real content to put in it.
- * While loading, the card shows with a skeleton in place (still says something is coming); once
- * resolved to no grounded take at all, or a genuine fetch failure, the WHOLE section disappears,
- * never an empty titled card with nothing underneath.
- */
-export function ApexTrackBriefingSection({ location, year }: { location: string; year: number }) {
-  const state = useCircuitTake(location, year);
-
-  if (state.status === "failed") return null;
-  if (state.status === "loading") {
-    return (
-      <RaceSectionCard title="Race Intelligence Summary" description="Apex's read on this weekend, from this circuit's own history.">
-        <div aria-busy className="space-y-1.5">
-          <span className="skeleton-shimmer block h-3 w-2/3 rounded bg-white/[0.06]" />
-          <span className="skeleton-shimmer block h-2.5 w-full rounded bg-white/[0.06]" />
-          <span className="skeleton-shimmer block h-2.5 w-4/5 rounded bg-white/[0.06]" />
-        </div>
-      </RaceSectionCard>
-    );
-  }
-
-  const blocks: (Block | undefined)[] = [state.take?.raceDifference, state.take?.historicalPattern];
-  const real = blocks.filter((b): b is Block => !!b);
-  if (real.length === 0) return null;
-
-  return (
-    <RaceSectionCard
-      title="Race Intelligence Summary"
-      description={state.isAi ? "AI-generated read on this weekend, from this circuit's own history." : "A deterministic summary of this circuit's own history."}
-    >
-      <div className="space-y-3">
-        {real.map((block, i) => (
-          <motion.div key={block.headline} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: i * 0.05 }}>
-            <p className="text-sm font-semibold leading-snug text-white">{block.headline}</p>
-            <p className="mt-0.5 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
-          </motion.div>
-        ))}
-      </div>
-    </RaceSectionCard>
   );
 }

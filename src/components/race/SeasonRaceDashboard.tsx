@@ -7,7 +7,7 @@ import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_compone
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
-import { ApexTrackBriefing, ApexTrackBriefingSection } from "@/components/raceDetail/ApexTrackBriefing";
+import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
 import { RaceCommunitiesSection } from "@/components/raceDetail/RaceCommunitiesSection";
@@ -40,7 +40,6 @@ import { RaceWeekendPanel } from "./RaceWeekendPanel";
 import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
-import { TrackIntelligence } from "./TrackIntelligence";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
@@ -92,11 +91,11 @@ export function SeasonRaceDashboard({
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
   // has no row for, same "real or absent, never fabricated" rule as circuitImage above.
   calendarEntry?: CalendarEntry | null;
-  // This exact physical track's own real history, both real sources (see TrackIntelligence /
-  // circuitIntelligence.ts) - fetched by the caller for every race regardless of phase now (see
+  // This exact physical track's own real history, both real sources (see RaceHistorySection /
+  // circuitIntelligence.ts) - fetched by the caller for every race regardless of phase (see
   // race/page.tsx's own comment on why the old "completed races don't need this" gate no longer
-  // holds once Grand Prix History/Circuit Records exist). Only TrackIntelligence itself stays
-  // pre-race-only below.
+  // holds). RaceHistorySection's own Trends tab folds in what used to be a separate, standalone
+  // "Track Intelligence" section - shown for every phase now, not pre-race-only.
   trackHistory?: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
   // buildCircuitTimeline(trackHistory), already computed once by the caller (which also needs it
   // for ageRecords below) - not rebuilt here a second time.
@@ -248,16 +247,16 @@ export function SeasonRaceDashboard({
   // race having actually run instead, same as the other three; LapChart's own empty state covers
   // the gap between "completed" and "backfill_race_laps() has caught this one up yet".
   const hasLapChart = isCompleted;
-  // Practice/Qualifying get a "not yet available" message instead of just vanishing while the race
-  // weekend is still ahead (see the Practice/Qualifying blocks below) - Strategy/Lap Progression/
-  // Race Performance stay hidden pre-race with no message, since they're genuinely post-race-only
-  // concepts (no tyre stints or finish positions exist yet, there's nothing to editorialize about).
-  // So the whole Race Analysis card needs to render through the entire pre-race window too, not
-  // only once one of the five real `hasX` flags is true.
-  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges || hasLapChart || !isCompleted;
-  const showQualifyingSlot = hasQualifying || !isCompleted;
+  // Only ever renders once at least one of these is real - a "not yet available" placeholder
+  // paragraph used to keep this card (and Practice/Qualifying's own sub-sections) rendering
+  // through the entire pre-race window regardless, which is exactly the "card just to say data
+  // will appear later" this was called out for. Race Weekend (the schedule) and Race History &
+  // Records (what's knowable from history) already cover what a reader needs before any session
+  // has actually run - Race Analysis now only exists once it has something real to analyze.
+  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
+  const showQualifyingSlot = hasQualifying;
   const showQualifyingStrategyRow = showQualifyingSlot || hasStrategy;
-  const showPracticeSlot = hasPractice || !isCompleted;
+  const showPracticeSlot = hasPractice;
   // Real RaceResultEntry rows use `driver`/`finishPosition`, not LapChart's own `driverId`/
   // `position` - the one place that naming gap needs bridging, same "adapt at the call site"
   // pattern as toResultRow above.
@@ -310,7 +309,7 @@ export function SeasonRaceDashboard({
             deep circuit archive, not buried under it. Shown for every race phase; degrades to
             general discovery rather than disappearing when nothing has a prediction for this
             exact race yet (see RaceCommunitiesSection's own comment). */}
-        <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />
+        <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />
 
         {/* Both shown for every race phase, not gated on isCompleted - "who's won this race
             before" and "the circuit's own all-time records" are exactly as true and exactly as
@@ -319,22 +318,13 @@ export function SeasonRaceDashboard({
 
         {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
 
-        {/* The pre-race counterpart to RaceIntelligenceSection above - a real narrative already
-            exists once the race has happened, this is what fills the same role beforehand: a
-            concise, cached, honestly-labeled (AI vs. deterministic) briefing built from this
-            circuit's own real history, not a fabricated preview of a race that hasn't run. Owns
-            its own visibility - see its own comment for why it can disappear entirely rather than
-            ever showing an empty titled card. */}
-        {!isCompleted && <ApexTrackBriefingSection location={race.circuit} year={race.year} />}
-
         {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} id="weekend" />}
 
-        {/* Persists across the whole pre-race window (not swapped out once Practice/Qualifying data
-            starts arriving) - it's the one section that's already fully populated the entire time
-            those are still progressively unlocking, real history at this exact track rather than
-            another "not yet available" message. */}
-        {!isCompleted && <TrackIntelligence liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} circuitName={race.circuit} />}
-
+        {/* Neither branch renders a thing when there's genuinely no model output yet (a new
+            circuit, or too early in a season for last year's data to exist) - that used to fall
+            through to a bare orphan sentence with no card, no action, nothing to do about it.
+            Omitted entirely now: Race History & Records and the sidebar's own "Your race" already
+            cover what's actually knowable this early, so there's a real alternative, not a gap. */}
         {!isCompleted &&
           (race.prediction ? (
             <RaceSectionCard id="prediction" title="Pre-Race Prediction">
@@ -344,9 +334,7 @@ export function SeasonRaceDashboard({
             <RaceSectionCard id="prediction" title="Pole Prediction">
               <PoleSection polePrediction={race.polePrediction} />
             </RaceSectionCard>
-          ) : (
-            <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
-          ))}
+          ) : null)}
 
       {isCompleted && (
         <RaceSectionCard
@@ -385,16 +373,12 @@ export function SeasonRaceDashboard({
           >
             {showPracticeSlot && (
               <RaceSubSection label="Practice" first>
-                {hasPractice ? (
-                  // Merged, not `inputs ?? results` - confirmed live that race_inputs can be a few
-                  // drivers short of the full field (grid data landing before every driver's row
-                  // does) while race_results already has everyone, so picking just one source
-                  // whole would silently drop a practice row's tooltip for whoever inputs is
-                  // missing. Same driver in both resolves to the same name/team either way.
-                  <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
-                ) : (
-                  <p className="text-sm text-neutral-500">Practice session data will appear here as the race weekend begins.</p>
-                )}
+                {/* Merged, not `inputs ?? results` - confirmed live that race_inputs can be a few
+                    drivers short of the full field (grid data landing before every driver's row
+                    does) while race_results already has everyone, so picking just one source
+                    whole would silently drop a practice row's tooltip for whoever inputs is
+                    missing. Same driver in both resolves to the same name/team either way. */}
+                <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
               </RaceSubSection>
             )}
             {/* Qualifying and Strategy share a row - they're the two panels that genuinely
@@ -411,11 +395,7 @@ export function SeasonRaceDashboard({
                   {showQualifyingSlot && (
                     <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
                       <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
-                        {hasQualifying ? (
-                          <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
-                        ) : (
-                          <p className="text-sm text-neutral-500">Starting grid and qualifying analysis will be available once qualifying is complete.</p>
-                        )}
+                        <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
                       </RaceSubSection>
                     </div>
                   )}
@@ -461,19 +441,18 @@ export function SeasonRaceDashboard({
         </RaceSectionCard>
       )}
 
-      {(race.simulation || !isCompleted) && (
+      {/* Only ever renders with a real simulation to show - "available after qualifying" used to
+          keep an empty card on screen for the entire pre-quali window; Race History & Records
+          and the sidebar's own "Your race" already say what's knowable before that. */}
+      {race.simulation && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <RaceSectionCard
             id="simulation"
             title="Simulation"
-            description={race.simulation ? "Monte Carlo projection based on grid position, race pace and DNF probability." : "Available after qualifying."}
-            headerRight={race.simulation ? <span className="text-xs text-neutral-500">Based on 10,000 simulations</span> : undefined}
+            description="Monte Carlo projection based on grid position, race pace and DNF probability."
+            headerRight={<span className="text-xs text-neutral-500">Based on 10,000 simulations</span>}
           >
-            {race.simulation ? (
-              <SimulationPanel simulation={race.simulation} />
-            ) : (
-              <p className="text-sm text-neutral-500">Race predictions will be generated once the starting grid is confirmed.</p>
-            )}
+            <SimulationPanel simulation={race.simulation} />
           </RaceSectionCard>
         </motion.div>
       )}
@@ -491,7 +470,14 @@ export function SeasonRaceDashboard({
           its own box). The `max-h`/overflow pair is a safety net for the rare case its own content
           genuinely exceeds the viewport, not the common one. */}
       <aside className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
-        <RaceSidebar race={race} isCompleted={isCompleted} calendarEntry={calendarEntry} trackHistory={trackHistory} highlights={highlights} accuracy={accuracy} personalContext={personalContext} />
+        <RaceSidebar
+          race={race}
+          isCompleted={isCompleted}
+          calendarEntry={calendarEntry}
+          accuracy={accuracy}
+          personalContext={personalContext}
+          communities={raceCommunities.communities}
+        />
       </aside>
     </div>
   );

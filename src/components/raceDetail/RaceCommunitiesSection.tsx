@@ -67,10 +67,11 @@ function CommunityRow({ card }: { card: RaceCommunityCard }) {
  * Renders nothing at all only on a genuine fetch failure or a truly empty discovery result (no
  * public groups exist at all) - both real, rare states, never papered over with placeholder cards.
  */
-export function RaceCommunitiesSection({ mode, communities }: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] }) {
+export function RaceCommunitiesSection({ mode, communities, id }: { mode: "predicting" | "discover"; communities: RaceCommunityCard[]; id?: string }) {
   if (communities.length === 0) return null;
   return (
     <RaceSectionCard
+      id={id}
       title={mode === "predicting" ? "Communities predicting this race" : "Communities to join"}
       description={mode === "predicting" ? "Real groups with an open prediction for this exact race, most active first." : "No group has opened a prediction for this race yet - here's where people are talking F1."}
       headerRight={

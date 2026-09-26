@@ -1,13 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { liveSession, nextSession, sessionCode } from "@/lib/sessionCode";
-import { buildCircuitTimeline, computeTrackRecords, computeTopWinners, joinNames } from "@/lib/circuitIntelligence";
-import { formatLapTime } from "@/lib/format";
+import { EntityAvatar } from "@/components/EntityAvatar";
+import { groupHref } from "@/lib/routes";
+import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
-import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
-import type { RaceHighlights } from "@/lib/highlights";
 import type { PredictionAccuracy } from "@/lib/predictionAccuracy";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import type { RaceDoc } from "@/lib/types/race";
@@ -26,55 +26,65 @@ function FactRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+function Divider() {
+  return <div className="my-3 border-t border-white/[0.06]" />;
+}
 
 /**
- * The race page's own context rail - what complements the main column instead of repeating it.
- * Nothing here duplicates the full Race Weekend/Track Intelligence/prediction sections below it;
- * each card is a compact pointer INTO that content (a next-session countdown, not the whole
- * schedule; one circuit fact, not the full historical breakdown; a one-line prediction, not the
- * panel itself) with an anchor link down to the real thing for whoever wants it.
+ * The race page's own context rail - deliberately NOT a second copy of the countdown, schedule and
+ * circuit stats the main column already owns (RaceWeekendPanel, Race History & Records). Three
+ * modules, each something the main column genuinely doesn't already say:
+ *   1. "Your race" - one merged card (not several) for the single most current fact (countdown/
+ *      live/result) plus this specific person's own stake in it (their prediction, their
+ *      accuracy here, their favorite driver/team's record here) - real user data only, see
+ *      personalRaceBriefing.ts's own comment on why nothing here is ever a guessed favorite.
+ *   2. "Trending in this race" - a compact preview of the SAME real communities data
+ *      RaceCommunitiesSection renders in full below (passed down from the same server fetch, not
+ *      a second query), so this rail surfaces it without requiring a scroll past Race Story first.
+ *   3. Ask Apex - the one action, not information; a nudge toward the floating launcher already on
+ *      this page rather than a second chat surface.
+ * There is no "friends' picks" module: this app has no per-user following/friends system, only
+ * community membership - inventing one here would be exactly the fabricated-data problem this
+ * page's personalization already goes out of its way to avoid elsewhere.
  *
- * The sticky positioning itself lives on the caller's own `<aside>` wrapper (SeasonRaceDashboard/
- * ArchiveRaceDashboard), not here - this component only ever renders the cards. See that
- * wrapper's own comment for why `top-4` is correct on this app's actual scroll architecture (the
- * header lives outside the scroll container entirely, not inside it) and why a short rail no
- * longer trails off leaving empty space next to a longer main column.
+ * The sticky positioning itself lives on the caller's own `<aside>` wrapper (SeasonRaceDashboard),
+ * not here - this component only ever renders the cards, and only applies at `lg:` and up; below
+ * that breakpoint the caller's grid already places this in normal document flow after the main
+ * column, not as a separate sticky/narrow panel.
  */
 export function RaceSidebar({
   race,
   isCompleted,
   calendarEntry,
-  trackHistory,
-  highlights,
   accuracy,
   personalContext,
+  communities,
 }: {
   race: RaceDoc;
   isCompleted: boolean;
   calendarEntry?: CalendarEntry | null;
-  trackHistory?: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
-  highlights: RaceHighlights | null;
   accuracy: PredictionAccuracy | null;
   personalContext: PersonalRaceContext;
+  communities: RaceCommunityCard[];
 }) {
   const now = useMinuteClock();
   const upcoming = calendarEntry ? nextSession(calendarEntry.sessions, now) : null;
   const live = calendarEntry ? liveSession(calendarEntry.sessions, now) : null;
   const countdown = upcoming ? formatCountdown(parseUtcDateTime(upcoming.date).getTime(), now) : "";
-  const remainingSessions = calendarEntry ? calendarEntry.sessions.filter((s) => parseUtcDateTime(s.date).getTime() > now) : [];
-
-  const timeline = trackHistory ? buildCircuitTimeline(trackHistory.liveRaces, trackHistory.archiveRaces) : [];
-  const records = timeline.length > 0 ? computeTrackRecords(timeline) : null;
-  const topWinner = timeline.length > 0 ? computeTopWinners(timeline, 1)[0] : null;
 
   const winner = isCompleted ? race.results?.find((r) => r.finishPosition === 1) : undefined;
   const nameFor = (code: string) => race.inputs?.find((i) => i.driver === code)?.driverName ?? race.results?.find((r) => r.driver === code)?.driverName ?? code;
   const predictedWinner = !isCompleted && race.prediction ? [...race.prediction.finishOrder].sort((a, b) => a.predictedPosition - b.predictedPosition)[0] : null;
   const predictedPole = !isCompleted && !race.prediction && race.polePrediction ? [...race.polePrediction.order].sort((a, b) => a.predictedQualiPosition - b.predictedQualiPosition)[0] : null;
 
+  const hasPersonalization = personalContext.favoriteDriver || personalContext.favoriteTeam || personalContext.accuracy;
+
   return (
     <div className="space-y-4">
-      {/* 1. Countdown / result - the one thing worth seeing without scrolling at all. */}
+      {/* 1. "Your race" - the current moment, this person's own prediction, and their own record
+          here, as one card with hairline-divided rows instead of four separate boxes repeating
+          the same "Label + value" shape down the rail. Any row with nothing real to show is
+          simply omitted, never left as an empty divider. */}
       <Card>
         {isCompleted ? (
           <>
@@ -108,42 +118,128 @@ export function RaceSidebar({
             <p className="mt-1.5 text-sm text-neutral-500">Session schedule not yet confirmed.</p>
           </>
         )}
-      </Card>
 
-      {/* 2. Compact schedule - a pointer to the real one, not a second copy of it. */}
-      {!isCompleted && remainingSessions.length > 0 && (
-        <Card>
-          <Label>Up next</Label>
-          <div className="mt-2 space-y-1">
-            {remainingSessions.slice(0, 3).map((s) => (
-              <FactRow key={s.label} label={s.label} value={parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })} />
-            ))}
-          </div>
-          <a href="#weekend" className="mt-2 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
-            Full schedule ↓
-          </a>
-        </Card>
-      )}
+        {isCompleted && accuracy && (
+          <>
+            <Divider />
+            <Label>Your prediction</Label>
+            <p className="mt-1.5 text-sm text-neutral-300">
+              Predicted <span className="font-semibold text-white">{nameFor(accuracy.predictedWinner)}</span> to win
+              {accuracy.actualWinner !== accuracy.predictedWinner ? (
+                <>
+                  {" "}
+                  - <span className="font-semibold text-white">{nameFor(accuracy.actualWinner)}</span> actually won.
+                </>
+              ) : (
+                " - correct."
+              )}
+            </p>
+            <a href="#results" className="mt-1.5 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
+              Full comparison ↓
+            </a>
+          </>
+        )}
+        {!isCompleted && predictedWinner && (
+          <>
+            <Divider />
+            <Label>Model prediction</Label>
+            <p className="mt-1.5 text-sm text-neutral-300">
+              Favors <span className="font-semibold text-white">{nameFor(predictedWinner.driver)}</span> to win.
+            </p>
+            <a href="#prediction" className="mt-1.5 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
+              Full prediction ↓
+            </a>
+          </>
+        )}
+        {!isCompleted && !predictedWinner && predictedPole && (
+          <>
+            <Divider />
+            <Label>Pole prediction</Label>
+            <p className="mt-1.5 text-sm text-neutral-300">
+              Favors <span className="font-semibold text-white">{predictedPole.driver}</span> for pole - grid not yet known.
+            </p>
+            <a href="#prediction" className="mt-1.5 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
+              Full prediction ↓
+            </a>
+          </>
+        )}
 
-      {/* 3. Key circuit facts - one or two real numbers, not the whole Track Intelligence
-          breakdown that's already its own section below. */}
-      <Card>
-        <Label>{race.circuit}</Label>
-        <div className="mt-2">
-          <FactRow label="Country" value={race.country ?? "—"} />
-          {isCompleted && highlights?.poleSitter && <FactRow label="Pole" value={nameFor(highlights.poleSitter)} />}
-          {isCompleted && highlights?.fastestLap && <FactRow label="Fastest lap" value={formatLapTime(highlights.fastestLap.timeSec)} />}
-          {!isCompleted && records?.mostWins && <FactRow label="Most wins here" value={`${joinNames(records.mostWins.drivers)} (${records.mostWins.count}x)`} />}
-          {!isCompleted && !records?.mostWins && topWinner && <FactRow label="Most wins here" value={`${topWinner.driver} (${topWinner.wins}x)`} />}
-        </div>
-        {!isCompleted && (
-          <a href="#overview" className="mt-2 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
-            Full track history ↓
-          </a>
+        {/* Real user data, never a guessed favorite or a fabricated accuracy number (see
+            personalRaceBriefing.ts's own comment) - a useful first-time prompt in place of an
+            empty personalization row when there's genuinely nothing to show yet. */}
+        {personalContext.isFirstTime ? (
+          <>
+            <Divider />
+            <Label>Your race</Label>
+            <p className="mt-1.5 text-sm text-neutral-300">Set a favorite driver or make a prediction to get a personal briefing here.</p>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+              <Link href="/profile?section=personalisation" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+                Set favorites →
+              </Link>
+              {!isCompleted && (
+                <a href="#prediction" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+                  Make a prediction →
+                </a>
+              )}
+            </div>
+          </>
+        ) : (
+          hasPersonalization && (
+            <>
+              <Divider />
+              <Label>Your {race.circuit} record</Label>
+              <div className="mt-1.5">
+                {personalContext.favoriteDriver && (
+                  <FactRow label={personalContext.favoriteDriver.name} value={`${personalContext.favoriteDriver.winsHere} win${personalContext.favoriteDriver.winsHere === 1 ? "" : "s"} here`} />
+                )}
+                {personalContext.favoriteTeam && (
+                  <FactRow label={personalContext.favoriteTeam.name} value={`${personalContext.favoriteTeam.winsHere} win${personalContext.favoriteTeam.winsHere === 1 ? "" : "s"} here`} />
+                )}
+                {personalContext.accuracy && <FactRow label="Your accuracy here" value={`${personalContext.accuracy.correct}/${personalContext.accuracy.total} correct`} />}
+              </div>
+            </>
+          )
         )}
       </Card>
 
-      {/* 4. A nudge toward the real thing - the floating Ask Apex launcher (bottom-left), not a
+      {/* 2. A compact preview of the SAME real communities data RaceCommunitiesSection renders in
+          full further down the main column - not a second fetch, not an invented "trending" signal
+          (see that component's own comment on why the underlying list is never fabricated). Only
+          ever the top couple of rows; "See all" points at the full section already on this page. */}
+      {communities.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Trending in this race</Label>
+            <a href="#communities" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+              See all →
+            </a>
+          </div>
+          <div className="mt-2 space-y-2">
+            {communities.slice(0, 2).map((c) => {
+              const href = c.prediction ? `${groupHref(c.groupId)}?tab=predictions` : groupHref(c.groupId);
+              const actionLabel = c.prediction ? (c.isMember ? "View" : "Join & predict") : c.isMember ? "Open" : "Explore";
+              return (
+                <Link
+                  key={c.groupId}
+                  href={href}
+                  className="flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 transition hover:border-white/20 hover:bg-white/[0.05]"
+                >
+                  <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.groupId} size={30} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-white">{c.name}</p>
+                    <p className="text-xs text-neutral-500">
+                      {c.memberCount} {c.memberCount === 1 ? "member" : "members"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs font-medium text-neutral-400">{actionLabel} →</span>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* 3. A nudge toward the real thing - the floating Ask Apex launcher (bottom-left), not a
           second chat surface. This page has already registered its own scope (RaceApexScope), so
           the launcher answers from this exact race/circuit the moment it's opened. */}
       <Card>
@@ -153,85 +249,6 @@ export function RaceSidebar({
         </p>
         <p className="mt-1 text-xs text-neutral-500">Open the Apex button in the corner to ask.</p>
       </Card>
-
-      {/* 5. Real user data, never a guessed favorite or a fabricated accuracy number (see
-          personalRaceBriefing.ts's own comment) - a useful first-time prompt in place of an empty
-          personalization card when there's genuinely nothing to show yet. */}
-      {personalContext.isFirstTime ? (
-        <Card>
-          <Label>Your race</Label>
-          <p className="mt-1.5 text-sm text-neutral-300">Set a favorite driver or make a prediction to get a personal briefing here.</p>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-            <a href="/profile?section=personalisation" className="text-xs font-medium text-neutral-400 transition hover:text-white">
-              Set favorites →
-            </a>
-            {!isCompleted && (
-              <a href="#prediction" className="text-xs font-medium text-neutral-400 transition hover:text-white">
-                Make a prediction →
-              </a>
-            )}
-          </div>
-        </Card>
-      ) : (
-        (personalContext.favoriteDriver || personalContext.favoriteTeam || personalContext.accuracy) && (
-          <Card>
-            <Label>Your {race.circuit} briefing</Label>
-            <div className="mt-2">
-              {personalContext.favoriteDriver && (
-                <FactRow label={personalContext.favoriteDriver.name} value={`${personalContext.favoriteDriver.winsHere} win${personalContext.favoriteDriver.winsHere === 1 ? "" : "s"} here`} />
-              )}
-              {personalContext.favoriteTeam && (
-                <FactRow label={personalContext.favoriteTeam.name} value={`${personalContext.favoriteTeam.winsHere} win${personalContext.favoriteTeam.winsHere === 1 ? "" : "s"} here`} />
-              )}
-              {personalContext.accuracy && <FactRow label="Your accuracy here" value={`${personalContext.accuracy.correct}/${personalContext.accuracy.total} correct`} />}
-            </div>
-          </Card>
-        )
-      )}
-
-      {/* 6. One line, not the panel - the prediction/simulation/results themselves are already a
-          full section in the main column; this is just enough to decide whether to go read it. */}
-      {isCompleted && accuracy && (
-        <Card>
-          <Label>Prediction accuracy</Label>
-          <p className="mt-1.5 text-sm text-neutral-300">
-            Predicted <span className="font-semibold text-white">{nameFor(accuracy.predictedWinner)}</span> to win
-            {accuracy.actualWinner !== accuracy.predictedWinner ? (
-              <>
-                {" "}
-                - <span className="font-semibold text-white">{nameFor(accuracy.actualWinner)}</span> actually won.
-              </>
-            ) : (
-              " - correct."
-            )}
-          </p>
-          <a href="#results" className="mt-2 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
-            Full comparison ↓
-          </a>
-        </Card>
-      )}
-      {!isCompleted && predictedWinner && (
-        <Card>
-          <Label>Model prediction</Label>
-          <p className="mt-1.5 text-sm text-neutral-300">
-            Favors <span className="font-semibold text-white">{nameFor(predictedWinner.driver)}</span> to win.
-          </p>
-          <a href="#prediction" className="mt-2 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
-            Full prediction ↓
-          </a>
-        </Card>
-      )}
-      {!isCompleted && !predictedWinner && predictedPole && (
-        <Card>
-          <Label>Pole prediction</Label>
-          <p className="mt-1.5 text-sm text-neutral-300">
-            Favors <span className="font-semibold text-white">{predictedPole.driver}</span> for pole - grid not yet known.
-          </p>
-          <a href="#prediction" className="mt-2 inline-block text-xs font-medium text-neutral-400 transition hover:text-white">
-            Full prediction ↓
-          </a>
-        </Card>
-      )}
     </div>
   );
 }
