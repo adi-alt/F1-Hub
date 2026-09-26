@@ -127,7 +127,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           name={race.name}
           circuitName={race.circuit}
           country={race.country}
-          resultLabel={winner ? `Winner: ${winner.driverName}` : undefined}
+          resultLabel={winner ? `Winner: ${winner.driverName}${race.resultsSource === "openf1_preliminary" ? " (preliminary)" : ""}` : undefined}
         />
         <div className="mt-8">
           <SeasonRaceDashboard

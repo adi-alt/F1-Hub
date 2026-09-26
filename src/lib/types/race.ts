@@ -181,6 +181,18 @@ export type RaceDoc = {
   raceDate?: string; // ISO — only reliably present for `scheduled` placeholders, see toCalendarPlaceholder
   photoUrl?: string; // legacy single photo, superseded by photoUrls below
   photoUrls?: string[]; // real race photos (Wikimedia Commons category, not a circuit diagram), re-hosted in Storage — see fetch_races.py / ergast_utils.py's fetch_commons_photos
+  // Real pipeline provenance, previously selected via RACE_SELECT's own `*` but never mapped into
+  // this type at all - a real, already-tracked "provisional vs confirmed" signal that sat unused.
+  // "openf1_preliminary" is OpenF1's own live-timing classification, fetched fast right after a
+  // session ends, ahead of the FIA's own official one ("official") landing - genuinely provisional
+  // (a post-race steward decision can still reorder it), not the same fact as a confirmed result.
+  resultsSource?: "official" | "openf1_preliminary" | string;
+  // Per-dataset completeness the pipeline itself already tracks (grid/laps/weather/tireData/
+  // fastestLap/classification/trafficAnalysis/safetyCarAnalysis) - null until the pipeline starts
+  // recording it (older completed races), real booleans once it does. Loosely typed (not every key
+  // enumerated) since this is informational only - nothing here gates a real feature the way
+  // resultsSource above does for the provisional-results label.
+  dataCompleteness?: Record<string, boolean> | null;
 };
 
 export type UserPick = {

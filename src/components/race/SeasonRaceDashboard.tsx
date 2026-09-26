@@ -349,7 +349,15 @@ export function SeasonRaceDashboard({
           ))}
 
       {isCompleted && (
-        <RaceSectionCard id="results" title="Results">
+        <RaceSectionCard
+          id="results"
+          title="Results"
+          description={
+            race.resultsSource === "openf1_preliminary"
+              ? "Preliminary - from live timing, ahead of the official FIA classification. Standings shown here can still change."
+              : undefined
+          }
+        >
           <motion.div layout className="space-y-3">
             <RacePodium entries={podium} />
             {resultRows.length > 0 && (

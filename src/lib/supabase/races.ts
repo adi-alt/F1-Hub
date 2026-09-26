@@ -71,6 +71,10 @@ type RaceRow = {
     qualifying_gap_sec: number | null;
   }[];
   tire_stints: { driver: string; stint_number: number; compound: string; lap_count: number }[];
+  // Real, already-selected via RACE_SELECT's own `*` - see RaceDoc's own comment for why these
+  // were never reaching the app at all until now.
+  results_source: string | null;
+  data_completeness: Record<string, boolean> | null;
 };
 
 // One nested query (PostgREST embeds via the tables' own foreign keys) instead of four - this
@@ -136,6 +140,16 @@ function toRaceDoc(row: RaceRow): RaceDoc {
     photoUrl: row.photo_url ?? undefined,
     photoUrls: row.photo_urls ?? undefined,
     practice: row.practice ?? undefined,
+    // Real column, real data for every row including completed ones (confirmed live) - never
+    // mapped here before, which meant every genuinely non-placeholder RaceDoc silently had no
+    // race date at all. circuitIntelligence.ts's own raceDateIso (needed for age-on-race-day
+    // calculations - see circuitRecords.ts) fell back to this same field, so this gap silently
+    // excluded every 2018+ year from youngest/oldest winner and pole-sitter records - only
+    // pre-2018 (archive-sourced) years, which get their date from a different real column, were
+    // ever actually contributing. Fixed at the source rather than worked around downstream.
+    raceDate: row.race_date ?? undefined,
+    resultsSource: row.results_source ?? undefined,
+    dataCompleteness: row.data_completeness,
   };
 }
 
