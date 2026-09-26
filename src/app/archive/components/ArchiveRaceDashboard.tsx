@@ -7,6 +7,7 @@ import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_compone
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
+import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
 import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
 import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
@@ -220,6 +221,7 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
 
   return (
     <div id="overview" className="space-y-6">
+      <RaceApexScope archiveYear={race.year} archiveRound={race.round} circuit={race.circuitName ?? race.locality ?? race.raceName} year={race.year} name={race.raceName} status="completed" />
       <RaceStorySection
         storyFacts={storyFacts}
         statTiles={statTiles}

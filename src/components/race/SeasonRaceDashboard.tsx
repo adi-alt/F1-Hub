@@ -7,6 +7,9 @@ import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_compone
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
+import { ApexTrackBriefing, ApexTrackBriefingSection } from "@/components/raceDetail/ApexTrackBriefing";
+import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
+import { RaceSidebar } from "@/components/raceDetail/RaceSidebar";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
 import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
 import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
@@ -264,35 +267,52 @@ export function SeasonRaceDashboard({
     ) : undefined;
 
   return (
-    <div id="overview" className="space-y-6">
-      <RaceStorySection
-        storyFacts={storyFacts}
-        statTiles={statTiles}
-        circuitCard={<SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />}
-      />
+    // Two columns at lg+ (main column ~fixed 300/320px short of the container, sidebar the rest -
+    // `items-start` keeps the grid from stretching the shorter sidebar to match the taller main
+    // column, which would either blow up its cards' own height or leave it a stretched, mostly-
+    // empty column). Single column below `lg` - the sidebar moves below the main content in
+    // source order, not beside it, which only reads as a real two-column layout once there's
+    // enough width for both to sit side by side without cramping either.
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div id="overview" className="min-w-0 space-y-6">
+        <RaceApexScope raceId={race.id} circuit={race.circuit} year={race.year} name={race.name} status={isCompleted ? "completed" : "upcoming"} />
+        <RaceStorySection
+          storyFacts={storyFacts}
+          statTiles={statTiles}
+          circuitCard={<SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />}
+          preRaceBrief={!isCompleted ? <ApexTrackBriefing location={race.circuit} year={race.year} /> : undefined}
+        />
 
-      {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
+        {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
 
-      {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} />}
+        {/* The pre-race counterpart to RaceIntelligenceSection above - a real narrative already
+            exists once the race has happened, this is what fills the same role beforehand: a
+            concise, cached, honestly-labeled (AI vs. deterministic) briefing built from this
+            circuit's own real history, not a fabricated preview of a race that hasn't run. Owns
+            its own visibility - see its own comment for why it can disappear entirely rather than
+            ever showing an empty titled card. */}
+        {!isCompleted && <ApexTrackBriefingSection location={race.circuit} year={race.year} />}
 
-      {/* Persists across the whole pre-race window (not swapped out once Practice/Qualifying data
-          starts arriving) - it's the one section that's already fully populated the entire time
-          those are still progressively unlocking, real history at this exact track rather than
-          another "not yet available" message. */}
-      {!isCompleted && <TrackIntelligence liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} circuitName={race.circuit} />}
+        {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} id="weekend" />}
 
-      {!isCompleted &&
-        (race.prediction ? (
-          <RaceSectionCard title="Pre-Race Prediction">
-            <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
-          </RaceSectionCard>
-        ) : race.polePrediction ? (
-          <RaceSectionCard title="Pole Prediction">
-            <PoleSection polePrediction={race.polePrediction} />
-          </RaceSectionCard>
-        ) : (
-          <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
-        ))}
+        {/* Persists across the whole pre-race window (not swapped out once Practice/Qualifying data
+            starts arriving) - it's the one section that's already fully populated the entire time
+            those are still progressively unlocking, real history at this exact track rather than
+            another "not yet available" message. */}
+        {!isCompleted && <TrackIntelligence liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} circuitName={race.circuit} />}
+
+        {!isCompleted &&
+          (race.prediction ? (
+            <RaceSectionCard id="prediction" title="Pre-Race Prediction">
+              <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
+            </RaceSectionCard>
+          ) : race.polePrediction ? (
+            <RaceSectionCard id="prediction" title="Pole Prediction">
+              <PoleSection polePrediction={race.polePrediction} />
+            </RaceSectionCard>
+          ) : (
+            <p className="text-sm text-neutral-500">No prior-season history yet to predict from.</p>
+          ))}
 
       {isCompleted && (
         <RaceSectionCard id="results" title="Results">
@@ -415,6 +435,11 @@ export function SeasonRaceDashboard({
           </RaceSectionCard>
         </motion.div>
       )}
+      </div>
+
+      <aside className="min-w-0">
+        <RaceSidebar race={race} isCompleted={isCompleted} calendarEntry={calendarEntry} trackHistory={trackHistory} highlights={highlights} accuracy={accuracy} />
+      </aside>
     </div>
   );
 }

@@ -34,7 +34,9 @@ import {
 } from "@/app/archive/services/archive.service";
 import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
 import { ERAS, eraForYear, isVerifiedChampionYear } from "@/lib/eras";
-import { getRacesByYear } from "@/lib/supabase/races";
+import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
+import { buildRaceIntelligenceContext, formatRaceIntelligenceContext } from "@/lib/ai/context/raceContext";
+import { buildArchiveIntelligenceContext } from "@/lib/ai/context/archiveContext";
 import { computeStandings } from "@/lib/standings";
 import { raceTitle } from "@/lib/format";
 import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
@@ -159,6 +161,70 @@ async function buildCircuitGroundingContext(userId: string, clientContext: Recor
   const ctx = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline);
 
   return { page: "circuit", circuit: formatCircuitContext(ctx) };
+}
+
+/** RaceApexScope (src/components/raceDetail/RaceApexScope.tsx) sends only a race identity - a
+ * live `raceId` or an archive `archiveYear`/`archiveRound` pair - never any of the race's own
+ * facts. What's actually answerable from that identity depends entirely on the race's phase,
+ * which is why this isn't one fetch:
+ *
+ *  - An archive race is always a finished one by definition (the archive is pre-current-season
+ *    history), so buildArchiveIntelligenceContext - the exact same rich post-race context
+ *    RaceIntelligenceSection's own narrative is grounded on for that race - is always the right
+ *    answer there.
+ *  - A live-season race that has actually finished (`status === "completed"`, real `results`)
+ *    gets the same buildRaceIntelligenceContext the race page's own AI narrative uses - so a
+ *    question here can never disagree with what's already written on the page.
+ *  - A live-season race that hasn't run yet - including a calendar-only placeholder with no real
+ *    `races` row at all (see races.ts's own comment on why an upcoming round can exist before its
+ *    first row does) - has none of that: no results, no key moments, no standings-impact-through-
+ *    this-round to compute. What IS real and answerable pre-race is this circuit's own history and
+ *    characteristics, so it falls back to exactly the context circuit-take/
+ *    buildCircuitGroundingContext already grounds on for the same circuit+year, plus this race's
+ *    own identity (name/round/date/status) so the model knows which specific weekend is being
+ *    asked about rather than just the venue in the abstract. */
+async function buildRaceGroundingContext(userId: string, clientContext: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  const raceId = typeof clientContext.raceId === "string" ? clientContext.raceId : null;
+  const archiveYear = typeof clientContext.archiveYear === "number" ? clientContext.archiveYear : null;
+  const archiveRound = typeof clientContext.archiveRound === "number" ? clientContext.archiveRound : null;
+
+  if (archiveYear !== null && archiveRound !== null) {
+    const archiveContext = await buildArchiveIntelligenceContext(archiveYear, archiveRound, userId).catch(() => null);
+    if (!archiveContext) return null;
+    return { page: "race", race: formatRaceIntelligenceContext(archiveContext, true) };
+  }
+
+  if (!raceId) return null;
+  const race = await getRaceById(raceId).catch(() => null);
+  // A calendar-only placeholder (no real `races` row for this round yet) has no id `getRaceById`
+  // can resolve - genuinely nothing race-specific to ground on beyond what the circuit fallback
+  // below already covers from the client's own selection state, so this falls through rather than
+  // returning null outright only when there's truly no circuit either.
+  const raceIdentity = race
+    ? { name: race.name, round: race.round, season: race.year, status: race.status, raceDate: race.raceDate ?? null }
+    : null;
+
+  if (race?.status === "completed" && race.results?.length) {
+    const raceContext = await buildRaceIntelligenceContext(raceId, userId).catch(() => null);
+    if (raceContext) return { page: "race", race: formatRaceIntelligenceContext(raceContext, true) };
+  }
+
+  const location = race?.circuit ?? (typeof clientContext.circuit === "string" ? clientContext.circuit : null);
+  const year = race?.year ?? (typeof clientContext.year === "number" ? clientContext.year : null);
+  if (!location || !year) return null;
+
+  const data = await getCircuitDetailData(location, year, userId).catch(() => null);
+  if (!data) return null;
+  const grandPrixName = data.currentSeasonRace?.name ?? race?.name ?? null;
+  const country = race?.country ?? data.currentSeasonRace?.country ?? data.archiveRaces[0]?.country ?? null;
+  const displayName = data.facts?.venueName ?? raceTitle(location);
+  const circuitCtx = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline);
+
+  return {
+    page: "race",
+    race: raceIdentity,
+    circuit: formatCircuitContext(circuitCtx),
+  };
 }
 
 function archiveIsClassified(status: string): boolean {
@@ -734,6 +800,13 @@ export async function POST(req: Request) {
       const circuitContext = await buildCircuitGroundingContext(userId, context);
       if (circuitContext) {
         context = circuitContext;
+        serverBuilt = true;
+      }
+    }
+    if (context.page === "race") {
+      const raceContext = await buildRaceGroundingContext(userId, context);
+      if (raceContext) {
+        context = raceContext;
         serverBuilt = true;
       }
     }

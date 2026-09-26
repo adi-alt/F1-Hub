@@ -6,6 +6,7 @@ export type ApexPage =
   | "home"
   | "season"
   | "circuit"
+  | "race"
   | "archive"
   | "community"
   | "user"
@@ -37,7 +38,27 @@ export type GenericApexContext = BaseApexContext & {
   snapshot?: Record<string, unknown>;
 };
 
-export type ApexPageContext = HomepageApexContext | SeasonApexContext | GenericApexContext;
+export type RaceApexContext = BaseApexContext & {
+  page: "race";
+  /** A live-season race - either a real `races` row or a calendar-only placeholder (see
+   * races.ts's own comment on why an upcoming round can exist before its first real row does).
+   * The server re-resolves the real race from this id; nothing about its facts is trusted from
+   * the client. */
+  raceId?: string;
+  /** An archive (pre-current-season) race instead - that table has no shared id space with
+   * `races`, so it's looked up by year+round, the same pattern race-intelligence's own archive
+   * dispatch already uses. */
+  archiveYear?: number;
+  archiveRound?: number;
+  /** Fallback identity for a calendar-only placeholder round - `raceId` resolves to nothing in
+   * `races` yet, but the circuit and season are still real and still answerable (the same
+   * circuit-history grounding the circuit page itself uses). Ignored once `raceId` resolves to a
+   * real row. */
+  circuit?: string;
+  year?: number;
+};
+
+export type ApexPageContext = HomepageApexContext | SeasonApexContext | GenericApexContext | RaceApexContext;
 
 /**
  * What Apex can currently see.

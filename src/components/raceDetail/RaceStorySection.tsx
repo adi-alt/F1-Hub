@@ -52,13 +52,29 @@ function CompactStatGrid({ tiles }: { tiles: StatTile[] }) {
  * min/max/precipitation weather vs. a single day's reading) that forcing one shared circuit
  * component here would just be a wrapper around two anyway - same "adapt at the call site" shape
  * RaceHeader/RacePodium/RaceResultsTable already use. */
-export function RaceStorySection({ storyFacts, statTiles, circuitCard }: { storyFacts: RaceStoryFacts | null; statTiles: StatTile[] | null; circuitCard: ReactNode }) {
+export function RaceStorySection({
+  storyFacts,
+  statTiles,
+  circuitCard,
+  preRaceBrief,
+}: {
+  storyFacts: RaceStoryFacts | null;
+  statTiles: StatTile[] | null;
+  circuitCard: ReactNode;
+  /** What fills this same left column before there IS a race story to tell - real content
+   * (Apex's circuit take), not the empty space a null `storyFacts` used to leave next to the
+   * circuit card. Ignored once `storyFacts` exists (a completed race's real story always wins). */
+  preRaceBrief?: ReactNode;
+}) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.35, ease: "easeOut" }}>
-      <RaceSectionCard title="Race Story" description="Key moments and highlights from the race.">
+      <RaceSectionCard
+        title="Race Story"
+        description={storyFacts ? "Key moments and highlights from the race." : "What to know before the lights go out."}
+      >
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]">
           <div>
-            {storyFacts && <RaceStory facts={storyFacts} />}
+            {storyFacts ? <RaceStory facts={storyFacts} /> : preRaceBrief}
             {statTiles && <CompactStatGrid tiles={statTiles} />}
           </div>
           <motion.div initial={{ opacity: 0, x: 8 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
