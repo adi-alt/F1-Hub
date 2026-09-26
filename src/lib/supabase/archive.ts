@@ -567,6 +567,22 @@ export async function getArchiveDriverPhotosByIds(driverIds: string[]): Promise<
   return new Map(((data ?? []) as { driver_id: string; photo_url: string | null }[]).map((r) => [r.driver_id, r.photo_url]));
 }
 
+/** Birthdates for a known, small set of driver ids - what a youngest/oldest winner or pole-sitter
+ * record needs, real ages calculated against a real race date rather than a fabricated one. Same
+ * shape and reasoning as getArchiveDriverPhotosByIds right above (a handful of ids, not the whole
+ * 805-row table). Deliberately keyed by driver_id, not the 3-letter code - see
+ * getArchiveDriverIdsByCode's own comment on why a code alone is genuinely ambiguous across F1
+ * history ("VER" is both Verstappen and Vergne); the caller resolves a live race's own code to an
+ * id through that same function first, so this never has to guess. */
+export async function getArchiveDriverDatesOfBirth(driverIds: string[]): Promise<Map<string, string | null>> {
+  if (driverIds.length === 0) return new Map();
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("archive_drivers").select("driver_id, date_of_birth").in("driver_id", driverIds),
+  );
+  if (error) throw new Error(`getArchiveDriverDatesOfBirth: ${error.message}`);
+  return new Map(((data ?? []) as { driver_id: string; date_of_birth: string | null }[]).map((r) => [r.driver_id, r.date_of_birth]));
+}
+
 export const getAllArchiveDrivers = unstable_cache(
   async (): Promise<ArchiveDriver[]> => {
     const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_drivers").select("*"));

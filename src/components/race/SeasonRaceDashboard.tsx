@@ -9,6 +9,11 @@ import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/Ra
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { ApexTrackBriefing, ApexTrackBriefingSection } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
+import { CircuitRecordsSection } from "@/components/raceDetail/CircuitRecordsSection";
+import { GrandPrixHistorySection } from "@/components/raceDetail/GrandPrixHistorySection";
+import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
+import type { AgeRecords } from "@/lib/circuitRecords";
+import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import { RaceSidebar } from "@/components/raceDetail/RaceSidebar";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
 import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
@@ -71,6 +76,9 @@ export function SeasonRaceDashboard({
   circuitImage,
   calendarEntry,
   trackHistory,
+  circuitTimeline,
+  ageRecords,
+  personalContext,
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
@@ -83,9 +91,21 @@ export function SeasonRaceDashboard({
   // has no row for, same "real or absent, never fabricated" rule as circuitImage above.
   calendarEntry?: CalendarEntry | null;
   // This exact physical track's own real history, both real sources (see TrackIntelligence /
-  // circuitIntelligence.ts) - only ever fetched by the caller for a non-completed race (a completed
-  // race already has its own full real analysis, Track Intelligence would be redundant there).
+  // circuitIntelligence.ts) - fetched by the caller for every race regardless of phase now (see
+  // race/page.tsx's own comment on why the old "completed races don't need this" gate no longer
+  // holds once Grand Prix History/Circuit Records exist). Only TrackIntelligence itself stays
+  // pre-race-only below.
   trackHistory?: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
+  // buildCircuitTimeline(trackHistory), already computed once by the caller (which also needs it
+  // for ageRecords below) - not rebuilt here a second time.
+  circuitTimeline: CircuitYearRecord[];
+  // Real ages, resolved server-side - see circuitRecords.ts's own top comment for why (Supabase
+  // access this page's other client components can't have).
+  ageRecords: AgeRecords;
+  // Real user data (favorites, this circuit's own real prediction accuracy) - null-shaped fields
+  // throughout for whichever the user genuinely hasn't got yet, never a guessed favorite (see
+  // personalRaceBriefing.ts's own comment).
+  personalContext: PersonalRaceContext;
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -283,6 +303,12 @@ export function SeasonRaceDashboard({
           preRaceBrief={!isCompleted ? <ApexTrackBriefing location={race.circuit} year={race.year} /> : undefined}
         />
 
+        {/* Both shown for every race phase, not gated on isCompleted - "who's won this race
+            before" and "the circuit's own all-time records" are exactly as true and exactly as
+            useful before a race weekend as after one. See each component's own comment. */}
+        <GrandPrixHistorySection raceName={race.name} timeline={circuitTimeline} />
+        <CircuitRecordsSection circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
+
         {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
 
         {/* The pre-race counterpart to RaceIntelligenceSection above - a real narrative already
@@ -438,7 +464,7 @@ export function SeasonRaceDashboard({
       </div>
 
       <aside className="min-w-0">
-        <RaceSidebar race={race} isCompleted={isCompleted} calendarEntry={calendarEntry} trackHistory={trackHistory} highlights={highlights} accuracy={accuracy} />
+        <RaceSidebar race={race} isCompleted={isCompleted} calendarEntry={calendarEntry} trackHistory={trackHistory} highlights={highlights} accuracy={accuracy} personalContext={personalContext} />
       </aside>
     </div>
   );

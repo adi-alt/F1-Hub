@@ -8,7 +8,11 @@ import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
+import { CircuitRecordsSection } from "@/components/raceDetail/CircuitRecordsSection";
+import { GrandPrixHistorySection } from "@/components/raceDetail/GrandPrixHistorySection";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
+import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
+import type { AgeRecords } from "@/lib/circuitRecords";
 import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
 import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
@@ -25,7 +29,7 @@ import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapC
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
-import type { RaceSimulation } from "@/lib/types/race";
+import type { RaceDoc, RaceSimulation } from "@/lib/types/race";
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20+ car historical field doesn't turn Results into a wall-length scroll inside its own card.
@@ -64,7 +68,24 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
  * (the current-season table), fetched separately by the page and passed in here - confirmed live
  * it's populated for effectively every race back to 2018, a real dataset `archive_races` itself
  * has no equivalent of, not fabricated for races where it's genuinely absent. */
-export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: ArchiveRaceDoc; circuit: ArchiveCircuit | null; simulation: RaceSimulation | null }) {
+export function ArchiveRaceDashboard({
+  race,
+  circuit,
+  simulation,
+  trackHistory,
+  circuitTimeline,
+  ageRecords,
+}: {
+  race: ArchiveRaceDoc;
+  circuit: ArchiveCircuit | null;
+  simulation: RaceSimulation | null;
+  // The raw pair circuitTimeline was already merged from - CircuitRecordsSection's own podium
+  // tally needs full per-year results, which the merged timeline doesn't retain (it only ever
+  // keeps the winner per year - see circuitIntelligence.ts's own comment on computeMostPodiums).
+  trackHistory: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
+  circuitTimeline: CircuitYearRecord[];
+  ageRecords: AgeRecords;
+}) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [showAllResults, setShowAllResults] = useState(false);
@@ -234,6 +255,15 @@ export function ArchiveRaceDashboard({ race, circuit, simulation }: { race: Arch
             </div>
           )
         }
+      />
+
+      <GrandPrixHistorySection raceName={race.raceName} timeline={circuitTimeline} />
+      <CircuitRecordsSection
+        circuitName={race.circuitName ?? race.locality ?? race.raceName}
+        timeline={circuitTimeline}
+        liveRaces={trackHistory.liveRaces}
+        archiveRaces={trackHistory.archiveRaces}
+        ageRecords={ageRecords}
       />
 
       <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} archiveYear={race.year} archiveRound={race.round} />

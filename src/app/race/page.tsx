@@ -7,10 +7,13 @@ import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { PickPanel } from "@/components/race/PickPanel";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { findArchiveCircuitByLocation } from "@/lib/supabase/archive";
+import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
 import { getCurrentEntrants, getRace, getRacesByCircuit, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
 import { computeHighlights } from "@/lib/highlights";
+import { buildCircuitTimeline } from "@/lib/circuitIntelligence";
+import { computeAgeRecords } from "@/lib/circuitRecords";
+import { getPersonalRaceContext } from "@/lib/personalRaceBriefing";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
@@ -90,20 +93,25 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // is the same "most recent real grid" lookup the signup form already uses - not a new source.
     const fallbackEntrants = race.status === "upcoming" && !race.inputs?.length ? await getCurrentEntrants(year) : [];
 
-    // Track Intelligence's own real history at this exact circuit - only fetched for a race that
-    // isn't completed yet (a completed race has its own full real analysis already; this would be
-    // redundant there). Both real sources, same match `circuitImage` above already resolved -
-    // archive_races is NOT pre-2018-only (confirmed live: it comprehensively covers a circuit's
-    // full history, including years `races` also has), so circuitIntelligence.ts's own merge dedupes
-    // by year rather than treating these as two non-overlapping halves - see its own comment.
-    let trackHistory: { liveRaces: Awaited<ReturnType<typeof getRacesByCircuit>>; archiveRaces: Awaited<ReturnType<typeof getArchiveCircuitHistoryData>> } | undefined;
-    if (race.status !== "completed") {
-      const [liveRaces, archiveRaces] = await Promise.all([
-        getRacesByCircuit(race.circuit),
-        matchedCircuit ? getArchiveCircuitHistoryData(matchedCircuit.circuitId) : Promise.resolve([]),
-      ]);
-      trackHistory = { liveRaces, archiveRaces };
-    }
+    // This exact physical track's own real history - fetched for every race regardless of phase.
+    // It used to be skipped for a completed race ("has its own full real analysis already, this
+    // would be redundant") - true for Track Intelligence's own trend/weather panel (still gated to
+    // !isCompleted below), but Grand Prix History and this circuit's all-time records are not
+    // redundant with a single race's own result; a completed race's page is exactly where "how
+    // does this result fit into history" belongs. Both real sources, same match `circuitImage`
+    // above already resolved - archive_races is NOT pre-2018-only (confirmed live: it
+    // comprehensively covers a circuit's full history, including years `races` also has), so
+    // circuitIntelligence.ts's own merge dedupes by year rather than treating these as two
+    // non-overlapping halves - see its own comment.
+    const [liveRaces, archiveRaces] = await Promise.all([
+      getRacesByCircuit(race.circuit),
+      matchedCircuit ? getArchiveCircuitHistoryData(matchedCircuit.circuitId) : Promise.resolve([]),
+    ]);
+    const trackHistory = { liveRaces, archiveRaces };
+    // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
+    // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
+    const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
+    const [ageRecords, personalContext] = await Promise.all([computeAgeRecords(circuitTimeline), getPersonalRaceContext(session.uid, circuitTimeline, liveRaces)]);
 
     return (
       <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
@@ -125,6 +133,9 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             circuitImage={circuitImage}
             calendarEntry={calendarEntry}
             trackHistory={trackHistory}
+            circuitTimeline={circuitTimeline}
+            personalContext={personalContext}
+            ageRecords={ageRecords}
           />
         </div>
         {/* Never for a completed race - see PickPanel's own reasoning (the request that drove this:
@@ -143,15 +154,22 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const races = await getArchiveSeasonData(year);
   const race = races.find((r) => slugifyRaceName(r.raceName) === slug);
   if (!race) notFound();
-  const [circuit, simulation] = await Promise.all([
+  const [circuit, simulation, circuitLiveRaces, circuitArchiveRaces] = await Promise.all([
     race.circuitId ? getArchiveCircuitData(race.circuitId) : Promise.resolve(null),
     // Real Monte Carlo data for this exact race, sourced from `races` (confirmed live: populated
     // for effectively every race back to 2018) - additive to archive_races' own results/qualifying/
     // pit-stops/laps, not a replacement for any of them. Null, not fabricated, where it genuinely
     // doesn't exist yet.
     getRaceSimulation(year, race.round),
+    // This exact physical track's own real history, for Grand Prix History/Circuit Records below -
+    // simpler here than the live branch's own version: an archive race already carries its own
+    // circuitId directly, no findArchiveCircuitByLocation guess needed.
+    race.circuitName ? getRacesByCircuit(race.circuitName) : Promise.resolve([]),
+    race.circuitId ? getArchiveRacesByCircuitId(race.circuitId) : Promise.resolve([]),
   ]);
   const archiveWinner = race.results.find((r) => r.position === 1);
+  const circuitTimeline = buildCircuitTimeline(circuitLiveRaces, circuitArchiveRaces);
+  const ageRecords = await computeAgeRecords(circuitTimeline);
 
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
@@ -168,7 +186,14 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
       <div className="mt-8">
-        <ArchiveRaceDashboard race={race} circuit={circuit} simulation={simulation} />
+        <ArchiveRaceDashboard
+          race={race}
+          circuit={circuit}
+          simulation={simulation}
+          trackHistory={{ liveRaces: circuitLiveRaces, archiveRaces: circuitArchiveRaces }}
+          circuitTimeline={circuitTimeline}
+          ageRecords={ageRecords}
+        />
       </div>
     </div>
   );
