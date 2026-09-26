@@ -36,11 +36,41 @@ export type CircuitYearRecord = {
    * every current driver also has an archive_drivers row). */
   winnerArchiveDriverId: string | null;
   poleSitter: string | null;
+  /** The pole-sitter's own raw 3-letter code - real for a live-schema row (2018+), null for an
+   * archive row (which resolves straight to poleArchiveDriverId instead, needing no code at all).
+   * Mirrors winnerCode's own reasoning: a caller resolving ages/ids for a live year needs this to
+   * batch-resolve through getArchiveDriverIdsByCode, the same call winnerCode already supports. */
+  poleCode: string | null;
+  /** The pole-sitter's own archive_drivers id - set directly for an archive-sourced row (no
+   * lookup needed, and no risk of the 3-letter-code collision getArchiveDriverIdsByCode's own
+   * comment documents - "VER" alone doesn't say Verstappen or Vergne). Null for a live-sourced
+   * row; resolved from poleCode by the caller instead, the same one-batched-lookup pattern
+   * winnerArchiveDriverId already relies on. */
+  poleArchiveDriverId: string | null;
   winnerWasPole: boolean | null;
   winningMarginSec: number | null;
   fieldMovementAvg: number | null; // mean |grid - finish| across the classified field
   dryRace: boolean | null;
   avgTempC: number | null;
+  /** The Grand Prix name this exact year's race was run under - "Bahrain Grand Prix", "San Marino
+   * Grand Prix". A physical circuit can host more than one distinct Grand Prix identity over its
+   * history (Imola: San Marino GP, Italian GP, and Emilia Romagna GP all at the same venue) - this
+   * is what lets a caller tell "this circuit's full history" and "this specific Grand Prix's own
+   * history" apart instead of silently crediting one event's record to a different one that just
+   * happens to share a track. */
+  raceName: string | null;
+  /** This year's own real race date (ISO) - what an age-on-race-day calculation (youngest/oldest
+   * winner or pole-sitter) needs; a birth year and a race year alone are off by up to a full year
+   * either way. */
+  raceDateIso: string | null;
+  /** The actual fastest lap SET DURING THIS RACE - deliberately not the pole/qualifying time,
+   * which is a different thing recorded in a different session (see this module's own record-
+   * definition rule: never label one as the other). Null wherever the underlying per-lap
+   * fastest-lap data doesn't exist for that year (an archive year enrich_archive_entities.py
+   * hasn't reached, or - rare - a live year with no recorded fastest lap). */
+  fastestLapSec: number | null;
+  fastestLapDriver: string | null;
+  fastestLapCode: string | null;
 };
 
 function average(values: number[]): number | null {
@@ -64,6 +94,14 @@ function fromLiveRace(race: RaceDoc): CircuitYearRecord | null {
   // against this race's own results the same way SeasonRaceDashboard's highlights already do,
   // falling back to the bare code only if that driver genuinely isn't in results for some reason.
   const poleSitterName = race.poleSitter ? (results.find((r) => r.driver === race.poleSitter)?.driverName ?? race.poleSitter) : null;
+  // RaceResultEntry already carries each driver's own fastestLapSec (see toResultRow's own
+  // comment in SeasonRaceDashboard.tsx) - the real minimum across the classified field, not the
+  // pole/qualifying time, which lives on a different field (race.poleTimeSec) entirely.
+  const fastestLapRow = results.reduce<(typeof results)[number] | null>((best, r) => {
+    if (r.fastestLapSec === null) return best;
+    if (!best || best.fastestLapSec === null || r.fastestLapSec < best.fastestLapSec) return r;
+    return best;
+  }, null);
   return {
     year: race.year,
     winnerDriver: winner?.driverName ?? null,
@@ -72,12 +110,19 @@ function fromLiveRace(race: RaceDoc): CircuitYearRecord | null {
     winnerCode: winner?.driver ?? null,
     winnerArchiveDriverId: null,
     poleSitter: poleSitterName,
+    poleCode: race.poleSitter ?? null,
+    poleArchiveDriverId: null,
     winnerWasPole: winner && race.poleSitter ? winner.driver === race.poleSitter : null,
     // finishGapSec is P2's own real field - already a clean number, no string parsing needed.
     winningMarginSec: runnerUp?.finishGapSec ?? null,
     fieldMovementAvg: average(classified.map((r) => Math.abs(r.grid! - r.finishPosition))),
     dryRace: race.weather ? !race.weather.rainfall : null,
     avgTempC: race.weather?.airTempC ?? null,
+    raceName: race.name,
+    raceDateIso: race.raceDate ?? null,
+    fastestLapSec: fastestLapRow?.fastestLapSec ?? null,
+    fastestLapDriver: fastestLapRow?.driverName ?? null,
+    fastestLapCode: fastestLapRow?.driver ?? null,
   };
 }
 
@@ -93,6 +138,12 @@ function fromArchiveRace(race: ArchiveRaceDoc): CircuitYearRecord | null {
   // here, and even then only kept when it actually parses (P2 lapped is real and not rare pre-2000s
   // F1), never coerced into a number that isn't one.
   const margin = runnerUp ? parseTimeToSeconds(runnerUp.time) : null;
+  // `rank === 1` on the per-driver fastestLap block is FastF1/Ergast's own "this was the actual
+  // fastest lap of the race" marker - authoritative, not re-derived by parsing every driver's own
+  // lap-time string and comparing (their `time` fields aren't guaranteed comparable strings across
+  // eras the way parseTimeToSeconds's own docstring already warns about for finish gaps).
+  const fastestLapRow = results.find((r) => r.fastestLap?.rank === 1) ?? null;
+  const fastestLapSec = fastestLapRow?.fastestLap ? parseTimeToSeconds(fastestLapRow.fastestLap.time) : null;
   return {
     year: race.year,
     winnerDriver: winner?.driverName ?? null,
@@ -101,11 +152,18 @@ function fromArchiveRace(race: ArchiveRaceDoc): CircuitYearRecord | null {
     winnerCode: winner?.driverCode ?? null,
     winnerArchiveDriverId: winner?.driverId ?? null,
     poleSitter: poleSitter?.driverName ?? null,
+    poleCode: null,
+    poleArchiveDriverId: poleSitter?.driverId ?? null,
     winnerWasPole: winner && poleSitter ? winner.driverId === poleSitter.driverId : null,
     winningMarginSec: margin,
     fieldMovementAvg: average(classified.map((r) => Math.abs(r.grid! - r.position))),
     dryRace: race.weather ? race.weather.precipitationMm <= 0 : null,
     avgTempC: race.weather ? (race.weather.tempMaxC + race.weather.tempMinC) / 2 : null,
+    raceName: race.raceName,
+    raceDateIso: race.raceDate,
+    fastestLapSec,
+    fastestLapDriver: fastestLapRow?.driverName ?? null,
+    fastestLapCode: fastestLapRow?.driverCode ?? null,
   };
 }
 
@@ -143,33 +201,35 @@ export function windowedTimeline(timeline: CircuitYearRecord[], window: WindowYe
   return timeline.slice(0, window);
 }
 
+/** Natural-language join for a (usually one-name, occasionally tied) record holder list - "Max
+ * Verstappen", "Max Verstappen and Lewis Hamilton", "Max Verstappen, Lewis Hamilton and Sebastian
+ * Vettel". Every caller that used to read a single `.driver` off a record now reads `.drivers`
+ * (plural) instead - this is the one place that turns that array back into a sentence. */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 export type TrackRecords = {
-  mostWins: { driver: string; count: number } | null;
-  mostPoles: { driver: string; count: number } | null;
+  // `drivers` (plural, always at least one) rather than a single name - "Historical records with
+  // tied results" is a real case at this sample size (a handful of runnings, easily sharing a
+  // leader), and picking just one of several tied leaders would state a false sole record holder.
+  mostWins: { drivers: string[]; count: number } | null;
+  mostPoles: { drivers: string[]; count: number } | null;
   closestMargin: { year: number; sec: number } | null;
   largestMargin: { year: number; sec: number } | null;
 };
-
-function topByCount(values: (string | null)[]): { driver: string; count: number } | null {
-  const counts = new Map<string, number>();
-  for (const v of values) {
-    if (!v) continue;
-    counts.set(v, (counts.get(v) ?? 0) + 1);
-  }
-  let best: { driver: string; count: number } | null = null;
-  for (const [driver, count] of counts) {
-    if (!best || count > best.count) best = { driver, count };
-  }
-  return best;
-}
 
 export function computeTrackRecords(timeline: CircuitYearRecord[]): TrackRecords {
   const margins = timeline.filter((r): r is CircuitYearRecord & { winningMarginSec: number } => r.winningMarginSec !== null);
   const closest = margins.length ? margins.reduce((a, b) => (b.winningMarginSec < a.winningMarginSec ? b : a)) : null;
   const largest = margins.length ? margins.reduce((a, b) => (b.winningMarginSec > a.winningMarginSec ? b : a)) : null;
+  const wins = topByCountAll(timeline.map((r) => r.winnerDriver));
+  const poles = topByCountAll(timeline.map((r) => r.poleSitter));
   return {
-    mostWins: topByCount(timeline.map((r) => r.winnerDriver)),
-    mostPoles: topByCount(timeline.map((r) => r.poleSitter)),
+    mostWins: wins ? { drivers: wins.names, count: wins.count } : null,
+    mostPoles: poles ? { drivers: poles.names, count: poles.count } : null,
     closestMargin: closest ? { year: closest.year, sec: closest.winningMarginSec } : null,
     largestMargin: largest ? { year: largest.year, sec: largest.winningMarginSec } : null,
   };
@@ -204,6 +264,89 @@ export function computeRaceTrends(timeline: CircuitYearRecord[]): RaceTrends {
     avgWinningMarginSec: average(timeline.map((r) => r.winningMarginSec).filter((v): v is number => v !== null)),
     avgFieldMovement: average(timeline.map((r) => r.fieldMovementAvg).filter((v): v is number => v !== null)),
   };
+}
+
+/** The circuit's own lap record - the fastest lap ever actually driven in a RACE at this venue,
+ * never the pole/qualifying time (a different session, a different number, and conflating the two
+ * is exactly the mislabeling this module's own record definitions have to avoid). Null wherever no
+ * year in the window has fastest-lap data at all. */
+export function computeLapRecord(timeline: CircuitYearRecord[]): { driver: string; sec: number; year: number } | null {
+  const withLap = timeline.filter((r): r is CircuitYearRecord & { fastestLapSec: number; fastestLapDriver: string } => r.fastestLapSec !== null && r.fastestLapDriver !== null);
+  if (withLap.length === 0) return null;
+  const fastest = withLap.reduce((a, b) => (b.fastestLapSec < a.fastestLapSec ? b : a));
+  return { driver: fastest.fastestLapDriver, sec: fastest.fastestLapSec, year: fastest.year };
+}
+
+/** Every distinct Grand Prix identity this circuit's timeline has ever run under, most recent
+ * first - "Bahrain Grand Prix" the whole time for a single-identity venue, but "San Marino Grand
+ * Prix" / "Italian Grand Prix" / "Emilia Romagna Grand Prix" all at Imola. A caller uses this to
+ * decide whether "this Grand Prix's own history" and "this circuit's full history" are even two
+ * different things worth showing separately, or the same one. */
+export function distinctRaceNames(timeline: CircuitYearRecord[]): string[] {
+  const seen = new Set<string>();
+  for (const r of timeline) if (r.raceName) seen.add(r.raceName);
+  return [...seen];
+}
+
+/** The subset of a circuit's timeline run under one specific Grand Prix name - what "Grand Prix
+ * History" (as opposed to "Circuit History") actually means: never crediting one event's record
+ * to a different one that happened to share the same physical track. A year with no recorded race
+ * name (a genuine gap in older data) is excluded rather than guessed into either bucket. */
+export function filterByRaceName(timeline: CircuitYearRecord[], raceName: string): CircuitYearRecord[] {
+  return timeline.filter((r) => r.raceName === raceName);
+}
+
+/** Every driver tied for the lead, not just whichever the map iteration happened to see first -
+ * "Historical records with tied results" is a real, not rare, case at this sample size (a handful
+ * of runnings each sharing one winner), and silently picking one implies a false sole record
+ * holder. */
+export function topByCountAll(values: (string | null)[]): { names: string[]; count: number } | null {
+  const counts = new Map<string, number>();
+  for (const v of values) {
+    if (!v) continue;
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  if (counts.size === 0) return null;
+  const max = Math.max(...counts.values());
+  return { names: [...counts.entries()].filter(([, c]) => c === max).map(([name]) => name), count: max };
+}
+
+/** Podium count (not just wins) per driver across a raw set of races - built straight from the
+ * same two real sources buildCircuitTimeline merges, not from CircuitYearRecord (which only ever
+ * keeps the WINNER per year - a podium leaderboard needs every classified top-3 finisher, so this
+ * reads the full results list itself). Deduped by year+driver the same way buildCircuitTimeline
+ * dedupes by year alone - archive_races and the live `races` schema both cover 2018+, and without
+ * this a driver's own overlapping years would be double-counted once as an archive podium and
+ * again as a live one. */
+export function computeMostPodiums(liveRaces: RaceDoc[], archiveRaces: ArchiveRaceDoc[], limit = 5): { driver: string; podiums: number }[] {
+  const seenYears = new Set<number>();
+  const counts = new Map<string, number>();
+  const countRace = (year: number, podiumDrivers: string[]) => {
+    if (seenYears.has(year)) return;
+    seenYears.add(year);
+    for (const name of podiumDrivers) counts.set(name, (counts.get(name) ?? 0) + 1);
+  };
+  // Live first - archive_races is not "pre-2018 only" (see buildCircuitTimeline's own comment), so
+  // whichever source is checked second must be the one that's SKIPPED on a year collision, and
+  // live is this app's own "the current thing that's actually happening" source of truth.
+  for (const race of liveRaces) {
+    if (race.status !== "completed" || !race.results?.length) continue;
+    countRace(
+      race.year,
+      race.results.filter((r) => r.finishPosition <= 3).map((r) => r.driverName),
+    );
+  }
+  for (const race of archiveRaces) {
+    if (!race.results?.length) continue;
+    countRace(
+      race.year,
+      race.results.filter((r) => r.position <= 3).map((r) => r.driverName),
+    );
+  }
+  return [...counts.entries()]
+    .map(([driver, podiums]) => ({ driver, podiums }))
+    .sort((a, b) => b.podiums - a.podiums)
+    .slice(0, limit);
 }
 
 export type WeatherHistory = { dryPct: number | null; avgTempC: number | null; sampleSize: number };

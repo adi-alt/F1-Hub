@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { joinNames } from "@/lib/circuitIntelligence";
 import type { CircuitInsightsData } from "../services/circuits.service";
 
 /**
@@ -57,8 +58,8 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Circuit records</p>
           <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
-            {trackRecords.mostWins && <Fact label="Most wins" value={`${trackRecords.mostWins.driver} (${trackRecords.mostWins.count})`} />}
-            {trackRecords.mostPoles && <Fact label="Most poles" value={`${trackRecords.mostPoles.driver} (${trackRecords.mostPoles.count})`} />}
+            {trackRecords.mostWins && <Fact label="Most wins" value={`${joinNames(trackRecords.mostWins.drivers)} (${trackRecords.mostWins.count})`} />}
+            {trackRecords.mostPoles && <Fact label="Most poles" value={`${joinNames(trackRecords.mostPoles.drivers)} (${trackRecords.mostPoles.count})`} />}
             {raceTrends.poleToWinPct != null && <Fact label="Pole → win" value={`${raceTrends.poleToWinPct.toFixed(0)}%`} />}
             {raceTrends.avgFieldMovement != null && <Fact label="Avg grid shift" value={`${raceTrends.avgFieldMovement.toFixed(1)} places`} />}
             {trackRecords.closestMargin && <Fact label="Closest finish" value={`${trackRecords.closestMargin.sec.toFixed(3)}s (${trackRecords.closestMargin.year})`} />}

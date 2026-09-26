@@ -6,7 +6,7 @@
 
 import type { CircuitFacts } from "@/lib/circuitFacts";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
-import { computeRaceTrends, computeTopWinners, computeTrackRecords, computeWeatherHistory } from "@/lib/circuitIntelligence";
+import { computeRaceTrends, computeTopWinners, computeTrackRecords, computeWeatherHistory, joinNames } from "@/lib/circuitIntelligence";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
 
 export type CircuitAiState = "completed" | "next" | "upcoming" | "unscheduled";
@@ -83,8 +83,8 @@ export function buildCircuitContext(
       currentSeasonRace?.fastestLap?.driverName,
       currentSeasonResult?.biggestGainer?.name,
       ...currentSeasonRace?.podium.map((p) => p.driverName) ?? [],
-      trackRecords.mostWins?.driver,
-      trackRecords.mostPoles?.driver,
+      ...(trackRecords.mostWins?.drivers ?? []),
+      ...(trackRecords.mostPoles?.drivers ?? []),
       ...topWinners.map((w) => w.driver),
     ].filter((v): v is string => !!v),
   )];
@@ -159,8 +159,8 @@ export function formatCircuitContext(ctx: CircuitContext): string {
 
   const records = ctx.records;
   const recordLines = [
-    records.mostWins ? `  most wins: ${records.mostWins.driver} (${records.mostWins.count})` : null,
-    records.mostPoles ? `  most poles: ${records.mostPoles.driver} (${records.mostPoles.count})` : null,
+    records.mostWins ? `  most wins: ${joinNames(records.mostWins.drivers)} (${records.mostWins.count})` : null,
+    records.mostPoles ? `  most poles: ${joinNames(records.mostPoles.drivers)} (${records.mostPoles.count})` : null,
     records.closestMargin ? `  closest finish: ${records.closestMargin.sec.toFixed(3)}s (${records.closestMargin.year})` : null,
     records.largestMargin ? `  largest margin: ${records.largestMargin.sec.toFixed(3)}s (${records.largestMargin.year})` : null,
   ].filter(Boolean);

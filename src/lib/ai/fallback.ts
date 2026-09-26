@@ -6,6 +6,7 @@
 // only the model's prose is missing), so a provider outage doesn't mean a guest-looking homepage for a
 // signed-in user with real favorites.
 
+import { joinNames } from "@/lib/circuitIntelligence";
 import type { RaceIntelligenceContext } from "./context/raceContext";
 import type { HomepageIntelligence } from "./schemas/homepageIntelligence";
 import type { RaceInsight, RaceIntelligenceResult } from "./schemas/raceIntelligence";
@@ -550,7 +551,7 @@ export function generateCircuitTakeFallback(ctx: CircuitContext): SharedCircuitI
       headline: `${ctx.displayName}${ctx.facts ? `, ${ctx.facts.trackType} circuit` : ""}`,
       summary: [
         ctx.facts ? `${ctx.displayName} runs ${ctx.facts.lengthKm.toFixed(1)}km over ${ctx.facts.turns} turns.` : `Full track characteristics for ${ctx.displayName} aren't recorded yet.`,
-        record ? `${record.driver} holds the record with ${record.count} win(s) here.` : "No winner history recorded.",
+        record ? `${joinNames(record.drivers)} ${record.drivers.length === 1 ? "holds" : "hold"} the record with ${record.count} win(s) here.` : "No winner history recorded.",
       ]
         .filter(Boolean)
         .join(" "),
@@ -564,7 +565,7 @@ export function generateCircuitTakeFallback(ctx: CircuitContext): SharedCircuitI
     headline: ctx.displayName,
     summary: [
       ctx.facts ? `${ctx.displayName} is a ${ctx.facts.trackType} circuit of ${ctx.facts.lengthKm.toFixed(1)}km with ${ctx.facts.turns} turns.` : `Detailed characteristics for ${ctx.displayName} aren't recorded yet.`,
-      record ? `${record.driver} holds the record here with ${record.count} wins.` : "This circuit isn't on the current season's calendar.",
+      record ? `${joinNames(record.drivers)} ${record.drivers.length === 1 ? "holds" : "hold"} the record here with ${record.count} wins.` : "This circuit isn't on the current season's calendar.",
     ]
       .filter(Boolean)
       .join(" "),
