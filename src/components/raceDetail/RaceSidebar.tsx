@@ -3,12 +3,13 @@
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { nextSession, sessionCode } from "@/lib/sessionCode";
-import { buildCircuitTimeline, computeTrackRecords, computeTopWinners } from "@/lib/circuitIntelligence";
+import { buildCircuitTimeline, computeTrackRecords, computeTopWinners, joinNames } from "@/lib/circuitIntelligence";
 import { formatLapTime } from "@/lib/format";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceHighlights } from "@/lib/highlights";
 import type { PredictionAccuracy } from "@/lib/predictionAccuracy";
+import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import type { RaceDoc } from "@/lib/types/race";
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ export function RaceSidebar({
   trackHistory,
   highlights,
   accuracy,
+  personalContext,
 }: {
   race: RaceDoc;
   isCompleted: boolean;
@@ -54,6 +56,7 @@ export function RaceSidebar({
   trackHistory?: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
   highlights: RaceHighlights | null;
   accuracy: PredictionAccuracy | null;
+  personalContext: PersonalRaceContext;
 }) {
   const now = useMinuteClock();
   const upcoming = calendarEntry ? nextSession(calendarEntry.sessions, now) : null;
@@ -117,7 +120,7 @@ export function RaceSidebar({
           <FactRow label="Country" value={race.country ?? "—"} />
           {isCompleted && highlights?.poleSitter && <FactRow label="Pole" value={nameFor(highlights.poleSitter)} />}
           {isCompleted && highlights?.fastestLap && <FactRow label="Fastest lap" value={formatLapTime(highlights.fastestLap.timeSec)} />}
-          {!isCompleted && records?.mostWins && <FactRow label="Most wins here" value={`${records.mostWins.driver} (${records.mostWins.count}x)`} />}
+          {!isCompleted && records?.mostWins && <FactRow label="Most wins here" value={`${joinNames(records.mostWins.drivers)} (${records.mostWins.count}x)`} />}
           {!isCompleted && !records?.mostWins && topWinner && <FactRow label="Most wins here" value={`${topWinner.driver} (${topWinner.wins}x)`} />}
         </div>
         {!isCompleted && (
@@ -138,7 +141,42 @@ export function RaceSidebar({
         <p className="mt-1 text-xs text-neutral-500">Open the Apex button in the corner to ask.</p>
       </Card>
 
-      {/* 5. One line, not the panel - the prediction/simulation/results themselves are already a
+      {/* 5. Real user data, never a guessed favorite or a fabricated accuracy number (see
+          personalRaceBriefing.ts's own comment) - a useful first-time prompt in place of an empty
+          personalization card when there's genuinely nothing to show yet. */}
+      {personalContext.isFirstTime ? (
+        <Card>
+          <Label>Your race</Label>
+          <p className="mt-1.5 text-sm text-neutral-300">Set a favorite driver or make a prediction to get a personal briefing here.</p>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            <a href="/profile?section=personalisation" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+              Set favorites →
+            </a>
+            {!isCompleted && (
+              <a href="#prediction" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+                Make a prediction →
+              </a>
+            )}
+          </div>
+        </Card>
+      ) : (
+        (personalContext.favoriteDriver || personalContext.favoriteTeam || personalContext.accuracy) && (
+          <Card>
+            <Label>Your {race.circuit} briefing</Label>
+            <div className="mt-2">
+              {personalContext.favoriteDriver && (
+                <FactRow label={personalContext.favoriteDriver.name} value={`${personalContext.favoriteDriver.winsHere} win${personalContext.favoriteDriver.winsHere === 1 ? "" : "s"} here`} />
+              )}
+              {personalContext.favoriteTeam && (
+                <FactRow label={personalContext.favoriteTeam.name} value={`${personalContext.favoriteTeam.winsHere} win${personalContext.favoriteTeam.winsHere === 1 ? "" : "s"} here`} />
+              )}
+              {personalContext.accuracy && <FactRow label="Your accuracy here" value={`${personalContext.accuracy.correct}/${personalContext.accuracy.total} correct`} />}
+            </div>
+          </Card>
+        )
+      )}
+
+      {/* 6. One line, not the panel - the prediction/simulation/results themselves are already a
           full section in the main column; this is just enough to decide whether to go read it. */}
       {isCompleted && accuracy && (
         <Card>

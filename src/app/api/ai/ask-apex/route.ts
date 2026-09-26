@@ -37,6 +37,7 @@ import { ERAS, eraForYear, isVerifiedChampionYear } from "@/lib/eras";
 import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { buildRaceIntelligenceContext, formatRaceIntelligenceContext } from "@/lib/ai/context/raceContext";
 import { buildArchiveIntelligenceContext } from "@/lib/ai/context/archiveContext";
+import { getPersonalRaceContext } from "@/lib/personalRaceBriefing";
 import { computeStandings } from "@/lib/standings";
 import { raceTitle } from "@/lib/format";
 import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
@@ -219,11 +220,18 @@ async function buildRaceGroundingContext(userId: string, clientContext: Record<s
   const country = race?.country ?? data.currentSeasonRace?.country ?? data.archiveRaces[0]?.country ?? null;
   const displayName = data.facts?.venueName ?? raceTitle(location);
   const circuitCtx = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline);
+  // The user's own real prediction history at this circuit - "how has my accuracy been here"
+  // (one of this scope's own suggested questions) needs THIS, not the shared circuit facts above,
+  // which never carry anyone's personal data. Same source RaceSidebar's own personalization card
+  // reads from (personalRaceBriefing.ts) - reusing data.liveRaces/data.timeline this call already
+  // fetched rather than a second circuit-history round trip.
+  const personal = await getPersonalRaceContext(userId, data.timeline, data.liveRaces).catch(() => null);
 
   return {
     page: "race",
     race: raceIdentity,
     circuit: formatCircuitContext(circuitCtx),
+    personalPredictionHistory: personal?.accuracy ? `You've predicted the winner correctly ${personal.accuracy.correct} out of ${personal.accuracy.total} times at this circuit.` : "No prediction history at this circuit yet.",
   };
 }
 

@@ -37,8 +37,18 @@ export function RaceApexScope({
 }) {
   const suggestions =
     status === "completed"
-      ? ["What decided this race?", "How did the podium compare to the grid?", "What was the biggest surprise?"]
-      : ["What should I watch for this weekend?", "Who has historically performed well here?", "What could make this race unpredictable?", "Explain the key strategic considerations."];
+      ? [
+          "What decided this race?",
+          "What were the biggest historical surprises at this Grand Prix?",
+          "How did the podium compare to the grid?",
+          "How has my prediction accuracy been at this circuit?",
+        ]
+      : [
+          "Who has historically dominated this circuit?",
+          "Which constructor has the best historical record here?",
+          "Who is the youngest driver to win at this Grand Prix?",
+          "How important is qualifying at this circuit?",
+        ];
 
   useRegisterApexScope({
     key: archiveYear !== undefined && archiveRound !== undefined ? `race:archive:${archiveYear}:${archiveRound}` : `race:${raceId ?? `${circuit.toLowerCase()}:${year}`}:${status}`,
