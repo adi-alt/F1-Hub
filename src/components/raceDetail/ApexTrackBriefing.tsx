@@ -107,10 +107,12 @@ export function ApexTrackBriefing({ location, year }: { location: string; year: 
 }
 
 /**
- * The full render - the page's own "Race Intelligence Summary" section, adding `raceDifference`
- * and `historicalPattern` where the model returned them (`trackVsSeason` is deliberately left out:
- * it's about how this circuit compares to the season's own aggregate pace/strategy trends, which
- * is Season's own subject, not a race page's).
+ * The full render - the page's own "Race Intelligence Summary" section, `raceDifference` and
+ * `historicalPattern` where the model returned them. Deliberately NOT `trackTake` - the compact
+ * render above already puts that exact block in Race Story's own pre-race column, and repeating
+ * it here would be the literal same headline and summary appearing twice on one page. Also not
+ * `trackVsSeason`: it's about how this circuit compares to the season's own aggregate pace/
+ * strategy trends, which is Season's own subject, not a race page's.
  *
  * Owns its own RaceSectionCard - and only renders it once there's real content to put in it.
  * While loading, the card shows with a skeleton in place (still says something is coming); once
@@ -133,7 +135,7 @@ export function ApexTrackBriefingSection({ location, year }: { location: string;
     );
   }
 
-  const blocks: (Block | undefined)[] = [state.take?.trackTake, state.take?.raceDifference, state.take?.historicalPattern];
+  const blocks: (Block | undefined)[] = [state.take?.raceDifference, state.take?.historicalPattern];
   const real = blocks.filter((b): b is Block => !!b);
   if (real.length === 0) return null;
 

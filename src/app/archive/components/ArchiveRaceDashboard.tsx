@@ -8,8 +8,9 @@ import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
-import { CircuitRecordsSection } from "@/components/raceDetail/CircuitRecordsSection";
-import { GrandPrixHistorySection } from "@/components/raceDetail/GrandPrixHistorySection";
+import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
+import { RaceCommunitiesSection } from "@/components/raceDetail/RaceCommunitiesSection";
+import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { AgeRecords } from "@/lib/circuitRecords";
@@ -75,6 +76,7 @@ export function ArchiveRaceDashboard({
   trackHistory,
   circuitTimeline,
   ageRecords,
+  raceCommunities,
 }: {
   race: ArchiveRaceDoc;
   circuit: ArchiveCircuit | null;
@@ -85,6 +87,7 @@ export function ArchiveRaceDashboard({
   trackHistory: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
   circuitTimeline: CircuitYearRecord[];
   ageRecords: AgeRecords;
+  raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -257,8 +260,9 @@ export function ArchiveRaceDashboard({
         }
       />
 
-      <GrandPrixHistorySection raceName={race.raceName} timeline={circuitTimeline} />
-      <CircuitRecordsSection
+      <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />
+      <RaceHistorySection
+        raceName={race.raceName}
         circuitName={race.circuitName ?? race.locality ?? race.raceName}
         timeline={circuitTimeline}
         liveRaces={trackHistory.liveRaces}

@@ -34,12 +34,11 @@ function FactRow({ label, value }: { label: string; value: string }) {
  * schedule; one circuit fact, not the full historical breakdown; a one-line prediction, not the
  * panel itself) with an anchor link down to the real thing for whoever wants it.
  *
- * Deliberately not `position: sticky` - this rail's own height varies a lot by race phase (a
- * completed race's is much shorter than an upcoming one's, which adds the schedule/prediction
- * cards below), and this page has no dedicated scroll container of its own to measure a safe
- * sticky offset against. A sticky rail that gets that wrong either overlaps the header or trails
- * off the bottom of a short viewport - both worse than a rail that simply scrolls with the page,
- * which is never wrong.
+ * The sticky positioning itself lives on the caller's own `<aside>` wrapper (SeasonRaceDashboard/
+ * ArchiveRaceDashboard), not here - this component only ever renders the cards. See that
+ * wrapper's own comment for why `top-4` is correct on this app's actual scroll architecture (the
+ * header lives outside the scroll container entirely, not inside it) and why a short rail no
+ * longer trails off leaving empty space next to a longer main column.
  */
 export function RaceSidebar({
   race,

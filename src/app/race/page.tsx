@@ -14,6 +14,7 @@ import { computeHighlights } from "@/lib/highlights";
 import { buildCircuitTimeline } from "@/lib/circuitIntelligence";
 import { computeAgeRecords } from "@/lib/circuitRecords";
 import { getPersonalRaceContext } from "@/lib/personalRaceBriefing";
+import { listRaceCommunities } from "@/lib/supabase/groupPredictions";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
@@ -111,7 +112,11 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext] = await Promise.all([computeAgeRecords(circuitTimeline), getPersonalRaceContext(session.uid, circuitTimeline, liveRaces)]);
+    const [ageRecords, personalContext, raceCommunities] = await Promise.all([
+      computeAgeRecords(circuitTimeline),
+      getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
+      listRaceCommunities(race.id, session.uid),
+    ]);
 
     return (
       <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
@@ -135,6 +140,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             trackHistory={trackHistory}
             circuitTimeline={circuitTimeline}
             personalContext={personalContext}
+            raceCommunities={raceCommunities}
             ageRecords={ageRecords}
           />
         </div>
@@ -169,7 +175,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   ]);
   const archiveWinner = race.results.find((r) => r.position === 1);
   const circuitTimeline = buildCircuitTimeline(circuitLiveRaces, circuitArchiveRaces);
-  const ageRecords = await computeAgeRecords(circuitTimeline);
+  const [ageRecords, raceCommunities] = await Promise.all([computeAgeRecords(circuitTimeline), listRaceCommunities(race.id, session.uid)]);
 
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
@@ -193,6 +199,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           trackHistory={{ liveRaces: circuitLiveRaces, archiveRaces: circuitArchiveRaces }}
           circuitTimeline={circuitTimeline}
           ageRecords={ageRecords}
+          raceCommunities={raceCommunities}
         />
       </div>
     </div>

@@ -9,8 +9,9 @@ import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/Ra
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { ApexTrackBriefing, ApexTrackBriefingSection } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
-import { CircuitRecordsSection } from "@/components/raceDetail/CircuitRecordsSection";
-import { GrandPrixHistorySection } from "@/components/raceDetail/GrandPrixHistorySection";
+import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
+import { RaceCommunitiesSection } from "@/components/raceDetail/RaceCommunitiesSection";
+import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { AgeRecords } from "@/lib/circuitRecords";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
@@ -79,6 +80,7 @@ export function SeasonRaceDashboard({
   circuitTimeline,
   ageRecords,
   personalContext,
+  raceCommunities,
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
@@ -106,6 +108,7 @@ export function SeasonRaceDashboard({
   // throughout for whichever the user genuinely hasn't got yet, never a guessed favorite (see
   // personalRaceBriefing.ts's own comment).
   personalContext: PersonalRaceContext;
+  raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -303,11 +306,16 @@ export function SeasonRaceDashboard({
           preRaceBrief={!isCompleted ? <ApexTrackBriefing location={race.circuit} year={race.year} /> : undefined}
         />
 
+        {/* Real people, before real history - the social/participation layer belongs above the
+            deep circuit archive, not buried under it. Shown for every race phase; degrades to
+            general discovery rather than disappearing when nothing has a prediction for this
+            exact race yet (see RaceCommunitiesSection's own comment). */}
+        <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />
+
         {/* Both shown for every race phase, not gated on isCompleted - "who's won this race
             before" and "the circuit's own all-time records" are exactly as true and exactly as
             useful before a race weekend as after one. See each component's own comment. */}
-        <GrandPrixHistorySection raceName={race.name} timeline={circuitTimeline} />
-        <CircuitRecordsSection circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
+        <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
 
         {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
 
@@ -463,7 +471,18 @@ export function SeasonRaceDashboard({
       )}
       </div>
 
-      <aside className="min-w-0">
+      {/* Sticky, not just placed in a taller column - a short sidebar next to a long main column
+          otherwise ends early and leaves a wide, empty gap beneath itself for the rest of the
+          page's scroll, which is exactly the "wasted space" this was called out for. `top-4`
+          (not the header's own height) because the header lives OUTSIDE this page's scroll
+          container entirely (SmoothScroll.tsx mounts it as a non-scrolling flex sibling of
+          `[data-app-scroll]`, not inside it) - it's already permanently visible regardless of
+          scroll position, so the sidebar only needs a small gap under it, not a header-height
+          offset. `self-start` keeps it from being stretched to the grid row's own height (which
+          would silently defeat position:sticky - a stretched item has nowhere left to move within
+          its own box). The `max-h`/overflow pair is a safety net for the rare case its own content
+          genuinely exceeds the viewport, not the common one. */}
+      <aside className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
         <RaceSidebar race={race} isCompleted={isCompleted} calendarEntry={calendarEntry} trackHistory={trackHistory} highlights={highlights} accuracy={accuracy} personalContext={personalContext} />
       </aside>
     </div>
