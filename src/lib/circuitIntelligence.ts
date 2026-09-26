@@ -250,6 +250,22 @@ export function computeTopWinners(timeline: CircuitYearRecord[], limit = 5): { d
     .slice(0, limit);
 }
 
+/** The same ranked win count as computeTopWinners, by constructor instead of driver - real team
+ * names as recorded per year (`winnerTeam`), so a team that's been through a rebrand across this
+ * timeline's own span (a real, not-uncommon case) counts each era's own name separately rather
+ * than silently merging them under an identity this data has no record of equating. */
+export function computeTopWinningTeams(timeline: CircuitYearRecord[], limit = 5): { team: string; wins: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of timeline) {
+    if (!r.winnerTeam) continue;
+    counts.set(r.winnerTeam, (counts.get(r.winnerTeam) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([team, wins]) => ({ team, wins }))
+    .sort((a, b) => b.wins - a.wins)
+    .slice(0, limit);
+}
+
 export type RaceTrends = {
   poleToWinPct: number | null;
   avgWinningMarginSec: number | null;

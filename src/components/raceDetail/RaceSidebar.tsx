@@ -2,7 +2,7 @@
 
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
-import { nextSession, sessionCode } from "@/lib/sessionCode";
+import { liveSession, nextSession, sessionCode } from "@/lib/sessionCode";
 import { buildCircuitTimeline, computeTrackRecords, computeTopWinners, joinNames } from "@/lib/circuitIntelligence";
 import { formatLapTime } from "@/lib/format";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
@@ -59,6 +59,7 @@ export function RaceSidebar({
 }) {
   const now = useMinuteClock();
   const upcoming = calendarEntry ? nextSession(calendarEntry.sessions, now) : null;
+  const live = calendarEntry ? liveSession(calendarEntry.sessions, now) : null;
   const countdown = upcoming ? formatCountdown(parseUtcDateTime(upcoming.date).getTime(), now) : "";
   const remainingSessions = calendarEntry ? calendarEntry.sessions.filter((s) => parseUtcDateTime(s.date).getTime() > now) : [];
 
@@ -79,6 +80,19 @@ export function RaceSidebar({
           <>
             <Label>Result</Label>
             <p className="mt-1.5 text-sm text-neutral-300">{winner ? <>Winner: <span className="font-semibold text-white">{winner.driverName}</span></> : "Results posted"}</p>
+            {/* Real pipeline provenance (race.resultsSource), not a guess - "openf1_preliminary"
+                means this came from live timing ahead of the FIA's own official classification,
+                and can still change (a post-race steward decision can reorder it). */}
+            {race.resultsSource === "openf1_preliminary" && <p className="mt-1 text-xs text-amber-400">Preliminary - pending official classification</p>}
+          </>
+        ) : live ? (
+          <>
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-400">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
+              Live now
+            </p>
+            <p className="mt-1 text-xl font-semibold text-white">{live.label}</p>
+            <p className="mt-0.5 text-xs text-neutral-500">Session in progress (estimated) - see Race Weekend below for the full schedule.</p>
           </>
         ) : upcoming ? (
           <>

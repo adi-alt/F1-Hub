@@ -37,3 +37,32 @@ export function nextSession<T extends { date: string }>(sessions: T[], nowMs: nu
   const upcoming = sessions.filter((s) => parseUtcDateTime(s.date).getTime() > nowMs).sort((a, b) => parseUtcDateTime(a.date).getTime() - parseUtcDateTime(b.date).getTime());
   return upcoming[0] ?? null;
 }
+
+// A genuine approximation, stated plainly rather than hidden: this app's data model has no
+// session END time anywhere (calendar.sessions[] is a list of start times only - confirmed live),
+// so "is a session live right now" can't be read off real data the way "has it started" can. These
+// are real, typical FIA session lengths (with headroom, not the tightest possible bound) used only
+// to decide whether the label says "Live" - nothing scored, paid out, or gated depends on this
+// being exact, unlike the real timestamp comparisons the rest of this file does.
+const APPROX_SESSION_DURATION_MS: Record<string, number> = {
+  P1: 75 * 60_000,
+  P2: 75 * 60_000,
+  P3: 75 * 60_000,
+  Q: 75 * 60_000,
+  SQ: 75 * 60_000,
+  SR: 45 * 60_000,
+  R: 3 * 60 * 60_000,
+};
+
+/** The most recently STARTED session, if it's still plausibly within its own typical length - the
+ * one state nextSession alone can't express (a session that's already begun isn't "next" anymore,
+ * but a countdown that just silently jumps to the FOLLOWING session reads as if the current one
+ * never happened). Null once genuinely nothing is likely still running. */
+export function liveSession<T extends { label: string; date: string }>(sessions: T[], nowMs: number): T | null {
+  const started = sessions.filter((s) => parseUtcDateTime(s.date).getTime() <= nowMs).sort((a, b) => parseUtcDateTime(b.date).getTime() - parseUtcDateTime(a.date).getTime());
+  const mostRecent = started[0];
+  if (!mostRecent) return null;
+  const elapsedMs = nowMs - parseUtcDateTime(mostRecent.date).getTime();
+  const duration = APPROX_SESSION_DURATION_MS[sessionCode(mostRecent.label)] ?? 90 * 60_000;
+  return elapsedMs <= duration ? mostRecent : null;
+}

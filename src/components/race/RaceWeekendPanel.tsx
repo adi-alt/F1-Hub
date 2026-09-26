@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
-import { nextSession, sessionCode } from "@/lib/sessionCode";
+import { liveSession, nextSession, sessionCode } from "@/lib/sessionCode";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 
 /** The "what's happening this weekend" panel for a race that hasn't finished yet - a countdown to
@@ -24,6 +24,10 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
   // weekend away, and it retargets itself session by session as each one passes.
   const upcoming = nextSession(calendarEntry.sessions, now);
   const countdown = upcoming ? formatCountdown(parseUtcDateTime(upcoming.date).getTime(), now) : "";
+  // A genuine approximation (this app has no real session-end timestamp - see liveSession's own
+  // comment), used only for the "Live" label itself, never for anything a real timestamp
+  // comparison already handles correctly (the countdown above, `completed` below).
+  const live = liveSession(calendarEntry.sessions, now);
   // Race day has come and gone but the pipeline hasn't posted a completed status/results yet (it
   // runs on a batch schedule, not live - see races.ts's getRace docstring) - an honest "results are
   // coming, not stuck" note rather than a countdown sitting at 0m or silently vanishing.
@@ -37,28 +41,43 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
             {calendarEntry.sessions.map((s) => {
               const completed = parseUtcDateTime(s.date).getTime() <= now;
               const isNext = upcoming?.label === s.label;
+              const isLive = live?.label === s.label;
               return (
                 <div
                   key={s.label}
                   className={
-                    isNext
-                      ? "rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.08] px-3 py-1.5 text-xs"
-                      : `rounded-lg border px-3 py-1.5 text-xs ${completed ? "border-[var(--f1-line)] bg-white/[0.03] text-neutral-500" : "border-[var(--f1-line)] bg-[var(--f1-carbon)] text-neutral-300"}`
+                    isLive
+                      ? "rounded-lg border border-emerald-500/40 bg-emerald-500/[0.1] px-3 py-1.5 text-xs"
+                      : isNext
+                        ? "rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.08] px-3 py-1.5 text-xs"
+                        : `rounded-lg border px-3 py-1.5 text-xs ${completed ? "border-[var(--f1-line)] bg-white/[0.03] text-neutral-500" : "border-[var(--f1-line)] bg-[var(--f1-carbon)] text-neutral-300"}`
                   }
                 >
-                  <span className={`font-semibold ${isNext ? "text-[var(--f1-red)]" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
-                  <span className={`ml-1.5 font-mono text-[11px] ${isNext ? "text-neutral-300" : "text-neutral-500"}`}>
-                    {parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
+                  {isLive && <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />}
+                  <span className={`font-semibold ${isLive ? "text-emerald-400" : isNext ? "text-[var(--f1-red)]" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
+                  <span className={`ml-1.5 font-mono text-[11px] ${isLive || isNext ? "text-neutral-300" : "text-neutral-500"}`}>
+                    {isLive ? "Live now" : parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
               );
             })}
           </div>
-          {countdown && upcoming && (
+          {live ? (
             <div className="text-right">
-              <p className="text-[11px] uppercase tracking-wide text-neutral-500">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
-              <p className="font-mono text-lg font-semibold text-white">{countdown}</p>
+              <p className="flex items-center justify-end gap-1.5 text-[11px] uppercase tracking-wide text-emerald-400">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
+                Live now
+              </p>
+              <p className="text-sm font-semibold text-white">{live.label}</p>
             </div>
+          ) : (
+            countdown &&
+            upcoming && (
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-wide text-neutral-500">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
+                <p className="font-mono text-lg font-semibold text-white">{countdown}</p>
+              </div>
+            )
           )}
         </div>
       </RaceSectionCard>

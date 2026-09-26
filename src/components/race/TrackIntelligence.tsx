@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
+import { WinnersBarList } from "@/components/raceDetail/WinnersBarList";
 import {
   buildCircuitTimeline,
   computeRaceTrends,
@@ -48,48 +49,6 @@ function StatGrid({ cells }: { cells: { label: string; value: string; sub?: stri
     <div className="grid grid-cols-2 gap-x-5 gap-y-3.5 sm:grid-cols-4 sm:gap-y-0">
       {cells.map((c) => (
         <StatCell key={c.label} {...c} />
-      ))}
-    </div>
-  );
-}
-
-// Rank + name + proportional bar + real count - the same visual language SimulationPanel's own
-// ProbabilityBars uses for win/podium probability, just for a raw win count instead of a percentage
-// (that component's own label formatting - `.toFixed(0)%` - is specific to probabilities, not
-// reusable as-is for a count).
-function WinnersBarList({ entries, unit = "win" }: { entries: { driver: string; count: number }[]; unit?: string }) {
-  const max = Math.max(...entries.map((e) => e.count), 1);
-  return (
-    <div>
-      {entries.map((e, i) => (
-        <motion.div
-          key={e.driver}
-          initial={{ opacity: 0, x: -6 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.2, delay: i * 0.03 }}
-          className="flex items-center gap-2.5 py-[3px]"
-        >
-          <span className="w-4 shrink-0 text-right font-mono text-[11px] text-neutral-600">{i + 1}</span>
-          {/* Full driver names here (winnerDriver, unlike Simulation's own 3-letter codes) - a
-              fixed w-40 rather than ProbabilityBars' w-12, wide enough for "Michael Schumacher"
-              (confirmed live at w-32 it still clipped to "Schumac…") - truncate stays as the
-              graceful fallback for the rare longer name, not chased further than this. */}
-          <span className="w-40 shrink-0 truncate text-sm font-medium text-white">{e.driver}</span>
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
-            <motion.div
-              className="h-full w-full origin-left rounded-full"
-              initial={{ scaleX: 0 }}
-              whileInView={{ scaleX: e.count / max }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              style={{ background: "var(--f1-red)" }}
-            />
-          </div>
-          <span className="w-20 shrink-0 text-right text-xs text-neutral-500">
-            {e.count} {e.count === 1 ? unit : `${unit}s`}
-          </span>
-        </motion.div>
       ))}
     </div>
   );
@@ -163,7 +122,7 @@ export function TrackIntelligence({ liveRaces, archiveRaces, circuitName }: { li
         {topWinners.length > 0 && (
           <div className={recordCells.length > 0 ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
             <RaceSubSection label="Historical Performance" description="Most race wins at this circuit." first>
-              <WinnersBarList entries={topWinners.map((w) => ({ driver: w.driver, count: w.wins }))} unit="win" />
+              <WinnersBarList entries={topWinners.map((w) => ({ name: w.driver, count: w.wins }))} unit="win" />
             </RaceSubSection>
           </div>
         )}

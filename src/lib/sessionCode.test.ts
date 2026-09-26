@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextSession, sessionCode } from "./sessionCode";
+import { liveSession, nextSession, sessionCode } from "./sessionCode";
 
 test("sessionCode reads a short code back out of whatever FastF1 actually calls a session", () => {
   assert.equal(sessionCode("Practice 1"), "P1");
@@ -44,4 +44,36 @@ test("nextSession treats naive pipeline datetimes as UTC, not the runtime's loca
   const inOneHourUtc = new Date(nowMs + 60 * 60 * 1000).toISOString().slice(0, 19);
   const sessions = [{ label: "Practice 1", date: inOneHourUtc }];
   assert.equal(nextSession(sessions, nowMs)?.label, "Practice 1");
+});
+
+test("liveSession is the most recently started session, while it's still within its own typical length", () => {
+  const sessions = [
+    { label: "Practice 1", date: "2026-10-02T10:00:00" },
+    { label: "Qualifying", date: "2026-10-03T14:00:00" },
+    { label: "Race", date: "2026-10-04T14:00:00" },
+  ];
+  // 30 minutes into qualifying - still plausibly live.
+  const duringQuali = new Date("2026-10-03T14:30:00Z").getTime();
+  assert.equal(liveSession(sessions, duringQuali)?.label, "Qualifying");
+});
+
+test("liveSession is null before any session has started, and null again well after the last one", () => {
+  const sessions = [{ label: "Race", date: "2026-10-04T14:00:00" }];
+  const beforeRace = new Date("2026-10-04T13:00:00Z").getTime();
+  assert.equal(liveSession(sessions, beforeRace), null);
+
+  const longAfterRace = new Date("2026-10-04T20:00:00Z").getTime();
+  assert.equal(liveSession(sessions, longAfterRace), null);
+});
+
+test("liveSession doesn't call a just-passed short session live once the next one is already well underway", () => {
+  const sessions = [
+    { label: "Sprint Qualifying", date: "2026-10-02T10:00:00" },
+    { label: "Sprint", date: "2026-10-02T14:00:00" },
+  ];
+  // 3 hours after Sprint Qualifying started (well past its own typical length), and 1 minute into
+  // Sprint - liveSession should read the field as "Sprint is live", not "Sprint Qualifying still
+  // is" just because it looked at the two sessions in the wrong order.
+  const duringSprint = new Date("2026-10-02T14:01:00Z").getTime();
+  assert.equal(liveSession(sessions, duringSprint)?.label, "Sprint");
 });
