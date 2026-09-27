@@ -14,19 +14,26 @@ import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { PredictionEntry, type DriverOption } from "./PredictionEntry";
 
 /**
- * An open prediction round, rendered in the feed alongside discussions rather than hidden behind a
- * community's own Predictions tab.
+ * A prediction round, rendered in the feed alongside discussions rather than hidden behind a
+ * community's own Predictions tab - open, closed-awaiting-result, or (for a little while after an
+ * admin resolves it, see listMyPredictions' own comment) resolved with a real outcome.
  *
  * Deliberately built from the same pieces as PostCard - the same frosted surface, the same C/
  * community identity, the same compact control row - so it reads as a post in the stream rather
  * than a widget dropped into it. The accent that tells them apart is one small badge and a red
  * edge, not a different card system.
  *
+ * The market itself (predictionTypeLabels[type] - "Race winner", "Podium", ...) is the heading;
+ * the race name is a small context line above it, not a second bold title - a community running
+ * several rounds for the same race used to render three cards with an identical headline and
+ * nothing to tell them apart at a glance.
+ *
  * Entering still happens on the community's own Predictions tab. That's where the real guess UI
  * lives (a driver roster, a three-slot podium picker, wallet validation), and duplicating it here
  * would be a second implementation of the same interaction that could drift from the first. The
- * card carries everything needed to DECIDE - cost, deadline, what the community thinks, what you
- * picked - and hands off for the act itself.
+ * card carries everything needed to DECIDE - cost, real entry count, deadline, what the community
+ * thinks, what you picked, and once resolved, what actually happened - and hands off for the act
+ * itself.
  */
 export function PredictionFeedCard({
   prediction,
@@ -49,6 +56,7 @@ export function PredictionFeedCard({
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
   const closed = !!raceAt && raceAt <= now;
   const urgent = !!raceAt && raceAt > now && raceAt - now < 24 * 60 * 60 * 1000;
+  const resolved = prediction.status === "resolved";
 
   return (
     <motion.article
@@ -83,19 +91,26 @@ export function PredictionFeedCard({
         </span>
       </div>
 
-      <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{prediction.raceName}</p>
-      {/* Type, cost and deadline are one line of metadata, not three stacked blocks - together
-          they answer "what is this and should I act now", which is a single question. */}
+      {/* Race is context, not the headline - the market itself (what you're actually predicting)
+          is. A community that runs several rounds for the same race (winner, podium, pole) used
+          to render three cards with the exact same bold title and nothing to tell them apart at a
+          glance. */}
+      <p className="mt-1.5 truncate text-[10.5px] font-semibold uppercase tracking-[0.1em] text-neutral-500">{prediction.raceName}</p>
+      <p className="mt-0.5 text-[15px] font-semibold leading-snug text-white">{predictionTypeLabels[prediction.type]}</p>
+      {/* Cost, real entry count and deadline are one line of metadata, not three stacked blocks -
+          together they answer "what is this and should I act now", which is a single question.
+          entryCount is a real group_prediction_entries count, never a placeholder - a round with
+          zero entries says so plainly rather than a generic "not enough responses yet". */}
       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11.5px] leading-tight text-neutral-500">
-        <span>{predictionTypeLabels[prediction.type]}</span>
-        <span aria-hidden className="text-neutral-700">·</span>
         <span className="font-semibold tabular-nums text-neutral-300">{prediction.entryPoints} pts</span>
+        <span aria-hidden className="text-neutral-700">·</span>
+        <span className="tabular-nums">{prediction.entryCount === 0 ? "No entries yet" : `${prediction.entryCount} ${prediction.entryCount === 1 ? "entry" : "entries"}`}</span>
         {countdown ? (
           <>
             <span aria-hidden className="text-neutral-700">·</span>
             <span className={`tabular-nums ${urgent ? "font-semibold text-[var(--f1-red)]" : ""}`}>closes in {countdown}</span>
           </>
-        ) : closed ? (
+        ) : closed && !resolved ? (
           <>
             <span aria-hidden className="text-neutral-700">·</span>
             <span>closed, awaiting result</span>
@@ -103,10 +118,12 @@ export function PredictionFeedCard({
         ) : null}
       </p>
 
-      <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
+      {!resolved && <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />}
 
       <div className="flex flex-wrap items-center gap-2">
-        {entered ? (
+        {resolved ? (
+          <ResolvedResult prediction={prediction} />
+        ) : entered ? (
           <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.08] px-2.5 text-[11.5px] text-emerald-200/90">
             <CheckIcon />
             <span className="shrink-0 font-semibold">Entered</span>
@@ -125,6 +142,38 @@ export function PredictionFeedCard({
         )}
       </div>
     </motion.article>
+  );
+}
+
+/** The round's real, final outcome - `correctAnswerLabel`/`myPointsAwarded` are only ever set once
+ * `resolvePrediction` has actually run (see groupPredictions.ts), so this never guesses at a result
+ * ahead of the real one. A viewer who never entered sees the outcome but no personal verdict -
+ * there is nothing of theirs to score. */
+function ResolvedResult({ prediction }: { prediction: FeedPrediction }) {
+  const correct = prediction.hasEntered && prediction.myPointsAwarded !== null && prediction.myPointsAwarded > 0;
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {prediction.correctAnswerLabel && (
+        <span className="min-w-0 truncate text-[11.5px] text-neutral-300">
+          Result: <span className="font-semibold text-white">{prediction.correctAnswerLabel}</span>
+        </span>
+      )}
+      {prediction.hasEntered ? (
+        <span
+          className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[11.5px] font-semibold ${
+            correct ? "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-200/90" : "border-white/[0.08] bg-white/[0.03] text-neutral-400"
+          }`}
+        >
+          {correct ? <CheckIcon /> : null}
+          {correct ? `Correct · +${prediction.myPointsAwarded} pts` : "Incorrect"}
+        </span>
+      ) : (
+        <span className="shrink-0 text-[11.5px] text-neutral-500">You didn&apos;t enter this round.</span>
+      )}
+      <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="shrink-0 text-[11.5px] font-medium text-neutral-400 transition hover:text-white">
+        View result →
+      </Link>
+    </div>
   );
 }
 

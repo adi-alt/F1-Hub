@@ -13,7 +13,7 @@ import { generateAskApexAnswer } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
 import { getGroupDetail, getGroupLeaderboard, getMemberRole, getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts, listPosts } from "@/lib/supabase/groupPosts";
-import { listMyOpenPredictions, listPredictions } from "@/lib/supabase/groupPredictions";
+import { listMyPredictions, listPredictions } from "@/lib/supabase/groupPredictions";
 import { getUserProfile } from "@/lib/supabase/users";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
 import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
@@ -680,13 +680,13 @@ async function buildCommunityGroundingContext(
 
 /** GroupsHomeClient's "communities-index" scope - deliberately no `communityId` (it isn't scoped
  * to one community at all), so buildCommunityGroundingContext above never applies to it. Same
- * refetch-don't-trust rule regardless: getUserGroups/listMyOpenPredictions/listFeedPosts are the
+ * refetch-don't-trust rule regardless: getUserGroups/listMyPredictions/listFeedPosts are the
  * exact same real, per-user queries the client already used to compute this snapshot itself - this
  * just re-derives it here instead of trusting whatever the client happened to send. */
 async function buildCommunityIndexGroundingContext(userId: string): Promise<Record<string, unknown> | null> {
   const [groups, predictions, feed] = await Promise.all([
     getUserGroups(userId).catch(() => [] as Awaited<ReturnType<typeof getUserGroups>>),
-    listMyOpenPredictions(userId).catch(() => [] as Awaited<ReturnType<typeof listMyOpenPredictions>>),
+    listMyPredictions(userId).catch(() => [] as Awaited<ReturnType<typeof listMyPredictions>>),
     listFeedPosts(userId).catch(() => ({ posts: [], nextCursor: null }) as Awaited<ReturnType<typeof listFeedPosts>>),
   ]);
   if (groups.length === 0) return null;

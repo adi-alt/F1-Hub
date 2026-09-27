@@ -86,7 +86,9 @@ export function PredictionTrendBars({
           {isLoading ? (
             <TrendSkeleton compact={compact} />
           ) : trend && trend.total < MIN_ENTRIES_FOR_TREND ? (
-            <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs text-neutral-600`}>{trend.total === 0 ? "No entries yet." : `Not enough responses yet (${trend.total}).`}</p>
+            <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs text-neutral-600`}>
+              {trend.total === 0 ? "No entries yet." : `${trend.total} ${trend.total === 1 ? "entry" : "entries"} so far - not enough yet for a trend.`}
+            </p>
           ) : trend ? (
             <TrendBody trend={trend} isPodium={isPodium} compact={compact} />
           ) : null}

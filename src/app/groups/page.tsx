@@ -3,7 +3,7 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
-import { listMyOpenPredictions } from "@/lib/supabase/groupPredictions";
+import { listMyPredictions } from "@/lib/supabase/groupPredictions";
 import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
@@ -68,7 +68,7 @@ export default async function GroupsPage() {
   const [groups, feed, predictions, raceContext, pulse] = await Promise.all([
     getUserGroups(session.uid),
     listFeedPosts(session.uid),
-    listMyOpenPredictions(session.uid),
+    listMyPredictions(session.uid),
     getRaceContext(),
     // Reads the previous visit timestamp and stamps a new one - so it must run exactly once per
     // page load, here, not inside a client component that could re-run and collapse the window.

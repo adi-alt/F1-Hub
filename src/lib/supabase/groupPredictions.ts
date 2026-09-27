@@ -16,18 +16,20 @@ export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 
-// Omit entryCount, not reuse it with a placeholder value - this summary genuinely doesn't fetch it
-// (see listMyOpenPredictions' own comment), and a fabricated 0 would look like real data to any
-// caller that didn't already know better. `myGuess` IS fetched, because the same query that
-// establishes `hasEntered` already has to read the row it lives on - so "Your pick: VER" costs
-// nothing beyond selecting one more column.
-export type FeedPrediction = Omit<GroupPrediction, "entryCount" | "myEntry"> & {
+export type FeedPrediction = Omit<GroupPrediction, "myEntry"> & {
   groupName: string;
   hasEntered: boolean;
   myGuess: PredictionGuess | null;
   /** The viewer's own pick, resolved to real driver names server-side ("Max Verstappen", not
    * "VER"). Null when they haven't entered - never a placeholder. */
   myGuessLabel: string | null;
+  /** The real per-entry payout once resolved (0 for a wrong guess, a positive number for a
+   * correct one), straight off the same entries row myGuess comes from. Null before resolution,
+   * and null when the viewer never entered - `hasEntered` is what tells those two apart. */
+  myPointsAwarded: number | null;
+  /** `correctAnswer` resolved to a real driver name where the type names one, the same way
+   * myGuessLabel resolves the viewer's own guess. Null until status is "resolved". */
+  correctAnswerLabel: string | null;
 };
 
 /** A stored guess rendered as something a person can read. Driver codes become real names where
@@ -125,62 +127,96 @@ function labelForTrendKey(type: PredictionType, key: string, driverNameByCode: M
   return driverNameByCode.get(key) ?? key;
 }
 
-/** Groups home's right-sidebar widget: open predictions across every group the user has joined,
- * most recent first - a real cross-group query, not a per-group fetch repeated N times. Kept to a
- * summary (race/type/entry cost/whether they've already entered); actually entering still happens
- * in the real group's own Predictions tab (GroupPredictions.tsx already owns the guess UI, the
- * driver roster lookup, etc. - duplicating that into a sidebar widget would be a second, parallel
- * implementation of the same interaction for no real benefit). */
-export async function listMyOpenPredictions(uid: string, limit = 5): Promise<FeedPrediction[]> {
+/** A resolved round still worth seeing in the feed - a viewer who entered wants to know they won
+ * or lost, not just have the round quietly disappear the moment an admin resolves it. Past this
+ * window it drops out of the feed for good; the community's own Predictions tab
+ * (GroupPredictions.tsx) stays the permanent record. */
+const RECENT_RESOLVED_WINDOW_DAYS = 7;
+
+/** Groups home's right-sidebar widget and main feed: every open prediction across every group the
+ * user has joined, plus any of their groups' rounds resolved in the last RECENT_RESOLVED_WINDOW_DAYS
+ * - a real cross-group query, not a per-group fetch repeated N times. Kept to a summary
+ * (race/type/entry cost/whether they've already entered/the real outcome once resolved); actually
+ * entering still happens in the real group's own Predictions tab (GroupPredictions.tsx already owns
+ * the guess UI, the driver roster lookup, etc. - duplicating that into a feed widget would be a
+ * second, parallel implementation of the same interaction for no real benefit).
+ *
+ * Callers that want ONLY genuinely open rounds (the right-sidebar's "Active predictions" widget)
+ * filter `status === "open"` themselves rather than this function silently narrowing back down -
+ * see ActivePredictions' own filter. */
+export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPrediction[]> {
   const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
-  if (membershipsError) throw new Error(`listMyOpenPredictions: ${membershipsError.message}`);
+  if (membershipsError) throw new Error(`listMyPredictions: ${membershipsError.message}`);
   const groupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
   if (groupIds.length === 0) return [];
 
+  const resolvedCutoff = new Date(Date.now() - RECENT_RESOLVED_WINDOW_DAYS * 86_400_000).toISOString();
   const { data: predictions, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_predictions").select("*").in("group_id", groupIds).eq("status", "open").order("created_at", { ascending: false }).limit(limit),
+    supabaseAdmin
+      .from("group_predictions")
+      .select("*")
+      .in("group_id", groupIds)
+      .or(`status.eq.open,and(status.eq.resolved,resolved_at.gte.${resolvedCutoff})`)
+      .order("created_at", { ascending: false })
+      .limit(limit),
   );
-  if (error) throw new Error(`listMyOpenPredictions: ${error.message}`);
+  if (error) throw new Error(`listMyPredictions: ${error.message}`);
   if (!predictions?.length) return [];
 
   const predictionIds = predictions.map((p) => p.id as string);
   const raceIds = [...new Set(predictions.map((p) => p.race_id as string))];
   const predictionGroupIds = [...new Set(predictions.map((p) => p.group_id as string))];
-  const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }] = await Promise.all([
+  const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }, { data: allEntries, error: allEntriesError }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("races").select("id, name, race_date, status").in("id", raceIds)),
     queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").in("id", predictionGroupIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id, guess").eq("user_id", uid).in("prediction_id", predictionIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id, guess, points_awarded").eq("user_id", uid).in("prediction_id", predictionIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id").in("prediction_id", predictionIds)),
   ]);
-  if (racesError) throw new Error(`listMyOpenPredictions: ${racesError.message}`);
-  if (groupsError) throw new Error(`listMyOpenPredictions: ${groupsError.message}`);
-  if (entriesError) throw new Error(`listMyOpenPredictions: ${entriesError.message}`);
+  if (racesError) throw new Error(`listMyPredictions: ${racesError.message}`);
+  if (groupsError) throw new Error(`listMyPredictions: ${groupsError.message}`);
+  if (entriesError) throw new Error(`listMyPredictions: ${entriesError.message}`);
+  if (allEntriesError) throw new Error(`listMyPredictions: ${allEntriesError.message}`);
 
   const raceById = new Map((races ?? []).map((r) => [r.id as string, r]));
   const groupNameById = new Map((groupsData ?? []).map((g) => [g.id as string, g.name as string]));
   const myGuessByPrediction = new Map((myEntries ?? []).map((e) => [e.prediction_id as string, (e.guess as PredictionGuess | null) ?? null]));
-  // Only pay for the roster when the viewer has actually entered something that needs naming -
-  // the common case (nothing entered yet) skips the lookup entirely. getAllCurrentDrivers is
-  // itself cached, so even when it does run it is not a fresh round trip per request.
-  const driverNameByCode = myGuessByPrediction.size > 0 ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
+  const myPointsAwardedByPrediction = new Map((myEntries ?? []).map((e) => [e.prediction_id as string, (e.points_awarded as number | null) ?? null]));
+  const entryCountByPrediction = new Map<string, number>();
+  for (const e of allEntries ?? []) entryCountByPrediction.set(e.prediction_id as string, (entryCountByPrediction.get(e.prediction_id as string) ?? 0) + 1);
 
-  return predictions.map((p) => ({
-    id: p.id as string,
-    groupId: p.group_id as string,
-    groupName: groupNameById.get(p.group_id as string) ?? "a group",
-    raceId: p.race_id as string,
-    raceName: (raceById.get(p.race_id as string)?.name as string | undefined) ?? (p.race_id as string),
-    raceDate: (raceById.get(p.race_id as string)?.race_date as string | null | undefined) ?? null,
-    raceStatus: (raceById.get(p.race_id as string)?.status as string | null | undefined) ?? null,
-    type: p.type as PredictionType,
-    entryPoints: p.entry_points as number,
-    status: p.status as PredictionStatus,
-    correctAnswer: (p.correct_answer as PredictionGuess | null) ?? null,
-    createdAt: p.created_at as string,
-    resolvedAt: (p.resolved_at as string | null) ?? null,
-    hasEntered: myGuessByPrediction.has(p.id as string),
-    myGuess: myGuessByPrediction.get(p.id as string) ?? null,
-    myGuessLabel: resolveMyGuessLabel(p.type as PredictionType, myGuessByPrediction.get(p.id as string) ?? null, driverNameByCode),
-  }));
+  // Only pay for the roster when it's actually needed - either the viewer entered something that
+  // needs naming, or a resolved round's own correct answer names a driver. getAllCurrentDrivers is
+  // itself cached, so even when it does run it is not a fresh round trip per request.
+  const needsDriverNames =
+    myGuessByPrediction.size > 0 ||
+    predictions.some((p) => p.correct_answer !== null && (["winner", "podium", "fastest_lap", "pole"] as string[]).includes(p.type as string));
+  const driverNameByCode = needsDriverNames ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
+
+  return predictions.map((p) => {
+    const type = p.type as PredictionType;
+    const correctAnswer = (p.correct_answer as PredictionGuess | null) ?? null;
+    return {
+      id: p.id as string,
+      groupId: p.group_id as string,
+      groupName: groupNameById.get(p.group_id as string) ?? "a group",
+      raceId: p.race_id as string,
+      raceName: (raceById.get(p.race_id as string)?.name as string | undefined) ?? (p.race_id as string),
+      raceDate: (raceById.get(p.race_id as string)?.race_date as string | null | undefined) ?? null,
+      raceStatus: (raceById.get(p.race_id as string)?.status as string | null | undefined) ?? null,
+      type,
+      entryPoints: p.entry_points as number,
+      status: p.status as PredictionStatus,
+      correctAnswer,
+      correctAnswerLabel: correctAnswer === null ? null : describeGuess(type, correctAnswer, driverNameByCode),
+      createdAt: p.created_at as string,
+      resolvedAt: (p.resolved_at as string | null) ?? null,
+      entryCount: entryCountByPrediction.get(p.id as string) ?? 0,
+      hasEntered: myGuessByPrediction.has(p.id as string),
+      myGuess: myGuessByPrediction.get(p.id as string) ?? null,
+      myGuessLabel: resolveMyGuessLabel(type, myGuessByPrediction.get(p.id as string) ?? null, driverNameByCode),
+      myPointsAwarded: myPointsAwardedByPrediction.get(p.id as string) ?? null,
+    };
+  });
 }
 
 function resolveMyGuessLabel(type: PredictionType, guess: PredictionGuess | null, driverNameByCode: Map<string, string>): string | null {

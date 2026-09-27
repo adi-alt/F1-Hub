@@ -74,7 +74,7 @@ export function GroupsHomeClient({
   //  - "All" selected: the communities index - what you're in and what's happening across them.
   //    No communityId, so the route's own buildCommunityIndexGroundingContext re-derives the real
   //    facts (your groups, open predictions, recent feed posts) server-side from the same
-  //    getUserGroups/listMyOpenPredictions/listFeedPosts queries this page's own server component
+  //    getUserGroups/listMyPredictions/listFeedPosts queries this page's own server component
   //    already used.
   //  - a community selected: communityId is set, which routes the SAME request through
   //    buildCommunityGroundingContext instead - the exact server builder the community's own page

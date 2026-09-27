@@ -28,7 +28,7 @@ import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
 import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
-import { listMyOpenPredictions, type FeedPrediction } from "@/lib/supabase/groupPredictions";
+import { listMyPredictions, type FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
 import { listRecentTransactions, type PointsReason } from "@/lib/supabase/points";
 import { getRaceById, getRaceRoster } from "@/lib/supabase/races";
@@ -192,7 +192,7 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     getUserProfile(uid),
     getUserGroups(uid),
     listFeedPosts(uid, { feedType: "following", limit: FEED_POST_LIMIT }),
-    listMyOpenPredictions(uid, FEED_PREDICTION_LIMIT),
+    listMyPredictions(uid, FEED_PREDICTION_LIMIT),
     getUserPicksForYear(uid, year),
     listRecentTransactions(uid, RECENT_TRANSACTIONS_LIMIT),
     getRecentPredictionPolls(uid),

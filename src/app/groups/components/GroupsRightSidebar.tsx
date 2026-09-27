@@ -25,7 +25,7 @@ export type NextRace = { year: number; round: number; name: string; raceDate: st
  *
  * Every value here is real: the round/name/date/country/photo are the pipeline's own race row, the
  * countdown is that row's real `race_date` run through the same formatCountdown/useMinuteClock pair
- * PredictionCard already uses, the predictions are listMyOpenPredictions' real open rounds, and the
+ * PredictionCard already uses, the predictions are listMyPredictions' real open (and recently-resolved) rounds, and the
  * pulse widget at the bottom is real weeklyPosts/activePredictions counts getUserGroups already
  * computes for every group on this page (groupActivitySignals - a real 7-day post count off
  * group_posts, not invented). Nothing here is a placeholder; where a field is genuinely absent (a
@@ -337,16 +337,19 @@ function RaceWeekend({ race }: { race: NextRace }) {
  * countdown on a single truncating line, where the countdown (the one time-sensitive thing here)
  * was always the part that got cut off.
  *
- * Nothing here is a fabricated status. listMyOpenPredictions only ever returns rows that really
- * are `status: "open"`, so no "Open" badge is claimed on top of that - the useful state is instead
- * the real one derived from data each row already carries: whether the viewer has entered
- * (`hasEntered`, a real group_prediction_entries lookup), how long until the race locks it
- * (`raceDate`, through the same formatCountdown/useMinuteClock pair PredictionCard uses), and - for
- * a round whose race has already started - that it is waiting on a result rather than still
- * counting down. A row with no raceDate makes no timing claim at all.
+ * Nothing here is a fabricated status. listMyPredictions also returns recently-resolved rounds now
+ * (the main feed wants those), so this widget filters back down to `status: "open"` itself - its
+ * name is a promise about what it shows, not just whatever its data source happens to return - and
+ * no "Open" badge is claimed on top of that filter; the useful state is instead the real one
+ * derived from data each row already carries: whether the viewer has entered (`hasEntered`, a real
+ * group_prediction_entries lookup), how long until the race locks it (`raceDate`, through the same
+ * formatCountdown/useMinuteClock pair PredictionCard uses), and - for a round whose race has
+ * already started - that it is waiting on a result rather than still counting down. A row with no
+ * raceDate makes no timing claim at all.
  */
-function ActivePredictions({ predictions }: { predictions: FeedPrediction[] }) {
+function ActivePredictions({ predictions: allPredictions }: { predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
+  const predictions = allPredictions.filter((p) => p.status === "open");
 
   return (
     <div>
