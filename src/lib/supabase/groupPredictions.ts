@@ -435,7 +435,14 @@ function validateGuess(type: PredictionType, guess: unknown): PredictionGuess {
 /** Points are taken at entry time, not staged for later - if the entry row then fails to insert
  * (the realistic case: a genuine double-submit racing against this same function, caught by
  * group_prediction_entries' own primary key), the just-taken points are refunded immediately
- * rather than left charged against a prediction the user was never actually entered into. */
+ * rather than left charged against a prediction the user was never actually entered into.
+ *
+ * A second call for the same (predictionId, uid) while the round is still open changes the
+ * existing pick instead of failing with "already entered" - the entry fee was already paid the
+ * first time and this round's entryPoints can't have changed since, so nothing is re-charged or
+ * refunded for an edit, only `guess` itself is updated. This is what actually makes "Change
+ * prediction"/"Edit pick" in the UI (PredictionCard.tsx, PredictionFeedCard.tsx) work - before
+ * this, a second submission always hit the unique (prediction_id, user_id) primary key and 409'd. */
 export async function enterPrediction(groupId: string, predictionId: string, uid: string, rawGuess: unknown): Promise<void> {
   await requireMember(groupId, uid);
 
@@ -447,6 +454,20 @@ export async function enterPrediction(groupId: string, predictionId: string, uid
   const guess = validateGuess(prediction.type as PredictionType, rawGuess);
   const entryPoints = prediction.entry_points as number;
 
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("group_prediction_entries")
+    .select("prediction_id")
+    .eq("prediction_id", predictionId)
+    .eq("user_id", uid)
+    .maybeSingle();
+  if (existingError) throw new Error(`enterPrediction(${predictionId}): ${existingError.message}`);
+
+  if (existing) {
+    const { error: updateError } = await supabaseAdmin.from("group_prediction_entries").update({ guess }).eq("prediction_id", predictionId).eq("user_id", uid);
+    if (updateError) throw new Error(`enterPrediction(${predictionId}): ${updateError.message}`);
+    return;
+  }
+
   if (entryPoints > 0) await spendPoints(uid, entryPoints, "prediction_entry", { groupId, predictionId });
 
   const { error: insertError } = await supabaseAdmin
@@ -454,6 +475,8 @@ export async function enterPrediction(groupId: string, predictionId: string, uid
     .insert({ prediction_id: predictionId, user_id: uid, guess, points_wagered: entryPoints });
   if (insertError) {
     if (entryPoints > 0) await creditPoints(uid, entryPoints, "prediction_refund", { groupId, predictionId });
+    // A genuine race (two concurrent first-time submissions) rather than the ordinary edit path
+    // above, which already handles the common "I already have a row" case before reaching here.
     if (insertError.code === "23505") throw new ServiceError("You've already entered this prediction.", 409);
     throw new Error(`enterPrediction(${predictionId}): ${insertError.message}`);
   }

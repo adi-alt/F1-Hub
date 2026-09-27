@@ -45,7 +45,9 @@ export function PredictionEntry({
   entryPoints,
   drivers,
   closed,
+  initialGuess = null,
   onEntered,
+  onCancelEdit,
 }: {
   groupId: string;
   predictionId: string;
@@ -53,18 +55,29 @@ export function PredictionEntry({
   entryPoints: number;
   drivers: DriverOption[];
   closed: boolean;
+  /** Present only when this is editing an already-open pick (the card's "Edit pick" action) -
+   * pre-fills the form with what's already on file instead of starting blank, opens the form
+   * immediately rather than showing the collapsed "Enter prediction" button, and skips the wallet
+   * check (see blockerFor's `alreadyEntered`) since editing doesn't charge a second entry fee -
+   * `enterPrediction` itself updates the existing row in place rather than re-inserting. */
+  initialGuess?: PredictionGuess | null;
   /** Hands the accepted guess back so the card can show "Your pick" without refetching. */
   onEntered: (guess: PredictionGuess, label: string) => void;
+  /** Only meaningful with `initialGuess` set - "Cancel" during an edit should return to the
+   * compact "Entered" view, not collapse to the fresh-entry button as it does for a first-time
+   * entry (there's nothing to collapse back to; something is already entered). */
+  onCancelEdit?: () => void;
 }) {
   const { pointsBalance, refreshPointsBalance } = useAuth();
-  const [open, setOpen] = useState(false);
-  const [single, setSingle] = useState("");
-  const [podium, setPodium] = useState<[string, string, string]>(["", "", ""]);
-  const [dnf, setDnf] = useState("");
+  const isEditing = initialGuess !== null;
+  const [open, setOpen] = useState(isEditing);
+  const [single, setSingle] = useState(typeof initialGuess === "string" ? initialGuess : "");
+  const [podium, setPodium] = useState<[string, string, string]>(Array.isArray(initialGuess) ? initialGuess : ["", "", ""]);
+  const [dnf, setDnf] = useState(typeof initialGuess === "number" ? String(initialGuess) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const blocker = blockerFor({ closed, drivers, type, entryPoints, pointsBalance, alreadyEntered: false });
+  const blocker = blockerFor({ closed, drivers, type, entryPoints, pointsBalance, alreadyEntered: isEditing });
 
   const guess: PredictionGuess | null =
     type === "podium"
@@ -193,8 +206,12 @@ export function PredictionEntry({
       {error && <p className="mt-1.5 text-[11px] text-[var(--f1-red)]">{error}</p>}
 
       <div className="mt-2 flex items-center gap-2">
-        <span className="text-[11px] text-neutral-500">Costs {entryPoints} pts</span>
-        <button type="button" onClick={() => setOpen(false)} className="ml-auto text-[11.5px] font-medium text-neutral-400 transition hover:text-white">
+        {!isEditing && <span className="text-[11px] text-neutral-500">Costs {entryPoints} pts</span>}
+        <button
+          type="button"
+          onClick={() => (isEditing ? onCancelEdit?.() : setOpen(false))}
+          className="ml-auto text-[11.5px] font-medium text-neutral-400 transition hover:text-white"
+        >
           Cancel
         </button>
         <button
@@ -203,7 +220,7 @@ export function PredictionEntry({
           disabled={guess === null || saving}
           className="flex h-7 items-center rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
         >
-          {saving ? "Entering…" : "Confirm entry"}
+          {saving ? (isEditing ? "Saving…" : "Entering…") : isEditing ? "Save pick" : "Confirm entry"}
         </button>
           </div>
         </div>

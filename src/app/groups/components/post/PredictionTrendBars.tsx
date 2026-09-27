@@ -62,19 +62,25 @@ export function PredictionTrendBars({
   // never a fetch-shaped gap to fill for it.
   const isLoading = needsFetch && trend === null && !failed;
 
-  // The whole block - skeleton, "not enough responses" line, and real bars - lives inside one
-  // AnimatePresence that owns its height. This data arrives well after the card is on screen, and
-  // appearing from nothing in a single frame shoves everything below it down with no warning.
+  // Below MIN_ENTRIES_FOR_TREND there's no real distribution to draw, and the round's own entry
+  // count already appears elsewhere (the feed card's own metadata row, PredictionCard's "N people
+  // have entered") - restating it here as "not enough responses yet" was a second, less useful
+  // copy of the same number wrapped in an explanation nobody needed. Renders nothing at all below
+  // the threshold, the same as a failed fetch or a round with no aggregate to show.
+  const hasTrend = !failed && !!trend && trend.total >= MIN_ENTRIES_FOR_TREND;
+
+  // The whole block - skeleton and real bars - lives inside one AnimatePresence that owns its
+  // height. This data arrives well after the card is on screen, and appearing from nothing in a
+  // single frame shoves everything below it down with no warning.
   //
   // The skeleton reserves roughly the real block's footprint BEFORE the fetch resolves, rather
   // than rendering nothing while it's in flight - real data then settles into space that was
   // already there instead of growing the card out from under whatever's below it. It can't know
-  // the real row count or whether the round will land in the short "not enough entries" state, so
-  // it guesses the common shape (three option rows); the height animation on the transition
-  // between skeleton and real content is what absorbs the difference when that guess is wrong.
+  // the real row count, or whether the round will ultimately land below the trend threshold and
+  // render nothing at all; the height animation on the transition out is what absorbs that.
   return (
     <AnimatePresence initial={false} mode="popLayout">
-      {(isLoading || (!failed && trend)) && (
+      {(isLoading || hasTrend) && (
         <motion.div
           key={isLoading ? "trend-skeleton" : "trend"}
           initial={{ height: 0, opacity: 0 }}
@@ -83,15 +89,7 @@ export function PredictionTrendBars({
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           className="overflow-hidden"
         >
-          {isLoading ? (
-            <TrendSkeleton compact={compact} />
-          ) : trend && trend.total < MIN_ENTRIES_FOR_TREND ? (
-            <p className={`${compact ? "mt-2" : "mt-2.5"} text-xs text-neutral-600`}>
-              {trend.total === 0 ? "No entries yet." : `${trend.total} ${trend.total === 1 ? "entry" : "entries"} so far - not enough yet for a trend.`}
-            </p>
-          ) : trend ? (
-            <TrendBody trend={trend} isPodium={isPodium} compact={compact} />
-          ) : null}
+          {isLoading ? <TrendSkeleton compact={compact} /> : trend ? <TrendBody trend={trend} isPodium={isPodium} compact={compact} /> : null}
         </motion.div>
       )}
     </AnimatePresence>
