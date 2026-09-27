@@ -18,6 +18,7 @@ import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/gr
 import { getPredictionTrend, listPredictions } from "@/lib/supabase/groupPredictions";
 import { listPosts } from "@/lib/supabase/groupPosts";
 import { getPointsBalance } from "@/lib/supabase/points";
+import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
@@ -123,9 +124,13 @@ export default async function CommunityPage({
   const predictionRaceIds = [...new Set(predictions.map((p) => p.raceId))];
   const predictionRaces = await Promise.all(predictionRaceIds.map((raceId) => getRaceById(raceId)));
   const predictionRosters = await Promise.all(predictionRaces.map((race) => (race ? getRaceRoster(race) : [])));
-  const driversByRace: Record<string, { code: string; name: string }[]> = {};
+  // A real headshot where the current roster has one - the same code->photo lookup the feed's own
+  // getDriversByRace uses (see groups/page.tsx). A driver who's since left the grid stays
+  // name-only, the same honest fallback describeGuess already uses for that same case.
+  const headshotByCode = new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.headshotUrl]));
+  const driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
   predictionRaceIds.forEach((raceId, i) => {
-    driversByRace[raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName }));
+    driversByRace[raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
   });
 
   // The rail's own rounds: the open ones, soonest first, with their community trend fetched here

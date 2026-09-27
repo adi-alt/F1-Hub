@@ -8,7 +8,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { groupHref } from "@/lib/routes";
 import type { PredictionGuess, PredictionType } from "@/lib/groupPredictionTypes";
 
-export type DriverOption = { code: string; name: string };
+export type DriverOption = { code: string; name: string; headshotUrl: string | null };
 
 /** Everything that can stop someone entering, worked out once so the card can say which it is
  * instead of just disabling a button. Mirrors the community page's own blockerFor - the server

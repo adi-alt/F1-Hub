@@ -45,7 +45,7 @@ export function GroupsHomeClient({
   upcomingRaces: RaceOption[];
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
-  driversByRace: Record<string, { code: string; name: string }[]>;
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   // The one piece of real interaction state this page adds: which community (if any) the left

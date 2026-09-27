@@ -56,7 +56,7 @@ export function CommunitySection({
    * CommunitySection's own ActivityItem comment for why these have to be merged in, not appended
    * after, for the "N Active" count and the empty state to both be honest. */
   predictions?: FeedPrediction[];
-  driversByRace?: Record<string, { code: string; name: string }[]>;
+  driversByRace?: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
   groups: GroupSummary[];
   discoverGroups?: PublicGroupSummary[];
 }) {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
+import { predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { PredictionTrendBars } from "./PredictionTrendBars";
 import { groupHref } from "@/lib/routes";
@@ -50,8 +50,11 @@ export function PredictionFeedCard({
 }) {
   const now = useMinuteClock();
   // Entry updates the card in place. Seeded from the server value, then owned locally once the
-  // viewer enters, so the feed never has to refetch to show back what they just picked.
-  const [entered, setEntered] = useState<{ label: string | null } | null>(prediction.hasEntered ? { label: prediction.myGuessLabel } : null);
+  // viewer enters, so the feed never has to refetch to show back what they just picked. Keeps the
+  // raw guess (not just its label) so the pick's own driver portrait(s) can render too.
+  const [entered, setEntered] = useState<{ guess: PredictionGuess | null; label: string | null } | null>(
+    prediction.hasEntered ? { guess: prediction.myGuess, label: prediction.myGuessLabel } : null,
+  );
   const raceAt = prediction.raceDate ? parseUtcDateTime(prediction.raceDate).getTime() : null;
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
   const closed = !!raceAt && raceAt <= now;
@@ -122,11 +125,12 @@ export function PredictionFeedCard({
 
       <div className="flex flex-wrap items-center gap-2">
         {resolved ? (
-          <ResolvedResult prediction={prediction} />
+          <ResolvedResult prediction={prediction} drivers={drivers} />
         ) : entered ? (
           <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.08] px-2.5 text-[11.5px] text-emerald-200/90">
             <CheckIcon />
             <span className="shrink-0 font-semibold">Entered</span>
+            {entered.guess !== null && <GuessAvatars type={prediction.type} guess={entered.guess} drivers={drivers} />}
             {entered.label && <span className="min-w-0 truncate text-neutral-300">· {entered.label}</span>}
           </span>
         ) : (
@@ -137,7 +141,7 @@ export function PredictionFeedCard({
             entryPoints={prediction.entryPoints}
             drivers={drivers}
             closed={closed}
-            onEntered={(_guess, label) => setEntered({ label })}
+            onEntered={(guess, label) => setEntered({ guess, label })}
           />
         )}
       </div>
@@ -149,12 +153,13 @@ export function PredictionFeedCard({
  * `resolvePrediction` has actually run (see groupPredictions.ts), so this never guesses at a result
  * ahead of the real one. A viewer who never entered sees the outcome but no personal verdict -
  * there is nothing of theirs to score. */
-function ResolvedResult({ prediction }: { prediction: FeedPrediction }) {
+function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; drivers: DriverOption[] }) {
   const correct = prediction.hasEntered && prediction.myPointsAwarded !== null && prediction.myPointsAwarded > 0;
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       {prediction.correctAnswerLabel && (
-        <span className="min-w-0 truncate text-[11.5px] text-neutral-300">
+        <span className="flex min-w-0 items-center gap-1.5 truncate text-[11.5px] text-neutral-300">
+          {prediction.correctAnswer !== null && <GuessAvatars type={prediction.type} guess={prediction.correctAnswer} drivers={drivers} />}
           Result: <span className="font-semibold text-white">{prediction.correctAnswerLabel}</span>
         </span>
       )}
@@ -174,6 +179,28 @@ function ResolvedResult({ prediction }: { prediction: FeedPrediction }) {
         View result →
       </Link>
     </div>
+  );
+}
+
+/** A real portrait per driver code in a guess/result - "HAM" alone said nothing to a viewer who
+ * doesn't already know the grid by heart, and this app already has real headshots for the current
+ * roster threaded through `drivers` (see media.ts, and groups/page.tsx's getDriversByRace). A
+ * podium guess gets a small overlapping stack in guess order; a single-driver guess gets one.
+ * dnf_count has no driver to show. A departed driver falls back to EntityAvatar's own initials. */
+function GuessAvatars({ type, guess, drivers }: { type: PredictionType; guess: PredictionGuess; drivers: DriverOption[] }) {
+  if (type === "dnf_count") return null;
+  const codes = Array.isArray(guess) ? guess : [String(guess)];
+  return (
+    <span className="flex shrink-0 items-center">
+      {codes.map((code, i) => {
+        const driver = drivers.find((d) => d.code === code);
+        return (
+          <span key={code} className={i > 0 ? "-ml-1.5" : ""} style={{ zIndex: codes.length - i }}>
+            <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} seed={code} size={18} />
+          </span>
+        );
+      })}
+    </span>
   );
 }
 

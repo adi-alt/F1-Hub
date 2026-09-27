@@ -4,6 +4,7 @@ import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyPredictions } from "@/lib/supabase/groupPredictions";
+import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
@@ -34,13 +35,18 @@ async function getRaceContext() {
  * a navigation dressed up as an action. getRaceRoster is what keeps that roster real even for a
  * race the pipeline hasn't reached yet - see its own comment.
  */
-async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string }[]>> {
+async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string; headshotUrl: string | null }[]>> {
   const unique = [...new Set(raceIds)];
   const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
   const rosters = await Promise.all(races.map((race) => (race ? getRaceRoster(race) : [])));
-  const byRace: Record<string, { code: string; name: string }[]> = {};
+  // A real headshot where the current roster has one - the same code->photo map
+  // groupPredictions.ts already builds for guess labels, just for a portrait instead of a name.
+  // Only the current grid has one; a driver who's since left the grid stays name-only, the same
+  // honest fallback describeGuess already uses for that same case.
+  const headshotByCode = new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.headshotUrl]));
+  const byRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
   unique.forEach((raceId, i) => {
-    byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName }));
+    byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
   });
   return byRace;
 }

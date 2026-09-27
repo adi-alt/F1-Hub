@@ -80,7 +80,7 @@ export function CommunityWorkspace({
   /** The subset that hasn't run yet, which is exactly what createPrediction will accept. The
    * composer gets this one, so it can't offer a round the server would refuse. */
   upcomingRaces: RaceOption[];
-  driversByRace: Record<string, { code: string; name: string }[]>;
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
   pointsBalance: number;
   memberCount: number;
   stats: GroupStats;

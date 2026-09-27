@@ -75,7 +75,7 @@ export function GroupsFeed({
   /** This season's un-finished rounds, for opening a prediction from the composer. */
   upcomingRaces: RaceOption[];
   /** Driver roster per race id, so a round can be entered from the feed itself. */
-  driversByRace: Record<string, { code: string; name: string }[]>;
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
 }) {
   const communityId = selectedCommunity?.id ?? null;
   const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;

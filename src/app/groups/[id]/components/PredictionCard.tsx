@@ -6,6 +6,7 @@ import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { predictionTypeLabels, type GroupPrediction, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { DriverPicker } from "@/components/ui/F1Pickers";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
 import type { GroupRole } from "@/lib/supabase/groups";
 // From the feed's own post/ tree, not a second copy - the same community-trend bars a prediction
@@ -13,7 +14,7 @@ import type { GroupRole } from "@/lib/supabase/groups";
 // round is shown.
 import { PredictionTrendBars } from "../../components/post/PredictionTrendBars";
 
-type DriverOption = { code: string; name: string };
+type DriverOption = { code: string; name: string; headshotUrl: string | null };
 
 /** Everything that can stop someone entering, worked out once and in one place so the card can say
  * exactly which it is instead of just disabling a button. */
@@ -185,10 +186,14 @@ export function PredictionCard({
         {/* Resolved: the real answer and what it actually paid this user. */}
         {prediction.status === "resolved" && (
           <div className="mt-3 space-y-2">
-            <Row label="Result" value={formatGuess(prediction.type, prediction.correctAnswer, drivers)} />
+            <Row label="Result" value={formatGuess(prediction.type, prediction.correctAnswer, drivers)} avatar={<GuessAvatars type={prediction.type} guess={prediction.correctAnswer} drivers={drivers} />} />
             {prediction.myEntry ? (
               <>
-                <Row label="Your prediction" value={formatGuess(prediction.type, prediction.myEntry.guess, drivers)} />
+                <Row
+                  label="Your prediction"
+                  value={formatGuess(prediction.type, prediction.myEntry.guess, drivers)}
+                  avatar={<GuessAvatars type={prediction.type} guess={prediction.myEntry.guess} drivers={drivers} />}
+                />
                 <Row
                   label="Points"
                   value={
@@ -212,7 +217,7 @@ export function PredictionCard({
             way to change it while there's time. */}
         {prediction.status !== "resolved" && myEntry && !editing && (
           <div className="mt-3 space-y-2">
-            <Row label="Your prediction" value={formatGuess(prediction.type, myEntry.guess, drivers)} />
+            <Row label="Your prediction" value={formatGuess(prediction.type, myEntry.guess, drivers)} avatar={<GuessAvatars type={prediction.type} guess={myEntry.guess} drivers={drivers} />} />
             <Row label="Potential payout" value={payoutPreview(prediction.type, myEntry.pointsWagered)} highlight />
             {!blocker && (
               <button type="button" onClick={() => setEditing(true)} className="mt-1 text-xs font-medium text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
@@ -290,12 +295,37 @@ function StatusBadge({ prediction }: { prediction: GroupPrediction }) {
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}>{badge.label}</span>;
 }
 
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function Row({ label, value, highlight, avatar }: { label: string; value: string; highlight?: boolean; avatar?: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 text-xs">
+    <div className="flex items-center justify-between gap-4 text-xs">
       <span className="text-neutral-500">{label}</span>
-      <span className={`text-right font-medium ${highlight ? "text-emerald-400" : "text-neutral-200"}`}>{value}</span>
+      <span className={`flex items-center gap-1.5 text-right font-medium ${highlight ? "text-emerald-400" : "text-neutral-200"}`}>
+        {avatar}
+        {value}
+      </span>
     </div>
+  );
+}
+
+/** A real portrait per driver code in a guess/result - "HAM" alone said nothing to a viewer who
+ * doesn't already know the grid by heart, and this app already has real headshots for the current
+ * roster (see media.ts). A podium guess gets a small overlapping stack, one per slot, in the same
+ * order as the guess itself; a single-driver guess gets one. dnf_count has no driver to show. A
+ * departed driver falls back to EntityAvatar's own initials rather than nothing. */
+function GuessAvatars({ type, guess, drivers }: { type: PredictionType; guess: unknown; drivers: DriverOption[] }) {
+  if (type === "dnf_count" || guess === null || guess === undefined || guess === "") return null;
+  const codes = type === "podium" && Array.isArray(guess) ? (guess as string[]) : [String(guess)];
+  return (
+    <span className="flex shrink-0 items-center">
+      {codes.map((code, i) => {
+        const driver = drivers.find((d) => d.code === code);
+        return (
+          <span key={code} className={i > 0 ? "-ml-1.5" : ""} style={{ zIndex: codes.length - i }}>
+            <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} seed={code} size={18} />
+          </span>
+        );
+      })}
+    </span>
   );
 }
 

@@ -8,10 +8,13 @@ import { Picker, type PickerOption } from "@/components/ui/Picker";
  * same way everywhere they appear (prediction entry, prediction creation, race-discussion posts)
  * instead of each call site mapping its own options slightly differently. */
 
-export type DriverOption = { code: string; name: string; team?: string; color?: string };
+export type DriverOption = { code: string; name: string; team?: string; color?: string; headshotUrl?: string | null };
 
 /** Searchable by name, code, or team - `Picker` matches label and description, so the code goes in
- * the label and the team in the description. */
+ * the label and the team in the description. `headshotUrl` flows straight into Picker's own
+ * `imageUrl` - the trigger and every dropdown row already know how to render one (via
+ * EntityAvatar), so a driver picker gets real portraits for free rather than a separate rendering
+ * path. Undefined/null both mean "no photo" and fall back to EntityAvatar's own initials. */
 export function DriverPicker({
   drivers,
   value,
@@ -36,6 +39,7 @@ export function DriverPicker({
     label: `${d.name} (${d.code})`,
     description: d.team,
     color: d.color,
+    imageUrl: d.headshotUrl ?? null,
   }));
 
   return (

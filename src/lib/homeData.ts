@@ -26,7 +26,7 @@ import {
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
-import type { CurrentDriver } from "@/lib/supabase/media";
+import { getAllCurrentDrivers, type CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
 import { listMyPredictions, type FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
@@ -107,7 +107,7 @@ export type PersonalHomeData = {
   recentPredictions: FeedPrediction[];
   /** Real rosters for exactly recentPredictions' races, so one of them can be entered right from
    * this widget the same way it can from the Groups feed - not a link dressed up as an action. */
-  predictionDriversByRace: Record<string, { code: string; name: string }[]>;
+  predictionDriversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
   /** The user's pick for `nextRace`, if any — the "your pick" half of PickVsModel. */
   myPick: UserPick | null;
   predictionPerformance: PredictionPerformance;
@@ -207,9 +207,12 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
       return race ? getRaceRoster(race) : [];
     }),
   );
-  const predictionDriversByRace: Record<string, { code: string; name: string }[]> = {};
+  // A real headshot where the current roster has one - the same code->photo lookup Groups' own
+  // getDriversByRace uses. A driver who's since left the grid stays name-only.
+  const headshotByCode = recentPredictions.length > 0 ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.headshotUrl])) : new Map<string, string | null>();
+  const predictionDriversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
   recentPredictions.forEach((p, i) => {
-    predictionDriversByRace[p.raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName }));
+    predictionDriversByRace[p.raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
   });
 
   const [favoriteDrivers, favoriteTeams, discoverGroups, myPick] = await Promise.all([

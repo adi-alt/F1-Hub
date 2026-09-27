@@ -17,7 +17,7 @@ const ENTRY_PRESETS = [10, 20, 50, 100];
 const TYPES: PredictionType[] = ["winner", "podium", "fastest_lap", "pole", "dnf_count"];
 
 type RaceOption = { id: string; name: string; round: number; status: string };
-type DriverOption = { code: string; name: string };
+type DriverOption = { code: string; name: string; headshotUrl: string | null };
 
 function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; races: RaceOption[]; onCreated: () => void }) {
   const [raceId, setRaceId] = useState(races[0]?.id ?? "");
