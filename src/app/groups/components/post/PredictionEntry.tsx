@@ -124,7 +124,7 @@ export function PredictionEntry({
 
   if (blocker) {
     return (
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11.5px] text-neutral-500">{blocker}</span>
         <Link href={`${groupHref(groupId)}?tab=predictions`} className="text-[11.5px] font-medium text-neutral-400 underline-offset-2 hover:text-white hover:underline">
           View in community
@@ -134,17 +134,16 @@ export function PredictionEntry({
   }
 
   if (!open) {
+    // No trailing "N pts" here - the round's own cost already appears as one of the card's own
+    // metadata tokens right above this, and repeating it here was the same fact said twice.
     return (
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex h-7 items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-        >
-          Enter prediction
-        </button>
-        <span className="text-[11px] text-neutral-500">{entryPoints} pts</span>
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-7 items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+      >
+        Make your prediction
+      </button>
     );
   }
 
@@ -161,8 +160,8 @@ export function PredictionEntry({
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="overflow-hidden"
       >
-        <div className="mt-2.5 rounded-lg border border-white/[0.08] bg-black/25 p-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+        <div className="rounded-lg border border-white/[0.08] bg-black/25 p-2.5">
+      <p className="text-[10.5px] font-medium text-neutral-500">
         {type === "podium" ? "Pick your podium" : type === "dnf_count" ? "How many retirements?" : "Your pick"}
       </p>
 

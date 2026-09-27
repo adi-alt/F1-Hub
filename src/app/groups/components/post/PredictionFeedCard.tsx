@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import type { PredictionGuess, PredictionType } from "@/lib/groupPredictionTypes";
+import { predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { PredictionTrendBars } from "./PredictionTrendBars";
 import { groupHref } from "@/lib/routes";
@@ -13,11 +13,11 @@ import { timeAgo } from "@/lib/format";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { PredictionEntry, type DriverOption } from "./PredictionEntry";
 
-/** "Podium" (predictionTypeLabels' own label) -> "Predict the podium" - a real action phrase
- * derived from the round's own `type`, not a hardcoded string repeated identically on every card.
- * There is no separate "question" text anywhere in the schema (a prediction round is just a race +
- * a type + an entry cost - see groupPredictionTypes.ts), so this is the closest honest equivalent:
- * computed from real data, distinct per type, never invented per-round copy. */
+/** "Podium" (predictionTypeLabels' own short label, used for the header's own small badge) ->
+ * "Predict the podium" (the actual focal question, longer and more specific) - both derived from
+ * the round's real `type`, never a hardcoded string repeated identically on every card. There is
+ * no separate "question" text anywhere in the schema (a round is just a race + a type + an entry
+ * cost - see groupPredictionTypes.ts); this is the honest equivalent. */
 const marketTitle: Record<PredictionType, string> = {
   winner: "Predict the race winner",
   podium: "Predict the podium",
@@ -26,20 +26,31 @@ const marketTitle: Record<PredictionType, string> = {
   dnf_count: "Predict the number of DNFs",
 };
 
+/** One compact, aligned metadata token - cost, entry count, deadline - instead of the same three
+ * facts run together as a single flowing sentence. `accent` is used for the one fact that's ever
+ * genuinely urgent (a deadline under 24h); nothing else competes with it for attention. */
+function MetaChip({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) {
+  return (
+    <span className={`rounded bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums ${accent ? "text-[var(--f1-red)]" : "text-neutral-300"}`}>
+      {children}
+    </span>
+  );
+}
+
 /**
  * A prediction round, rendered in the feed alongside discussions rather than hidden behind a
  * community's own Predictions tab - open, closed-awaiting-result, or (for a little while after an
  * admin resolves it, see listMyPredictions' own comment) resolved with a real outcome.
  *
- * Deliberately compact: the market itself (marketTitle[type] - "Predict the podium", not the race
- * name) is the one bold line, everything else - community, race, cost, entries, deadline - is
- * small and secondary, and a pick is a stack of short position rows with a real portrait per
- * driver (GuessSummary) rather than a single comma-joined name string or a full-width green
- * banner. Built from the same pieces as PostCard - the same frosted surface, the same C/ community
- * identity - so it reads as a post in the stream, not a widget dropped into it.
+ * The composition, top to bottom: a compact identity line (community, post age, and the round's
+ * own type as one small badge - not floated off in a far corner competing with the community
+ * name), the actual question as the one focal line with the race as small context under it, one
+ * row of metadata tokens, the community's own trend (while there's a real one to show), and
+ * finally the part that actually changes by state - a submitted pick, an entry form, or a real
+ * result - with exactly one action next to it, not stranded at the opposite edge of the card.
  *
  * Entering (and editing an already-open pick - see enterPrediction's own comment on how that
- * actually works now) happens right here through PredictionEntry, which owns the real guess UI and
+ * actually works) happens right here through PredictionEntry, which owns the real guess UI and
  * calls the same endpoint the community's own Predictions tab uses - one entry path, not two.
  */
 export function PredictionFeedCard({
@@ -76,52 +87,43 @@ export function PredictionFeedCard({
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
       className="rounded-xl border border-white/[0.06] bg-[var(--f1-carbon)]/50 px-3 py-2.5 transition hover:border-white/[0.12]"
     >
-      <div className="flex items-center gap-2">
+      {/* Identity line - community, post age, and the round's own type as one small badge that
+          sits right beside them, part of the same sentence rather than floated to the far corner
+          on its own. */}
+      <div className="flex min-w-0 items-center gap-1.5">
         {showGroup ? (
-          <Link href={groupHref(prediction.groupId)} className="flex min-w-0 items-center gap-2 transition hover:opacity-80">
-            <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={22} />
-            <span className="min-w-0 truncate text-[13px] font-medium text-neutral-200">{prediction.groupName}</span>
+          <Link href={groupHref(prediction.groupId)} className="flex min-w-0 items-center gap-1.5 transition hover:opacity-80">
+            <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={20} />
+            <span className="min-w-0 truncate text-[12.5px] font-medium text-neutral-200">{prediction.groupName}</span>
           </Link>
         ) : (
-          <span className="text-[13px] font-medium text-neutral-200">Prediction round</span>
+          <span className="min-w-0 truncate text-[12.5px] font-medium text-neutral-200">Prediction round</span>
         )}
         <span aria-hidden className="shrink-0 text-neutral-700">
           ·
         </span>
         <span className="shrink-0 text-[11px] text-neutral-500">{timeAgo(prediction.createdAt)}</span>
-        <span className="ml-auto shrink-0 rounded-md bg-[var(--f1-red)]/10 px-1.5 py-0.5 text-[9.5px] font-medium text-[var(--f1-red)]/90">Prediction</span>
+        <span className="shrink-0 rounded bg-[var(--f1-red)]/[0.08] px-1.5 py-[1px] text-[10px] font-medium text-[var(--f1-red)]/85">
+          {predictionTypeLabels[prediction.type]}
+        </span>
       </div>
 
-      {/* The market itself is the headline - the race is context underneath it, not a second bold
-          title. A community running several rounds for the same race (winner, podium, pole) used
-          to render three cards with an identical, oversized race name and nothing but a small
-          metadata line to tell them apart. */}
-      <p className="mt-2 text-[14px] font-semibold leading-snug text-white">{marketTitle[prediction.type]}</p>
+      {/* The question is the one focal line; the race is context underneath it, small and
+          readable but never competing with it. Neither repeats anywhere else on the card. */}
+      <p className="mt-2 text-[14.5px] font-semibold leading-tight text-white">{marketTitle[prediction.type]}</p>
       <p className="mt-0.5 truncate text-[11.5px] text-neutral-500">{prediction.raceName}</p>
 
-      {/* Cost, real entry count and deadline - one compact row, not three stacked blocks. entryCount
-          is a real group_prediction_entries count, never a placeholder - a round with zero entries
-          says so plainly rather than a generic "not enough responses yet". */}
-      <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-[11px] leading-tight text-neutral-500">
-        <span className="font-medium tabular-nums text-neutral-300">{prediction.entryPoints} pts</span>
-        <span aria-hidden>·</span>
-        <span className="tabular-nums">{prediction.entryCount === 0 ? "No entries yet" : `${prediction.entryCount} ${prediction.entryCount === 1 ? "entry" : "entries"}`}</span>
-        {countdown ? (
-          <>
-            <span aria-hidden>·</span>
-            <span className={`tabular-nums ${urgent ? "font-semibold text-[var(--f1-red)]" : ""}`}>{countdown} left</span>
-          </>
-        ) : closed && !resolved ? (
-          <>
-            <span aria-hidden>·</span>
-            <span>closed, awaiting result</span>
-          </>
-        ) : null}
-      </p>
+      {/* Cost, real entry count, deadline - three aligned tokens, not one long sentence.
+          entryCount is a real group_prediction_entries count, never a placeholder. */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <MetaChip>{prediction.entryPoints} pts</MetaChip>
+        <MetaChip>{prediction.entryCount === 0 ? "No entries" : `${prediction.entryCount} ${prediction.entryCount === 1 ? "entry" : "entries"}`}</MetaChip>
+        {countdown ? <MetaChip accent={urgent}>{countdown} left</MetaChip> : closed && !resolved ? <MetaChip>Closed</MetaChip> : null}
+      </div>
 
       {!resolved && <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />}
 
-      <div className="mt-2">
+      <div className="mt-2.5">
         {resolved ? (
           <ResolvedResult prediction={prediction} drivers={drivers} />
         ) : editing ? (
@@ -140,7 +142,7 @@ export function PredictionFeedCard({
             onCancelEdit={() => setEditing(false)}
           />
         ) : entered ? (
-          <EnteredSummary type={prediction.type} guess={entered.guess} drivers={drivers} closed={closed} onEdit={() => setEditing(true)} />
+          <EnteredAnswer type={prediction.type} guess={entered.guess} drivers={drivers} closed={closed} onEdit={() => setEditing(true)} />
         ) : (
           <PredictionEntry
             groupId={prediction.groupId}
@@ -157,12 +159,12 @@ export function PredictionFeedCard({
   );
 }
 
-/** Entered and still resolvable - a small inline indicator (never a full-width banner) plus the
- * actual pick, with an "Edit pick" action only once the round is genuinely still open for it
- * (enterPrediction now updates an existing pick in place - see its own comment - so this action
- * really works, not just appears to). Closed-awaiting-result shows the same pick with no edit
- * action at all, matching the real state: nothing can be changed once the race has started. */
-function EnteredSummary({
+/** Entered and still resolvable - a small check and "Prediction submitted", not a green banner,
+ * with "Edit" sitting directly beside it (not pushed to the opposite edge of the card) when the
+ * round is still genuinely open for it - enterPrediction now updates an existing pick in place
+ * (see its own comment), so this action really works, not just appears to. Closed-awaiting-result
+ * shows the same pick with no edit action at all: nothing can change once the race has started. */
+function EnteredAnswer({
   type,
   guess,
   drivers,
@@ -177,12 +179,18 @@ function EnteredSummary({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5">
-        <CheckIcon className="shrink-0 text-emerald-400" />
-        <span className="text-[11px] font-medium text-emerald-400">{closed ? "Entered · awaiting result" : "Entered"}</span>
+      <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5">
+          <CheckIcon className="shrink-0 text-emerald-400" />
+          <span className="text-[11px] font-medium text-neutral-300">Prediction submitted</span>
+        </span>
         {!closed && (
-          <button type="button" onClick={onEdit} className="ml-auto shrink-0 text-[11px] font-medium text-neutral-400 transition hover:text-white">
-            Edit pick
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded text-[11px] font-medium text-neutral-500 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          >
+            Edit
           </button>
         )}
       </div>
@@ -207,13 +215,13 @@ function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; d
     <div>
       {prediction.correctAnswer !== null && (
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">Result</p>
+          <p className="text-[10.5px] font-medium text-neutral-500">Result</p>
           <div className="mt-1">
             <GuessSummary type={prediction.type} guess={prediction.correctAnswer} drivers={drivers} />
           </div>
         </div>
       )}
-      <div className="mt-2 flex items-center gap-2">
+      <div className={`flex items-center gap-2 ${prediction.correctAnswer !== null ? "mt-2" : ""}`}>
         {prediction.hasEntered ? (
           <span className={`text-[11px] font-semibold ${scored ? "text-emerald-400" : "text-neutral-400"}`}>
             {scored ? `+${prediction.myPointsAwarded} pts` : `-${prediction.entryPoints} pts`}
@@ -221,8 +229,8 @@ function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; d
         ) : (
           <span className="text-[11px] text-neutral-500">You didn&apos;t enter this round.</span>
         )}
-        <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="ml-auto shrink-0 text-[11px] font-medium text-neutral-400 transition hover:text-white">
-          View results →
+        <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="text-[11px] font-medium text-neutral-500 transition hover:text-white">
+          View results
         </Link>
       </div>
     </div>
@@ -247,7 +255,7 @@ function GuessSummary({ type, guess, drivers }: { type: PredictionType; guess: P
   const codes = type === "podium" && Array.isArray(guess) ? guess : [String(guess)];
   const positionLabels = type === "podium" ? (["P1", "P2", "P3"] as const) : null;
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {codes.map((code, i) => {
         const driver = drivers.find((d) => d.code === code);
         return (
