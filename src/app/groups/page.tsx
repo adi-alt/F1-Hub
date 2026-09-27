@@ -4,8 +4,7 @@ import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyPredictions } from "@/lib/supabase/groupPredictions";
-import { getAllCurrentDrivers } from "@/lib/supabase/media";
-import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
+import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
@@ -39,11 +38,9 @@ async function getDriversByRace(raceIds: string[]): Promise<Record<string, { cod
   const unique = [...new Set(raceIds)];
   const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
   const rosters = await Promise.all(races.map((race) => (race ? getRaceRoster(race) : [])));
-  // A real headshot where the current roster has one - the same code->photo map
-  // groupPredictions.ts already builds for guess labels, just for a portrait instead of a name.
-  // Only the current grid has one; a driver who's since left the grid stays name-only, the same
-  // honest fallback describeGuess already uses for that same case.
-  const headshotByCode = new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.headshotUrl]));
+  // Current roster first, the archive for anyone that misses (a departed driver a season-opener's
+  // previous-year fallback roster pulled in) - see getDriverHeadshotsByCode's own comment.
+  const headshotByCode = await getDriverHeadshotsByCode(rosters.flat().map((r) => r.driver));
   const byRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
   unique.forEach((raceId, i) => {
     byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));

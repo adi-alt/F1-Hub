@@ -26,12 +26,12 @@ import {
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
-import { getAllCurrentDrivers, type CurrentDriver } from "@/lib/supabase/media";
+import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
 import { listMyPredictions, type FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
 import { listRecentTransactions, type PointsReason } from "@/lib/supabase/points";
-import { getRaceById, getRaceRoster } from "@/lib/supabase/races";
+import { getDriverHeadshotsByCode, getRaceById, getRaceRoster } from "@/lib/supabase/races";
 import { getUserProfile, type UserProfile } from "@/lib/supabase/users";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -207,9 +207,9 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
       return race ? getRaceRoster(race) : [];
     }),
   );
-  // A real headshot where the current roster has one - the same code->photo lookup Groups' own
-  // getDriversByRace uses. A driver who's since left the grid stays name-only.
-  const headshotByCode = recentPredictions.length > 0 ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.headshotUrl])) : new Map<string, string | null>();
+  // Current roster first, the archive for anyone that misses - the same lookup Groups' own
+  // getDriversByRace uses (see getDriverHeadshotsByCode's own comment).
+  const headshotByCode = await getDriverHeadshotsByCode(predictionRosters.flat().map((r) => r.driver));
   const predictionDriversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
   recentPredictions.forEach((p, i) => {
     predictionDriversByRace[p.raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));

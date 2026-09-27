@@ -1,6 +1,8 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds } from "@/lib/supabase/archive";
+import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import type {
   PolePrediction,
   PracticeData,
@@ -374,6 +376,38 @@ export async function getRaceRoster(race: RaceDoc): Promise<{ driver: string; dr
   const current = await getCurrentEntrants(race.year);
   if (current.length) return current;
   return getCurrentEntrants(race.year - 1);
+}
+
+/** Real headshots for a roster's own driver codes - current roster first (getAllCurrentDrivers,
+ * the common case, one cached call regardless of how many codes are asked for), then the archive
+ * for anyone that misses. A season's opening race in particular can list a driver getRaceRoster's
+ * own previous-year fallback pulled in who then didn't continue this year (retired, or simply not
+ * re-signed) - exactly the gap this closes, not just an obscure historical edge case.
+ *
+ * getArchiveDriverIdsByCode resolves the code to the correct archive driver_id first - see that
+ * function's own comment on why a bare 3-letter code is genuinely ambiguous across F1 history
+ * ("VER" is both Max Verstappen and Jean-Éric Vergne) - then getArchiveDriverPhotosByIds reads the
+ * real photo off that resolved id. Never guesses a photo off the code alone.
+ *
+ * A code missing from BOTH the current roster and the archive (enrichment genuinely hasn't reached
+ * it yet) resolves to `null` - EntityAvatar's own initials fallback, never a placeholder image. */
+export async function getDriverHeadshotsByCode(codes: string[]): Promise<Map<string, string | null>> {
+  const unique = [...new Set(codes)];
+  if (unique.length === 0) return new Map();
+
+  const current = await getAllCurrentDrivers();
+  const headshotByCode = new Map<string, string | null>(current.map((d) => [d.code, d.headshotUrl]));
+
+  const missing = unique.filter((code) => !headshotByCode.has(code));
+  if (missing.length > 0) {
+    const idByCode = await getArchiveDriverIdsByCode(missing);
+    const photoById = await getArchiveDriverPhotosByIds([...idByCode.values()]);
+    for (const code of missing) {
+      const archiveId = idByCode.get(code);
+      headshotByCode.set(code, archiveId ? (photoById.get(archiveId) ?? null) : null);
+    }
+  }
+  return headshotByCode;
 }
 
 /** Deliberately not the `unstable_cache`-wrapped `getRace` — this exists only to enforce the pick

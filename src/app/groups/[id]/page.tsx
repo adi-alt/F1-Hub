@@ -18,8 +18,7 @@ import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/gr
 import { getPredictionTrend, listPredictions } from "@/lib/supabase/groupPredictions";
 import { listPosts } from "@/lib/supabase/groupPosts";
 import { getPointsBalance } from "@/lib/supabase/points";
-import { getAllCurrentDrivers } from "@/lib/supabase/media";
-import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
+import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
@@ -124,10 +123,9 @@ export default async function CommunityPage({
   const predictionRaceIds = [...new Set(predictions.map((p) => p.raceId))];
   const predictionRaces = await Promise.all(predictionRaceIds.map((raceId) => getRaceById(raceId)));
   const predictionRosters = await Promise.all(predictionRaces.map((race) => (race ? getRaceRoster(race) : [])));
-  // A real headshot where the current roster has one - the same code->photo lookup the feed's own
-  // getDriversByRace uses (see groups/page.tsx). A driver who's since left the grid stays
-  // name-only, the same honest fallback describeGuess already uses for that same case.
-  const headshotByCode = new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.headshotUrl]));
+  // Current roster first, the archive for anyone that misses - the same lookup the feed's own
+  // getDriversByRace uses (see groups/page.tsx and getDriverHeadshotsByCode's own comment).
+  const headshotByCode = await getDriverHeadshotsByCode(predictionRosters.flat().map((r) => r.driver));
   const driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
   predictionRaceIds.forEach((raceId, i) => {
     driversByRace[raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
