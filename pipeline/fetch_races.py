@@ -742,52 +742,70 @@ FETCH_WINDOW_AFTER = timedelta(days=7)
 
 
 def next_relevant_round(cur, year: int) -> int | None:
-    """The earliest non-completed round whose session window (first session minus
-    FETCH_WINDOW_BEFORE, through last session plus FETCH_WINDOW_AFTER) contains right now - or
-    None if nothing is due yet. This is what makes it safe to run this script every 15 minutes
-    instead of every 6 hours: discover_rounds()/looping every remaining round in the season on
-    every tick was real, measured waste - each round's fetch costs ~30 FastF1 API calls (5
-    sessions x ~7 calls each, see pipeline/PROGRESS.md's own 500-calls/hour figure), attempted
-    for rounds that are still months away and can't possibly have data yet. Falls back to
-    "fetch anyway" only when a round has no calendar row at all yet (sync_calendar.py hasn't run
-    for it) - better to attempt a fetch we have no session data to gate on than to silently never
-    check a round forever. A round completed only via `results_source = 'openf1_preliminary'`
-    counts as "not really done" here too - see is_already_completed()'s own comment - so it keeps
-    getting retried for the official upgrade within this same fetch window."""
+    """The earliest not-fully-done round whose session window (first session minus
+    FETCH_WINDOW_BEFORE, through last session plus FETCH_WINDOW_AFTER) actually contains right
+    now - or None if nothing is due yet. This is what makes it safe to run this script every 15
+    minutes instead of every 6 hours: discover_rounds()/looping every remaining round in the
+    season on every tick was real, measured waste - each round's fetch costs ~30 FastF1 API calls
+    (5 sessions x ~7 calls each, see pipeline/PROGRESS.md's own 500-calls/hour figure), attempted
+    for rounds that are still months away and can't possibly have data yet.
+
+    Walks every not-fully-done round in order rather than only ever checking the single earliest
+    one - a round whose window has already closed without reaching `results_source = 'official'`
+    (its Jolpica upgrade never landed within FETCH_WINDOW_AFTER - a real, if rare, upstream gap)
+    must NOT block every later round forever. Confirmed live: 2026 round 14 sat at
+    `openf1_preliminary` past its own window's close, and because the earliest-only version of
+    this function checked only that one round's window and returned None the moment it had
+    closed, round 15 (already raced, sitting at zero results) and every round after it stopped
+    being checked at all - not "delayed", genuinely never selected again by any tick, for the rest
+    of the season. A round whose window hasn't OPENED yet still ends the walk immediately (chronological
+    order means no later round's window could be open either), so this stays just as cheap as
+    before for the common "next race is still months away" case - one Postgres round-trip, no
+    FastF1 calls.
+
+    Falls back to "fetch anyway" only when a round has no calendar row at all yet (sync_calendar.py
+    hasn't run for it) - better to attempt a fetch we have no session data to gate on than to
+    silently never check a round forever."""
     cur.execute(
         "select round from races where year = %s and (status != 'completed' or results_source = 'openf1_preliminary') "
-        "order by round asc limit 1",
+        "order by round asc",
         (year,),
     )
-    row = cur.fetchone()
-    if not row:
+    rows = cur.fetchall()
+    if not rows:
         return None
-    round_num = row[0]
-
-    cur.execute("select sessions from calendar where year = %s and round = %s", (year, round_num))
-    cal_row = cur.fetchone()
-    if not cal_row or not cal_row[0]:
-        return round_num
-
-    # sync_calendar.py writes these from FastF1's own SessionXDateUtc columns, which pandas
-    # returns as tz-naive Timestamps despite the "Utc" name (a real FastF1 convention/quirk, not
-    # a sync_calendar.py bug) - .isoformat() on a naive Timestamp has no offset suffix at all, so
-    # a naive parse here means UTC, not "unknown timezone."
-    dates = []
-    for s in cal_row[0]:
-        if not s.get("date"):
-            continue
-        d = datetime.fromisoformat(s["date"])
-        if d.tzinfo is None:
-            d = d.replace(tzinfo=timezone.utc)
-        dates.append(d)
-    if not dates:
-        return round_num
 
     now = datetime.now(timezone.utc)
-    window_start = min(dates) - FETCH_WINDOW_BEFORE
-    window_end = max(dates) + FETCH_WINDOW_AFTER
-    return round_num if window_start <= now <= window_end else None
+    for (round_num,) in rows:
+        cur.execute("select sessions from calendar where year = %s and round = %s", (year, round_num))
+        cal_row = cur.fetchone()
+        if not cal_row or not cal_row[0]:
+            return round_num
+
+        # sync_calendar.py writes these from FastF1's own SessionXDateUtc columns, which pandas
+        # returns as tz-naive Timestamps despite the "Utc" name (a real FastF1 convention/quirk,
+        # not a sync_calendar.py bug) - .isoformat() on a naive Timestamp has no offset suffix at
+        # all, so a naive parse here means UTC, not "unknown timezone."
+        dates = []
+        for s in cal_row[0]:
+            if not s.get("date"):
+                continue
+            d = datetime.fromisoformat(s["date"])
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=timezone.utc)
+            dates.append(d)
+        if not dates:
+            return round_num
+
+        window_start = min(dates) - FETCH_WINDOW_BEFORE
+        window_end = max(dates) + FETCH_WINDOW_AFTER
+        if now < window_start:
+            return None  # this and every later round (chronological) are still too far out
+        if now <= window_end:
+            return round_num
+        # else: this round's own window already closed without it reaching `official` - move on
+        # and let a later round be checked instead of stopping here.
+    return None
 
 
 def main():

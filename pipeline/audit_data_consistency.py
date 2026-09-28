@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 import sys
 from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
 
 import psycopg2
 
@@ -150,11 +151,54 @@ def audit_calendar_alignment(cur) -> list[str]:
     return problems
 
 
+def audit_freshness(cur) -> list[str]:
+    """A race whose own calendar session has clearly finished but still has zero race_results -
+    not corrupted data (audit_races/audit_related_tables have nothing to check when nothing was
+    ever written), just work that silently stopped happening. This is exactly the shape 2026
+    round 15 sat in, undetected, for two days: next_relevant_round() had a real bug (see
+    fetch_races.py's own comment) where one earlier round stuck at results_source =
+    'openf1_preliminary' past its own retry window made every LATER round stop being selected by
+    any tick at all - not delayed, never checked again. That bug is fixed, but this check exists
+    so the *next* thing that silently stops a round from being fetched - for whatever reason -
+    shows up here as a red CI run within 15 minutes, instead of a user noticing a stale race page
+    days later.
+
+    A generous grace period past the race's own last session before flagging anything, so a race
+    that finished an hour ago and simply hasn't been fetched yet on this exact tick isn't a false
+    alarm - 6 hours comfortably covers this workflow's own real observed cadence (every few hours,
+    not always the scheduled 15 minutes - GitHub throttles infrequently-triggered schedules)."""
+    problems: list[str] = []
+    cur.execute(
+        "select races.id, races.status, calendar.sessions, "
+        "(select count(*) from race_results where race_results.race_id = races.id) as result_count "
+        "from races join calendar on calendar.year = races.year and calendar.round = races.round "
+        "where races.status != 'completed'"
+    )
+    now = datetime.now(timezone.utc)
+    for race_id, status, sessions, result_count in cur.fetchall():
+        # Same naive-Timestamp-means-UTC parsing next_relevant_round already relies on - see that
+        # function's own comment for why (a real FastF1/sync_calendar.py convention, not a bug).
+        dates = []
+        for s in sessions or []:
+            if not s.get("date"):
+                continue
+            d = datetime.fromisoformat(s["date"])
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=timezone.utc)
+            dates.append(d)
+        if not dates:
+            continue
+        if result_count == 0 and now > max(dates) + timedelta(hours=6):
+            days_stale = (now - max(dates)).days
+            problems.append(f"{race_id}: race weekend's own last session ended {days_stale}d ago but status is {status!r} with zero race_results")
+    return problems
+
+
 def main() -> int:
     conn = _connect()
     try:
         with conn.cursor() as cur:
-            problems = audit_races(cur) + audit_related_tables(cur) + audit_calendar_alignment(cur)
+            problems = audit_races(cur) + audit_related_tables(cur) + audit_calendar_alignment(cur) + audit_freshness(cur)
     finally:
         conn.close()
 
