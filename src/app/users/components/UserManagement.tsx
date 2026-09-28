@@ -7,7 +7,7 @@ import { ExportMenu } from "@/components/export/ExportMenu";
 import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs } from "@/components/ui/Tabs";
-import { InviteButton, InvitePanel } from "./InviteUsers";
+import { InviteDialog } from "./InviteUsers";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import type { UserCounts, UserProfile } from "@/lib/supabase/users";
@@ -252,21 +252,20 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
               />
             </div>
 
-            {canManageRoles && <InviteButton onClick={() => setInviteOpen(true)} />}
-
-            {/* Last in the row, hard against the right edge - it's the least-used control here
-                (export/copy), so it sits at the end rather than beside the heading where it read
-                as part of the title. */}
+            {/* Last in the row, hard against the right edge. Invite lives in here rather than as a
+                standing button beside the filters - it's an occasional administrative act, not
+                something that needs permanent shelf space in the toolbar. */}
             <ExportMenu
               filename="users"
               getRows={exportRows}
               getImage={async () => tableToCanvas(exportRows().columns, exportRows().rows)}
               triggerClassName="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--f1-line)] text-neutral-400 transition hover:border-white/25 hover:text-white"
+              extraItems={canManageRoles ? [{ label: "Invite people…", onClick: () => setInviteOpen(true) }] : undefined}
             />
           </div>
         </div>
 
-        {canManageRoles && <InvitePanel open={inviteOpen} onClose={() => setInviteOpen(false)} />}
+        {canManageRoles && <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />}
 
         {(setRole.isError || usersList.isError || serverSearch.isError) && (
           <p className="border-b border-[var(--f1-line)] bg-[var(--f1-red)]/[0.08] px-4 py-2 text-sm text-red-300">

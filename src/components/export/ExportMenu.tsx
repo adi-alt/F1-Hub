@@ -15,6 +15,11 @@ type ExportMenuProps = {
    * that a 28px circle would sit oddly inside. Defaults to the small circular icon button every
    * existing chart/table card already uses. */
   triggerClassName?: string;
+  /** Card-specific actions listed above the export items, separated by a rule - for a card whose
+   * ⋮ is the natural home for something beyond export (the Users table's Invite). The menu closes
+   * itself before running one, so an action that opens a dialog doesn't leave this panel stranded
+   * underneath it. */
+  extraItems?: { label: string; onClick: () => void }[];
 };
 
 const IMAGE_FORMATS = [
@@ -47,7 +52,7 @@ const PANEL_WIDTH = 192; // w-48
  * the card's own box — visibly cut off on the Users table, and the same latent problem everywhere
  * else this menu appears near an edge. Same approach, and same reason, as RoleSelect.tsx's own
  * portaled panel one directory over. */
-export function ExportMenu({ filename, getRows, getImage, className = "", triggerClassName }: ExportMenuProps) {
+export function ExportMenu({ filename, getRows, getImage, className = "", triggerClassName, extraItems }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [submenu, setSubmenu] = useState<Submenu>(null);
   const [submenuSide, setSubmenuSide] = useState<"left" | "right">("right");
@@ -197,6 +202,23 @@ export function ExportMenu({ filename, getRows, getImage, className = "", trigge
               <p className="px-4 py-2.5 text-neutral-300">{status}</p>
             ) : (
               <>
+                {extraItems?.length ? (
+                  <>
+                    {extraItems.map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => {
+                          close();
+                          item.onClick();
+                        }}
+                        className="block w-full px-4 py-2 text-left text-neutral-300 transition hover:bg-white/5 hover:text-white"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-[var(--tooltip-border)]" />
+                  </>
+                ) : null}
                 <button
                   onClick={handleCopyRaw}
                   className="block w-full px-4 py-2 text-left text-neutral-300 transition hover:bg-white/5 hover:text-white"
