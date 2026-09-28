@@ -260,7 +260,10 @@ export function ArchiveRaceDashboard({
         }
       />
 
-      <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />
+      {/* Only once a real community has actually opened a prediction for THIS race - see
+          SeasonRaceDashboard's own comment on why the general "communities to join" discovery
+          fallback is omitted entirely here rather than shown as a lower-value substitute. */}
+      {raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />}
       <RaceHistorySection
         raceName={race.raceName}
         circuitName={race.circuitName ?? race.locality ?? race.raceName}

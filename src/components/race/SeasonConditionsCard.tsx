@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { circuitHref } from "@/lib/routes";
 import type { SessionWeather } from "@/lib/types/race";
 
@@ -22,13 +25,31 @@ export function SeasonConditionsCard({
   weather?: SessionWeather;
   image?: { url: string; wikipediaUrl: string | null } | null;
 }) {
+  // The box (h-32 w-full) was already reserved below, so nothing ever shifts - without this the
+  // panel just sat with an empty black rectangle for however long the image took to decode, then
+  // popped in all at once. A shimmer placeholder underneath it, same convention EntityAvatar's own
+  // image loading already uses, reads as "loading" instead of as a gap.
+  const [loaded, setLoaded] = useState(false);
+  // A stale Storage path or a transient network blip - the panel just drops the image block
+  // entirely rather than leaving a broken-image icon or an endlessly-shimmering placeholder that
+  // never resolves. Same "never a guessed image" honesty this component's own top comment already
+  // commits to for a venue with no image at all.
+  const [failed, setFailed] = useState(false);
   return (
     <div className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-      {image && (
+      {image && !failed && (
         // object-cover, not contain - fills the panel intentionally instead of a letterboxed
         // image floating in empty margin, same treatment as Archive's CircuitCard.
         <div className="relative h-32 w-full bg-black/30">
-          <Image src={image.url} alt={`${circuit} circuit layout`} fill className="object-cover" />
+          {!loaded && <span aria-hidden className="skeleton-shimmer absolute inset-0 bg-white/[0.05]" />}
+          <Image
+            src={image.url}
+            alt={`${circuit} circuit layout`}
+            fill
+            className={`object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setLoaded(true)}
+            onError={() => setFailed(true)}
+          />
         </div>
       )}
       <div className="p-3.5">

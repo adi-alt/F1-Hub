@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { RaceActionsMenu } from "./RaceActionsMenu";
 
 /** The identity block every race page opens with - Season -> Round -> Grand Prix, in that order,
  * matching SeasonDetail.tsx's own "{year} SEASON" heading style (text-*xl font-bold tracking-tight)
@@ -7,10 +6,17 @@ import { RaceActionsMenu } from "./RaceActionsMenu";
  * subject. A plain pill-button back link read as disconnected from the rest of the identity block
  * it sat above - making the year itself the clickable element (same convention as every other
  * "label →" link on this page - Track History, Wikipedia) is what makes it read as part of the
- * hierarchy instead of a floating control. The ⋮ menu stays pinned top-right, aligned to the year
- * line, so it doesn't get lost now that the year itself is much bigger. Shared by Season and
- * Archive's race pages (both feed it plain strings, nothing about either page's own data shape
- * leaks in here). */
+ * hierarchy instead of a floating control.
+ *
+ * Used to also carry a ⋮ menu (RaceActionsMenu) pinned top-right - removed: on a live race page it
+ * offered exactly one action ("Copy link", since a current-season race has no externalLink), a
+ * whole dropdown for something the browser's own address bar already does. `externalLink` (an
+ * archive race's real Wikipedia report - the one genuinely useful thing that menu ever offered) is
+ * now a plain inline "label →" link instead, the same convention Track History/circuit Wikipedia
+ * links on this page already use, rather than hidden a click deep in a menu.
+ *
+ * Shared by Season and Archive's race pages (both feed it plain strings, nothing about either
+ * page's own data shape leaks in here). */
 export function RaceHeader({
   backHref,
   backLabel,
@@ -39,15 +45,12 @@ export function RaceHeader({
 
   return (
     <div>
-      <div className="flex items-start justify-between">
-        <Link href={backHref} className="group inline-flex items-center gap-1.5">
-          <span className="text-xl font-bold tracking-tight text-white transition group-hover:text-neutral-300 sm:text-2xl">{backLabel}</span>
-          <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-neutral-600 transition group-hover:translate-x-0.5 group-hover:text-neutral-400" aria-hidden>
-            <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
-        <RaceActionsMenu externalLink={externalLink} />
-      </div>
+      <Link href={backHref} className="group inline-flex items-center gap-1.5">
+        <span className="text-xl font-bold tracking-tight text-white transition group-hover:text-neutral-300 sm:text-2xl">{backLabel}</span>
+        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-neutral-600 transition group-hover:translate-x-0.5 group-hover:text-neutral-400" aria-hidden>
+          <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </Link>
       <div className="mt-1.5">
         {roundLabel && <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{roundLabel}</p>}
         <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">{name}</h1>
@@ -58,6 +61,11 @@ export function RaceHeader({
           </p>
         )}
         {resultLabel && <p className="mt-1.5 text-sm text-neutral-300">{resultLabel}</p>}
+        {externalLink && (
+          <a href={externalLink.href} target="_blank" rel="noreferrer" className="mt-1.5 inline-block text-sm font-medium text-[var(--f1-red)] hover:underline">
+            {externalLink.label} →
+          </a>
+        )}
       </div>
     </div>
   );

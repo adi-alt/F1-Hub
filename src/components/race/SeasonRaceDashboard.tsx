@@ -306,10 +306,12 @@ export function SeasonRaceDashboard({
         />
 
         {/* Real people, before real history - the social/participation layer belongs above the
-            deep circuit archive, not buried under it. Shown for every race phase; degrades to
-            general discovery rather than disappearing when nothing has a prediction for this
-            exact race yet (see RaceCommunitiesSection's own comment). */}
-        <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />
+            deep circuit archive, not buried under it. Shown only once a real community has
+            actually opened a prediction for THIS race (mode === "predicting") - the general
+            "communities to join" discovery fallback read as a generic dashboard widget with no
+            connection to this specific race, so it's omitted entirely rather than shown as a
+            lower-value substitute; the page just keeps its normal layout without it. */}
+        {raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />}
 
         {/* Both shown for every race phase, not gated on isCompleted - "who's won this race
             before" and "the circuit's own all-time records" are exactly as true and exactly as
@@ -476,7 +478,10 @@ export function SeasonRaceDashboard({
           calendarEntry={calendarEntry}
           accuracy={accuracy}
           personalContext={personalContext}
-          communities={raceCommunities.communities}
+          // Same "predicting" gate as the main column's own RaceCommunitiesSection (see its own
+          // comment right above) - the sidebar's "Trending in this race" preview is a preview OF
+          // that section, so it has nothing real to preview when that section isn't shown either.
+          communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
         />
       </aside>
     </div>
