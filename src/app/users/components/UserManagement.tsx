@@ -6,6 +6,8 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
 import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Tabs } from "@/components/ui/Tabs";
+import { InviteButton, InvitePanel } from "./InviteUsers";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import type { UserCounts, UserProfile } from "@/lib/supabase/users";
@@ -68,19 +70,6 @@ function StatusBadge({ onboarded }: { onboarded: boolean }) {
   );
 }
 
-/** Stat-tile contract: sentence-case label, semibold value in a text token (never a series
- * colour), and no delta/trend — nothing here is measured against a previous period, and a
- * fabricated one would be worse than none. Proportional figures, not tabular: these are
- * standalone values, not a column that has to align vertically. */
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-white">{value.toLocaleString()}</p>
-    </div>
-  );
-}
-
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: SortDir) {
   if (key !== sortKey) return null;
   return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
@@ -116,6 +105,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   const [sortKey, setSortKey] = useState<SortKey>("joined");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [pending, setPending] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   // Realtime sync for this list is handled app-wide by AppRealtimeSync (its admin `profiles`
   // listener invalidates usersKeys on any change) — no per-page channel needed here.
@@ -203,22 +193,15 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   // replace it with results — reporting a miss it hadn't actually checked for yet.
   const showSkeleton = noLocalMatch && (!settled || serverSearch.isFetching);
 
-  const roleTabs: { value: RoleFilter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "admin", label: "Admins" },
-    { value: "moderator", label: "Moderators" },
-    { value: "member", label: "Members" },
+  const roleTabs: { key: RoleFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "admin", label: "Admins" },
+    { key: "moderator", label: "Moderators" },
+    { key: "member", label: "Members" },
   ];
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Total users" value={counts.total} />
-        <StatTile label="Admins" value={counts.admins} />
-        <StatTile label="Moderators" value={counts.moderators} />
-        <StatTile label="Onboarded" value={counts.onboarded} />
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
         <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
@@ -231,32 +214,20 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
             <h2 className="text-base font-semibold text-white">
               Users <span className="text-neutral-500">({headerCount.toLocaleString()})</span>
             </h2>
-            <ExportMenu
-              filename="users"
-              getRows={exportRows}
-              getImage={async () => tableToCanvas(exportRows().columns, exportRows().rows)}
-            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
-              {roleTabs.map((tab) => {
-                const active = roleFilter === tab.value;
-                return (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    onClick={() => setRoleFilter(tab.value)}
-                    aria-pressed={active}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
-                      active ? "bg-white/[0.08] text-white" : "text-neutral-400 hover:text-neutral-200"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* The shared segmented control (components/ui/Tabs.tsx) rather than this page's own
+                hand-rolled pill row - it already is the structured rounded-rectangle shape with a
+                real red active segment and a Framer Motion layoutId indicator that slides between
+                tabs, plus the arrow-key roving focus the local version never had. */}
+            <Tabs
+              items={roleTabs}
+              activeKey={roleFilter}
+              onChange={(key) => setRoleFilter(key as RoleFilter)}
+              layoutId="users-role-filter"
+              panelId="users-table"
+            />
 
             <div className="relative">
               <svg
@@ -274,11 +245,24 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, username or email…"
                 aria-label="Search users"
-                className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none sm:w-64"
+                className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none sm:w-56"
               />
             </div>
+
+            {canManageRoles && <InviteButton onClick={() => setInviteOpen(true)} />}
+
+            {/* Last in the row, hard against the right edge - it's the least-used control here
+                (export/copy), so it sits at the end rather than beside the heading where it read
+                as part of the title. */}
+            <ExportMenu
+              filename="users"
+              getRows={exportRows}
+              getImage={async () => tableToCanvas(exportRows().columns, exportRows().rows)}
+            />
           </div>
         </div>
+
+        {canManageRoles && <InvitePanel open={inviteOpen} onClose={() => setInviteOpen(false)} />}
 
         {(setRole.isError || usersList.isError || serverSearch.isError) && (
           <p className="border-b border-[var(--f1-line)] bg-[var(--f1-red)]/[0.08] px-4 py-2 text-sm text-red-300">
@@ -286,7 +270,11 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
           </p>
         )}
 
-        <div ref={scrollRef} className="max-h-[520px] overflow-auto scrollbar-hide">
+        {/* The region the role tablist above actually controls. No `aria-labelledby` pointing back
+            at a tab button: Tabs builds those ids from its own `useId()`, so the id a caller would
+            have to guess isn't knowable from out here - a dangling reference is worse for a screen
+            reader than none at all. */}
+        <div ref={scrollRef} id="users-table" role="tabpanel" className="max-h-[520px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[720px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
@@ -309,23 +297,29 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
             ) : (
               <tbody className="divide-y divide-[var(--f1-line)]">
                 <AnimatePresence initial={false}>
-                  {rows.map((user) => {
+                  {rows.map((user, i) => {
                     const isSelf = user.uid === currentUid;
                     const name = displayNameFor(user);
                     return (
                       <motion.tr
                         key={user.uid}
                         layout
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.18, ease: "easeOut" }}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        // Capped stagger: the first rows land in sequence so a filter change reads
+                        // as the table rebuilding, but a long list never turns that into a wait -
+                        // past the cap every remaining row arrives together.
+                        transition={{ duration: 0.2, ease: "easeOut", delay: Math.min(i, 8) * 0.025 }}
                         className="group transition hover:bg-white/[0.03]"
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
                             <span className="shrink-0">
-                              <EntityAvatar imageUrl={null} name={name} seed={user.uid} size={32} />
+                              {/* The person's real OAuth profile picture where their provider gave
+                                  us one (see getAuthAvatars in lib/supabase/users.ts) - initials
+                                  only when there genuinely isn't one. */}
+                              <EntityAvatar imageUrl={user.photoURL ?? null} name={name} seed={user.uid} size={32} />
                             </span>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-white">

@@ -1,4 +1,5 @@
-import { countUsers, listUsersPage, searchUsers, setUserRole, type UserCounts, type UserProfile } from "@/lib/supabase/users";
+import { countUsers, getUserProfile, listUsersPage, searchUsers, setUserRole, type UserCounts, type UserProfile } from "@/lib/supabase/users";
+import { inviteUsersByEmail, type InviteResult } from "@/lib/supabase/userInvites";
 import type { Role } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session/requirePermission";
 
@@ -42,4 +43,19 @@ export async function updateUserRole(
   await setUserRole(targetUid, role);
 }
 
-export type { UserProfile, UserCounts };
+/** Behind canManageRoles, not canViewUsers: inviting someone into the platform is an
+ * administrative act, and a moderator who can read the roster has no business doing it. Enforced
+ * here, server-side - the UI hiding the button is presentation, not access control. */
+export async function inviteUsers(
+  requesterUid: string | null | undefined,
+  emails: string[],
+  origin: string,
+): Promise<InviteResult> {
+  await requirePermission(requesterUid, (p) => p.canManageRoles);
+  // Signs the email with a real person's name where there is one, rather than a generic "someone".
+  const inviter = requesterUid ? await getUserProfile(requesterUid) : null;
+  const inviterName = inviter?.displayName ?? [inviter?.firstName, inviter?.lastName].filter(Boolean).join(" ").trim() ?? null;
+  return inviteUsersByEmail(emails, origin, inviterName || null);
+}
+
+export type { UserProfile, UserCounts, InviteResult };
