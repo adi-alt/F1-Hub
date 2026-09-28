@@ -28,6 +28,7 @@ export function Tabs({
   onChange,
   layoutId,
   panelId,
+  className = "",
 }: {
   items: TabItem[];
   activeKey: string;
@@ -37,6 +38,12 @@ export function Tabs({
    * `id={`${panelId}-tab-${key}`}`; the caller's panel should set `id={panelId}` and
    * `aria-labelledby` to the active tab's id. */
   panelId: string;
+  /** Extra classes on the tablist container. Exists for one real need: a caller placing this in a
+   * row beside other controls (the Users page's filter/search/invite row) has to be able to pin it
+   * to that row's own height, which padding alone can't do. Height set here flows through because
+   * the buttons are flex children of a stretch container, so they fill whatever it is; callers that
+   * pass nothing keep the previous intrinsic sizing exactly. */
+  className?: string;
 }) {
   const reactId = useId();
   const groupId = `tabs-${reactId}`;
@@ -62,7 +69,7 @@ export function Tabs({
     <div
       role="tablist"
       aria-orientation="horizontal"
-      className="flex gap-1 overflow-x-auto rounded-lg border border-[var(--f1-line)] bg-black/20 p-1 scrollbar-hide"
+      className={`flex gap-1 overflow-x-auto rounded-lg border border-[var(--f1-line)] bg-black/20 p-1 scrollbar-hide ${className}`}
     >
       {items.map((item, i) => {
         const isActive = item.key === activeKey;
@@ -80,7 +87,7 @@ export function Tabs({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(item.key)}
             onKeyDown={(e) => onKeyDown(e, i)}
-            className="relative shrink-0 whitespace-nowrap rounded-md px-3.5 py-1.5 text-xs font-medium transition sm:text-sm"
+            className="relative inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3.5 py-1.5 text-xs font-medium transition sm:text-sm"
           >
             {isActive && (
               <motion.div

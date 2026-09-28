@@ -60,7 +60,7 @@ function isOnboarded(user: UserProfile): boolean {
 function StatusBadge({ onboarded }: { onboarded: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-medium ${
         onboarded ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"
       }`}
     >
@@ -90,7 +90,7 @@ function RowsSkeleton({ rows = 6 }: { rows?: number }) {
             </div>
           </td>
           <td className="px-4 py-3"><Skeleton className="h-3.5 w-40" /></td>
-          <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-full" /></td>
+          <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-md" /></td>
           <td className="px-4 py-3"><Skeleton className="h-8 w-32 rounded-lg" /></td>
           <td className="px-4 py-3"><Skeleton className="h-3.5 w-24" /></td>
         </tr>
@@ -221,12 +221,15 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                 hand-rolled pill row - it already is the structured rounded-rectangle shape with a
                 real red active segment and a Framer Motion layoutId indicator that slides between
                 tabs, plus the arrow-key roving focus the local version never had. */}
+            {/* h-9 on all four controls in this row - tray, search, Invite, ⋮ - so they sit on one
+                baseline instead of each finding its own height from its own padding. */}
             <Tabs
               items={roleTabs}
               activeKey={roleFilter}
               onChange={(key) => setRoleFilter(key as RoleFilter)}
               layoutId="users-role-filter"
               panelId="users-table"
+              className="h-9"
             />
 
             <div className="relative">
@@ -258,6 +261,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
               filename="users"
               getRows={exportRows}
               getImage={async () => tableToCanvas(exportRows().columns, exportRows().rows)}
+              triggerClassName="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--f1-line)] text-neutral-400 transition hover:border-white/25 hover:text-white"
             />
           </div>
         </div>
@@ -375,23 +379,20 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--f1-line)] px-4 py-3">
-          <p className="text-xs text-neutral-500">
-            {isNarrowed
-              ? `Showing ${rows.length.toLocaleString()} of ${counts.total.toLocaleString()}`
-              : `Loaded ${loaded.length.toLocaleString()} of ${counts.total.toLocaleString()}`}
-            {usedServer && " · matched across all accounts"}
-          </p>
-          {!isSearching && usersList.hasNextPage && (
+        {/* Footer only exists when there's genuinely another page to pull - the running
+            "Loaded n of n" tally it used to carry restated the count already in this card's own
+            heading, so an otherwise-empty bar sat under every table that fits on one page. */}
+        {!isSearching && usersList.hasNextPage && (
+          <div className="flex items-center justify-center border-t border-[var(--f1-line)] px-4 py-3">
             <button
               onClick={() => void usersList.fetchNextPage()}
               disabled={usersList.isFetchingNextPage}
-              className="rounded-full border border-[var(--f1-line)] px-4 py-1.5 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
+              className="rounded-lg border border-[var(--f1-line)] px-4 py-1.5 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
             >
               {usersList.isFetchingNextPage ? "Loading…" : "Load more"}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

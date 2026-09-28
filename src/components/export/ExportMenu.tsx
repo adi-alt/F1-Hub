@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useOnClickOutside } from "@/hooks/useOnClickOutside";
 import { canvasToBlob, copyImageBlob, copyTextToClipboard, downloadBlob, downloadText, rowsToCSV } from "@/lib/export";
 
 type ExportMenuProps = {
@@ -11,6 +11,10 @@ type ExportMenuProps = {
   /** Returns null when there's genuinely nothing to rasterize yet (e.g. chart still loading). */
   getImage: () => Promise<HTMLCanvasElement | null>;
   className?: string;
+  /** Overrides the trigger's own box, for a caller placing this in a row of fixed-height controls
+   * that a 28px circle would sit oddly inside. Defaults to the small circular icon button every
+   * existing chart/table card already uses. */
+  triggerClassName?: string;
 };
 
 const IMAGE_FORMATS = [
@@ -31,22 +35,82 @@ const GLASS_STYLE = {
 
 type Submenu = "copy-image" | "download-image" | null;
 
+const PANEL_WIDTH = 192; // w-48
+
 /** The ⋮ menu on every table/chart card: copy or download the underlying rows as CSV, or export a
  * rasterized image in a chosen format via a nested flyout — opened left or right of the main
- * panel depending on which side actually has room in the viewport. */
-export function ExportMenu({ filename, getRows, getImage, className = "" }: ExportMenuProps) {
+ * panel depending on which side actually has room in the viewport.
+ *
+ * The panel is portaled to document.body and positioned from the trigger's own rect rather than
+ * rendered in flow. Every card this sits on is `overflow-hidden` (the rounded surface needs it) and
+ * several are also `overflow-auto` scroll containers, so an in-flow absolute panel was clipped to
+ * the card's own box — visibly cut off on the Users table, and the same latent problem everywhere
+ * else this menu appears near an edge. Same approach, and same reason, as RoleSelect.tsx's own
+ * portaled panel one directory over. */
+export function ExportMenu({ filename, getRows, getImage, className = "", triggerClassName }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [submenu, setSubmenu] = useState<Submenu>(null);
   const [submenuSide, setSubmenuSide] = useState<"left" | "right">("right");
   const [status, setStatus] = useState<string | null>(null);
+  const [rect, setRect] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Defers the portal to the client without touching document during SSR — the same
+  // useSyncExternalStore guard Picker.tsx uses for its own portal.
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   function close() {
     setOpen(false);
     setSubmenu(null);
   }
-  useOnClickOutside(rootRef, open, close);
+
+  function updatePosition() {
+    const el = rootRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    // Right-aligned to the trigger, matching the `right-0` this used in flow, but clamped so a
+    // trigger near the left edge can't push the panel off-screen.
+    setRect({ top: r.bottom + 8, left: Math.max(8, r.right - PANEL_WIDTH) });
+  }
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    // capture:true — scroll events don't bubble, so a window listener alone would never see the
+    // card's own scroll container move underneath the panel.
+    window.addEventListener("scroll", updatePosition, { capture: true, passive: true });
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, { capture: true });
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open]);
+
+  // Not useOnClickOutside: it watches a single ref, and the panel now lives outside the trigger's
+  // subtree, so clicking an option would count as "outside" and close the menu before that
+  // option's own onClick ever ran.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      close();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   function flash(message: string) {
     setStatus(message);
@@ -104,7 +168,10 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
         onClick={() => setOpen((v) => !v)}
         aria-label="Export options"
         aria-expanded={open}
-        className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 opacity-80 transition hover:bg-white/10 hover:text-white hover:opacity-100"
+        className={
+          triggerClassName ??
+          "flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 opacity-80 transition hover:bg-white/10 hover:text-white hover:opacity-100"
+        }
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
           <circle cx="10" cy="4" r="1.5" />
@@ -113,17 +180,19 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
         </svg>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            ref={panelRef}
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute right-0 top-full z-30 mt-2 w-48 overflow-visible rounded-xl border border-[var(--tooltip-border)] py-1 text-sm shadow-xl backdrop-blur-md"
-            style={GLASS_STYLE}
-          >
+      {isClient &&
+        createPortal(
+          <AnimatePresence>
+            {open && rect && (
+              <motion.div
+                ref={panelRef}
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="fixed z-[200] w-48 overflow-visible rounded-xl border border-[var(--tooltip-border)] py-1 text-sm shadow-xl backdrop-blur-md"
+                style={{ ...GLASS_STYLE, top: rect.top, left: rect.left }}
+              >
             {status ? (
               <p className="px-4 py-2.5 text-neutral-300">{status}</p>
             ) : (
@@ -181,9 +250,11 @@ export function ExportMenu({ filename, getRows, getImage, className = "" }: Expo
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </div>
   );
 }
