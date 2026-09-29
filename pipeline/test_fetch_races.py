@@ -11,7 +11,8 @@ import datetime
 
 import pandas as pd
 
-from fetch_races import has_official_classification, next_relevant_round, points_for
+import fetch_races
+from fetch_races import has_official_classification, next_relevant_round, points_for, seasons_to_check
 from openf1_fallback import _as_date, _pick_race_session
 
 
@@ -103,24 +104,20 @@ print("has_official_classification: all checks passed")
 
 
 class FakeCursor:
-    """Just enough of psycopg's cursor protocol for next_relevant_round(), which always executes
-    in one fixed, predictable sequence: one fetchall() for the candidate-rounds query, then one
-    execute()+fetchone() per candidate round's own calendar lookup, in round order. `responses` is
-    consumed strictly in that call order - a test that programs the wrong shape fails loudly with
-    an IndexError rather than silently returning stale data."""
+    """Just enough of psycopg's cursor protocol for next_relevant_round(), which runs exactly one
+    query (pipeline/sql/next_round_candidates.sql - this file tests the Python walk only; the SQL is
+    exercised against a real schema separately) and then walks the rows in Python. Each
+    row is (round, sessions, race_date, source), source 'calendar' or 'races'."""
 
-    def __init__(self, responses):
-        self._responses = list(responses)
-        self._current = None
+    def __init__(self, rows):
+        self._rows = list(rows)
+        self.executed = []
 
-    def execute(self, _query, _params=None):
-        self._current = self._responses.pop(0)
+    def execute(self, query, params=None):
+        self.executed.append((query, params))
 
     def fetchall(self):
-        return self._current
-
-    def fetchone(self):
-        return self._current
+        return self._rows
 
 
 def _iso(dt):
@@ -129,46 +126,72 @@ def _iso(dt):
     return dt.replace(tzinfo=None).isoformat()
 
 
-def _sessions_row(dates):
-    """The fetchone() row-tuple for a calendar lookup: `(sessions,)`, sessions itself the same
-    list-of-{date,label}-dicts shape the real `calendar.sessions` jsonb column holds."""
-    return ([{"date": _iso(d), "label": "Race" if i == len(dates) - 1 else "Practice"} for i, d in enumerate(dates)],)
+def _cal(round_num, dates, source="calendar", race_date=None):
+    """A candidate row: the same list-of-{date,label}-dicts shape the real `calendar.sessions`
+    jsonb column holds."""
+    sessions = [{"date": _iso(d), "label": "Race" if i == len(dates) - 1 else "Practice"} for i, d in enumerate(dates)]
+    return (round_num, sessions, race_date, source)
 
 
 now = datetime.datetime.now(datetime.timezone.utc)
+day = datetime.timedelta(days=1)
 
 # Round 14's own fetch window closed 16 days ago (its Race session, plus the 7-day retry window,
 # both well in the past) and it never reached 'official' - round 15 already raced 2 days ago and
 # has real work waiting. The earliest-only version of this function stopped at round 14 and
 # returned None; walking past a closed window is exactly the fix.
-stuck_round_still_blocks_later_ones = FakeCursor(
-    [
-        [(14,), (15,)],  # candidate rounds, in order
-        _sessions_row([now - datetime.timedelta(days=23)]),  # round 14: window closed long ago
-        _sessions_row([now - datetime.timedelta(days=2)]),  # round 15: within FETCH_WINDOW_AFTER
-    ]
-)
-assert next_relevant_round(stuck_round_still_blocks_later_ones, 2026) == 15
+stuck = FakeCursor([_cal(14, [now - 23 * day]), _cal(15, [now - 2 * day])])
+assert next_relevant_round(stuck, 2026) == 15
+# One query for the whole season, with the season as its only parameter.
+assert stuck.executed == [(fetch_races.NEXT_ROUND_CANDIDATES_SQL, {"year": 2026})], stuck.executed
 
 # A round whose window hasn't opened yet (still months out) correctly stops the walk rather than
 # returning it early - there's genuinely nothing to fetch yet, and no round after it could be due
 # either (chronological order).
-too_early = FakeCursor([[(16,)], _sessions_row([now + datetime.timedelta(days=60)])])
-assert next_relevant_round(too_early, 2026) is None
+assert next_relevant_round(FakeCursor([_cal(16, [now + 60 * day])]), 2026) is None
 
-# The ordinary case, unchanged: a single round, right in the middle of its own window.
-mid_window = FakeCursor([[(15,)], _sessions_row([now - datetime.timedelta(hours=6)])])
-assert next_relevant_round(mid_window, 2026) == 15
+# The ordinary case: a single round, right in the middle of its own window.
+assert next_relevant_round(FakeCursor([_cal(15, [now - datetime.timedelta(hours=6)])]), 2026) == 15
 
-# No calendar row at all yet for the round (sync_calendar.py hasn't reached it) - fetch anyway,
+# DATA-01: an upcoming round that exists only in `calendar` (no races row yet) and whose weekend
+# starts within FETCH_WINDOW_BEFORE is due. Before the fix it could never be a candidate at all.
+assert next_relevant_round(FakeCursor([_cal(16, [now + datetime.timedelta(hours=12), now + 2 * day])]), 2026) == 16
+
+# A sprint weekend is gated on its FIRST session (Friday practice), whatever the labels are.
+sprint = FakeCursor([(19, [{"label": "Practice 1", "date": _iso(now + datetime.timedelta(hours=20))}, {"label": "Sprint Qualifying", "date": _iso(now + 1 * day)}, {"label": "Sprint", "date": _iso(now + 2 * day)}, {"label": "Qualifying", "date": _iso(now + 2 * day)}, {"label": "Race", "date": _iso(now + 3 * day)}], None, "calendar")])
+assert next_relevant_round(sprint, 2026) == 19
+
+# A races row with no calendar row at all (sync_calendar.py hasn't reached it) - fetch anyway,
 # same as before, rather than silently never checking it.
-no_calendar_row = FakeCursor([[(16,)], None])
-assert next_relevant_round(no_calendar_row, 2026) == 16
+assert next_relevant_round(FakeCursor([(16, None, None, "races")]), 2026) == 16
+
+# A calendar event with no dated sessions yet is skipped (nothing can have run) - it must neither
+# be fetched every tick nor stop the walk before a later round that is due.
+assert next_relevant_round(FakeCursor([(16, [], None, "calendar"), _cal(17, [now - 1 * day])]), 2026) == 17
+
+# No sessions but a race_date (a `date` column, read back as text): gated on race day, midnight UTC.
+race_day = (now + 3 * day).date().isoformat()
+assert next_relevant_round(FakeCursor([(18, [], race_day, "calendar")]), 2026) is None
+assert next_relevant_round(FakeCursor([(18, [], now.date().isoformat(), "calendar")]), 2026) == 18
 
 # Nothing left to do at all.
-assert next_relevant_round(FakeCursor([[]]), 2026) is None
+assert next_relevant_round(FakeCursor([]), 2026) is None
 
 print("next_relevant_round: all checks passed")
+
+
+# --- seasons_to_check: the season boundary -----------------------------------------------------
+utc = datetime.timezone.utc
+assert seasons_to_check(datetime.datetime(2026, 9, 29, 12, tzinfo=utc)) == [2026]
+# Early January still checks the previous season first (a retry window can run past New Year) ...
+assert seasons_to_check(datetime.datetime(2027, 1, 3, 0, 30, tzinfo=utc)) == [2026, 2027]
+# ... but only for FETCH_WINDOW_AFTER.
+assert seasons_to_check(datetime.datetime(2027, 1, 9, tzinfo=utc)) == [2027]
+# 23:30 on 31 December in UTC-10 is already the new year in UTC - the UTC year is the season.
+hawaii = datetime.timezone(datetime.timedelta(hours=-10))
+assert seasons_to_check(datetime.datetime(2026, 12, 31, 23, 30, tzinfo=hawaii).astimezone(utc)) == [2026, 2027]
+
+print("seasons_to_check: all checks passed")
 
 print("has_official_classification: all checks passed")
 
