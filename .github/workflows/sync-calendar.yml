@@ -7,6 +7,11 @@ on:
     - cron: "0 0 * * 1"
   workflow_dispatch:
 
+# One run at a time (a manual dispatch overlapping the weekly schedule), queued, never cancelled mid-write.
+concurrency:
+  group: sync-calendar
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest

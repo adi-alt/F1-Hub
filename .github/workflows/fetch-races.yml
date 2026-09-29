@@ -23,6 +23,14 @@ on:
         type: boolean
         default: false
 
+# One run at a time, queued rather than cancelled: a 15-minute tick can outlast the next one, and a
+# manual dispatch can land mid-run. Overlapping runs already converge on one row per event (race ids
+# are resolved from stored rows and every write is a primary-key upsert - see race_identity.py); this
+# just stops two runs from doing the same FastF1 work, or racing to the same writes, in the first place.
+concurrency:
+  group: fetch-races
+  cancel-in-progress: false
+
 jobs:
   fetch-and-predict:
     runs-on: ubuntu-latest
@@ -62,7 +70,13 @@ jobs:
       # Deliberately a second step in the same job, not a separate workflow: predictions are
       # meaningless without this run's freshly-fetched data, and running both in one job on one
       # schedule guarantees that ordering for free — no cross-workflow coordination needed.
+      #
+      # Runs even when the fetch step failed (not when the run was cancelled): fetch_races.py exits
+      # non-zero on a race identity conflict so a person looks at it (see race_identity.py), and that
+      # one round must not also stop predictions and scoring for everything else. This step and the
+      # next only read what is already committed and are idempotent.
       - name: Train and freeze predictions for anything newly ready
+        if: ${{ !cancelled() }}
         run: python pipeline/train_predict.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -72,6 +86,7 @@ jobs:
       # Depends only on the results this same run's first step just fetched, not on train_predict's
       # ML output — ordered after it anyway since there's no reason to run before results exist.
       - name: Score group picks for any race that now has a real result
+        if: ${{ !cancelled() }}
         run: python pipeline/compute_group_scores.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -80,8 +95,10 @@ jobs:
       # the Actions tab within 15 minutes of a bad write landing, rather than waiting for a user to
       # spot a wrong winner in the UI (see pipeline/audit_data_consistency.py's own docstring for
       # exactly what shapes it checks - the 2026 round 14 corruption is the case this exists for).
-      # Deliberately last and does not roll back anything the steps above already wrote.
+      # Deliberately last and does not roll back anything the steps above already wrote. Runs even
+      # if an earlier step failed - that is exactly when the alarm matters most.
       - name: Audit data consistency
+        if: ${{ !cancelled() }}
         run: python pipeline/audit_data_consistency.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

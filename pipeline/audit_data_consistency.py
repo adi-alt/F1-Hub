@@ -26,6 +26,8 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg2
 
+from race_identity import REVIEWED_VENUE_CHANGES, VENUE_OVERRIDES
+
 
 def _connect():
     url = os.environ.get("DATABASE_URL")
@@ -144,6 +146,9 @@ def audit_calendar_alignment(cur) -> list[str]:
     cur.execute(
         "select races.id, races.name, calendar.name, races.race_date, calendar.race_date "
         "from races join calendar on calendar.year = races.year and calendar.round = races.round "
+        # A retired (cancelled) calendar row can share its round with the live event that replaced
+        # it - sync_calendar.py keeps it rather than deleting it; only the live row is comparable.
+        "and calendar.status is distinct from 'cancelled' "
         "where races.name != calendar.name or races.race_date != calendar.race_date"
     )
     for race_id, races_name, cal_name, races_date, cal_date in cur.fetchall():
@@ -172,6 +177,7 @@ def audit_freshness(cur) -> list[str]:
         "select races.id, races.status, calendar.sessions, "
         "(select count(*) from race_results where race_results.race_id = races.id) as result_count "
         "from races join calendar on calendar.year = races.year and calendar.round = races.round "
+        "and calendar.status is distinct from 'cancelled' "
         "where races.status != 'completed'"
     )
     now = datetime.now(timezone.utc)
@@ -194,13 +200,73 @@ def audit_freshness(cur) -> list[str]:
     return problems
 
 
+def audit_unfetched_rounds(cur) -> list[str]:
+    """A live calendar event whose weekend is clearly over but which has no races row at all. This
+    is the blind spot audit_freshness() above cannot see (it starts from `races`), and exactly the
+    state 2026 rounds 16-22 would have ended up in: next_relevant_round() used to consider only
+    rounds that already had a races row, and nothing but a fetch creates one (audit DATA-01). Same
+    6-hour grace period as audit_freshness()."""
+    problems: list[str] = []
+    cur.execute(
+        "select c.id, c.sessions from calendar c "
+        "where c.status is distinct from 'cancelled' and not exists ("
+        "  select 1 from races r where r.year = c.year "
+        "  and regexp_replace(r.id, '^[0-9]{4}_r[0-9]+_', '') = regexp_replace(c.id, '^[0-9]{4}_r[0-9]+_', ''))"
+    )
+    now = datetime.now(timezone.utc)
+    for cal_id, sessions in cur.fetchall():
+        dates = []
+        for s in sessions or []:
+            if not s.get("date"):
+                continue
+            d = datetime.fromisoformat(s["date"])
+            dates.append(d if d.tzinfo else d.replace(tzinfo=timezone.utc))
+        if dates and now > max(dates) + timedelta(hours=6):
+            problems.append(f"{cal_id}: race weekend ended {(now - max(dates)).days}d ago but no races row exists - never fetched")
+    return problems
+
+
+def audit_venue_drift(cur) -> list[str]:
+    """WARNINGS, not failures: an event whose location this season differs from its previous
+    season's. Upstream naming drifts harmlessly (Yas Island/Yas Marina, Monaco/Monte Carlo) and venues
+    genuinely move (Madrid 2026; Bahrain 2026, relocated to Sepang), so this cannot fail the job - it
+    is how a change gets looked at by a person instead of shipped unexamined. Changes a person has
+    verified (race_identity.REVIEWED_VENUE_CHANGES) are not repeated while the stored value still
+    matches what was reviewed; a reviewed correction (VENUE_OVERRIDES) is reported until applied."""
+    warnings: list[str] = []
+    cur.execute(
+        "with ev as ("
+        "  select year, regexp_replace(id, '^[0-9]{4}_r[0-9]+_', '') as slug, circuit from races "
+        "  union select year, regexp_replace(id, '^[0-9]{4}_r[0-9]+_', ''), circuit from calendar where status is distinct from 'cancelled'"
+        "), cur as (select year, slug, circuit from ev where year = (select max(year) from ev)) "
+        "select cur.year, cur.slug, cur.circuit, prev.circuit from cur "
+        "join lateral (select circuit from ev where ev.slug = cur.slug and ev.year < cur.year order by ev.year desc limit 1) prev on true "
+        "where prev.circuit is distinct from cur.circuit"
+    )
+    for year, slug, circuit, prev in cur.fetchall():
+        override = VENUE_OVERRIDES.get((year, slug))
+        if override:
+            if circuit != override.get("location"):
+                warnings.append(f"{year} {slug}: stored location {circuit!r}, reviewed correction is {override.get('location')!r} - not applied yet (next sync_calendar run)")
+            continue
+        reviewed = REVIEWED_VENUE_CHANGES.get((year, slug))
+        if reviewed and circuit == reviewed.get("location"):
+            continue
+        warnings.append(f"{year} {slug}: location {circuit!r}, previous season {prev!r} - verify it: a real change goes in REVIEWED_VENUE_CHANGES, a wrong upstream value in VENUE_OVERRIDES")
+    return warnings
+
+
 def main() -> int:
     conn = _connect()
     try:
         with conn.cursor() as cur:
-            problems = audit_races(cur) + audit_related_tables(cur) + audit_calendar_alignment(cur) + audit_freshness(cur)
+            problems = audit_races(cur) + audit_related_tables(cur) + audit_calendar_alignment(cur) + audit_freshness(cur) + audit_unfetched_rounds(cur)
+            warnings = audit_venue_drift(cur)
     finally:
         conn.close()
+
+    for w in warnings:
+        print(f"audit_data_consistency: WARNING {w}")
 
     if not problems:
         print("audit_data_consistency: no issues found")

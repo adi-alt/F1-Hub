@@ -1,11 +1,15 @@
--- The 2026 calendar's Bahrain Grand Prix (round 16) row has circuit = 'Kuala Lumpur' - a real
--- upstream data error (Kuala Lumpur/Sepang was the Malaysian GP venue, off the calendar since
--- 2017; Bahrain has always raced at Sakhir). Every other Bahrain GP in this database, 2016-2025,
--- in both `races` and `archive_races`, uses 'Sakhir' - confirmed against all of them before
--- writing this, not assumed. The WHERE clause pins the exact wrong value so this can never
--- overwrite a different, already-correct row if it's re-run after a manual fix.
-update calendar
-   set circuit = 'Sakhir'
- where year = 2026
-   and round = 16
-   and circuit = 'Kuala Lumpur';
+-- DISABLED (2026-09-29). Intentionally a no-op; kept under its original filename so
+-- that any environment's migration history stays consistent and re-running it is harmless.
+--
+-- This migration used to set the 2026 Bahrain Grand Prix's calendar circuit from 'Kuala Lumpur' to
+-- 'Sakhir', on the assumption that 'Kuala Lumpur' was an upstream data error. It was not: F1 and the
+-- FIA relocated the 2026 Bahrain Grand Prix to the Sepang International Circuit, Malaysia (2-4 Oct,
+-- "FORMULA 1 GULF AIR BAHRAIN GRAND PRIX IN MALAYSIA 2026"), so 'Kuala Lumpur' is correct and applying
+-- the old statement would have written the wrong venue.
+--
+-- Status when disabled: never applied to production (absent from schema_migrations; the live row still
+-- reads 'Kuala Lumpur'); there is no staging environment.
+-- If some other database did run the original, restore the correct value there with:
+--   update calendar set circuit = 'Kuala Lumpur'
+--    where id = '2026_r16_bahrain-grand-prix' and circuit = 'Sakhir';
+do $$ begin raise notice '20260926_fix_bahrain_gp_circuit is disabled: 2026 Bahrain GP is at Sepang (Kuala Lumpur)'; end $$;

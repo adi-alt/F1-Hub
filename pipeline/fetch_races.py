@@ -3,7 +3,9 @@ race_inputs/tire_stints - see supabase/schema.sql). No training/prediction in th
 fetch+push only.
 
 Row id: `{year}_r{round:02d}_{event-slug}`, e.g. `2026_r11_hungarian-grand-prix` — readable
-without a lookup, and round-padded so ids sort correctly.
+without a lookup, and round-padded so ids sort correctly. The id is fixed when the row is first
+written: a race's identity is (year, event slug), so an event upstream later renumbers keeps its id
+(and its picks/predictions) and just gets the new round - see race_identity.py.
 
 No year or round is hardcoded anywhere — run with no arguments and it processes the current
 year's full schedule (discovered from FastF1 itself), skipping anything already marked
@@ -24,7 +26,6 @@ import json
 import os
 import re
 import sys
-import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -45,6 +46,7 @@ from ergast_utils import (
     upsert,
 )
 from openf1_fallback import fetch_race_openf1
+from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -393,13 +395,6 @@ def fetch_race(year: int, round_num: int):
         return None
 
 
-def slugify(name: str) -> str:
-    # NFKD + ascii-ignore drops accents (e.g. "São Paulo" -> "Sao Paulo") rather than mangling
-    # the character entirely, which plain regex-stripping would do.
-    ascii_only = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
-    return re.sub(r"[^a-z0-9]+", "-", ascii_only.lower()).strip("-")
-
-
 def get_existing_race(cur, race_id: str) -> dict | None:
     cur.execute("select status, practice, photo_urls, results_source from races where id = %s", (race_id,))
     row = cur.fetchone()
@@ -450,14 +445,35 @@ def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None
 
 
 
+def resolve_round_race_id(cur, year: int, round_num: int, event_name: str) -> str:
+    """The races id this round writes to - see race_identity.resolve_race_id. Reads every races row
+    of the season (a few dozen at most) plus the event's live calendar row, so the id is decided by
+    what is actually stored, not rebuilt from the current round number. Raises
+    RaceIdentityConflict instead of ever writing a second race for a round."""
+    cur.execute("select id, round from races where year = %s", (year,))
+    existing = [(r[0], r[1]) for r in cur.fetchall()]
+    cur.execute(
+        "select id from calendar where year = %s and status is distinct from 'cancelled' "
+        "and regexp_replace(id, '^[0-9]{4}_r[0-9]+_', '') = %s order by id limit 1",
+        (year, slugify(event_name)),
+    )
+    cal = cur.fetchone()
+    return resolve_race_id(existing, year, round_num, event_name, cal[0] if cal else None)
+
+
 def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str]):
     # Event calendar info exists regardless of whether quali/race have happened yet, so it's
     # fetched independently rather than borrowed from whichever session happened to load — that
     # also means the doc id (which needs the event name) doesn't depend on the race having run.
     calendar_event = fastf1.get_event(year, round_num)
     event_name = str(calendar_event["EventName"])
-    race_id = f"{year}_r{round_num:02d}_{slugify(event_name)}"
+    race_id = resolve_round_race_id(cur, year, round_num, event_name)
     print(f"  {race_id}:")
+    # Checked by id, after the id is resolved, not by (year, round): after a renumbering the round
+    # number alone can point at a different event's finished race.
+    if is_already_completed(cur, race_id):
+        print("    already completed with an official result, skipping")
+        return
 
     practice = {}
     for label in ("FP1", "FP2", "FP3"):
@@ -545,7 +561,9 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         "year": year,
         "round": round_num,
         "name": event_name,
-        "circuit": str(calendar_event["Location"]),
+        # Same reviewed override sync_calendar.py applies (race_identity.VENUE_OVERRIDES), so a
+        # races row can never be written with a location known to be wrong upstream.
+        "circuit": corrected_location(year, event_name, str(calendar_event["Location"])),
         "country": str(calendar_event["Country"]),
         "race_date": calendar_event["EventDate"].strftime("%Y-%m-%d"),
         "status": "completed" if (race or keep_old_race) else ("upcoming" if qualifying else "scheduled"),
@@ -718,17 +736,20 @@ def discover_rounds(year: int) -> list[int]:
     return sorted(int(r) for r in rounds)
 
 
-def is_already_completed(cur, year: int, round_num: int) -> bool:
+def is_already_completed(cur, race_id: str) -> bool:
     """Race results never change after the fact once truly `completed` AND `official` - re-fetching
     that is pure waste, which matters once this runs on every scheduled tick rather than by hand.
     A round that's `completed` via `results_source = 'openf1_preliminary'` is NOT considered done
     here on purpose - see openf1_fallback.py/OPENF1_FALLBACK.md - it's a real, displayable result,
     but the pipeline keeps retrying FastF1/Jolpica for the official upgrade (fuller analytics,
     real points) within next_relevant_round()'s own fetch window."""
-    cur.execute("select status, results_source from races where year = %s and round = %s limit 1", (year, round_num))
+    cur.execute("select status, results_source from races where id = %s", (race_id,))
     row = cur.fetchone()
     return bool(row) and row[0] == "completed" and row[1] == "official"
 
+
+# Candidate rounds for next_relevant_round(), one query for the whole season (see the file's header).
+NEXT_ROUND_CANDIDATES_SQL = (Path(__file__).resolve().parent / "sql" / "next_round_candidates.sql").read_text()
 
 # How long before a race weekend's first session to start actually attempting fetches, and how
 # long after its last session to keep retrying before falling quiet again. The "after" window is
@@ -763,39 +784,43 @@ def next_relevant_round(cur, year: int) -> int | None:
     before for the common "next race is still months away" case - one Postgres round-trip, no
     FastF1 calls.
 
-    Falls back to "fetch anyway" only when a round has no calendar row at all yet (sync_calendar.py
-    hasn't run for it) - better to attempt a fetch we have no session data to gate on than to
-    silently never check a round forever."""
-    cur.execute(
-        "select round from races where year = %s and (status != 'completed' or results_source = 'openf1_preliminary') "
-        "order by round asc",
-        (year,),
-    )
+    Candidates come from `calendar` as well as `races` (pipeline/sql/next_round_candidates.sql):
+    a round is due to be fetched whether or not a races row exists yet. Only rounds that already
+    had a races row used to be considered - but build_and_push() is the only thing that creates
+    that row, so no upcoming round could ever get its first fetch (audit finding DATA-01; confirmed
+    live, 2026 rounds 16-22 had calendar rows and no races rows). Cancelled calendar rows are never
+    candidates.
+
+    A calendar event with no dated sessions (nothing announced yet) is skipped - nothing can have
+    run. Falls back to "fetch anyway" only for a races row with no calendar row at all
+    (sync_calendar.py hasn't run for it) - better to attempt a fetch we have no session data to gate
+    on than to silently never check a round forever."""
+    cur.execute(NEXT_ROUND_CANDIDATES_SQL, {"year": year})
     rows = cur.fetchall()
     if not rows:
         return None
 
     now = datetime.now(timezone.utc)
-    for (round_num,) in rows:
-        cur.execute("select sessions from calendar where year = %s and round = %s", (year, round_num))
-        cal_row = cur.fetchone()
-        if not cal_row or not cal_row[0]:
-            return round_num
-
+    for round_num, sessions, race_date, source in rows:
         # sync_calendar.py writes these from FastF1's own SessionXDateUtc columns, which pandas
         # returns as tz-naive Timestamps despite the "Utc" name (a real FastF1 convention/quirk,
         # not a sync_calendar.py bug) - .isoformat() on a naive Timestamp has no offset suffix at
         # all, so a naive parse here means UTC, not "unknown timezone."
         dates = []
-        for s in cal_row[0]:
+        for s in sessions or []:
             if not s.get("date"):
                 continue
             d = datetime.fromisoformat(s["date"])
             if d.tzinfo is None:
                 d = d.replace(tzinfo=timezone.utc)
             dates.append(d)
+        if not dates and race_date:
+            # calendar.race_date is a `date` column (read back as text): midnight UTC of race day.
+            dates.append(datetime.fromisoformat(str(race_date)).replace(tzinfo=timezone.utc))
         if not dates:
-            return round_num
+            if source == "races":
+                return round_num
+            continue  # a calendar event with no dates yet - nothing can have happened
 
         window_start = min(dates) - FETCH_WINDOW_BEFORE
         window_end = max(dates) + FETCH_WINDOW_AFTER
@@ -808,39 +833,60 @@ def next_relevant_round(cur, year: int) -> int | None:
     return None
 
 
+def seasons_to_check(now: datetime) -> list[int]:
+    """Seasons a no-argument run gates over, previous season first. The season is the UTC calendar
+    year (not the runner's local clock). For the first FETCH_WINDOW_AFTER of January the previous
+    season is checked too, so a round whose retry window runs past New Year is not dropped the
+    moment the year changes."""
+    years = [now.year]
+    if now - datetime(now.year, 1, 1, tzinfo=timezone.utc) <= FETCH_WINDOW_AFTER:
+        years.insert(0, now.year - 1)
+    return years
+
+
 def main():
     args = sys.argv[1:]
-    year = int(args[0]) if args else datetime.now().year
     force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
 
     conn = init_postgres()
 
+    # (year, round) pairs to process this run.
     if len(args) > 1:
-        rounds = [int(r) for r in args[1:]]
+        targets = [(int(args[0]), int(r)) for r in args[1:]]
     elif force_all:
-        rounds = discover_rounds(year)
+        year = int(args[0]) if args else datetime.now(timezone.utc).year
+        targets = [(year, r) for r in discover_rounds(year)]
     else:
+        years = [int(args[0])] if args else seasons_to_check(datetime.now(timezone.utc))
+        targets = []
         with conn.cursor() as gate_cur:
-            target = next_relevant_round(gate_cur, year)
-        if target is None:
-            print(f"No race weekend within the fetch window right now for {year} - skipping "
+            for year in years:
+                target = next_relevant_round(gate_cur, year)
+                if target is not None:
+                    targets = [(year, target)]
+                    break
+        if not targets:
+            print(f"No race weekend within the fetch window right now for {years} - skipping "
                   "(saves ~30 FastF1 API calls this tick; see next_relevant_round's docstring).")
             conn.close()
-            return
-        rounds = [target]
+            return 0
 
-    print(f"Processing {len(rounds)} round(s) for {year}: {rounds}")
+    print(f"Processing {len(targets)} round(s): {targets}")
+    conflicts = []
     with conn.cursor() as cur:
         # `headshot_url is not null`, not just "has a row" - a row can exist without a photo yet
         # (a prior run's upload failed, or the driver row was seeded before this backfill ever
         # ran), and treating that as "already known" would permanently skip it.
         cur.execute("select code from drivers where headshot_url is not null")
         known_driver_codes = {r[0] for r in cur.fetchall()}
-        for round_num in rounds:
-            if is_already_completed(cur, year, round_num):
-                print(f"  round {round_num}: already completed, skipping")
-                continue
-            build_and_push(cur, year, round_num, known_driver_codes)
+        for year, round_num in targets:
+            try:
+                build_and_push(cur, year, round_num, known_driver_codes)
+            except RaceIdentityConflict as exc:
+                # Nothing was written for this round (the id is resolved before any write). Other
+                # rounds still run; the job still fails at the end so a person looks at it.
+                print(f"  round {year}/{round_num}: SKIPPED, race identity conflict - {exc}")
+                conflicts.append(str(exc))
 
         backfill_race_photos(cur)
         backfill_race_laps(cur)
@@ -854,8 +900,12 @@ def main():
     # can pull the fresh roster in the moment it notices, instead of waiting on that cache's own
     # timer.
     trigger_revalidation("media")
+    if conflicts:
+        print(f"Done with {len(conflicts)} race identity conflict(s) - see above; resolve them by hand.")
+        return 1
     print("Done.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
