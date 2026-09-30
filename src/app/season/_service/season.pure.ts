@@ -1075,3 +1075,10 @@ export function sessionKind(code: string): SessionKind {
   if (code === "Q") return "qualifying";
   return "practice";
 }
+
+/** A practice session's fastest lap. Chosen by lap time, not taken from the list's first entry:
+ * sessions stored before 1 Oct 2026 list drivers alphabetically, and only later ones are stored
+ * fastest first. */
+export function fastestPracticeLap<T extends { lapTimeSec: number }>(laps: readonly T[] | null | undefined): T | undefined {
+  return (laps ?? []).reduce<T | undefined>((fastest, lap) => (fastest === undefined || lap.lapTimeSec < fastest.lapTimeSec ? lap : fastest), undefined);
+}
