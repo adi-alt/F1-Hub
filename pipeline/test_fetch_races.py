@@ -206,3 +206,27 @@ assert points_for(Row(25.0)) == 25.0
 assert points_for(Row(0.0)) == 0.0
 
 print("points_for: all checks passed")
+
+# --- fetch_practice (FastF1): best laps are stored fastest first ------------------------------
+# The season page shows bestLaps[0] as a session's fastest; groupby alone orders by driver code.
+class FakePracticeSession:
+    laps = pd.DataFrame(
+        {"Driver": ["ALB", "ALB", "VER", "LEC", "SAR"], "LapTime": pd.to_timedelta([83.13, 82.5, 80.9, 80.267, None], unit="s")}
+    )
+    weather_data = pd.DataFrame({"AirTemp": [20.0, 22.0], "TrackTemp": [30.0, 32.0], "Humidity": [50.0, 52.0], "Rainfall": [0, 0]})
+
+    def load(self, **kwargs):
+        pass
+
+
+real_get_session = fetch_races.fastf1.get_session
+fetch_races.fastf1.get_session = lambda year, round_num, label: FakePracticeSession()
+try:
+    fp1 = fetch_races.fetch_practice(2026, 1, "FP1")
+finally:
+    fetch_races.fastf1.get_session = real_get_session
+assert [b["driver"] for b in fp1["bestLaps"]] == ["LEC", "VER", "ALB"], fp1  # SAR set no time
+assert fp1["bestLaps"][0]["deltaToBestSec"] == 0 and fp1["bestLaps"][-1] == {"driver": "ALB", "lapTimeSec": 82.5, "deltaToBestSec": 2.233}
+assert fp1["weather"] == {"airTempC": 21.0, "trackTempC": 31.0, "humidityPct": 51.0, "rainfall": False}
+
+print("fetch_practice order: all checks passed")

@@ -1,0 +1,246 @@
+{
+ "2026_r14_spanish-grand-prix": {
+  "FP1": {
+   "weather": {
+    "airTempC": 27.2,
+    "rainfall": false,
+    "trackTempC": 49.8,
+    "humidityPct": 15.7
+   },
+   "bestLaps": [
+    {
+     "driver": "ALB",
+     "lapTimeSec": 97.591,
+     "deltaToBestSec": 3.514
+    },
+    {
+     "driver": "ALO",
+     "lapTimeSec": 96.473,
+     "deltaToBestSec": 2.396
+    },
+    {
+     "driver": "ANT",
+     "lapTimeSec": 94.363,
+     "deltaToBestSec": 0.286
+    },
+    {
+     "driver": "BEA",
+     "lapTimeSec": 96.757,
+     "deltaToBestSec": 2.68
+    },
+    {
+     "driver": "BOR",
+     "lapTimeSec": 95.652,
+     "deltaToBestSec": 1.575
+    },
+    {
+     "driver": "BOT",
+     "lapTimeSec": 98.818,
+     "deltaToBestSec": 4.741
+    },
+    {
+     "driver": "COL",
+     "lapTimeSec": 95.933,
+     "deltaToBestSec": 1.856
+    },
+    {
+     "driver": "GAS",
+     "lapTimeSec": 95.757,
+     "deltaToBestSec": 1.68
+    },
+    {
+     "driver": "HAM",
+     "lapTimeSec": 94.62,
+     "deltaToBestSec": 0.543
+    },
+    {
+     "driver": "HUL",
+     "lapTimeSec": 95.529,
+     "deltaToBestSec": 1.452
+    },
+    {
+     "driver": "LAW",
+     "lapTimeSec": 95.539,
+     "deltaToBestSec": 1.462
+    },
+    {
+     "driver": "LEC",
+     "lapTimeSec": 94.536,
+     "deltaToBestSec": 0.459
+    },
+    {
+     "driver": "LIN",
+     "lapTimeSec": 95.033,
+     "deltaToBestSec": 0.956
+    },
+    {
+     "driver": "NOR",
+     "lapTimeSec": 94.947,
+     "deltaToBestSec": 0.87
+    },
+    {
+     "driver": "OCO",
+     "lapTimeSec": 95.834,
+     "deltaToBestSec": 1.757
+    },
+    {
+     "driver": "PER",
+     "lapTimeSec": 98.15,
+     "deltaToBestSec": 4.073
+    },
+    {
+     "driver": "PIA",
+     "lapTimeSec": 95.148,
+     "deltaToBestSec": 1.071
+    },
+    {
+     "driver": "RUS",
+     "lapTimeSec": 94.077,
+     "deltaToBestSec": 0
+    },
+    {
+     "driver": "SAI",
+     "lapTimeSec": 96.87,
+     "deltaToBestSec": 2.793
+    },
+    {
+     "driver": "STR",
+     "lapTimeSec": 97.254,
+     "deltaToBestSec": 3.177
+    },
+    {
+     "driver": "TSU",
+     "lapTimeSec": 96.939,
+     "deltaToBestSec": 2.862
+    },
+    {
+     "driver": "VER",
+     "lapTimeSec": 94.703,
+     "deltaToBestSec": 0.626
+    }
+   ]
+  }
+ },
+ "2026_r15_azerbaijan-grand-prix": {
+  "FP1": {
+   "weather": {
+    "airTempC": 29.1,
+    "rainfall": false,
+    "trackTempC": 50.4,
+    "humidityPct": 66
+   },
+   "bestLaps": [
+    {
+     "driver": "ALB",
+     "lapTimeSec": 106.939,
+     "deltaToBestSec": 1.552
+    },
+    {
+     "driver": "ALO",
+     "lapTimeSec": 107.835,
+     "deltaToBestSec": 2.448
+    },
+    {
+     "driver": "ANT",
+     "lapTimeSec": 106.265,
+     "deltaToBestSec": 0.878
+    },
+    {
+     "driver": "BEA",
+     "lapTimeSec": 106.994,
+     "deltaToBestSec": 1.607
+    },
+    {
+     "driver": "BOR",
+     "lapTimeSec": 106.688,
+     "deltaToBestSec": 1.301
+    },
+    {
+     "driver": "BOT",
+     "lapTimeSec": 109.315,
+     "deltaToBestSec": 3.928
+    },
+    {
+     "driver": "COL",
+     "lapTimeSec": 107.523,
+     "deltaToBestSec": 2.136
+    },
+    {
+     "driver": "GAS",
+     "lapTimeSec": 107.043,
+     "deltaToBestSec": 1.656
+    },
+    {
+     "driver": "HAD",
+     "lapTimeSec": 107.873,
+     "deltaToBestSec": 2.486
+    },
+    {
+     "driver": "HAM",
+     "lapTimeSec": 105.824,
+     "deltaToBestSec": 0.437
+    },
+    {
+     "driver": "HUL",
+     "lapTimeSec": 106.871,
+     "deltaToBestSec": 1.484
+    },
+    {
+     "driver": "LAW",
+     "lapTimeSec": 106.44,
+     "deltaToBestSec": 1.053
+    },
+    {
+     "driver": "LEC",
+     "lapTimeSec": 105.791,
+     "deltaToBestSec": 0.404
+    },
+    {
+     "driver": "LIN",
+     "lapTimeSec": 106.601,
+     "deltaToBestSec": 1.214
+    },
+    {
+     "driver": "NOR",
+     "lapTimeSec": 106.981,
+     "deltaToBestSec": 1.594
+    },
+    {
+     "driver": "OCO",
+     "lapTimeSec": 106.624,
+     "deltaToBestSec": 1.237
+    },
+    {
+     "driver": "PER",
+     "lapTimeSec": 107.253,
+     "deltaToBestSec": 1.866
+    },
+    {
+     "driver": "PIA",
+     "lapTimeSec": 106.398,
+     "deltaToBestSec": 1.011
+    },
+    {
+     "driver": "RUS",
+     "lapTimeSec": 105.387,
+     "deltaToBestSec": 0
+    },
+    {
+     "driver": "SAI",
+     "lapTimeSec": 106.893,
+     "deltaToBestSec": 1.506
+    },
+    {
+     "driver": "STR",
+     "lapTimeSec": 108.547,
+     "deltaToBestSec": 3.16
+    },
+    {
+     "driver": "VER",
+     "lapTimeSec": 105.787,
+     "deltaToBestSec": 0.4
+    }
+   ]
+  }
+ }
+}
