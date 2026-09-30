@@ -54,7 +54,7 @@ export function AppRealtimeSync() {
   const allListeners = userListeners(uid, isAdmin);
 
   // Same own-row subscription Favorites already needed - a prediction entry/payout (groups.ts's
-  // spendPoints/creditPoints) updates this exact row, so refreshing the header's points balance
+  // enter_prediction()/settle_prediction()) updates this exact row, so refreshing the header's points balance
   // here is free: no new channel/listener, just one more thing this one already-open one does.
   // router.refresh() covers the homepage's server-rendered favorite/personalization data too -
   // this fires for the SAME write FavoriteEntityList's own toggle already calls refreshOnce for

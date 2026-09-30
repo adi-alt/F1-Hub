@@ -242,8 +242,11 @@ describe("Two-Tier Caching & Key Isolation", () => {
   });
 
   test("REGRESSION: User B reading the GLOBAL cache tier never receives User A's personal content", async () => {
-    // End-to-end version of the fix, through the real cache read/write path (not just the pure
-    // stripPersonalFields function) - mirrors route.ts step 9 exactly.
+    // Through the real cache read/write path (not just the pure stripPersonalFields function).
+    // Since M0 Batch 3 the route no longer writes a stripped copy of a PERSONAL generation to the
+    // global tier at all (homepageCacheTiers.ts; route-level coverage in
+    // homepageCacheIsolation.test.ts) - stripping remains as the second line of defence on
+    // global-tier writes, which is what this still covers.
     const userAOutput = generateDeterministicFallback(
       {
         favoriteDriver: { name: "Charles Leclerc", rank: 3, points: 210 },
@@ -258,8 +261,7 @@ describe("Two-Tier Caching & Key Isolation", () => {
     const globalKey = "ai:global:regression_test_race:v1";
     const personalKeyA = "ai:personal:user_a:regression_test_race:v1";
 
-    // Exactly what route.ts's step 9 does: strip personal fields before the GLOBAL write, but cache
-    // the full raw output under User A's OWN personal key.
+    // Strip personal fields before a GLOBAL write; full output only under User A's OWN key.
     await setCachedIntelligence(globalKey, stripPersonalFields(userAOutput), "v1", 3600);
     await setCachedIntelligence(personalKeyA, userAOutput, "v1", 1800);
 

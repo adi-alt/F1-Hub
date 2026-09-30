@@ -45,3 +45,10 @@ export function formatCountdownLive(targetMs: number, nowMs: number): string {
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   return `${minutes}m ${seconds}s`;
 }
+
+/** A deadline as a short local date and time ("Sat 3 Oct, 15:00"). Locale/timezone dependent, so the
+ * element rendering it should carry suppressHydrationWarning (server and browser format it in their
+ * own zone) - same treatment RaceHero gives its own local-time strings. */
+export function formatDeadline(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}

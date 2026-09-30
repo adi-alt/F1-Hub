@@ -10,12 +10,17 @@ import type { PredictionGuess, PredictionType } from "@/lib/groupPredictionTypes
 
 export type DriverOption = { code: string; name: string; headshotUrl: string | null };
 
+/** The one wording for "the deadline has passed", used by every surface that shows it. */
+export const CLOSED_MESSAGE = "Predictions closed when qualifying began.";
+/** For a round whose schedule has no Qualifying session: the server refuses entries (fail closed). */
+export const DEADLINE_UNKNOWN_MESSAGE = "This round's deadline isn't available yet, so it can't take entries right now.";
+
 /** Everything that can stop someone entering, worked out once so the card can say which it is
  * instead of just disabling a button. Mirrors the community page's own blockerFor - the server
  * enforces every one of these regardless (enterPrediction re-checks status, race state, membership
  * and the wallet), so this is about telling the truth in the UI, not about access control. */
-function blockerFor(args: { closed: boolean; drivers: DriverOption[]; type: PredictionType; entryPoints: number; pointsBalance: number | null; alreadyEntered: boolean }): string | null {
-  if (args.closed) return "This race has already started. Waiting for the result.";
+function blockerFor(args: { closed: boolean; closedMessage: string; drivers: DriverOption[]; type: PredictionType; entryPoints: number; pointsBalance: number | null; alreadyEntered: boolean }): string | null {
+  if (args.closed) return args.closedMessage;
   // See PredictionCard's own blockerFor (and getRaceRoster in lib/supabase/races.ts) - the roster
   // falls back to the most recently known line-up, so this is now the genuine edge case, not the
   // common state of "opened a round for next weekend before the pipeline caught up".
@@ -45,9 +50,11 @@ export function PredictionEntry({
   entryPoints,
   drivers,
   closed,
+  closedMessage = CLOSED_MESSAGE,
   initialGuess = null,
   onEntered,
   onCancelEdit,
+  onClosed,
 }: {
   groupId: string;
   predictionId: string;
@@ -55,6 +62,8 @@ export function PredictionEntry({
   entryPoints: number;
   drivers: DriverOption[];
   closed: boolean;
+  /** What to say when `closed`. Defaults to the standard deadline message. */
+  closedMessage?: string;
   /** Present only when this is editing an already-open pick (the card's "Edit pick" action) -
    * pre-fills the form with what's already on file instead of starting blank, opens the form
    * immediately rather than showing the collapsed "Enter prediction" button, and skips the wallet
@@ -67,6 +76,10 @@ export function PredictionEntry({
    * compact "Entered" view, not collapse to the fresh-entry button as it does for a first-time
    * entry (there's nothing to collapse back to; something is already entered). */
   onCancelEdit?: () => void;
+  /** Called when the SERVER refuses the entry because the round has closed (deadline passed,
+   * resolved, or no known deadline) - the client clock can lag the deadline by up to a minute, so
+   * the card should switch to its closed state immediately rather than leave a dead form open. */
+  onClosed?: () => void;
 }) {
   const { pointsBalance, refreshPointsBalance } = useAuth();
   const isEditing = initialGuess !== null;
@@ -77,7 +90,7 @@ export function PredictionEntry({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const blocker = blockerFor({ closed, drivers, type, entryPoints, pointsBalance, alreadyEntered: isEditing });
+  const blocker = blockerFor({ closed, closedMessage, drivers, type, entryPoints, pointsBalance, alreadyEntered: isEditing });
 
   const guess: PredictionGuess | null =
     type === "podium"
@@ -108,8 +121,9 @@ export function PredictionEntry({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ guess }),
     });
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!res.ok) {
+      if (body?.code === "prediction_locked" || body?.code === "lock_unknown" || body?.code === "prediction_resolved") onClosed?.();
       setError(body?.error ?? "Could not enter this prediction.");
       setSaving(false);
       return;

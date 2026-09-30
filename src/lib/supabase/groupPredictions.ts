@@ -1,4 +1,3 @@
-import { creditPoints, spendPoints } from "@/lib/supabase/points";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
@@ -11,10 +10,10 @@ import type { RaceDoc } from "@/lib/types/race";
 // file's own comment for why a client component importing them from *this* module (which reaches
 // otp.ts's nodemailer import through groups.ts) crashed the production build. Re-exported so every
 // existing server-side import of `@/lib/supabase/groupPredictions` keeps working unchanged.
-export type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
+export type { GroupPrediction, PredictionGuess, PredictionState, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
 export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
-import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
+import { predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTypes";
 
 export type FeedPrediction = Omit<GroupPrediction, "myEntry"> & {
   groupName: string;
@@ -31,6 +30,47 @@ export type FeedPrediction = Omit<GroupPrediction, "myEntry"> & {
    * myGuessLabel resolves the viewer's own guess. Null until status is "resolved". */
   correctAnswerLabel: string | null;
 };
+
+/** The deadline (ISO instant) for each race's prediction rounds, straight from the database function
+ * that ENFORCES it (prediction_lock_at: the start of the weekend's main Qualifying session) - never
+ * re-derived in TypeScript, so what a card displays cannot drift from what the server accepts.
+ * A race with no known deadline maps to null, which every consumer treats as closed.
+ *
+ * If the lookup itself fails (most likely: the lifecycle migration hasn't been applied yet), pages
+ * still render - every round shows as closed - and entering still fails at the database, so nothing
+ * is ever accepted on a guess. */
+export async function getPredictionLockTimes(raceIds: string[]): Promise<Map<string, string | null>> {
+  const unique = [...new Set(raceIds)];
+  const result = new Map<string, string | null>(unique.map((id) => [id, null]));
+  if (unique.length === 0) return result;
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.rpc("prediction_lock_times", { p_race_ids: unique }));
+  if (error) {
+    console.error(`getPredictionLockTimes: ${error.message}`);
+    return result;
+  }
+  for (const row of (data ?? []) as { race_id: string; lock_at: string | null }[]) result.set(row.race_id, row.lock_at);
+  return result;
+}
+
+/** The database's named failures (see enter_prediction / settle_prediction in
+ * 20260930_prediction_lifecycle.sql) as ServiceErrors with a stable `code` the UI can act on. Anything
+ * unrecognised is a real bug and stays a plain Error (a 500), never guessed into a friendly message. */
+function predictionError(error: { message: string; details?: string | null }): Error {
+  const m = error.message;
+  if (m.includes("prediction_not_found")) return new ServiceError("Prediction not found.", 404, "prediction_not_found");
+  if (m.includes("not_a_member")) return new ServiceError("You're not a member of this group.", 403, "not_a_member");
+  if (m.includes("prediction_resolved")) return new ServiceError("This prediction has already been resolved.", 409, "prediction_resolved");
+  if (m.includes("prediction_locked")) return new ServiceError("Predictions closed when qualifying began.", 409, "prediction_locked");
+  if (m.includes("lock_unknown")) return new ServiceError("This round's deadline isn't available yet, so it can't take entries right now.", 409, "lock_unknown");
+  if (m.includes("invalid_guess")) return new ServiceError("That isn't a valid pick for this round.", 400, "invalid_guess");
+  if (m.includes("invalid_answer")) return new ServiceError("The race data doesn't give a valid answer for this round yet.", 400, "invalid_answer");
+  if (m.includes("insufficient_points")) {
+    const balance = error.details?.match(/balance=(\d+)/)?.[1];
+    const needed = error.details?.match(/needed=(\d+)/)?.[1];
+    return new ServiceError(needed ? `You need at least ${needed} points to enter this prediction.${balance ? ` Current balance: ${balance} points.` : ""}` : "You don't have enough points to enter this prediction.", 400, "insufficient_points");
+  }
+  return new Error(`prediction: ${m}`);
+}
 
 /** A stored guess rendered as something a person can read. Driver codes become real names where
  * the roster knows them and stay as the code where it doesn't, which is the honest outcome for a
@@ -156,7 +196,7 @@ export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPre
       .from("group_predictions")
       .select("*")
       .in("group_id", groupIds)
-      .or(`status.eq.open,and(status.eq.resolved,resolved_at.gte.${resolvedCutoff})`)
+      .or(`status.in.(open,locked),and(status.eq.resolved,resolved_at.gte.${resolvedCutoff})`)
       .order("created_at", { ascending: false })
       .limit(limit),
   );
@@ -166,11 +206,12 @@ export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPre
   const predictionIds = predictions.map((p) => p.id as string);
   const raceIds = [...new Set(predictions.map((p) => p.race_id as string))];
   const predictionGroupIds = [...new Set(predictions.map((p) => p.group_id as string))];
-  const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }, { data: allEntries, error: allEntriesError }] = await Promise.all([
+  const [{ data: races, error: racesError }, { data: groupsData, error: groupsError }, { data: myEntries, error: entriesError }, { data: allEntries, error: allEntriesError }, lockAtByRace] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("races").select("id, name, race_date, status").in("id", raceIds)),
     queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").in("id", predictionGroupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id, guess, points_awarded").eq("user_id", uid).in("prediction_id", predictionIds)),
     queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id").in("prediction_id", predictionIds)),
+    getPredictionLockTimes(raceIds),
   ]);
   if (racesError) throw new Error(`listMyPredictions: ${racesError.message}`);
   if (groupsError) throw new Error(`listMyPredictions: ${groupsError.message}`);
@@ -192,9 +233,11 @@ export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPre
     predictions.some((p) => p.correct_answer !== null && (["winner", "podium", "fastest_lap", "pole"] as string[]).includes(p.type as string));
   const driverNameByCode = needsDriverNames ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
 
+  const nowMs = Date.now();
   return predictions.map((p) => {
     const type = p.type as PredictionType;
     const correctAnswer = (p.correct_answer as PredictionGuess | null) ?? null;
+    const lockAt = lockAtByRace.get(p.race_id as string) ?? null;
     return {
       id: p.id as string,
       groupId: p.group_id as string,
@@ -206,6 +249,8 @@ export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPre
       type,
       entryPoints: p.entry_points as number,
       status: p.status as PredictionStatus,
+      lockAt,
+      state: predictionStateAt(p.status as PredictionStatus, lockAt, nowMs),
       correctAnswer,
       correctAnswerLabel: correctAnswer === null ? null : describeGuess(type, correctAnswer, driverNameByCode),
       createdAt: p.created_at as string,
@@ -277,6 +322,7 @@ export async function listRaceCommunities(raceId: string, uid: string | null, li
     .sort((a, b) => b.entryCount - a.entryCount)
     .slice(0, limit);
 
+  const lockAt = (await getPredictionLockTimes([raceId])).get(raceId) ?? null;
   const communities = await hydrateCommunityCards(
     ranked.map((r) => ({ id: r.group.id as string, name: r.group.name as string, avatarUrl: r.group.avatar_url as string | null, isMember: myGroupIds.has(r.group.id as string) })),
     uid,
@@ -285,7 +331,7 @@ export async function listRaceCommunities(raceId: string, uid: string | null, li
         .filter((r) => r.prediction)
         .map((r) => [
           r.group.id as string,
-          { id: r.prediction!.id as string, type: r.prediction!.type as PredictionType, status: r.prediction!.status as PredictionStatus, entryCount: r.entryCount, entryPoints: r.prediction!.entry_points as number },
+          { id: r.prediction!.id as string, type: r.prediction!.type as PredictionType, status: r.prediction!.status as PredictionStatus, lockAt, entryCount: r.entryCount, entryPoints: r.prediction!.entry_points as number },
         ]),
     ),
   );
@@ -357,6 +403,13 @@ export async function createPrediction(
   if (!race) throw new ServiceError("That race doesn't exist.", 404);
   if (race.status === "completed") throw new ServiceError("That race has already finished.", 400);
 
+  // A round opened after qualifying has begun would be born closed (or, worse, open to anyone who
+  // already knows the grid). Refuse it, and refuse one whose schedule has no Qualifying session:
+  // there is no authoritative deadline to enforce.
+  const lockAt = (await getPredictionLockTimes([input.raceId])).get(input.raceId) ?? null;
+  if (lockAt === null) throw new ServiceError("This race's qualifying time isn't published yet, so a prediction round can't be opened for it.", 409, "lock_unknown");
+  if (Date.now() >= Date.parse(lockAt)) throw new ServiceError("Predictions for this race closed when qualifying began.", 409, "prediction_locked");
+
   const { data, error } = await supabaseAdmin
     .from("group_predictions")
     .insert({ group_id: groupId, race_id: input.raceId, type: input.type, entry_points: input.entryPoints, created_by: uid })
@@ -380,9 +433,10 @@ export async function listPredictions(groupId: string, uid: string): Promise<Gro
 
   const predictionIds = predictions.map((p) => p.id as string);
   const raceIds = [...new Set(predictions.map((p) => p.race_id as string))];
-  const [{ data: entries, error: entriesError }, { data: races, error: racesError }] = await Promise.all([
+  const [{ data: entries, error: entriesError }, { data: races, error: racesError }, lockAtByRace] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id, user_id, guess, points_wagered, points_awarded").in("prediction_id", predictionIds)),
     queryWithRetry(() => supabaseAdmin.from("races").select("id, name, race_date, status").in("id", raceIds)),
+    getPredictionLockTimes(raceIds),
   ]);
   if (entriesError) throw new Error(`listPredictions(${groupId}): ${entriesError.message}`);
   if (racesError) throw new Error(`listPredictions(${groupId}): ${racesError.message}`);
@@ -398,7 +452,10 @@ export async function listPredictions(groupId: string, uid: string): Promise<Gro
     }
   }
 
-  return predictions.map((p) => ({
+  const nowMs = Date.now();
+  return predictions.map((p) => {
+    const lockAt = lockAtByRace.get(p.race_id as string) ?? null;
+    return {
     id: p.id as string,
     groupId: p.group_id as string,
     raceId: p.race_id as string,
@@ -408,12 +465,15 @@ export async function listPredictions(groupId: string, uid: string): Promise<Gro
     type: p.type as PredictionType,
     entryPoints: p.entry_points as number,
     status: p.status as PredictionStatus,
+    lockAt,
+    state: predictionStateAt(p.status as PredictionStatus, lockAt, nowMs),
     correctAnswer: (p.correct_answer as PredictionGuess | null) ?? null,
     createdAt: p.created_at as string,
     resolvedAt: (p.resolved_at as string | null) ?? null,
     entryCount: entryCountByPrediction.get(p.id as string) ?? 0,
     myEntry: myEntryByPrediction.get(p.id as string) ?? null,
-  }));
+    };
+  });
 }
 
 function validateGuess(type: PredictionType, guess: unknown): PredictionGuess {
@@ -432,63 +492,40 @@ function validateGuess(type: PredictionType, guess: unknown): PredictionGuess {
   return guess;
 }
 
-/** Points are taken at entry time, not staged for later - if the entry row then fails to insert
- * (the realistic case: a genuine double-submit racing against this same function, caught by
- * group_prediction_entries' own primary key), the just-taken points are refunded immediately
- * rather than left charged against a prediction the user was never actually entered into.
+/** Enter, or change, a pick - the whole decision is made by enter_prediction() in the database
+ * (20260930_prediction_lifecycle.sql), in ONE transaction: membership, round state, the deadline
+ * (start of the weekend's main Qualifying session, exclusive), the guess's shape, the entry fee and
+ * its ledger row. Nothing is charged unless the entry is stored, so there is no refund path to get
+ * wrong, and once the deadline has passed neither a new entry nor an edit is accepted.
  *
- * A second call for the same (predictionId, uid) while the round is still open changes the
- * existing pick instead of failing with "already entered" - the entry fee was already paid the
- * first time and this round's entryPoints can't have changed since, so nothing is re-charged or
- * refunded for an edit, only `guess` itself is updated. This is what actually makes "Change
- * prediction"/"Edit pick" in the UI (PredictionCard.tsx, PredictionFeedCard.tsx) work - before
- * this, a second submission always hit the unique (prediction_id, user_id) primary key and 409'd. */
-export async function enterPrediction(groupId: string, predictionId: string, uid: string, rawGuess: unknown): Promise<void> {
+ * A second call for the same (predictionId, uid) before the deadline changes the existing pick
+ * without re-charging - the fee was paid the first time and the round's entryPoints can't have
+ * changed since. That is what makes "Change prediction" work.
+ *
+ * validateGuess still runs first: it gives the friendlier messages and spares a round trip. The
+ * database re-validates, so it isn't the only line of defence. */
+export async function enterPrediction(groupId: string, predictionId: string, uid: string, rawGuess: unknown): Promise<{ created: boolean; lockAt: string | null }> {
   await requireMember(groupId, uid);
 
-  const { data: prediction, error } = await supabaseAdmin.from("group_predictions").select("*").eq("id", predictionId).eq("group_id", groupId).maybeSingle();
+  const { data: prediction, error } = await supabaseAdmin.from("group_predictions").select("type").eq("id", predictionId).eq("group_id", groupId).maybeSingle();
   if (error) throw new Error(`enterPrediction(${predictionId}): ${error.message}`);
-  if (!prediction) throw new ServiceError("Prediction not found.", 404);
-  if (prediction.status !== "open") throw new ServiceError("This prediction is no longer open for entries.", 400);
+  if (!prediction) throw new ServiceError("Prediction not found.", 404, "prediction_not_found");
 
   const guess = validateGuess(prediction.type as PredictionType, rawGuess);
-  const entryPoints = prediction.entry_points as number;
-
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from("group_prediction_entries")
-    .select("prediction_id")
-    .eq("prediction_id", predictionId)
-    .eq("user_id", uid)
-    .maybeSingle();
-  if (existingError) throw new Error(`enterPrediction(${predictionId}): ${existingError.message}`);
-
-  if (existing) {
-    const { error: updateError } = await supabaseAdmin.from("group_prediction_entries").update({ guess }).eq("prediction_id", predictionId).eq("user_id", uid);
-    if (updateError) throw new Error(`enterPrediction(${predictionId}): ${updateError.message}`);
-    return;
-  }
-
-  if (entryPoints > 0) await spendPoints(uid, entryPoints, "prediction_entry", { groupId, predictionId });
-
-  const { error: insertError } = await supabaseAdmin
-    .from("group_prediction_entries")
-    .insert({ prediction_id: predictionId, user_id: uid, guess, points_wagered: entryPoints });
-  if (insertError) {
-    if (entryPoints > 0) await creditPoints(uid, entryPoints, "prediction_refund", { groupId, predictionId });
-    // A genuine race (two concurrent first-time submissions) rather than the ordinary edit path
-    // above, which already handles the common "I already have a row" case before reaching here.
-    if (insertError.code === "23505") throw new ServiceError("You've already entered this prediction.", 409);
-    throw new Error(`enterPrediction(${predictionId}): ${insertError.message}`);
-  }
+  const { data, error: enterError } = await supabaseAdmin.rpc("enter_prediction", { p_prediction_id: predictionId, p_group_id: groupId, p_user_id: uid, p_guess: guess });
+  if (enterError) throw predictionError(enterError);
+  const result = data as { created: boolean; lockAt: string | null };
+  return { created: result.created, lockAt: result.lockAt ?? null };
 }
 
-// Every entry pays back double its wager for a fully correct guess - a simple, easy-to-explain
-// "double or nothing" model rather than a pari-mutuel pool (which would need to account for how
-// many other entrants also guessed right, adding real complexity for a v1 virtual points game).
-// Podium reuses the same 3/1/0-per-slot convention pipeline/compute_group_scores.py already
-// established for the personal-picks leaderboard (exact slot = 3, right driver/wrong slot = 1,
-// miss = 0, out of a max of 9) so "how close was I" reads consistently across both systems, scaled
-// into a payout fraction of the double-payout ceiling instead of a raw leaderboard score.
+// PAYOUT MODEL (implemented in settle_prediction(), supabase/migrations/20260930_prediction_lifecycle.sql -
+// the only place scoring lives now, so it cannot drift from what actually gets paid): every entry
+// pays back double its wager for a fully correct guess - a simple "double or nothing" model rather
+// than a pari-mutuel pool. Podium reuses the 3/1/0-per-slot convention pipeline/compute_group_scores.py
+// established for the personal-picks leaderboard (exact slot = 3, right driver/wrong slot = 1, miss
+// = 0, out of 9), scaled into a fraction of the double-payout ceiling.
+//
+// The helpers below only work out WHAT the correct answer is from a race's results.
 function resolveWinner(race: RaceDoc): string | null {
   return race.results?.find((r) => r.finishPosition === 1)?.driver ?? null;
 }
@@ -511,23 +548,25 @@ function resolvePodium(race: RaceDoc): [string, string, string] | null {
   return top3.length === 3 ? (top3 as [string, string, string]) : null;
 }
 
-function podiumSlotScore(guess: [string, string, string], actual: [string, string, string]): number {
-  const actualSet = new Set(actual);
-  return guess.reduce((score, pick, i) => score + (actual[i] === pick ? 3 : actualSet.has(pick) ? 1 : 0), 0);
-}
+export type ResolveResult = { alreadyResolved: boolean; paidCount: number; paidTotal: number };
 
 /** Admin-triggered, not an automatic pipeline step - deliberately, for this v1: every input this
  * needs (results, pole, per-driver fastest lap) already sits on `races` the moment a race's status
  * flips to "completed" via the existing fetch_races.py write, so "resolve" is a pure read+compute
- * over data this app already has in Postgres - no new Python/cron job needed to keep it fresh, an
- * admin visiting the group after race day and clicking "Resolve" covers the real use case. */
-export async function resolvePrediction(groupId: string, predictionId: string, uid: string): Promise<void> {
+ * over data this app already has in Postgres.
+ *
+ * The correct answer is computed here, next to the results model; everything that must be atomic
+ * is done by settle_prediction() in the database: claim the round (row lock), score every entry,
+ * credit balances, write ledger rows, mark it resolved - all or nothing. Resolving again (a double
+ * click, a retry, a second admin) is a safe no-op that reports `alreadyResolved: true` and moves no
+ * points; a concurrent second call waits on the row lock and then sees the same. */
+export async function resolvePrediction(groupId: string, predictionId: string, uid: string): Promise<ResolveResult> {
   await requireAdmin(groupId, uid);
 
   const { data: prediction, error } = await supabaseAdmin.from("group_predictions").select("*").eq("id", predictionId).eq("group_id", groupId).maybeSingle();
   if (error) throw new Error(`resolvePrediction(${predictionId}): ${error.message}`);
-  if (!prediction) throw new ServiceError("Prediction not found.", 404);
-  if (prediction.status === "resolved") throw new ServiceError("This prediction has already been resolved.", 400);
+  if (!prediction) throw new ServiceError("Prediction not found.", 404, "prediction_not_found");
+  if (prediction.status === "resolved") return { alreadyResolved: true, paidCount: 0, paidTotal: 0 };
 
   const race = await getRaceById(prediction.race_id as string);
   if (!race || race.status !== "completed" || !race.results?.length) {
@@ -543,31 +582,13 @@ export async function resolvePrediction(groupId: string, predictionId: string, u
   else correctAnswer = resolvePodium(race);
   if (correctAnswer === null) throw new ServiceError("This race's data doesn't have what's needed to resolve this prediction type yet.", 400);
 
-  const { data: entries, error: entriesError } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_prediction_entries").select("user_id, guess, points_wagered").eq("prediction_id", predictionId),
-  );
-  if (entriesError) throw new Error(`resolvePrediction(${predictionId}): ${entriesError.message}`);
-
-  for (const entry of entries ?? []) {
-    const wagered = entry.points_wagered as number;
-    let payoutFraction = 0;
-    if (type === "podium") {
-      payoutFraction = podiumSlotScore(entry.guess as [string, string, string], correctAnswer as [string, string, string]) / 9;
-    } else {
-      payoutFraction = entry.guess === correctAnswer ? 1 : 0;
-    }
-    const payout = Math.round(wagered * payoutFraction * 2);
-
-    await supabaseAdmin
-      .from("group_prediction_entries")
-      .update({ points_awarded: payout })
-      .eq("prediction_id", predictionId)
-      .eq("user_id", entry.user_id as string);
-    if (payout > 0) await creditPoints(entry.user_id as string, payout, "prediction_payout", { groupId, predictionId });
-  }
-
-  await supabaseAdmin
-    .from("group_predictions")
-    .update({ status: "resolved", correct_answer: correctAnswer, resolved_at: new Date().toISOString() })
-    .eq("id", predictionId);
+  const { data, error: settleError } = await supabaseAdmin.rpc("settle_prediction", {
+    p_prediction_id: predictionId,
+    p_group_id: groupId,
+    p_correct_answer: correctAnswer,
+    // Recorded so a round paid out against preliminary results can be found and reviewed later.
+    p_results_source: race.resultsSource ?? null,
+  });
+  if (settleError) throw predictionError(settleError);
+  return data as ResolveResult;
 }

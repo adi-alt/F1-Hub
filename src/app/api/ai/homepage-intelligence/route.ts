@@ -4,7 +4,10 @@
 // 1. Single model invocation with pre-fetched context (no tool loops).
 // 2. Strict 40 RPM provider ceiling enforcement with sliding window.
 // 3. Two-tier caching: GLOBAL (race/model/simulation - independent of any one user's prediction)
-//    vs PERSONAL (global + this user's favorites/pick/fingerprint/visit history).
+//    vs PERSONAL (global + this user's favorites/pick/fingerprint/community memberships). The
+//    global tier is only ever generated from shared context - see src/lib/ai/homepageCacheTiers.ts
+//    (audit AI-02: it used to be a stripped copy of whichever user's personalised generation came
+//    first, which could carry that user's private community posts or pick in its shared prose).
 // 4. Single-flight generation lock so a cache-miss stampede doesn't fan out into N model calls.
 // 5. Guaranteed deterministic (and itself personalized) fallback on rate limit, provider error, or
 //    timeout - see fallback.ts.
@@ -34,7 +37,7 @@ import {
 import { getUserProfile, touchHomepageVisit } from "@/lib/supabase/users";
 import { getUserPicksForYear } from "@/lib/supabase/picks";
 import { computePredictionFingerprint } from "@/lib/predictionPerformance";
-import { listFeedPosts } from "@/lib/supabase/groupPosts";
+import { getJoinedGroupIds, listFeedPosts } from "@/lib/supabase/groupPosts";
 import { computeSinceLastVisit } from "@/lib/ai/sinceLastVisit";
 import { generateHomepageIntelligence } from "@/lib/ai/orchestrator";
 import {
@@ -53,6 +56,7 @@ import { generateDeterministicFallback, type FallbackDataContext } from "@/lib/a
 import { logAIError, logDeterministicFallback } from "@/lib/ai/telemetry";
 import type { HomepageContextData } from "@/lib/ai/context";
 import { stripPersonalFields, type HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
+import { HOMEPAGE_CACHE_TIER_VERSION, personalHomepageVersionParts, planHomepageGeneration } from "@/lib/ai/homepageCacheTiers";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
 
@@ -75,10 +79,11 @@ export async function POST() {
     const session = await getSession();
     const userId = session?.uid || null;
 
-    // 2. Fetch deterministic GLOBAL data AND (when signed in) ONLY the two personal reads that
-    // actually feed the cache key: `getUserProfile` (favorite ids) and `getUserPicksForYear` (pick
-    // timestamp + prediction fingerprint). Deliberately NOT `listFeedPosts` here - see step 6's own
-    // comment for why it's cache-key-irrelevant and safe to defer entirely to the miss path.
+    // 2. Fetch deterministic GLOBAL data AND (when signed in) ONLY the personal reads that actually
+    // feed the cache key: `getUserProfile` (favorite ids), `getUserPicksForYear` (pick timestamp +
+    // prediction fingerprint) and `getJoinedGroupIds` (one light query - the feed the personal
+    // context quotes is scoped to these communities, so a membership change must change the key).
+    // `listFeedPosts` itself is still deferred to the miss path (step 6).
     const year = new Date().getFullYear();
     const [nextRace, races, archiveCircuits, standings, userBatch] = await Promise.all([
       getNextUpcomingRace(year).catch(() => null),
@@ -86,7 +91,11 @@ export async function POST() {
       getAllArchiveCircuits().catch(() => []),
       computeSeasonStandings(year).catch(() => null),
       userId
-        ? Promise.all([getUserProfile(userId).catch(() => null), getUserPicksForYear(userId, year).catch(() => [])])
+        ? Promise.all([
+            getUserProfile(userId).catch(() => null),
+            getUserPicksForYear(userId, year).catch(() => []),
+            getJoinedGroupIds(userId).catch(() => null),
+          ])
         : Promise.resolve(null),
     ]);
     const raceId = nextRace?.id || `season_${year}_prep`;
@@ -105,9 +114,11 @@ export async function POST() {
     let userPick = null;
     let fingerprint = null;
     let lastHomepageVisitAt: string | null = null;
+    let joinedGroupIds: string[] | null = null;
 
     if (userId && userBatch) {
-      const [p, picks] = userBatch;
+      const [p, picks, groupIds] = userBatch;
+      joinedGroupIds = groupIds;
       profile = p;
       lastHomepageVisitAt = profile?.lastHomepageVisitAt ?? null;
       userPick = nextRace ? (picks.find((pick) => pick.raceId === nextRace.id) ?? null) : null;
@@ -150,6 +161,7 @@ export async function POST() {
     // (CommunityPulse.tsx is not mounted anywhere) - removing it loses no real behavior and fixes
     // the fragmentation as a side effect.
     const globalDataVersion = computeDataVersion([
+      HOMEPAGE_CACHE_TIER_VERSION,
       raceId,
       simTop ? `${simTop.driver}:${simTop.p1}` : "",
       rfTop ? `${rfTop.driver}` : "",
@@ -185,19 +197,27 @@ export async function POST() {
     // logic), changing which entry is "primary" (index [0], what personalOutlook/the deterministic
     // fallback key off) without changing the sorted string at all. Appending each array's raw (not
     // sorted) [0] separately closes that gap without losing the set-change coverage sorting gives.
-    const personalDataVersion = userId
-      ? computeDataVersion([
-          globalDataVersion,
-          userId,
-          [...(profile?.favoriteDrivers ?? [])].sort().join(","),
-          [...(profile?.favoriteTeams ?? [])].sort().join(","),
-          [...(profile?.favoriteTracks ?? [])].sort().join(","),
-          profile?.favoriteDrivers?.[0] ?? "",
-          profile?.favoriteTeams?.[0] ?? "",
-          userPick?.submittedAt,
-          fingerprint?.totalPredictions,
-        ])
-      : null;
+    //
+    // Community memberships are in it too (personalHomepageVersionParts): the personal context
+    // quotes the user's joined communities' posts. If they can't be read, there is no safe personal
+    // key at all - personalDataVersion stays null and this request is served, and generated, as the
+    // shared tier (no personal context reaches the model), rather than risk serving an entry built
+    // from a community the user has since left.
+    const personalDataVersion =
+      userId && joinedGroupIds
+        ? computeDataVersion(
+            personalHomepageVersionParts({
+              globalDataVersion,
+              userId,
+              favoriteDrivers: profile?.favoriteDrivers ?? [],
+              favoriteTeams: profile?.favoriteTeams ?? [],
+              favoriteTracks: profile?.favoriteTracks ?? [],
+              pickSubmittedAt: userPick?.submittedAt,
+              totalPredictions: fingerprint?.totalPredictions,
+              joinedGroupIds,
+            }),
+          )
+        : null;
 
     const globalCacheKey = buildGlobalCacheKey(raceId, globalDataVersion);
     const personalCacheKey = userId && personalDataVersion ? buildPersonalCacheKey(userId, raceId, personalDataVersion) : null;
@@ -416,19 +436,24 @@ export async function POST() {
     };
 
     const agentContext: AgentContext = { userId, requestId, agentType: "homepage_intelligence", raceId };
-    const generationKey = personalCacheKey ?? globalCacheKey;
 
-    const output = await withSingleFlight(generationKey, () => generateHomepageIntelligence(contextData, agentContext, personalDataVersion ?? globalDataVersion));
+    // Which tier this generation belongs to decides its context: a global-tier generation (guest,
+    // default-state user, or no safe personal key) sees shared context only; a personal one sees
+    // everything and is written ONLY to this user's own key. See homepageCacheTiers.ts.
+    const plan = planHomepageGeneration({ personalCacheKey, globalCacheKey, isDefaultUser, context: contextData });
+    const planVersion = plan.tier === "global" ? globalDataVersion : personalDataVersion!;
 
-    // 9. Cache the result. The global slice must never carry THIS user's personal content - any
-    // other guest/default-state user can read globalCacheKey (see step 5), so it gets a stripped
-    // copy with every personal-only field nulled out (their already-optional shape, per the schema)
-    // rather than the raw model output, which still contains this user's favorite/pick/coach text
-    // whenever they had any personal context at generation time.
+    const output = await withSingleFlight(plan.cacheKey, () => generateHomepageIntelligence(plan.context, agentContext, planVersion));
+
+    // 9. Cache the result under the plan's key only. The global write is also stripped of every
+    // personal-only output field - a second line of defence (the model was never shown personal
+    // context for it, but must not be trusted not to invent a personal section).
     if (!output.isFallback) {
-      await setCachedIntelligence(globalCacheKey, stripPersonalFields(output.data), globalDataVersion, DEFAULT_GLOBAL_TTL_SECONDS, { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId });
-      if (personalCacheKey) {
-        await setCachedIntelligence(personalCacheKey, output.data, personalDataVersion!, DEFAULT_PERSONAL_TTL_SECONDS, { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId });
+      const meta = { model: output.modelIdentifier, promptVersion: output.promptVersion, requestId };
+      if (plan.tier === "global") {
+        await setCachedIntelligence(globalCacheKey, stripPersonalFields(output.data), globalDataVersion, DEFAULT_GLOBAL_TTL_SECONDS, meta);
+      } else {
+        await setCachedIntelligence(plan.cacheKey, output.data, planVersion, DEFAULT_PERSONAL_TTL_SECONDS, meta);
       }
     }
 

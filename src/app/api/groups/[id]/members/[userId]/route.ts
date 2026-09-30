@@ -19,12 +19,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string; userId: string }> }) {
+/** Removes a member. `?ban=1` also bars them from rejoining. */
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string; userId: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id, userId } = await params;
+  const ban = new URL(request.url).searchParams.get("ban") === "1";
   try {
-    await removeMember(id, session.uid, userId);
+    await removeMember(id, session.uid, userId, { ban });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });

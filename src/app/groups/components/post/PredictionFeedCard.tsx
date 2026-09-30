@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
+import { predictionStateAt, predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { PredictionTrendBars } from "./PredictionTrendBars";
 import { groupHref } from "@/lib/routes";
-import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
+import { formatCountdown } from "@/lib/countdown";
 import { timeAgo } from "@/lib/format";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { PredictionEntry, type DriverOption } from "./PredictionEntry";
+import { CLOSED_MESSAGE, DEADLINE_UNKNOWN_MESSAGE, PredictionEntry, type DriverOption } from "./PredictionEntry";
 
 /** "Podium" (predictionTypeLabels' own short label, used for the header's own small badge) ->
  * "Predict the podium" (the actual focal question, longer and more specific) - both derived from
@@ -73,11 +73,18 @@ export function PredictionFeedCard({
     prediction.hasEntered ? { guess: prediction.myGuess, label: prediction.myGuessLabel } : null,
   );
   const [editing, setEditing] = useState(false);
-  const raceAt = prediction.raceDate ? parseUtcDateTime(prediction.raceDate).getTime() : null;
-  const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
-  const closed = !!raceAt && raceAt <= now;
-  const urgent = !!raceAt && raceAt > now && raceAt - now < 24 * 60 * 60 * 1000;
-  const resolved = prediction.status === "resolved";
+  // The deadline is the server's: the start of the weekend's main Qualifying session, from the same
+  // database function that refuses late entries (prediction.lockAt) - not the race date, which made
+  // this card say "closed" from midnight UTC on race day while the server was still accepting
+  // entries (audit COM-05). `serverClosed` covers the up-to-a-minute the clock below can lag.
+  const [serverClosed, setServerClosed] = useState(false);
+  const state = predictionStateAt(prediction.status, prediction.lockAt, now);
+  const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
+  const closed = serverClosed || state !== "open";
+  const closedMessage = prediction.lockAt === null ? DEADLINE_UNKNOWN_MESSAGE : CLOSED_MESSAGE;
+  const countdown = !closed && lockMs !== null ? formatCountdown(lockMs, now) : null;
+  const urgent = !closed && lockMs !== null && lockMs - now < 24 * 60 * 60 * 1000;
+  const resolved = state === "resolved";
 
   return (
     <motion.article
@@ -134,6 +141,8 @@ export function PredictionFeedCard({
             entryPoints={prediction.entryPoints}
             drivers={drivers}
             closed={closed}
+            closedMessage={closedMessage}
+            onClosed={() => setServerClosed(true)}
             initialGuess={entered?.guess ?? null}
             onEntered={(guess, label) => {
               setEntered({ guess, label });
@@ -151,6 +160,8 @@ export function PredictionFeedCard({
             entryPoints={prediction.entryPoints}
             drivers={drivers}
             closed={closed}
+            closedMessage={closedMessage}
+            onClosed={() => setServerClosed(true)}
             onEntered={(guess, label) => setEntered({ guess, label })}
           />
         )}

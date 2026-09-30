@@ -13,7 +13,7 @@ import crypto from "crypto";
 import { getSession } from "@/lib/session/getSession";
 import { getRaceById } from "@/lib/supabase/races";
 import { getArchiveRace } from "@/lib/supabase/archive";
-import { ALL_CONTEXT_SOURCES, buildRaceIntelligenceContext, hasPersonalContext, type ContextSource, type RaceIntelligenceContext } from "@/lib/ai/context/raceContext";
+import { ALL_CONTEXT_SOURCES, buildRaceIntelligenceContext, hasPersonalContext, toSharedRaceContext, type ContextSource, type RaceIntelligenceContext } from "@/lib/ai/context/raceContext";
 import { buildArchiveIntelligenceContext } from "@/lib/ai/context/archiveContext";
 import { generateRaceIntelligence } from "@/lib/ai/orchestrator";
 import {
@@ -39,12 +39,12 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const raceId = searchParams.get("raceId");
   if (!raceId) return NextResponse.json({ error: "Missing raceId" }, { status: 400 });
-  // Archive races live in a completely separate table (different id scheme, no
-  // tireCompoundPace/safetyCarPeriods/trafficStats, no this-season short codes) - archiveContext.ts
+  // Archive races live in a completely separate table (same `{year}_r{round}_{slug}` id scheme, but
+  // no tireCompoundPace/safetyCarPeriods/trafficStats, no this-season short codes) - archiveContext.ts
   // builds the exact same RaceIntelligenceContext shape from it, so everything past this dispatch
   // (schema/prompt/orchestrator/cache/UI) is identical either way. Archive is looked up by
-  // year+round (its own real getArchiveRace signature), not the opaque `raceId` - `raceId` is only
-  // used below for cache-key uniqueness, which archive_races.id already provides.
+  // year+round (its own real getArchiveRace signature); the client's `raceId` must name that same
+  // row (checked below) and is never itself trusted as the cache identity.
   const isArchive = searchParams.get("source") === "archive";
   const archiveYear = Number(searchParams.get("year"));
   const archiveRound = Number(searchParams.get("round"));
@@ -57,25 +57,38 @@ export async function POST(request: Request) {
     const userId = session?.uid || null;
 
     let context: RaceIntelligenceContext;
-    let dataVersionSeed: string;
+    // The cache identity comes from the server's own row, never from the request (audit AI-03: the
+    // archive path used to key the cache on the client's `raceId` while building the content from
+    // year/round, so any caller could file one race's analysis under another race's key - including
+    // a live race's, since archive and live ids share one scheme for 2018-2025).
+    let cacheRaceId: string;
+    let versionParts: (string | number | null | undefined)[];
     if (isArchive) {
       const archiveRace = await getArchiveRace(archiveYear, archiveRound);
       if (!archiveRace) return NextResponse.json({ error: "Race not found" }, { status: 404 });
+      if (archiveRace.id !== raceId) return NextResponse.json({ error: "raceId does not match year/round" }, { status: 400 });
       context = await buildArchiveIntelligenceContext(archiveYear, archiveRound, userId ?? undefined);
-      // Archive rows are immutable once backfilled - no preliminary/official upgrade path a live
-      // race has, so dataCoverage is the only real signal that can ever change this key.
-      dataVersionSeed = computeDataVersion([raceId, JSON.stringify(context.dataCoverage)]);
+      // Separate namespace from live races (same id scheme, different context builder). Archive rows
+      // are immutable once backfilled - no preliminary/official upgrade path a live race has, so
+      // dataCoverage is the only real signal that can ever change this key.
+      cacheRaceId = `archive_${archiveRace.id}`;
+      versionParts = [cacheRaceId];
     } else {
       const race = await getRaceById(raceId);
       if (!race) return NextResponse.json({ error: "Race not found" }, { status: 404 });
       if (race.status !== "completed") return NextResponse.json({ error: "Race not completed yet" }, { status: 400 });
-      context = await buildRaceIntelligenceContext(raceId, userId ?? undefined);
+      context = await buildRaceIntelligenceContext(race.id, userId ?? undefined);
       // Data version - a completed race's underlying facts don't change again once official, so
       // this is what actually invalidates a cache entry (see cache.ts's own comment), not a timer.
       // Real signal, not a guess: results_source/data_completeness are exactly the two fields the
       // pipeline itself writes when a race is upgraded (e.g. openf1_preliminary -> official).
-      dataVersionSeed = computeDataVersion([raceId, race.updatedAt, JSON.stringify(context.dataCoverage)]);
+      cacheRaceId = race.id;
+      versionParts = [race.id, race.updatedAt];
     }
+    // What the shared analysis is generated from, validated against and versioned by - nothing about
+    // the requesting user (toSharedRaceContext; audit AI-02/AI-08). Versioned by the SHARED coverage
+    // only: the favourite flags used to give each user with favourites their own "shared" entry.
+    const sharedContext = toSharedRaceContext(context);
     const wantsPersonal = !!userId && hasPersonalContext(context);
 
     // "Behind This Analysis" panel material - real, deterministic, recomputed fresh every request
@@ -97,13 +110,13 @@ export async function POST(request: Request) {
         }
       : null;
 
-    const dataVersion = dataVersionSeed;
-    const sharedCacheKey = buildSharedRaceCacheKey(raceId, dataVersion);
+    const dataVersion = computeDataVersion([...versionParts, JSON.stringify(sharedContext.dataCoverage)]);
+    const sharedCacheKey = buildSharedRaceCacheKey(cacheRaceId, dataVersion);
     // Hashes ALL favorite ids (sorted/joined), not just the primary - a 2nd/3rd favorite changing
     // must still bust this cache (same fix as the homepage route's personalDataVersion).
     const personalCacheKey = wantsPersonal
       ? buildPersonalRaceCacheKey(
-          raceId,
+          cacheRaceId,
           userId!,
           context.favoriteDrivers.map((d) => d.driverId).sort().join(",") || null,
           context.favoriteTeams.map((t) => t.teamId).sort().join(",") || null,
@@ -136,7 +149,7 @@ export async function POST(request: Request) {
         // No shared cache to fall back to and the provider is over capacity - deterministic shared
         // content only, same "never leave the page with nothing" guarantee the homepage route has.
         return NextResponse.json({
-          shared: { content: generateDeterministicRaceFallback(context).shared, generationMode: "deterministic", generatedAt: new Date().toISOString() },
+          shared: { content: generateDeterministicRaceFallback(sharedContext).shared, generationMode: "deterministic", generatedAt: new Date().toISOString() },
           personal: null,
           dataCoverage: context.dataCoverage,
           evidenceFactCounts,
@@ -144,32 +157,34 @@ export async function POST(request: Request) {
         });
       }
 
-      const agentContext: AgentContext = { userId, requestId, agentType: "race_intelligence", raceId, dataVersion };
-      // Must include the per-user personalCacheKey whenever this call will produce personal content -
-      // otherwise two different users landing on the same cold race (needShared=true for both) would
-      // lock on the same sharedCacheKey, and the second caller's single-flight join would silently
-      // hand them the FIRST caller's personal insight (see cache.ts's withSingleFlight: the second
-      // caller's own generate() closure, built from their own favorite driver/team, never runs at
-      // all - they just get caller #1's resolved {shared, personal} result). Keying by personalCacheKey
-      // when needPersonal is true means two different users never collapse into one lock, even though
-      // both may (redundantly, but harmlessly and correctly) regenerate the same shared content.
-      const generationKey = needPersonal ? personalCacheKey! : sharedCacheKey;
+      const agentContext: AgentContext = { userId, requestId, agentType: "race_intelligence", raceId: cacheRaceId, dataVersion };
 
-      const result = await withSingleFlight(generationKey, () =>
-        generateRaceIntelligence(context, agentContext, {
-          needShared,
-          needPersonal,
-          existingSharedHeadline: sharedEntry?.content.headline,
-        }),
-      );
-
-      if (result.shared) {
-        await setCachedRaceEntry(sharedCacheKey, result.shared.data, result.shared.generationMode, dataVersion, { requestId, promptVersion: "race_v1" });
-        sharedEntry = { content: result.shared.data, generationMode: result.shared.generationMode, generatedAt: new Date().toISOString() };
+      // Two separate generations, each single-flighted on - and written to - its own key only:
+      // - SHARED from sharedContext, on sharedCacheKey. Every concurrent visitor of a cold race can
+      //   safely join this one flight, because nothing in it belongs to anyone in particular.
+      // - PERSONAL from the full context, on this user's personalCacheKey, so two users never collapse
+      //   into one lock and receive each other's insight (the earlier single-flight leak; see
+      //   raceIntelligenceIsolation.test.ts).
+      // They used to be one combined call whose shared half had seen this user's favourites. A cold
+      // visit by a signed-in user with favourites now costs two calls instead of one; the shared one
+      // is then cached for everyone.
+      if (needShared) {
+        const result = await withSingleFlight(sharedCacheKey, () =>
+          generateRaceIntelligence(sharedContext, agentContext, { needShared: true, needPersonal: false }),
+        );
+        if (result.shared) {
+          await setCachedRaceEntry(sharedCacheKey, result.shared.data, result.shared.generationMode, dataVersion, { requestId, promptVersion: "race_v1" });
+          sharedEntry = { content: result.shared.data, generationMode: result.shared.generationMode, generatedAt: new Date().toISOString() };
+        }
       }
-      if (personalCacheKey && result.personal) {
-        await setCachedRaceEntry(personalCacheKey, result.personal.data, result.personal.generationMode, dataVersion, { requestId, promptVersion: "race_v1" });
-        personalEntry = { content: result.personal.data, generationMode: result.personal.generationMode, generatedAt: new Date().toISOString() };
+      if (needPersonal && personalCacheKey) {
+        const result = await withSingleFlight(personalCacheKey, () =>
+          generateRaceIntelligence(context, agentContext, { needShared: false, needPersonal: true, existingSharedHeadline: sharedEntry?.content.headline }),
+        );
+        if (result.personal) {
+          await setCachedRaceEntry(personalCacheKey, result.personal.data, result.personal.generationMode, dataVersion, { requestId, promptVersion: "race_v1" });
+          personalEntry = { content: result.personal.data, generationMode: result.personal.generationMode, generatedAt: new Date().toISOString() };
+        }
       }
     }
 

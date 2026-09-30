@@ -22,17 +22,18 @@ import {
   type CommunityVisibility,
   type PermissionLevel,
 } from "@/lib/communities";
-import type { GroupDetail, JoinRequest } from "@/lib/supabase/groups";
+import type { GroupBan, GroupDetail, GroupInvite, JoinRequest } from "@/lib/supabase/groups";
 import { AvatarUpload } from "../../../components/AvatarUpload";
 import { BannerUpload } from "../../../components/BannerUpload";
 import { GroupBanner } from "../../../components/GroupBanner";
 
-type Section = "general" | "appearance" | "requests" | "features" | "permissions" | "moderation" | "danger";
+type Section = "general" | "appearance" | "requests" | "invites" | "features" | "permissions" | "moderation" | "danger";
 
 const SECTIONS: { value: Section; label: string }[] = [
   { value: "general", label: "General" },
   { value: "appearance", label: "Appearance" },
   { value: "requests", label: "Join requests" },
+  { value: "invites", label: "Invitations" },
   { value: "features", label: "Features" },
   { value: "permissions", label: "Permissions" },
   { value: "moderation", label: "Moderation" },
@@ -77,6 +78,7 @@ export function ManageTab({ group }: { group: GroupDetail }) {
         {section === "general" && <GeneralSection group={group} />}
         {section === "appearance" && <AppearanceSection group={group} />}
         {section === "requests" && <JoinRequestsSection group={group} />}
+        {section === "invites" && <InvitesSection group={group} />}
         {section === "features" && <FeaturesSection group={group} />}
         {section === "permissions" && <PermissionsSection group={group} />}
         {section === "moderation" && <ModerationSection group={group} />}
@@ -468,6 +470,194 @@ function JoinRequestsSection({ group }: { group: GroupDetail }) {
           ))}
         </ul>
       )}
+    </Section>
+  );
+}
+
+/** Invitation links and bans. An invitation is signed, expires, has a use limit and can be cancelled
+ * at any time - cancelling takes effect on the next attempt to use it. The server decides everything
+ * (joinGroup / redeem_group_invite); this only issues, lists and cancels. */
+function InvitesSection({ group }: { group: GroupDetail }) {
+  const [invites, setInvites] = useState<GroupInvite[] | null>(null);
+  const [bans, setBans] = useState<GroupBan[] | null>(null);
+  const [days, setDays] = useState(7);
+  const [maxUses, setMaxUses] = useState(10);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const isPublic = group.visibility === "public";
+
+  // Bumped after a change so the effect below reloads both lists - one place that loads them.
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [invitesRes, bansRes] = await Promise.all([fetch(`/api/groups/${group.id}/invites`).catch(() => null), fetch(`/api/groups/${group.id}/bans`).catch(() => null)]);
+      const nextInvites = invitesRes?.ok ? ((await invitesRes.json()) as { invites: GroupInvite[] }).invites : [];
+      const nextBans = bansRes?.ok ? ((await bansRes.json()) as { bans: GroupBan[] }).bans : [];
+      if (!cancelled) {
+        setInvites(nextInvites);
+        setBans(nextBans);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [group.id, reloadKey]);
+
+  const linkFor = (token: string) => `${window.location.origin}/groups/${group.id}?invite=${token}`;
+
+  async function create() {
+    setBusy("create");
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresInDays: days, maxUses }),
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string; token?: string } | null;
+    setBusy(null);
+    if (!res?.ok) {
+      setError(body?.error ?? "Couldn't create the invitation.");
+      return;
+    }
+    setReloadKey((k) => k + 1);
+    if (body?.token) void copy(body.token, "new");
+  }
+
+  async function copy(token: string, key: string) {
+    await navigator.clipboard.writeText(linkFor(token)).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied((c) => (c === key ? null : c)), 2000);
+  }
+
+  async function cancel(id: string) {
+    setBusy(id);
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/invites/${id}`, { method: "DELETE" }).catch(() => null);
+    setBusy(null);
+    if (!res?.ok) {
+      setError("Couldn't cancel that invitation.");
+      return;
+    }
+    setInvites((prev) => (prev ?? []).filter((i) => i.id !== id));
+  }
+
+  async function unban(userId: string) {
+    setBusy(userId);
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/bans/${userId}`, { method: "DELETE" }).catch(() => null);
+    setBusy(null);
+    if (!res?.ok) {
+      setError("Couldn't lift that ban.");
+      return;
+    }
+    setBans((prev) => (prev ?? []).filter((b) => b.userId !== userId));
+  }
+
+  return (
+    <Section title="Invitations" description="Signed links that let someone into a private or hidden community without waiting for approval. Each one expires, has a use limit, and can be cancelled at any time.">
+      {isPublic ? (
+        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-neutral-500">This community is public, so anyone can join it directly - there&apos;s nothing to invite people past.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 p-3.5">
+            <label className="text-xs text-neutral-400">
+              Expires after
+              <select
+                value={days}
+                onChange={(e) => setDays(Number(e.target.value))}
+                className="mt-1 block rounded-lg border border-[var(--f1-line)] bg-black/30 px-2.5 py-1.5 text-sm text-white"
+              >
+                <option value={1}>1 day</option>
+                <option value={7}>7 days</option>
+                <option value={30}>30 days</option>
+              </select>
+            </label>
+            <label className="text-xs text-neutral-400">
+              Can be used
+              <select
+                value={maxUses}
+                onChange={(e) => setMaxUses(Number(e.target.value))}
+                className="mt-1 block rounded-lg border border-[var(--f1-line)] bg-black/30 px-2.5 py-1.5 text-sm text-white"
+              >
+                {[1, 5, 10, 25, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? "time" : "times"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={busy === "create"}
+              onClick={() => void create()}
+              className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+            >
+              {busy === "create" ? "Creating…" : copied === "new" ? "Link copied" : "Create invitation link"}
+            </button>
+          </div>
+
+          <div className="mt-4">
+            {invites === null ? (
+              <div className="skeleton-shimmer h-14 rounded-lg bg-white/[0.04]" />
+            ) : invites.length === 0 ? (
+              <p className="text-sm text-neutral-500">No active invitations.</p>
+            ) : (
+              <ul className="space-y-2">
+                {invites.map((invite) => (
+                  <li key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-3">
+                    <span className="min-w-0 text-xs text-neutral-400">
+                      <span className="block text-sm text-neutral-200">
+                        Used {invite.useCount} of {invite.maxUses}
+                      </span>
+                      Expires {new Date(invite.expiresAt).toLocaleDateString()} · created by {invite.creatorName ?? "a member"}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-3">
+                      {invite.token ? (
+                        <button type="button" onClick={() => { if (invite.token) void copy(invite.token, invite.id); }} className="text-xs font-medium text-neutral-300 transition hover:text-white">
+                          {copied === invite.id ? "Copied" : "Copy link"}
+                        </button>
+                      ) : null}
+                      <ConfirmButton onConfirm={() => void cancel(invite.id)} question="Cancel this invitation?" confirmLabel="Cancel it" pending={busy === invite.id}>
+                        Cancel
+                      </ConfirmButton>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+
+      {error && (
+        <p role="alert" className="mt-3 text-xs text-[var(--f1-red)]">
+          {error}
+        </p>
+      )}
+
+      <h3 className="mt-8 text-sm font-semibold text-white">Banned</h3>
+      <p className="mt-1 text-xs text-neutral-500">People removed with &ldquo;Ban&rdquo; can&apos;t rejoin, use an invitation, or send a request.</p>
+      <div className="mt-3">
+        {bans === null ? (
+          <div className="skeleton-shimmer h-12 rounded-lg bg-white/[0.04]" />
+        ) : bans.length === 0 ? (
+          <p className="text-sm text-neutral-500">No one is banned.</p>
+        ) : (
+          <ul className="space-y-2">
+            {bans.map((ban) => (
+              <li key={ban.userId} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-2.5">
+                <span className="min-w-0 truncate text-sm text-neutral-200">{ban.displayName ?? ban.username ?? "Member"}</span>
+                <ConfirmButton onConfirm={() => void unban(ban.userId)} question="Lift this ban?" confirmLabel="Unban" pending={busy === ban.userId}>
+                  Unban
+                </ConfirmButton>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </Section>
   );
 }

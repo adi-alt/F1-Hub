@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
-import { predictionTypeLabels, type GroupPrediction, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
+import { formatCountdown, formatDeadline } from "@/lib/countdown";
+import { predictionStateAt, predictionTypeLabels, type GroupPrediction, type PredictionGuess, type PredictionState, type PredictionType } from "@/lib/groupPredictionTypes";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { DriverPicker } from "@/components/ui/F1Pickers";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -26,12 +26,20 @@ type Blocker =
   | { kind: "noPoints"; message: string }
   | null;
 
-function blockerFor(prediction: GroupPrediction, drivers: DriverOption[], pointsBalance: number, hasEntry: boolean): Blocker {
-  if (prediction.status === "resolved") return { kind: "resolved", message: "Results are in." };
-  if (prediction.status === "locked") return { kind: "locked", message: "Predictions are locked. Results appear after the race." };
-  // A round left open past its own race is a real state (nobody locked it): treat it as closed for
-  // entry rather than letting someone predict a result that already happened.
+function blockerFor(prediction: GroupPrediction, state: PredictionState, drivers: DriverOption[], pointsBalance: number, hasEntry: boolean): Blocker {
+  if (state === "resolved") return { kind: "resolved", message: "Results are in." };
+  // Once the race has run, "waiting for an admin" is the more useful thing to say than the deadline.
   if (prediction.raceStatus === "completed") return { kind: "raceRun", message: "This race has already run. Waiting for an admin to resolve it." };
+  // `state` folds the server's deadline (lockAt - the start of the weekend's Qualifying session)
+  // into the stored status, so a round is closed here exactly when the server would refuse it. It
+  // used to be closed only when an admin had locked it - which nothing ever did - so the form stayed
+  // open, and worked, after the race (audit COM-01).
+  if (state === "locked") {
+    return {
+      kind: "locked",
+      message: prediction.lockAt === null ? "This round's deadline isn't available yet, so it can't take entries right now." : "Predictions closed when qualifying began. Results appear after the race.",
+    };
+  }
   // The roster prefers this race's own session data but falls back to the most recently known
   // line-up otherwise (getRaceRoster, in lib/supabase/races.ts) - so this now only fires in the
   // genuine edge case where NO race, this season or last, has one yet (a brand new season's
@@ -81,25 +89,27 @@ export function PredictionCard({
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving">("idle");
   const [error, setError] = useState("");
+  // Set when the SERVER refuses an entry as closed: the minute-resolution clock below can lag the
+  // deadline by up to a minute, and the server is the authority.
+  const [serverClosed, setServerClosed] = useState(false);
 
   // `prediction` is a prop from the page's own server component, refreshed only by `onChanged`
   // (router.refresh() - see GroupPredictions' own comment), which re-runs this whole page's data
   // fetch and can genuinely take a few seconds. Without this, a successful submit left the form
   // sitting there and the entry count unchanged for however long that took - looking like nothing
   // happened even though the points had already been spent - rather than showing what just
-  // happened immediately. Cleared the moment the real prop catches up, so there's only ever one
-  // source of truth once it does, never two copies that could disagree.
+  // happened immediately. The real prop always wins once it arrives (below), so there's only ever
+  // one source of truth, never two copies that could disagree - no effect is needed to clear it
+  // (entries can't be deleted, so the real entry never goes away again once it exists).
   const [optimisticEntry, setOptimisticEntry] = useState<GroupPrediction["myEntry"]>(null);
-  useEffect(() => {
-    if (prediction.myEntry) setOptimisticEntry(null);
-  }, [prediction.myEntry]);
   const myEntry = prediction.myEntry ?? optimisticEntry;
   const entryCount = prediction.entryCount + (!prediction.myEntry && optimisticEntry ? 1 : 0);
 
   const isAdmin = myRole === "admin";
-  const blocker = blockerFor(prediction, drivers, pointsBalance, myEntry !== null);
-  const raceAt = prediction.raceDate ? parseUtcDateTime(prediction.raceDate).getTime() : null;
-  const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : "";
+  const state: PredictionState = serverClosed && prediction.status === "open" ? "locked" : predictionStateAt(prediction.status, prediction.lockAt, now);
+  const blocker = blockerFor(prediction, state, drivers, pointsBalance, myEntry !== null);
+  const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
+  const countdown = state === "open" && lockMs !== null ? formatCountdown(lockMs, now) : "";
 
   async function submit() {
     setStatus("saving");
@@ -109,8 +119,9 @@ export function PredictionCard({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ guess }),
     }).catch(() => null);
-    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    const body = (await res?.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!res?.ok) {
+      if (body?.code === "prediction_locked" || body?.code === "lock_unknown" || body?.code === "prediction_resolved") setServerClosed(true);
       setError(body?.error ?? "Couldn't submit your prediction.");
       setStatus("idle");
       return;
@@ -153,20 +164,33 @@ export function PredictionCard({
               {predictionTypeLabels[prediction.type]} · {prediction.entryPoints} points to enter
             </p>
           </div>
-          <StatusBadge prediction={prediction} />
+          <StatusBadge state={state} />
         </div>
 
-        {prediction.status === "open" && (
+        {/* The one deadline, from the server: entries stop at the start of qualifying. */}
+        {state === "open" && (
           <p className="mt-2 text-xs text-neutral-400">
             {countdown ? (
               <>
                 Closes in <span className="font-semibold tabular-nums text-white">{countdown}</span>
               </>
-            ) : prediction.raceDate ? (
-              "Closing now"
             ) : (
-              // Real state, said plainly: a calendar-only round the pipeline hasn't dated yet.
-              "Race date to be confirmed"
+              "Closing now"
+            )}
+            {prediction.lockAt && (
+              <span suppressHydrationWarning className="text-neutral-500">
+                {" "}
+                · at the start of qualifying, {formatDeadline(prediction.lockAt)}
+              </span>
+            )}
+          </p>
+        )}
+        {state === "locked" && (
+          <p className="mt-2 text-xs text-neutral-500">
+            {prediction.lockAt ? (
+              <span suppressHydrationWarning>Closed at the start of qualifying, {formatDeadline(prediction.lockAt)}</span>
+            ) : (
+              "Deadline not available yet"
             )}
           </p>
         )}
@@ -184,7 +208,7 @@ export function PredictionCard({
         <PredictionTrendBars groupId={groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />
 
         {/* Resolved: the real answer and what it actually paid this user. */}
-        {prediction.status === "resolved" && (
+        {state === "resolved" && (
           <div className="mt-3 space-y-2">
             <Row label="Result" value={formatGuess(prediction.type, prediction.correctAnswer, drivers)} avatar={<GuessAvatars type={prediction.type} guess={prediction.correctAnswer} drivers={drivers} />} />
             {prediction.myEntry ? (
@@ -215,7 +239,7 @@ export function PredictionCard({
         {/* Entered and still open: show it back, with what it's actually worth if it lands (the
             real double-or-nothing payout resolvePrediction pays out - see its own comment) and a
             way to change it while there's time. */}
-        {prediction.status !== "resolved" && myEntry && !editing && (
+        {state !== "resolved" && myEntry && !editing && (
           <div className="mt-3 space-y-2">
             <Row label="Your prediction" value={formatGuess(prediction.type, myEntry.guess, drivers)} avatar={<GuessAvatars type={prediction.type} guess={myEntry.guess} drivers={drivers} />} />
             <Row label="Potential payout" value={payoutPreview(prediction.type, myEntry.pointsWagered)} highlight />
@@ -228,7 +252,7 @@ export function PredictionCard({
         )}
 
         {/* The entry form, only when entering is genuinely possible. */}
-        {prediction.status !== "resolved" && !blocker && (!myEntry || editing) && (
+        {state !== "resolved" && !blocker && (!myEntry || editing) && (
           <div className="mt-3">
             <GuessInput type={prediction.type} drivers={drivers} value={guess} onChange={setGuess} />
             <div className="mt-3 flex items-center gap-3">
@@ -257,7 +281,7 @@ export function PredictionCard({
         )}
 
         {/* Why you can't enter, specifically. */}
-        {blocker && prediction.status !== "resolved" && <p className="mt-3 text-xs leading-relaxed text-neutral-500">{blocker.message}</p>}
+        {blocker && state !== "resolved" && <p className="mt-3 text-xs leading-relaxed text-neutral-500">{blocker.message}</p>}
 
         {error && (
           <p role="alert" className="mt-2 text-xs text-[var(--f1-red)]">
@@ -267,7 +291,7 @@ export function PredictionCard({
 
         {/* Resolving pays points out, so it stays admin-only regardless of the community's
             create-predictions permission. */}
-        {isAdmin && prediction.status !== "resolved" && (
+        {isAdmin && state !== "resolved" && (
           <div className="mt-3 border-t border-[var(--f1-line)] pt-3">
             <ConfirmButton
               onConfirm={() => void resolve()}
@@ -285,13 +309,13 @@ export function PredictionCard({
   );
 }
 
-function StatusBadge({ prediction }: { prediction: GroupPrediction }) {
+function StatusBadge({ state }: { state: PredictionState }) {
   const map: Record<string, { label: string; className: string }> = {
     open: { label: "Open", className: "bg-emerald-400/10 text-emerald-400" },
     locked: { label: "Locked", className: "bg-white/[0.06] text-neutral-400" },
     resolved: { label: "Resolved", className: "bg-[var(--f1-red)]/10 text-[var(--f1-red)]" },
   };
-  const badge = map[prediction.status] ?? map.open;
+  const badge = map[state] ?? map.open;
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}>{badge.label}</span>;
 }
 

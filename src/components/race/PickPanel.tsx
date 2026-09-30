@@ -90,8 +90,8 @@ export function PickPanel({
 
   // `race.status === "scheduled"` means there's no real `races` row for this round yet (see
   // toCalendarPlaceholder in races.ts) - `race.id` in that case doesn't exist in the `races` table
-  // at all, so saveUserPick's own server-side check (getRaceStatus, races.ts) would 403 on every
-  // save attempt regardless of what's shown here. An editable form that can never actually save is
+  // at all, so save_pick() (the server-side lock, see saveUserPick) would answer race_not_found on
+  // every save attempt regardless of what's shown here. An editable form that can never actually save is
   // worse than this informational message - the same "don't create fake interactions" reasoning
   // PracticeSummary's own hover rows already follow.
   if (race.status === "scheduled") {

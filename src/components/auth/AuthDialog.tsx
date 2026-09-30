@@ -16,7 +16,7 @@ import type { Role } from "@/lib/rbac";
 type Step = "method" | "otp" | "profile";
 type OAuthProvider = "google" | "github" | "discord" | "gitlab";
 
-// Matches the backend's own resend cooldown (lib/otp.ts) so the button's countdown never
+// Matches the backend's own resend cooldown (otp_issue, 20261001_otp_hardening.sql) so the button's countdown never
 // disagrees with what the server would actually accept.
 const RESEND_COOLDOWN_MS = 60_000;
 
@@ -180,8 +180,16 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
 // too), and nothing about showing the OTP screen should wait on either. If this particular call
 // fails outright, the resend button is still there once its cooldown clears. No token to pass
 // anymore — the Supabase session already lives in this request's cookies.
-function requestOtp() {
-  void fetch("/api/auth/start", { method: "POST" });
+// Resolves to the server's message when it refused to send (the hourly limit), else null.
+async function requestOtp(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/auth/start", { method: "POST" });
+    if (res.status !== 429) return null;
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    return body.error ?? "Too many codes requested. Try again later.";
+  } catch {
+    return null;
+  }
 }
 
 // Split out so useCountdown's 1-second ticker only ever runs while the OTP step is actually
@@ -299,14 +307,20 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
     setVerifiedEmail(signedInEmail);
     setStep("otp");
     setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
-    requestOtp();
+    void requestOtp().then((refused) => {
+      if (refused) setError(refused);
+    });
   }
 
   function handleResend() {
     setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
     setInfo("New code sent.");
     setError(null);
-    requestOtp();
+    void requestOtp().then((refused) => {
+      if (!refused) return;
+      setInfo(null);
+      setError(refused);
+    });
   }
 
   async function handleForgotPassword() {

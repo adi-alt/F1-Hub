@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { completeSignup } from "@/services/auth.service";
-import { ServiceError } from "@/services/errors";
+import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 function stringArray(value: unknown): string[] | undefined {
   return Array.isArray(value) && value.every((v) => typeof v === "string") ? value : undefined;
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
 }

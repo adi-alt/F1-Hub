@@ -44,13 +44,15 @@ export interface HomepageContextData {
     p1Probability?: number; // 0-1, calibrated
     podiumProbability?: number; // 0-1, calibrated
   } | null;
+
+  // ── Personal (only present for an authenticated user with real data) ───────────
+  /** The user's OWN "following" feed (their joined communities, private ones included) - personal,
+   * never shared context (see src/lib/ai/homepageCacheTiers.ts). */
   communityPosts?: Array<{
     title?: string;
     content?: string;
     groupName?: string;
   }>;
-
-  // ── Personal (only present for an authenticated user with real data) ───────────
   /** ALL of the user's favorite drivers, not just one - lets the model synthesize across multiple
    * (see homepagePrompt.ts's prioritization rule) instead of only ever knowing about a single
    * favorite. Circuit-specific stats are only ever populated on the first (primary) entry -

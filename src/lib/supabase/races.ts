@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds } from "@/lib/supabase/archive";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
+import { oneRowPerRound } from "@/lib/supabase/calendar";
 import type {
   PolePrediction,
   PracticeData,
@@ -155,7 +156,7 @@ function toRaceDoc(row: RaceRow): RaceDoc {
   };
 }
 
-type CalendarRow = { id: string; year: number; round: number; name: string | null; circuit: string | null; race_date: string | null };
+type CalendarRow = { id: string; year: number; round: number; name: string | null; circuit: string | null; race_date: string | null; status: string | null };
 
 /** A minimal, non-clickable stand-in for a round `races` has no row for yet — there's nothing to
  * show but the name and date, since no session has run. */
@@ -179,7 +180,7 @@ async function withCalendarPlaceholders(year: number, races: RaceDoc[]): Promise
   const knownRounds = new Set(races.map((r) => r.round));
   const { data, error } = await queryWithRetry(() => supabaseAdmin.from("calendar").select("*").eq("year", year));
   if (error) throw new Error(`withCalendarPlaceholders(${year}): ${error.message}`);
-  const placeholders = ((data ?? []) as CalendarRow[])
+  const placeholders = oneRowPerRound((data ?? []) as CalendarRow[])
     .filter((r) => !knownRounds.has(r.round))
     .map(toCalendarPlaceholder);
   return [...races, ...placeholders].sort((a, b) => a.round - b.round);
@@ -228,6 +229,9 @@ export async function promoteCalendarRace(raceId: string): Promise<RaceDoc | nul
   if (calError) throw new Error(`promoteCalendarRace(${raceId}): ${calError.message}`);
   if (!cal) return null;
   const row = cal as CalendarRow & { country: string | null };
+  // A retired event (it left the upstream schedule, see sync_calendar.py) must not become a race
+  // anyone can open a prediction on.
+  if (row.status === "cancelled") return null;
 
   const { data, error } = await supabaseAdmin
     .from("races")
@@ -408,13 +412,4 @@ export async function getDriverHeadshotsByCode(codes: string[]): Promise<Map<str
     }
   }
   return headshotByCode;
-}
-
-/** Deliberately not the `unstable_cache`-wrapped `getRace` — this exists only to enforce the pick
- * lock server-side (saveUserPick, src/lib/supabase/picks.ts), where a stale up-to-300s-old
- * "still upcoming" reading would let someone sneak a pick in after the race actually started. */
-export async function getRaceStatus(raceId: string): Promise<RaceDoc["status"] | null> {
-  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select("status").eq("id", raceId).maybeSingle());
-  if (error) throw new Error(`getRaceStatus(${raceId}): ${error.message}`);
-  return (data?.status as RaceDoc["status"] | undefined) ?? null;
 }

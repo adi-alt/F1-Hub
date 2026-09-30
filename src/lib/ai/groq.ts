@@ -20,7 +20,7 @@
 // not a bypass of any one account's own limit).
 
 import { ProviderHttpError, registerProvider, type AIProvider } from "./provider";
-import { getDefaultAIModel, type AIMessage, type AIProviderConfig, type AIProviderToolDef, type AIResponse, type AIToolCall } from "./types";
+import { type AIMessage, type AIProviderConfig, type AIProviderToolDef, type AIResponse, type AIToolCall } from "./types";
 import { logAIError, logProviderRequest } from "./telemetry";
 
 const GROQ_INVOKE_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -38,7 +38,7 @@ export class GroqProvider implements AIProvider {
       throw new Error("GROQ_API_KEY environment variable is not configured on the server.");
     }
 
-    const model = config.model || getDefaultAIModel();
+    const model = config.model || GROQ_MODEL_ID;
     const timeoutMs = config.timeoutMs || 30_000;
     const startTime = Date.now();
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { deliverOtp } from "@/lib/otp";
 import { startSignIn } from "@/services/auth.service";
-import { ServiceError } from "@/services/errors";
+import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 // No idToken in the body anymore — the Supabase session lives in this request's cookies (set by
 // the browser client after password sign-in, or by /auth/callback after an OAuth redirect), so
@@ -18,7 +18,7 @@ export async function POST() {
     if (code) after(() => deliverOtp(email, code));
     return NextResponse.json({ ok: true, email });
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
 }

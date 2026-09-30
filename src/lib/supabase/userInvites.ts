@@ -1,3 +1,4 @@
+import { escapeHtml, singleLine, trustedOrigin } from "@/lib/html";
 import { getTransporter } from "@/lib/otp";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
@@ -53,8 +54,8 @@ export async function inviteUsersByEmail(emails: string[], origin: string, invit
   // Same origin-from-the-request approach groups.ts's own invite uses - there is genuinely no
   // app-wide base-URL env var in this codebase, so the route handler passes in the real origin it
   // was called on rather than this reaching for one that doesn't exist.
-  const link = `${origin}/`;
-  const from = inviterName?.trim() || "An admin";
+  const link = `${trustedOrigin(origin)}/`;
+  const from = singleLine(inviterName?.trim() || "An admin");
   const transporter = getTransporter();
 
   await Promise.all(
@@ -64,7 +65,7 @@ export async function inviteUsersByEmail(emails: string[], origin: string, invit
         to,
         subject: `${from} invited you to Apex F1 Hub`,
         text: `${from} invited you to Apex F1 Hub - Formula 1 predictions, race analysis and community leagues. Get started: ${link}`,
-        html: `<p>${from} invited you to <strong>Apex F1 Hub</strong> - Formula 1 predictions, race analysis and community leagues.</p><p><a href="${link}">Get started</a></p>`,
+        html: `<p>${escapeHtml(from)} invited you to <strong>Apex F1 Hub</strong> - Formula 1 predictions, race analysis and community leagues.</p><p><a href="${escapeHtml(link)}">Get started</a></p>`,
       }),
     ),
   );

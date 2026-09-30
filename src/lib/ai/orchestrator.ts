@@ -495,9 +495,11 @@ export async function generateAskApexAnswer(
 
 // ─── Race Intelligence ──────────────────────────────────────────────────────────
 // Same single-bundled-call philosophy as generateHomepageIntelligence above, plus the
-// partial-generation awareness the route's cache layer needs: a cold visit generates shared+
-// personal together (one call); a later personal-only miss (shared already cached and valid) uses
-// the smaller formatPersonalOnlyPrompt instead of redundantly regenerating shared content.
+// partial-generation awareness the route's cache layer needs. The route asks for shared and personal
+// SEPARATELY (M0 Batch 3, audit AI-02): shared from toSharedRaceContext() - nothing about the
+// requesting user - and personal via the smaller formatPersonalOnlyPrompt from the full context. The
+// combined needShared+needPersonal call is still supported here, but must never be given a context
+// with personal data when its shared half is going to be cached for everyone.
 export interface RaceIntelligenceGenerationResult {
   shared: { data: SharedRaceIntelligence; generationMode: "ai" | "deterministic" } | null;
   personal: { data: PersonalRaceInsight | null; generationMode: "ai" | "deterministic" } | null;

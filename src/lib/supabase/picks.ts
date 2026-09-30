@@ -1,6 +1,5 @@
 import { unstable_cache, revalidateTag } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getRaceStatus } from "@/lib/supabase/races";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 import type { UserPick } from "@/lib/types/race";
@@ -46,23 +45,25 @@ export const getUserPicksForYear = unstable_cache(
   { revalidate: false, tags: [USER_PICKS_TAG] },
 );
 
-/** The write side of the same row — one upsert, since (user_id, race_id) is the primary key.
- * Enforced server-side, not just by PickPanel hiding its own save button: once group scoring
- * (compute_group_scores.py) exists, a pick submitted after the actual result is known isn't just
- * a UX quirk, it's a way to cheat the leaderboard. */
-export async function saveUserPick(uid: string, pick: UserPick): Promise<void> {
-  const status = await getRaceStatus(pick.raceId);
-  if (status !== "upcoming") {
-    throw new ServiceError("Picks are closed for this race.", 403);
-  }
-  const { error } = await supabaseAdmin.from("picks").upsert({
-    user_id: uid,
-    race_id: pick.raceId,
-    predicted_winner: pick.predictedWinner,
-    predicted_podium: pick.predictedPodium,
-    submitted_at: pick.submittedAt,
+/** The write side of the same row. The deadline is enforced by save_pick() in the database
+ * (20260930_prediction_lifecycle.sql): a pick is refused once the race has started (start of the
+ * calendar's Race session) or the race is no longer upcoming, and `submitted_at` is stamped by the
+ * server's clock - it used to be whatever the client sent, and the only lock was "results have been
+ * ingested", which let picks be changed during the race (audit SEC-07). A pick submitted after the
+ * result is known is a way to cheat the leaderboard (compute_group_scores.py), so this is enforced
+ * here, not just by PickPanel hiding its own save button. */
+export async function saveUserPick(uid: string, pick: Omit<UserPick, "submittedAt">): Promise<void> {
+  const { error } = await supabaseAdmin.rpc("save_pick", {
+    p_user_id: uid,
+    p_race_id: pick.raceId,
+    p_winner: pick.predictedWinner,
+    p_podium: pick.predictedPodium,
   });
-  // Unchecked before this - a failed save looked identical to a successful one to the caller.
-  if (error) throw new Error(`saveUserPick(${uid}, ${pick.raceId}): ${error.message}`);
+  if (error) {
+    if (error.message.includes("picks_closed")) throw new ServiceError("Picks are closed for this race.", 403, "picks_closed");
+    if (error.message.includes("race_not_found")) throw new ServiceError("That race doesn't exist.", 404, "race_not_found");
+    if (error.message.includes("invalid_pick")) throw new ServiceError("Pick a winner and three drivers for the podium.", 400, "invalid_pick");
+    throw new Error(`saveUserPick(${uid}, ${pick.raceId}): ${error.message}`);
+  }
   revalidateTag(USER_PICKS_TAG, "max");
 }
