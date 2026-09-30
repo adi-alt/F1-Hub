@@ -17,6 +17,7 @@ endpoint before shipping.
 
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timezone
 
 import numpy as np
@@ -41,10 +42,31 @@ OPENF1_BASE = "https://api.openf1.org/v1"
 #     no lap-count comparison needed, OpenF1 already classifies this for us.
 
 
+# OpenF1 rate-limits bursts (429 Too Many Requests - seen while verifying this module). The fallback
+# makes around ten calls per run and the workflow only runs every few hours, so a single refusal
+# used to cost a whole cycle; now it waits and retries a few times. Anything else fails as before.
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+RETRY_DELAYS_SECONDS = (2, 5, 10)
+
+
+def _retry_after(resp) -> float | None:
+    try:
+        return min(float(resp.headers.get("Retry-After", "")), 20.0)
+    except ValueError:
+        return None
+
+
 def _get(path: str, **params) -> list:
-    resp = requests.get(f"{OPENF1_BASE}/{path}", params=params, timeout=25)
-    resp.raise_for_status()
-    return resp.json()
+    for attempt, delay in enumerate((*RETRY_DELAYS_SECONDS, None)):
+        resp = requests.get(f"{OPENF1_BASE}/{path}", params=params, timeout=25)
+        if resp.status_code in RETRYABLE_STATUS and delay is not None:
+            wait = _retry_after(resp) or delay
+            print(f"    openf1: {path} returned {resp.status_code}, retrying in {wait:g}s ({attempt + 1}/{len(RETRY_DELAYS_SECONDS)})")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+    raise RuntimeError("unreachable")
 
 
 def _as_date(value) -> date | None:
@@ -442,4 +464,75 @@ def fetch_race_openf1(year: int, round_num: int, country: str, race_date, qualif
         }
     except Exception as exc:
         print(f"    openf1 fallback: not available ({exc})")
+        return None
+
+
+def parse_qualifying(session_result: list[dict], drivers: list[dict]) -> dict | None:
+    """OpenF1 qualifying rows -> the same shape fetch_races.fetch_qualifying() returns
+    ({session, grid, poleTimeSec}), or None if this doesn't read as a complete session.
+
+    Each driver's time is their best in the last part they reached (Q3, else Q2, else Q1) - the
+    same rule fetch_qualifying() applies to FastF1's frame - read from OpenF1's per-part
+    `duration` list. Cars with no position (no time set) are skipped, as fetch_qualifying() does."""
+    info = {d["driver_number"]: d for d in drivers}
+    grid = []
+    for row in sorted((r for r in session_result if r.get("position") is not None), key=lambda r: r["position"]):
+        d = info.get(row["driver_number"])
+        if d is None or not d.get("name_acronym"):
+            print(f"    openf1: quali skipping car {row['driver_number']}, no driver info")
+            continue
+        durations = row.get("duration")
+        parts = durations if isinstance(durations, list) else [durations]
+        best = next((p for p in reversed(parts) if isinstance(p, (int, float))), None)
+        grid.append(
+            {
+                "driver": d["name_acronym"],
+                "driverName": d.get("full_name"),
+                "team": d.get("team_name"),
+                "gridPosition": int(row["position"]),
+                "bestSec": best,
+                "headshotUrl": d.get("headshot_url"),
+                "teamColor": (f"#{d['team_colour']}" if d.get("team_colour") else None),
+            }
+        )
+    codes = [g["driver"] for g in grid]
+    if len(grid) < 10 or len(set(codes)) != len(codes) or [g["gridPosition"] for g in grid] != list(range(1, len(grid) + 1)):
+        print(f"    openf1: qualifying rejected (incomplete or inconsistent: {len(grid)} cars)")
+        return None
+    pole = min((g["bestSec"] for g in grid if g["bestSec"] is not None), default=None)
+    for g in grid:
+        best = g.pop("bestSec")
+        g["qualifyingGapSec"] = round(best - pole, 3) if best is not None and pole is not None else None
+    return {"session": "Q", "grid": grid, "poleTimeSec": round(pole, 3) if pole is not None else None}
+
+
+def fetch_qualifying_openf1(year: int, round_num: int, country: str, race_date) -> dict | None:
+    """Qualifying for this round from OpenF1, available right after the session - long before
+    Jolpica publishes (it updates once, on the Monday). Pinned to this round the same way as
+    fetch_race_openf1(): the race session is matched by date first, and qualifying must belong to
+    that same meeting and have ended."""
+    try:
+        sessions = _get("sessions", year=year, country_name=country)
+        race_session = _pick_race_session(sessions, _as_date(race_date))
+        if race_session is None:
+            print(f"    openf1: no Race session in {country} {year} matching {race_date} - not guessing qualifying")
+            return None
+        quali = next(
+            (s for s in sessions if s.get("meeting_key") == race_session["meeting_key"] and s.get("session_name") == "Qualifying"),
+            None,
+        )
+        if quali is None:
+            return None
+        quali_end = datetime.fromisoformat(quali["date_end"])
+        if quali_end.tzinfo is None:
+            quali_end = quali_end.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < quali_end:
+            print(f"    openf1: qualifying ends {quali_end.isoformat()} - nothing to report yet")
+            return None
+        result = parse_qualifying(_get("session_result", session_key=quali["session_key"]), _get("drivers", session_key=quali["session_key"]))
+        if result:
+            print(f"    openf1: qualifying from meeting {quali.get('meeting_key')} ({quali.get('location')}), {len(result['grid'])} cars")
+        return result
+    except Exception as exc:
+        print(f"    openf1: qualifying not available ({exc})")
         return None

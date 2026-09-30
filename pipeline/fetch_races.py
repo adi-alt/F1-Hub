@@ -45,7 +45,8 @@ from ergast_utils import (
     trigger_revalidation,
     upsert,
 )
-from openf1_fallback import fetch_race_openf1
+import jolpica
+from openf1_fallback import fetch_qualifying_openf1, fetch_race_openf1
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -396,9 +397,77 @@ def fetch_race(year: int, round_num: int):
 
 
 def get_existing_race(cur, race_id: str) -> dict | None:
-    cur.execute("select status, practice, photo_urls, results_source from races where id = %s", (race_id,))
+    cur.execute("select status, practice, photo_urls, results_source, data_completeness from races where id = %s", (race_id,))
     row = cur.fetchone()
-    return {"status": row[0], "practice": row[1] or {}, "photo_urls": row[2], "results_source": row[3]} if row else None
+    return {"status": row[0], "practice": row[1] or {}, "photo_urls": row[2], "results_source": row[3], "data_completeness": row[4] or {}} if row else None
+
+
+def load_roster(cur) -> dict[str, dict]:
+    """The app's own current driver roster, code -> {name, team}: the canonical display NAMES every
+    other table already uses. Sources that aren't FastF1 name drivers differently (OpenF1 writes
+    "Lando NORRIS"), and sync_roster() would otherwise copy those into `drivers` too. The team here
+    is only a last resort: it can be stale after a mid-season move, so a session's own team wins."""
+    cur.execute("select code, name, team from drivers")
+    return {code: {"name": name, "team": team} for code, name, team in cur.fetchall()}
+
+
+def qualifying_without_fastf1(year: int, round_num: int, calendar_event, roster: dict[str, dict]):
+    """Qualifying when FastF1 has none (always the case on GitHub's runners - see jolpica.py):
+    Jolpica's official session first, else OpenF1's, available right after the session. Same shape
+    as fetch_qualifying()."""
+    rows = jolpica.fetch_qualifying(year, round_num, calendar_event["EventDate"])
+    if rows:
+        pole = min((r["bestSec"] for r in rows if r["bestSec"] is not None), default=None)
+        grid = [
+            {
+                "driver": r["driver"],
+                "driverName": roster.get(r["driver"], {}).get("name") or r["driverName"],
+                # This session's own team (normalised to the app's names), not the roster's, which
+                # can be stale after a mid-season move (drivers.team still had Lawson at Red Bull
+                # Racing when he raced for Racing Bulls at Baku).
+                "team": normalize_team_name(r["constructor"]) if r["constructor"] else roster.get(r["driver"], {}).get("team"),
+                "gridPosition": r["gridPosition"],
+                "qualifyingGapSec": round(r["bestSec"] - pole, 3) if r["bestSec"] is not None and pole is not None else None,
+                "headshotUrl": None,
+                "teamColor": None,
+            }
+            for r in rows
+        ]
+        print(f"    quali: official from Jolpica, {len(grid)} cars")
+        return {"session": "Q", "grid": grid, "poleTimeSec": round(pole, 3) if pole is not None else None}
+    quali = fetch_qualifying_openf1(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"])
+    if quali:
+        for g in quali["grid"]:
+            g["driverName"] = roster.get(g["driver"], {}).get("name") or g["driverName"]
+    return quali
+
+
+def with_official_classification(race: dict | None, official: list[dict], roster: dict[str, dict]) -> dict:
+    """Jolpica's official classification (positions, status, points, grid, gaps, fastest laps), keeping
+    whatever analytics the preliminary source produced (laps, stints, weather, traffic, safety car)
+    and its team names/headshots/colours. Works without a preliminary result too (analytics empty)."""
+    prelim = {r["driver"]: r for r in (race or {}).get("results", [])}
+    results = []
+    for o in official:
+        p = prelim.get(o["driver"], {})
+        known = roster.get(o["driver"], {})
+        results.append(
+            {
+                "driver": o["driver"],
+                "driverName": known.get("name") or o["driverName"],
+                "team": p.get("team") or (normalize_team_name(o["constructor"]) if o["constructor"] else known.get("team")),
+                "gridPosition": o["gridPosition"],
+                "finishPosition": o["finishPosition"],
+                "status": normalize_status(o["rawStatus"]),
+                "points": o["points"],
+                "finishGapSec": o["finishGapSec"],
+                "fastestLapSec": o["fastestLapSec"] if o["fastestLapSec"] is not None else p.get("fastestLapSec"),
+                "headshotUrl": p.get("headshotUrl"),
+                "teamColor": p.get("teamColor"),
+            }
+        )
+    base = race or {"session": "R", "weather": None, "tireStints": [], "trafficStats": [], "safetyCarPeriods": None, "tireCompoundPace": [], "lapTimings": []}
+    return {**base, "results": results}
 
 
 def upsize_headshot(url: str | None) -> str | None:
@@ -480,16 +549,10 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         result = fetch_practice(year, round_num, label)
         if result:
             practice[label] = {"bestLaps": result["bestLaps"], "weather": result["weather"]}
-    qualifying = fetch_qualifying(year, round_num)
+    roster = load_roster(cur)
+    qualifying = fetch_qualifying(year, round_num) or qualifying_without_fastf1(year, round_num, calendar_event, roster)
     race = fetch_race(year, round_num)
     results_source = "official"
-
-    if not practice and not qualifying and not race:
-        # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
-        # "what's coming up"; pushing an empty placeholder here is exactly the clutter this
-        # table is meant to avoid.
-        print("    nothing available yet, not pushing a placeholder")
-        return
 
     # A transient failure (rate limiting, a network blip) on a *re*-fetch must never regress
     # anything that's already known to have happened. Postgres makes this simpler than the old
@@ -519,6 +582,28 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         if race:
             results_source = "openf1_preliminary"
             print("    race: FastF1/Jolpica had nothing yet, used OpenF1 preliminary classification")
+            for r in race["results"]:
+                r["driverName"] = roster.get(r["driver"], {}).get("name") or r["driverName"]
+
+    # FastF1 had no race (always true on GitHub's runners): take the official classification from
+    # Jolpica directly as soon as it is published, on top of OpenF1's analytics when there are any.
+    # Before this, a round never became official automatically (see jolpica.py).
+    if not already_official and (race is None or results_source == "openf1_preliminary"):
+        official = jolpica.fetch_results(year, round_num, calendar_event["EventDate"])
+        if official:
+            print(f"    race: official classification from Jolpica ({len(official)} cars)" + (", analytics from OpenF1" if race else ", no analytics source this run"))
+            race = with_official_classification(race, official, roster)
+            results_source = "official"
+
+    # Checked only after every source has been tried: FastF1 has nothing at all on GitHub's runners,
+    # so returning before the fallbacks (as this used to) meant the OpenF1/Jolpica paths were reached
+    # only on runs where FastF1 happened to return qualifying.
+    if not practice and not qualifying and not race:
+        # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
+        # "what's coming up"; pushing an empty placeholder here is exactly the clutter this
+        # table is meant to avoid.
+        print("    nothing available yet, not pushing a placeholder")
+        return
 
     # Applied once here, after whichever source (FastF1 or OpenF1) produced qualifying/race data,
     # so every downstream write (drivers/teams roster, race_inputs, race_results) sees the same
@@ -539,8 +624,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
 
     data_completeness = None
     if race:
-        data_completeness = json.dumps(
-            {
+        new_completeness = {
                 "classification": True,
                 # Checks the actual results, not `bool(qualifying)` (FastF1's own local qualifying
                 # fetch) - a real bug caught while auditing this: qualifying fails in CI for the
@@ -553,8 +637,11 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
                 "trafficAnalysis": bool(race.get("trafficStats")),
                 "safetyCarAnalysis": race.get("safetyCarPeriods") is not None,
                 "fastestLap": any(r.get("fastestLapSec") is not None for r in race["results"]),
-            }
-        )
+        }
+        # A run whose source has no analytics (Jolpica-only) must not mark as missing what an
+        # earlier run already stored - those rows persist (prune never empties a race).
+        previous = (existing or {}).get("data_completeness") or {}
+        data_completeness = json.dumps({k: bool(v or previous.get(k)) for k, v in new_completeness.items()})
 
     race_row = {
         "id": race_id,
@@ -575,10 +662,16 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         race_row["pole_sitter"] = next((g["driver"] for g in qualifying["grid"] if g["gridPosition"] == 1), None)
         race_row["pole_time_sec"] = qualifying["poleTimeSec"]
     if race:
-        race_row["weather"] = json.dumps(race["weather"])
-        race_row["traffic_stats"] = json.dumps(race["trafficStats"])
-        race_row["safety_car_periods"] = race["safetyCarPeriods"]
-        race_row["tire_compound_pace"] = json.dumps(race["tireCompoundPace"])
+        # Analytics columns only when this run actually has them: leaving a column out of the upsert
+        # keeps what an earlier run stored (see the "transient failure" note above).
+        if race.get("weather") is not None:
+            race_row["weather"] = json.dumps(race["weather"])
+        if race.get("trafficStats"):
+            race_row["traffic_stats"] = json.dumps(race["trafficStats"])
+        if race.get("safetyCarPeriods") is not None:
+            race_row["safety_car_periods"] = race["safetyCarPeriods"]
+        if race.get("tireCompoundPace"):
+            race_row["tire_compound_pace"] = json.dumps(race["tireCompoundPace"])
         race_row["data_completeness"] = data_completeness
         # Once, not every run - re-hit Commons every 6 hours for photos that never change once
         # found. `existing` (fetched above) already tells us if a prior run already got them.
