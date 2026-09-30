@@ -5,6 +5,7 @@ import { describeTrackCharacter, getCircuitFacts, type CircuitFacts } from "../c
 import { buildCircuitContext, circuitValidIds } from "../ai/context/circuitContext";
 import { validateSharedCircuitIntelligence } from "../ai/schemas/seasonIntelligence";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
+import { resolveCurrentCircuitToArchiveId } from "../circuitSlug";
 
 describe("generateTrackShape", () => {
   it("is deterministic - the same seed always draws the same layout", () => {
@@ -230,5 +231,19 @@ describe("validateSharedCircuitIntelligence", () => {
   it("rejects a response with no recognized blocks at all", () => {
     const result = validateSharedCircuitIntelligence({}, circuitValidIds(ctx));
     assert.equal(result.valid, false);
+  });
+});
+
+describe("resolveCurrentCircuitToArchiveId - the 2026 Bahrain venue", () => {
+  // Archive localities as stored (archive_races.locality, checked read-only against the live project).
+  const localities = new Map([["bahrain", "Sakhir"], ["sepang", "Kuala Lumpur"], ["albert_park", "Melbourne"]]);
+
+  it("the 2026 Bahrain GP, relocated to Sepang, resolves to Sepang's track history (correct)", () => {
+    // FastF1 and the calendar store "Kuala Lumpur" for it; F1 moved the event to Sepang for 2026.
+    assert.equal(resolveCurrentCircuitToArchiveId("Kuala Lumpur", localities), "sepang");
+  });
+
+  it("a Bahrain GP held at Sakhir still resolves to Bahrain International Circuit", () => {
+    assert.equal(resolveCurrentCircuitToArchiveId("Sakhir", localities), "bahrain");
   });
 });

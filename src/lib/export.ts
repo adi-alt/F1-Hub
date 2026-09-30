@@ -3,10 +3,20 @@
 // single node like that, and rasterizing arbitrary styled DOM without a library is fragile, so it
 // draws a clean on-brand image straight from the same rows shown on screen (tableToCanvas).
 
+/** Spreadsheet apps execute a cell that begins with = + - @ (or a tab / carriage return) as a
+ * formula, and the Users export includes user-controlled names (audit SEC-26 / FEAT-11). Text is
+ * prefixed with an apostrophe so it stays inert; genuine numbers ("-5", "+12", 3.1) are left alone
+ * so numeric columns still sort. */
+export function neutralizeFormula(value: string): string {
+  if (!/^[=+\-@\t\r]/.test(value)) return value;
+  const isPlainNumber = value.trim() !== "" && Number.isFinite(Number(value));
+  return isPlainNumber ? value : `'${value}`;
+}
+
 export function rowsToCSV(columns: string[], rows: (string | number)[][]): string {
   const esc = (v: string | number) => {
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    const s = typeof v === "number" ? String(v) : neutralizeFormula(String(v));
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [columns, ...rows].map((r) => r.map(esc).join(",")).join("\n");
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { addComment, getPostGroupId, listComments } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
+import { isUuid } from "@/lib/ids";
 import { ServiceError } from "@/services/errors";
 
 /** Group-agnostic - replaces /api/groups/[id]/posts/[postId]/comments, same reasoning as the
@@ -25,6 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
   const { postId } = await params;
   const { content, parentCommentId } = (await request.json().catch(() => ({}))) as { content?: string; parentCommentId?: string | null };
   if (typeof content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
+  if (parentCommentId != null && !isUuid(parentCommentId)) return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
 
   try {
     const groupId = await getPostGroupId(postId);

@@ -29,9 +29,10 @@ export type CalendarEntry = {
    * `races` row exists, just available for a round that doesn't have one yet.
    *
    * "cancelled"/"postponed" are also accepted: the column is free-form text, a round really can be
-   * either, and the season page must not show a normal countdown for one. The pipeline doesn't
-   * write them today, so they only ever arrive if the row genuinely says so - narrowing the type to
-   * two values (the previous behaviour) silently discarded that case instead. */
+   * either, and the season page must not show a normal countdown for one. sync_calendar.py writes
+   * "cancelled" when an event leaves the upstream schedule (the row is retired, never deleted - see
+   * oneRowPerRound); "postponed" only ever arrives if a person set it. Narrowing the type to two
+   * values (the previous behaviour) silently discarded that case instead. */
   status: "completed" | "upcoming" | "cancelled" | "postponed" | null;
 };
 
@@ -63,6 +64,22 @@ function fromRow(row: CalendarRow): CalendarEntry {
   };
 }
 
+/** One calendar row per round. A retired row (status "cancelled": an event that left the upstream
+ * schedule, or an old id for a renamed/renumbered event) can share its round with the live event
+ * that replaced it - the live row wins. A cancelled row is kept only when nothing live holds its
+ * round, so a genuinely cancelled round still shows as cancelled rather than disappearing. Order is
+ * otherwise preserved. Exported for tests. */
+export function oneRowPerRound<T extends { round: number; status: string | null }>(rows: T[]): T[] {
+  const liveRounds = new Set(rows.filter((r) => r.status !== "cancelled").map((r) => r.round));
+  const seen = new Set<number>();
+  return rows.filter((r) => {
+    if (r.status === "cancelled" && liveRounds.has(r.round)) return false;
+    if (seen.has(r.round)) return false; // the database allows one live row per round; guards older data
+    seen.add(r.round);
+    return true;
+  });
+}
+
 /** The full session schedule (practice/qualifying/sprint/race, with real datetimes) + weather
  * forecast for one race weekend — sync_calendar.py's own domain, richer than what `races` itself
  * needs (races.ts only cares about results once a session has actually run).
@@ -72,11 +89,14 @@ function fromRow(row: CalendarRow): CalendarEntry {
  * uses, and CalendarRealtimeWatcher tells an already-open browser to go pull it. */
 export const getCalendarEntry = unstable_cache(
   async (year: number, round: number): Promise<CalendarEntry | null> => {
+    // A list, not maybeSingle(): a retired row can share the round (see oneRowPerRound), and
+    // maybeSingle() errors on two rows - which took the race page's schedule down with it.
     const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("calendar").select("*").eq("year", year).eq("round", round).maybeSingle(),
+      supabaseAdmin.from("calendar").select("*").eq("year", year).eq("round", round).order("id"),
     );
     if (error) throw new Error(`getCalendarEntry(${year}, ${round}): ${error.message}`);
-    return data ? fromRow(data as CalendarRow) : null;
+    const [row] = oneRowPerRound((data ?? []) as CalendarRow[]);
+    return row ? fromRow(row) : null;
   },
   ["get-calendar-entry"],
   { revalidate: false, tags: ["calendar"] },
@@ -92,7 +112,7 @@ export const getCalendarEntriesByYear = unstable_cache(
     // next request try again fresh.
     const { data, error } = await queryWithRetry(() => supabaseAdmin.from("calendar").select("*").eq("year", year).order("round"));
     if (error) throw new Error(`getCalendarEntriesByYear(${year}): ${error.message}`);
-    return ((data ?? []) as CalendarRow[]).map(fromRow);
+    return oneRowPerRound((data ?? []) as CalendarRow[]).map(fromRow);
   },
   ["get-calendar-entries-by-year"],
   { revalidate: false, tags: ["calendar"] },

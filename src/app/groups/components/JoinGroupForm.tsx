@@ -2,9 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { extractInviteToken } from "@/lib/inviteLink";
 
-// Invite links are just a group's own uuid in the URL (/groups/<id>) — accept either the whole
-// pasted link or a bare id by pulling the uuid pattern out rather than parsing a URL.
+// A pasted link is /groups/<id> (a public community) or /groups/<id>?invite=<token> (a private one).
+// Accept either the whole link or a bare id by pulling the uuid out rather than parsing a URL, and
+// carry the invitation token along when there is one. The id alone never admits anyone to a private
+// community - the server decides (joinGroup) - so a bare private link falls through to the
+// community's own page, where the person can ask to join.
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
@@ -22,9 +26,20 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
       return;
     }
     setStatus("saving");
-    const res = await fetch(`/api/groups/${groupId}/join`, { method: "POST" });
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    const inviteToken = extractInviteToken(value);
+    const res = await fetch(`/api/groups/${groupId}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(inviteToken ? { inviteToken } : {}),
+    });
+    const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!res.ok) {
+      // A private community without a valid invitation: take them to its page to request access,
+      // instead of a dead-end error.
+      if (body?.code === "request_required") {
+        router.push(`/groups/${groupId}`);
+        return;
+      }
       setError(body?.error ?? "Could not join community.");
       setStatus("error");
       return;

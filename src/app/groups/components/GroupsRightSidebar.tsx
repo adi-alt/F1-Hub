@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
-import { predictionTypeLabels } from "@/lib/groupPredictionTypes";
+import { predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import { groupHref, raceHref } from "@/lib/routes";
@@ -337,19 +337,19 @@ function RaceWeekend({ race }: { race: NextRace }) {
  * countdown on a single truncating line, where the countdown (the one time-sensitive thing here)
  * was always the part that got cut off.
  *
- * Nothing here is a fabricated status. listMyPredictions also returns recently-resolved rounds now
- * (the main feed wants those), so this widget filters back down to `status: "open"` itself - its
- * name is a promise about what it shows, not just whatever its data source happens to return - and
- * no "Open" badge is claimed on top of that filter; the useful state is instead the real one
- * derived from data each row already carries: whether the viewer has entered (`hasEntered`, a real
- * group_prediction_entries lookup), how long until the race locks it (`raceDate`, through the same
- * formatCountdown/useMinuteClock pair PredictionCard uses), and - for a round whose race has
- * already started - that it is waiting on a result rather than still counting down. A row with no
- * raceDate makes no timing claim at all.
+ * Nothing here is a fabricated status. listMyPredictions also returns locked and recently-resolved
+ * rounds (the main feed wants those), so this widget filters back down to rounds still taking
+ * entries itself - by the server's own deadline (`lockAt`, the start of the weekend's Qualifying
+ * session) against the ticking clock, so a round leaves "Active" the minute it closes. No "Open"
+ * badge is claimed on top of that filter; the useful state is the real one each row carries: whether
+ * the viewer has entered (`hasEntered`, a real group_prediction_entries lookup) and how long until
+ * entries close (`lockAt`, through the same formatCountdown/useMinuteClock pair PredictionCard uses).
  */
 function ActivePredictions({ predictions: allPredictions }: { predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
-  const predictions = allPredictions.filter((p) => p.status === "open");
+  // Open by the server's deadline (lockAt), re-evaluated against the ticking clock so a round drops
+  // out of "Active" the minute it closes rather than lingering until the next refresh.
+  const predictions = allPredictions.filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open");
 
   return (
     <div>
@@ -363,11 +363,11 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
       ) : (
         <div className="mt-1.5 space-y-1">
           {predictions.map((p) => {
-            const raceAt = p.raceDate ? parseUtcDateTime(p.raceDate).getTime() : null;
-            const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
-            const awaitingResult = !!raceAt && raceAt <= now;
+            const lockMs = p.lockAt ? Date.parse(p.lockAt) : null;
+            // Only open rounds reach here (filtered above), so there is no "awaiting result" case.
+            const countdown = lockMs !== null ? formatCountdown(lockMs, now) : null;
             // Under a day left is the point at which "when" stops being background information.
-            const urgent = !!raceAt && raceAt > now && raceAt - now < 24 * 60 * 60 * 1000;
+            const urgent = lockMs !== null && lockMs - now < 24 * 60 * 60 * 1000;
             return (
               // Deep-links straight to that community's Predictions tab - CommunityTabs puts the
               // active tab in ?tab=, so there is a real target to link to.
@@ -404,8 +404,6 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
                       <ClockIcon />
                       <span className="truncate">Closes in {countdown}</span>
                     </span>
-                  ) : awaitingResult ? (
-                    <span className="min-w-0 truncate text-[11px] text-neutral-500">Awaiting result</span>
                   ) : null}
 
                   <span className="ml-auto shrink-0 text-neutral-700 transition group-hover:text-neutral-300">

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPrediction, listPredictions, type PredictionType } from "@/lib/supabase/groupPredictions";
 import { getSession } from "@/lib/session/getSession";
-import { ServiceError } from "@/services/errors";
+import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const predictions = await listPredictions(id, session.uid);
     return NextResponse.json({ predictions });
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
 }
@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const prediction = await createPrediction(id, session.uid, { raceId: body.raceId, type: body.type, entryPoints: body.entryPoints ?? 0 });
     return NextResponse.json(prediction);
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
 }

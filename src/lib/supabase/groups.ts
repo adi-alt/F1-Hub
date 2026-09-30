@@ -1,3 +1,4 @@
+import { escapeHtml, singleLine, trustedOrigin } from "@/lib/html";
 import { unstable_cache, revalidateTag } from "next/cache";
 import {
   canDo,
@@ -14,6 +15,7 @@ import {
   type CommunityVisibility,
 } from "@/lib/communities";
 import { getTransporter } from "@/lib/otp";
+import { signInviteToken, verifyInviteToken } from "@/lib/inviteTokens";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
@@ -468,10 +470,11 @@ async function topicsOfMyCommunities(uid: string): Promise<Set<string>> {
 }
 
 
-/** Enough to decide "do I want to join this" without being a member yet — the whole point of an
- * invite link. The link itself (the group's own uuid) is the access control for a private group;
- * nothing here is discoverable without already having it unless the group opted into
- * visibility='public' (see listPublicGroups above). */
+/** Enough to decide "do I want to join this" without being a member yet — what a person sees on a
+ * community's page before they're in it. Knowing a private community's link lets you see this
+ * preview and ask to join; it does NOT let you in - joining needs approval or a signed invitation,
+ * enforced by joinGroup (audit SEC-06). A private community isn't discoverable without the link
+ * unless it opted into visibility='public' (see listPublicGroups above). */
 export const getGroupPreview = unstable_cache(
   async (groupId: string): Promise<GroupPreview | null> => getGroupPreviewUncached(groupId),
   ["get-group-preview"],
@@ -565,17 +568,51 @@ export async function createGroup(
   return { id: data.id as string };
 }
 
-export async function joinGroup(uid: string, groupId: string): Promise<{ id: string; name: string }> {
-  const { data: group } = await supabaseAdmin.from("groups").select("id, name").eq("id", groupId).maybeSingle();
-  if (!group) throw new ServiceError("That invite link isn't valid.", 404);
+/** Translates the join/redeem SQL functions' named failures (20260930_group_access.sql) into
+ * ServiceErrors the UI can act on. Anything unrecognised is a real bug and is rethrown. */
+function accessError(error: { message: string }): Error {
+  const m = error.message;
+  if (m.includes("group_not_found")) return new ServiceError("That invite link isn't valid.", 404, "group_not_found");
+  if (m.includes("banned")) return new ServiceError("You can't join this community.", 403, "banned");
+  if (m.includes("invite_required")) return new ServiceError("This community is private. Ask to join and an admin will review your request.", 403, "request_required");
+  if (m.includes("invite_invalid")) return new ServiceError("That invitation isn't valid.", 404, "invite_invalid");
+  if (m.includes("invite_revoked")) return new ServiceError("This invitation was cancelled.", 410, "invite_revoked");
+  if (m.includes("invite_expired")) return new ServiceError("This invitation has expired.", 410, "invite_expired");
+  if (m.includes("invite_exhausted")) return new ServiceError("This invitation has already been used.", 410, "invite_exhausted");
+  return new Error(`join: ${m}`);
+}
 
-  const existingRole = await getMemberRole(groupId, uid);
-  if (!existingRole) {
-    const { error } = await supabaseAdmin.from("group_members").insert({ group_id: groupId, user_id: uid, role: "member" });
-    if (error) throw error;
-    revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count / isMember changed
+/** Joins a community, enforcing its visibility on the server (audit SEC-06). A PUBLIC community can
+ * be joined directly; a private or hidden one needs a valid invitation token (`inviteToken`) - the
+ * group's id alone no longer admits anyone. Approval of a join request adds the membership itself
+ * (decideJoinRequest), so it never comes through here. */
+export async function joinGroup(uid: string, groupId: string, inviteToken?: string | null): Promise<{ id: string; name: string }> {
+  const { data: group } = await supabaseAdmin.from("groups").select("id, name").eq("id", groupId).maybeSingle();
+  if (!group) throw new ServiceError("That invite link isn't valid.", 404, "group_not_found");
+
+  let result: { joined?: boolean } | null;
+  if (inviteToken) {
+    const check = verifyInviteToken(inviteToken, groupId);
+    if (!check.ok) {
+      if (check.reason === "expired") throw new ServiceError("This invitation has expired.", 410, "invite_expired");
+      throw new ServiceError("That invitation isn't valid.", 404, "invite_invalid");
+    }
+    const { data, error } = await supabaseAdmin.rpc("redeem_group_invite", { p_group_id: groupId, p_invite_id: check.inviteId, p_user_id: uid });
+    if (error) throw accessError(error);
+    result = data as { joined?: boolean };
+  } else {
+    const { data, error } = await supabaseAdmin.rpc("join_group", { p_group_id: groupId, p_user_id: uid });
+    if (error) throw accessError(error);
+    result = data as { joined?: boolean };
   }
+  if (result?.joined) revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count / isMember changed
   return { id: group.id as string, name: group.name as string };
+}
+
+async function isBanned(groupId: string, uid: string): Promise<boolean> {
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_bans").select("user_id").eq("group_id", groupId).eq("user_id", uid).maybeSingle());
+  if (error) throw new Error(`isBanned(${groupId}, ${uid}): ${error.message}`);
+  return !!data;
 }
 
 export async function getGroupDetail(groupId: string, uid: string): Promise<GroupDetail> {
@@ -787,18 +824,53 @@ export async function updateMemberRole(groupId: string, actingUid: string, targe
   if (error) throw new Error(`updateMemberRole(${groupId}, ${targetUid}): ${error.message}`);
 }
 
-export async function removeMember(groupId: string, actingUid: string, targetUid: string): Promise<void> {
+/** Removes a member. With `ban`, they are also barred from rejoining (join, invitation redemption
+ * and join requests all check group_bans) - without it, removing someone from a PUBLIC community
+ * only lasts until they click Join again (audit SEC-06). The ban is recorded before the membership
+ * is deleted, so there is no window in which the person is out but free to walk straight back in. */
+export async function removeMember(groupId: string, actingUid: string, targetUid: string, opts: { ban?: boolean; reason?: string } = {}): Promise<void> {
   await requireAdmin(groupId, actingUid);
+  if (opts.ban && targetUid === actingUid) throw new ServiceError("You can't ban yourself - leave the community instead.", 400);
   const targetRole = await getMemberRole(groupId, targetUid);
-  if (!targetRole) return; // already not a member - removing is idempotent
 
   if (targetRole === "admin" && (await countAdmins(groupId)) <= 1) {
     throw new ServiceError("A group needs at least one admin - promote someone else before removing yourself.", 400);
   }
 
+  if (opts.ban) {
+    const { error: banError } = await supabaseAdmin
+      .from("group_bans")
+      .upsert({ group_id: groupId, user_id: targetUid, banned_by: actingUid, reason: opts.reason?.trim().slice(0, 300) || null }, { onConflict: "group_id,user_id" });
+    if (banError) throw new Error(`removeMember(${groupId}, ${targetUid}): ${banError.message}`);
+  }
+  if (!targetRole) return; // already not a member - removing is idempotent
+
   const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", targetUid);
   if (error) throw new Error(`removeMember(${groupId}, ${targetUid}): ${error.message}`);
   revalidateTag(GROUP_DISCOVERY_TAG, "max"); // member count changed
+}
+
+export type GroupBan = { userId: string; displayName: string | null; username: string | null; reason: string | null; createdAt: string };
+
+export async function listBans(groupId: string, uid: string): Promise<GroupBan[]> {
+  await requireAdmin(groupId, uid);
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_bans").select("user_id, reason, created_at").eq("group_id", groupId).order("created_at", { ascending: false }));
+  if (error) throw new Error(`listBans(${groupId}): ${error.message}`);
+  if (!data?.length) return [];
+  const profileById = await profilesById(data.map((r) => r.user_id as string));
+  return data.map((r) => ({
+    userId: r.user_id as string,
+    displayName: profileById.get(r.user_id as string)?.display_name ?? null,
+    username: profileById.get(r.user_id as string)?.username ?? null,
+    reason: (r.reason as string | null) ?? null,
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function unbanMember(groupId: string, actingUid: string, targetUid: string): Promise<void> {
+  await requireAdmin(groupId, actingUid);
+  const { error } = await supabaseAdmin.from("group_bans").delete().eq("group_id", groupId).eq("user_id", targetUid);
+  if (error) throw new Error(`unbanMember(${groupId}, ${targetUid}): ${error.message}`);
 }
 
 export async function deleteGroup(groupId: string, uid: string): Promise<void> {
@@ -813,44 +885,192 @@ export async function deleteGroup(groupId: string, uid: string): Promise<void> {
 const MAX_INVITE_EMAILS = 10;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Sends a plain "you've been invited" email per address, reusing the same SMTP transporter
- * otp.ts already sends verification codes through - no new invite-token table, since the link
- * inside the email is the exact same group URL InviteLink.tsx already renders for copy/paste (the
- * group's own uuid is the whole access control, see schema.sql's own comment on why). This is
- * automating delivery of that same link, not a new invitation entity with its own pending state. */
-export async function inviteByEmail(groupId: string, uid: string, emails: string[], origin: string): Promise<{ sent: number }> {
+// ---------------------------------------------------------------------------------- invitations
+// A private or hidden community is joined by approval or by a signed, expiring, revocable
+// invitation (20260930_group_access.sql, src/lib/inviteTokens.ts). The database row decides whether
+// an invitation is still usable; the token proves it was issued by us for this community.
+
+const INVITE_DEFAULT_DAYS = 7;
+const INVITE_MAX_DAYS = 30;
+const INVITE_DEFAULT_USES = 10;
+const INVITE_MAX_USES = 100;
+/** A ceiling on live invitations per community, so a member with invite rights can't grow the table
+ * without bound. */
+const INVITE_MAX_ACTIVE_PER_GROUP = 200;
+/** Per-user ceiling on invitations created (links and per-recipient email invites) in the last hour,
+ * across every community - an interim abuse limit until durable rate limiting (roadmap R-14). */
+const INVITE_MAX_PER_USER_PER_HOUR = 50;
+
+export type GroupInvite = {
+  id: string;
+  /** The signed token (the shareable link is `/groups/<groupId>?invite=<token>`) - only for the member
+   * who created the invitation. Anyone else with invite rights sees it listed but gets null, so they
+   * can't copy a working link to, for example, a single-use invitation emailed to a specific person. */
+  token: string | null;
+  expiresAt: string;
+  maxUses: number;
+  useCount: number;
+  createdAt: string;
+  createdBy: string;
+  creatorName: string | null;
+};
+
+async function requireInviteRights(groupId: string, uid: string): Promise<GroupRole> {
   const role = await requireMember(groupId, uid);
-  const { data: permissionRow, error: permissionError } = await supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle();
-  if (permissionError) throw new Error(`inviteByEmail(${groupId}): ${permissionError.message}`);
-  if (!canDo(permissionRow?.permissions, "invite", role)) {
-    throw new ServiceError("Only certain roles can invite people to this community.", 403);
+  const { data, error } = await supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle();
+  if (error) throw new Error(`requireInviteRights(${groupId}): ${error.message}`);
+  if (!canDo(data?.permissions, "invite", role)) throw new ServiceError("Only certain roles can invite people to this community.", 403);
+  return role;
+}
+
+const clampInt = (value: unknown, fallback: number, min: number, max: number): number => {
+  const n = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : fallback;
+  return Math.min(max, Math.max(min, n));
+};
+
+/** Whole seconds, so the timestamp stored in the row and the one signed into the token are equal. */
+const expiryFromNow = (days: number): Date => new Date(Math.floor(Date.now() / 1000) * 1000 + days * 86_400_000);
+
+async function assertInviteCapacity(groupId: string, uid: string, adding: number): Promise<void> {
+  const { count, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_invites").select("id", { count: "exact", head: true }).eq("group_id", groupId).is("revoked_at", null).gt("expires_at", new Date().toISOString()),
+  );
+  if (error) throw new Error(`assertInviteCapacity(${groupId}): ${error.message}`);
+  if ((count ?? 0) + adding > INVITE_MAX_ACTIVE_PER_GROUP) {
+    throw new ServiceError("This community has too many active invitations. Cancel some before creating more.", 409, "invite_limit");
   }
+  // Not atomic (two simultaneous requests can both pass the count); an abuse limit, not an accounting
+  // rule, so a small overshoot is acceptable.
+  const { count: recent, error: recentError } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_invites").select("id", { count: "exact", head: true }).eq("created_by", uid).gt("created_at", new Date(Date.now() - 3_600_000).toISOString()),
+  );
+  if (recentError) throw new Error(`assertInviteCapacity(${groupId}): ${recentError.message}`);
+  if ((recent ?? 0) + adding > INVITE_MAX_PER_USER_PER_HOUR) {
+    throw new ServiceError("You've created a lot of invitations in the last hour. Try again later.", 429, "invite_rate_limited");
+  }
+}
+
+async function insertInvite(groupId: string, uid: string, expiresAt: Date, maxUses: number): Promise<{ id: string; token: string }> {
+  const { data, error } = await supabaseAdmin
+    .from("group_invites")
+    .insert({ group_id: groupId, created_by: uid, expires_at: expiresAt.toISOString(), max_uses: maxUses })
+    .select("id")
+    .single();
+  if (error || !data) throw error ?? new Error(`insertInvite(${groupId}): no row returned`);
+  const id = data.id as string;
+  return { id, token: signInviteToken({ inviteId: id, groupId, expiresAt }) };
+}
+
+/** A shareable invitation link for a private/hidden community. Defaults: 7 days, 10 uses. */
+export async function createGroupInvite(groupId: string, uid: string, opts: { expiresInDays?: number; maxUses?: number } = {}): Promise<{ id: string; token: string; expiresAt: string; maxUses: number }> {
+  await requireInviteRights(groupId, uid);
+  const days = clampInt(opts.expiresInDays, INVITE_DEFAULT_DAYS, 1, INVITE_MAX_DAYS);
+  const maxUses = clampInt(opts.maxUses, INVITE_DEFAULT_USES, 1, INVITE_MAX_USES);
+  await assertInviteCapacity(groupId, uid, 1);
+  const expiresAt = expiryFromNow(days);
+  const { id, token } = await insertInvite(groupId, uid, expiresAt, maxUses);
+  return { id, token, expiresAt: expiresAt.toISOString(), maxUses };
+}
+
+/** Live invitations (not cancelled, not expired, uses remaining) for people who may invite. */
+export async function listGroupInvites(groupId: string, uid: string): Promise<GroupInvite[]> {
+  await requireInviteRights(groupId, uid);
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin
+      .from("group_invites")
+      .select("id, created_by, expires_at, max_uses, use_count, created_at")
+      .eq("group_id", groupId)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(100),
+  );
+  if (error) throw new Error(`listGroupInvites(${groupId}): ${error.message}`);
+  const live = (data ?? []).filter((r) => (r.use_count as number) < (r.max_uses as number));
+  if (!live.length) return [];
+  const profileById = await profilesById([...new Set(live.map((r) => r.created_by as string))]);
+  return live.map((r) => ({
+    id: r.id as string,
+    token: r.created_by === uid ? signInviteToken({ inviteId: r.id as string, groupId, expiresAt: new Date(r.expires_at as string) }) : null,
+    expiresAt: r.expires_at as string,
+    maxUses: r.max_uses as number,
+    useCount: r.use_count as number,
+    createdAt: r.created_at as string,
+    createdBy: r.created_by as string,
+    creatorName: profileById.get(r.created_by as string)?.display_name ?? null,
+  }));
+}
+
+/** Cancels an invitation. Takes effect immediately: the next redemption attempt is refused. Admins
+ * and moderators can cancel any invitation; anyone else only their own. Idempotent. */
+export async function revokeGroupInvite(groupId: string, uid: string, inviteId: string): Promise<void> {
+  const role = await requireMember(groupId, uid);
+  const { data: invite, error } = await queryWithRetry(() => supabaseAdmin.from("group_invites").select("id, created_by, revoked_at").eq("id", inviteId).eq("group_id", groupId).maybeSingle());
+  if (error) throw new Error(`revokeGroupInvite(${groupId}): ${error.message}`);
+  if (!invite) throw new ServiceError("That invitation doesn't exist.", 404);
+  if (role === "member" && invite.created_by !== uid) throw new ServiceError("You can only cancel invitations you created.", 403);
+  if (invite.revoked_at) return;
+  const { error: updateError } = await supabaseAdmin.from("group_invites").update({ revoked_at: new Date().toISOString(), revoked_by: uid }).eq("id", inviteId).eq("group_id", groupId).is("revoked_at", null);
+  if (updateError) throw new Error(`revokeGroupInvite(${groupId}): ${updateError.message}`);
+}
+
+export type InviteState = "valid" | "invalid" | "expired" | "revoked" | "exhausted";
+
+/** What a token presented for this community would do right now, WITHOUT using it - so the page a
+ * non-member lands on can say "this invitation has expired" instead of offering a Join that fails.
+ * Redemption re-checks everything atomically; this is for messaging only. */
+export async function inspectInvite(groupId: string, token: string | null | undefined): Promise<InviteState | null> {
+  if (!token) return null;
+  const check = verifyInviteToken(token, groupId);
+  if (!check.ok) return check.reason === "expired" ? "expired" : "invalid";
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_invites").select("expires_at, max_uses, use_count, revoked_at").eq("id", check.inviteId).eq("group_id", groupId).maybeSingle());
+  if (error) throw new Error(`inspectInvite(${groupId}): ${error.message}`);
+  if (!data) return "invalid";
+  if (data.revoked_at) return "revoked";
+  if (new Date(data.expires_at as string).getTime() <= Date.now()) return "expired";
+  if ((data.use_count as number) >= (data.max_uses as number)) return "exhausted";
+  return "valid";
+}
+
+/** Emails an invitation to each address. A public community gets its plain link; a private or hidden
+ * one gets a per-recipient, single-use, 7-day signed invitation, so a forwarded email can't be used
+ * by a second person and each can be cancelled from Manage. */
+export async function inviteByEmail(groupId: string, uid: string, emails: string[], origin: string): Promise<{ sent: number }> {
+  await requireInviteRights(groupId, uid);
   const cleaned = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
   if (cleaned.length === 0) throw new ServiceError("Add at least one email address.", 400);
   if (cleaned.length > MAX_INVITE_EMAILS) throw new ServiceError(`Invite up to ${MAX_INVITE_EMAILS} people at a time.`, 400);
   const invalid = cleaned.find((e) => !EMAIL_RE.test(e));
   if (invalid) throw new ServiceError(`"${invalid}" isn't a valid email address.`, 400);
 
-  const { data: group } = await supabaseAdmin.from("groups").select("name").eq("id", groupId).maybeSingle();
+  const { data: group } = await supabaseAdmin.from("groups").select("name, visibility").eq("id", groupId).maybeSingle();
   const groupName = (group?.name as string | undefined) ?? "an F1 Hub group";
+  const needsToken = (group?.visibility as string | undefined) !== "public";
   const inviterName = (await profilesById([uid])).get(uid)?.display_name ?? "A member";
-  // No app-wide base-URL env var exists anywhere in this codebase (confirmed) - InviteLink.tsx's
-  // own copy-link button gets the origin from `window.location.origin` client-side; the route
-  // handler calling this (server-side, no `window`) derives the same thing from the incoming
-  // request's own URL and passes it in, rather than this reaching for a nonexistent env var.
-  const link = `${origin}/groups/${groupId}`;
+  // APP_BASE_URL when configured, else the origin of the request (see trustedOrigin).
+  const baseLink = `${trustedOrigin(origin)}/groups/${groupId}`;
 
+  // Names are user-controlled: escape for the HTML body, and strip control characters for the
+  // subject header (audit SEC-11).
+  const safeGroup = escapeHtml(groupName);
+  const safeInviter = escapeHtml(inviterName);
+  const subjectGroup = singleLine(groupName);
+  const subjectInviter = singleLine(inviterName);
+
+  if (needsToken) await assertInviteCapacity(groupId, uid, cleaned.length);
+  const expiresAt = expiryFromNow(INVITE_DEFAULT_DAYS);
   const transporter = getTransporter();
   await Promise.all(
-    cleaned.map((to) =>
-      transporter.sendMail({
+    cleaned.map(async (to) => {
+      const link = needsToken ? `${baseLink}?invite=${(await insertInvite(groupId, uid, expiresAt, 1)).token}` : baseLink;
+      await transporter.sendMail({
         from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
         to,
-        subject: `${inviterName} invited you to join ${groupName} on F1 Hub`,
+        subject: `${subjectInviter} invited you to join ${subjectGroup} on F1 Hub`,
         text: `${inviterName} invited you to join "${groupName}" on F1 Hub - a prediction league and F1 community. Join here: ${link}`,
-        html: `<p>${inviterName} invited you to join <strong>${groupName}</strong> on F1 Hub - a prediction league and F1 community.</p><p><a href="${link}">Join ${groupName}</a></p>`,
-      }),
-    ),
+        html: `<p>${safeInviter} invited you to join <strong>${safeGroup}</strong> on F1 Hub - a prediction league and F1 community.</p><p><a href="${escapeHtml(link)}">Join ${safeGroup}</a></p>`,
+      });
+    }),
   );
   return { sent: cleaned.length };
 }
@@ -895,6 +1115,7 @@ export async function requestToJoin(groupId: string, uid: string, message?: stri
 
   const existingRole = await getMemberRole(groupId, uid);
   if (existingRole) throw new ServiceError("You're already a member.", 400);
+  if (await isBanned(groupId, uid)) throw new ServiceError("You can't join this community.", 403, "banned");
 
   const trimmed = message?.trim().slice(0, MAX_JOIN_MESSAGE) || null;
   const { error } = await supabaseAdmin
@@ -945,8 +1166,12 @@ export async function decideJoinRequest(groupId: string, actingUid: string, targ
     .maybeSingle();
   if (requestError) throw new Error(`decideJoinRequest(${groupId}): ${requestError.message}`);
   if (!request) throw new ServiceError("That request no longer exists.", 404);
+  // Only a pending request can be decided. Approving an already-rejected one would quietly reopen a
+  // decision another admin made; the member can simply ask again (requestToJoin re-opens the row).
+  if (request.status !== "pending") throw new ServiceError("That request has already been decided.", 409);
 
   if (decision === "approve") {
+    if (await isBanned(groupId, targetUid)) throw new ServiceError("That person is banned from this community. Unban them first.", 409, "banned");
     // Membership first: if this insert fails the request stays pending and can be retried, which is
     // recoverable. Marking it approved first and then failing to add them is not.
     const alreadyMember = await getMemberRole(groupId, targetUid);

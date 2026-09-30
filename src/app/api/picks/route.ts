@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserPick, saveUserPick } from "@/lib/supabase/picks";
 import { getSession } from "@/lib/session/getSession";
-import { ServiceError } from "@/services/errors";
+import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 /**
  * Deliberately a separate dynamic endpoint rather than reading the session in the race page
@@ -46,10 +46,9 @@ export async function POST(request: Request) {
       raceId,
       predictedWinner,
       predictedPodium: predictedPodium as [string, string, string],
-      submittedAt: new Date().toISOString(),
     });
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
   return NextResponse.json({ ok: true });

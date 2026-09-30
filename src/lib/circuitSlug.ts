@@ -10,10 +10,10 @@
 //
 // Three current tracks — Miami, Las Vegas, Losail/Qatar — aren't in archive_circuits at all yet
 // (enrich_archive_circuits.py hasn't reached 2018+), so they're deliberately left unmapped; that's
-// a real, separate, self-resolving gap, not a naming mismatch. "Kuala Lumpur" (2026 calendar round
-// 16, labeled "Bahrain Grand Prix") looks like a genuine data bug in the calendar collection
-// itself — country says Bahrain, location says Malaysia — left unmapped rather than guessed at;
-// worth checking calendar's own source data separately.
+// a real, separate, self-resolving gap, not a naming mismatch. The 2026 Bahrain Grand Prix is at
+// "Kuala Lumpur" on purpose: F1 relocated it to the Sepang International Circuit, Malaysia, so its
+// locality match to Sepang's history is correct. Venues are decided per event and season at
+// ingestion (pipeline/race_identity.py), never by an alias here, which would apply to every season.
 export const CURRENT_SEASON_CIRCUIT_ALIASES: Record<string, string> = {
   melbourne: "albert_park",
   shanghai: "shanghai",

@@ -37,10 +37,12 @@ export async function GET(request: Request) {
   if (error || !data.user?.email) return landing("error");
 
   const email = data.user.email;
-  const prepared = await prepareOtp(email);
-  // "cooldown" here would be unusual (this is a fresh OAuth round trip, not a resend click) but
-  // costs nothing to handle the same way /api/auth/start already does.
-  if (prepared !== "cooldown") after(() => deliverOtp(email, prepared.code));
+  const prepared = await prepareOtp(email).catch(() => null);
+  if (!prepared) return landing("error");
+  // "cooldown"/"throttled" here would be unusual (this is a fresh OAuth round trip, not a resend
+  // click): the OTP step still opens, a still-valid earlier code works, and a resend there reports
+  // the limit - same as /api/auth/start.
+  if (prepared.status === "issued") after(() => deliverOtp(email, prepared.code));
 
   return landing("otp", email);
 }

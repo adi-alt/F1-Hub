@@ -40,9 +40,11 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
     router.refresh();
   }
 
-  async function remove() {
+  // `ban` also stops them coming straight back in (join, invitations and requests all check it) -
+  // without it, removing someone from a public community only lasts until they click Join again.
+  async function remove(ban = false) {
     setStatus("saving");
-    const res = await fetch(`/api/groups/${groupId}/members/${member.userId}`, { method: "DELETE" });
+    const res = await fetch(`/api/groups/${groupId}/members/${member.userId}${ban ? "?ban=1" : ""}`, { method: "DELETE" });
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? "Could not remove member.");
@@ -83,6 +85,16 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
             pending={status === "saving"}
           >
             Remove
+          </ConfirmButton>
+        )}
+        {canManage && (
+          <ConfirmButton
+            onConfirm={() => void remove(true)}
+            question="Remove and ban?"
+            confirmLabel="Ban"
+            pending={status === "saving"}
+          >
+            Ban
           </ConfirmButton>
         )}
       </div>

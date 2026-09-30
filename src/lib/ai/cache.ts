@@ -41,7 +41,10 @@ export function buildPersonalCacheKey(userId: string, raceId: string, dataVersio
 // Bump either version constant whenever raceContext.ts's shape or raceIntelligencePrompt.ts's
 // expectations change - old cached entries under the previous version simply become unreachable
 // (a new key), never silently served as if generated under the new logic.
-export const RACE_CONTEXT_VERSION = "ctx-v1";
+// ctx-v2 (M0 Batch 3): the shared analysis is generated from toSharedRaceContext() - no favourite
+// facts - and versioned by shared coverage only. Entries written under ctx-v1 may have been
+// generated from a prompt that included one user's favourites, so they must not be served again.
+export const RACE_CONTEXT_VERSION = "ctx-v2";
 export const RACE_PROMPT_VERSION = "prompt-v1";
 
 // A cached entry's own generationMode travels WITH the content, not as a separate uncached

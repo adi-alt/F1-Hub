@@ -276,6 +276,26 @@ export async function buildRaceIntelligenceContext(raceId: string, userId?: stri
   };
 }
 
+/** Evidence sources that describe the requesting user, not the race. */
+export const PERSONAL_CONTEXT_SOURCES: ReadonlySet<ContextSource> = new Set<ContextSource>(["favoriteDriver", "favoriteTeam"]);
+
+/** The part of a race context every visitor shares - what the SHARED analysis (cached under one key
+ * for everybody) may be generated from, validated against, and versioned by (audit AI-02/AI-08, M0
+ * Batch 3). Without it, a signed-in user's cold visit generated the shared analysis from a prompt
+ * that listed their favourite driver/team facts, and a model free to cite them could put one user's
+ * favourites into the text every visitor then read; the favourite flags in dataCoverage also split
+ * the shared entry's version per user. The PERSONAL insight is still generated from the full
+ * context, separately, and cached under the user's own key. */
+export function toSharedRaceContext(context: RaceIntelligenceContext): RaceIntelligenceContext {
+  return {
+    ...context,
+    favoriteDrivers: [],
+    favoriteTeams: [],
+    evidenceFacts: context.evidenceFacts.filter((f) => !PERSONAL_CONTEXT_SOURCES.has(f.source)),
+    dataCoverage: { ...context.dataCoverage, favoriteDriver: false, favoriteTeam: false },
+  };
+}
+
 // Referenced by the route/orchestrator to decide whether personal generation is worth attempting
 // at all - avoids a wasted model call section for a signed-in user with no real favorite set.
 export function hasPersonalContext(context: RaceIntelligenceContext): boolean {

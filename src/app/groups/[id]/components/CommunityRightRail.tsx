@@ -9,7 +9,7 @@ import { useCommunityPresence } from "@/hooks/useCommunityPresence";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { countryFlag } from "@/lib/countryFlag";
 import { compactCount } from "@/lib/format";
-import { predictionTypeLabels, type GroupPrediction } from "@/lib/groupPredictionTypes";
+import { predictionStateAt, predictionTypeLabels, type GroupPrediction } from "@/lib/groupPredictionTypes";
 import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
 import type { GroupPulse, GroupStats } from "@/lib/supabase/groupStats";
 import type { NextRaceSummary } from "@/lib/supabase/nextRace";
@@ -210,12 +210,14 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
       ) : (
         <div className="space-y-3 px-4 pb-4 pt-2.5">
           {predictions.map(({ prediction, trend }) => {
-            const raceAt = prediction.raceDate ? parseUtcDateTime(prediction.raceDate).getTime() : null;
-            const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
-            // A round left open past its own race is a real state (nobody has resolved it yet) and
-            // is named as such rather than counting down to a time that has been and gone.
-            const awaitingResult = !!raceAt && raceAt <= now;
-            const urgent = !!raceAt && raceAt > now && raceAt - now < 24 * 60 * 60 * 1000;
+            // The deadline is the server's (lockAt: the start of the weekend's Qualifying session), so
+            // this says "Closes in" exactly while the server still accepts entries, and names the
+            // round as waiting on its result once that has passed.
+            const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
+            const isOpen = predictionStateAt(prediction.status, prediction.lockAt, now) === "open";
+            const countdown = isOpen && lockMs !== null ? formatCountdown(lockMs, now) : null;
+            const awaitingResult = !isOpen;
+            const urgent = isOpen && lockMs !== null && lockMs - now < 24 * 60 * 60 * 1000;
 
             return (
               <div key={prediction.id}>

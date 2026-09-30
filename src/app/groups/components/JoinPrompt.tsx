@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
-import type { GroupPreview, JoinRequestStatus } from "@/lib/supabase/groups";
+import type { GroupPreview, InviteState, JoinRequestStatus } from "@/lib/supabase/groups";
 import { GroupBanner } from "./GroupBanner";
 
 /**
@@ -16,12 +16,26 @@ import { GroupBanner } from "./GroupBanner";
  *
  *   public   - Join, immediately
  *   private  - Request to Join, with an optional note, then a waiting state
+ *   invited  - a private community reached through a valid, signed invitation link: Accept invitation
  *   rejected - says so plainly, and lets them ask again rather than silently doing nothing
  *
- * Arriving here at all means having the link. For a private community the link is not the key any
- * more - approval is.
+ * Knowing the community's link is not the key to a private community - approval or a valid
+ * invitation is, and the server enforces that (joinGroup), whatever this component shows. An
+ * invitation that has expired, been cancelled or been used up is said so plainly rather than
+ * offering a Join that would fail.
  */
-export function JoinPrompt({ group, joinRequestStatus }: { group: GroupPreview; joinRequestStatus: JoinRequestStatus | null }) {
+export function JoinPrompt({
+  group,
+  joinRequestStatus,
+  inviteToken = null,
+  inviteState = null,
+}: {
+  group: GroupPreview;
+  joinRequestStatus: JoinRequestStatus | null;
+  /** A token the server has already checked is valid; null when there isn't one. */
+  inviteToken?: string | null;
+  inviteState?: InviteState | null;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "working" | "error">("idle");
   const [error, setError] = useState("");
@@ -30,18 +44,26 @@ export function JoinPrompt({ group, joinRequestStatus }: { group: GroupPreview; 
   const [showMessage, setShowMessage] = useState(false);
 
   const isPublic = group.visibility === "public";
+  const invited = !isPublic && !!inviteToken;
+  const deadInvite = !isPublic && !inviteToken && inviteState && inviteState !== "valid" ? inviteState : null;
   const meta = communityTypeMeta(group.communityType);
 
   async function join() {
     setStatus("working");
     setError("");
-    const res = await fetch(`/api/groups/${group.id}/join`, { method: "POST" }).catch(() => null);
+    const res = await fetch(`/api/groups/${group.id}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invited ? { inviteToken } : {}),
+    }).catch(() => null);
     if (!res?.ok) {
       const body = (await res?.json().catch(() => null)) as { error?: string } | null;
       setError(body?.error ?? "Couldn't join this community.");
       setStatus("error");
       return;
     }
+    // The invitation is in the URL; drop it so a refresh doesn't replay a spent token.
+    if (invited) router.replace(`/groups/${group.id}`);
     router.refresh();
   }
 
@@ -94,13 +116,25 @@ export function JoinPrompt({ group, joinRequestStatus }: { group: GroupPreview; 
         </p>
 
         <div className="mt-6">
-          {isPublic ? (
+          {deadInvite && (
+            <p role="status" className="mx-auto mb-4 max-w-sm rounded-lg border border-[var(--f1-line)] bg-black/20 px-3 py-2 text-xs leading-relaxed text-neutral-400">
+              {deadInvite === "expired"
+                ? "This invitation has expired."
+                : deadInvite === "revoked"
+                  ? "This invitation was cancelled."
+                  : deadInvite === "exhausted"
+                    ? "This invitation has already been used."
+                    : "This invitation link isn't valid."}{" "}
+              You can still ask to join below.
+            </p>
+          )}
+          {isPublic || invited ? (
             <button
               onClick={() => void join()}
               disabled={status === "working"}
               className="rounded-full bg-[var(--f1-red)] px-6 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
             >
-              {status === "working" ? "Joining…" : "Join Community"}
+              {status === "working" ? "Joining…" : invited ? "Accept invitation" : "Join Community"}
             </button>
           ) : requestState === "pending" ? (
             <div>

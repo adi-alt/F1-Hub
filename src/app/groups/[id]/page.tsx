@@ -13,6 +13,7 @@ import {
   getGroupPreview,
   getMemberRole,
   getMyJoinRequest,
+  inspectInvite,
 } from "@/lib/supabase/groups";
 import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/groupStats";
 import { getPredictionTrend, listPredictions } from "@/lib/supabase/groupPredictions";
@@ -48,10 +49,10 @@ export default async function CommunityPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; post?: string }>;
+  searchParams: Promise<{ tab?: string; post?: string; invite?: string }>;
 }) {
   const { id } = await params;
-  const { tab: requestedTab, post: requestedPost } = await searchParams;
+  const { tab: requestedTab, post: requestedPost, invite: inviteToken } = await searchParams;
   const session = await getSession();
   if (!session.uid) {
     return (
@@ -67,11 +68,22 @@ export default async function CommunityPage({
 
   const role = await getMemberRole(id, uid);
   if (!role) {
-    const [preview, joinRequest] = await Promise.all([getGroupPreview(id), getMyJoinRequest(id, uid).catch(() => null)]);
+    const [preview, joinRequest, inviteState] = await Promise.all([
+      getGroupPreview(id),
+      getMyJoinRequest(id, uid).catch(() => null),
+      // What the invitation in the URL would do right now (valid / expired / cancelled / used up),
+      // checked without consuming it. Joining re-checks everything atomically on the server.
+      inspectInvite(id, typeof inviteToken === "string" ? inviteToken : null).catch(() => null),
+    ]);
     if (!preview) notFound();
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-        <JoinPrompt group={preview} joinRequestStatus={joinRequest?.status ?? null} />
+        <JoinPrompt
+          group={preview}
+          joinRequestStatus={joinRequest?.status ?? null}
+          inviteToken={inviteState === "valid" && typeof inviteToken === "string" ? inviteToken : null}
+          inviteState={inviteState}
+        />
       </div>
     );
   }
@@ -136,12 +148,13 @@ export default async function CommunityPage({
   // waterfall is visible as bars that appear a beat late. A trend that fails resolves to null and
   // that card simply renders without bars.
   const openPredictions = predictions
-    .filter((p) => p.status === "open")
+    .filter((p) => p.state === "open")
     .sort((a, b) => {
-      // A round with no date yet sorts last: there's nothing to be soonest about.
-      if (!a.raceDate) return 1;
-      if (!b.raceDate) return -1;
-      return new Date(a.raceDate).getTime() - new Date(b.raceDate).getTime();
+      // Soonest deadline first. An open round always has one (an unknown deadline is closed), but
+      // sort defensively rather than assume it.
+      if (!a.lockAt) return 1;
+      if (!b.lockAt) return -1;
+      return Date.parse(a.lockAt) - Date.parse(b.lockAt);
     })
     .slice(0, RAIL_PREDICTION_LIMIT);
   const railPredictions: RailPrediction[] = await Promise.all(

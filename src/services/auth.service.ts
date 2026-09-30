@@ -2,7 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabaseUser } from "@/lib/supabase/server";
 import { createUserProfile, getUserProfile, isUsernameTaken } from "@/lib/supabase/users";
 import { createSessionFor } from "@/lib/session/createSession";
-import { clearOtp, isOtpVerified, prepareOtp, verifyOtp } from "@/lib/otp";
+import { consumeOtpVerification, isOtpVerified, prepareOtp, verifyOtp } from "@/lib/otp";
 import type { Role } from "@/lib/rbac";
 import { ServiceError } from "./errors";
 
@@ -27,7 +27,16 @@ async function requireSupabaseUser(): Promise<User & { email: string }> {
 export async function startSignIn(): Promise<{ email: string; code: string | null }> {
   const user = await requireSupabaseUser();
   const prepared = await prepareOtp(user.email);
-  return { email: user.email, code: prepared === "cooldown" ? null : prepared.code };
+  // Cooldown is not an error: a code went out under a minute ago and is still usable.
+  if (prepared.status === "throttled") throw otpThrottled(prepared.retryAfterSeconds);
+  return { email: user.email, code: prepared.status === "issued" ? prepared.code : null };
+}
+
+/** The signed-in user's own address has asked for too many codes (or failed too many guesses) this
+ * hour. Only ever about the caller's own account - startSignIn takes no email from the request. */
+export function otpThrottled(retryAfterSeconds: number): ServiceError {
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  return new ServiceError(`Too many codes requested. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, 429, "otp_throttled");
 }
 
 export type OtpLoginResult =
@@ -43,12 +52,16 @@ export async function verifyOtpAndLogin(code: string): Promise<OtpLoginResult> {
 
   const result = await verifyOtp(user.email, code);
   if (result !== "ok") {
-    const messages: Record<string, string> = {
-      expired: "That code expired. Request a new one.",
-      wrong: "That code isn't right.",
-      "too-many": "Too many attempts — request a new code.",
+    // Messages say what to do next and nothing about the stored code (not how close a guess was,
+    // not how many tries remain).
+    const failures: Record<Exclude<typeof result, "ok">, [string, number, string]> = {
+      expired: ["That code expired. Request a new one.", 400, "otp_expired"],
+      wrong: ["That code isn't right.", 400, "otp_wrong"],
+      used: ["That code has already been used. Request a new one.", 400, "otp_used"],
+      "too-many": ["Too many attempts — request a new code.", 429, "otp_too_many"],
     };
-    throw new ServiceError(messages[result] ?? "Verification failed.", 400);
+    const [message, status, reason] = failures[result];
+    throw new ServiceError(message, status, reason);
   }
 
   const profile = await getUserProfile(user.id);
@@ -94,6 +107,13 @@ export async function completeSignup(
     throw new ServiceError("That username is already taken.", 409);
   }
 
+  // The actual gate: spends the verification atomically, so it cannot be replayed and two
+  // simultaneous submissions cannot both pass. Last, after every check that could still fail, so a
+  // typo'd username doesn't cost the user their code.
+  if (!(await consumeOtpVerification(user.email))) {
+    throw new ServiceError("Verify your email code first.", 403);
+  }
+
   // OAuth providers put a display name in user_metadata (key varies: Google/GitHub both commonly
   // use full_name, GitHub sometimes only user_name) - email/password accounts have none of this,
   // same "null for most accounts" situation Firebase's own `name` claim was in.
@@ -107,7 +127,6 @@ export async function completeSignup(
     favoriteTeams: input.favoriteTeams,
     favoriteTracks: input.favoriteTracks,
   });
-  await clearOtp(user.email);
 
   const firstName = input.firstName.trim();
   const role = await createSessionFor(user, firstName);

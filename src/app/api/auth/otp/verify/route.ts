@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyOtpAndLogin } from "@/services/auth.service";
-import { ServiceError } from "@/services/errors";
+import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 export async function POST(request: Request) {
   const { code } = await request.json();
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const result = await verifyOtpAndLogin(code);
     return NextResponse.json(result);
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
 }

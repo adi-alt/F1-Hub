@@ -1,3 +1,5 @@
+import { createHmac, randomInt } from "node:crypto";
+import { escapeHtml } from "@/lib/html";
 import { setDefaultResultOrder } from "dns";
 import nodemailer from "nodemailer";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -8,30 +10,46 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 // wherever IPv6 already works fine.
 setDefaultResultOrder("ipv4first");
 
-const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes to enter the code
-const VERIFIED_TTL_MS = 10 * 60 * 1000; // then 10 more minutes for complete-signup to use it
-const RESEND_COOLDOWN_MS = 60 * 1000;
-const MAX_ATTEMPTS = 5;
+// Every rule - expiry (10 min), single use, 5 guesses per code, 60 s resend cooldown, at most 5 codes
+// and 10 failed guesses per email per hour, the 10-minute complete-signup window - is enforced by the
+// database, atomically, under a row lock (supabase/migrations/20261001_otp_hardening.sql). This module
+// generates the code, hashes it, sends it, and never stores or logs it in the clear.
+const VERIFIED_TTL_MS = 10 * 60 * 1000; // mirrors otp_consume_verification; used only for the early read-only check
 
-type OtpRow = {
-  code: string;
-  expires_at: string;
-  sent_at: string;
-  attempts: number;
-  verified: boolean;
-  verified_at: string | null;
-};
+type OtpVerificationRow = { verified: boolean; verified_at: string | null; verification_consumed_at: string | null };
 
 // No id-format constraint here the way Firestore doc ids had (email is just a text primary key
 // column now) — normalizing to lowercase still matters so "Foo@x.com" and "foo@x.com" hit the
 // same row.
 function normalizeEmail(email: string): string {
-  return email.toLowerCase();
+  return email.trim().toLowerCase();
 }
 
-async function getRow(email: string): Promise<OtpRow | null> {
-  const { data } = await supabaseAdmin.from("otp_codes").select("*").eq("email", normalizeEmail(email)).maybeSingle();
-  return data;
+/** A 6-digit code from the OS CSPRNG, uniformly over 000000-999999. Exported for tests. */
+export function generateOtpCode(): string {
+  return String(randomInt(0, 1_000_000)).padStart(6, "0");
+}
+
+// Keyed with a subkey of SESSION_SECRET (server-only, already required): the database holds only
+// this HMAC, so a leaked otp_codes row - or a read of the table - does not reveal a usable code, and
+// the 10^6 code space cannot be brute-forced offline without the key. The email is part of the MAC
+// so one code's hash is useless for any other address. Fails closed without a secret.
+function otpKey(): Buffer {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 32) throw new Error("SESSION_SECRET (32+ chars) is required to hash OTP codes.");
+  return createHmac("sha256", secret).update("apex-otp-v1").digest();
+}
+/** Exported for tests. */
+export function hashOtpCode(email: string, code: string): string {
+  return createHmac("sha256", otpKey()).update(`${normalizeEmail(email)}:${code}`).digest("hex");
+}
+
+/** "j***@example.com" - enough to correlate a delivery log line with a support request, not enough
+ * to harvest addresses from logs. Exported for tests. */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  return `${local.slice(0, 1)}***@${domain}`;
 }
 
 // Table-based layout with inline styles throughout - the only markup that survives Gmail/
@@ -60,7 +78,7 @@ function buildOtpEmailHtml(code: string, email: string): string {
       </tr>
       <tr>
         <td style="padding:0 32px 26px 32px;font-size:14px;line-height:1.6;color:#9a9aa2;">
-          Someone (hopefully you) is signing in to F1 Hub as <span style="color:#f2f2f3;">${email}</span>. Enter this code to continue &mdash; it expires in 10 minutes.
+          Someone (hopefully you) is signing in to F1 Hub as <span style="color:#f2f2f3;">${escapeHtml(email)}</span>. Enter this code to continue &mdash; it expires in 10 minutes.
         </td>
       </tr>
       <tr>
@@ -123,28 +141,26 @@ export function getTransporter() {
   return transporter;
 }
 
-/** Generates a fresh 6-digit code and stores it — rate-limited to one per email per 30s so a
- * misbehaving client (or someone poking at the endpoint) can't turn this into a spam cannon.
- * Returns "cooldown" instead of a code if called too soon after the last one. Deliberately split
- * from the actual email send (see deliverOtp) — the SMTP round trip is the slow part (a second
- * or more), and there's no reason the client should sit on the sign-in dialog waiting for it when
- * all it actually needs to move on is the code existing in Firestore. */
-export async function prepareOtp(email: string): Promise<{ code: string } | "cooldown"> {
-  const existing = await getRow(email);
-  const now = Date.now();
-  if (existing && now - new Date(existing.sent_at).getTime() < RESEND_COOLDOWN_MS) return "cooldown";
+export type PrepareOtpResult =
+  | { status: "issued"; code: string }
+  /** A code was sent under a minute ago - the user can still use that one. */
+  | { status: "cooldown"; retryAfterSeconds: number }
+  /** Too many codes or failed guesses for this email in the past hour. */
+  | { status: "throttled"; retryAfterSeconds: number };
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  await supabaseAdmin.from("otp_codes").upsert({
-    email: normalizeEmail(email),
-    code,
-    expires_at: new Date(now + CODE_TTL_MS).toISOString(),
-    sent_at: new Date(now).toISOString(),
-    attempts: 0,
-    verified: false,
-    verified_at: null,
-  });
-  return { code };
+/** Generates a fresh 6-digit code and registers its hash (otp_issue decides cooldown/throttling
+ * atomically - two simultaneous requests cannot both get a code). Deliberately split from the actual
+ * email send (see deliverOtp) — the SMTP round trip is the slow part (a second or more), and there's
+ * no reason the client should sit on the sign-in dialog waiting for it. The plaintext code exists
+ * only in this return value and the email. */
+export async function prepareOtp(email: string): Promise<PrepareOtpResult> {
+  const code = generateOtpCode();
+  const { data, error } = await supabaseAdmin.rpc("otp_issue", { p_email: normalizeEmail(email), p_code_hash: hashOtpCode(email, code) });
+  if (error) throw new Error(`prepareOtp: ${error.message}`);
+  const result = data as { status: string; retry_after_seconds?: number };
+  if (result.status === "issued") return { status: "issued", code };
+  if (result.status === "cooldown" || result.status === "throttled") return { status: result.status, retryAfterSeconds: result.retry_after_seconds ?? 60 };
+  throw new Error(`prepareOtp: unexpected status ${String(result.status)}`);
 }
 
 /** The slow part — meant to be called via next/server's after() so it runs once the response
@@ -162,42 +178,48 @@ export async function deliverOtp(email: string, code: string): Promise<void> {
       text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,
       html: buildOtpEmailHtml(code, email),
     });
-    console.log(`[otp] sent to ${email} — accepted:${JSON.stringify(info.accepted)} rejected:${JSON.stringify(info.rejected)} response:${info.response}`);
+    // Counts, not addresses: info.accepted/rejected ARE the recipient address, and the SMTP
+    // response line can echo it back. The code itself is never logged.
+    console.log(`[otp] sent to ${maskEmail(email)} — accepted:${info.accepted.length} rejected:${info.rejected.length}`);
   } catch (err) {
-    console.error(`[otp] FAILED to send to ${email}:`, err);
+    // The error's own message/code only - a transport error object can carry the envelope.
+    const e = err as { code?: string; responseCode?: number; message?: string };
+    const scrubbed = (e.message ?? "").replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), maskEmail(email));
+    console.error(`[otp] FAILED to send to ${maskEmail(email)}: ${e.code ?? "error"} ${e.responseCode ?? ""} ${scrubbed}`);
   }
 }
 
-/** One attempt per call, counted against MAX_ATTEMPTS regardless of outcome — a fixed code that
- * never locks out after wrong guesses is just a 6-digit password with extra steps. */
-export async function verifyOtp(email: string, code: string): Promise<"ok" | "expired" | "wrong" | "too-many"> {
-  const data = await getRow(email);
-  if (!data) return "expired";
+export type VerifyOtpResult = "ok" | "expired" | "wrong" | "used" | "too-many";
 
-  if (data.attempts >= MAX_ATTEMPTS) return "too-many";
-  if (Date.now() > new Date(data.expires_at).getTime()) return "expired";
+const OTP_SHAPE = /^[0-9]{6}$/;
 
-  if (data.code !== code) {
-    await supabaseAdmin.from("otp_codes").update({ attempts: data.attempts + 1 }).eq("email", normalizeEmail(email));
-    return "wrong";
-  }
-
-  await supabaseAdmin
-    .from("otp_codes")
-    .update({ verified: true, verified_at: new Date().toISOString() })
-    .eq("email", normalizeEmail(email));
-  return "ok";
+/** One attempt per call, counted atomically by otp_verify (a fixed code that never locks out after
+ * wrong guesses is just a 6-digit password with extra steps). A malformed code is rejected here
+ * without touching the database - it can never be right, and it is not worth a round trip - but it
+ * still counts as a wrong guess, so malformed input cannot be used to probe for free. */
+export async function verifyOtp(email: string, code: string): Promise<VerifyOtpResult> {
+  const candidate = OTP_SHAPE.test(code.trim()) ? code.trim() : "invalid";
+  const { data, error } = await supabaseAdmin.rpc("otp_verify", { p_email: normalizeEmail(email), p_code_hash: hashOtpCode(email, candidate) });
+  if (error) throw new Error(`verifyOtp: ${error.message}`);
+  const result = data as string;
+  if (result === "ok" || result === "expired" || result === "wrong" || result === "used" || result === "too-many") return result;
+  throw new Error(`verifyOtp: unexpected result ${String(result)}`);
 }
 
-/** complete-signup checks this rather than trusting the client's word that OTP passed - the
- * verified flag has its own short-lived window so a stale verification from an hour ago can't
- * be replayed to skip the step entirely. */
+/** Early, read-only check so complete-signup can refuse a request that skipped the code before doing
+ * any other work. NOT the gate - consumeOtpVerification is. */
 export async function isOtpVerified(email: string): Promise<boolean> {
-  const data = await getRow(email);
-  if (!data || !data.verified || !data.verified_at) return false;
-  return Date.now() - new Date(data.verified_at).getTime() < VERIFIED_TTL_MS;
+  const { data } = await supabaseAdmin.from("otp_codes").select("verified, verified_at, verification_consumed_at").eq("email", normalizeEmail(email)).maybeSingle();
+  const row = data as OtpVerificationRow | null;
+  if (!row || !row.verified || !row.verified_at || row.verification_consumed_at) return false;
+  return Date.now() - new Date(row.verified_at).getTime() < VERIFIED_TTL_MS;
 }
 
-export async function clearOtp(email: string): Promise<void> {
-  await supabaseAdmin.from("otp_codes").delete().eq("email", normalizeEmail(email));
+/** Spends a recent verification exactly once (otp_consume_verification): of two simultaneous
+ * complete-signup calls, one gets true. The row is kept, not deleted - deleting it would reset the
+ * hourly limits. */
+export async function consumeOtpVerification(email: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.rpc("otp_consume_verification", { p_email: normalizeEmail(email) });
+  if (error) throw new Error(`consumeOtpVerification: ${error.message}`);
+  return data === true;
 }

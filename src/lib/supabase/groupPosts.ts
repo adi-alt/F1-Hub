@@ -469,6 +469,15 @@ function tallyVotes(rows: { post_id?: string; comment_id?: string; user_id: stri
   return { scoreByTarget, myVoteByTarget };
 }
 
+/** Ids of every community `uid` is a member of - the "following" feed's scope. Also part of the
+ * homepage AI's personal cache key (src/lib/ai/homepageCacheTiers.ts), so a membership change
+ * invalidates cached text built from that feed. */
+export async function getJoinedGroupIds(uid: string): Promise<string[]> {
+  const { data: memberships, error } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
+  if (error) throw new Error(`getJoinedGroupIds: ${error.message}`);
+  return [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+}
+
 /** The Groups home feed - cursor-paginated on created_at.
  * - "following": every group the user has actually joined (private or public) - the original,
  *   most personal view.
@@ -483,9 +492,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
   const feedType = opts.feedType ?? "following";
   const limit = opts.limit ?? 15;
 
-  const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
-  if (membershipsError) throw new Error(`listFeedPosts: ${membershipsError.message}`);
-  const joinedGroupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+  const joinedGroupIds = await getJoinedGroupIds(uid);
 
   let query = supabaseAdmin.from("group_posts").select("*").eq("status", "published").order("created_at", { ascending: false }).limit(limit + 1);
 
@@ -570,19 +577,19 @@ export async function setVote(groupId: string | null, postId: string, uid: strin
   return { myVote: direction };
 }
 
-export async function setCommentVote(groupId: string | null, commentId: string, uid: string, direction: 1 | -1): Promise<{ myVote: VoteValue }> {
+/** Casts (or clears) the caller's vote on a comment. `postId` is the post the caller was
+ * authorised against (its group's membership is checked here); cast_comment_vote() then proves the
+ * comment really belongs to that post, so a comment id from another community can't be voted on by
+ * pairing it with a post the caller can reach (audit SEC-12). Toggle + upsert happen atomically in
+ * SQL, so a double click can never leave two rows or a stale toggle. */
+export async function setCommentVote(groupId: string | null, postId: string, commentId: string, uid: string, direction: 1 | -1): Promise<{ myVote: VoteValue }> {
   await requireMemberIfGrouped(groupId, uid);
-  const { data: existing, error: existingError } = await supabaseAdmin.from("group_comment_votes").select("value").eq("comment_id", commentId).eq("user_id", uid).maybeSingle();
-  if (existingError) throw new Error(`setCommentVote(${commentId}): ${existingError.message}`);
-
-  if (existing?.value === direction) {
-    const { error } = await supabaseAdmin.from("group_comment_votes").delete().eq("comment_id", commentId).eq("user_id", uid);
-    if (error) throw new Error(`setCommentVote(${commentId}): ${error.message}`);
-    return { myVote: 0 };
+  const { data, error } = await supabaseAdmin.rpc("cast_comment_vote", { p_post_id: postId, p_comment_id: commentId, p_user_id: uid, p_direction: direction });
+  if (error) {
+    if (error.message.includes("comment_not_in_post")) throw new ServiceError("Comment not found.", 404);
+    throw new Error(`setCommentVote(${commentId}): ${error.message}`);
   }
-  const { error } = await supabaseAdmin.from("group_comment_votes").upsert({ comment_id: commentId, user_id: uid, value: direction });
-  if (error) throw new Error(`setCommentVote(${commentId}): ${error.message}`);
-  return { myVote: direction };
+  return { myVote: data as VoteValue };
 }
 
 /** Flat, not a recursive SQL query - the client builds the tree from parentCommentId (a handful of
@@ -634,6 +641,8 @@ export async function addComment(groupId: string | null, postId: string, uid: st
     .insert({ post_id: postId, user_id: uid, content: trimmed, parent_comment_id: parentCommentId ?? null })
     .select("id")
     .single();
+  // The group_post_comments trigger rejects a parent that belongs to a different post.
+  if (error?.message.includes("parent_comment_not_in_post")) throw new ServiceError("That comment isn't part of this discussion.", 400);
   if (error || !data) throw error ?? new ServiceError("Could not add comment.", 500);
   return { id: data.id as string };
 }
