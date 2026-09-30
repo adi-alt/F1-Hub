@@ -32,8 +32,8 @@ export async function getUserCounts(requesterUid: string | null | undefined): Pr
 }
 
 // Deliberately doesn't block removing your *own* admin role via this call; the UI
-// (UserManagement.tsx) disables that control so it's not a one-click accident, but the service
-// itself has no reason to special-case it.
+// (UserManagement.tsx) disables that control so it's not a one-click accident. The one case that
+// is refused is demoting the last admin, which setUserRole itself checks (409).
 export async function updateUserRole(
   requesterUid: string | null | undefined,
   targetUid: string,

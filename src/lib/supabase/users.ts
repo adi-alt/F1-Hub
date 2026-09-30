@@ -1,4 +1,6 @@
 import { unstable_cache, revalidateTag } from "next/cache";
+import { LIMITS } from "@/lib/inputLimits";
+import { ServiceError } from "@/services/errors";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import type { Role } from "@/lib/rbac";
@@ -324,7 +326,19 @@ export const getUserProfile = unstable_cache(
 );
 
 export async function setUserRole(uid: string, role: Exclude<Role, "user"> | null): Promise<void> {
-  await supabaseAdmin.from("profiles").update({ role }).eq("id", uid);
+  if (role !== "admin") {
+    // Only an admin can grant the role back, so the platform must never be left without one
+    // (SEC-25). Two admins demoting each other at the same instant could both still pass this
+    // check - acceptable at this scale; closing it fully needs a locking database function.
+    const { data: admins, error: adminsError } = await supabaseAdmin.from("profiles").select("id").eq("role", "admin");
+    if (adminsError) throw new Error(`setUserRole(${uid}): ${adminsError.message}`);
+    const adminIds = (admins ?? []).map((a) => a.id as string);
+    if (adminIds.length === 1 && adminIds[0] === uid) {
+      throw new ServiceError("This is the only admin. Make someone else an admin first.", 409);
+    }
+  }
+  const { error } = await supabaseAdmin.from("profiles").update({ role }).eq("id", uid);
+  if (error) throw new Error(`setUserRole(${uid}): ${error.message}`);
   revalidateTag(USER_PROFILE_TAG, "max");
 }
 
@@ -341,7 +355,8 @@ export async function updateUserPreferences(uid: string, patch: PreferencesPatch
   if (patch.notifyOnResults !== undefined) update.notify_on_results = patch.notifyOnResults;
   if (patch.firstName !== undefined) update.first_name = patch.firstName;
   if (Object.keys(update).length === 0) return;
-  await supabaseAdmin.from("profiles").update(update).eq("id", uid);
+  const { error } = await supabaseAdmin.from("profiles").update(update).eq("id", uid);
+  if (error) throw new Error(`updateUserPreferences(${uid}): ${error.message}`);
   revalidateTag(USER_PROFILE_TAG, "max");
 }
 
@@ -364,10 +379,13 @@ export async function setArchiveFavorite(
   favorited: boolean,
 ): Promise<void> {
   const column = FAVORITE_COLUMN[field];
-  const { data } = await supabaseAdmin.from("profiles").select(column).eq("id", uid).maybeSingle<Record<string, string[]>>();
+  const { data, error: readError } = await supabaseAdmin.from("profiles").select(column).eq("id", uid).maybeSingle<Record<string, string[]>>();
+  if (readError) throw new Error(`setArchiveFavorite(${uid}): ${readError.message}`);
   const current = data?.[column] ?? [];
   const next = favorited ? [...new Set([...current, id])] : current.filter((v) => v !== id);
-  await supabaseAdmin.from("profiles").update({ [column]: next }).eq("id", uid);
+  if (next.length > LIMITS.favorites) throw new ServiceError(`You can have up to ${LIMITS.favorites} favorites of each kind.`, 400);
+  const { error } = await supabaseAdmin.from("profiles").update({ [column]: next }).eq("id", uid);
+  if (error) throw new Error(`setArchiveFavorite(${uid}): ${error.message}`);
   revalidateTag(USER_PROFILE_TAG, "max");
 }
 

@@ -6,6 +6,10 @@ on:
   push:
   pull_request:
 
+# Read-only: nothing here writes to the repository (audit SEC-18).
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,15 +25,19 @@ jobs:
       - run: npm run lint
       - run: npm test
 
+      # Placeholders, not the real secrets (audit SEC-18): the build only needs values that are set
+      # and parse, and nothing that runs during `npm ci` or the build - including a compromised
+      # dependency - should be able to read production credentials. Vercel builds the deployed app
+      # with its own environment.
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+          SUPABASE_SECRET_KEY: placeholder-secret-key
+          CRON_SECRET: placeholder-cron-secret
+          SESSION_SECRET: placeholder-session-secret-for-ci-builds-only-000000
+          NVIDIA_API_KEY: placeholder-nvidia-key
 
   # Separate job, not a step in `build`: these are plain-assert Python scripts (no pytest, see
   # their own docstrings) that were previously never run by anything - a real gap, since it's what
