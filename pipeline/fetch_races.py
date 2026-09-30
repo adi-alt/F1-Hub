@@ -46,7 +46,7 @@ from ergast_utils import (
     upsert,
 )
 import jolpica
-from openf1_fallback import fetch_qualifying_openf1, fetch_race_openf1
+from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -196,15 +196,21 @@ def fetch_practice(year: int, round_num: int, label: str):
         if pd.isna(session_best):
             raise fastf1.core.DataNotLoadedError("no valid lap times")
 
-        best_laps = [
-            {
-                "driver": driver,
-                "lapTimeSec": round(lap_time.total_seconds(), 3),
-                "deltaToBestSec": round((lap_time - session_best).total_seconds(), 3),
-            }
-            for driver, lap_time in best_by_driver.items()
-            if pd.notna(lap_time)
-        ]
+        # Fastest first, as openf1_fallback.parse_practice() also returns it: the season page shows
+        # bestLaps[0] as the session's fastest, and groupby alone orders by driver code (every 2026
+        # session stored before this had Albon first).
+        best_laps = sorted(
+            (
+                {
+                    "driver": driver,
+                    "lapTimeSec": round(lap_time.total_seconds(), 3),
+                    "deltaToBestSec": round((lap_time - session_best).total_seconds(), 3),
+                }
+                for driver, lap_time in best_by_driver.items()
+                if pd.notna(lap_time)
+            ),
+            key=lambda b: (b["lapTimeSec"], b["driver"]),
+        )
 
         weather_df = session.weather_data
         weather = (
@@ -411,6 +417,26 @@ def load_roster(cur) -> dict[str, dict]:
     return {code: {"name": name, "team": team} for code, name, team in cur.fetchall()}
 
 
+PRACTICE_LABELS = ("FP1", "FP2", "FP3")
+
+
+def practice_for_round(year: int, round_num: int, calendar_event) -> dict:
+    """{label: {bestLaps, weather}} for every practice session with data: FastF1 first, then OpenF1
+    for any session FastF1 could not load - which on GitHub's runners is all of them (see
+    jolpica.py), so before this, practice only ever reached the app from a local run."""
+    practice = {}
+    for label in PRACTICE_LABELS:
+        result = fetch_practice(year, round_num, label)
+        if result:
+            practice[label] = {"bestLaps": result["bestLaps"], "weather": result["weather"]}
+    missing = [label for label in PRACTICE_LABELS if label not in practice]
+    if missing:
+        found = fetch_practice_openf1(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"], missing)
+        for label, result in found.items():
+            practice[label] = {"bestLaps": result["bestLaps"], "weather": result["weather"]}
+    return practice
+
+
 def qualifying_without_fastf1(year: int, round_num: int, calendar_event, roster: dict[str, dict]):
     """Qualifying when FastF1 has none (always the case on GitHub's runners - see jolpica.py):
     Jolpica's official session first, else OpenF1's, available right after the session. Same shape
@@ -544,11 +570,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         print("    already completed with an official result, skipping")
         return
 
-    practice = {}
-    for label in ("FP1", "FP2", "FP3"):
-        result = fetch_practice(year, round_num, label)
-        if result:
-            practice[label] = {"bestLaps": result["bestLaps"], "weather": result["weather"]}
+    practice = practice_for_round(year, round_num, calendar_event)
     roster = load_roster(cur)
     qualifying = fetch_qualifying(year, round_num) or qualifying_without_fastf1(year, round_num, calendar_event, roster)
     race = fetch_race(year, round_num)

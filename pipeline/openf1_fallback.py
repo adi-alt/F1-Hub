@@ -18,7 +18,7 @@ endpoint before shipping.
 from __future__ import annotations
 
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -536,3 +536,85 @@ def fetch_qualifying_openf1(year: int, round_num: int, country: str, race_date) 
     except Exception as exc:
         print(f"    openf1: qualifying not available ({exc})")
         return None
+
+
+# FastF1's practice labels -> OpenF1's session names. A sprint weekend has Practice 1 only.
+_PRACTICE_SESSION_NAMES = {"FP1": "Practice 1", "FP2": "Practice 2", "FP3": "Practice 3"}
+
+# How long after a practice session ends before its laps are read. A best lap is just a minimum, so
+# unlike a race or qualifying classification (which has positions to check) nothing can tell a
+# partial lap list from a complete one. Every run re-reads practice, so a session still inside this
+# window is simply picked up by the next run.
+_PRACTICE_SETTLE = timedelta(minutes=30)
+
+
+def parse_practice(laps: list[dict], drivers: list[dict]) -> list[dict] | None:
+    """Each driver's best lap of a practice session, fastest first, in the shape
+    fetch_races.fetch_practice() stores ({driver, lapTimeSec, deltaToBestSec}) - or None if fewer
+    than 10 drivers set a time.
+
+    A driver's best is the minimum `lap_duration` over their laps, which is FastF1's own rule (the
+    minimum of session.laps' LapTime, laps deleted for track limits included). session_result's
+    `duration` is deliberately not used: it is the official classification time, which excludes
+    deleted laps. Checked against the FastF1 data stored for 2026 Monza, Madrid and Baku FP1-3: the
+    lap minimum matched all 198 drivers to the millisecond, while session_result differed in 3 of
+    the 9 sessions (by up to 0.487s, and two drivers had no time at all)."""
+    code_by_number = {d["driver_number"]: d.get("name_acronym") for d in drivers}
+    best: dict[str, float] = {}
+    for lap in laps:
+        duration, code = lap.get("lap_duration"), code_by_number.get(lap.get("driver_number"))
+        if code and isinstance(duration, (int, float)):
+            best[code] = min(best.get(code, duration), duration)
+    if len(best) < 10:
+        print(f"    openf1: practice rejected (only {len(best)} drivers with a timed lap)")
+        return None
+    session_best = min(best.values())
+    return [
+        {"driver": code, "lapTimeSec": round(t, 3), "deltaToBestSec": round(t - session_best, 3)}
+        for code, t in sorted(best.items(), key=lambda kv: (kv[1], kv[0]))
+    ]
+
+
+def fetch_practice_openf1(year: int, round_num: int, country: str, race_date, labels) -> dict[str, dict]:
+    """{label: {session, bestLaps, weather}} for each of `labels` ("FP1"/"FP2"/"FP3") that this
+    round has and that has finished - the same shape as fetch_races.fetch_practice(), which loads
+    nothing on GitHub's runners. Pinned to this round like the other fetchers here: the race session
+    is matched by date, and practice must belong to that same meeting. For 2026 that is not
+    theoretical: OpenF1 also lists the cancelled April Sakhir weekend and both February test weeks
+    under "Bahrain", all with sessions of type Practice."""
+    try:
+        sessions = _get("sessions", year=year, country_name=country)
+        race_session = _pick_race_session(sessions, _as_date(race_date))
+    except Exception as exc:
+        print(f"    openf1: practice not available ({exc})")
+        return {}
+    if race_session is None:
+        print(f"    openf1: no Race session in {country} {year} matching {race_date} - not guessing practice")
+        return {}
+    out = {}
+    for label in labels:
+        session = next(
+            (
+                s
+                for s in sessions
+                if s.get("meeting_key") == race_session["meeting_key"] and s.get("session_name") == _PRACTICE_SESSION_NAMES[label]
+            ),
+            None,
+        )
+        if session is None:
+            continue  # FP2/FP3 on a sprint weekend
+        try:
+            end = datetime.fromisoformat(session["date_end"])
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) < end + _PRACTICE_SETTLE:
+                print(f"    openf1: {label} ends {end.isoformat()} - not read until {_PRACTICE_SETTLE} after that")
+                continue
+            key = session["session_key"]
+            best_laps = parse_practice(_get("laps", session_key=key), _get("drivers", session_key=key))
+            if best_laps:
+                out[label] = {"session": label, "bestLaps": best_laps, "weather": _fetch_weather(key)}
+                print(f"    openf1: {label} from meeting {session.get('meeting_key')} ({session.get('location')}), {len(best_laps)} drivers")
+        except Exception as exc:  # one session failing must not cost the others
+            print(f"    openf1: {label} not available ({exc})")
+    return out

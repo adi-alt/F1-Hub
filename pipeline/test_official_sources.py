@@ -174,3 +174,105 @@ try:
 finally:
     openf1_fallback.requests.get, openf1_fallback.time.sleep = real_requests_get, real_sleep
 print("openf1 retry on rate limiting: all checks passed")
+
+# --- OpenF1: practice == what FastF1 stored (Baku FP1, and Madrid FP1 where session_result differs) --
+practice_truth = load("db_2026_practice_truth.json")
+for race_id, rnd in (("2026_r15_azerbaijan-grand-prix", 15), ("2026_r14_spanish-grand-prix", 14)):
+    got = openf1_fallback.parse_practice(load(f"openf1_2026_{rnd}_fp1_laps.json"), load(f"openf1_2026_{rnd}_fp1_drivers.json"))
+    want = practice_truth[race_id]["FP1"]["bestLaps"]
+    assert len(got) == len(want) == 22, race_id
+    assert sorted(got, key=lambda b: b["driver"]) == sorted(want, key=lambda b: b["driver"]), race_id
+    assert [b["lapTimeSec"] for b in got] == sorted(b["lapTimeSec"] for b in want), "stored fastest first"
+# Why laps and not session_result: the official classification time leaves out deleted laps, so it
+# is NOT what FastF1 stores (and what the pole model was trained on).
+codes = {d["driver_number"]: d["name_acronym"] for d in load("openf1_2026_14_fp1_drivers.json")}
+madrid_fp1 = {b["driver"]: b["lapTimeSec"] for b in practice_truth["2026_r14_spanish-grand-prix"]["FP1"]["bestLaps"]}
+assert any(
+    isinstance(r["duration"], (int, float)) and round(r["duration"], 3) != madrid_fp1[codes[r["driver_number"]]]
+    for r in load("openf1_2026_14_fp1_session_result.json")
+)
+drivers_15 = load("openf1_2026_15_fp1_drivers.json")
+nine = {d["driver_number"] for d in drivers_15[:9]}
+assert openf1_fallback.parse_practice([l for l in load("openf1_2026_15_fp1_laps.json") if l["driver_number"] in nine], drivers_15) is None
+saved = openf1_fallback._get
+openf1_fallback._get = lambda path, **params: load("openf1_2026_15_fp1_weather.json")
+try:
+    assert openf1_fallback._fetch_weather(11370) == practice_truth["2026_r15_azerbaijan-grand-prix"]["FP1"]["weather"]
+finally:
+    openf1_fallback._get = saved
+print("openf1 practice: all checks passed")
+
+# --- OpenF1 practice for THIS weekend: Sepang's own sessions only, and only once each is over ------
+baku_fp1 = {"laps": load("openf1_2026_15_fp1_laps.json"), "drivers": drivers_15, "weather": load("openf1_2026_15_fp1_weather.json")}
+practice_calls = []
+
+
+def fake_practice_get(path, **params):
+    practice_calls.append((path, params))
+    return sessions if path == "sessions" else baku_fp1[path]
+
+
+def clock(when):
+    class Now(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return when
+
+    return Now
+
+
+read_sessions = lambda: sorted({p["session_key"] for path, p in practice_calls if path == "laps"})
+sepang = {s["session_name"]: s["session_key"] for s in sessions if s["location"] == "Kuala Lumpur"}
+decoys = {s["session_key"] for s in sessions if s["location"] != "Kuala Lumpur"}  # April Sakhir + February testing
+ALL = ["FP1", "FP2", "FP3"]
+utc = datetime.timezone.utc
+saved = openf1_fallback._get, openf1_fallback.datetime
+openf1_fallback._get = fake_practice_get
+try:
+    openf1_fallback.datetime = clock(datetime.datetime(2026, 10, 2, 5, 45, tzinfo=utc))  # 15 minutes after FP1
+    assert openf1_fallback.fetch_practice_openf1(2026, 16, "Bahrain", datetime.date(2026, 10, 4), ALL) == {}
+    assert read_sessions() == [], "nothing read inside the settle time"
+    openf1_fallback.datetime = clock(datetime.datetime(2026, 10, 2, 6, 5, tzinfo=utc))  # 35 minutes after FP1
+    got = openf1_fallback.fetch_practice_openf1(2026, 16, "Bahrain", datetime.date(2026, 10, 4), ALL)
+    assert list(got) == ["FP1"] and read_sessions() == [sepang["Practice 1"]]
+    assert got["FP1"]["session"] == "FP1" and len(got["FP1"]["bestLaps"]) == 22 and got["FP1"]["weather"]["airTempC"] == 29.1
+    practice_calls.clear()
+    openf1_fallback.datetime = clock(datetime.datetime(2026, 10, 3, 7, 0, tzinfo=utc))  # after FP3, before qualifying
+    assert list(openf1_fallback.fetch_practice_openf1(2026, 16, "Bahrain", datetime.date(2026, 10, 4), ALL)) == ALL
+    assert read_sessions() == sorted(sepang[f"Practice {n}"] for n in (1, 2, 3)), read_sessions()
+    assert not any(p.get("session_key") in decoys for _, p in practice_calls), "never the Sakhir or testing sessions"
+    practice_calls.clear()  # a race date that matches no meeting is refused, not guessed
+    assert openf1_fallback.fetch_practice_openf1(2026, 16, "Bahrain", datetime.date(2026, 7, 1), ALL) == {}
+    assert [path for path, _ in practice_calls] == ["sessions"]
+finally:
+    openf1_fallback._get, openf1_fallback.datetime = saved
+print("openf1 practice for the Sepang weekend: all checks passed")
+
+# --- practice_for_round: FastF1 first, OpenF1 only for the sessions FastF1 could not load --------
+def practice_doc(label, driver):
+    return {"session": label, "bestLaps": [{"driver": driver, "lapTimeSec": 90.0, "deltaToBestSec": 0.0}], "weather": None}
+
+
+asked = []
+sepang_event = {"Country": "Bahrain", "EventDate": datetime.date(2026, 10, 4)}
+source_of = lambda practice: {label: s["bestLaps"][0]["driver"] for label, s in practice.items()}
+saved = fetch_races.fetch_practice, fetch_races.fetch_practice_openf1
+# The fake OpenF1 has FP1 and FP2 but FP3 not yet.
+fetch_races.fetch_practice_openf1 = lambda y, r, country, race_date, labels: asked.append((country, list(labels))) or {
+    label: practice_doc(label, "OF1") for label in labels if label != "FP3"
+}
+try:
+    fetch_races.fetch_practice = lambda y, r, label: practice_doc(label, "FF1")  # a machine where FastF1 works
+    assert source_of(fetch_races.practice_for_round(2026, 16, sepang_event)) == {"FP1": "FF1", "FP2": "FF1", "FP3": "FF1"}
+    assert asked == [], "OpenF1 is not asked when FastF1 has everything"
+    fetch_races.fetch_practice = lambda y, r, label: practice_doc(label, "FF1") if label == "FP1" else None
+    assert source_of(fetch_races.practice_for_round(2026, 16, sepang_event)) == {"FP1": "FF1", "FP2": "OF1"}
+    assert asked == [("Bahrain", ["FP2", "FP3"])]
+    asked.clear()
+    fetch_races.fetch_practice = lambda y, r, label: None  # GitHub's runners
+    got = fetch_races.practice_for_round(2026, 16, sepang_event)
+    assert source_of(got) == {"FP1": "OF1", "FP2": "OF1"} and asked == [("Bahrain", ALL)]
+    assert all(set(s) == {"bestLaps", "weather"} for s in got.values()), "same stored shape as before"
+finally:
+    fetch_races.fetch_practice, fetch_races.fetch_practice_openf1 = saved
+print("practice_for_round: all checks passed")

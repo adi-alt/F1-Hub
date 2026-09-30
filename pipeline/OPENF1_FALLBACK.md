@@ -210,6 +210,28 @@ new table/column. Enough real races through this and `gh run view --log` gives a
 "how fresh is this really," without building a dashboard for a question three data points can
 answer.
 
+## Practice (FP1-FP3)
+
+`fetch_practice_openf1()` fills any practice session FastF1 could not load, which on GitHub's
+runners is all of them (see `jolpica.py`). A race weekend therefore no longer needs a local run for
+practice. It stores exactly what `fetch_practice()` stores:
+
+- **Best lap = the minimum `/laps` `lap_duration` per driver.** This is FastF1's own rule, which
+  includes laps deleted for track limits. `/session_result`'s `duration` is not used: it is the
+  official classification time and excludes deleted laps. Checked against the FastF1 data stored
+  for 2026 Monza, Madrid and Baku FP1-3, the lap minimum matched all 198 drivers to the
+  millisecond, while `session_result` differed in 3 of the 9 sessions.
+- **Weather** comes from the same `_fetch_weather()` as the race. It matched FastF1's stored
+  practice weather in all 9 sessions.
+- **Pinned to the round.** The race session is matched by date (`_pick_race_session()`), and
+  practice must belong to that meeting. In 2026 OpenF1 also lists the cancelled April Sakhir
+  weekend and both February test weeks under "Bahrain".
+- **Read 30 minutes after a session ends.** A lap list has no positions to validate, so a partial
+  one can't be detected. Every run re-reads practice, so a session still inside that window is
+  picked up by the next run.
+- **`bestLaps` is stored fastest first** from both sources, because the season page shows
+  `bestLaps[0]` as a session's fastest.
+
 ## Reconciliation
 
 `is_already_completed()` and `next_relevant_round()` both treat a round as "not really done yet" if
