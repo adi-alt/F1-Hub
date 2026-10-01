@@ -11,8 +11,9 @@ import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Section } from "@/components/ui/Section";
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Surface } from "@/components/ui/Surface";
-import { ChipDemo, LoadingButtonDemo } from "./InteractiveDemos";
+import { ChipDemo, FieldDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
 
 export const metadata: Metadata = { title: "UI primitives", robots: { index: false, follow: false } };
 
@@ -153,6 +154,44 @@ export default function UiPreviewPage() {
         <Section id="sections-nested" title="A level-3 sub-section" level={3} description="Sub-sections use title-md.">
           <ProvenanceLine source="OpenF1" status="Preliminary" updated="15:05" />
         </Section>
+      </Section>
+
+      <Section id="tabs" title="Tabs" level={2} description="Underline for page-level sections, segmented for small in-card toggles. Full WAI-ARIA keyboard support.">
+        <TabsDemo />
+      </Section>
+
+      <Section id="tables" title="Table" level={2} description="Caption-style headers, tabular numbers, sortable columns, activatable and expandable rows, a visible horizontal scrollbar.">
+        <TableDemo />
+      </Section>
+
+      <Section id="fields" title="Field" level={2} description="Label, hint and error wired to the control; 40px tall; body-size text so iOS doesn't zoom.">
+        <FieldDemo />
+      </Section>
+
+      <Section id="overlays" title="Dialog and Sheet" level={2} description="Every overlay traps focus, closes on Escape and returns focus to its trigger.">
+        <OverlayDemo />
+      </Section>
+
+      <Section id="toasts" title="Toast" level={2} description="Bottom-centre on phones, bottom-right from md up, in a polite live region.">
+        <ToastDemo />
+      </Section>
+
+      <Section id="skeletons" title="Skeleton" level={2} description="One shape-aware placeholder with a 1.6s opacity pulse, static under reduced motion.">
+        <SkeletonGroup label="Loading the standings" className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <Skeleton shape="text" className="w-3/4" />
+            <Skeleton shape="text" />
+            <Skeleton shape="text" className="w-1/2" />
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton shape="circle" className="size-10" />
+            <Skeleton shape="block" className="h-16 flex-1" />
+          </div>
+          <div className="flex flex-col gap-1 md:col-span-2">
+            <Skeleton shape="row" />
+            <Skeleton shape="row" />
+          </div>
+        </SkeletonGroup>
       </Section>
 
       <Section id="alerts" title="Alert" level={2} description="Danger uses the coral danger tone with an icon, never brand red.">
