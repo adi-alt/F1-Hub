@@ -7,7 +7,7 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 // the real thing arrives. "Feed" is the tab that lands by default, so that's the shape shown.
 export default function CommunityDetailLoading() {
   return (
-    <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="page-wide py-6">
       <SectionLoadingMessage label="Loading community…" />
       <Skeleton className="h-4 w-36" />
 

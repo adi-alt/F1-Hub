@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { seasonHref } from "@/lib/routes";
 
-const baseLinks = [
-  { href: seasonHref(2026), label: "Season" },
-  { href: "/circuits", label: "Circuits" },
-  { href: "/archive", label: "Archive" },
-  { href: "/groups", label: "Communities" },
+const baseLinks: { href: string; label: string; section: NavSection }[] = [
+  { href: seasonHref(2026), label: "Season", section: "season" },
+  { href: "/circuits", label: "Circuits", section: "circuits" },
+  { href: "/archive", label: "Archive", section: "archive" },
+  { href: "/groups", label: "Communities", section: "communities" },
 ];
 
 export function MobileNav({
@@ -24,9 +26,10 @@ export function MobileNav({
   const [open, setOpen] = useState(false);
   const links = [
     ...baseLinks,
-    ...(showUsers ? [{ href: "/users", label: "Users" }] : []),
-    ...(showModels ? [{ href: "/models", label: "Models" }] : []),
+    ...(showUsers ? [{ href: "/users", label: "Users", section: "users" as const }] : []),
+    ...(showModels ? [{ href: "/models", label: "Models", section: "models" as const }] : []),
   ];
+  const activeSection = navSectionFor(usePathname());
 
   if (!showNav) return null;
 
@@ -69,7 +72,10 @@ export function MobileNav({
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
-                className="block rounded-lg px-2 py-2.5 text-sm font-medium text-neutral-300 transition hover:bg-white/5 hover:text-white"
+                aria-current={link.section === activeSection ? "page" : undefined}
+                className={`block rounded-lg px-2 py-2.5 text-sm font-medium transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                  link.section === activeSection ? "bg-white/5 text-white" : "text-neutral-300"
+                }`}
               >
                 {link.label}
               </Link>

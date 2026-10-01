@@ -81,7 +81,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   const { circuitIds: activeCircuitIds, teamIds: activeTeamIds, currentLeader } = await getActiveIds(circuits);
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <h1 className="flex shrink-0 items-baseline gap-3">
         <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">Archive</span>
         <span className="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
@@ -150,7 +150,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
   const topWinner = [...winCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <ArchiveApexScope entityType="circuit" entityId={circuitId} name={circuit.name ?? circuit.circuitId} />
       <ArchiveEntityHeader
         backHref="/archive?section=track"
@@ -195,7 +195,7 @@ async function renderDiagnosticIfAdmin(err: unknown) {
   const digest = (err as { digest?: string } | null)?.digest;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+    <div className="page-narrow py-10">
       <div className="rounded-2xl border border-[var(--f1-red)]/40 bg-[var(--f1-carbon)] p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--f1-red)]">Admin-only diagnostic — this page threw</p>
         <p className="mt-3 whitespace-pre-wrap text-sm text-white">{message}</p>
@@ -267,7 +267,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
   const eraSegments = buildEraSegments(entries.map(({ race, result }) => ({ year: race.year, label: result.constructor, raceCount: 1 })));
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
       <ArchiveEntityHeader
         backHref="/archive?section=driver"
@@ -364,7 +364,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
     .sort((a, b) => b.races - a.races);
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
       <ArchiveEntityHeader
         backHref="/archive?section=team"
@@ -424,7 +424,7 @@ export default async function ArchivePage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="page-wide py-10">
         <SignInGate label="the historical archive" />
       </div>
     );

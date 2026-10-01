@@ -14,7 +14,7 @@ export default async function LegacyRaceSimulationPage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <SignInGate label="the race simulator" />
       </div>
     );

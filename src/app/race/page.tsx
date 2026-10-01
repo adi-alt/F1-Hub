@@ -44,7 +44,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+      <div className="page-wide py-8">
         <SignInGate label="this race" />
       </div>
     );
@@ -119,7 +119,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     ]);
 
     return (
-      <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+      <div className="page-wide py-8">
         <RaceHeader
           backHref="/season"
           backLabel={`${race.year}`}
@@ -178,7 +178,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const [ageRecords, raceCommunities] = await Promise.all([computeAgeRecords(circuitTimeline), listRaceCommunities(race.id, session.uid)]);
 
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+    <div className="page-wide py-8">
       <RaceHeader
         backHref={archiveSeasonHref(year)}
         backLabel={`${year}`}

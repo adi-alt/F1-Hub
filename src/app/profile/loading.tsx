@@ -7,7 +7,7 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
  * in over it. */
 export default function ProfileLoading() {
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-content flex h-[calc(100dvh-4rem)] flex-col py-6">
       <div className="shrink-0">
         <SectionLoadingMessage label="Loading your profile…" />
       </div>

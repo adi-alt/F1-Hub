@@ -13,7 +13,7 @@ import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 export async function ArchiveYearView({ year, uid }: { year: number; uid: string }) {
   if (year < ARCHIVE_EARLIEST_YEAR || year > ARCHIVE_LATEST_YEAR) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
           ← Archive
         </Link>
@@ -27,7 +27,7 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
 
   if (data.raceSummaries.length === 0) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
           ← Archive
         </Link>
@@ -38,7 +38,7 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
   }
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
+    <div className="page-content py-10">
       <FavoritesHydrator uid={uid} driverIds={data.favoriteDriverIds} teamIds={data.favoriteTeamIds} />
       {/* Same Suspense boundary /season uses, for the same reason: SeasonDetail's tree reads the
           race-window round from the query string. */}

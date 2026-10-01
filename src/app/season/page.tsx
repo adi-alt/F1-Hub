@@ -26,7 +26,7 @@ export default async function SeasonPage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <SignInGate label="season standings" />
       </div>
     );
@@ -50,7 +50,7 @@ export default async function SeasonPage({
   const data = await getSeasonDetailData(year, session.uid);
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+    <div className="page-content py-8">
       <FavoritesHydrator uid={session.uid} driverIds={data.favoriteDriverIds} teamIds={data.favoriteTeamIds} />
       <Suspense fallback={<SeasonDetailSkeleton />}>
         <SeasonDetail
