@@ -110,8 +110,16 @@ export async function computeSeasonStandings(year: number, throughRound?: number
   const poleCounts: Record<string, number> = {};
 
   for (const race of races) {
-    if (race.status !== "completed") continue;
     if (throughRound !== undefined && race.round > throughRound) continue;
+    // Sprint points count as soon as the sprint is classified; wins and podiums are Grand Prix only
+    // (see computeStandings in standings.ts).
+    for (const s of race.sprintResults ?? []) {
+      const d = driverMap.get(s.driver) ?? { driver: s.driver, driverName: s.driverName, team: s.team, points: 0, wins: 0, podiums: 0 };
+      d.points += s.points;
+      driverMap.set(s.driver, d);
+      teamMap.set(s.team, (teamMap.get(s.team) ?? 0) + s.points);
+    }
+    if (race.status !== "completed") continue;
     for (const r of race.results ?? []) {
       const d = driverMap.get(r.driver) ?? { driver: r.driver, driverName: r.driverName, team: r.team, points: 0, wins: 0, podiums: 0 };
       d.points += r.points;

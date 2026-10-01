@@ -230,3 +230,37 @@ assert fp1["bestLaps"][0]["deltaToBestSec"] == 0 and fp1["bestLaps"][-1] == {"dr
 assert fp1["weather"] == {"airTempC": 21.0, "trackTempC": 31.0, "humidityPct": 51.0, "rainfall": False}
 
 print("fetch_practice order: all checks passed")
+
+# --- fetch_sprint (FastF1): a classified sprint, and nothing from live timing alone ------------
+class FakeSprintSession:
+    def __init__(self, status):
+        self.results = pd.DataFrame(
+            {
+                "Position": [1.0, 2.0, float("nan")],
+                "Abbreviation": ["RUS", "LEC", "HUL"],
+                "FullName": ["George Russell", "Charles Leclerc", "Nico Hulkenberg"],
+                "TeamName": ["Mercedes", "Ferrari", "Audi"],
+                "GridPosition": [1.0, 3.0, 20.0],
+                "Status": status,
+                "Points": [8.0, 7.0, 0.0],
+                "Time": pd.to_timedelta([1800.0, 2.5, None], unit="s"),
+            }
+        )
+
+    def load(self, **kwargs):
+        pass
+
+
+real_get_session = fetch_races.fastf1.get_session
+try:
+    fetch_races.fastf1.get_session = lambda year, round_num, label: FakeSprintSession(["Finished", "Finished", "Retired"])
+    sprint = fetch_races.fetch_sprint(2026, 12)
+    fetch_races.fastf1.get_session = lambda year, round_num, label: FakeSprintSession(["", "", ""])
+    live_timing_only = fetch_races.fetch_sprint(2026, 12)
+finally:
+    fetch_races.fastf1.get_session = real_get_session
+assert [r["driver"] for r in sprint] == ["RUS", "LEC"], sprint  # HUL has no classified position
+assert sprint[0]["finishGapSec"] == 0 and sprint[1]["finishGapSec"] == 2.5 and sprint[0]["points"] == 8.0
+assert live_timing_only is None, "live timing alone is not a classification"
+
+print("fetch_sprint: all checks passed")

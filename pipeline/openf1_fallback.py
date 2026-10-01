@@ -618,3 +618,77 @@ def fetch_practice_openf1(year: int, round_num: int, country: str, race_date, la
         except Exception as exc:  # one session failing must not cost the others
             print(f"    openf1: {label} not available ({exc})")
     return out
+
+
+def parse_sprint(session_result: list[dict], drivers: list[dict]) -> list[dict] | None:
+    """OpenF1's sprint session_result -> preliminary sprint classification rows
+    ({driver, driverName, team, gridPosition, finishPosition, status, points, finishGapSec}), or None
+    if this doesn't read as a complete session. Same status rules as fetch_race_openf1(). A car
+    OpenF1 leaves without a position (retired, not classified) is placed after the classified ones,
+    which is how the official classification numbers them: checked against Jolpica for the 2026
+    Zandvoort sprint, every position and every point matched, Hulkenberg in 22nd included."""
+    info = {d["driver_number"]: d for d in drivers}
+    rows = []
+    for r in sorted(session_result, key=lambda r: (r["position"] is None, r["position"] or 0, -(r.get("number_of_laps") or 0))):
+        if r.get("dns"):
+            continue
+        d = info.get(r["driver_number"])
+        if d is None or not d.get("name_acronym"):
+            print(f"    openf1: sprint skipping car {r['driver_number']}, no driver info")
+            continue
+        gap = r.get("gap_to_leader")
+        status = "dnf" if (r.get("dnf") or r.get("dsq")) else ("lapped" if isinstance(gap, str) else "finished")
+        rows.append(
+            {
+                "driver": d["name_acronym"],
+                "driverName": d.get("full_name"),
+                "team": d.get("team_name"),
+                "gridPosition": None,
+                "finishPosition": r["position"],
+                "status": status,
+                "points": float(r.get("points") or 0),
+                "finishGapSec": round(gap, 3) if isinstance(gap, (int, float)) else None,
+            }
+        )
+    next_position = max((r["finishPosition"] for r in rows if r["finishPosition"] is not None), default=0) + 1
+    for r in rows:
+        if r["finishPosition"] is None:
+            r["finishPosition"] = next_position
+            next_position += 1
+    error = _validate(rows) if len(rows) >= 10 else f"only {len(rows)} cars"
+    if error:
+        print(f"    openf1: sprint rejected ({error})")
+        return None
+    return rows
+
+
+def fetch_sprint_openf1(year: int, round_num: int, country: str, race_date) -> list[dict] | None:
+    """This round's sprint from OpenF1, available right after the session - Jolpica publishes the
+    official one with the Grand Prix, on the Monday. Pinned like the other fetchers here: the race
+    session is matched by date and the sprint must belong to that same meeting and have ended.
+    None on a weekend without a sprint."""
+    try:
+        sessions = _get("sessions", year=year, country_name=country)
+        race_session = _pick_race_session(sessions, _as_date(race_date))
+        if race_session is None:
+            print(f"    openf1: no Race session in {country} {year} matching {race_date} - not guessing the sprint")
+            return None
+        sprint = next(
+            (s for s in sessions if s.get("meeting_key") == race_session["meeting_key"] and s.get("session_name") == "Sprint"),
+            None,
+        )
+        if sprint is None:
+            return None
+        end = datetime.fromisoformat(sprint["date_end"])
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < end:
+            print(f"    openf1: sprint ends {end.isoformat()} - nothing to report yet")
+            return None
+        rows = parse_sprint(_get("session_result", session_key=sprint["session_key"]), _get("drivers", session_key=sprint["session_key"]))
+        if rows:
+            print(f"    openf1: sprint from meeting {sprint.get('meeting_key')} ({sprint.get('location')}), {len(rows)} cars")
+        return rows
+    except Exception as exc:
+        print(f"    openf1: sprint not available ({exc})")
+        return None

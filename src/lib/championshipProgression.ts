@@ -29,7 +29,8 @@ export function computeChampionshipProgression(races: RaceDoc[], driverCodes: st
   for (const code of driverCodes) running[code] = 0;
 
   return completed.map((race) => {
-    for (const r of race.results ?? []) {
+    // A sprint weekend's sprint points land in that round, with the Grand Prix's (audit R-17).
+    for (const r of [...(race.results ?? []), ...(race.sprintResults ?? [])]) {
       if (r.driver in running) running[r.driver] += r.points;
     }
     const positions: Record<string, number | null> = {};
@@ -58,7 +59,7 @@ export function computeConstructorChampionshipProgression(races: RaceDoc[], team
   for (const name of teamNames) running[name] = 0;
 
   return completed.map((race) => {
-    for (const r of race.results ?? []) {
+    for (const r of [...(race.results ?? []), ...(race.sprintResults ?? [])]) {
       if (r.team in running) running[r.team] += r.points;
     }
     return {
