@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Ban, Check, Clock, Lock, Trophy } from "lucide-react";
+import { Ban, Check, Clock, Hourglass, Lock, Trophy } from "lucide-react";
 import { Badge, STATE_BADGES, StateLabel, type BadgeProps, type BadgeTone, type DomainState, type StateLabelProps } from "../Badge";
 
 const badge = (props: BadgeProps) => renderToStaticMarkup(createElement(Badge, props));
@@ -63,7 +63,7 @@ test("STATE_BADGES maps each domain state to one badge, or to none", () => {
     void: { tone: "neutral", icon: Ban, label: "Void" },
     upcoming: null,
     live: { tone: "live", label: "Live" },
-    preliminary: { tone: "warning", label: "Preliminary" },
+    preliminary: { tone: "warning", icon: Hourglass, label: "Preliminary" },
     final: null,
     pending: { tone: "neutral", icon: Clock, label: "Pending" },
   });

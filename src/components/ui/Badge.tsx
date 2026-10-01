@@ -1,4 +1,4 @@
-import { Ban, Check, Clock, Lock, type LucideIcon } from "lucide-react";
+import { Ban, Check, Clock, Hourglass, Lock, type LucideIcon } from "lucide-react";
 import { Icon } from "./Icon";
 
 export type BadgeTone = "neutral" | "info" | "success" | "warning" | "danger" | "live";
@@ -54,7 +54,8 @@ export const STATE_BADGES: Record<DomainState, StateBadge | null> = {
   void: { tone: "neutral", icon: Ban, label: "Void" },
   upcoming: null,
   live: { tone: "live", label: "Live" },
-  preliminary: { tone: "warning", label: "Preliminary" },
+  // Waiting for the official classification (spec §5: shown with a ProvenanceLine).
+  preliminary: { tone: "warning", icon: Hourglass, label: "Preliminary" },
   final: null,
   pending: { tone: "neutral", icon: Clock, label: "Pending" },
 };
