@@ -1,6 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { PageContainer } from "@/components/ui/PageContainer";
 import { PersonalHome, PersonalHomeSkeleton } from "./PersonalHome";
 import { PublicHome } from "./PublicHome";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
@@ -45,7 +48,12 @@ export function HomeShell({
   const initialUid = initialPersonalData?.profile?.uid ?? null;
   const needsRefetch = resolvedAuthed && (!initialPersonalData || (!!user && user.uid !== initialUid));
 
-  const { data: fetchedPersonalData } = useQuery({
+  const {
+    data: fetchedPersonalData,
+    isError: personalFailed,
+    isFetching: personalFetching,
+    refetch: refetchPersonal,
+  } = useQuery({
     queryKey: ["home-personal", user?.uid],
     queryFn: fetchPersonalHomeData,
     enabled: needsRefetch && !!user,
@@ -54,6 +62,25 @@ export function HomeShell({
   const personalData = needsRefetch ? fetchedPersonalData : initialPersonalData;
 
   if (!resolvedAuthed) return <PublicHome publicData={publicData} />;
+  // The personal data failed to load (after react-query's own retries): say so where it would be,
+  // with Try again, instead of a skeleton that never resolves (spec §9.3; audit FEAT-06).
+  if (!personalData && personalFailed) {
+    return (
+      <PageContainer className="py-10">
+        <Alert
+          tone="danger"
+          title="Couldn't load your home page"
+          action={
+            <Button variant="secondary" size="sm" loading={personalFetching} onClick={() => refetchPersonal()}>
+              Try again
+            </Button>
+          }
+        >
+          {"Your favorites, predictions and communities didn't load. The rest of the site still works."}
+        </Alert>
+      </PageContainer>
+    );
+  }
   if (!personalData) return <PersonalHomeSkeleton />;
   return (
     <PersonalHome

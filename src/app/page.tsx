@@ -8,6 +8,9 @@ import { getCalendarEntriesByYear, getCalendarEntry, type WeatherForecast } from
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { getSession } from "@/lib/session/getSession";
+import { safeRead, safeReadTracked } from "@/lib/safeRead";
+import { PageContainer } from "@/components/ui/PageContainer";
+import { RefreshAlert } from "@/components/ui/RefreshAlert";
 
 // Reading the session cookie makes this route inherently dynamic (no route-level `revalidate`
 // possible), but the underlying Postgres reads are still cached via `unstable_cache` in
@@ -24,13 +27,24 @@ export default async function HomePage() {
   // listPublicGroups() here anymore - the logged-out homepage no longer has a group-discovery
   // section (joining a group needs an account anyway), and the signed-in one gets its own groups
   // from getPersonalHomeData below, not this fetch.
-  const [nextRace, races, archiveCircuits, currentDrivers, calendarEntries] = await Promise.all([
-    getNextUpcomingRace(year),
-    getRacesByYear(year),
-    getAllArchiveCircuits(),
-    getAllCurrentDrivers(),
-    getCalendarEntriesByYear(year),
+  //
+  // Every read degrades on its own (audit FEAT-06: one failed read used to fail the whole page): a
+  // failure gives that read's empty fallback, the sections built from it render empty, and the
+  // page says some of it couldn't be loaded, with Try again.
+  const publicReads = await Promise.all([
+    safeReadTracked(() => getNextUpcomingRace(year), null),
+    safeReadTracked(() => getRacesByYear(year), []),
+    safeReadTracked(() => getAllArchiveCircuits(), []),
+    safeReadTracked(() => getAllCurrentDrivers(), []),
+    safeReadTracked(() => getCalendarEntriesByYear(year), []),
   ]);
+  const [nextRace, races, archiveCircuits, currentDrivers, calendarEntries] = [
+    publicReads[0].data,
+    publicReads[1].data,
+    publicReads[2].data,
+    publicReads[3].data,
+    publicReads[4].data,
+  ] as const;
 
   // Real per-round weather (calendar's own field, only ever populated for a round still ahead of
   // "now" - see sync_calendar.py's own comment on why a forecast for an already-run race is
@@ -67,23 +81,35 @@ export default async function HomePage() {
   // getPersonalHomeData (below) already resolves the full favorite-card arrays for the signed-in
   // case — fetched once here, reused for buildFacts/buildSeasonRecap/getTrackHistory, rather than
   // a second favorites lookup.
-  const [calendarEntry, trackHistory, recentPhotos, standings, personalData] = await Promise.all([
-    nextRace ? getCalendarEntry(nextRace.year, nextRace.round) : null,
-    resolvedCircuitId ? getTrackHistory(resolvedCircuitId) : null,
-    getRecentCircuitPhotos(resolvedCircuitId, nextRace?.circuit ?? null, year),
-    computeSeasonStandings(year),
-    session.uid ? getPersonalHomeData(session.uid, year, nextRace, races) : Promise.resolve(null),
+  //
+  // The personal read falls back to null on failure: HomeShell then fetches it again from the
+  // browser (its own refetch for a signed-in visitor without personal data) and shows an inline
+  // error with Try again if that fails too, so it is not part of this page's partial-data notice.
+  const [calendarEntryRead, trackHistoryRead, recentPhotosRead, standingsRead, personalData] = await Promise.all([
+    safeReadTracked(() => (nextRace ? getCalendarEntry(nextRace.year, nextRace.round) : Promise.resolve(null)), null),
+    safeReadTracked(() => (resolvedCircuitId ? getTrackHistory(resolvedCircuitId) : Promise.resolve(null)), null),
+    safeReadTracked(() => getRecentCircuitPhotos(resolvedCircuitId, nextRace?.circuit ?? null, year), []),
+    safeReadTracked(() => computeSeasonStandings(year), { drivers: [], teams: [], poleCounts: {} }),
+    session.uid ? safeRead(() => getPersonalHomeData(session.uid!, year, nextRace, races), null) : Promise.resolve(null),
   ]);
+  const calendarEntry = calendarEntryRead.data;
+  const trackHistory = trackHistoryRead.data;
+  const recentPhotos = recentPhotosRead.data;
+  const standings = standingsRead.data;
 
   // Track Intelligence, array-based: every favorite with real appearances at this circuit, not
   // just the primary - a second pass once personalData's favorite arrays are known (getTrackHistory
   // itself is cheap/cached per driver-circuit pair, see its own comment on unstable_cache).
   const trackHistoryWithFavorites =
     resolvedCircuitId && (personalData?.favoriteDrivers.length || personalData?.favoriteTeams.length)
-      ? await getTrackHistory(resolvedCircuitId, {
-          favoriteDriverIds: personalData?.favoriteDrivers.map((d) => d.driverId),
-          favoriteTeamIds: personalData?.favoriteTeams.map((t) => t.teamId),
-        })
+      ? await safeRead(
+          () =>
+            getTrackHistory(resolvedCircuitId, {
+              favoriteDriverIds: personalData?.favoriteDrivers.map((d) => d.driverId),
+              favoriteTeamIds: personalData?.favoriteTeams.map((t) => t.teamId),
+            }),
+          trackHistory,
+        )
       : trackHistory;
 
   // Prediction Intelligence's "why this pick" grounding - real archive circuit history + season
@@ -99,12 +125,16 @@ export default async function HomePage() {
     const predictionCircuitId = predictionRace
       ? resolveCurrentCircuitToArchiveId(predictionRace.circuit, circuitLocalities, circuitIdsByName)
       : null;
-    predictionInsight = await buildPredictionInsight(
-      latestPrediction.predictedWinner,
-      predictionRace ? trackShortForm(predictionRace.circuit) : "this circuit",
-      predictionCircuitId,
-      standings,
-      latestPrediction.modelWinner,
+    predictionInsight = await safeRead(
+      () =>
+        buildPredictionInsight(
+          latestPrediction.predictedWinner,
+          predictionRace ? trackShortForm(predictionRace.circuit) : "this circuit",
+          predictionCircuitId,
+          standings,
+          latestPrediction.modelWinner,
+        ),
+      null,
     );
   }
 
@@ -143,8 +173,15 @@ export default async function HomePage() {
     predictionInsight,
   };
 
+  const partial = [...publicReads, calendarEntryRead, trackHistoryRead, recentPhotosRead, standingsRead].some((read) => read.failed);
+
   return (
     <>
+      {partial && (
+        <PageContainer className="pt-6">
+          <RefreshAlert />
+        </PageContainer>
+      )}
       <HomeShell publicData={publicData} initialPersonalData={personalData} serverAuthed={!!session.uid} />
     </>
   );

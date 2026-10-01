@@ -32,11 +32,12 @@ export function Skeleton({ shape = "text", className }: { shape?: SkeletonShape;
 
 /**
  * Wraps a set of skeletons in one role="status" region that says "Loading…" (or `label`) to
- * screen readers once, rather than once per placeholder. `className` is for layout only.
+ * screen readers once, rather than once per placeholder. It stays invisible for its first 300ms
+ * (`delay`, spec §9.1), so a fast load never flashes a skeleton. `className` is for layout only.
  */
-export function SkeletonGroup({ label = "Loading…", className, children }: { label?: string; className?: string; children?: ReactNode }) {
+export function SkeletonGroup({ label = "Loading…", delay = true, className, children }: { label?: string; delay?: boolean; className?: string; children?: ReactNode }) {
   return (
-    <div role="status" className={className}>
+    <div role="status" className={[delay && "skeleton-delay", className].filter(Boolean).join(" ") || undefined}>
       <span className="sr-only">{label}</span>
       {children}
     </div>

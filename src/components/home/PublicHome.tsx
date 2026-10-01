@@ -5,7 +5,6 @@ import { HomeLayout } from "./HomeLayout";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { WhyF1Hub } from "./WhyF1Hub";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import type { PublicHomeData } from "@/lib/homeData";
 
 // No HomepageIntelligenceProvider, no ApexIntelligenceWidget, no SeasonRecap's AI narrative, no
@@ -64,7 +63,6 @@ function ExploreSectionSkeleton() {
 export function PublicHomeSkeleton() {
   return (
     <HomeLayout photos={[]}>
-      <SectionLoadingMessage label="Warming up the grid…" />
       <RaceHeroSkeleton variant="public" />
       <WhyF1HubSkeleton />
       <ExploreSectionSkeleton />
