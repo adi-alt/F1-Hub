@@ -211,7 +211,9 @@ export function Table<Row extends object>({
                 <th
                   key={column.key}
                   scope="col"
-                  aria-sort={column.sortable ? (sorted ?? "none") : undefined}
+                  // Only on the sorted column: ARIA says aria-sort SHOULD be on one header at a time, as
+                  // in the APG sortable-table example; the other sortable headers are still buttons.
+                  aria-sort={column.sortable ? sorted : undefined}
                   style={column.width === undefined ? undefined : { width: column.width }}
                   className={`h-9 whitespace-nowrap border-b border-subtle px-3 text-caption uppercase tracking-[0.04em] text-secondary ${end ? "text-end" : "text-start"} ${stickyFirstColumn && index === 0 ? STICKY_CELL : ""}`}
                 >

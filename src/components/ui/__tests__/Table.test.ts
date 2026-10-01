@@ -96,12 +96,12 @@ test("column headers: th scope=col in the caption uppercase tier, secondary text
   for (const th of headers) assert.ok(has(th, "text-caption", "uppercase", "tracking-[0.04em]", "text-secondary", "border-b", "border-subtle"), classesOf(th).join(" "));
 });
 
-test("sortable headers are buttons with aria-sort on the th; only the sorted column shows its icon", () => {
+test("sortable headers are buttons; aria-sort and the icon are on the sorted column only", () => {
   const html = render({ sort: { key: "points", direction: "descending" } });
   const headers = byName(html, "th").filter((th) => th.attrs.scope === "col");
   assert.deepEqual(
     headers.map((th) => th.attrs["aria-sort"]),
-    ["none", undefined, "none", "descending"],
+    [undefined, undefined, undefined, "descending"],
   );
   const cells = [...html.matchAll(/<th scope="col"[^>]*>([\s\S]*?)<\/th>/g)].map((match) => match[1]);
   assert.deepEqual(
