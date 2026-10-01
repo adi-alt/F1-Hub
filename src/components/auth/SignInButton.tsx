@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { ProfileMenu } from "./ProfileMenu";
 
 export function SignInButton() {

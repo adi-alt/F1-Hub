@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { RaceStory, type RaceStoryFacts } from "./RaceStory";
 import type { StatTile } from "./StatTiles";

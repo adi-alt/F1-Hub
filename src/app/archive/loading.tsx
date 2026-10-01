@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkeleton";
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";

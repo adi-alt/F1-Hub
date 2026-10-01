@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { GroupsRightSidebarSkeleton } from "./GroupsRightSidebarSkeleton";
 import { PostCardSkeleton } from "./post/PostCardSkeleton";
 

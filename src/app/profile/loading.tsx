@@ -1,5 +1,5 @@
 import { TabBarSkeleton, TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 /** Mirrors PersonalizationTabs + FavoriteEntityList's real structure — same capsule tab-bar,

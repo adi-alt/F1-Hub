@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 
 /** Matches GroupsRightSidebar's real shape and section order - one surface, race weekend, then
  * predictions, then pulse, then the explore row - instead of generic blocks, so nothing reflows

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PostCard } from "@/app/groups/components/post/PostCard";
 import { PredictionFeedCard } from "@/app/groups/components/post/PredictionFeedCard";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { activityDensity } from "@/lib/density";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost } from "@/lib/supabase/groupPosts";

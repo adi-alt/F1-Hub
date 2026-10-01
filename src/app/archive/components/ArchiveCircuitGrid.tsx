@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveCircuitHref } from "@/lib/routes";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { FavoriteButton } from "./FavoriteButton";
 import { StatusBadge } from "./StatusBadge";
 import type { ArchiveCircuit } from "@/lib/supabase/archive";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { permissionsForRole } from "@/lib/rbac";
 import { seasonHref } from "@/lib/routes";
 

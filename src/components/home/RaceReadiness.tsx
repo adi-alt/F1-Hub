@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { CheckIcon } from "@/components/icons/HomeIcons";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { sessionCode } from "@/lib/sessionCode";

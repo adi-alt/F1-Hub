@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { RaceStorySectionSkeleton } from "@/components/raceDetail/RaceStorySection";
 

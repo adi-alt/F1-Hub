@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 import type { LeaderboardRow } from "@/lib/supabase/groups";
 
 /** Rank 1-3 only - a genuine podium tone (real motorsport convention, not a random three colors),

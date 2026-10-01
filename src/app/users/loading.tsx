@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 /** Mirrors UserManagement's real layout — the card, its one control row, and the table — so the

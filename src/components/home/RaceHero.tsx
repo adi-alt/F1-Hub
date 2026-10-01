@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceIntelligencePanel";
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
 import { formatCountdownLive, parseUtcDateTime } from "@/lib/countdown";
 import type { NextAction, PublicHomeData } from "@/lib/homeData";

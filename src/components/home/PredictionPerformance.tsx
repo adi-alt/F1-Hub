@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import type { PredictionPerformance as PredictionPerformanceData, RecentPredictionResult } from "@/lib/predictionPerformance";
 

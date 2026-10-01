@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { computeMoments, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
 

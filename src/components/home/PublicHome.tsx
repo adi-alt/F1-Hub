@@ -4,7 +4,7 @@ import { ExploreSection } from "./ExploreSection";
 import { HomeLayout } from "./HomeLayout";
 import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
 import { WhyF1Hub } from "./WhyF1Hub";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import type { PublicHomeData } from "@/lib/homeData";
 
