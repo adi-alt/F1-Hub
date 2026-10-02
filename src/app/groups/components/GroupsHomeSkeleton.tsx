@@ -28,7 +28,7 @@ export function GroupsHomeSkeleton() {
         </div>
       </aside>
 
-      <main className="order-1 space-y-2.5 lg:order-2">
+      <div className="order-1 space-y-2.5 lg:order-2">
         <div className="rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5">
           <div className="flex items-start gap-2.5">
             <Skeleton className="h-[34px] w-[34px] shrink-0 rounded-full" />
@@ -45,7 +45,7 @@ export function GroupsHomeSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => (
           <PostCardSkeleton key={i} />
         ))}
-      </main>
+      </div>
 
       <aside className="order-3">
         <GroupsRightSidebarSkeleton />

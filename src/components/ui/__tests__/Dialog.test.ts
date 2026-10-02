@@ -115,6 +115,44 @@ describe("Dialog panel", () => {
   });
 });
 
+describe("Dialog aside", () => {
+  const ART = createElement("div", { className: "h-full" }, "Every race.");
+  const withAside = (props: Partial<ComponentProps<typeof DialogLayer>> = {}) => render({ aside: ART, ...props });
+  const asideTag = (html: string) => openingTag(html, /<div aria-hidden="true" class="[^"]*md:block[^"]*">/);
+
+  it("sits beside the content from md up, hidden on phones and from assistive tech", () => {
+    const html = withAside();
+    assertClasses(asideTag(html), ["hidden", "md:block", "md:w-1/2", "md:shrink-0"]);
+    assert.ok(html.indexOf("Every race.") < html.indexOf("<h2"), "the artwork comes before the content column");
+    // The panel is a row from md up, and the content column takes over the padding and the gap.
+    assertClasses(panel(html), ["flex", "flex-col", "md:flex-row", "md:gap-0", "md:py-0", "overflow-hidden", "max-h-[calc(100dvh-32px)]"]);
+    assertClasses(openingTag(html, /<div class="[^"]*md:py-6[^"]*">/), ["flex", "min-h-0", "min-w-0", "flex-1", "flex-col", "gap-4"]);
+  });
+
+  it("keeps the dialog named by its title, with the close button and a scrolling body in the content column", () => {
+    const html = withAside({ description: "One account either way." });
+    const dialog = panel(html);
+    assert.match(html, new RegExp(`<h2 id="${escapeRe(attr(dialog, "aria-labelledby") ?? "-")}"`));
+    assert.match(html, new RegExp(`<p id="${escapeRe(attr(dialog, "aria-describedby") ?? "-")}"`));
+    assert.match(html, /aria-label="Close"/);
+    assertClasses(openingTag(html, /<div[^>]*overflow-y-auto[^>]*>/), ["min-h-0", "flex-1"]);
+  });
+
+  it("doubles the md-up width and keeps the size's width on phones", () => {
+    const widths = (size?: "sm" | "md" | "lg") => classesOf(panel(withAside({ size }))).filter((cls) => cls.includes("max-w-"));
+    assert.deepEqual(widths("sm"), ["max-w-sm", "md:max-w-3xl"]);
+    assert.deepEqual(widths(), ["max-w-lg", "md:max-w-4xl"]);
+    assert.deepEqual(widths("lg"), ["max-w-2xl", "md:max-w-5xl"]);
+  });
+
+  it("changes nothing without an aside, and a sheet ignores one", () => {
+    assert.equal(render(), render({ aside: null }));
+    const sheet = render({ variant: "sheet", aside: ART });
+    assert.doesNotMatch(sheet, /Every race\./);
+    assert.ok(!classesOf(panel(sheet)).includes("md:flex-row"));
+  });
+});
+
 describe("Sheet panel", () => {
   const sheet = (props: Partial<ComponentProps<typeof DialogLayer>> = {}) => render({ variant: "sheet", ...props });
 
@@ -175,6 +213,9 @@ it("uses only classes Tailwind generates", async () => {
     render({ variant: "sheet", description: "Description", footer }),
     render({ variant: "sheet", open: false, size: "sm" }),
     render({ variant: "sheet", size: "lg" }),
+    render({ aside: createElement("div", null, "Art"), size: "sm" }),
+    render({ aside: createElement("div", null, "Art"), size: "md" }),
+    render({ aside: createElement("div", null, "Art"), size: "lg" }),
   ].join("");
   assert.deepEqual(await classesWithoutCss(html), []);
 });

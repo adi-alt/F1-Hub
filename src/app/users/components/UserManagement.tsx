@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
@@ -72,7 +72,29 @@ function StatusBadge({ onboarded }: { onboarded: boolean }) {
 
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: SortDir) {
   if (key !== sortKey) return null;
-  return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  // aria-sort on the header says this; the arrow is for sighted users only.
+  return (
+    <span aria-hidden className="ml-1 text-[var(--f1-red)]">
+      {sortDir === "asc" ? "↑" : "↓"}
+    </span>
+  );
+}
+
+/** A sortable column header, as in the APG sortable table: a button in the cell (a bare <th onClick>
+ * can't be reached by keyboard), and aria-sort on the sorted column only. */
+function SortHeader({ column, sortKey, sortDir, onSort, children }: { column: SortKey; sortKey: SortKey; sortDir: SortDir; onSort: (key: SortKey) => void; children: ReactNode }) {
+  return (
+    <th scope="col" aria-sort={column === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined} className="select-none px-4 py-3">
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className="inline-flex items-center rounded-control uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      >
+        {children}
+        {sortIndicator(column, sortKey, sortDir)}
+      </button>
+    </th>
+  );
 }
 
 function RowsSkeleton({ rows = 6 }: { rows?: number }) {
@@ -281,17 +303,21 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
           <table className="w-full min-w-[720px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
-                <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("name")}>
-                  User{sortIndicator("name", sortKey, sortDir)}
+                <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+                  User
+                </SortHeader>
+                <th scope="col" className="px-4 py-3">
+                  Email
                 </th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("role")}>
-                  Role{sortIndicator("role", sortKey, sortDir)}
+                <th scope="col" className="px-4 py-3">
+                  Status
                 </th>
-                <th className="cursor-pointer select-none px-4 py-3" onClick={() => toggleSort("joined")}>
-                  Joined{sortIndicator("joined", sortKey, sortDir)}
-                </th>
+                <SortHeader column="role" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+                  Role
+                </SortHeader>
+                <SortHeader column="joined" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+                  Joined
+                </SortHeader>
               </tr>
             </thead>
 

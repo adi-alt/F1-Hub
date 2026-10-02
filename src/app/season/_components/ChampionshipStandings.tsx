@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
+import { isFromNestedControl } from "@/components/ui/Table";
 import { staggerItem } from "@/components/motion/variants";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
@@ -45,7 +46,59 @@ function gapLabel(points: number, leaderPoints: number): string {
 
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") {
   if (key !== sortKey) return null;
-  return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  // aria-sort on the header says this; the arrow is for sighted users only.
+  return (
+    <span aria-hidden className="ml-1 text-[var(--f1-red)]">
+      {sortDir === "asc" ? "↑" : "↓"}
+    </span>
+  );
+}
+
+/** The id of a row's details, for the name button's aria-controls. Team names have spaces. */
+function detailsId(entityId: string): string {
+  return `standings-${entityId.replace(/[^A-Za-z0-9_-]/g, "-")}-details`;
+}
+
+const NAME_BUTTON =
+  "flex items-center gap-2.5 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+const SORT_BUTTON = "inline-flex items-center rounded-control font-semibold uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+/** A sortable column header, as in the APG sortable table: a button in the cell (a bare <th onClick>
+ * can't be reached by keyboard), and aria-sort on the sorted column only. `fullLabel` names an
+ * abbreviated header ("W") for screen readers. */
+function SortHeader({
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+  fullLabel,
+  className,
+  children,
+}: {
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  fullLabel?: string;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <th scope="col" aria-sort={column === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined} title={fullLabel} className={className}>
+      <button type="button" onClick={() => onSort(column)} className={SORT_BUTTON}>
+        {fullLabel ? (
+          <>
+            <span aria-hidden>{children}</span>
+            <span className="sr-only">{fullLabel}</span>
+          </>
+        ) : (
+          children
+        )}
+        {sortIndicator(column, sortKey, sortDir)}
+      </button>
+    </th>
+  );
 }
 
 /** The one standings table for the whole page — a Drivers/Constructors quiet-tab switch swaps
@@ -213,27 +266,39 @@ export function ChampionshipStandings({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
-        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="min-h-0 flex-1 overflow-auto scrollbar-hide">
+        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="min-h-0 flex-1 overflow-auto scroll-pt-12 scrollbar-hide">
           <table className="w-full min-w-[680px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
-                <th className="px-4 py-3 font-semibold">Pos</th>
-                <th className="cursor-pointer select-none px-4 py-3 font-semibold" onClick={() => toggleSort("name")}>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  <span aria-hidden>Pos</span>
+                  <span className="sr-only">Position</span>
+                </th>
+                <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="select-none px-4 py-3">
                   {isDrivers ? "Driver" : "Team"}
-                  {sortIndicator("name", sortKey, sortDir)}
+                </SortHeader>
+                {isDrivers && (
+                  <th scope="col" className="px-4 py-3 font-semibold">
+                    Team
+                  </th>
+                )}
+                <SortHeader column="wins" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Wins" className="select-none px-4 py-3 text-right">
+                  W
+                </SortHeader>
+                <SortHeader column="podiums" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Podiums" className="select-none px-4 py-3 text-right">
+                  P
+                </SortHeader>
+                <SortHeader column="points" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Points" className="select-none px-4 py-3 text-right">
+                  PTS
+                </SortHeader>
+                <th scope="col" className="px-4 py-3 text-right font-semibold" title="Gap to leader">
+                  <span aria-hidden>Gap</span>
+                  <span className="sr-only">Gap to leader</span>
                 </th>
-                {isDrivers && <th className="px-4 py-3 font-semibold">Team</th>}
-                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Wins" onClick={() => toggleSort("wins")}>
-                  W{sortIndicator("wins", sortKey, sortDir)}
+                <th scope="col" className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">
+                  <span aria-hidden>Fav</span>
+                  <span className="sr-only">Favorite</span>
                 </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Podiums" onClick={() => toggleSort("podiums")}>
-                  P{sortIndicator("podiums", sortKey, sortDir)}
-                </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Points" onClick={() => toggleSort("points")}>
-                  PTS{sortIndicator("points", sortKey, sortDir)}
-                </th>
-                <th className="px-4 py-3 text-right font-semibold" title="Gap to leader">Gap</th>
-                <th className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">Fav</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--f1-line)]">
@@ -255,14 +320,14 @@ export function ChampionshipStandings({
                           <>
                             <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
                             <td className="whitespace-nowrap px-4 py-3">
-                              <div className="flex items-center gap-2.5">
+                              <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(d.driver)} onClick={() => toggleExpanded(d.driver)} className={NAME_BUTTON}>
                                 <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
                                   <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
                                 </span>
                                 <span className="font-medium text-white">
                                   {d.driverName} <span className="font-mono text-xs font-normal text-neutral-500">{d.driver}</span>
                                 </span>
-                              </div>
+                              </button>
                             </td>
                             <td className="whitespace-nowrap px-4 py-3 text-neutral-400">
                               <div className="flex items-center gap-2">
@@ -311,12 +376,12 @@ export function ChampionshipStandings({
                           <>
                             <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
                             <td className="whitespace-nowrap px-4 py-3">
-                              <div className="flex items-center gap-2.5">
+                              <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(c.team)} onClick={() => toggleExpanded(c.team)} className={NAME_BUTTON}>
                                 <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">
                                   <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />
                                 </span>
                                 <span className="font-medium text-white">{c.team}</span>
-                              </div>
+                              </button>
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.wins}</td>
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.podiums}</td>
@@ -383,7 +448,11 @@ function RowGroup({
         exit="hidden"
         variants={staggerItem}
         transition={{ layout: { duration: 0.3, ease: "easeOut" }, opacity: { duration: 0.15 }, y: { duration: 0.15 } }}
-        onClick={onRowClick}
+        // A click anywhere in the row toggles it too, for the pointer; the name button is the
+        // keyboard and screen-reader way in, and its own click (or the favourite's) isn't counted twice.
+        onClick={(event) => {
+          if (!isFromNestedControl(event.target, event.currentTarget)) onRowClick();
+        }}
         data-entity-id={entityId}
         className={`group cursor-pointer border-l-2 transition-colors duration-500 hover:bg-white/[0.035] ${
           isFavorited ? "border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.045]" : "border-l-transparent"
@@ -392,13 +461,12 @@ function RowGroup({
       >
         {cells}
       </motion.tr>
-      {detail && (
-        <tr>
-          <td colSpan={colSpan} className="p-2">
-            {detail}
-          </td>
-        </tr>
-      )}
+      {/* Always in the DOM, so the name button's aria-controls points at something; hidden while collapsed. */}
+      <tr id={detailsId(entityId)} hidden={!detail}>
+        <td colSpan={colSpan} className="p-2">
+          {detail}
+        </td>
+      </tr>
     </>
   );
 }

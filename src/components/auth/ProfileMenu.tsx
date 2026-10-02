@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/providers/AuthProvider";
 import { useProductTour } from "@/components/onboarding/ProductTour";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { StarIcon, SlidersIcon, BellIcon, PencilIcon, LogOutIcon } from "@/components/icons/HomeIcons";
 
 const ITEMS = [
@@ -36,6 +37,13 @@ export function ProfileMenu() {
   const [rect, setRect] = useState<Rect | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  // The panel is portalled to the end of <body>, so without this Tab from the button would skip it
+  // entirely (audit UI-30). The trap moves focus to the first item on open, keeps Tab inside, closes
+  // on Escape and returns focus to the button. No scroll lock: it's a menu, not a modal.
+  const close = useCallback(() => setOpen(false), []);
+  useModalFocusTrap(dropdownRef, open, close, { lockScroll: false });
 
   // Portaled to document.body below (see the dropdown itself) - the header this button lives in
   // has its own backdrop-blur, and Chromium/WebKit scope a descendant's backdrop-filter sampling
@@ -89,11 +97,14 @@ export function ProfileMenu() {
 
   return (
     <div ref={rootRef} className="relative">
+      {/* Named by what it shows (the name and points) plus "account menu", so the accessible name
+          contains the visible label (WCAG 2.5.3) rather than replacing it. */}
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Profile menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5 text-sm text-neutral-200 transition hover:border-white/20 hover:bg-white/5"
+        aria-controls={open ? panelId : undefined}
+        className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5 text-sm text-neutral-200 transition hover:border-white/20 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         {user.photoURL ? (
           <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
@@ -109,6 +120,7 @@ export function ProfileMenu() {
             <span className="font-mono">{pointsBalance}</span> pts
           </span>
         )}
+        <span className="sr-only">, account menu</span>
       </button>
 
       {rect &&
@@ -118,6 +130,7 @@ export function ProfileMenu() {
               <motion.div
                 key="profile-menu"
                 ref={dropdownRef}
+                id={panelId}
                 initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -142,13 +155,13 @@ export function ProfileMenu() {
                     }}
                   />
                   <div className="relative overflow-hidden rounded-xl">
-                    <nav className="p-1.5">
+                    <nav aria-label="Account" className="p-1.5">
                       {ITEMS.map((item) => (
                         <Link
                           key={item.href}
                           href={item.href}
                           onClick={() => setOpen(false)}
-                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                         >
                           <item.icon className="h-4 w-4 shrink-0 text-neutral-500" />
                           {item.label}
@@ -159,12 +172,13 @@ export function ProfileMenu() {
                       {/* Replays the product tour from step 1. Clears only the onboarding stamp -
                           communities, predictions and preferences are untouched. */}
                       <button
+                        type="button"
                         onClick={() => {
                           setOpen(false);
                           void fetch("/api/users/onboarding", { method: "DELETE" }).catch(() => {});
                           startTour();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
                         <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-neutral-500">
                           ✦
@@ -172,11 +186,12 @@ export function ProfileMenu() {
                         Replay F1 Hub tour
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setOpen(false);
                           void signOut();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
                         <LogOutIcon className="h-4 w-4 shrink-0 text-neutral-500" />
                         Log out

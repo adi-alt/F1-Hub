@@ -228,6 +228,12 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* The skip link's target. It takes focus only so the next Tab starts inside the content; it isn't
+   a control, so it draws no ring around the whole page. */
+#main:focus {
+  outline: none;
+}
+
 /* The randomized red-to-blue streaks themselves now live in AmbientBackground.tsx (a real random
    position/rotation per request needs actual DOM elements, not a fixed set of CSS gradients) —
    this file only keeps the grain layer, which doesn't need to vary.

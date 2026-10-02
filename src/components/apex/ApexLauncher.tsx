@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { useAuth } from "@/providers/AuthProvider";
 import { useApexScope, type ApexScope } from "./ApexScopeProvider";
 
@@ -34,6 +35,7 @@ export function ApexLauncher() {
   const [reach, setReach] = useState<Reach>("page");
   const inputRef = useRef<HTMLInputElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const scopeKey = scope?.key ?? null;
   const [lastScopeKey, setLastScopeKey] = useState(scopeKey);
@@ -52,14 +54,11 @@ export function ApexLauncher() {
     setReach("page");
   }
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  // Tab stays inside the panel, Escape closes it and focus goes back to the launcher (audit UI-30).
+  // No scroll lock: the panel is meant to sit beside the page it is answering about. Declared before
+  // the effect below, so the trap records the launcher as the place to return focus to first.
+  const close = useCallback(() => setOpen(false), []);
+  useModalFocusTrap(panelRef, open, close, { lockScroll: false });
 
   useEffect(() => {
     if (!open) return;
@@ -124,7 +123,9 @@ export function ApexLauncher() {
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={panelRef}
             role="dialog"
+            aria-modal="false"
             aria-label="Ask Apex"
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -132,13 +133,14 @@ export function ApexLauncher() {
             transition={{ duration: 0.16, ease: "easeOut" }}
             className="fixed inset-x-3 bottom-3 z-[95] flex max-h-[75vh] flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:bottom-5 sm:left-5 sm:w-[26rem]"
           >
-            <ScopeHeader scope={scope} reach={reach} onReach={setReach} onClose={() => setOpen(false)} />
+            <ScopeHeader scope={scope} reach={reach} onReach={setReach} onClose={close} />
 
             <div ref={transcriptRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {messages.length === 0 ? (
                 <Starters scope={scope} reach={reach} onPick={(q) => void ask(q)} />
               ) : (
-                <div className="space-y-3">
+                // role="log": a polite live region, so each answer is read out when it arrives.
+                <div role="log" aria-label="Conversation with Apex" className="space-y-3">
                   {messages.map((message, i) => (
                     <div key={i} className={message.role === "user" ? "text-right" : ""}>
                       <p
@@ -152,7 +154,8 @@ export function ApexLauncher() {
                   ))}
                   {sending && (
                     <p className="inline-block rounded-xl bg-black/30 px-3 py-2 text-sm text-neutral-500">
-                      <span className="inline-flex gap-1">
+                      <span className="sr-only">Apex is answering…</span>
+                      <span aria-hidden className="inline-flex gap-1">
                         <Dot delay={0} />
                         <Dot delay={0.15} />
                         <Dot delay={0.3} />
@@ -177,7 +180,7 @@ export function ApexLauncher() {
                 maxLength={500}
                 placeholder={reach === "page" ? `Ask about ${scope.label}...` : "Ask anything about F1..."}
                 aria-label="Ask Apex a question"
-                className="min-w-0 flex-1 rounded-lg bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none"
+                className="min-w-0 flex-1 rounded-lg bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               />
               <button
                 type="submit"
@@ -230,7 +233,7 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
               role="radio"
               aria-checked={reach === option.value}
               onClick={() => onReach(option.value)}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition ${
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
                 reach === option.value ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
               }`}
             >

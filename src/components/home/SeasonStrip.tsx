@@ -399,7 +399,14 @@ function UpcomingRoundDetail({
        * a sprint weekend shows exactly its own real session set. Available for ANY upcoming round
        * now (calendarByRound covers the whole season), not just the immediate next one. */}
       {calendarEntry && calendarEntry.sessions.length > 0 && (
-        <div className="overflow-x-auto pt-1">
+        // Focusable and named: on a phone the schedule scrolls sideways, and a scroll region with
+        // nothing focusable inside can't be scrolled from the keyboard (axe scrollable-region-focusable).
+        <div
+          role="region"
+          aria-label="Weekend schedule"
+          tabIndex={0}
+          className="overflow-x-auto rounded-control pt-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
           <RaceReadiness calendarEntry={calendarEntry} race={race} />
         </div>
       )}

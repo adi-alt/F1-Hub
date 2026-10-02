@@ -66,7 +66,7 @@ export function Header({ season }: { season: number }) {
           </nav>
         ) : (
           isAuthorized && (
-            <nav data-tour="global-nav" className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
+            <nav aria-label="Main" data-tour="global-nav" className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
               <NavLink href={seasonHref(season)} section="season" active={activeSection} tour="nav-season">
                 Season
               </NavLink>

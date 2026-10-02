@@ -174,14 +174,30 @@ export function ArchiveTable<T>({
                 <th
                   key={col.key}
                   scope="col"
-                  aria-sort={col.sortable ? (col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
-                  onClick={col.sortable ? () => toggleSort(col.key) : undefined}
+                  // On the sorted column only, as in the APG sortable table; the other sortable
+                  // headers are still buttons.
+                  aria-sort={col.sortable && col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
                   className={`overflow-hidden truncate whitespace-nowrap px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                    col.sortable ? "cursor-pointer select-none" : ""
+                    col.sortable ? "select-none" : ""
                   } ${col.hideOnMobile ? "hidden lg:table-cell" : ""}`}
                 >
-                  {col.label}
-                  {col.sortable && col.key === sortKey && <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>}
+                  {col.sortable ? (
+                    // A button, so the sort is reachable by keyboard (a bare <th onClick> isn't).
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      className="inline-flex max-w-full items-center rounded-control uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    >
+                      <span className="truncate">{col.label}</span>
+                      {col.key === sortKey && (
+                        <span aria-hidden className="ml-1 text-[var(--f1-red)]">
+                          {sortDir === "asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    col.label
+                  )}
                 </th>
               ))}
               {/* "Fav" not "Favorite" - same reasoning as "#" above; title= keeps the full word

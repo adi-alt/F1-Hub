@@ -97,7 +97,7 @@ export function RaceHero({
         {variant === "personal" && firstName && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{isReturning ? "Welcome back" : "Welcome"}</p>
-            <h2 className="text-xl font-bold text-white">{firstName}</h2>
+            <p className="text-xl font-bold text-white">{firstName}</p>
           </motion.div>
         )}
 
