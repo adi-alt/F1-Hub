@@ -11,6 +11,7 @@ import { getSession } from "@/lib/session/getSession";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { RefreshAlert } from "@/components/ui/RefreshAlert";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Reading the session cookie makes this route inherently dynamic (no route-level `revalidate`
 // possible), but the underlying Postgres reads are still cached via `unstable_cache` in
@@ -20,7 +21,9 @@ import { RefreshAlert } from "@/components/ui/RefreshAlert";
 
 export default async function HomePage() {
   const session = await getSession();
-  const year = new Date().getFullYear();
+  // The season from the calendar, not the wall clock (audit R-22): on 1 January it stays on the
+  // finished season until the next calendar is synced.
+  const year = await getCurrentSeason();
 
   // Public data: real regardless of auth state — the redesigned signed-out hero needs the exact
   // same upcoming-race context the signed-in one does, not a stripped-down version of it. No

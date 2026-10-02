@@ -18,6 +18,8 @@ const read =
   };
 
 mockModule("@/lib/session/getSession", { getSession: async () => ({ uid: "user-1" }) });
+// getCurrentSeason never throws (it falls back to the UTC year), so it isn't one of the faults.
+mockModule("@/lib/currentSeason", { getCurrentSeason: async () => 2026 });
 mockModule("@/lib/supabase/races", { getNextUpcomingRace: read("nextRace", null), getRacesByYear: read("races", []) });
 mockModule("@/lib/supabase/archive", { getAllArchiveCircuits: read("archiveCircuits", []) });
 mockModule("@/lib/supabase/media", { getAllCurrentDrivers: read("currentDrivers", []) });

@@ -21,7 +21,7 @@ export function PublicHome({ publicData }: { publicData: PublicHomeData }) {
       sections={[
         { tier: "major", content: <RaceHero publicData={publicData} variant="public" /> },
         { tier: "normal", content: <WhyF1Hub /> },
-        { tier: "normal", content: <ExploreSection /> },
+        { tier: "normal", content: <ExploreSection season={publicData.year} /> },
       ]}
     />
   );

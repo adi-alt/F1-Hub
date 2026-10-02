@@ -38,10 +38,9 @@ const BEATS = [
     body: "A Monte Carlo simulator runs each race ten thousand times with correlated bad luck and good luck built in, a driver's bad day often means their teammate's too, then reports back odds instead of one number pretending to be certain.",
   },
   {
-    // Filled in from the real ARCHIVE_EARLIEST_YEAR/ARCHIVE_LATEST_YEAR constants at render time
-    // (see the archiveYearRange prop) - those live in lib/supabase/archive.ts, which pulls in
-    // supabaseAdmin and isn't safe to import from a "use client" file, so the server-side caller
-    // (ExploreSection) resolves the real string and passes it down instead.
+    // Filled in from the real archive range at render time (see the archiveYearRange prop):
+    // ExploreSection builds it from ARCHIVE_EARLIEST_YEAR and archiveLatestYear(season), the
+    // season coming from the calendar (R-22), and passes the finished string down.
     stat: "__ARCHIVE_RANGE__",
     title: "It remembers seventy years of the sport",
     body: "Every season back to 1950, results and all, sourced from the same historical database F1 statisticians use, for settling an argument about who really had the better car in 1976.",

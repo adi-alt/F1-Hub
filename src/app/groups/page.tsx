@@ -8,6 +8,7 @@ import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } 
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** The rounds a prediction can still be opened on: this season's own races that haven't finished,
  * in calendar order. Exactly what createPrediction will accept (it rejects a completed race
@@ -16,7 +17,7 @@ import { getSession } from "@/lib/session/getSession";
  * getNextRace itself now lives in lib/supabase/nextRace.ts - a single community's own context rail
  * renders the same widget, and a copied photo-fallback chain is how two callers drift apart. */
 async function getRaceContext() {
-  const races = await getRacesByYear(new Date().getFullYear());
+  const races = await getRacesByYear(await getCurrentSeason());
   const upcomingRaces = races
     .filter((r) => r.status !== "completed")
     .sort((a, b) => a.round - b.round)

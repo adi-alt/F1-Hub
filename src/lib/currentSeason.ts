@@ -17,20 +17,29 @@ export function currentSeasonFrom(events: readonly CalendarEvent[], today: strin
   return live.length ? Math.max(...live.map((e) => e.year)) : null;
 }
 
-/** The current season for the nav, the footer and the 404 page. Cached for an hour; falls back to
- * the UTC year if the calendar can't be read, so a database problem never breaks the layout. */
-export const getCurrentSeason = unstable_cache(
-  async (): Promise<number> => {
-    const fallback = new Date().getUTCFullYear();
-    try {
-      const { data, error } = await supabaseAdmin.from("calendar").select("year, race_date, status");
-      if (error) throw error;
-      return currentSeasonFrom((data ?? []) as CalendarEvent[], new Date().toISOString().slice(0, 10)) ?? fallback;
-    } catch (err) {
-      console.error("getCurrentSeason: calendar read failed, using the UTC year:", err);
-      return fallback;
-    }
+// Throws on a failed read, so unstable_cache never stores the fallback: a transient outage then
+// costs one request the UTC year, not an hour of it (the same reasoning as lib/safeRead.ts). That
+// matters now that seasonStatus() picks the live tables or the archive from this.
+const readCurrentSeason = unstable_cache(
+  async (): Promise<number | null> => {
+    const { data, error } = await supabaseAdmin.from("calendar").select("year, race_date, status");
+    if (error) throw error;
+    return currentSeasonFrom((data ?? []) as CalendarEvent[], new Date().toISOString().slice(0, 10));
   },
   ["current-season"],
   { revalidate: 3600 },
 );
+
+/** The current season, wherever the site means "this season": the nav, footer and 404 page, every
+ * page and API that loads the live season (home, season, race, circuits, communities, profile, the
+ * AI routes), seasonStatus() and the archive's newest year. Cached for an hour; falls back to the
+ * UTC year if the calendar can't be read, so a database problem never breaks a page. */
+export async function getCurrentSeason(): Promise<number> {
+  const fallback = new Date().getUTCFullYear();
+  try {
+    return (await readCurrentSeason()) ?? fallback;
+  } catch (err) {
+    console.error("getCurrentSeason: calendar read failed, using the UTC year:", err);
+    return fallback;
+  }
+}

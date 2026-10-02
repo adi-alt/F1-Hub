@@ -2,13 +2,13 @@ import Link from "next/link";
 import { seasonHref } from "@/lib/routes";
 // Not lib/supabase/archive.ts - Footer is imported directly by SmoothScroll.tsx's "use client"
 // tree, so anything it imports gets bundled for the browser too; archive.ts drags in
-// supabaseAdmin, archiveYears.ts is just the two plain year constants, safe either side.
-import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
+// supabaseAdmin, archiveYears.ts is plain code with no imports, safe either side.
+import { ARCHIVE_EARLIEST_YEAR, archiveLatestYear } from "@/lib/archiveYears";
 
 const exploreLinks = (season: number) => [
   { href: seasonHref(season), label: `${season} Season` },
   { href: "/circuits", label: "Circuits" },
-  { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${ARCHIVE_LATEST_YEAR}` },
+  { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${archiveLatestYear(season)}` },
   { href: "/races/simulation", label: "Race simulator" },
 ];
 

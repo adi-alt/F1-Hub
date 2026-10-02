@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArchiveRaceDashboard } from "@/app/archive/components/ArchiveRaceDashboard";
 import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveCircuitHistoryData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
-import { seasonStatus } from "@/app/season/_service/season.service";
+import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { PickPanel } from "@/components/race/PickPanel";
@@ -18,6 +18,7 @@ import { listRaceCommunities } from "@/lib/supabase/groupPredictions";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
  * Archive year) - "the race detail page must be identical regardless of where the user came
@@ -32,7 +33,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const year = Number(yearParam);
   if (!yearParam || !raceParam || Number.isNaN(year)) return { title: "Race" };
 
-  if (seasonStatus(year) === "ongoing") {
+  if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     const match = (await getRacesByYear(year)).find((r) => slugifyRaceName(r.name) === raceParam);
     return match ? { title: `${match.name} ${year}` } : { title: "Race" };
   }
@@ -55,7 +56,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const slug = raceParam ?? "";
   if (!yearParam || !raceParam || Number.isNaN(year)) notFound();
 
-  if (seasonStatus(year) === "ongoing") {
+  if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     // getRacesByYear also returns calendar placeholders for rounds with no real row yet (see its
     // own comment) - resolves slug -> round, and doubles as the fallback RaceDoc just below for a
     // round `getRace` itself has nothing for yet.

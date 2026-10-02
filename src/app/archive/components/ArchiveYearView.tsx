@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { SeasonDetail } from "@/app/season/_components/SeasonDetail";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
-import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "../services/archive.service";
+import { ARCHIVE_EARLIEST_YEAR, archiveLatestYear } from "../services/archive.service";
+import { getCurrentSeason } from "@/lib/currentSeason";
 import { FavoritesHydrator } from "@/components/FavoritesHydrator";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 
@@ -11,14 +12,15 @@ import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
  * one. Rendered inline from /archive?year=<year> (the canonical route - archive is a
  * query-parameterized browsing page, not a path hierarchy). */
 export async function ArchiveYearView({ year, uid }: { year: number; uid: string }) {
-  if (year < ARCHIVE_EARLIEST_YEAR || year > ARCHIVE_LATEST_YEAR) {
+  const latestYear = archiveLatestYear(await getCurrentSeason());
+  if (year < ARCHIVE_EARLIEST_YEAR || year > latestYear) {
     return (
       <div className="page-content py-10">
         <Link href="/archive" className="text-sm text-tertiary hover:text-neutral-300">
           ← Archive
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-white">{year}</h1>
-        <p className="mt-4 text-sm text-tertiary">The archive covers {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}.</p>
+        <p className="mt-4 text-sm text-tertiary">The archive covers {ARCHIVE_EARLIEST_YEAR}–{latestYear}.</p>
       </div>
     );
   }

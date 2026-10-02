@@ -13,7 +13,7 @@ import { ArchiveDriverRelationships, type DriverRelationship } from "./component
 import type { ExplorerRow } from "./components/ArchiveRaceExplorer";
 import {
   ARCHIVE_EARLIEST_YEAR,
-  ARCHIVE_LATEST_YEAR,
+  archiveLatestYear,
   getActiveIds,
   getAllArchiveCircuitsData,
   getAllArchiveDriversData,
@@ -36,6 +36,7 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Ergast's own three-way classification status (archiveIsClassified in circuitIntelligence.ts
 // makes the exact same real distinction, not exported from there - a one-line regex check is
@@ -79,13 +80,15 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   // attempted yet, that's the client query's job.
   const hasLoadError = circuitsRead.failed || driversRead?.failed || teamsRead?.failed;
   const { circuitIds: activeCircuitIds, teamIds: activeTeamIds, currentLeader } = await getActiveIds(circuits);
+  // The live season's card: from the calendar, not the clock (R-22).
+  const currentSeason = await getCurrentSeason();
 
   return (
     <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <h1 className="flex shrink-0 items-baseline gap-3">
         <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">Archive</span>
         <span className="text-sm font-semibold uppercase tracking-[0.25em] text-tertiary">
-          {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}
+          {ARCHIVE_EARLIEST_YEAR}–{archiveLatestYear(currentSeason)}
         </span>
       </h1>
       <p className="mt-1 shrink-0 text-sm text-tertiary">Results only, sourced from the Ergast/Jolpi historical database.</p>
@@ -94,8 +97,8 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
         <ArchiveExplorer
           uid={uid}
           initialSection={section}
-          years={getArchiveYears()}
-          currentYear={new Date().getFullYear()}
+          years={getArchiveYears(archiveLatestYear(currentSeason))}
+          currentYear={currentSeason}
           circuits={circuits}
           initialDrivers={driversRead?.data}
           initialTeams={teamsRead?.data}
@@ -406,7 +409,8 @@ export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Archive",
-  description: `Every F1 season from ${ARCHIVE_EARLIEST_YEAR} to ${ARCHIVE_LATEST_YEAR} — results, qualifying, and pit stops.`,
+  // No end year: this is static, and the archive's newest season follows the calendar (R-22).
+  description: `Every F1 season since ${ARCHIVE_EARLIEST_YEAR} — results, qualifying, and pit stops.`,
 };
 
 export default async function ArchivePage({

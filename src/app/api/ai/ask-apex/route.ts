@@ -30,6 +30,7 @@ import {
   getArchiveTeamData,
   getArchiveTeamHistoryData,
   getArchiveYearStatsData,
+  archiveLatestYear,
   getArchiveYears,
 } from "@/app/archive/services/archive.service";
 import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
@@ -43,6 +44,7 @@ import { raceTitle } from "@/lib/format";
 import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** Season's own client-registered scope (SeasonApexScope.tsx) deliberately sends only UI
  * selection state (season/tab/selected IDs) - never standings, points, or battle data, per the
@@ -247,7 +249,7 @@ function archiveIsClassified(status: string): boolean {
  * failing the whole grounding context over one extra cross-reference. */
 async function getCurrentSeasonLeaderSummary(): Promise<{ year: number; driver: { name: string; points: number } | null; team: { name: string; points: number } | null } | null> {
   try {
-    const year = new Date().getFullYear();
+    const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
     const races = await getRacesByYear(year);
     if (races.length === 0) return null;
     const standings = computeStandings(races);
@@ -293,7 +295,7 @@ async function buildArchiveYearBrowserGroundingContext(clientContext: Record<str
   // exact failure mode shipped). Measured, not guessed: this compact shape runs ~15,000 chars
   // unfiltered (all 76 seasons) - the final size check below is the actual guarantee, this is
   // just what keeps it there in the first place.
-  const seasons = getArchiveYears()
+  const seasons = getArchiveYears(archiveLatestYear(await getCurrentSeason()))
     .filter((year) => !era || eraForYear(year).id === era)
     .filter((year) => !searchQuery || String(year).includes(searchQuery))
     .sort((a, b) => b - a)

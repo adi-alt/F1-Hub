@@ -1,9 +1,9 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/supabase/queryWithRetry";
-import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
+import { ARCHIVE_EARLIEST_YEAR, archiveLatestYear } from "@/lib/archiveYears";
 
-export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
+export { ARCHIVE_EARLIEST_YEAR, archiveLatestYear };
 
 // The shape fetchAllRows expects a query to resolve to. Mostly needed as an explicit cast target
 // for a PostgREST to-one embed (e.g. archive_races(year) off archive_results) - the untyped client

@@ -59,6 +59,7 @@ import { stripPersonalFields, type HomepageIntelligence } from "@/lib/ai/schemas
 import { HOMEPAGE_CACHE_TIER_VERSION, personalHomepageVersionParts, planHomepageGeneration } from "@/lib/ai/homepageCacheTiers";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Headroom above the provider's own 90s AbortController timeout (nemotron.ts, single attempt - see
 // orchestrator.ts's own comment on why this task doesn't retry) plus our own data-fetching/
@@ -84,7 +85,7 @@ export async function POST() {
     // prediction fingerprint) and `getJoinedGroupIds` (one light query - the feed the personal
     // context quotes is scoped to these communities, so a membership change must change the key).
     // `listFeedPosts` itself is still deferred to the miss path (step 6).
-    const year = new Date().getFullYear();
+    const year = await getCurrentSeason(); // the same season the home page rendered with (R-22)
     const [nextRace, races, archiveCircuits, standings, userBatch] = await Promise.all([
       getNextUpcomingRace(year).catch(() => null),
       getRacesByYear(year).catch(() => []),
