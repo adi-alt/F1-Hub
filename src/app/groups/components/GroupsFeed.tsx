@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
-import { Tabs } from "@/components/ui/LegacyTabs";
+import { Tabs, tabIdFor } from "@/components/ui/LegacyTabs";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost, FeedType, GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
@@ -288,7 +288,11 @@ export function GroupsFeed({
 
       {/* role="tabpanel" only applies to the aggregate mode - that's the only content the Tabs
           strip above actually controls; a selected community's own stream isn't one of its tabs. */}
-      <div role={selectedCommunity ? undefined : "tabpanel"} id={selectedCommunity ? undefined : `groups-feed-panel-tab-${feedType}`}>
+      <div
+        role={selectedCommunity ? undefined : "tabpanel"}
+        id={selectedCommunity ? undefined : "groups-feed-panel"}
+        aria-labelledby={selectedCommunity ? undefined : tabIdFor("groups-feed-panel", feedType)}
+      >
         {selectedCommunity ? (
           communityPosts === null ? (
             communityInitialError ? (

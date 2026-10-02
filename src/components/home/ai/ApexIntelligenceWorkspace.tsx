@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Tabs, type TabItem } from "@/components/ui/LegacyTabs";
+import { Tabs, tabIdFor, type TabItem } from "@/components/ui/LegacyTabs";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
@@ -89,7 +89,7 @@ export function ApexIntelligenceWorkspace({
       <div
         id={PANEL_ID}
         role="tabpanel"
-        aria-labelledby={`tabs-apex-tab-${resolvedActive}`}
+        aria-labelledby={tabIdFor(PANEL_ID, resolvedActive)}
         className="mt-4"
       >
         <AnimatePresence mode="wait">

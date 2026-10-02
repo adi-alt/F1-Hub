@@ -133,7 +133,7 @@ export function GroupsHomeClient({
           column means the card itself is still free to size to its own content inside it. Net
           effect: a rail that ends under its last action instead of stretching to the viewport, but
           still never overflows it. */}
-      <aside className="order-2 min-h-0 lg:order-1 lg:h-full">
+      <aside aria-label="Your communities" className="order-2 min-h-0 lg:order-1 lg:h-full">
         <div ref={leftScrollRef} className="lg:flex lg:h-full lg:flex-col">
           <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
         </div>
@@ -164,7 +164,7 @@ export function GroupsHomeClient({
           column lets the card size to its own content. A rail with four short widgets ends under
           the last one instead of stretching to the viewport with dead space below it, and only
           starts scrolling internally once it genuinely outgrows the space. */}
-      <aside className="order-3 min-h-0 lg:h-full">
+      <aside aria-label="Race weekend and activity" className="order-3 min-h-0 lg:h-full">
         <div ref={rightScrollRef} className="lg:flex lg:h-full lg:flex-col">
           <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} onDiscover={() => setShowDiscover(true)} />
         </div>

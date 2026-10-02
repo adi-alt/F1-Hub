@@ -542,7 +542,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
       open
       onClose={onClose}
       title={STEP_TITLES[step]}
-      description={step === "method" ? "One account either way. We'll figure out which." : undefined}
+      description={step === "method" ? "One account either way — we'll figure out which." : undefined}
       size="sm"
       aside={<FormulaScene />}
       initialFocusRef={firstFieldRef}

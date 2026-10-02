@@ -109,7 +109,7 @@ export function ProfileMenu() {
         {user.photoURL ? (
           <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
         ) : (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
+          <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
             {name.charAt(0).toUpperCase()}
           </span>
         )}

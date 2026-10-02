@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { ChampionshipTrajectory, type TrajectorySeries } from "./ChampionshipTrajectory";
 import { DriverFormStrip, DriverFormStripSkeleton } from "./DriverFormStrip";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Tabs, type TabItem } from "@/components/ui/LegacyTabs";
+import { Tabs, tabIdFor, type TabItem } from "@/components/ui/LegacyTabs";
 import { chart } from "@/components/charts/chartTheme";
 import { trackShortForm } from "@/lib/format";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
@@ -225,7 +225,6 @@ export function YourF1({
                   activeKey={resolvedFavoriteKey}
                   onChange={onSelectFavorite}
                   layoutId="your-f1-favorite-switcher"
-                  panelId="your-f1-favorite-panel"
                 />
               </div>
             )}
@@ -233,7 +232,7 @@ export function YourF1({
             <div className="mt-4 border-t border-white/[0.06] pt-4">
               <Tabs items={TABS} activeKey={resolvedTab} onChange={onTabChange} layoutId="your-f1-tabs" panelId="your-f1-panel" />
 
-              <div id="your-f1-panel" role="tabpanel" aria-labelledby={`tabs-your-f1-tab-${resolvedTab}`} className="mt-4">
+              <div id="your-f1-panel" role="tabpanel" aria-labelledby={tabIdFor("your-f1-panel", resolvedTab)} className="mt-4">
                 {resolvedTab === "overview" && (
                   <div>
                     <div className="flex flex-wrap items-center gap-6">

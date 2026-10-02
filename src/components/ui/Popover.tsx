@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 
 type Rect = { top?: number; bottom?: number; left: number; minWidth: number; maxHeight: number };
 
@@ -15,7 +16,9 @@ type Rect = { top?: number; bottom?: number; left: number; minWidth: number; max
  * without any selection model of its own - the caller renders whatever belongs inside. That's the
  * difference from Picker: Picker *is* a select, this is a place to put things.
  *
- * Escape closes, click-outside closes, and focus returns to the trigger on close.
+ * Escape closes, click-outside closes, and focus returns to the trigger on close. Focus moves into
+ * the panel when it opens and Tab stays inside it: the panel is portalled to the end of <body>, so
+ * otherwise Tab from the trigger would skip it entirely (audit UI-30).
  */
 export function Popover({
   trigger,
@@ -52,10 +55,13 @@ export function Popover({
     triggerRef.current?.focus();
   }, [refocusSignal]);
 
-  function close() {
+  const close = useCallback(() => {
     setOpen(false);
     setRefocusSignal((n) => n + 1);
-  }
+  }, []);
+
+  // Once the panel is actually rendered (it waits for its first measurement), so the trap finds it.
+  useModalFocusTrap(panelRef, open && rect !== null, close, { lockScroll: false });
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +99,7 @@ export function Popover({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onPointerDown);
     };
-  }, [open, align]);
+  }, [open, align, close]);
 
   return (
     <>

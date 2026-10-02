@@ -9,7 +9,7 @@ import { PostCardSkeleton } from "./post/PostCardSkeleton";
 export function GroupsHomeSkeleton() {
   return (
     <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[248px_minmax(0,1fr)_296px] lg:items-start lg:gap-3">
-      <aside className="order-2 rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 lg:order-1">
+      <div className="order-2 rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 lg:order-1">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="mt-1.5 h-2.5 w-full" />
         <Skeleton className="mt-1 h-2.5 w-2/3" />
@@ -26,7 +26,7 @@ export function GroupsHomeSkeleton() {
           <Skeleton className="h-8 w-full rounded-lg" />
           <Skeleton className="h-8 w-full rounded-lg" />
         </div>
-      </aside>
+      </div>
 
       <div className="order-1 space-y-2.5 lg:order-2">
         <div className="rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5">
@@ -47,9 +47,9 @@ export function GroupsHomeSkeleton() {
         ))}
       </div>
 
-      <aside className="order-3">
+      <div className="order-3">
         <GroupsRightSidebarSkeleton />
-      </aside>
+      </div>
     </div>
   );
 }

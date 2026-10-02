@@ -6,7 +6,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
 import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { Tabs } from "@/components/ui/LegacyTabs";
+import { Tabs, tabIdFor } from "@/components/ui/LegacyTabs";
 import { InviteDialog } from "./InviteUsers";
 import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
@@ -295,11 +295,8 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
           </p>
         )}
 
-        {/* The region the role tablist above actually controls. No `aria-labelledby` pointing back
-            at a tab button: Tabs builds those ids from its own `useId()`, so the id a caller would
-            have to guess isn't knowable from out here - a dangling reference is worse for a screen
-            reader than none at all. */}
-        <div ref={scrollRef} id="users-table" role="tabpanel" className="max-h-[520px] overflow-auto scrollbar-hide">
+        {/* The region the role tablist above actually controls, labelled by its active tab. */}
+        <div ref={scrollRef} id="users-table" role="tabpanel" aria-labelledby={tabIdFor("users-table", roleFilter)} className="max-h-[520px] overflow-auto scrollbar-hide">
           <table className="w-full min-w-[720px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>
