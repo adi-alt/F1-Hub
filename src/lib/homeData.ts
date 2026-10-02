@@ -71,6 +71,14 @@ export type PublicHomeData = {
   predictionInsight: PredictionInsight | null;
 };
 
+/** What the signed-out home page renders (PublicHome: the hero, the explore story and the backdrop),
+ * and all a signed-out visitor is sent. Audit R-26: the page used to serialise the whole season into
+ * every anonymous visit (`races` alone was ~470 KB of a ~575 KB page) for a hero that shows one race. */
+export type LandingData = Pick<PublicHomeData, "year" | "nextRace" | "calendarEntry" | "backdropPhotos" | "facts" | "trackHistory">;
+
+/** HomeShell's data: everything for a signed-in render, the landing subset for a signed-out one. */
+export type HomeData = ({ scope: "full" } & PublicHomeData) | ({ scope: "landing" } & LandingData);
+
 // A homepage teaser, not a second Groups feed — same cap FavoritesSection/GroupsPreview already
 // used for the equivalent reason.
 const FEED_POST_LIMIT = 5;

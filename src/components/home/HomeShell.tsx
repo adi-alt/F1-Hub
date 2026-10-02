@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { PersonalHome, PersonalHomeSkeleton } from "./PersonalHome";
 import { PublicHome } from "./PublicHome";
-import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
+import type { HomeData, PersonalHomeData } from "@/lib/homeData";
 import { useAuth } from "@/providers/AuthProvider";
 
 async function fetchPersonalHomeData(): Promise<PersonalHomeData> {
@@ -29,7 +29,8 @@ export function HomeShell({
   initialPersonalData,
   serverAuthed,
 }: {
-  publicData: PublicHomeData;
+  /** The full public data for a signed-in render; only the landing subset for a signed-out one. */
+  publicData: HomeData;
   initialPersonalData: PersonalHomeData | null;
   serverAuthed: boolean;
 }) {
@@ -61,7 +62,7 @@ export function HomeShell({
 
   const personalData = needsRefetch ? fetchedPersonalData : initialPersonalData;
 
-  if (!resolvedAuthed) return <PublicHome publicData={publicData} />;
+  if (!resolvedAuthed) return <PublicHome landing={publicData} />;
   // The personal data failed to load (after react-query's own retries): say so where it would be,
   // with Try again, instead of a skeleton that never resolves (spec §9.3; audit FEAT-06).
   if (!personalData && personalFailed) {
@@ -81,7 +82,9 @@ export function HomeShell({
       </PageContainer>
     );
   }
-  if (!personalData) return <PersonalHomeSkeleton />;
+  // Rendered for a signed-out visitor, who has signed in since: the page only sent the landing
+  // subset, and the refresh that signing in triggers is fetching the rest.
+  if (!personalData || publicData.scope === "landing") return <PersonalHomeSkeleton />;
   return (
     <PersonalHome
       publicData={publicData}

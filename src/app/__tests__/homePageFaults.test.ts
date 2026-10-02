@@ -17,7 +17,8 @@ const read =
     return value;
   };
 
-mockModule("@/lib/session/getSession", { getSession: async () => ({ uid: "user-1" }) });
+let sessionUid: string | undefined = "user-1";
+mockModule("@/lib/session/getSession", { getSession: async () => ({ uid: sessionUid }) });
 // getCurrentSeason never throws (it falls back to the UTC year), so it isn't one of the faults.
 mockModule("@/lib/currentSeason", { getCurrentSeason: async () => 2026 });
 mockModule("@/lib/supabase/races", { getNextUpcomingRace: read("nextRace", null), getRacesByYear: read("races", []) });
@@ -43,6 +44,7 @@ before(async () => {
 });
 beforeEach(() => {
   failing = new Set();
+  sessionUid = "user-1";
 });
 
 /** Every element in the tree the page returned, by component name. */
@@ -81,5 +83,33 @@ describe("home page fault tolerance", () => {
     const tree = names(await HomePage());
     assert.ok(tree.includes("HomeShell"));
     assert.ok(!tree.includes("RefreshAlert"));
+  });
+});
+
+/** The HomeShell element the page returned, for its props. */
+function homeShell(node: ReactNode): ReactElement<{ publicData: Record<string, unknown>; serverAuthed: boolean }> | null {
+  if (Array.isArray(node)) return node.map(homeShell).find(Boolean) ?? null;
+  if (!isValidElement(node)) return null;
+  if ((node.type as { name?: string }).name === "HomeShell") return node as ReactElement<{ publicData: Record<string, unknown>; serverAuthed: boolean }>;
+  return homeShell((node.props as { children?: ReactNode }).children);
+}
+
+describe("home page payload (audit R-26)", () => {
+  test("a signed-out visitor is sent only what the landing page renders", async () => {
+    sessionUid = undefined;
+    const shell = homeShell(await HomePage());
+    assert.ok(shell);
+    assert.equal(shell.props.serverAuthed, false);
+    assert.equal(shell.props.publicData.scope, "landing");
+    assert.deepEqual(Object.keys(shell.props.publicData).sort(), ["backdropPhotos", "calendarEntry", "facts", "nextRace", "scope", "trackHistory", "year"]);
+  });
+
+  test("a signed-in visitor still gets the full public data", async () => {
+    const shell = homeShell(await HomePage());
+    assert.ok(shell);
+    assert.equal(shell.props.publicData.scope, "full");
+    for (const key of ["races", "seasonRecap", "calendarByRound", "weatherByRound", "circuitImageByRound", "currentDrivers"]) {
+      assert.ok(key in shell.props.publicData, key);
+    }
   });
 });
