@@ -5,14 +5,15 @@ import { seasonHref } from "@/lib/routes";
 // supabaseAdmin, archiveYears.ts is just the two plain year constants, safe either side.
 import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
 
-const EXPLORE_LINKS = [
-  { href: seasonHref(2026), label: "2026 Season" },
+const exploreLinks = (season: number) => [
+  { href: seasonHref(season), label: `${season} Season` },
   { href: "/circuits", label: "Circuits" },
   { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${ARCHIVE_LATEST_YEAR}` },
   { href: "/races/simulation", label: "Race simulator" },
 ];
 
-export function Footer() {
+/** `season` is the current one, from the calendar (lib/currentSeason.ts). */
+export function Footer({ season }: { season: number }) {
   return (
     <footer
       className="relative bg-[var(--f1-carbon)]"
@@ -53,7 +54,7 @@ export function Footer() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Explore</p>
             <ul className="mt-3 space-y-2 text-sm">
-              {EXPLORE_LINKS.map((link) => (
+              {exploreLinks(season).map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-neutral-400 transition hover:text-white">
                     {link.label}

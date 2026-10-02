@@ -60,7 +60,7 @@ registerTool({
   },
   isUserScoped: false,
   execute: async (args) => {
-    const year = typeof args.year === "number" ? args.year : 2026;
+    const year = typeof args.year === "number" ? args.year : new Date().getUTCFullYear();
     const standings = await computeSeasonStandings(year);
     return {
       year,
@@ -168,7 +168,7 @@ registerTool({
   },
   isUserScoped: false,
   execute: async (args) => {
-    const year = typeof args.year === "number" ? args.year : 2026;
+    const year = typeof args.year === "number" ? args.year : new Date().getUTCFullYear();
     const [races, standings] = await Promise.all([
       getRacesByYear(year),
       computeSeasonStandings(year),

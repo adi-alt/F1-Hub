@@ -33,7 +33,7 @@ export default function UiPreviewPage() {
   if (!isPreviewEnvironment()) notFound();
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-8 text-primary">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 py-8 text-primary">
       <PageHeader
         eyebrow="Design system"
         title="UI primitives"
@@ -232,6 +232,6 @@ export default function UiPreviewPage() {
           />
         </div>
       </Section>
-    </main>
+    </div>
   );
 }
