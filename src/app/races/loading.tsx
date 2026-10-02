@@ -1,10 +1,9 @@
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 export default function RaceLoading() {
   return (
-    <div className="page-content py-10">
-      <SectionLoadingMessage label="Spinning up the simulator…" />
+    <div role="status" className="page-content skeleton-delay py-10">
+      <span className="sr-only">Loading the simulation</span>
       <Skeleton className="h-4 w-24" />
       <div className="mt-2 flex items-center justify-between">
         <div>

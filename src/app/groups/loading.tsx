@@ -1,4 +1,3 @@
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { GroupsHomeSkeleton } from "./components/GroupsHomeSkeleton";
 
 // Real Suspense fallback for GroupsPage's own async data fetch (feed + groups + predictions +
@@ -6,8 +5,8 @@ import { GroupsHomeSkeleton } from "./components/GroupsHomeSkeleton";
 // inside the navigation rail now, so GroupsHomeSkeleton's own left column already accounts for it.
 export default function GroupsLoading() {
   return (
-    <div className="page-wide py-6">
-      <SectionLoadingMessage label="Loading your paddock…" />
+    <div role="status" className="page-wide skeleton-delay py-6">
+      <span className="sr-only">Loading communities</span>
       <GroupsHomeSkeleton />
     </div>
   );

@@ -1,4 +1,3 @@
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { InsightSkeleton, LoadingRegion, MediaSkeleton, TextSkeleton } from "@/components/ui/Skeletons";
 
 // Shared by both branches this route can render (the Explorer homepage and an individual circuit
@@ -9,8 +8,7 @@ import { InsightSkeleton, LoadingRegion, MediaSkeleton, TextSkeleton } from "@/c
 // page no longer renders (see CircuitsExplorer.tsx).
 export default function CircuitsLoading() {
   return (
-    <div className="page-wide py-6">
-      <SectionLoadingMessage label="Mapping the circuits…" />
+    <div className="page-wide skeleton-delay py-6">
       <LoadingRegion label="Loading circuits">
         <TextSkeleton width={200} height={30} />
         <TextSkeleton className="mt-3" width="40%" height={12} />

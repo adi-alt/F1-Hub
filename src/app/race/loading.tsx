@@ -1,5 +1,4 @@
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { RaceStorySectionSkeleton } from "@/components/raceDetail/RaceStorySection";
 
 // Same container as race/page.tsx's own real content (max-w/padding kept in sync by hand - the
@@ -8,8 +7,8 @@ import { RaceStorySectionSkeleton } from "@/components/raceDetail/RaceStorySecti
 // spread" complaint, a literal width discontinuity between this file and page.tsx).
 export default function RaceLoading() {
   return (
-    <div className="page-wide py-8">
-      <SectionLoadingMessage label="Loading race data…" />
+    <div role="status" className="page-wide skeleton-delay py-8">
+      <span className="sr-only">Loading the race</span>
       <Skeleton className="h-4 w-24" />
       <Skeleton className="mt-3 h-3 w-20" />
       <Skeleton className="mt-2 h-9 w-72" />

@@ -9,7 +9,7 @@ import { InsightSkeleton, LoadingRegion, MetricSkeleton, TextSkeleton } from "@/
  * doesn't match what replaces it is just a different kind of layout shift. */
 export function SeasonDetailSkeleton() {
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+    <div className="page-content skeleton-delay py-8">
 
       <LoadingRegion label="Loading the season">
         {/* Masthead */}

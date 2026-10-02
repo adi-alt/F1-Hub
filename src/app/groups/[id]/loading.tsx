@@ -1,5 +1,4 @@
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 // Real Suspense fallback for CommunityPage's own async fetches (group detail, posts, predictions,
 // stats, pulse, next race). Mirrors the page's actual shape - cover, avatar/name block, tab strip
@@ -7,8 +6,8 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 // the real thing arrives. "Feed" is the tab that lands by default, so that's the shape shown.
 export default function CommunityDetailLoading() {
   return (
-    <div className="page-wide py-6">
-      <SectionLoadingMessage label="Loading community…" />
+    <div role="status" className="page-wide skeleton-delay py-6">
+      <span className="sr-only">Loading the community</span>
       <Skeleton className="h-4 w-36" />
 
       <div className="mt-3 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
