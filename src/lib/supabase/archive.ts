@@ -797,8 +797,17 @@ export const getArchiveRaceLaps = unstable_cache(
     );
     if (raceError) throw new Error(`getArchiveRaceLaps(${year}, ${round}): ${raceError.message}`);
     if (!race) return [];
-    const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_laps").select("lap_number, driver_id, position, time").eq("archive_race_id", race.id).order("lap_number"),
+    // Every page of rows (audit R-18): 313 of 464 archive races have more than PostgREST's 1000-row
+    // cap, and a single request silently stopped the chart short of the flag. Ordered by the whole
+    // primary key, so the pages split the rows the same way every time.
+    const { data, error } = await fetchAllRows<{ lap_number: number; driver_id: string; position: number | null; time: string | null }>((from, to) =>
+      supabaseAdmin
+        .from("archive_laps")
+        .select("lap_number, driver_id, position, time", { count: "exact" })
+        .eq("archive_race_id", race.id)
+        .order("lap_number")
+        .order("driver_id")
+        .range(from, to),
     );
     if (error) throw new Error(`getArchiveRaceLaps(${year}, ${round}): ${error.message}`);
 
@@ -810,6 +819,7 @@ export const getArchiveRaceLaps = unstable_cache(
     }
     return [...byLap.entries()].map(([lap, timings]) => ({ lap, timings })).sort((a, b) => a.lap - b.lap);
   },
-  ["get-archive-race-laps"],
+  // v2: entries cached before R-18 hold truncated laps and never expire on their own.
+  ["get-archive-race-laps-v2"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
