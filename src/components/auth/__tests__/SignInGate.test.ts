@@ -9,3 +9,8 @@ it("is the page's h1, since every caller renders it in place of the whole page (
   assert.match(html, /<h1[^>]*>Sign in to view season standings<\/h1>/);
   assert.match(html, /<button type="button"[^>]*>Sign in<\/button>/);
 });
+
+it("NotAuthorized is the page's h1 too", async () => {
+  const { NotAuthorized } = await import("../../NotAuthorized");
+  assert.match(renderToStaticMarkup(createElement(NotAuthorized, { what: "user management" })), /<h1[^>]*>Not authorized<\/h1>/);
+});
