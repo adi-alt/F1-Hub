@@ -36,10 +36,10 @@ export default function ArchiveError({ error, reset }: { error: Error & { digest
         <p className="mt-2 text-sm text-neutral-400">This page hit an unexpected error. It&apos;s been logged — try again, or head back home.</p>
         {isAdmin && (
           <div className="mt-6 rounded-xl border border-[var(--f1-red)]/40 bg-black/30 p-4 text-left">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--f1-red)]">Admin-only diagnostic (client boundary)</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-text">Admin-only diagnostic (client boundary)</p>
             <p className="mt-2 whitespace-pre-wrap text-sm text-white">{error.message || "(empty message - likely a redacted server render error; check the digest below against server logs)"}</p>
-            {error.digest && <p className="mt-2 text-xs text-neutral-500">digest: {error.digest}</p>}
-            {error.stack && <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-neutral-500">{error.stack}</pre>}
+            {error.digest && <p className="mt-2 text-xs text-tertiary">digest: {error.digest}</p>}
+            {error.stack && <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-tertiary">{error.stack}</pre>}
           </div>
         )}
         <div className="mt-6 flex justify-center gap-3">

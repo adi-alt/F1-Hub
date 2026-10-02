@@ -14,9 +14,9 @@ export function CircuitExplorerHeader({
 }) {
   return (
     <header className="mb-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-500">Circuits</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-tertiary">Circuits</p>
       <h1 className="mt-2 text-[26px] font-bold leading-[1.1] tracking-[-0.02em] text-white sm:text-[32px]">{year} Formula 1 Circuit Explorer</h1>
-      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-neutral-500">
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-tertiary">
         <span>
           <span className="font-mono font-semibold text-neutral-300">{totalCircuits}</span> circuits
         </span>

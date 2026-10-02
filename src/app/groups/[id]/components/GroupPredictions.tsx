@@ -49,11 +49,11 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
   return (
     <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="text-xs text-neutral-500">
+        <div className="text-xs text-tertiary">
           Race
           <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this prediction" className="mt-1" />
         </div>
-        <div className="text-xs text-neutral-500">
+        <div className="text-xs text-tertiary">
           Prediction type
           <Picker
             options={TYPES.map((t) => ({ value: t, label: predictionTypeLabels[t] }))}
@@ -66,7 +66,7 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
       </div>
 
       <div className="mt-3">
-        <p className="text-xs text-neutral-500">Prediction entry</p>
+        <p className="text-xs text-tertiary">Prediction entry</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           {ENTRY_PRESETS.map((p) => (
             <button
@@ -87,12 +87,12 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
             value={custom}
             onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
             placeholder="Custom"
-            className="w-20 rounded-full border border-[var(--f1-line)] bg-black/30 px-3 py-1 text-xs text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+            className="w-20 rounded-full border border-[var(--f1-line)] bg-black/30 px-3 py-1 text-xs text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
           />
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="mt-2 text-xs text-brand-text">{error}</p>}
       <button
         onClick={() => void submit()}
         disabled={status === "saving" || !raceId}

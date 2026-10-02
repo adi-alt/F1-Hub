@@ -29,9 +29,9 @@ function CompactStatGrid({ tiles }: { tiles: StatTile[] }) {
           key={t.label}
           className={[i % 2 === 1 ? "border-l border-[var(--f1-line)] pl-5" : "pr-5", i >= 2 ? "mt-3.5 border-t border-[var(--f1-line)] pt-3.5" : ""].join(" ")}
         >
-          <p className="text-[11px] uppercase tracking-wide text-neutral-500">{t.label}</p>
+          <p className="text-[11px] uppercase tracking-wide text-tertiary">{t.label}</p>
           <p className="mt-0.5 truncate text-sm font-semibold text-white">{t.value}</p>
-          {t.sub && <p className="text-[11px] text-neutral-500">{t.sub}</p>}
+          {t.sub && <p className="text-[11px] text-tertiary">{t.sub}</p>}
         </div>
       ))}
     </motion.div>

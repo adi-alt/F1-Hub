@@ -102,7 +102,7 @@ export function ImageDropzone({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={preview} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] leading-tight text-neutral-500">
+            <span className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] leading-tight text-tertiary">
               {dragging ? "Drop to upload" : label}
             </span>
           )}
@@ -120,14 +120,14 @@ export function ImageDropzone({
               setError("");
               onClear();
             }}
-            className="text-neutral-500 transition hover:text-neutral-300"
+            className="text-tertiary transition hover:text-neutral-300"
           >
             Remove
           </button>
         )}
-        <span className="text-neutral-600">{hint}</span>
+        <span className="text-tertiary">{hint}</span>
       </div>
-      {error && <p className="mt-1 text-[11px] text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="mt-1 text-[11px] text-brand-text">{error}</p>}
 
       <input
         ref={inputRef}

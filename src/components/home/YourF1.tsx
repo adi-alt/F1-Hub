@@ -153,7 +153,7 @@ export function YourF1({
 
   return (
     <section id="your-f1-section" className="scroll-mt-6">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">Your F1</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">Your F1</h2>
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -164,7 +164,7 @@ export function YourF1({
         {!hasFavorites ? (
           <div>
             <p className="text-sm text-neutral-400">Choose a favorite driver and team to see them here.</p>
-            <Link href="/profile?section=personalisation" className="mt-2 inline-block text-sm font-medium text-[var(--f1-red)] hover:brightness-125">
+            <Link href="/profile?section=personalisation" className="mt-2 inline-block text-sm font-medium text-brand-text hover:brightness-125">
               Choose your favorites →
             </Link>
           </div>
@@ -180,11 +180,11 @@ export function YourF1({
                     <EntityAvatar imageUrl={favoriteDriver.headshotUrl} name={favoriteDriver.name} size={36} />
                     <div>
                       <p className="font-semibold text-white">{favoriteDriver.name}</p>
-                      <p className="text-xs text-neutral-500">
+                      <p className="text-xs text-tertiary">
                         {favoriteDriverRank && <span className="font-mono">P{favoriteDriverRank} WDC</span>}
                         {favoriteDriverPoints != null && <span> · {favoriteDriverPoints} pts</span>}
                         {favoriteDriverGapToLeader != null && favoriteDriverGapToLeader > 0 && <span> · {favoriteDriverGapToLeader} to leader</span>}
-                        {favoriteDriverGapToLeader === 0 && <span className="text-[var(--f1-red)]"> · leads the championship</span>}
+                        {favoriteDriverGapToLeader === 0 && <span className="text-brand-text"> · leads the championship</span>}
                       </p>
                     </div>
                   </Link>
@@ -202,7 +202,7 @@ export function YourF1({
                     <EntityAvatar imageUrl={favoriteTeam.logoUrl} name={favoriteTeam.name} size={36} fit="contain" />
                     <div>
                       <p className="font-semibold text-white">{favoriteTeam.name}</p>
-                      {favoriteTeamRank && <p className="font-mono text-xs text-neutral-500">P{favoriteTeamRank} WCC</p>}
+                      {favoriteTeamRank && <p className="font-mono text-xs text-tertiary">P{favoriteTeamRank} WCC</p>}
                     </div>
                   </Link>
                   {extraTeams.length > 0 && <FavoriteOverflow cards={extraTeams} kind="team" />}
@@ -219,7 +219,7 @@ export function YourF1({
              * rounded-md segmented shape, sliding indicator) rather than inventing a new control. */}
             {favoriteOptions.length > 1 && (
               <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Analyzing</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Analyzing</span>
                 <Tabs
                   items={favoriteOptions.map((o) => ({ key: o.key, label: o.label }))}
                   activeKey={resolvedFavoriteKey}
@@ -238,16 +238,16 @@ export function YourF1({
                   <div>
                     <div className="flex flex-wrap items-center gap-6">
                       <div>
-                        <p className="text-[11px] uppercase tracking-wide text-neutral-500">Points</p>
+                        <p className="text-[11px] uppercase tracking-wide text-tertiary">Points</p>
                         <p className="font-mono text-lg font-semibold text-white">{pointsBalance ?? "—"}</p>
                       </div>
                       <div>
-                        <p className="text-[11px] uppercase tracking-wide text-neutral-500">Predictions</p>
+                        <p className="text-[11px] uppercase tracking-wide text-tertiary">Predictions</p>
                         <p className="font-mono text-lg font-semibold text-white">{predictionCount}</p>
                       </div>
                       {selectedRankInfo && (
                         <div>
-                          <p className="text-[11px] uppercase tracking-wide text-neutral-500">{selected?.kind === "driver" ? "WDC" : "WCC"} rank</p>
+                          <p className="text-[11px] uppercase tracking-wide text-tertiary">{selected?.kind === "driver" ? "WDC" : "WCC"} rank</p>
                           <p className="font-mono text-lg font-semibold text-white">
                             P{selectedRankInfo.rank} <span className="text-sm font-normal text-neutral-400">· {selectedRankInfo.points} pts</span>
                           </p>
@@ -255,7 +255,7 @@ export function YourF1({
                       )}
                     </div>
                     {lastResult && selected && (
-                      <p className="mt-3 text-xs text-neutral-500">
+                      <p className="mt-3 text-xs text-tertiary">
                         Last time out: <span className="text-neutral-300">{selected.label} {lastResult.text}</span> at{" "}
                         {trackShortForm(lastResult.race.circuit)}.
                       </p>
@@ -268,7 +268,7 @@ export function YourF1({
                     selected.card.code ? (
                       <DriverFormStrip favoriteDriverCode={selected.card.code} races={races} />
                     ) : (
-                      <p className="text-sm text-neutral-500">No form data available for this driver.</p>
+                      <p className="text-sm text-tertiary">No form data available for this driver.</p>
                     )
                   ) : selected?.kind === "team" ? (
                     teamFormDrivers.length > 0 ? (
@@ -281,10 +281,10 @@ export function YourF1({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-neutral-500">No current drivers found for this team.</p>
+                      <p className="text-sm text-tertiary">No current drivers found for this team.</p>
                     )
                   ) : (
-                    <p className="text-sm text-neutral-500">Choose a favorite to see recent form.</p>
+                    <p className="text-sm text-tertiary">Choose a favorite to see recent form.</p>
                   ))}
 
                 {resolvedTab === "championship" &&
@@ -296,7 +296,7 @@ export function YourF1({
                       mode={selected?.kind === "team" ? "team" : "driver"}
                     />
                   ) : (
-                    <p className="text-sm text-neutral-500">Not enough data yet to plot a trajectory.</p>
+                    <p className="text-sm text-tertiary">Not enough data yet to plot a trajectory.</p>
                   ))}
               </div>
             </div>

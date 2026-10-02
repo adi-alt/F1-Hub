@@ -199,12 +199,12 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   const hoverWinner = hoverRace?.results.find((r) => r.finishPosition === 1);
 
   if (allSessions.length === 0) {
-    return <p className="text-sm text-neutral-500">No calendar data yet for {year}.</p>;
+    return <p className="text-sm text-tertiary">No calendar data yet for {year}.</p>;
   }
 
   return (
     <div>
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Season calendar</p>
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Season calendar</p>
 
       {/* Same solid, bordered treatment (and full page width) as the standings table above it —
           the grid's own natural content width is much narrower than that, so without an explicit
@@ -213,7 +213,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
         <div className="flex gap-2">
           <div className="flex shrink-0 flex-col gap-[3px]" style={{ marginTop: 18 }}>
             {DAY_LABELS.map((label, i) => (
-              <div key={label} style={{ height: cell }} className="flex items-center text-[9px] leading-none text-neutral-600">
+              <div key={label} style={{ height: cell }} className="flex items-center text-[9px] leading-none text-tertiary">
                 {VISIBLE_DAY_LABELS.has(i) ? label.slice(0, 3) : ""}
               </div>
             ))}
@@ -224,7 +224,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
               <div className="mx-auto" style={{ width: weeks.length * col - GAP }}>
                 <div className="relative" style={{ height: 18 }}>
                   {monthLabels.map((m) => (
-                    <span key={m.weekIndex} className="absolute top-0 text-[10px] text-neutral-600" style={{ left: m.weekIndex * col }}>
+                    <span key={m.weekIndex} className="absolute top-0 text-[10px] text-tertiary" style={{ left: m.weekIndex * col }}>
                       {m.label}
                     </span>
                   ))}
@@ -264,9 +264,9 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
             by session type - and drew "current" in red, implying live sessions are always red when
             a live practice session is blue. The state swatches below are drawn in one type colour
             and labelled as such, so the two dimensions stay separable. */}
-        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-neutral-500">
+        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-tertiary">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="text-neutral-600">State</span>
+            <span className="text-tertiary">State</span>
             <span className="flex items-center gap-1.5">
               <span className="h-[10px] w-[10px] rounded-[2px] bg-white/[0.05]" />
               No session
@@ -285,7 +285,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
             </span>
           </span>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="text-neutral-600">Session</span>
+            <span className="text-tertiary">Session</span>
             {(["practice", "qualifying", "sprint", "race"] as const).map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-[2px]" style={{ background: TYPE_COLOR[t] }} />
@@ -293,7 +293,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
               </span>
             ))}
           </span>
-          <span className="w-full text-neutral-600">Outline means still to come, solid means run. Colour shows which session it is.</span>
+          <span className="w-full text-tertiary">Outline means still to come, solid means run. Colour shows which session it is.</span>
         </div>
       </div>
 
@@ -319,13 +319,13 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                 >
                   <p className="text-[11px] font-semibold text-white">{hover.date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
                   {hover.sessions.length === 0 ? (
-                    <p className="mt-1 text-[10px] text-neutral-500">No F1 session</p>
+                    <p className="mt-1 text-[10px] text-tertiary">No F1 session</p>
                   ) : (
                     <>
-                      <p className="text-[10px] text-neutral-500">
+                      <p className="text-[10px] text-tertiary">
                         Round {hover.sessions[0]?.round} · {hover.sessions[0]?.raceName}
                       </p>
-                      <p className="text-[10px] text-neutral-600">{hover.sessions[0]?.circuit}</p>
+                      <p className="text-[10px] text-tertiary">{hover.sessions[0]?.circuit}</p>
                       <div className="mt-2 flex flex-col gap-1">
                         {hover.sessions.map((s) => (
                           <div key={s.label} className="flex items-center justify-between gap-3 text-xs">
@@ -336,7 +336,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                                 <span className="rounded-sm bg-white/[0.06] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-neutral-400">Upcoming</span>
                               )}
                             </span>
-                            <span className="font-mono tabular-nums text-neutral-500">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                            <span className="font-mono tabular-nums text-tertiary">{s.date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
                           </div>
                         ))}
                       </div>
@@ -346,7 +346,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                           them. Redundant on the live calendar, where Qualifying already shows as
                           its own dated session above - gated to the single-session case only. */}
                       {hover.sessions.length === 1 && hoverRace?.hasQualifying && (
-                        <p className="mt-1.5 text-[10px] text-neutral-500">Qualifying results available on the race page</p>
+                        <p className="mt-1.5 text-[10px] text-tertiary">Qualifying results available on the race page</p>
                       )}
                     </>
                   )}
@@ -356,7 +356,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                     </p>
                   ) : (
                     hover.sessions.length > 0 && (
-                      <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-neutral-500">
+                      <p className="mt-2 border-t border-white/[0.08] pt-2 text-xs text-tertiary">
                         {hover.sessions.some((s) => s.state === "upcoming") ? "Upcoming, not yet run" : "Results not in yet"}
                       </p>
                     )

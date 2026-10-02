@@ -126,8 +126,8 @@ function TrendBody({ trend, isPodium, compact }: { trend: PredictionTrend; isPod
     <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community trend{isPodium ? " · winner pick" : ""}</p>
-          <span className="text-[11px] tabular-nums text-neutral-600">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Community trend{isPodium ? " · winner pick" : ""}</p>
+          <span className="text-[11px] tabular-nums text-tertiary">
             {trend.total} {trend.total === 1 ? "entry" : "entries"}
           </span>
         </div>

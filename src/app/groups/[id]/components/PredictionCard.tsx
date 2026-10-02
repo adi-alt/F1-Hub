@@ -160,7 +160,7 @@ export function PredictionCard({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="truncate text-sm font-bold uppercase tracking-wide text-white">{prediction.raceName}</h3>
-            <p className="mt-0.5 text-xs text-neutral-500">
+            <p className="mt-0.5 text-xs text-tertiary">
               {predictionTypeLabels[prediction.type]} · {prediction.entryPoints} points to enter
             </p>
           </div>
@@ -178,7 +178,7 @@ export function PredictionCard({
               "Closing now"
             )}
             {prediction.lockAt && (
-              <span suppressHydrationWarning className="text-neutral-500">
+              <span suppressHydrationWarning className="text-tertiary">
                 {" "}
                 · at the start of qualifying, {formatDeadline(prediction.lockAt)}
               </span>
@@ -186,7 +186,7 @@ export function PredictionCard({
           </p>
         )}
         {state === "locked" && (
-          <p className="mt-2 text-xs text-neutral-500">
+          <p className="mt-2 text-xs text-tertiary">
             {prediction.lockAt ? (
               <span suppressHydrationWarning>Closed at the start of qualifying, {formatDeadline(prediction.lockAt)}</span>
             ) : (
@@ -197,7 +197,7 @@ export function PredictionCard({
       </header>
 
       <div className="px-4 py-3.5">
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-tertiary">
           {entryCount} {entryCount === 1 ? "person has" : "people have"} entered
         </p>
 
@@ -231,7 +231,7 @@ export function PredictionCard({
                 />
               </>
             ) : (
-              <p className="text-xs text-neutral-600">You didn&apos;t enter this round.</p>
+              <p className="text-xs text-tertiary">You didn&apos;t enter this round.</p>
             )}
           </div>
         )}
@@ -271,7 +271,7 @@ export function PredictionCard({
                     setEditing(false);
                     setGuess(myEntry?.guess ?? "");
                   }}
-                  className="text-xs text-neutral-500 transition hover:text-white"
+                  className="text-xs text-tertiary transition hover:text-white"
                 >
                   Cancel
                 </button>
@@ -281,10 +281,10 @@ export function PredictionCard({
         )}
 
         {/* Why you can't enter, specifically. */}
-        {blocker && state !== "resolved" && <p className="mt-3 text-xs leading-relaxed text-neutral-500">{blocker.message}</p>}
+        {blocker && state !== "resolved" && <p className="mt-3 text-xs leading-relaxed text-tertiary">{blocker.message}</p>}
 
         {error && (
-          <p role="alert" className="mt-2 text-xs text-[var(--f1-red)]">
+          <p role="alert" className="mt-2 text-xs text-brand-text">
             {error}
           </p>
         )}
@@ -313,7 +313,7 @@ function StatusBadge({ state }: { state: PredictionState }) {
   const map: Record<string, { label: string; className: string }> = {
     open: { label: "Open", className: "bg-emerald-400/10 text-emerald-400" },
     locked: { label: "Locked", className: "bg-white/[0.06] text-neutral-400" },
-    resolved: { label: "Resolved", className: "bg-[var(--f1-red)]/10 text-[var(--f1-red)]" },
+    resolved: { label: "Resolved", className: "bg-[var(--f1-red)]/10 text-brand-text" },
   };
   const badge = map[state] ?? map.open;
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}>{badge.label}</span>;
@@ -322,7 +322,7 @@ function StatusBadge({ state }: { state: PredictionState }) {
 function Row({ label, value, highlight, avatar }: { label: string; value: string; highlight?: boolean; avatar?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 text-xs">
-      <span className="text-neutral-500">{label}</span>
+      <span className="text-tertiary">{label}</span>
       <span className={`flex items-center gap-1.5 text-right font-medium ${highlight ? "text-emerald-400" : "text-neutral-200"}`}>
         {avatar}
         {value}
@@ -379,7 +379,7 @@ function GuessInput({ type, drivers, value, onChange }: { type: PredictionType; 
     return (
       <div className="grid grid-cols-3 gap-2">
         {(["P1", "P2", "P3"] as const).map((label, i) => (
-          <div key={label} className="text-[10px] text-neutral-500">
+          <div key={label} className="text-[10px] text-tertiary">
             {label}
             <DriverPicker
               drivers={drivers}
@@ -409,7 +409,7 @@ function GuessInput({ type, drivers, value, onChange }: { type: PredictionType; 
         onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
         placeholder="How many cars won't finish?"
         aria-label="Number of DNFs"
-        className="w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+        className="w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
       />
     );
   }

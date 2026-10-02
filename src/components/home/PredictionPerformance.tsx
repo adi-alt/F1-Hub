@@ -24,7 +24,7 @@ export function PredictionPerformance({ performance }: { performance: Prediction
   const [hovered, setHovered] = useState<number | null>(null);
 
   if (performance.winner.total === 0) {
-    return <p className="text-sm text-neutral-500">Make a few race predictions to see your prediction trend.</p>;
+    return <p className="text-sm text-tertiary">Make a few race predictions to see your prediction trend.</p>;
   }
 
   const oldestFirst = [...performance.recent].reverse();
@@ -36,18 +36,18 @@ export function PredictionPerformance({ performance }: { performance: Prediction
           <p className="font-mono text-lg font-semibold text-white">
             {performance.winner.correct}/{performance.winner.total}
           </p>
-          <p className="text-[11px] text-neutral-500">Winner picks</p>
+          <p className="text-[11px] text-tertiary">Winner picks</p>
         </div>
         <div>
           <p className="font-mono text-lg font-semibold text-white">
             {performance.podiumSlots.correct}/{performance.podiumSlots.total}
           </p>
-          <p className="text-[11px] text-neutral-500">Podium slots</p>
+          <p className="text-[11px] text-tertiary">Podium slots</p>
         </div>
         {performance.avgPositionError != null && (
           <div>
             <p className="font-mono text-lg font-semibold text-white">{performance.avgPositionError.toFixed(1)}</p>
-            <p className="text-[11px] text-neutral-500">Avg error (pos)</p>
+            <p className="text-[11px] text-tertiary">Avg error (pos)</p>
           </div>
         )}
       </div>

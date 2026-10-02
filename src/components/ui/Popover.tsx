@@ -153,7 +153,7 @@ export function FilterPill({
     >
       {label}
       {active && <span className="rounded-full bg-[var(--f1-red)] px-1.5 text-[10px] font-semibold text-white tabular-nums">{count}</span>}
-      <svg viewBox="0 0 20 20" className={`h-3 w-3 text-neutral-500 transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
+      <svg viewBox="0 0 20 20" className={`h-3 w-3 text-tertiary transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
         <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>

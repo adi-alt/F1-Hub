@@ -85,9 +85,9 @@ export function WhatChangedRecently({
   return (
     <section aria-label="What changed recently" className="flex h-full min-h-0 flex-col">
       <header className="shrink-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">What changed</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">What changed</p>
         <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
-        <p className="mt-2.5 text-[11px] text-neutral-600">
+        <p className="mt-2.5 text-[11px] text-tertiary">
           {isDrivers ? "Drivers" : "Constructors"} · since the previous completed round
         </p>
 
@@ -132,7 +132,7 @@ export function WhatChangedRecently({
                       {mover.name}
                       {mover.favorite && <span className="sr-only"> (one of your favorites)</span>}
                     </span>
-                    <span className="block text-xs tabular-nums text-neutral-500">
+                    <span className="block text-xs tabular-nums text-tertiary">
                       {mover.pointsDelta > 0 ? `+${mover.pointsDelta} pts` : "no points scored"}
                     </span>
                   </span>
@@ -154,7 +154,7 @@ export function WhatChangedRecently({
 function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center py-8">
-      <p className="max-w-[28ch] text-center text-sm leading-relaxed text-neutral-500">{children}</p>
+      <p className="max-w-[28ch] text-center text-sm leading-relaxed text-tertiary">{children}</p>
     </div>
   );
 }
@@ -165,7 +165,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 function Delta({ value }: { value: number }) {
   if (value === 0) {
     return (
-      <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-neutral-600" aria-label="no position change">
+      <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-tertiary" aria-label="no position change">
         —
       </span>
     );
@@ -173,7 +173,7 @@ function Delta({ value }: { value: number }) {
   const up = value > 0;
   return (
     <span
-      className={`flex w-9 shrink-0 items-center justify-end gap-1 font-mono text-sm font-semibold tabular-nums ${up ? "text-emerald-400" : "text-[var(--f1-red)]"}`}
+      className={`flex w-9 shrink-0 items-center justify-end gap-1 font-mono text-sm font-semibold tabular-nums ${up ? "text-emerald-400" : "text-brand-text"}`}
       aria-label={`${up ? "up" : "down"} ${Math.abs(value)} position${Math.abs(value) === 1 ? "" : "s"}`}
     >
       <span aria-hidden>{up ? "▲" : "▼"}</span>

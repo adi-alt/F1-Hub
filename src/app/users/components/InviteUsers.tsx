@@ -160,7 +160,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
           >
             <div className="flex items-center justify-between gap-3 border-b border-[var(--f1-line)] px-4 py-3">
               <h2 className="text-sm font-semibold text-white">Invite people</h2>
-              <button type="button" onClick={close} aria-label="Close" className="rounded p-1 text-neutral-500 transition hover:text-white">
+              <button type="button" onClick={close} aria-label="Close" className="rounded p-1 text-tertiary transition hover:text-white">
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden className="h-3.5 w-3.5">
                   <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
@@ -204,7 +204,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                     }}
                     placeholder="name@example.com"
                     aria-label="Email address"
-                    className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+                    className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
                   />
                 ) : (
                   <div className="space-y-3">
@@ -214,7 +214,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                       rows={3}
                       placeholder="Paste addresses - commas, spaces or one per line"
                       aria-label="Email addresses"
-                      className="w-full resize-y rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+                      className="w-full resize-y rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
                     />
 
                     <div
@@ -252,7 +252,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                       >
                         {reading ? "Reading file…" : "Choose a file"}
                       </button>
-                      <p className="mt-1 text-[11px] text-neutral-500">or drag one here — CSV, XLSX, JSON, TXT or PDF</p>
+                      <p className="mt-1 text-[11px] text-tertiary">or drag one here — CSV, XLSX, JSON, TXT or PDF</p>
                       {fileNote && <p className="mt-1.5 text-[11px] text-neutral-400">{fileNote}</p>}
                     </div>
                   </div>
@@ -263,9 +263,9 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                   a file import is a guess about someone else's spreadsheet. */}
               {candidates.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-[11px] text-neutral-500">
+                  <p className="text-[11px] text-tertiary">
                     {candidates.length} {candidates.length === 1 ? "recipient" : "recipients"}
-                    {overCap && <span className="text-[var(--f1-red)]"> — {MAX_PER_BATCH} at a time is the limit</span>}
+                    {overCap && <span className="text-brand-text"> — {MAX_PER_BATCH} at a time is the limit</span>}
                   </p>
                   <div className="mt-1.5 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                     {candidates.map((email) => (
@@ -275,7 +275,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                           type="button"
                           onClick={() => setRemoved((prev) => new Set(prev).add(email))}
                           aria-label={`Remove ${email}`}
-                          className="rounded p-0.5 text-neutral-500 transition hover:text-white"
+                          className="rounded p-0.5 text-tertiary transition hover:text-white"
                         >
                           <svg viewBox="0 0 16 16" fill="none" aria-hidden className="h-2.5 w-2.5">
                             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -287,7 +287,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                 </div>
               )}
 
-              {error && <p className="mt-3 text-xs text-[var(--f1-red)]">{error}</p>}
+              {error && <p className="mt-3 text-xs text-brand-text">{error}</p>}
 
               {result && (
                 <div className="mt-3 space-y-1 text-xs">
@@ -295,7 +295,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                     <p className="text-emerald-400">Invite sent to {result.sent.length === 1 ? result.sent[0] : `${result.sent.length} people`}.</p>
                   )}
                   {result.alreadyMembers.length > 0 && (
-                    <p className="text-neutral-500">
+                    <p className="text-tertiary">
                       {result.alreadyMembers.length === 1 ? `${result.alreadyMembers[0]} already has` : `${result.alreadyMembers.length} of those already have`} an
                       account — not emailed again.
                     </p>
@@ -305,7 +305,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t border-[var(--f1-line)] px-4 py-3">
-              <p className="text-[11px] text-neutral-500">They&apos;ll get a link to sign up.</p>
+              <p className="text-[11px] text-tertiary">They&apos;ll get a link to sign up.</p>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={close} className="rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-400 transition hover:text-white">
                   Close

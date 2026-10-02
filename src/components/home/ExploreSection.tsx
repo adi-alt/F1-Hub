@@ -11,7 +11,7 @@ import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
 export function ExploreSection() {
   return (
     <section>
-      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">What you can explore</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">What you can explore</h2>
       <div className="mt-6">
         <TreasureMapSection archiveYearRange={`${ARCHIVE_EARLIEST_YEAR} to ${ARCHIVE_LATEST_YEAR}`} />
       </div>

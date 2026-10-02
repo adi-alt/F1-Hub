@@ -107,7 +107,7 @@ export function SeasonDetail({
             stacked in separate boxes. */}
         <header className="mb-8">
           {backHref && (
-            <Link href={backHref} className="mb-3 inline-block text-xs text-neutral-500 transition hover:text-neutral-300">
+            <Link href={backHref} className="mb-3 inline-block text-xs text-tertiary transition hover:text-neutral-300">
               ← Archive
             </Link>
           )}
@@ -115,13 +115,13 @@ export function SeasonDetail({
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
             <h1 className="flex items-baseline gap-3">
               <span className="text-[44px] font-bold leading-none tracking-[-0.03em] text-white sm:text-6xl">{year}</span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-500">Season</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-tertiary">Season</span>
             </h1>
 
             {currentRound && (
               <p className="flex items-center gap-2 text-xs text-neutral-400">
                 <span aria-hidden className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
-                <span className="text-neutral-500">Next</span>
+                <span className="text-tertiary">Next</span>
                 <span className="font-medium text-neutral-200">
                   R{currentRound.round} · {currentRound.name}
                 </span>
@@ -133,7 +133,7 @@ export function SeasonDetail({
             <div aria-hidden className="h-px flex-1 bg-white/[0.07]">
               <div className="h-px bg-[var(--f1-red)]/60" style={{ width: `${progressPct}%` }} />
             </div>
-            <p className="shrink-0 text-[11px] tabular-nums text-neutral-500">
+            <p className="shrink-0 text-[11px] tabular-nums text-tertiary">
               {status === "ongoing" ? (
                 <>
                   <span className="font-medium text-neutral-300">{racesCompleted}</span> of {racesCompleted + racesRemaining} rounds complete

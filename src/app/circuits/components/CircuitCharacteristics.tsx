@@ -14,7 +14,7 @@ export function CircuitCharacteristics({ facts, avgFieldMovement }: { facts: Cir
 
   return (
     <section aria-label="Track characteristics">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Track character</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Track character</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {tags.map((tag) => (
           <span key={tag} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium text-neutral-300">
@@ -23,7 +23,7 @@ export function CircuitCharacteristics({ facts, avgFieldMovement }: { facts: Cir
         ))}
       </div>
       {avgFieldMovement !== null && (
-        <p className="mt-2.5 text-[11px] text-neutral-600">
+        <p className="mt-2.5 text-[11px] text-tertiary">
           Average grid-to-finish movement of {avgFieldMovement.toFixed(1)} places across every classified season on record here.
         </p>
       )}

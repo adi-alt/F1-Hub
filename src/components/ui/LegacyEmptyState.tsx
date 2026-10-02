@@ -29,12 +29,12 @@ export function EmptyState({
   return (
     <div className={`rounded-xl border border-[var(--f1-line)] bg-black/20 px-6 py-10 text-center ${className}`}>
       {icon && (
-        <div aria-hidden className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] text-neutral-500">
+        <div aria-hidden className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] text-tertiary">
           {icon}
         </div>
       )}
       <p className="text-sm font-semibold text-neutral-300">{title}</p>
-      {description && <div className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-neutral-500">{description}</div>}
+      {description && <div className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-tertiary">{description}</div>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

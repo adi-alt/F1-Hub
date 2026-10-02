@@ -81,7 +81,7 @@ export function AnalysisWorkspace({
       className="overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.012] backdrop-blur-[2px]"
     >
       <div className="flex items-baseline gap-4 overflow-x-auto px-4 pt-3.5 sm:px-5 scrollbar-hide">
-        <p className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-neutral-500">Analysis</p>
+        <p className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-tertiary">Analysis</p>
         <div role="tablist" aria-label="Season analysis views" onKeyDown={onKeyDown} className="flex shrink-0 items-baseline gap-5 sm:gap-6">
           {TABS.map((t) => {
             const active = analysisTab === t.key;
@@ -99,7 +99,7 @@ export function AnalysisWorkspace({
                 tabIndex={active ? 0 : -1}
                 onClick={() => setAnalysisTab(t.key)}
                 className={`relative shrink-0 rounded-[2px] pb-3 text-sm font-medium leading-none transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--f1-red)] ${
-                  active ? "text-white" : "text-neutral-500 hover:text-neutral-300"
+                  active ? "text-white" : "text-tertiary hover:text-neutral-300"
                 }`}
               >
                 {t.label}

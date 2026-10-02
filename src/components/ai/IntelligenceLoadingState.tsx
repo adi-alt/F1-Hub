@@ -13,7 +13,7 @@ export function IntelligenceLoadingState({ coverage }: { coverage: Partial<Recor
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="space-y-4">
       <AnalysisCoverage coverage={coverage} mode="checklist" />
-      <div className="flex items-center gap-2 text-xs text-neutral-500">
+      <div className="flex items-center gap-2 text-xs text-tertiary">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--f1-red)]" />
         Generating insight…
       </div>

@@ -33,7 +33,7 @@ export function CircuitHero({
   return (
     <header className="mb-8">
       <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-xs">
-        <Link href="/circuits" className="text-neutral-500 transition hover:text-neutral-300">
+        <Link href="/circuits" className="text-tertiary transition hover:text-neutral-300">
           Circuits
         </Link>
         <span aria-hidden className="text-neutral-700">
@@ -46,14 +46,14 @@ export function CircuitHero({
       <h1 className="text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">{displayName}</h1>
       <p className="mt-2 text-sm text-neutral-400">
         {grandPrixName ?? "Grand Prix"}
-        {(location || country) && <span className="text-neutral-600"> · {[location, country].filter(Boolean).join(", ")}</span>}
+        {(location || country) && <span className="text-tertiary"> · {[location, country].filter(Boolean).join(", ")}</span>}
       </p>
 
       {metaItems.length > 0 && (
         <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
           {metaItems.map((item) => (
             <div key={item.label} className="min-w-0">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">{item.label}</dt>
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{item.label}</dt>
               <dd className="mt-0.5 truncate text-sm font-medium text-neutral-200">{item.value}</dd>
             </div>
           ))}

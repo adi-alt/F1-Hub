@@ -154,7 +154,7 @@ export function ArchiveExplorer({
           onChange={(e) => setSearch(e.target.value)}
           placeholder={PLACEHOLDER[facet]}
           aria-label={PLACEHOLDER[facet]}
-          className="h-9 w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
+          className="h-9 w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
         />
       </div>
 
@@ -164,7 +164,7 @@ export function ArchiveExplorer({
           {/* Only worth a line when a filter has actually narrowed the count - with no filter
               active, "76 seasons" states the obvious rather than confirming anything useful. */}
           {yearFilterActive && (
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-tertiary">
               {totalYearsShown} season{totalYearsShown === 1 ? "" : "s"}
             </span>
           )}
@@ -201,7 +201,7 @@ export function ArchiveExplorer({
           {facet === "year" && (
             <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-hide">
               {filteredYears.length === 0 && !showLiveSeason ? (
-                <p className="text-sm text-neutral-500">
+                <p className="text-sm text-tertiary">
                   No years match &ldquo;{search}&rdquo;.{" "}
                   <button
                     type="button"
@@ -247,7 +247,7 @@ export function ArchiveExplorer({
           )}
           {facet === "driver" &&
             (driversQuery.isError ? (
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-tertiary">
                 Couldn&apos;t load drivers.{" "}
                 <button type="button" onClick={() => driversQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
                   Try again
@@ -273,7 +273,7 @@ export function ArchiveExplorer({
             ))}
           {facet === "team" &&
             (teamsQuery.isError ? (
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-tertiary">
                 Couldn&apos;t load teams.{" "}
                 <button type="button" onClick={() => teamsQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
                   Try again

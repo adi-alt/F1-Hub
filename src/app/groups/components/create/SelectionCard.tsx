@@ -90,7 +90,7 @@ export function SelectionCard({
           <span
             aria-hidden
             className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
-              selected ? "bg-[var(--f1-red)]/15 text-[var(--f1-red)]" : "bg-white/[0.04] text-neutral-400 group-hover:text-neutral-200"
+              selected ? "bg-[var(--f1-red)]/15 text-brand-text" : "bg-white/[0.04] text-neutral-400 group-hover:text-neutral-200"
             }`}
           >
             {icon}
@@ -98,8 +98,8 @@ export function SelectionCard({
         )}
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-white">{title}</span>
-          <span className="mt-0.5 block text-xs leading-snug text-neutral-500">{description}</span>
-          {footnote && <span className="mt-1.5 block text-[11px] leading-snug text-neutral-600">{footnote}</span>}
+          <span className="mt-0.5 block text-xs leading-snug text-tertiary">{description}</span>
+          {footnote && <span className="mt-1.5 block text-[11px] leading-snug text-tertiary">{footnote}</span>}
         </span>
         <span
           aria-hidden

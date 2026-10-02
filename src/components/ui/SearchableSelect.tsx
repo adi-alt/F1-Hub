@@ -114,7 +114,7 @@ export function SearchableSelect({
             onChange("");
             setQuery("");
           }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 transition hover:text-white"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary transition hover:text-white"
         >
           ×
         </button>
@@ -141,7 +141,7 @@ export function SearchableSelect({
             className="glass-surface z-[200] max-h-56 overflow-y-auto rounded-lg scrollbar-hide"
           >
             {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-neutral-500">No matches</p>
+              <p className="px-3 py-2 text-sm text-tertiary">No matches</p>
             ) : (
               filtered.map((opt) => (
                 <button

@@ -27,7 +27,7 @@ type RoleFilter = "all" | "admin" | "moderator" | "member";
 type SortKey = "name" | "role" | "joined";
 type SortDir = "asc" | "desc";
 
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 // A sticky header needs real opacity behind its blur or rows scrolling underneath bleed through.
 // Same token every other sticky/floating surface in the app already uses.
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
@@ -74,7 +74,7 @@ function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: SortDir) {
   if (key !== sortKey) return null;
   // aria-sort on the header says this; the arrow is for sighted users only.
   return (
-    <span aria-hidden className="ml-1 text-[var(--f1-red)]">
+    <span aria-hidden className="ml-1 text-brand-text">
       {sortDir === "asc" ? "↑" : "↓"}
     </span>
   );
@@ -227,14 +227,14 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
         <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-5 w-5 text-neutral-500">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-5 w-5 text-tertiary">
               <circle cx="9" cy="8.5" r="3.25" stroke="currentColor" strokeWidth="1.5" />
               <path d="M3.5 19c0-3.1 2.6-5.2 5.5-5.2s5.5 2.1 5.5 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               <circle cx="17.5" cy="7.5" r="2.25" stroke="currentColor" strokeWidth="1.5" />
               <path d="M16 19c.2-2.3 1.8-4 4-4.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <h2 className="text-base font-semibold text-white">
-              Users <span className="text-neutral-500">({headerCount.toLocaleString()})</span>
+              Users <span className="text-tertiary">({headerCount.toLocaleString()})</span>
             </h2>
           </div>
 
@@ -259,7 +259,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                 viewBox="0 0 20 20"
                 fill="none"
                 aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary"
               >
                 <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
                 <path d="m13.5 13.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -270,7 +270,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, username or email…"
                 aria-label="Search users"
-                className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none sm:w-56"
+                className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none sm:w-56"
               />
             </div>
 
@@ -353,9 +353,9 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-white">
                                 {name}
-                                {isSelf && <span className="ml-2 text-[11px] font-normal text-neutral-500">You</span>}
+                                {isSelf && <span className="ml-2 text-[11px] font-normal text-tertiary">You</span>}
                               </p>
-                              {user.username && <p className="truncate text-xs text-neutral-500">@{user.username}</p>}
+                              {user.username && <p className="truncate text-xs text-tertiary">@{user.username}</p>}
                             </div>
                           </div>
                         </td>

@@ -40,12 +40,12 @@ export function AIvsYou({ myPick, nextRace }: { myPick: UserPick | null; nextRac
       {yourWinner && (
         <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Your Pick</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Your Pick</p>
             <p className="mt-0.5 text-sm font-semibold text-white">{yourWinner} P1</p>
           </div>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600">vs</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">vs</span>
           <div className="text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">F1 Hub Model</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">F1 Hub Model</p>
             <p className="mt-0.5 text-sm font-semibold text-white">
               {yourWinner} {modelPosition != null ? `P${modelPosition}` : "—"}
             </p>

@@ -44,13 +44,13 @@ export function PostMedia({ url }: { url: string }) {
           {DOC_ICON[ext] ?? "📎"}
         </span>
         <span className="min-w-0 flex-1 truncate">{name}</span>
-        <span className="shrink-0 text-xs text-neutral-500">Download</span>
+        <span className="shrink-0 text-xs text-tertiary">Download</span>
       </a>
     );
   }
 
   if (failed) {
-    return <div className="mt-2 flex h-40 w-full items-center justify-center rounded-lg border border-[var(--f1-line)] bg-white/[0.02] text-xs text-neutral-600">Image unavailable</div>;
+    return <div className="mt-2 flex h-40 w-full items-center justify-center rounded-lg border border-[var(--f1-line)] bg-white/[0.02] text-xs text-tertiary">Image unavailable</div>;
   }
 
   return (

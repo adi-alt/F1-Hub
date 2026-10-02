@@ -308,11 +308,11 @@ export function Picker({
           <EntityAvatar imageUrl={selectedOption.imageUrl} name={selectedOption.label} size={20} />
         )}
         {selectedOption?.color && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: selectedOption.color }} aria-hidden />}
-        <span className={`flex-1 truncate ${triggerLabel ? "text-white" : "text-neutral-500"}`}>{triggerLabel || placeholder}</span>
+        <span className={`flex-1 truncate ${triggerLabel ? "text-white" : "text-tertiary"}`}>{triggerLabel || placeholder}</span>
         {/* Holds the place of the clear button below, which can't live in here: a control inside
             a <button> is invalid, and was unreachable by keyboard (audit UI-31). */}
         {showClear && <span aria-hidden className="w-6 shrink-0" />}
-        <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 shrink-0 text-neutral-500 transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
+        <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 shrink-0 text-tertiary transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
           <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
@@ -327,7 +327,7 @@ export function Picker({
             onChange("");
             triggerRef.current?.focus();
           }}
-          className="absolute right-[34px] top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-control text-neutral-500 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className="absolute right-[34px] top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-control text-tertiary transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -359,7 +359,7 @@ export function Picker({
                       aria-label={searchPlaceholder}
                       aria-controls={listboxId}
                       aria-activedescendant={visible[activeIndex] ? `${listboxId}-${activeIndex}` : undefined}
-                      className="w-full rounded-lg bg-black/40 px-2.5 py-1.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none"
+                      className="w-full rounded-lg bg-black/40 px-2.5 py-1.5 text-sm text-white placeholder:text-tertiary focus:outline-none"
                     />
                   </div>
                 )}
@@ -372,12 +372,12 @@ export function Picker({
                       ))}
                     </div>
                   ) : visible.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-xs text-neutral-500">{emptyLabel}</p>
+                    <p className="px-3 py-6 text-center text-xs text-tertiary">{emptyLabel}</p>
                   ) : (
                     sections.map((section, si) => (
                       <div key={section.heading ?? `s${si}`}>
                         {section.heading && (
-                          <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{section.heading}</p>
+                          <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-tertiary">{section.heading}</p>
                         )}
                         {section.options.map((option) => {
                           const index = indexOf(option);
@@ -396,7 +396,7 @@ export function Picker({
                               onClick={() => commit(option)}
                               className={`flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition ${
                                 option.disabled
-                                  ? "cursor-not-allowed text-neutral-600"
+                                  ? "cursor-not-allowed text-tertiary"
                                   : isActive
                                     ? "bg-white/[0.07] text-white"
                                     : "text-neutral-300"
@@ -407,14 +407,14 @@ export function Picker({
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate leading-tight">{option.label}</span>
                                 {(option.description || (option.disabled && option.disabledReason)) && (
-                                  <span className="block truncate text-[11px] leading-tight text-neutral-500">
+                                  <span className="block truncate text-[11px] leading-tight text-tertiary">
                                     {option.disabled && option.disabledReason ? option.disabledReason : option.description}
                                   </span>
                                 )}
                               </span>
-                              {option.badge && <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-neutral-600">{option.badge}</span>}
+                              {option.badge && <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-tertiary">{option.badge}</span>}
                               {isSelected && (
-                                <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0 text-[var(--f1-red)]" fill="none" aria-hidden>
+                                <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0 text-brand-text" fill="none" aria-hidden>
                                   <path d="M4 10.5 8 14.5 16 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               )}

@@ -101,13 +101,13 @@ export function TireStintTimeline({
                     );
                   })}
                 </div>
-                <span className="w-16 shrink-0 text-right text-xs text-neutral-500">{totalLaps} laps</span>
+                <span className="w-16 shrink-0 text-right text-xs text-tertiary">{totalLaps} laps</span>
               </motion.div>
             );
           })}
         </AnimatePresence>
       </motion.div>
-      <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-neutral-500">
+      <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-tertiary">
         {Object.entries(COMPOUND_COLOR).map(([name, color]) => (
           <span key={name} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-sm" style={{ background: color }} />

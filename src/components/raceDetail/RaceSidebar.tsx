@@ -16,12 +16,12 @@ function Card({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">{children}</div>;
 }
 function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{children}</p>;
+  return <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tertiary">{children}</p>;
 }
 function FactRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1 text-sm">
-      <span className="text-neutral-500">{label}</span>
+      <span className="text-tertiary">{label}</span>
       <span className="truncate text-right font-medium text-neutral-200">{value}</span>
     </div>
   );
@@ -102,20 +102,20 @@ export function RaceSidebar({
               Live now
             </p>
             <p className="mt-1 text-xl font-semibold text-white">{live.label}</p>
-            <p className="mt-0.5 text-xs text-neutral-500">Session in progress (estimated) - see Race Weekend below for the full schedule.</p>
+            <p className="mt-0.5 text-xs text-tertiary">Session in progress (estimated) - see Race Weekend below for the full schedule.</p>
           </>
         ) : upcoming ? (
           <>
             <Label>{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</Label>
             <p className="mt-1 font-mono text-2xl font-semibold text-white">{countdown}</p>
-            <p className="mt-0.5 text-xs text-neutral-500">
+            <p className="mt-0.5 text-xs text-tertiary">
               {parseUtcDateTime(upcoming.date).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" })} your time
             </p>
           </>
         ) : (
           <>
             <Label>Race weekend</Label>
-            <p className="mt-1.5 text-sm text-neutral-500">Session schedule not yet confirmed.</p>
+            <p className="mt-1.5 text-sm text-tertiary">Session schedule not yet confirmed.</p>
           </>
         )}
 
@@ -227,7 +227,7 @@ export function RaceSidebar({
                   <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.groupId} size={30} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-white">{c.name}</p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-tertiary">
                       {c.memberCount} {c.memberCount === 1 ? "member" : "members"}
                     </p>
                   </div>
@@ -247,7 +247,7 @@ export function RaceSidebar({
         <p className="mt-1.5 text-sm text-neutral-300">
           “{isCompleted ? "What decided this race?" : "Who has historically performed well here?"}”
         </p>
-        <p className="mt-1 text-xs text-neutral-500">Open the Apex button in the corner to ask.</p>
+        <p className="mt-1 text-xs text-tertiary">Open the Apex button in the corner to ask.</p>
       </Card>
     </div>
   );

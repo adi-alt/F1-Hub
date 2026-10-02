@@ -62,7 +62,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
       <span className="flex h-[30px] items-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2 text-[11.5px] text-neutral-200">
         <ClockIcon />
         <span className="whitespace-nowrap tabular-nums">{when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-        <button type="button" onClick={() => onChange("")} title="Cancel scheduling" aria-label="Cancel scheduling" className="ml-0.5 text-neutral-500 transition hover:text-white">
+        <button type="button" onClick={() => onChange("")} title="Cancel scheduling" aria-label="Cancel scheduling" className="ml-0.5 text-tertiary transition hover:text-white">
           <CloseIcon />
         </button>
       </span>
@@ -106,7 +106,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                     onClick={() => setOpen(false)}
                     title="Close scheduling"
                     aria-label="Close scheduling"
-                    className="absolute right-3 top-3 text-neutral-500 transition hover:text-white"
+                    className="absolute right-3 top-3 text-tertiary transition hover:text-white"
                   >
                     <CloseIcon size={16} />
                   </button>
@@ -139,7 +139,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
 
                   <div className="grid grid-cols-7 gap-0.5 text-center">
                     {WEEKDAYS.map((d, i) => (
-                      <span key={i} className="py-1 text-[9.5px] font-semibold uppercase tracking-wider text-neutral-600">
+                      <span key={i} className="py-1 text-[9.5px] font-semibold uppercase tracking-wider text-tertiary">
                         {d}
                       </span>
                     ))}
@@ -172,12 +172,12 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
 
                   {/* Time - the app's own Picker rather than <input type="time">, so no OS widget */}
                   <div className="mt-3 flex items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Time</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Time</span>
                     <div className="ml-auto flex items-center gap-1">
                       <div className="w-[68px]">
                         <Picker options={HOURS} value={hour} onChange={setHour} ariaLabel="Hour" />
                       </div>
-                      <span aria-hidden className="text-neutral-600">
+                      <span aria-hidden className="text-tertiary">
                         :
                       </span>
                       <div className="w-[68px]">
@@ -187,7 +187,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                   </div>
 
                   <div className="mt-3 space-y-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Quick options</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Quick options</p>
                     {quickOptions.map((option) => (
                       <button
                         key={option.label}
@@ -196,17 +196,17 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                         className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-left text-[12px] text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
                       >
                         <span className="block font-medium">{option.label}</span>
-                        <span className="mt-0.5 block text-[10.5px] text-neutral-500">
+                        <span className="mt-0.5 block text-[10.5px] text-tertiary">
                           {option.date.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </button>
                     ))}
                   </div>
 
-                  {error && <p className="mt-2 text-[11.5px] text-[var(--f1-red)]">{error}</p>}
+                  {error && <p className="mt-2 text-[11.5px] text-brand-text">{error}</p>}
 
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-[10.5px] text-neutral-500">{localZone()}</span>
+                    <span className="min-w-0 truncate text-[10.5px] text-tertiary">{localZone()}</span>
                     <button
                       type="button"
                       onClick={schedule}

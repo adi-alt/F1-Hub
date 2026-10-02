@@ -24,7 +24,7 @@ export function ArchiveExplorerWithFocus({
   const selected = rows.find((r) => r.id === selectedId) ?? mostRecent;
 
   if (rows.length === 0) {
-    return <div className="flex min-h-[160px] items-center justify-center rounded-lg border border-dashed border-white/10 px-6 text-center text-sm text-neutral-500">No races on record.</div>;
+    return <div className="flex min-h-[160px] items-center justify-center rounded-lg border border-dashed border-white/10 px-6 text-center text-sm text-tertiary">No races on record.</div>;
   }
 
   return (

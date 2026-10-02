@@ -43,18 +43,18 @@ export function GroupsLeftSidebar({
     <div className="hidden max-h-full flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex">
       <div className="shrink-0 px-1">
         <h1 className="text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
-        <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-500">Race-weekend discussion and predictions across your communities.</p>
+        <p className="mt-0.5 text-[11.5px] leading-snug text-tertiary">Race-weekend discussion and predictions across your communities.</p>
       </div>
 
       <div className="mt-3.5 flex shrink-0 items-center justify-between px-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Your communities</p>
-        {groups.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{groups.length}</span>}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Your communities</p>
+        {groups.length > 0 && <span className="text-[11px] tabular-nums text-tertiary">{groups.length}</span>}
       </div>
 
       {groups.length === 0 ? (
         <div className="mt-3 rounded-xl border border-dashed border-white/[0.09] px-3 py-5 text-center">
-          <p className="text-xs text-neutral-500">No communities yet.</p>
-          <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--f1-red)] transition hover:brightness-125">
+          <p className="text-xs text-tertiary">No communities yet.</p>
+          <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-text transition hover:brightness-125">
             Discover communities
             <ChevronIcon />
           </button>
@@ -80,7 +80,7 @@ export function GroupsLeftSidebar({
               icon={
                 <span
                   className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition ${
-                    selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"
+                    selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-brand-text" : "bg-white/[0.05] text-neutral-400"
                   }`}
                 >
                   <AllIcon />
@@ -182,7 +182,7 @@ function NavRow({
         {icon}
         <span className="min-w-0 flex-1">
           <span className={`block truncate text-[14px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
-          {sublabel && <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-neutral-500">{sublabel}</span>}
+          {sublabel && <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-tertiary">{sublabel}</span>}
         </span>
       </button>
       {badge}
@@ -191,7 +191,7 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="shrink-0 rounded p-0.5 text-neutral-600 opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded p-0.5 text-tertiary opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
         >
           <ChevronIcon />
         </Link>

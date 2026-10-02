@@ -130,13 +130,13 @@ export function SeasonMap({
   }
 
   if (entries.length === 0) {
-    return <p className="text-sm text-neutral-500">No circuits on this season&apos;s calendar yet.</p>;
+    return <p className="text-sm text-tertiary">No circuits on this season&apos;s calendar yet.</p>;
   }
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Season map</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Season map</p>
         {/* Underline tabs, not filled pills - a quieter treatment for a control that sits right
             above the season's own visual centrepiece. */}
         <div className="flex flex-wrap items-center gap-4" role="group" aria-label="Filter circuits">
@@ -147,7 +147,7 @@ export function SeasonMap({
               onClick={() => setFilter((prev) => (prev === f.value ? "all" : f.value))}
               aria-pressed={filter === f.value}
               className={`border-b-2 pb-0.5 text-[11px] font-medium uppercase tracking-wide transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
-                filter === f.value ? "border-[var(--f1-red)] text-white" : "border-transparent text-neutral-500 hover:text-neutral-300"
+                filter === f.value ? "border-[var(--f1-red)] text-white" : "border-transparent text-tertiary hover:text-neutral-300"
               }`}
             >
               {f.label}
@@ -157,7 +157,7 @@ export function SeasonMap({
       </div>
 
       {filter !== "all" && visibleCount === 0 && (
-        <p className="mt-2 text-[11px] text-neutral-600">No round currently matches &ldquo;{FILTERS.find((f) => f.value === filter)?.label}&rdquo;.</p>
+        <p className="mt-2 text-[11px] text-tertiary">No round currently matches &ldquo;{FILTERS.find((f) => f.value === filter)?.label}&rdquo;.</p>
       )}
 
       <div aria-hidden className="mt-3 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
@@ -215,7 +215,7 @@ function CircuitNode({
     [race.circuit, race.name, facts?.turns, facts?.trackType],
   );
 
-  const ringColor = isCurrent ? "text-[var(--f1-red)]" : selected ? "text-white" : status === "completed" ? "text-neutral-300" : "text-neutral-600";
+  const ringColor = isCurrent ? "text-brand-text" : selected ? "text-white" : status === "completed" ? "text-neutral-300" : "text-tertiary";
   const strokeWidth = shape.isAuthentic ? (isCurrent ? 6 : 4.5) : isCurrent ? 3.5 : 2.6;
 
   function handleKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
@@ -256,7 +256,7 @@ function CircuitNode({
           />
         </svg>
       </span>
-      <span className={`font-mono text-[9px] leading-none ${isCurrent ? "text-[var(--f1-red)]" : "text-neutral-600"}`}>R{race.round}</span>
+      <span className={`font-mono text-[9px] leading-none ${isCurrent ? "text-brand-text" : "text-tertiary"}`}>R{race.round}</span>
       <span className={`truncate text-[11px] leading-tight ${isCurrent ? "font-bold text-white" : selected ? "font-semibold text-white" : "font-medium text-neutral-400 group-hover:text-neutral-200"}`}>
         {race.trackShort}
       </span>
@@ -283,9 +283,9 @@ function CircuitHoverPanel({ state }: { state: HoverState }) {
         transition={{ duration: 0.12, ease: "easeOut" }}
         className="glass-surface pointer-events-auto rounded-lg p-3"
       >
-        <p className="font-mono text-[10px] text-neutral-500">Round {race.round}</p>
+        <p className="font-mono text-[10px] text-tertiary">Round {race.round}</p>
         <h3 className="mt-0.5 text-[13px] font-semibold leading-snug text-white">{race.name}</h3>
-        {location && <p className="text-[11px] text-neutral-500">{location}</p>}
+        {location && <p className="text-[11px] text-tertiary">{location}</p>}
 
         <div className="my-2.5 flex items-center justify-center rounded-md bg-white/[0.03] py-2">
           <svg viewBox={shape.viewBox || "0 0 100 100"} className="h-16 w-16 text-neutral-300" aria-hidden>
@@ -297,31 +297,31 @@ function CircuitHoverPanel({ state }: { state: HoverState }) {
           <div className="space-y-1 text-[11px]">
             {race.winnerName ? (
               <p>
-                <span className="text-neutral-500">Winner </span>
+                <span className="text-tertiary">Winner </span>
                 <span className="font-medium text-white">{race.winnerName}</span>
               </p>
             ) : (
-              <p className="text-neutral-600">Results not in yet</p>
+              <p className="text-tertiary">Results not in yet</p>
             )}
             {race.poleSitterName && (
               <p>
-                <span className="text-neutral-500">Pole </span>
+                <span className="text-tertiary">Pole </span>
                 <span className="font-medium text-neutral-200">{race.poleSitterName}</span>
               </p>
             )}
             {race.fastestLap?.driverName && (
               <p>
-                <span className="text-neutral-500">Fastest lap </span>
+                <span className="text-tertiary">Fastest lap </span>
                 <span className="font-medium text-neutral-200">{race.fastestLap.driverName}</span>
               </p>
             )}
           </div>
         ) : facts ? (
-          <p className="text-[11px] text-neutral-500">
+          <p className="text-[11px] text-tertiary">
             {facts.lengthKm.toFixed(1)} km · {facts.turns} turns · {facts.trackType === "street" ? "Street circuit" : facts.trackType === "hybrid" ? "Hybrid circuit" : "Permanent circuit"}
           </p>
         ) : (
-          <p className="text-[11px] text-neutral-600">No track profile yet</p>
+          <p className="text-[11px] text-tertiary">No track profile yet</p>
         )}
 
         <Link

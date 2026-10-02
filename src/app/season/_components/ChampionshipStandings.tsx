@@ -17,7 +17,7 @@ import type { ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, 
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 // Sticky headers need real opacity behind that blur, not the table's own near-transparent
 // surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
 // translucent-dark token every other floating/sticky surface on the site already uses.
@@ -48,7 +48,7 @@ function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") 
   if (key !== sortKey) return null;
   // aria-sort on the header says this; the arrow is for sighted users only.
   return (
-    <span aria-hidden className="ml-1 text-[var(--f1-red)]">
+    <span aria-hidden className="ml-1 text-brand-text">
       {sortDir === "asc" ? "↑" : "↓"}
     </span>
   );
@@ -217,7 +217,7 @@ export function ChampionshipStandings({
     <div className="flex h-full min-h-0 flex-col">
       <div className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Championship</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Championship</p>
           <div className="mt-2.5">
             <QuietTabs
               options={[
@@ -255,7 +255,7 @@ export function ChampionshipStandings({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={isDrivers ? "Search drivers or teams…" : "Search teams…"}
-            className="h-9 w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
+            className="h-9 w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
           />
           <ExportMenu
             filename={isDrivers ? "drivers-championship" : "constructors-championship"}
@@ -318,14 +318,14 @@ export function ChampionshipStandings({
                         onRowClick={() => toggleExpanded(d.driver)}
                         cells={
                           <>
-                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
+                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{i + 1}</td>
                             <td className="whitespace-nowrap px-4 py-3">
                               <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(d.driver)} onClick={() => toggleExpanded(d.driver)} className={NAME_BUTTON}>
                                 <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
                                   <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
                                 </span>
                                 <span className="font-medium text-white">
-                                  {d.driverName} <span className="font-mono text-xs font-normal text-neutral-500">{d.driver}</span>
+                                  {d.driverName} <span className="font-mono text-xs font-normal text-tertiary">{d.driver}</span>
                                 </span>
                               </button>
                             </td>
@@ -338,7 +338,7 @@ export function ChampionshipStandings({
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.wins}</td>
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.podiums}</td>
                             <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{d.points}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-neutral-500">{gapLabel(d.points, leaderPoints)}</td>
+                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-tertiary">{gapLabel(d.points, leaderPoints)}</td>
                             <td className="px-4 py-3 text-center">
                               {d.favoriteId && (
                                 <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(d.favoriteId!)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
@@ -374,7 +374,7 @@ export function ChampionshipStandings({
                         onRowClick={() => toggleExpanded(c.team)}
                         cells={
                           <>
-                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
+                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{i + 1}</td>
                             <td className="whitespace-nowrap px-4 py-3">
                               <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(c.team)} onClick={() => toggleExpanded(c.team)} className={NAME_BUTTON}>
                                 <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">
@@ -386,7 +386,7 @@ export function ChampionshipStandings({
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.wins}</td>
                             <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.podiums}</td>
                             <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{c.points}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-neutral-500">{gapLabel(c.points, leaderPoints)}</td>
+                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-tertiary">{gapLabel(c.points, leaderPoints)}</td>
                             <td className="px-4 py-3 text-center">
                               <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(c.favoriteId)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
                             </td>
@@ -411,7 +411,7 @@ export function ChampionshipStandings({
           </table>
           {emptyMessage && (
             <div className="flex min-h-[140px] items-center justify-center px-6">
-              <p className="text-center text-sm text-neutral-500">{emptyMessage}</p>
+              <p className="text-center text-sm text-tertiary">{emptyMessage}</p>
             </div>
           )}
         </div>
@@ -495,12 +495,12 @@ function DriverDetail({
       <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Recent</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-tertiary">Recent</p>
           <div className="flex gap-1">
             {form.map((f) => (
               <span
                 key={f.round}
-                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/5 text-neutral-300"}`}
+                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-brand-text" : "bg-white/5 text-neutral-300"}`}
                 title={f.trackShort}
               >
                 P{f.position}
@@ -553,12 +553,12 @@ function TeamDetail({
       <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Recent</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-tertiary">Recent</p>
           <div className="flex gap-1">
             {form.map((f) => (
               <span
                 key={f.round}
-                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/5 text-neutral-300"}`}
+                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-brand-text" : "bg-white/5 text-neutral-300"}`}
                 title={f.trackShort}
               >
                 P{f.position}
@@ -590,7 +590,7 @@ function TeamDetail({
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-wide text-tertiary">{label}</p>
       <p className="font-mono text-sm font-semibold tabular-nums text-white">{value}</p>
     </div>
   );

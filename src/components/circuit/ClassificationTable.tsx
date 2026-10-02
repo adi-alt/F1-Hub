@@ -57,7 +57,7 @@ export function ClassificationTable({
           while the body scrolls under it. */}
       <div className="max-h-[380px] overflow-y-auto scroll-pt-10">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md" style={HEADER_STYLE}>
+          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
             <tr>
               <th className="px-3 py-2.5 font-semibold">Pos</th>
               <th className="px-3 py-2.5 font-semibold">Driver</th>
@@ -80,7 +80,7 @@ export function ClassificationTable({
                     if (!isFromNestedControl(event.target, event.currentTarget)) setSelectedDriver(selectedDriver === r.driver ? null : r.driver);
                   }}
                 >
-                  <td className={`px-3 py-2 font-mono tabular-nums ${r.finishPosition <= 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{r.finishPosition}</td>
+                  <td className={`px-3 py-2 font-mono tabular-nums ${r.finishPosition <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{r.finishPosition}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {/* Highlights this driver on the track map, the same as a click on the row. */}
                     <button
@@ -95,7 +95,7 @@ export function ClassificationTable({
                         <EntityAvatar imageUrl={photoByCode.get(r.driver) ?? null} name={r.driverName} size={26} fit="cover" />
                       </span>
                       <span className="min-w-0 truncate font-medium text-white">
-                        {r.driverName} <span className="font-mono text-[10px] font-normal text-neutral-500">{r.driver}</span>
+                        {r.driverName} <span className="font-mono text-[10px] font-normal text-tertiary">{r.driver}</span>
                       </span>
                     </button>
                   </td>
@@ -105,7 +105,7 @@ export function ClassificationTable({
                       <span className="truncate">{r.team}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-neutral-500">
+                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-tertiary">
                     {r.status === "dnf" ? "DNF" : r.finishPosition === 1 ? "Leader" : r.finishGapSec != null ? `+${r.finishGapSec.toFixed(1)}s` : "—"}
                   </td>
                 </tr>

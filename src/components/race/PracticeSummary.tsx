@@ -39,15 +39,15 @@ function PaceRow({ lap, index, widthPct, roster }: { lap: PracticeBestLap; index
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <span className="w-3.5 shrink-0 text-xs text-neutral-500">{index + 1}</span>
+      <span className="w-3.5 shrink-0 text-xs text-tertiary">{index + 1}</span>
       <span className={`w-11 shrink-0 text-sm font-medium ${isFastest ? "text-white" : "text-neutral-200"}`}>{lap.driver}</span>
       <span className="flex-1" />
       <span className={`whitespace-nowrap font-mono text-[13px] ${isFastest ? "text-white" : "text-neutral-300"}`}>{lap.lapTimeSec.toFixed(3)}s</span>
       <span className="w-14 shrink-0 whitespace-nowrap text-right text-[11px]">
         {isFastest ? (
-          <span className="font-semibold uppercase tracking-wider text-[var(--f1-red)]">Fastest</span>
+          <span className="font-semibold uppercase tracking-wider text-brand-text">Fastest</span>
         ) : (
-          <span className="text-neutral-500">+{lap.deltaToBestSec.toFixed(3)}</span>
+          <span className="text-tertiary">+{lap.deltaToBestSec.toFixed(3)}</span>
         )}
       </span>
 
@@ -74,9 +74,9 @@ function PaceRow({ lap, index, widthPct, roster }: { lap: PracticeBestLap; index
           }}
         >
           <p className="font-semibold text-white">{info.driverName}</p>
-          <p className="text-neutral-500">{info.team}</p>
+          <p className="text-tertiary">{info.team}</p>
           <p className="mt-1.5 font-mono text-neutral-300">{lap.lapTimeSec.toFixed(3)}s</p>
-          <p className="text-neutral-500">{isFastest ? "Pole benchmark" : `Gap: +${lap.deltaToBestSec.toFixed(3)}s`}</p>
+          <p className="text-tertiary">{isFastest ? "Pole benchmark" : `Gap: +${lap.deltaToBestSec.toFixed(3)}s`}</p>
         </div>
       )}
     </motion.li>
@@ -113,7 +113,7 @@ export function PracticeSummary({ practice, roster = [] }: { practice: PracticeD
             transition={{ duration: 0.3, delay: sessionIndex * 0.05, ease: "easeOut" }}
             className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5 transition-[background-color,border-color] duration-200 hover:-translate-y-px hover:border-white/[0.14] hover:bg-[var(--f1-carbon)]/80"
           >
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">{SESSION_LABELS[key]}</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-tertiary">{SESSION_LABELS[key]}</p>
             <ol>
               {topLaps.map((lap, i) => (
                 <PaceRow key={lap.driver} lap={lap} index={i} widthPct={100 - (lap.deltaToBestSec / maxGap) * PACE_BAR_SWING} roster={rosterMap} />

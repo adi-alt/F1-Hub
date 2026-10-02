@@ -116,7 +116,7 @@ export function ProfileMenu() {
         <span className="max-w-[9rem] truncate font-medium text-white">{name}</span>
         {pointsBalance !== null && (
           <span className="flex items-center gap-1 border-l border-white/10 pl-2 text-xs font-semibold text-neutral-300">
-            <StarIcon className="h-3 w-3 text-neutral-500" />
+            <StarIcon className="h-3 w-3 text-tertiary" />
             <span className="font-mono">{pointsBalance}</span> pts
           </span>
         )}
@@ -163,7 +163,7 @@ export function ProfileMenu() {
                           onClick={() => setOpen(false)}
                           className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                         >
-                          <item.icon className="h-4 w-4 shrink-0 text-neutral-500" />
+                          <item.icon className="h-4 w-4 shrink-0 text-tertiary" />
                           {item.label}
                         </Link>
                       ))}
@@ -180,7 +180,7 @@ export function ProfileMenu() {
                         }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
-                        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-neutral-500">
+                        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-tertiary">
                           ✦
                         </span>
                         Replay F1 Hub tour
@@ -193,7 +193,7 @@ export function ProfileMenu() {
                         }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
-                        <LogOutIcon className="h-4 w-4 shrink-0 text-neutral-500" />
+                        <LogOutIcon className="h-4 w-4 shrink-0 text-tertiary" />
                         Log out
                       </button>
                     </div>

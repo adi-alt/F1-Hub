@@ -115,7 +115,7 @@ export function ArchiveRaceExplorer({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search races…"
-          className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-neutral-600 focus:border-white/25 focus:outline-none sm:max-w-[200px]"
+          className="h-8 min-w-0 flex-1 rounded-md border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-tertiary focus:border-white/25 focus:outline-none sm:max-w-[200px]"
         />
         {decades.length > 1 && (
           <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by decade">
@@ -123,7 +123,7 @@ export function ArchiveRaceExplorer({
               type="button"
               onClick={() => setDecade(null)}
               aria-pressed={decade === null}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${decade === null ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${decade === null ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"}`}
             >
               All years
             </button>
@@ -133,7 +133,7 @@ export function ArchiveRaceExplorer({
                 type="button"
                 onClick={() => setDecade(d)}
                 aria-pressed={decade === d}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${decade === d ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${decade === d ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"}`}
               >
                 {d}
               </button>
@@ -146,7 +146,7 @@ export function ArchiveRaceExplorer({
               type="button"
               onClick={() => setResultKey("all")}
               aria-pressed={resultKey === "all"}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${resultKey === "all" ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${resultKey === "all" ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"}`}
             >
               All results
             </button>
@@ -156,7 +156,7 @@ export function ArchiveRaceExplorer({
                 type="button"
                 onClick={() => setResultKey(f.key)}
                 aria-pressed={resultKey === f.key}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${resultKey === f.key ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${resultKey === f.key ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"}`}
               >
                 {f.label}
               </button>
@@ -167,13 +167,13 @@ export function ArchiveRaceExplorer({
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
         {paged.length === 0 ? (
-          <div className="flex h-full min-h-[160px] items-center justify-center px-6 text-center text-sm text-neutral-500">
+          <div className="flex h-full min-h-[160px] items-center justify-center px-6 text-center text-sm text-tertiary">
             No races match this filter.
           </div>
         ) : (
           <div className="h-full overflow-y-auto">
             <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md" style={HEADER_STYLE}>
+              <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
                 <tr>
                   <th className="px-3 py-2.5 font-mono font-semibold">Year</th>
                   <th className="px-3 py-2.5 font-semibold">Race</th>
@@ -216,7 +216,7 @@ export function ArchiveRaceExplorer({
                           "—"
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-neutral-500">{r.grid != null ? `P${r.grid}` : "—"}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-tertiary">{r.grid != null ? `P${r.grid}` : "—"}</td>
                       <td className={`px-3 py-2 text-right font-mono text-[13px] tabular-nums ${r.finishRank != null && r.finishRank <= 3 ? "font-semibold text-white" : "text-neutral-400"}`}>
                         {r.finishText}
                       </td>
@@ -231,7 +231,7 @@ export function ArchiveRaceExplorer({
 
       {pageCount > 1 && (
         <div className="flex shrink-0 items-center justify-between pt-2">
-          <span className="text-[11px] text-neutral-600">
+          <span className="text-[11px] text-tertiary">
             {filtered.length} race{filtered.length === 1 ? "" : "s"} · page {page} of {pageCount}
           </span>
           <div className="flex items-center gap-1">

@@ -79,7 +79,7 @@ export function ChampionshipTrajectory({
   );
 
   if (rows.length < 2) {
-    return <p className="text-sm text-neutral-500">Not enough completed races yet to plot a trajectory.</p>;
+    return <p className="text-sm text-tertiary">Not enough completed races yet to plot a trajectory.</p>;
   }
 
   const maxPoints = Math.max(...rows.flatMap((r) => series.map((s) => Number(r[s.code] ?? 0))), 1);
@@ -259,7 +259,7 @@ export function ChampionshipTrajectory({
             <p className="whitespace-nowrap font-semibold text-white">
               Round {hovered.round}: {hovered.raceName}
             </p>
-            <p className="whitespace-nowrap text-[10px] text-neutral-500">{hovered.trackShort as string}</p>
+            <p className="whitespace-nowrap text-[10px] text-tertiary">{hovered.trackShort as string}</p>
             {series.map((s) => {
               const points = Number(hovered[s.code] ?? 0);
               const finishPosition = hovered[`${s.code}__finishPosition`];
@@ -279,7 +279,7 @@ export function ChampionshipTrajectory({
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-4 text-[10px] text-neutral-500">
+      <div className="mt-2 flex flex-wrap gap-4 text-[10px] text-tertiary">
         {series.map((s) => (
           <span key={s.code} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: s.color }} /> {s.label}

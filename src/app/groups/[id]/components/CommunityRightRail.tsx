@@ -78,7 +78,7 @@ function CardHeader({ title, action }: { title: string; action?: React.ReactNode
 }
 
 function ViewAllLink({ href, onClick }: { href?: string; onClick?: () => void }) {
-  const className = "shrink-0 text-[11px] font-medium text-neutral-500 transition hover:text-white";
+  const className = "shrink-0 text-[11px] font-medium text-tertiary transition hover:text-white";
   if (href) {
     return (
       <Link href={href} className={className}>
@@ -115,7 +115,7 @@ function UpcomingRaceCard({ race }: { race: NextRaceSummary }) {
       <CardHeader title="Upcoming Race" action={<ViewAllLink href={seasonHref(new Date().getFullYear())} />} />
 
       {!race ? (
-        <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-neutral-500">No upcoming race is scheduled yet.</p>
+        <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No upcoming race is scheduled yet.</p>
       ) : (
         <div className="px-3 pb-3.5 pt-2.5">
           <Link href={raceHref(race.year, race.round, race.name)} className="group block">
@@ -141,21 +141,21 @@ function UpcomingRaceCard({ race }: { race: NextRaceSummary }) {
                 )}
                 <span className="min-w-0 truncate">{race.name}</span>
               </p>
-              {race.circuit && <p className="mt-0.5 truncate text-[11px] text-neutral-500">{race.circuit}</p>}
+              {race.circuit && <p className="mt-0.5 truncate text-[11px] text-tertiary">{race.circuit}</p>}
               {race.raceDate && (
-                <p className="mt-0.5 text-[11px] text-neutral-500">
+                <p className="mt-0.5 text-[11px] text-tertiary">
                   {parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                 </p>
               )}
               {/* A calendar round the pipeline hasn't dated yet is a real state - it says so rather
                   than inventing a date or quietly showing nothing where a date belongs. */}
-              {!race.raceDate && <p className="mt-0.5 text-[11px] text-neutral-600">Date to be confirmed</p>}
+              {!race.raceDate && <p className="mt-0.5 text-[11px] text-tertiary">Date to be confirmed</p>}
             </div>
 
             {(countdown || underway) && (
               <div className="shrink-0 rounded-lg border border-[var(--f1-red)]/25 bg-[var(--f1-red)]/[0.1] px-2 py-1 text-center">
-                <p className="text-[13px] font-bold leading-none tabular-nums text-[var(--f1-red)]">{countdown ?? "Live"}</p>
-                <p className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--f1-red)]/80">{underway ? "Underway" : "Race weekend"}</p>
+                <p className="text-[13px] font-bold leading-none tabular-nums text-brand-text">{countdown ?? "Live"}</p>
+                <p className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-brand-text/80">{underway ? "Underway" : "Race weekend"}</p>
               </div>
             )}
           </div>
@@ -188,10 +188,10 @@ function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; la
   return (
     <div className="min-w-0 flex-1">
       <p className="flex items-center gap-1.5 text-[15px] font-bold leading-none text-white">
-        <span className="shrink-0 text-neutral-500">{icon}</span>
+        <span className="shrink-0 text-tertiary">{icon}</span>
         <span className="truncate tabular-nums">{value}</span>
       </p>
-      <p className="mt-1 truncate text-[11px] text-neutral-500">{label}</p>
+      <p className="mt-1 truncate text-[11px] text-tertiary">{label}</p>
     </div>
   );
 }
@@ -206,7 +206,7 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
       <CardHeader title="Active Predictions" action={<ViewAllLink onClick={() => onOpenTab("predictions")} />} />
 
       {predictions.length === 0 ? (
-        <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-neutral-500">No open rounds right now. New ones appear as a race weekend approaches.</p>
+        <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No open rounds right now. New ones appear as a race weekend approaches.</p>
       ) : (
         <div className="space-y-3 px-4 pb-4 pt-2.5">
           {predictions.map(({ prediction, trend }) => {
@@ -224,12 +224,12 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-semibold leading-tight text-white">{prediction.raceName}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-neutral-500">{predictionTypeLabels[prediction.type]}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-tertiary">{predictionTypeLabels[prediction.type]}</p>
                   </div>
                   <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-neutral-200">{prediction.entryPoints} pts</span>
                 </div>
 
-                <p className={`mt-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-[var(--f1-red)]" : "text-neutral-500"}`}>
+                <p className={`mt-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-brand-text" : "text-tertiary"}`}>
                   {countdown ? `Closes in ${countdown}` : awaitingResult ? "Awaiting result" : "Open"}
                   {prediction.myEntry && <span className="ml-1.5 font-medium normal-case text-emerald-400/90">· Entered</span>}
                 </p>
@@ -284,7 +284,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
     <Card>
       <div className="px-4 pb-4 pt-3.5">
         <div className="flex items-center gap-1.5">
-          <span aria-hidden className="text-[var(--f1-red)]">
+          <span aria-hidden className="text-brand-text">
             ✦
           </span>
           <h2 className="text-[13px] font-semibold text-white">Community Pulse</h2>
@@ -292,14 +292,14 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
 
         {pulse.hasPriorVisit ? (
           <>
-            <p className="mt-1.5 text-[11px] text-neutral-500">Since you were last here</p>
+            <p className="mt-1.5 text-[11px] text-tertiary">Since you were last here</p>
             {lines.length === 0 ? (
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">Nothing new since your last visit.</p>
+              <p className="mt-2 text-xs leading-relaxed text-tertiary">Nothing new since your last visit.</p>
             ) : (
               <ul className="mt-2 space-y-1.5">
                 {lines.map((line) => (
                   <li key={line.text} className="flex items-center gap-2 text-xs text-neutral-300">
-                    <span aria-hidden className="shrink-0 text-neutral-500">
+                    <span aria-hidden className="shrink-0 text-tertiary">
                       {line.icon}
                     </span>
                     <span className="min-w-0 truncate">{line.text}</span>
@@ -312,10 +312,10 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
           // A first visit has nothing to diff against, so it gets the standing picture instead of
           // "no changes since your last visit" - a claim about a visit that never happened.
           <>
-            <p className="mt-1.5 text-[11px] text-neutral-500">This week here</p>
+            <p className="mt-1.5 text-[11px] text-tertiary">This week here</p>
             <ul className="mt-2 space-y-1.5">
               <li className="flex items-center gap-2 text-xs text-neutral-300">
-                <span aria-hidden className="shrink-0 text-neutral-500">
+                <span aria-hidden className="shrink-0 text-tertiary">
                   <DiscussionIcon />
                 </span>
                 <span>
@@ -323,7 +323,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
                 </span>
               </li>
               <li className="flex items-center gap-2 text-xs text-neutral-300">
-                <span aria-hidden className="shrink-0 text-neutral-500">
+                <span aria-hidden className="shrink-0 text-tertiary">
                   <MembersIcon />
                 </span>
                 <span>
@@ -392,7 +392,7 @@ function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
   const flat = delta === 0;
   return (
     <p className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5 text-xs text-neutral-400">
-      <span aria-hidden className="text-neutral-500">
+      <span aria-hidden className="text-tertiary">
         <ActivityIcon />
       </span>
       <span className="min-w-0">
@@ -415,7 +415,7 @@ function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
 function RecapRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="min-w-0 truncate text-[11px] text-neutral-500">{label}</dt>
+      <dt className="min-w-0 truncate text-[11px] text-tertiary">{label}</dt>
       <dd className="shrink-0 text-[11px] font-semibold tabular-nums text-neutral-300">{value}</dd>
     </div>
   );

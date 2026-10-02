@@ -158,14 +158,14 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
 
             <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-4 pt-3 sm:px-7 sm:pt-5">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">
                   Round {race.round}
                   {race.isSprintWeekend && <span className="ml-2 text-[#eab308]">Sprint weekend</span>}
                 </p>
                 <h2 id={titleId} className="mt-1 truncate text-lg font-semibold tracking-[-0.01em] text-white sm:text-2xl">
                   {race.name}
                 </h2>
-                <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                <p className="mt-0.5 truncate text-[11px] text-tertiary">
                   {[race.circuit, race.country].filter(Boolean).join(", ") || "Circuit to be confirmed"}
                   {race.raceDate && ` · ${parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`}
                 </p>
@@ -243,7 +243,7 @@ function RaceQuickViewBody({ season, race, drivers }: { season: number; race: Ra
       )}
 
       <section>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Weekend timeline</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Weekend timeline</p>
         <div className="mt-4">
           <RaceTimeline sessions={race.sessions} />
         </div>
@@ -263,7 +263,7 @@ function QuickInsights({ insights }: { insights: { text: string; tone: "neutral"
   };
   return (
     <section>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Quick insights</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Quick insights</p>
       <ul className="mt-2.5 space-y-1.5">
         {insights.map((insight) => (
           <li key={insight.text} className="flex items-baseline gap-2.5 text-sm leading-relaxed text-neutral-300">
@@ -284,7 +284,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
 
   return (
     <section>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">
         {race.weekendStatus === "live" ? "Weekend progress" : "Event"}
       </p>
       <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-3">
@@ -294,7 +294,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
         {race.circuit && <Fact label="Circuit" value={race.circuit} />}
       </dl>
       {race.predicted && race.predicted.winner && (
-        <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
+        <p className="mt-3 text-[11px] leading-relaxed text-tertiary">
           {/* Explicitly framed as a projection, and only shown where no result exists to confuse
               it with. */}
           Apex&apos;s pre-race projection favours{" "}
@@ -308,7 +308,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">{label}</dt>
+      <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">{label}</dt>
       <dd className="mt-0.5 truncate text-sm text-neutral-200">{value}</dd>
     </div>
   );
@@ -323,11 +323,11 @@ function QuickResults({ race }: { race: RaceSummary }) {
 
   return (
     <section>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Result</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Result</p>
 
       {race.winnerName && (
         <div className="mt-2.5">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Winner</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">Winner</p>
           <p className="mt-0.5 truncate text-2xl font-semibold tracking-[-0.01em] text-white">{race.winnerName}</p>
         </div>
       )}
@@ -336,7 +336,7 @@ function QuickResults({ race }: { race: RaceSummary }) {
         <ol className="mt-3 space-y-1">
           {rest.map((p) => (
             <li key={p.driver} className="flex items-baseline gap-2.5 text-sm">
-              <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">P{p.position}</span>
+              <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-tertiary">P{p.position}</span>
               <span className="min-w-0 truncate text-neutral-300">{p.driverName}</span>
             </li>
           ))}
@@ -356,7 +356,7 @@ function StatusPill({ status }: { status: RaceWeekendStatus }) {
     status === "completed"
       ? "text-neutral-400 border-white/[0.12]"
       : status === "live"
-        ? "text-[var(--f1-red)] border-[var(--f1-red)]/40"
+        ? "text-brand-text border-[var(--f1-red)]/40"
         : status === "cancelled" || status === "postponed"
           ? "text-amber-400 border-amber-400/35"
           : "text-neutral-300 border-white/[0.16]";

@@ -56,7 +56,7 @@ export function ApexSeasonTake({ personal }: { personal: PersonalSeasonContext }
       <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-neutral-400">{story.summary}</p>
 
       {story.themes.length > 0 && (
-        <p className="mt-3.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-600">
+        <p className="mt-3.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-tertiary">
           {story.themes.map((theme, i) => (
             <span key={theme} className="flex items-center gap-2">
               {i > 0 && (
@@ -80,7 +80,7 @@ export function ApexSeasonTake({ personal }: { personal: PersonalSeasonContext }
 function PersonalLine({ companion, className = "" }: { companion: string; className?: string }) {
   return (
     <div className={`max-w-3xl border-l border-[var(--f1-red)]/35 pl-3.5 ${className}`}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">For you</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">For you</p>
       <p className="mt-1 text-sm leading-relaxed text-neutral-400">{companion}</p>
     </div>
   );

@@ -174,7 +174,7 @@ export default async function CommunityPage({
     <div className="page-wide py-6">
       <GroupRealtimeWatcher groupId={id} />
 
-      <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition hover:text-neutral-300">
+      <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-tertiary transition hover:text-neutral-300">
         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
           <path d="M9.5 3.5 5 8l4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

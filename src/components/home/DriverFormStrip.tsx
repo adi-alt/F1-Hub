@@ -39,12 +39,12 @@ export function DriverFormStrip({ favoriteDriverCode, races }: { favoriteDriverC
   const form = buildForm(favoriteDriverCode, races);
 
   if (form.length === 0) {
-    return <p className="text-sm text-neutral-500">No finishes yet this season.</p>;
+    return <p className="text-sm text-tertiary">No finishes yet this season.</p>;
   }
 
   return (
     <div>
-      <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Recent form</p>
+      <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Recent form</p>
       <div className="flex items-center" onMouseLeave={() => setHovered(null)}>
         {form.map((r, i) => (
           <div key={r.raceId} className="relative flex items-center">

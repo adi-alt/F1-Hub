@@ -27,7 +27,7 @@ export default async function NotFound() {
       <div className="max-w-md text-center">
         <CheckeredStrip />
         <p className="mt-8 font-mono text-7xl font-bold tracking-tight text-white sm:text-8xl">
-          <span className="text-[var(--f1-red)]">4</span>0<span className="text-[var(--f1-red)]">4</span>
+          <span className="text-brand-text">4</span>0<span className="text-brand-text">4</span>
         </p>
         <h1 className="mt-4 text-xl font-bold text-white">Off track.</h1>
         <p className="mt-2 text-sm text-neutral-400">

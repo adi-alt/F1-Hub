@@ -47,7 +47,7 @@ export function ModelWatch({ nextRace }: { nextRace: RaceDoc | null }) {
       </div>
       <Link
         href={raceHref(nextRace.year, nextRace.round, nextRace.name, "simulation")}
-        className="mt-3 inline-block text-xs text-neutral-500 transition hover:text-white"
+        className="mt-3 inline-block text-xs text-tertiary transition hover:text-white"
       >
         View model analysis →
       </Link>

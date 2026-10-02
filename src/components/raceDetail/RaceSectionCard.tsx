@@ -33,10 +33,10 @@ export function RaceSectionCard({
   return (
     <motion.section layout id={id} className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{title}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">{title}</p>
         {headerRight}
       </div>
-      {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
+      {description && <p className="mt-1 text-sm text-tertiary">{description}</p>}
       <div className="mt-3">{children}</div>
     </motion.section>
   );

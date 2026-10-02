@@ -63,9 +63,9 @@ export function ManageTab({ group }: { group: GroupDetail }) {
               className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${
                 section === s.value
                   ? s.value === "danger"
-                    ? "bg-[var(--f1-red)]/10 text-[var(--f1-red)]"
+                    ? "bg-[var(--f1-red)]/10 text-brand-text"
                     : "bg-white/[0.06] text-white"
-                  : "text-neutral-500 hover:bg-white/[0.03] hover:text-neutral-300"
+                  : "text-tertiary hover:bg-white/[0.03] hover:text-neutral-300"
               }`}
             >
               {s.label}
@@ -129,7 +129,7 @@ function SaveRow({ status, error, onSave, disabled }: { status: string; error: s
       </button>
       {status === "saved" && <span className="text-xs text-emerald-400">Saved</span>}
       {error && (
-        <span role="alert" className="text-xs text-[var(--f1-red)]">
+        <span role="alert" className="text-xs text-brand-text">
           {error}{" "}
           <button type="button" onClick={onSave} className="underline underline-offset-2">
             Retry
@@ -144,7 +144,7 @@ function Section({ title, description, children }: { title: string; description?
   return (
     <section>
       <h2 className="text-sm font-semibold text-white">{title}</h2>
-      {description && <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">{description}</p>}
+      {description && <p className="mt-0.5 text-xs leading-relaxed text-tertiary">{description}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -204,11 +204,11 @@ function GeneralSection({ group }: { group: GroupDetail }) {
             onChange={(e) => setTagline(e.target.value)}
             maxLength={MAX_TAGLINE_CHARS}
             placeholder="A short line shown over the cover image"
-            className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
           />
           {/* Stated rather than silently truncated - it sits over an image at any width, which is
               why it's capped at all. */}
-          <span className="mt-1 block text-[11px] text-neutral-600">
+          <span className="mt-1 block text-[11px] text-tertiary">
             {tagline.length}/{MAX_TAGLINE_CHARS} · appears over the cover, not under the name
           </span>
         </label>
@@ -295,9 +295,9 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
             <div key={m} className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-2.5">
               <span>
                 <span className="block text-sm text-neutral-300">{MODULE_LABELS[m]}</span>
-                <span className="block text-[11px] text-neutral-600">{MODULE_DESCRIPTIONS[m]}</span>
+                <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Always on</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Always on</span>
             </div>
           ))}
 
@@ -316,7 +316,7 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
             >
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
-                <span className="block text-[11px] text-neutral-500">{MODULE_DESCRIPTIONS[m]}</span>
+                <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
               <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-[var(--f1-red)]" : "bg-white/10"}`} aria-hidden>
                 <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
@@ -325,7 +325,7 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
           );
         })}
 
-        {toggles.length === 0 && <p className="text-xs text-neutral-500">This community type has no optional features.</p>}
+        {toggles.length === 0 && <p className="text-xs text-tertiary">This community type has no optional features.</p>}
       </div>
 
       <SaveRow status={status} error={error} onSave={() => void save({ features })} />
@@ -345,7 +345,7 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
           <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-3">
             <span className="min-w-0">
               <span className="block text-sm text-neutral-200">{action.label}</span>
-              <span className="block text-[11px] text-neutral-600">{action.description}</span>
+              <span className="block text-[11px] text-tertiary">{action.description}</span>
             </span>
             <Picker
               options={PERMISSION_LEVELS}
@@ -382,7 +382,7 @@ function ModerationSection({ group }: { group: GroupDetail }) {
       >
         <span>
           <span className="block text-sm font-medium text-white">Require post approval</span>
-          <span className="block text-[11px] text-neutral-500">
+          <span className="block text-[11px] text-tertiary">
             Member posts wait for an admin or moderator. Admins and moderators bypass their own queue.
           </span>
         </span>
@@ -391,7 +391,7 @@ function ModerationSection({ group }: { group: GroupDetail }) {
         </span>
       </button>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-neutral-600">
+      <p className="mt-3 text-[11px] leading-relaxed text-tertiary">
         Pending posts appear inline in the Feed with Approve and Remove, so there&apos;s no separate queue to remember to check. Blocked-word lists and
         a report inbox aren&apos;t built yet and aren&apos;t shown here rather than being shown as switches that do nothing.
       </p>
@@ -439,7 +439,7 @@ function JoinRequestsSection({ group }: { group: GroupDetail }) {
           ))}
         </div>
       ) : requests.length === 0 ? (
-        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-neutral-500">
+        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-tertiary">
           {group.visibility === "public" ? "This community is public, so people join directly - there's nothing to approve." : "No one is waiting to join."}
         </p>
       ) : (
@@ -449,7 +449,7 @@ function JoinRequestsSection({ group }: { group: GroupDetail }) {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0">
                   <span className="block truncate text-sm text-neutral-200">{request.displayName ?? request.username ?? "Member"}</span>
-                  <span className="block text-[11px] text-neutral-600">Asked {new Date(request.createdAt).toLocaleDateString()}</span>
+                  <span className="block text-[11px] text-tertiary">Asked {new Date(request.createdAt).toLocaleDateString()}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <button
@@ -559,7 +559,7 @@ function InvitesSection({ group }: { group: GroupDetail }) {
   return (
     <Section title="Invitations" description="Signed links that let someone into a private or hidden community without waiting for approval. Each one expires, has a use limit, and can be cancelled at any time.">
       {isPublic ? (
-        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-neutral-500">This community is public, so anyone can join it directly - there&apos;s nothing to invite people past.</p>
+        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-tertiary">This community is public, so anyone can join it directly - there&apos;s nothing to invite people past.</p>
       ) : (
         <>
           <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 p-3.5">
@@ -603,7 +603,7 @@ function InvitesSection({ group }: { group: GroupDetail }) {
             {invites === null ? (
               <div className="skeleton-shimmer h-14 rounded-lg bg-white/[0.04]" />
             ) : invites.length === 0 ? (
-              <p className="text-sm text-neutral-500">No active invitations.</p>
+              <p className="text-sm text-tertiary">No active invitations.</p>
             ) : (
               <ul className="space-y-2">
                 {invites.map((invite) => (
@@ -633,18 +633,18 @@ function InvitesSection({ group }: { group: GroupDetail }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-3 text-xs text-[var(--f1-red)]">
+        <p role="alert" className="mt-3 text-xs text-brand-text">
           {error}
         </p>
       )}
 
       <h3 className="mt-8 text-sm font-semibold text-white">Banned</h3>
-      <p className="mt-1 text-xs text-neutral-500">People removed with &ldquo;Ban&rdquo; can&apos;t rejoin, use an invitation, or send a request.</p>
+      <p className="mt-1 text-xs text-tertiary">People removed with &ldquo;Ban&rdquo; can&apos;t rejoin, use an invitation, or send a request.</p>
       <div className="mt-3">
         {bans === null ? (
           <div className="skeleton-shimmer h-12 rounded-lg bg-white/[0.04]" />
         ) : bans.length === 0 ? (
-          <p className="text-sm text-neutral-500">No one is banned.</p>
+          <p className="text-sm text-tertiary">No one is banned.</p>
         ) : (
           <ul className="space-y-2">
             {bans.map((ban) => (
@@ -685,7 +685,7 @@ function DangerSection({ group }: { group: GroupDetail }) {
     <Section title="Danger zone" description="These can't be undone.">
       <div className="rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.04] px-4 py-3.5">
         <p className="text-sm font-medium text-neutral-200">Delete this community</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">
+        <p className="mt-0.5 text-xs leading-relaxed text-tertiary">
           Every post, comment, prediction and score is permanently removed for all {group.members.length} member
           {group.members.length === 1 ? "" : "s"}. Points already spent on predictions are not refunded.
         </p>
@@ -695,13 +695,13 @@ function DangerSection({ group }: { group: GroupDetail }) {
             question={`Permanently delete "${group.name}"?`}
             confirmLabel="Delete forever"
             pending={deleting}
-            className="rounded-full border border-[var(--f1-red)]/50 px-3.5 py-1.5 text-xs font-semibold text-[var(--f1-red)] transition hover:bg-[var(--f1-red)]/10 disabled:opacity-40"
+            className="rounded-full border border-[var(--f1-red)]/50 px-3.5 py-1.5 text-xs font-semibold text-brand-text transition hover:bg-[var(--f1-red)]/10 disabled:opacity-40"
           >
             Delete community
           </ConfirmButton>
         </div>
         {error && (
-          <p role="alert" className="mt-2 text-xs text-[var(--f1-red)]">
+          <p role="alert" className="mt-2 text-xs text-brand-text">
             {error}
           </p>
         )}

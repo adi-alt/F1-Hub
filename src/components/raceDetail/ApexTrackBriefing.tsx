@@ -61,10 +61,10 @@ function useCircuitTake(location: string, year: number): State {
 function ApexLabel({ isAi }: { isAi?: boolean }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span aria-hidden className="text-[var(--f1-red)]">
+      <span aria-hidden className="text-brand-text">
         ✦
       </span>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{isAi === undefined ? "Apex on this circuit" : isAi ? "Apex AI take" : "Track summary"}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">{isAi === undefined ? "Apex on this circuit" : isAi ? "Apex AI take" : "Track summary"}</p>
     </div>
   );
 }
@@ -128,7 +128,7 @@ export function ApexTrackBriefing({ location, year }: { location: string; year: 
               ))}
             </div>
           )}
-          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 text-xs font-medium text-neutral-500 transition hover:text-white">
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 text-xs font-medium text-tertiary transition hover:text-white">
             {expanded ? "Show less ↑" : "Show more ↓"}
           </button>
         </>

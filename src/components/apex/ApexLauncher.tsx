@@ -114,7 +114,7 @@ export function ApexLauncher() {
         data-tour="apex-launcher"
         className="fixed bottom-4 left-4 z-[90] flex items-center gap-1.5 rounded-full border border-white/15 bg-zinc-900/90 px-3.5 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition hover:border-white/30 hover:bg-zinc-800/90 sm:bottom-5 sm:left-5"
       >
-        <span aria-hidden className="text-[var(--f1-red)]">
+        <span aria-hidden className="text-brand-text">
           ✦
         </span>
         Apex
@@ -153,7 +153,7 @@ export function ApexLauncher() {
                     </div>
                   ))}
                   {sending && (
-                    <p className="inline-block rounded-xl bg-black/30 px-3 py-2 text-sm text-neutral-500">
+                    <p className="inline-block rounded-xl bg-black/30 px-3 py-2 text-sm text-tertiary">
                       <span className="sr-only">Apex is answering…</span>
                       <span aria-hidden className="inline-flex gap-1">
                         <Dot delay={0} />
@@ -180,7 +180,7 @@ export function ApexLauncher() {
                 maxLength={500}
                 placeholder={reach === "page" ? `Ask about ${scope.label}...` : "Ask anything about F1..."}
                 aria-label="Ask Apex a question"
-                className="min-w-0 flex-1 rounded-lg bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="min-w-0 flex-1 rounded-lg bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               />
               <button
                 type="submit"
@@ -204,9 +204,9 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
     <header className="shrink-0 border-b border-white/10 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Apex is looking at</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Apex is looking at</p>
           <p className="mt-0.5 truncate text-sm font-semibold text-white">{reach === "page" ? scope.label : "Everything on F1 HUB"}</p>
-          {reach === "page" && scope.sublabel && <p className="truncate text-[11px] text-neutral-500">{scope.sublabel}</p>}
+          {reach === "page" && scope.sublabel && <p className="truncate text-[11px] text-tertiary">{scope.sublabel}</p>}
         </div>
         <button
           onClick={onClose}
@@ -234,7 +234,7 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
               aria-checked={reach === option.value}
               onClick={() => onReach(option.value)}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-                reach === option.value ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+                reach === option.value ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"
               }`}
             >
               {option.label}

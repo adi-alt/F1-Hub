@@ -287,7 +287,7 @@ export function PostComposer({
           onClick={mode === "prediction" ? () => setMode("discussion") : requestClose}
           aria-label={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
           title={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
-          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-neutral-500 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-tertiary transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
           <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
             <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -301,7 +301,7 @@ export function PostComposer({
           <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 text-[11.5px] font-medium text-neutral-300 transition hover:text-white">
             Keep editing
           </button>
-          <button type="button" onClick={reset} className="shrink-0 text-[11.5px] font-semibold text-[var(--f1-red)] transition hover:brightness-125">
+          <button type="button" onClick={reset} className="shrink-0 text-[11.5px] font-semibold text-brand-text transition hover:brightness-125">
             Discard
           </button>
         </div>
@@ -311,7 +311,7 @@ export function PostComposer({
         <div className="flex items-start gap-2.5">
           <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={34} />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">New prediction round</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">New prediction round</p>
             <PredictionComposer
               communities={predictionCommunities}
               races={upcomingRaces}
@@ -334,7 +334,7 @@ export function PostComposer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Add a title (optional)"
               maxLength={300}
-              className="mb-2 w-full rounded-xl border border-white/[0.07] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-white placeholder:font-normal placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+              className="mb-2 w-full rounded-xl border border-white/[0.07] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-white placeholder:font-normal placeholder:text-tertiary focus:border-white/20 focus:outline-none"
             />
           )}
           <textarea
@@ -350,7 +350,7 @@ export function PostComposer({
             // the single row can't show, and at phone width the prompt reads as a sentence cut in
             // half. Held to one line and clipped instead; the moment it's focused it opens to three
             // rows and wraps normally again.
-            className={`w-full resize-none rounded-lg border border-white/[0.07] bg-black/25 px-3 py-2 text-[13.5px] leading-relaxed text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none ${
+            className={`w-full resize-none rounded-lg border border-white/[0.07] bg-black/25 px-3 py-2 text-[13.5px] leading-relaxed text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none ${
               isOpen ? "" : "overflow-hidden text-ellipsis whitespace-nowrap"
             }`}
           />
@@ -362,10 +362,10 @@ export function PostComposer({
         // what will appear in the feed - no second attachment design to drift out of sync.
         <div className="ml-[44px] max-w-full">
           <PostAttachment attachment={attachment} onRemove={removeMedia} />
-          {uploadingMedia && <p className="mt-1 text-[11px] text-neutral-500">Uploading…</p>}
+          {uploadingMedia && <p className="mt-1 text-[11px] text-tertiary">Uploading…</p>}
         </div>
       )}
-      {mediaError && <p className="ml-[44px] mt-1 text-[11.5px] text-[var(--f1-red)]">{mediaError}</p>}
+      {mediaError && <p className="ml-[44px] mt-1 text-[11.5px] text-brand-text">{mediaError}</p>}
 
       {scheduledConfirmation && (
         <div className="ml-[44px] mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
@@ -413,7 +413,7 @@ export function PostComposer({
         />
 
         <div className="ml-auto flex items-center gap-2">
-          {notice && <span className="text-xs text-[var(--f1-red)]">{notice}</span>}
+          {notice && <span className="text-xs text-brand-text">{notice}</span>}
           {fixedGroupId
             ? isOpen &&
               fixedCommunity && (
@@ -472,7 +472,7 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
       onClick={onClick}
       aria-pressed={active}
       className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-medium transition ${
-        active ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
+        active ? "bg-[var(--f1-red)]/[0.14] text-brand-text" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
       }`}
     >
       <span className={compactLabel ? "" : "shrink-0"}>{icon}</span>

@@ -39,7 +39,7 @@ export function Pagination({
   const showNumbers = totalPages > 1;
 
   return (
-    <nav aria-label="Pagination" className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-neutral-500">
+    <nav aria-label="Pagination" className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-tertiary">
       <span>
         {totalItems} {itemLabel}
         {totalItems === 1 ? "" : "s"}
@@ -57,7 +57,7 @@ export function Pagination({
         {showNumbers &&
           pageNumbers(page, totalPages).map((p, i) =>
             p === "…" ? (
-              <span key={`ellipsis-${i}`} className="px-1.5 text-neutral-600">
+              <span key={`ellipsis-${i}`} className="px-1.5 text-tertiary">
                 …
               </span>
             ) : (

@@ -110,7 +110,7 @@ export function PostCard({
                 onClick={toggle}
                 aria-expanded={open}
                 aria-label="Post actions"
-                className={`-mr-1 -mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition ${open ? "bg-white/[0.08] text-white" : "text-neutral-500 hover:bg-white/[0.06] hover:text-white"}`}
+                className={`-mr-1 -mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition ${open ? "bg-white/[0.08] text-white" : "text-tertiary hover:bg-white/[0.06] hover:text-white"}`}
               >
                 <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden>
                   <circle cx="4" cy="10" r="1.5" />
@@ -140,7 +140,7 @@ export function PostCard({
                     close();
                     void moderate("reject");
                   }}
-                  className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-[var(--f1-red)] transition hover:bg-[var(--f1-red)]/10"
+                  className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-brand-text transition hover:bg-[var(--f1-red)]/10"
                 >
                   Remove post
                 </button>

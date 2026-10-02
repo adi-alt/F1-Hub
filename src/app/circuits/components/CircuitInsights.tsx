@@ -56,7 +56,7 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {hasRecords && (
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Circuit records</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Circuit records</p>
           <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
             {trackRecords.mostWins && <Fact label="Most wins" value={`${joinNames(trackRecords.mostWins.drivers)} (${trackRecords.mostWins.count})`} />}
             {trackRecords.mostPoles && <Fact label="Most poles" value={`${joinNames(trackRecords.mostPoles.drivers)} (${trackRecords.mostPoles.count})`} />}
@@ -70,12 +70,12 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
 
       {hasPersonal && (
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Your history here</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Your history here</p>
           <div className="mt-2.5 flex flex-col gap-2">
             {personalDrivers.map((d) => (
               <p key={d.code} className="text-sm">
                 <span className="font-medium text-white">{d.name}</span>
-                <span className="text-neutral-500">
+                <span className="text-tertiary">
                   {" "}
                   · {d.races} race{d.races === 1 ? "" : "s"}
                   {d.wins > 0 && `, ${d.wins} win${d.wins === 1 ? "" : "s"}`}
@@ -86,7 +86,7 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
             {personalTeams.map((t) => (
               <p key={t.name} className="text-sm">
                 <span className="font-medium text-white">{t.name}</span>
-                <span className="text-neutral-500">
+                <span className="text-tertiary">
                   {" "}
                   · {t.races} race{t.races === 1 ? "" : "s"}
                   {t.podiums > 0 && `, ${t.podiums} podium${t.podiums === 1 ? "" : "s"}`}
@@ -105,7 +105,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <dd className="truncate font-medium text-white">{value}</dd>
-      <dt className="text-[10px] text-neutral-500">{label}</dt>
+      <dt className="text-[10px] text-tertiary">{label}</dt>
     </div>
   );
 }

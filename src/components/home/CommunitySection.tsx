@@ -82,10 +82,10 @@ export function CommunitySection({
     <section>
       <div className="mb-4 flex items-baseline justify-between">
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">
             Your Paddock
           </h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
+          <p className="mt-0.5 text-xs text-tertiary">
             Real discussions, predictions, and active group standings
           </p>
         </div>
@@ -106,7 +106,7 @@ export function CommunitySection({
                 Latest Community Activity
               </h3>
               {!postsCompact && (
-                <p className="text-[11px] text-neutral-500">
+                <p className="text-[11px] text-tertiary">
                   Recent discourse and predictions from your paddock
                 </p>
               )}
@@ -122,7 +122,7 @@ export function CommunitySection({
                 <p className="text-sm text-neutral-400">No community activity in the last 7 days.</p>
                 <Link
                   href="/groups"
-                  className="mt-2 text-xs font-medium text-[var(--f1-red)] hover:underline"
+                  className="mt-2 text-xs font-medium text-brand-text hover:underline"
                 >
                   Join or browse active groups →
                 </Link>
@@ -145,7 +145,7 @@ export function CommunitySection({
             <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300">
               Your Communities
             </h3>
-            <p className="text-[11px] text-neutral-500">
+            <p className="text-[11px] text-tertiary">
               Your joined paddocks and competitive circles
             </p>
           </div>
@@ -170,7 +170,7 @@ export function CommunitySection({
                 <p className="text-sm text-neutral-400">You haven&apos;t joined any groups yet.</p>
                 {discoverGroups.length > 0 && (
                   <div className="mt-4 w-full space-y-2">
-                    <p className="text-[11px] uppercase tracking-wide text-neutral-500">
+                    <p className="text-[11px] uppercase tracking-wide text-tertiary">
                       Recommended groups:
                     </p>
                     {discoverGroups.slice(0, 3).map((g) => (
@@ -182,7 +182,7 @@ export function CommunitySection({
                         <EntityAvatar imageUrl={g.avatarUrl} name={g.name} size={30} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-medium text-white">{g.name}</p>
-                          <p className="text-[10px] text-neutral-500">{g.memberCount} members</p>
+                          <p className="text-[10px] text-tertiary">{g.memberCount} members</p>
                         </div>
                       </Link>
                     ))}
@@ -190,7 +190,7 @@ export function CommunitySection({
                 )}
               </div>
             ) : filteredGroups.length === 0 ? (
-              <p className="py-8 text-center text-xs text-neutral-500">
+              <p className="py-8 text-center text-xs text-tertiary">
                 No joined groups match &quot;{searchQuery}&quot;
               </p>
             ) : (
@@ -202,7 +202,7 @@ export function CommunitySection({
                   >
                     <EntityAvatar imageUrl={featured.avatarUrl} name={featured.name} size={38} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--f1-red)]">Most active</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-text">Most active</p>
                       <p className="truncate text-sm font-medium text-white">{featured.name}</p>
                       <p className="truncate text-xs text-neutral-400">{formatActivityLabel(featured)}</p>
                     </div>

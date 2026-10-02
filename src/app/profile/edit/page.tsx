@@ -46,7 +46,7 @@ export default function EditProfilePage() {
 
   return (
     <div className="page-narrow py-10">
-      <Link href="/" className="text-sm text-neutral-500 hover:text-neutral-300">
+      <Link href="/" className="text-sm text-tertiary hover:text-neutral-300">
         ← Home
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-white">Edit profile</h1>
@@ -62,7 +62,7 @@ export default function EditProfilePage() {
         </div>
         <div>
           <p className="mb-2 text-sm font-medium text-neutral-300">Email</p>
-          <p className="text-sm text-neutral-500">{user.email} (not editable here)</p>
+          <p className="text-sm text-tertiary">{user.email} (not editable here)</p>
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button
