@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { generateTrackShape } from "../trackShape";
 import { describeTrackCharacter, getCircuitFacts, type CircuitFacts } from "../circuitFacts";
-import { buildCircuitContext, circuitValidIds } from "../ai/context/circuitContext";
+import { buildCircuitContext, circuitValidIds, formatCircuitContext } from "../ai/context/circuitContext";
+import type { CircuitYearRecord } from "../circuitIntelligence";
 import { validateSharedCircuitIntelligence } from "../ai/schemas/seasonIntelligence";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
 import { resolveCurrentCircuitToArchiveId } from "../circuitSlug";
@@ -245,5 +246,69 @@ describe("resolveCurrentCircuitToArchiveId - the 2026 Bahrain venue", () => {
 
   it("a Bahrain GP held at Sakhir still resolves to Bahrain International Circuit", () => {
     assert.equal(resolveCurrentCircuitToArchiveId("Sakhir", localities), "bahrain");
+  });
+});
+
+describe("buildCircuitContext: what the race page's starter questions need (Ask Apex)", () => {
+  const year = (y: number, winnerDriver: string, winnerTeam: string, winnerGrid: number): CircuitYearRecord => ({
+    year: y,
+    winnerDriver,
+    winnerTeam,
+    winnerGrid,
+    winnerCode: null,
+    winnerArchiveDriverId: null,
+    poleSitter: null,
+    poleCode: null,
+    poleArchiveDriverId: null,
+    winnerWasPole: winnerGrid === 1,
+    winningMarginSec: null,
+    fieldMovementAvg: null,
+    dryRace: true,
+    avgTempC: null,
+    raceName: null,
+    raceDateIso: null,
+    fastestLapSec: null,
+    fastestLapDriver: null,
+    fastestLapCode: null,
+  });
+  const timeline = [
+    year(2012, "Fernando Alonso", "Ferrari", 8),
+    year(2016, "Daniel Ricciardo", "Red Bull", 4),
+    year(2017, "Max Verstappen", "Red Bull", 3),
+    year(2004, "Michael Schumacher", "Ferrari", 1),
+    year(2010, "Sebastian Vettel", "Red Bull", 3),
+  ];
+  const ages = {
+    youngestWinner: { driver: "Max Verstappen", age: 20, year: 2017 },
+    oldestWinner: { driver: "Michael Schumacher", age: 35, year: 2004 },
+    youngestPoleSitter: null,
+    oldestPoleSitter: null,
+  };
+  const ctx = buildCircuitContext("Kuala Lumpur", "Sepang", "Malaysian Grand Prix", "Malaysia", 2026, null, null, timeline, ages);
+  const text = formatCircuitContext(ctx);
+
+  it("ranks the constructors, for \"which constructor has the best record here?\"", () => {
+    assert.deepEqual(ctx.topTeams, [
+      { team: "Red Bull", wins: 3 },
+      { team: "Ferrari", wins: 2 },
+    ]);
+    assert.match(text, /top constructors: Red Bull \(3\), Ferrari \(2\)/);
+  });
+
+  it("lists every winner by year, newest first, for \"who won here in 2012?\"", () => {
+    assert.equal(ctx.winnersByYear[0], "2017 Max Verstappen (Red Bull) from P3");
+    assert.equal(ctx.winnersByYear.length, 5);
+    assert.match(text, /WINNERS BY YEAR\n {2}2017 Max Verstappen/);
+  });
+
+  it("names the upsets, winners from P4 or lower, furthest back first", () => {
+    assert.deepEqual(ctx.upsets, ["Fernando Alonso won from P8 in 2012", "Daniel Ricciardo won from P4 in 2016"]);
+  });
+
+  it("states the age records it was given, and leaves them out when it wasn't", () => {
+    assert.match(text, /youngest winner: Max Verstappen, 20 \(2017\)/);
+    assert.match(text, /oldest winner: Michael Schumacher, 35 \(2004\)/);
+    const without = formatCircuitContext(buildCircuitContext("Kuala Lumpur", "Sepang", null, null, 2026, null, null, timeline));
+    assert.doesNotMatch(without, /youngest winner/);
   });
 });

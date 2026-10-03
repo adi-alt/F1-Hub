@@ -18,6 +18,8 @@ export type BaseApexContext = {
 
 export type HomepageApexContext = BaseApexContext & {
   page: "home";
+  /** The page's own numbers (lib/ai/context/homeFacts.ts). */
+  facts?: Record<string, unknown>;
   snapshot: Record<string, unknown>; // Existing homepage intelligence snapshot
 };
 
@@ -50,6 +52,8 @@ export type RaceApexContext = BaseApexContext & {
    * dispatch already uses. */
   archiveYear?: number;
   archiveRound?: number;
+  /** The viewer's IANA time zone, so the session schedule is given in the time the page shows. */
+  timeZone?: string;
   /** Fallback identity for a calendar-only placeholder round - `raceId` resolves to nothing in
    * `races` yet, but the circuit and season are still real and still answerable (the same
    * circuit-history grounding the circuit page itself uses). Ignored once `raceId` resolves to a

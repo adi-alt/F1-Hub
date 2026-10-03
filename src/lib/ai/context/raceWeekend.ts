@@ -1,4 +1,6 @@
+import { parseUtcDateTime } from "@/lib/countdown";
 import { formatLapTime } from "@/lib/format";
+import type { CalendarSession } from "@/lib/supabase/calendar";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
 
@@ -140,4 +142,21 @@ export function archiveRaceFacts(race: ArchiveRaceDoc): RaceWeekendFacts | null 
   }
 
   return facts.result || facts.qualifying ? facts : null;
+}
+
+/** The weekend's sessions in the viewer's own time zone (the client sends it), as the race page
+ * shows them, so "when is qualifying?" gets the time the user sees rather than UTC. UTC when the
+ * zone is missing or not one Intl knows. Session dates are stored as UTC without a suffix. */
+export function formatSessionSchedule(sessions: CalendarSession[], timeZone: unknown): string[] {
+  let zone = "UTC";
+  if (typeof timeZone === "string" && timeZone.length <= 64) {
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone });
+      zone = timeZone;
+    } catch {
+      // not a zone Intl knows: UTC
+    }
+  }
+  const format = new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+  return sessions.map((session) => `${session.label}: ${format.format(parseUtcDateTime(session.date))}`);
 }

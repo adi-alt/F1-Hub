@@ -1,6 +1,7 @@
 "use client";
 
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
+import type { HomeApexFacts } from "@/lib/ai/context/homeFacts";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
 /**
@@ -14,7 +15,18 @@ import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
  *
  * Renders nothing.
  */
-export function HomepageApexScope({ raceName, favoriteDriverName, favoriteTeamName }: { raceName?: string | null; favoriteDriverName?: string | null; favoriteTeamName?: string | null }) {
+export function HomepageApexScope({
+  raceName,
+  favoriteDriverName,
+  favoriteTeamName,
+  facts,
+}: {
+  raceName?: string | null;
+  favoriteDriverName?: string | null;
+  favoriteTeamName?: string | null;
+  /** The page's own numbers (buildHomeApexFacts): the briefing is prose and doesn't repeat them. */
+  facts?: HomeApexFacts;
+}) {
   const { intelligence } = useHomepageIntelligence();
 
   useRegisterApexScope({
@@ -29,10 +41,11 @@ export function HomepageApexScope({ raceName, favoriteDriverName, favoriteTeamNa
       ...(favoriteTeamName ? [`How is ${favoriteTeamName} doing this season?`] : []),
       "What's the biggest risk this weekend?",
     ],
-    // The whole briefing, exactly as the homepage's own components see it. The route caps and
-    // sanitises it before it ever reaches a prompt.
+    // The page's own numbers first, then the whole briefing, exactly as the homepage's own
+    // components see it. The route caps and sanitises both, trimming the briefing, never the facts.
     context: {
       page: "home",
+      facts: facts as unknown as Record<string, unknown> | undefined,
       snapshot: (intelligence ?? {}) as unknown as Record<string, unknown>,
     },
   });
