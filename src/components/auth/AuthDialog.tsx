@@ -535,8 +535,8 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
   // by the step's title, focus moved in and trapped, Escape and the scrim close it, focus goes back
   // to whatever opened it, and the page behind stops scrolling. It is portalled to document.body,
   // which also keeps position:fixed safe from any ancestor that establishes a containing block.
-  // The panel is opaque and capped at the viewport height with the body scrolling inside, so a
-  // short phone no longer clips the form.
+  // The panel is frosted glass (surface-glass) and capped at the viewport height with the body
+  // scrolling inside, so a short phone no longer clips the form.
   return (
     <Dialog
       open
@@ -545,6 +545,10 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
       description={step === "method" ? "One account either way — we'll figure out which." : undefined}
       size="sm"
       aside={<FormulaScene />}
+      // The first step's own height (646px measured), held for every step: the code step used to
+      // shrink the dialog to half that, and the profile step to resize it again. Shorter steps are
+      // centred in the space instead.
+      minHeight="40.5rem"
       initialFocusRef={firstFieldRef}
     >
       {step === "method" && (

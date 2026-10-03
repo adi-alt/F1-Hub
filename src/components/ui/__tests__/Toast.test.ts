@@ -119,7 +119,7 @@ describe("ToastRegion", () => {
   });
 
   it("draws each toast as a surface-3 card in body-sm that takes the pointer", () => {
-    for (const item of items) assertClasses(openingTag(item, /^<li[^>]*>/), ["bg-surface-3", "rounded-card", "text-body-sm", "pointer-events-auto"]);
+    for (const item of items) assertClasses(openingTag(item, /^<li[^>]*>/), ["surface-glass", "rounded-card", "text-body-sm", "pointer-events-auto"]);
   });
 
   it("gives every tone its own 20px icon in its colour, hidden from assistive tech", () => {

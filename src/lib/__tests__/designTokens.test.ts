@@ -105,6 +105,8 @@ const UTILITIES: Record<string, RegExp> = {
   "duration-base": /transition-duration: var\(--duration-base\)/,
   "duration-slow": /transition-duration: var\(--duration-slow\)/,
   tabular: /font-variant-numeric: tabular-nums/,
+  // The opaque fallback Tailwind emits ahead of color-mix(); the frosted value is checked below.
+  "surface-glass": /background-color: var\(--surface-1\)/,
 };
 
 test("every token works as a Tailwind utility", async () => {
@@ -118,10 +120,32 @@ test("every token works as a Tailwind utility", async () => {
   }
 });
 
+test("surface-glass is frosted: translucent surface-1 over a blur, with a hairline edge", async () => {
+  const compiler = await compile(css, { base: APP_DIR, onDependency: () => {} });
+  const out = compiler.build(["surface-glass"]);
+  assert.match(out, /background-color: color-mix\(in srgb, var\(--surface-1\) 70%, transparent\)/);
+  assert.match(out, /-webkit-backdrop-filter: blur\(24px\) saturate\(160%\)/);
+  assert.match(out, /\sbackdrop-filter: blur\(24px\) saturate\(160%\)/);
+  assert.match(out, /border: 1px solid rgb\(255 255 255 \/ 0\.12\)/);
+});
+
 test("the type scale carries its line heights and weights", async () => {
   const compiler = await compile(css, { base: APP_DIR, onDependency: () => {} });
   const out = compiler.build(["text-display-lg", "text-caption"]);
   assert.match(out, /--text-display-lg--line-height: 2\.75rem/);
   assert.match(out, /--text-display-lg--font-weight: 700/);
   assert.match(out, /--text-caption--line-height: 1rem/);
+});
+
+test("the header and the Apex launcher sit on the token scale, below dialogs and sheets", () => {
+  // At z-50 the header covered a dialog's top edge on a short phone and stayed undimmed behind its
+  // scrim; at z-[90] the Apex launcher sat on top of the mobile menu sheet.
+  const read = (file: string) => fs.readFileSync(path.join(APP_DIR, "..", file), "utf8");
+  const header = read("components/Header.tsx");
+  assert.match(header, /<header className="relative z-header /);
+  const apex = read("components/apex/ApexLauncher.tsx");
+  assert.equal((apex.match(/\bz-popover\b/g) ?? []).length >= 2, true);
+  for (const [name, source] of [["Header", header], ["ApexLauncher", apex]] as const) {
+    assert.doesNotMatch(source, /\bz-\[\d+\]|\bz-50\b/, `${name} uses a hard-coded z-index`);
+  }
 });
