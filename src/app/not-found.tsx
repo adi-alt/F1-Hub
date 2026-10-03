@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getCurrentSeason } from "@/lib/currentSeason";
 import { seasonHref } from "@/lib/routes";
 
 export const metadata: Metadata = { title: "Page Not Found" };
@@ -19,7 +20,8 @@ function CheckeredStrip() {
 /** The route-not-found boundary (Next's own not-found.tsx convention) - AmbientBackground and the
  * header/footer chrome from the root layout are still around this, only the page body is
  * replaced, same scoping as error.tsx's own render-error boundary. */
-export default function NotFound() {
+export default async function NotFound() {
+  const season = await getCurrentSeason();
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] items-center justify-center px-4">
       <div className="max-w-md text-center">
@@ -36,7 +38,7 @@ export default function NotFound() {
             Back to F1 Hub
           </Link>
           <Link
-            href={seasonHref(2026)}
+            href={seasonHref(season)}
             className="rounded-lg border border-[var(--f1-line)] px-5 py-2.5 text-sm font-semibold text-neutral-200 transition hover:border-white/30"
           >
             View the season

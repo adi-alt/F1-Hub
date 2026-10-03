@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AmbientBackground } from "@/components/AmbientBackground";
 import { AuthDialogHost } from "@/components/auth/AuthDialogHost";
 import { Header } from "@/components/Header";
+import { getCurrentSeason } from "@/lib/currentSeason";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
 import { ApexLauncher } from "@/components/apex/ApexLauncher";
 import { ApexScopeProvider } from "@/components/apex/ApexScopeProvider";
@@ -22,15 +23,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { template: "%s | F1 Hub", default: "F1 Hub: 2026 Predictions" },
-  description: "Race results, track history, and ML-driven predictions for the 2026 F1 season.",
+  // No year in it: it is cached and shared, and a hard-coded season goes stale on 1 January.
+  title: { template: "%s | F1 Hub", default: "F1 Hub: Race Predictions" },
+  description: "Race results, track history, and ML-driven predictions for the current F1 season.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The season the nav and footer link to, from the calendar (lib/currentSeason.ts; audit R-22).
+  const season = await getCurrentSeason();
   return (
     <html
       lang="en"
@@ -43,8 +47,8 @@ export default function RootLayout({
               the current page registered; the launcher renders nothing at all on a page that
               registered none, so it never offers to answer questions about a page it can't see. */}
           <ApexScopeProvider>
-            <Header />
-            <SmoothScroll>{children}</SmoothScroll>
+            <Header season={season} />
+            <SmoothScroll season={season}>{children}</SmoothScroll>
             <ApexLauncher />
           </ApexScopeProvider>
           <AuthDialogHost />

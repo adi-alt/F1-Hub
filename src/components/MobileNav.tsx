@@ -7,25 +7,27 @@ import { AnimatePresence, motion } from "framer-motion";
 import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { seasonHref } from "@/lib/routes";
 
-const baseLinks: { href: string; label: string; section: NavSection }[] = [
-  { href: seasonHref(2026), label: "Season", section: "season" },
+const baseLinks = (season: number): { href: string; label: string; section: NavSection }[] => [
+  { href: seasonHref(season), label: "Season", section: "season" },
   { href: "/circuits", label: "Circuits", section: "circuits" },
   { href: "/archive", label: "Archive", section: "archive" },
   { href: "/groups", label: "Communities", section: "communities" },
 ];
 
 export function MobileNav({
+  season,
   showUsers = false,
   showModels = false,
   showNav = false,
 }: {
+  season: number;
   showUsers?: boolean;
   showModels?: boolean;
   showNav?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const links = [
-    ...baseLinks,
+    ...baseLinks(season),
     ...(showUsers ? [{ href: "/users", label: "Users", section: "users" as const }] : []),
     ...(showModels ? [{ href: "/models", label: "Models", section: "models" as const }] : []),
   ];

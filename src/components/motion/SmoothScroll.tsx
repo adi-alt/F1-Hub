@@ -14,7 +14,7 @@ import { useLenisContainer } from "./useLenisContainer";
  * Nexus's own call sites get away with `ref.current` because those pages happen to re-render
  * often anyway (live timers, polling); this page doesn't have that, so it needs its own trigger.
  */
-export function SmoothScroll({ children }: { children: React.ReactNode }) {
+export function SmoothScroll({ season, children }: { season: number; children: React.ReactNode }) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const { isAuthorized, loading } = useAuth();
@@ -49,7 +49,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
             (see AuthProvider's own comment), so without this the footer would flash in under the
             homepage's loading skeleton for every visitor, signed in or not, then disappear the
             moment auth actually resolves true. */}
-        {pathname === "/" && !loading && !isAuthorized && <Footer />}
+        {pathname === "/" && !loading && !isAuthorized && <Footer season={season} />}
       </div>
     </div>
   );

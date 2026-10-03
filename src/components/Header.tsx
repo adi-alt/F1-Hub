@@ -33,7 +33,7 @@ function NavLink({ href, section, active, tour, children }: { href: string; sect
   );
 }
 
-export function Header() {
+export function Header({ season }: { season: number }) {
   const { isAuthorized, loading, role } = useAuth();
   const permissions = role ? permissionsForRole(role) : null;
   const showUsers = !!permissions?.canViewUsers;
@@ -67,7 +67,7 @@ export function Header() {
         ) : (
           isAuthorized && (
             <nav data-tour="global-nav" className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
-              <NavLink href={seasonHref(2026)} section="season" active={activeSection} tour="nav-season">
+              <NavLink href={seasonHref(season)} section="season" active={activeSection} tour="nav-season">
                 Season
               </NavLink>
               <NavLink href="/circuits" section="circuits" active={activeSection} tour="nav-circuits">
@@ -93,7 +93,7 @@ export function Header() {
           )
         )}
         <div className="flex items-center gap-3">
-          <MobileNav showUsers={showUsers} showModels={showModels} showNav={isAuthorized} />
+          <MobileNav season={season} showUsers={showUsers} showModels={showModels} showNav={isAuthorized} />
           <SignInButton />
         </div>
       </div>
