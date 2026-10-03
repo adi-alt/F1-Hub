@@ -3,9 +3,9 @@
 :root {
   /* Zinc, not a plain near-black — Tailwind's own zinc-950/900/800, so surfaces read as a
      deliberately warm-neutral dark gray rather than an unconsidered "just make it black". */
-  --background: #09090b;
+  --background: var(--surface-0);
   --foreground: #f2f2f3;
-  --f1-red: #e10600;
+  --f1-red: var(--brand);
   --f1-red-dim: #9a0500;
   --f1-carbon: #18181b;
   --f1-carbon-2: #27272a;
@@ -29,6 +29,49 @@
      with no background and browser-default text. Those components are now written against the
      real tokens above, nothing in the app references the aliases any more, and keeping a second
      shadow naming scheme around is an invitation for new code to reach for it again. */
+  /* Design tokens - design system spec §2 (audit DS-01). New code reaches them through their
+     Tailwind utilities, mapped in the @theme blocks below: bg-surface-1, text-secondary,
+     border-subtle, bg-brand, text-danger, text-title-lg, rounded-card, shadow-overlay,
+     ease-standard, duration-fast, z-header, tabular. The older variables above keep their values
+     until each component moves onto the primitives, so nothing changes visually yet; the two that
+     already had a token's exact value (--background, --f1-red) now point at it. Arbitrary
+     [var(--...)], text-[Npx] and [#hex] classes are counted by scripts/design-lint.mjs, and CI
+     fails if any of those counts grows. */
+  color-scheme: dark;
+
+  /* Surfaces: lighter as they rise, never translucent. Borders separate; they don't make a region. */
+  --surface-0: #09090b; /* page canvas */
+  --surface-1: #16161a; /* data regions: tables, charts, prediction cards, rails */
+  --surface-2: #212126; /* raised: popovers, menus, inputs on surface-1, hover rows */
+  --surface-3: #2c2c32; /* dialogs, sheets, toasts */
+  --surface-inverse: #f4f4f5; /* rare: chart tooltips */
+  --border-subtle: #303037; /* decorative separators, table hairlines - not a control boundary */
+  --border-strong: #72727d; /* input/select boundaries, outline buttons on surfaces 0-2 (3.37:1) */
+  --border-strong-raised: #84848f; /* the same on surface-3 (3.75:1) */
+
+  /* Text: every tier passes AA on every surface (tertiary is 4.98:1 on surface-3). */
+  --text-primary: #f4f4f5;
+  --text-secondary: #a9a9b2;
+  --text-tertiary: #9a9aa4;
+  --text-disabled: #5c5c66; /* disabled only - exempt from contrast rules */
+
+  /* Brand red is for fills only (primary button, live dot, active-nav underline, brand mark).
+     Red text uses --brand-text; errors use --danger with an icon, never --brand. */
+  --brand: #e10600; /* white on it 4.97:1 */
+  --brand-hover: #c80500; /* darker on hover, which keeps white text above 6:1 */
+  --brand-text: #ff5c52;
+  --danger: #ff6b63;
+  --danger-fill: #b3261e; /* destructive primary button, white on it 6.54:1 */
+  --danger-subtle: rgb(255 107 99 / 0.1); /* alert background */
+  --success: #3fcf8e;
+  --warning: #f2b53a; /* closing soon, preliminary data, degraded */
+  --info: #6aa9ff;
+  --focus-ring: #f4f4f5; /* 2px outline + 2px offset on every focusable element */
+
+  --duration-fast: 120ms; /* hover, press */
+  --duration-base: 200ms; /* popover, tab indicator */
+  --duration-slow: 320ms; /* dialog, sheet */
+
 }
 
 @theme inline {
@@ -39,12 +82,108 @@
   --color-f1-line: var(--f1-line);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-inverse: var(--surface-inverse);
+  /* As border-subtle / border-strong / border-strong-raised. */
+  --color-subtle: var(--border-subtle);
+  --color-strong: var(--border-strong);
+  --color-strong-raised: var(--border-strong-raised);
+  /* As text-primary / text-secondary / text-tertiary / text-disabled. */
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-disabled: var(--text-disabled);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-text: var(--brand-text);
+  --color-danger: var(--danger);
+  --color-danger-fill: var(--danger-fill);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-focus-ring: var(--focus-ring);
+}
+
+/* Type scale (spec §2.4): seven steps, nothing under 12px; caption is the only uppercase tier. */
+@theme {
+  --text-display-lg: 2.5rem;
+  --text-display-lg--line-height: 2.75rem;
+  --text-display-lg--font-weight: 700;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-md: 1.875rem;
+  --text-display-md--line-height: 2.25rem;
+  --text-display-md--font-weight: 700;
+  --text-display-md--letter-spacing: -0.015em;
+  --text-title-lg: 1.375rem;
+  --text-title-lg--line-height: 1.75rem;
+  --text-title-lg--font-weight: 600;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.5rem;
+  --text-title-md--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--font-weight: 500;
+
+  /* The spec's radius-sm / radius-md / radius-lg (6 / 10 / 16px), under names that don't replace
+     Tailwind's own rounded-sm/md/lg - redefining those would change every existing component at
+     once. rounded-full is Tailwind's already. */
+  --radius-control: 6px; /* badges, chips, inputs, small buttons */
+  --radius-card: 10px; /* cards, popovers, buttons */
+  --radius-overlay: 16px; /* dialogs, sheets, hero media */
+
+  /* Elevation is tone (surface-0..3); this one shadow is for dialogs and popovers only. */
+  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.5);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Spacing needs no tokens: the spec's 4px scale is Tailwind's own (p-1 = 4px ... p-16 = 64px).
+   z-index and duration have no Tailwind theme namespace, so they are utilities. They replace
+   z-[90]...z-[400] and nineteen different durations. */
+@utility z-base {
+  z-index: 0;
+}
+@utility z-sticky {
+  z-index: 10;
+}
+@utility z-header {
+  z-index: 20;
+}
+@utility z-popover {
+  z-index: 30;
+}
+@utility z-dialog {
+  z-index: 40;
+}
+@utility z-toast {
+  z-index: 50;
+}
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
+}
+@utility duration-base {
+  transition-duration: var(--duration-base);
+}
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
+}
+/* Every numeric context: times, gaps, points, positions. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* The randomized red-to-blue streaks themselves now live in AmbientBackground.tsx (a real random

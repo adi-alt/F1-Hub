@@ -23,6 +23,9 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      # Counts the class patterns the design tokens replace (text-[Npx], [var(--x)], [#hex],
+      # outline-none without focus-visible) and fails if any grows past scripts/design-lint-baseline.json.
+      - run: npm run lint:design
       - run: npm test
 
       # Placeholders, not the real secrets (audit SEC-18): the build only needs values that are set
