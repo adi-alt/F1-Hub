@@ -9,11 +9,14 @@ Run:
   export DATABASE_URL='<pooled connection string>'
   export NEXT_PUBLIC_SUPABASE_URL='...'
   export SUPABASE_SECRET_KEY='...'
-  python trim_media_storage.py
+  python trim_media_storage.py            # DRY RUN: says what it would delete and rewrite, changes nothing
+  python trim_media_storage.py --apply    # does it
+
+Dry-run is the default (audit R-27): the deletes are not undoable.
 """
 
 from ergast_utils import init_postgres
-from shrink_media_storage import storage_delete, storage_path_from_url
+from shrink_media_storage import report_dry_run, storage_delete, storage_path_from_url, update_urls
 
 TRIM_TO = 2
 
@@ -27,7 +30,7 @@ def trim_table(cur, table: str, id_col: str, url_col: str):
             continue
         kept, dropped = urls[:TRIM_TO], urls[TRIM_TO:]
         storage_delete("media", [storage_path_from_url(u) for u in dropped])
-        cur.execute(f"update {table} set {url_col} = %s where {id_col} = %s", (kept, row_id))
+        update_urls(cur, table, id_col, url_col, kept, row_id)
         trimmed += 1
     print(f"{table}: trimmed {trimmed} rows to {TRIM_TO}")
 
@@ -39,6 +42,7 @@ def main():
         trim_table(cur, "races", "id", "photo_urls")
         trim_table(cur, "archive_circuits", "circuit_id", "image_urls")
     conn.close()
+    report_dry_run()
     print("Done.")
 
 
