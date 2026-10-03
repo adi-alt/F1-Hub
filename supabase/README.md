@@ -28,3 +28,21 @@ Production is only ever read. No personal data is copied: the seed creates synth
 ## Known drift
 `schema.drift-allowlist.json` lists differences between production and the migrations that are known and explained:
 - **`user_invites`** exists only in production. It came from the unmerged branch `feat/user-invitations` (its migration, `20260923_user_invites.sql`, is in production's ledger but not on `main`). Nothing on `main` uses it and it is empty. Merge the feature or drop the table; the entry goes either way.
+
+## Backups and restore (R-27)
+`.github/workflows/backup.yml` takes a nightly backup of the data that cannot be rebuilt (accounts, communities, picks, points and the frozen model predictions in `races`) from production, through a read-only transaction. It is one file, `backup.json.gz.age`, kept as a workflow artifact for 30 days.
+
+- **Encrypted to a public key.** `supabase/backup-recipient.txt` is the public key. The private key is never in the repo, GitHub or CI, so a leaked artifact is unreadable. Only the owner can open it.
+- **Keep the private key safe.** Copy `~/.apex-backup/age-identity.txt` into a password manager. Lose it and every backup is unreadable. To rotate: generate a new key, replace `backup-recipient.txt`, and keep the old private key for as long as old backups matter.
+- **Every table is classified** in `scripts/lib/backup-tables.mjs` as irreplaceable (backed up), rebuildable (the pipeline refills it) or ephemeral (one-time codes). A new table fails `backup.test.ts` until it is classified, so one can't be silently left out.
+- **The drill** (`node scripts/restore-drill.mjs`, run by the `drill` job against staging on every change to the backup code) dumps, encrypts, decrypts, restores into a throwaway `drill_*` schema, compares order-independent md5 fingerprints per table, and drops the schema. It never writes to `public`.
+
+To restore, download the artifact, then decrypt and inspect with the private key:
+```sh
+DATABASE_URL=<a scratch or staging database> EXPECTED_PROJECT_REF=<its ref> \
+  node scripts/restore-drill.mjs --in backup.json.gz.age --identity ~/.apex-backup/age-identity.txt
+```
+This restores into a throwaway `drill_*` schema and checks it against the backup's own fingerprints.
+Restoring into a real project is a deliberate manual step, done into a scratch schema first and checked against the manifest's row counts.
+
+Not covered: the Supabase Auth tables are dumped (users, identities) but the drill does not restore them (Auth's own tables are managed by Supabase); and Storage buckets (media) are not backed up, since the pipeline can refetch them. Supabase's own daily backups and point-in-time recovery depend on the plan: confirm which you have.
