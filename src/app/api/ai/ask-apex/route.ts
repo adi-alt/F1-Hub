@@ -16,6 +16,7 @@ import { listFeedPosts, listPosts } from "@/lib/supabase/groupPosts";
 import { listMyPredictions, listPredictions } from "@/lib/supabase/groupPredictions";
 import { getUserProfile } from "@/lib/supabase/users";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
+import { buildComparePair, computePositionChanges } from "@/app/season/_service/season.pure";
 import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
 import { buildCircuitContext, formatCircuitContext } from "@/lib/ai/context/circuitContext";
 import {
@@ -77,13 +78,40 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
   const rawRound = typeof clientContext.selectedRaceId === "string" ? Number(clientContext.selectedRaceId) : null;
   const openRace = rawRound !== null && Number.isInteger(rawRound) ? data.raceSummaries.find((r) => r.round === rawRound) ?? null : null;
 
-  return {
+  // The whole field, one line each - the table lists everyone, and "where's Alonso?" failed when
+  // only the top ten were sent.
+  const driverName = new Map(data.drivers.map((d) => [d.driver, d.driverName]));
+  const changes = computePositionChanges(data.drivers, data.constructors, data.progression);
+  const moved = (list: { entityId: string; currentPosition: number; positionDelta: number | null; pointsDelta: number | null }[], name: (id: string) => string) =>
+    list
+      .filter((c) => c.positionDelta)
+      .map((c) => `${name(c.entityId)} ${(c.positionDelta as number) > 0 ? "up" : "down"} ${Math.abs(c.positionDelta as number)} to P${c.currentPosition}${c.pointsDelta ? ` (+${c.pointsDelta} pts)` : ""}`);
+  const favDrivers = new Set(data.favoriteDriverIds ?? []);
+  const favTeams = new Set(data.favoriteTeamIds ?? []);
+  const yourFavourites = [
+    ...data.drivers.flatMap((d, i) => (d.favoriteId && favDrivers.has(d.favoriteId) ? [`${d.driverName}: P${i + 1}, ${d.points} pts, ${d.wins} wins`] : [])),
+    ...data.constructors.flatMap((c, i) => (favTeams.has(c.favoriteId) ? [`${c.team}: P${i + 1}, ${c.points} pts`] : [])),
+  ];
+  const entityType = clientContext.selectedChampionship === "constructors" ? "constructors" : "drivers";
+  const compare =
+    typeof clientContext.entityAId === "string" && typeof clientContext.entityBId === "string"
+      ? buildComparePair(data.year, entityType, clientContext.entityAId, clientContext.entityBId, data.drivers, data.constructors, data.raceSummaries)
+      : null;
+
+  return fitSeasonContext({
     page: "season",
     season: { year: data.year, status: data.status, racesCompleted: data.racesCompleted, racesRemaining: data.racesRemaining },
-    driverStandings: data.drivers.slice(0, 10).map((d, i) => ({ position: i + 1, name: d.driverName, team: d.team, points: d.points, wins: d.wins, podiums: d.podiums })),
-    constructorStandings: data.constructors.slice(0, 10).map((c, i) => ({ position: i + 1, name: c.team, points: c.points, wins: c.wins })),
+    driverStandings: data.drivers.map((d, i) => `P${i + 1} ${d.driverName} (${d.team}) ${d.points} pts, ${d.wins} wins, ${d.podiums} podiums`),
+    constructorStandings: data.constructors.map((c, i) => `P${i + 1} ${c.team} ${c.points} pts, ${c.wins} wins`),
+    // The favourites the season data already loads (they mark the table's rows), for "how's my
+    // driver doing?".
+    yourFavourites: yourFavourites.length ? yourFavourites : "No favourites set.",
+    // What the last round changed in the standings ("what changed in the latest round?").
+    lastRoundChanges: { drivers: moved(changes.drivers, (id) => driverName.get(id) ?? id), constructors: moved(changes.constructors, (id) => id) },
     battles: data.battles.slice(0, 6),
-    records: data.records.slice(0, 8),
+    records: data.records,
+    // The compare panel's two entities, side by side, when it's open - it sent only their ids.
+    compare,
 
     // ── How the season got here ──────────────────────────────────────────────
     // Without this, questions about CHANGE ("when did the championship turn?", "who has
@@ -143,7 +171,24 @@ async function buildSeasonGroundingContext(userId: string, clientContext: Record
       compareEntityB: typeof clientContext.entityBId === "string" ? clientContext.entityBId : undefined,
       openRaceRound: openRace?.round,
     },
-  };
+  });
+}
+
+/** Keeps the season context inside the server budget as a season grows (24 rounds, a full grid):
+ * the oldest timeline rounds go first, then the momentum and team-trend detail, instead of the
+ * final hard slice cutting the JSON. The standings and the current picture are never trimmed. */
+function fitSeasonContext(context: Record<string, unknown>): Record<string, unknown> {
+  const budget = MAX_SERVER_CONTEXT_JSON_LENGTH - 2000;
+  const fits = () => JSON.stringify(context).length <= budget;
+  const timeline = Array.isArray(context.timeline) ? [...context.timeline] : [];
+  while (!fits() && timeline.length > 6) {
+    timeline.shift();
+    context.timeline = timeline;
+  }
+  const analytics = isPlainObject(context.analytics) ? context.analytics : null;
+  if (!fits() && analytics) delete analytics.teamTrends;
+  if (!fits() && analytics) delete analytics.momentum;
+  return context;
 }
 
 /** Circuits' own registered scope (CircuitApexScope.tsx) sends only a location/year/status
