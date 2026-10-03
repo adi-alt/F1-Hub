@@ -2,6 +2,7 @@ import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getRecentCircuitPhotos } from "@/lib/personalization";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** The next race on the real calendar, plus the extra real fields a context rail renders: its own
  * country (for the flag), a real photo, and its circuit (which is what Apex's own circuit take is
@@ -32,7 +33,7 @@ export type NextRaceSummary = {
  * than to a placeholder.
  */
 export async function getNextRace(races?: Awaited<ReturnType<typeof getRacesByYear>>): Promise<NextRaceSummary> {
-  const all = races ?? (await getRacesByYear(new Date().getFullYear()));
+  const all = races ?? (await getRacesByYear(await getCurrentSeason()));
   const upcoming = all.filter((r) => r.status !== "completed").sort((a, b) => a.round - b.round)[0];
   if (!upcoming) return null;
 

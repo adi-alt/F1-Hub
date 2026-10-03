@@ -9,11 +9,12 @@ import { computeChampionshipProgression } from "@/lib/personalization";
 import { sessionCode } from "@/lib/sessionCode";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
-import { buildBattles, buildRecords, completedRoundCount, fastestPracticeLap } from "./season.pure";
+import { buildBattles, buildRecords, completedRoundCount, fastestPracticeLap, seasonStatus } from "./season.pure";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
 import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, RacePodiumEntry, RacePredictionSummary, RaceSummary, RaceWeekendStatus } from "./season.pure";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Every type and pure deterministic computation (buildBattles, buildRecords, computeHeadToHead,
 // computeRecentForm, computeStreaks, computePositionChanges) lives in season.pure.ts instead of
@@ -373,19 +374,11 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
   };
 }
 
-/** "ongoing" for the one live season (races/calendar's FastF1 pipeline — prediction/pole/
- * simulation data lives only here); "completed" for every other year, current or historical,
- * which archive_races covers more completely than races.ts ever does once a season is over.
- * Compares against the computed current year, not a literal — the same non-hardcoded pattern
- * ARCHIVE_LATEST_YEAR and /season/page.tsx's own redirect already use. */
-export function seasonStatus(year: number): "ongoing" | "completed" {
-  return year === new Date().getFullYear() ? "ongoing" : "completed";
-}
 
 /** The one entry point both /season and /archive/[year] call — same return shape either way, only
  * the data source differs, picked by seasonStatus, never a per-page assumption. */
 export async function getSeasonDetailData(year: number, uid: string) {
-  const status = seasonStatus(year);
+  const status = seasonStatus(year, await getCurrentSeason());
   const data = status === "ongoing" ? await getSeasonPageData(year, uid) : await getArchiveSeasonDetailData(year, uid);
   return { ...data, status };
 }

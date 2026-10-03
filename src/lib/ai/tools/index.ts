@@ -8,6 +8,7 @@ import { getNextUpcomingRace, getRacesByYear } from "@/lib/supabase/races";
 import { computeSeasonStandings, getTrackHistory, buildSeasonRecap } from "@/lib/personalization";
 import { getArchiveDriver } from "@/lib/supabase/archive";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 const toolRegistry = new Map<string, AITool>();
 
@@ -32,7 +33,7 @@ registerTool({
   parametersSchema: { type: "object", properties: {} },
   isUserScoped: false,
   execute: async () => {
-    const year = new Date().getFullYear();
+    const year = await getCurrentSeason();
     const race = await getNextUpcomingRace(year);
     if (!race) return { upcomingRace: null };
     return {
@@ -60,7 +61,7 @@ registerTool({
   },
   isUserScoped: false,
   execute: async (args) => {
-    const year = typeof args.year === "number" ? args.year : new Date().getUTCFullYear();
+    const year = typeof args.year === "number" ? args.year : await getCurrentSeason();
     const standings = await computeSeasonStandings(year);
     return {
       year,
@@ -168,7 +169,7 @@ registerTool({
   },
   isUserScoped: false,
   execute: async (args) => {
-    const year = typeof args.year === "number" ? args.year : new Date().getUTCFullYear();
+    const year = typeof args.year === "number" ? args.year : await getCurrentSeason();
     const [races, standings] = await Promise.all([
       getRacesByYear(year),
       computeSeasonStandings(year),

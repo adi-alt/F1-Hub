@@ -7,6 +7,7 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { slugifyRaceName } from "@/lib/routes";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const [data, profile] = await Promise.all([
@@ -69,6 +70,6 @@ export default async function CircuitsPage({
     redirect(queryString ? `${newPath}?${queryString}` : newPath);
   }
 
-  const year = new Date().getFullYear();
+  const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
   return <CircuitsIndex year={year} uid={session.uid} />;
 }

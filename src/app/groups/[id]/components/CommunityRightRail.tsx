@@ -112,7 +112,7 @@ function UpcomingRaceCard({ race }: { race: NextRaceSummary }) {
 
   return (
     <Card>
-      <CardHeader title="Upcoming Race" action={<ViewAllLink href={seasonHref(new Date().getFullYear())} />} />
+      <CardHeader title="Upcoming Race" action={<ViewAllLink href={race ? seasonHref(race.year) : "/season"} />} />
 
       {!race ? (
         <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No upcoming race is scheduled yet.</p>

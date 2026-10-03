@@ -1,6 +1,6 @@
 import {
   ARCHIVE_EARLIEST_YEAR,
-  ARCHIVE_LATEST_YEAR,
+  archiveLatestYear,
   getAllArchiveCircuits,
   getAllArchiveDrivers,
   getAllArchiveTeams,
@@ -22,11 +22,13 @@ import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
-export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
+export { ARCHIVE_EARLIEST_YEAR, archiveLatestYear };
 
-export function getArchiveYears(): number[] {
-  return Array.from({ length: ARCHIVE_LATEST_YEAR - ARCHIVE_EARLIEST_YEAR + 1 }, (_, i) => ARCHIVE_LATEST_YEAR - i);
+/** Every archive season, newest first. `latestYear` is archiveLatestYear(await getCurrentSeason()). */
+export function getArchiveYears(latestYear: number): number[] {
+  return Array.from({ length: latestYear - ARCHIVE_EARLIEST_YEAR + 1 }, (_, i) => latestYear - i);
 }
 
 export async function getArchiveSeasonData(year: number) {
@@ -97,7 +99,7 @@ export async function getAllArchiveTeamsData() {
 export async function getActiveIds(circuits: ArchiveCircuit[]): Promise<{ circuitIds: string[]; teamIds: string[]; currentLeader: CurrentLeader }> {
   const empty = { circuitIds: [], teamIds: [], currentLeader: { driver: null, team: null } };
   try {
-    const year = new Date().getFullYear();
+    const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
     const [races, currentTeams] = await Promise.all([getRacesByYear(year), getAllCurrentTeams()]);
     const circuitLocalities = new Map(circuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
     const circuitIdsByName = new Map(circuits.map((c) => [(c.name ?? c.circuitId).trim().toLowerCase(), c.circuitId]));

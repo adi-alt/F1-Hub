@@ -4,6 +4,7 @@ import { CircuitDetailPage } from "../components/CircuitDetailPage";
 import { getCircuitDetailData, resolveCircuitSlug } from "../services/circuits.service";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 type Props = {
   params: Promise<{ circuit: string }>;
@@ -28,7 +29,7 @@ export default async function CircuitRoute({ params }: Props) {
   }
 
   const { circuit } = await params;
-  const year = new Date().getFullYear();
+  const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
 
   // The URL only ever carries a lowercased slug - resolveCircuitSlug recovers the real,
   // original-cased circuit string (e.g. "Spa-Francorchamps") every live-data lookup below

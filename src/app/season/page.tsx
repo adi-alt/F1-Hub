@@ -8,6 +8,7 @@ import { FavoritesHydrator } from "@/components/FavoritesHydrator";
 import { getSession } from "@/lib/session/getSession";
 import { archiveSeasonHref } from "@/lib/routes";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 export const metadata: Metadata = {
   title: "Season",
@@ -37,7 +38,9 @@ export default async function SeasonPage({
   // in the URL pointing at a past season goes to /archive instead of quietly rendering here (a
   // stale bookmark, a hand-edited URL); a future/garbage value just falls back to the current year
   // rather than erroring on it.
-  const currentYear = new Date().getFullYear();
+  // From the calendar, not the clock (R-22), like seasonStatus: over New Year this stays on the
+  // finished season rather than redirecting it to the archive before the archive has it.
+  const currentYear = await getCurrentSeason();
   const { year: yearParam, race: raceParam } = await searchParams;
   const requestedYear = yearParam ? Number(yearParam) : null;
   if (requestedYear && requestedYear !== currentYear && requestedYear < currentYear) {

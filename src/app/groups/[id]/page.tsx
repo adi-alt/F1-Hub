@@ -23,6 +23,7 @@ import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } 
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** How many open rounds the context rail shows before it stops being a rail. The rest are one
  * click away in the Predictions tab it links to. */
@@ -105,7 +106,7 @@ export default async function CommunityPage({
     wantsLeaderboard ? getGroupLeaderboard(id, uid) : Promise.resolve([]),
     wantsPredictions ? listPredictions(id, uid) : Promise.resolve([]),
     getPointsBalance(uid),
-    wantsPredictions && wantsRace ? getRacesByYear(new Date().getFullYear()) : Promise.resolve([]),
+    wantsPredictions && wantsRace ? getRacesByYear(await getCurrentSeason()) : Promise.resolve([]),
     canModerate ? countPendingJoinRequests(id).catch(() => 0) : Promise.resolve(0),
     getGroupStats(id, uid).catch(() => statsFallback(group.members.length)),
     // Reads this member's previous visit to THIS community and stamps a new one - so it must run

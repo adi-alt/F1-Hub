@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, fastestPracticeLap, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.pure";
+import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, fastestPracticeLap, seasonStatus, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.pure";
 
 describe("season.service deterministic computations", () => {
   const mockRaceSummaries: RaceSummary[] = [
@@ -224,5 +224,22 @@ describe("fastestPracticeLap", () => {
   it("returns nothing for a missing or empty session", () => {
     assert.equal(fastestPracticeLap(undefined), undefined);
     assert.equal(fastestPracticeLap([]), undefined);
+  });
+});
+
+describe("seasonStatus (audit R-22)", () => {
+  it("reads the current season from the live tables and every other year from the archive", () => {
+    assert.equal(seasonStatus(2026, 2026), "ongoing");
+    assert.equal(seasonStatus(2025, 2026), "completed");
+    assert.equal(seasonStatus(2027, 2026), "completed");
+  });
+
+  it("keeps a finished season live over New Year, when the calendar still says 2026", () => {
+    // The clock reads 2027 on 2 January, but every 2026 race has run and no 2027 calendar is
+    // synced yet, so getCurrentSeason() is still 2026 (currentSeason.test.ts). The 2026 race pages
+    // keep reading the live tables; the archive doesn't have 2026 until it is promoted.
+    const currentSeason = 2026;
+    assert.equal(new Date("2027-01-02T12:00:00Z").getUTCFullYear(), 2027);
+    assert.equal(seasonStatus(2026, currentSeason), "ongoing");
   });
 });

@@ -111,6 +111,15 @@ export type RaceSummary = {
  * deltas, recent form, streaks, head-to-head, records, AI context, cache keys, the race window -
  * goes through these two rather than re-deriving `r.state === "completed"` inline, so no two
  * components can ever disagree about how much of the season has actually happened. */
+/** "ongoing" for the one live season (races/calendar's FastF1 pipeline — prediction/pole/
+ * simulation data lives only here); "completed" for every other year, which archive_races covers
+ * more completely than races.ts ever does once a season is over. `currentSeason` is
+ * getCurrentSeason(): from the calendar, not the wall clock (audit R-22), so on 1 January a
+ * finished season keeps reading from the live tables instead of an archive that doesn't have it yet. */
+export function seasonStatus(year: number, currentSeason: number): "ongoing" | "completed" {
+  return year === currentSeason ? "ongoing" : "completed";
+}
+
 export function completedRaces(raceSummaries: RaceSummary[]): RaceSummary[] {
   return raceSummaries.filter((r) => r.state === "completed");
 }
