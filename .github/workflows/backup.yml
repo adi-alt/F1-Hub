@@ -1,0 +1,67 @@
+name: Backups
+
+# Nightly, encrypted backup of the data that cannot be rebuilt (audit R-27): accounts, communities, picks,
+# points and the frozen model predictions. Taken through a read-only transaction and encrypted to the PUBLIC
+# key in supabase/backup-recipient.txt, so the artifact is safe to hold anywhere: only the owner's private
+# key (never in the repo, GitHub or CI) opens it. Kept as a workflow artifact for 30 days.
+#
+# The `drill` job proves dump and restore work against staging on every change to the backup code, and
+# refuses a table that isn't classified (scripts/lib/backup-tables.mjs), so a new table can't be missed.
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  pull_request:
+    paths:
+      - "scripts/backup-user-data.mjs"
+      - "scripts/restore-drill.mjs"
+      - "scripts/lib/backup*.mjs"
+      - "supabase/backup-recipient.txt"
+      - ".github/workflows/backup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    if: github.event_name != 'schedule' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_PROJECT_REF: wmdgbmlpvszyapewygvs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Dump and restore staging into a scratch schema, and verify
+        run: node scripts/restore-drill.mjs
+
+  backup:
+    # Production's credentials are the repository-level DATABASE_URL, so this runs only from main: a
+    # manual run of this workflow from any other branch would otherwise get them.
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_PROJECT_REF: opnfquuowxkabtqxxraa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Back up the irreplaceable tables, encrypted
+        run: node scripts/backup-user-data.mjs --out backup.json.gz.age
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apex-backup-${{ github.run_id }}
+          path: backup.json.gz.age
+          retention-days: 30
+          if-no-files-found: error
