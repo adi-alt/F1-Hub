@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
-import { fetchLinkPreview } from "@/lib/linkPreview";
+import { fetchLinkPreview } from "@/lib/linkPreview.server";
 import { getSession } from "@/lib/session/getSession";
 
 /**
