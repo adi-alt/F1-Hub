@@ -53,9 +53,16 @@ describe("SkeletonGroup", () => {
     const html = renderToStaticMarkup(
       createElement(SkeletonGroup, { className: "flex flex-col gap-2" }, createElement(Skeleton), createElement(Skeleton), createElement(Skeleton, { shape: "row" })),
     );
-    assert.match(html, /^<div role="status" class="flex flex-col gap-2"><span class="sr-only">Loading…<\/span>/);
+    assert.match(html, /^<div role="status" class="skeleton-delay flex flex-col gap-2"><span class="sr-only">Loading…<\/span>/);
     assert.equal(html.match(/Loading…/g)?.length, 1);
     assert.equal(html.match(/<span aria-hidden="true"/g)?.length, 3);
+  });
+
+  it("waits 300ms before it shows, unless told not to", () => {
+    const delayed = renderToStaticMarkup(createElement(SkeletonGroup, null, createElement(Skeleton)));
+    assert.match(delayed, /^<div role="status" class="skeleton-delay">/);
+    const immediate = renderToStaticMarkup(createElement(SkeletonGroup, { delay: false }, createElement(Skeleton)));
+    assert.match(immediate, /^<div role="status">/);
   });
 
   it("can say what is loading", () => {

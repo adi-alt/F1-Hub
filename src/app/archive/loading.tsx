@@ -5,7 +5,6 @@ import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkele
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 
 const TABS = ["By year", "By track", "By driver", "By team"];
@@ -40,9 +39,9 @@ export default function ArchiveLoading() {
   const isHistoryRoute = ["round", "circuit", "driver", "team"].some((key) => searchParams.has(key));
   if (isHistoryRoute) {
     return (
-      <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
+      <div role="status" className="page-wide skeleton-delay flex h-[calc(100dvh-4rem)] flex-col py-6">
+        <span className="sr-only">Loading the archive</span>
         <div className="shrink-0">
-          <SectionLoadingMessage label="Digging through the archive…" />
           <Skeleton className="h-4 w-16" />
           <div className="mt-2 flex items-center gap-3">
             <Skeleton className="h-11 w-11 rounded-full" />
@@ -71,10 +70,8 @@ export default function ArchiveLoading() {
   }
 
   return (
-    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
-      <div className="shrink-0">
-        <SectionLoadingMessage label="Digging through the archive…" />
-      </div>
+    <div role="status" className="page-wide skeleton-delay flex h-[calc(100dvh-4rem)] flex-col py-6">
+        <span className="sr-only">Loading the archive</span>
       <Skeleton className="h-9 w-40 shrink-0" />
       <Skeleton className="mt-1 h-4 w-full max-w-lg shrink-0" />
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">

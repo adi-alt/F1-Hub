@@ -1,5 +1,4 @@
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 /** Mirrors UserManagement's real layout — the card, its one control row, and the table — so the
  * page doesn't visibly re-flow the moment the profiles query lands. Static, not animated in: a
@@ -8,8 +7,8 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
  * rounded rectangles across that row), so this has to move whenever that row does. */
 export default function UsersLoading() {
   return (
-    <div className="page-content py-10">
-      <SectionLoadingMessage label="Checking the paddock pass list…" />
+    <div role="status" className="page-content skeleton-delay py-10">
+      <span className="sr-only">Loading users</span>
       <Skeleton className="h-9 w-32" />
       <Skeleton className="mt-2 h-4 w-72" />
 
@@ -29,8 +28,8 @@ export default function UsersLoading() {
             <thead className="border-b border-white/[0.08]">
               <tr>
                 {["User", "Email", "Status", "Role", "Joined"].map((label) => (
-                  <th key={label} className="px-4 py-3 text-left">
-                    <Skeleton className="h-3 w-16" />
+                  <th key={label} className="px-4 py-3 text-left text-caption font-semibold uppercase tracking-wider text-neutral-500">
+                    {label}
                   </th>
                 ))}
               </tr>

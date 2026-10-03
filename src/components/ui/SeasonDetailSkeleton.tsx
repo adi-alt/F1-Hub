@@ -1,4 +1,3 @@
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 import { InsightSkeleton, LoadingRegion, MetricSkeleton, TextSkeleton } from "@/components/ui/Skeletons";
 
 /** Shared by /season/loading.tsx and /archive/loading.tsx's ?year= branch — both routes render
@@ -10,8 +9,7 @@ import { InsightSkeleton, LoadingRegion, MetricSkeleton, TextSkeleton } from "@/
  * doesn't match what replaces it is just a different kind of layout shift. */
 export function SeasonDetailSkeleton() {
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
-      <SectionLoadingMessage label="Pulling this season's telemetry…" />
+    <div className="page-content skeleton-delay py-8">
 
       <LoadingRegion label="Loading the season">
         {/* Masthead */}
