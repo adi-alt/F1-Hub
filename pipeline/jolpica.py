@@ -102,16 +102,13 @@ def _looks_complete(rows: list[dict], position_key: str) -> str | None:
     return None
 
 
-def parse_results(payload: dict, year: int, round_num: int, event_date) -> list[dict] | None:
-    """Race classification rows, or None when Jolpica hasn't published this round yet or the
-    response isn't this round / isn't a complete classification."""
-    race = _race_for(payload, year, round_num, event_date)
-    if race is None or not race.get("Results"):
-        return None
+def _classification(entries: list[dict], round_num: int, label: str) -> list[dict] | None:
+    """Classification rows from a race's `Results` or `SprintResults` (the same row shape), or None
+    when they don't read as a complete classification."""
     winner_millis = None
     winner_laps = None
     rows = []
-    for r in race["Results"]:
+    for r in entries:
         timing = r.get("Time") or {}
         # A gap to the winner exists only for cars that finished on the lead lap. Jolpica also
         # reports the elapsed time of a car that retired (2026 Baku: Bottas, out on lap 49 of 51,
@@ -143,9 +140,28 @@ def parse_results(payload: dict, year: int, round_num: int, event_date) -> list[
         del row["millis"]
     reason = _looks_complete(rows, "finishPosition")
     if reason:
-        print(f"    jolpica: round {round_num} results rejected ({reason})")
+        print(f"    jolpica: round {round_num} {label} rejected ({reason})")
         return None
     return sorted(rows, key=lambda r: r["finishPosition"])
+
+
+def parse_results(payload: dict, year: int, round_num: int, event_date) -> list[dict] | None:
+    """Race classification rows, or None when Jolpica hasn't published this round yet or the
+    response isn't this round / isn't a complete classification."""
+    race = _race_for(payload, year, round_num, event_date)
+    if race is None or not race.get("Results"):
+        return None
+    return _classification(race["Results"], round_num, "results")
+
+
+def parse_sprint(payload: dict, year: int, round_num: int, event_date) -> list[dict] | None:
+    """Sprint classification rows (the same shape as parse_results), or None when Jolpica hasn't
+    published this round's sprint or the weekend has none. Jolpica dates a sprint weekend by its
+    Grand Prix, so the usual date check against FastF1's EventDate applies unchanged."""
+    race = _race_for(payload, year, round_num, event_date)
+    if race is None or not race.get("SprintResults"):
+        return None
+    return _classification(race["SprintResults"], round_num, "sprint")
 
 
 def parse_qualifying(payload: dict, year: int, round_num: int, event_date) -> list[dict] | None:
@@ -178,6 +194,14 @@ def fetch_results(year: int, round_num: int, event_date) -> list[dict] | None:
         return parse_results(_get(f"{year}/{round_num}/results.json"), year, round_num, event_date)
     except Exception as exc:  # network, JSON, schema - never fatal, just "not available"
         print(f"    jolpica: results not available ({exc})")
+        return None
+
+
+def fetch_sprint(year: int, round_num: int, event_date) -> list[dict] | None:
+    try:
+        return parse_sprint(_get(f"{year}/{round_num}/sprint.json"), year, round_num, event_date)
+    except Exception as exc:
+        print(f"    jolpica: sprint not available ({exc})")
         return None
 
 

@@ -46,7 +46,7 @@ from ergast_utils import (
     upsert,
 )
 import jolpica
-from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1
+from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1, fetch_sprint_openf1
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -402,6 +402,112 @@ def fetch_race(year: int, round_num: int):
         return None
 
 
+def fetch_sprint(year: int, round_num: int) -> list[dict] | None:
+    """The sprint classification from FastF1 (fetch_race()'s result shape, without the fastest
+    lap), or None when there is no classified sprint yet - which on GitHub's runners is always, and
+    sprint_for_round() then asks Jolpica and OpenF1 instead."""
+    try:
+        session = fastf1.get_session(year, round_num, "Sprint")
+        session.load(laps=False, weather=False, telemetry=False, messages=False)
+        if session.results is None or session.results.empty or not has_official_classification(session.results):
+            return None
+        rows = []
+        for row in session.results.sort_values("Position").itertuples():
+            if pd.isna(row.Position):
+                continue
+            rows.append(
+                {
+                    "driver": row.Abbreviation,
+                    "driverName": row.FullName,
+                    "team": row.TeamName,
+                    "gridPosition": int(row.GridPosition) if pd.notna(row.GridPosition) else None,
+                    "finishPosition": int(row.Position),
+                    "status": normalize_status(row.Status),
+                    "points": points_for(row),
+                    "finishGapSec": 0 if row.Position == 1 else (round(row.Time.total_seconds(), 3) if pd.notna(row.Time) else None),
+                }
+            )
+        return rows or None
+    except Exception as exc:
+        print(f"    sprint: not available ({exc})")
+        return None
+
+
+# FastF1's EventFormat for a weekend with a sprint (2021 "sprint", 2023 "sprint_shootout", since
+# 2024 "sprint_qualifying").
+SPRINT_FORMATS = ("sprint", "sprint_shootout", "sprint_qualifying")
+
+
+def is_sprint_weekend(calendar_event) -> bool:
+    return str(calendar_event.get("EventFormat") or "").lower() in SPRINT_FORMATS
+
+
+def official_sprint_rows(official: list[dict], roster: dict[str, dict]) -> list[dict]:
+    """Jolpica's sprint classification in the stored row shape, with the app's own driver names and
+    this session's team (normalised), as with_official_classification() does for the race."""
+    return [
+        {
+            "driver": o["driver"],
+            "driverName": roster.get(o["driver"], {}).get("name") or o["driverName"],
+            "team": normalize_team_name(o["constructor"]) if o["constructor"] else roster.get(o["driver"], {}).get("team"),
+            "gridPosition": o["gridPosition"],
+            "finishPosition": o["finishPosition"],
+            "status": normalize_status(o["rawStatus"]),
+            "points": o["points"],
+            "finishGapSec": o["finishGapSec"],
+        }
+        for o in official
+    ]
+
+
+def sprint_for_round(year: int, round_num: int, calendar_event, roster: dict[str, dict]) -> tuple[list[dict] | None, str | None]:
+    """(rows, source) for this weekend's sprint (audit R-17 - the standings used to leave sprints
+    out). FastF1 where it works (a local run); else Jolpica's official classification once it is
+    published, with the Grand Prix on the Monday; else OpenF1's preliminary one, right after the
+    session. (None, None) on a weekend without a sprint, or before the sprint has run."""
+    if not is_sprint_weekend(calendar_event):
+        return None, None
+    rows = fetch_sprint(year, round_num)
+    if rows:
+        return rows, "official"
+    official = jolpica.fetch_sprint(year, round_num, calendar_event["EventDate"])
+    if official:
+        print(f"    sprint: official classification from Jolpica ({len(official)} cars)")
+        return official_sprint_rows(official, roster), "official"
+    rows = fetch_sprint_openf1(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"])
+    if not rows:
+        return None, None
+    for r in rows:
+        r["driverName"] = roster.get(r["driver"], {}).get("name") or r["driverName"]
+        r["team"] = normalize_team_name(r["team"]) if r["team"] else roster.get(r["driver"], {}).get("team")
+    return rows, "openf1_preliminary"
+
+
+def sprint_is_official(cur, race_id: str) -> bool:
+    """Whether this round's stored sprint is already the official one - then there's nothing left to
+    fetch for it."""
+    cur.execute("select count(*) > 0 and bool_and(source = 'official') from sprint_results where race_id = %s", (race_id,))
+    return bool(cur.fetchone()[0])
+
+
+def sprint_result_rows(race_id: str, sprint: list[dict], source: str) -> list[dict]:
+    return [
+        {
+            "race_id": race_id,
+            "driver": r["driver"],
+            "driver_name": r["driverName"],
+            "team": r["team"],
+            "grid": r["gridPosition"],
+            "finish_position": r["finishPosition"],
+            "finish_gap_sec": r["finishGapSec"],
+            "status": r["status"],
+            "points": r["points"],
+            "source": source,
+        }
+        for r in sprint
+    ]
+
+
 def get_existing_race(cur, race_id: str) -> dict | None:
     cur.execute("select status, practice, photo_urls, results_source, data_completeness from races where id = %s", (race_id,))
     row = cur.fetchone()
@@ -617,10 +723,13 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             race = with_official_classification(race, official, roster)
             results_source = "official"
 
+    # A sprint weekend's sprint, until the official classification is stored (then never again).
+    sprint, sprint_source = (None, None) if sprint_is_official(cur, race_id) else sprint_for_round(year, round_num, calendar_event, roster)
+
     # Checked only after every source has been tried: FastF1 has nothing at all on GitHub's runners,
     # so returning before the fallbacks (as this used to) meant the OpenF1/Jolpica paths were reached
     # only on runs where FastF1 happened to return qualifying.
-    if not practice and not qualifying and not race:
+    if not practice and not qualifying and not race and not sprint:
         # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
         # "what's coming up"; pushing an empty placeholder here is exactly the clutter this
         # table is meant to avoid.
@@ -771,11 +880,24 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         # against brought a longer race's lap numbers with it, for drivers who were in both.
         prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
+    if sprint:
+        # Same team string as this weekend's race rows, when those are in hand, so a constructor's
+        # sprint and race points always add up under one name.
+        team_by_driver = {r["driver"]: r["team"] for r in race["results"]} if race else {}
+        for r in sprint:
+            r["team"] = team_by_driver.get(r["driver"], r["team"])
+        # Written after the races row it references. The whole classification is in `sprint_rows`,
+        # so anything else under this race_id is from a superseded write - see prune().
+        sprint_rows = sprint_result_rows(race_id, sprint, sprint_source)
+        upsert(cur, "sprint_results", sprint_rows, ["race_id", "driver"])
+        prune(cur, "sprint_results", "race_id", race_id, "driver", [r["driver"] for r in sprint_rows])
+
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows_n = len(race["results"]) if race else 0
     print(
         f"    pushed: status={race_row['status']}, practice={sorted(merged_practice.keys())}, "
         f"qualifying.grid={quali_rows} rows, race.results={race_rows_n} rows"
+        + (f", sprint={len(sprint)} rows ({sprint_source})" if sprint else "")
     )
 
 

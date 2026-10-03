@@ -50,7 +50,7 @@ import { useSeasonLaps } from "@/hooks/useSeasonLaps";
 // 20-car field doesn't turn Results into a wall-length scroll inside its own card.
 const INITIAL_RESULT_ROWS = 7;
 
-function toResultRow(r: RaceResultEntry): RaceResultRow {
+function toResultRow(r: Omit<RaceResultEntry, "fastestLapSec">): RaceResultRow {
   return {
     key: r.driver,
     positionText: r.status === "dnf" ? "DNF" : String(r.finishPosition),
@@ -148,6 +148,8 @@ export function SeasonRaceDashboard({
           .map((r) => ({ ...toResultRow(r), fastestLap: fastestLapSec !== null && r.fastestLapSec === fastestLapSec }))
       : [];
   const resultRows = showAllResults ? allResultRows : allResultRows.slice(0, INITIAL_RESULT_ROWS);
+  // The sprint is shown as soon as it is classified - on the Saturday, before the Grand Prix.
+  const sprintRows: RaceResultRow[] = [...(race.sprintResults ?? [])].sort((a, b) => a.finishPosition - b.finishPosition).map(toResultRow);
 
   // Same real grid/finish data the old full-width MovementChart plotted, now feeding the full-width
   // Race Performance comparison instead - every classified driver (DNFs excluded, no grid data to
@@ -337,6 +339,20 @@ export function SeasonRaceDashboard({
               <PoleSection polePrediction={race.polePrediction} />
             </RaceSectionCard>
           ) : null)}
+
+      {sprintRows.length > 0 && (
+        <RaceSectionCard
+          id="sprint"
+          title="Sprint"
+          description={
+            race.sprintSource === "openf1_preliminary"
+              ? "Preliminary - from live timing, ahead of the official FIA classification. Points shown here can still change."
+              : "Sprint points count towards both championships."
+          }
+        >
+          <RaceResultsTable rows={sprintRows} />
+        </RaceSectionCard>
+      )}
 
       {isCompleted && (
         <RaceSectionCard
