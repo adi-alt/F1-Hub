@@ -1,0 +1,6 @@
+[
+  {
+    "contains": "user_invites",
+    "reason": "Production only: applied from the unmerged branch feat/user-invitations (migration 20260923_user_invites.sql, in production's ledger but not on main). Unused by main and empty (0 rows). Merge that feature or drop the table; either way this entry then goes."
+  }
+]
