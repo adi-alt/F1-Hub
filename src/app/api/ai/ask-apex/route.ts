@@ -718,6 +718,10 @@ const MAX_SERVER_CONTEXT_JSON_LENGTH = 18_000;
 // cost of serializing/sanitizing something enormous.
 const MAX_RAW_PAYLOAD_BYTES = 50_000;
 const CAPACITY_FALLBACK_TEXT = "Apex is at capacity right now - try again in a moment.";
+/** When the answer has to be ready: maxDuration less time to build and send the response, so a
+ * provider chain that runs long still ends in a fallback the user sees, not a killed function
+ * (audit AI-07). Measured from the start of the request: the reads before the model call count. */
+const AI_DEADLINE_MS = (maxDuration - 6) * 1000;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -725,6 +729,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const deadlineAt = Date.now() + AI_DEADLINE_MS;
 
   try {
     const session = await getSession();
@@ -767,6 +772,9 @@ export async function POST(req: Request) {
     const rawHistory = Array.isArray(body.history) ? body.history : [];
     const history = rawHistory
       .filter((t): t is { role: string; content: string } => isPlainObject(t) && (t.role === "user" || t.role === "assistant") && typeof t.content === "string")
+      // "At capacity" isn't something Apex said, so it isn't history (audit AI-16). The launcher no
+      // longer sends it; this keeps an older client from feeding it back.
+      .filter((t) => !(t.role === "assistant" && t.content === CAPACITY_FALLBACK_TEXT))
       .slice(-MAX_HISTORY_TURNS)
       .map((t) => ({ role: t.role as "user" | "assistant", content: sanitizePromptInput(t.content, MAX_QUESTION_LENGTH) }));
 
@@ -863,7 +871,7 @@ export async function POST(req: Request) {
     const favoriteKeyChanged = conversationFavoriteKey !== "" && conversationFavoriteKey !== favoriteKey;
 
     const ctx: AgentContext = { userId, requestId, agentType: "ask_apex", raceId: null };
-    const result = await generateAskApexAnswer(question, history, String(context.page), intelligenceJson, ctx);
+    const result = await generateAskApexAnswer(question, history, String(context.page), intelligenceJson, ctx, deadlineAt);
 
     return NextResponse.json({
       answer: result.answer,
