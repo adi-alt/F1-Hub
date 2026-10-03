@@ -181,7 +181,7 @@ export function LapChart({
 
   if (isLoading) return <LapChartSkeleton />;
   if (isError || chartData.length === 0) {
-    return <p className="text-sm text-neutral-500">No lap data available for this race.</p>;
+    return <p className="text-sm text-tertiary">No lap data available for this race.</p>;
   }
 
   // Dark, blurred, single-driver-focused tooltip - Recharts' own multi-series LineChart tooltip
@@ -205,9 +205,9 @@ export function LapChart({
         style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
       >
         <p className="text-sm font-semibold text-white">{nameFor(highlighted)}</p>
-        <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Lap {lap}</p>
+        <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Lap {lap}</p>
         <p className="font-mono text-sm text-white">Position: P{position}</p>
-        {prevPosition != null && <p className="font-mono text-xs text-neutral-500">Previous lap: P{prevPosition}</p>}
+        {prevPosition != null && <p className="font-mono text-xs text-tertiary">Previous lap: P{prevPosition}</p>}
         {delta !== null && delta !== 0 && (
           <p className="mt-1 font-mono text-xs font-semibold" style={{ color: delta > 0 ? chart.sequentialGreen : chart.divergingRed }}>
             {delta > 0 ? `▲ Gained ${delta} position${delta === 1 ? "" : "s"}` : `▼ Lost ${-delta} position${delta === -1 ? "" : "s"}`}
@@ -303,11 +303,11 @@ export function LapChart({
 
       {moments.length > 0 && (
         <div className="mt-6 border-t border-white/10 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Key race moments</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Key race moments</p>
           <ul className="space-y-1.5">
             {moments.map((m, i) => (
               <li key={i} className="flex gap-2 text-sm text-neutral-300">
-                <span className="w-12 shrink-0 font-mono text-xs text-neutral-500">Lap {m.lap}</span>
+                <span className="w-12 shrink-0 font-mono text-xs text-tertiary">Lap {m.lap}</span>
                 {m.text}
               </li>
             ))}

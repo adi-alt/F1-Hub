@@ -23,7 +23,7 @@ export function PipelineOpsPanel() {
   const trigger = useTriggerPipelineRun();
 
   if (isError) return <p className="text-sm text-red-400">Couldn&apos;t load recent runs.</p>;
-  if (!data) return <p className="text-sm text-neutral-500">Loading recent runs…</p>;
+  if (!data) return <p className="text-sm text-tertiary">Loading recent runs…</p>;
 
   return (
     <div className="space-y-6">
@@ -41,7 +41,7 @@ export function PipelineOpsPanel() {
             </button>
           </div>
           {runs.length === 0 ? (
-            <p className="text-xs text-neutral-500">No runs recorded yet.</p>
+            <p className="text-xs text-tertiary">No runs recorded yet.</p>
           ) : (
             <ul className="space-y-1">
               {runs.map((run) => (

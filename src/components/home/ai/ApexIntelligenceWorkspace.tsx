@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Tabs, type TabItem } from "@/components/ui/LegacyTabs";
+import { Tabs, tabIdFor, type TabItem } from "@/components/ui/LegacyTabs";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
@@ -80,7 +80,7 @@ export function ApexIntelligenceWorkspace({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span aria-hidden className="text-[var(--f1-red)]">✦</span>
+          <span aria-hidden className="text-brand-text">✦</span>
           <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-white">Apex Intelligence</h3>
         </div>
         <Tabs items={tabItems} activeKey={resolvedActive} onChange={onTabChange} layoutId="apex-workspace-tabs" panelId={PANEL_ID} />
@@ -89,7 +89,7 @@ export function ApexIntelligenceWorkspace({
       <div
         id={PANEL_ID}
         role="tabpanel"
-        aria-labelledby={`tabs-apex-tab-${resolvedActive}`}
+        aria-labelledby={tabIdFor(PANEL_ID, resolvedActive)}
         className="mt-4"
       >
         <AnimatePresence mode="wait">
@@ -170,7 +170,7 @@ export function ApexIntelligenceWorkspace({
 
       {otherTabs.length > 0 && (
         <div className="mt-4 border-t border-white/[0.06] pt-3">
-          <p className="text-[10px] uppercase tracking-wide text-neutral-600">Also in this briefing:</p>
+          <p className="text-[10px] uppercase tracking-wide text-tertiary">Also in this briefing:</p>
           <div className="mt-1.5 space-y-1.5">
             {otherTabs.map((t, i) => (
               <button
@@ -186,7 +186,7 @@ export function ApexIntelligenceWorkspace({
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="truncate">
-                  <span className="font-medium uppercase tracking-wide text-neutral-500">{t.label}: </span>
+                  <span className="font-medium uppercase tracking-wide text-tertiary">{t.label}: </span>
                   {t.teaser}
                 </span>
               </button>

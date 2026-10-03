@@ -96,8 +96,8 @@ export function RaceHero({
       <div>
         {variant === "personal" && firstName && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{isReturning ? "Welcome back" : "Welcome"}</p>
-            <h2 className="text-xl font-bold text-white">{firstName}</h2>
+            <p className="text-xs font-semibold uppercase tracking-widest text-brand-text">{isReturning ? "Welcome back" : "Welcome"}</p>
+            <p className="text-xl font-bold text-white">{firstName}</p>
           </motion.div>
         )}
 
@@ -107,7 +107,7 @@ export function RaceHero({
           transition={{ duration: 0.5, delay: 0.05 }}
           className={variant === "personal" && firstName ? "mt-3" : ""}
         >
-          <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">Round {nextRace.round}</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-text">Round {nextRace.round}</p>
           <h1 className="mt-1 max-w-2xl text-4xl font-bold tracking-tight text-white sm:text-5xl">{nextRace.name}</h1>
           <p className="mt-1 text-neutral-400">{nextRace.circuit}</p>
         </motion.div>
@@ -115,12 +115,12 @@ export function RaceHero({
         <div className="mt-5 flex flex-wrap items-center gap-6">
           {countdown && (
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-neutral-500">Lights out in</p>
+              <p className="text-[11px] uppercase tracking-wide text-tertiary">Lights out in</p>
               <p suppressHydrationWarning className="font-mono text-2xl font-semibold text-white tabular-nums">
                 {countdown}
               </p>
               {localTime && (
-                <p suppressHydrationWarning className="mt-0.5 text-[11px] text-neutral-500">
+                <p suppressHydrationWarning className="mt-0.5 text-[11px] text-tertiary">
                   {localTime} your time
                 </p>
               )}
@@ -133,7 +133,7 @@ export function RaceHero({
           <p className="mt-3 flex max-w-2xl items-start gap-1.5 text-sm text-neutral-400">
             {(() => {
               const FactIcon = FACT_ICONS[facts[0].icon];
-              return <FactIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--f1-red)]" />;
+              return <FactIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-text" />;
             })()}
             {facts[0].text}
           </p>

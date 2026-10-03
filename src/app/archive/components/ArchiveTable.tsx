@@ -12,7 +12,7 @@ import { Pagination } from "./Pagination";
 // The exact same sticky-header treatment ChampionshipStandings.tsx uses (Season's own reference
 // table), not a re-derived version - real opacity behind the blur so rows scrolling underneath
 // don't bleed through, same translucent-dark token every sticky/floating surface in the app uses.
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
 export type ArchiveTableColumn<T> = {
@@ -121,11 +121,11 @@ export function ArchiveTable<T>({
   }
 
   if (rows.length === 0) {
-    return <p className="text-sm text-neutral-500">{emptyMessage}</p>;
+    return <p className="text-sm text-tertiary">{emptyMessage}</p>;
   }
   if (sorted.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-tertiary">
         {favoritesOnly && !search ? `You haven't favorited any ${itemLabel}s yet.` : `No ${itemLabel}s match “${search}”.`}
         {onClearFilters && (
           <>
@@ -174,14 +174,30 @@ export function ArchiveTable<T>({
                 <th
                   key={col.key}
                   scope="col"
-                  aria-sort={col.sortable ? (col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
-                  onClick={col.sortable ? () => toggleSort(col.key) : undefined}
+                  // On the sorted column only, as in the APG sortable table; the other sortable
+                  // headers are still buttons.
+                  aria-sort={col.sortable && col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
                   className={`overflow-hidden truncate whitespace-nowrap px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                    col.sortable ? "cursor-pointer select-none" : ""
+                    col.sortable ? "select-none" : ""
                   } ${col.hideOnMobile ? "hidden lg:table-cell" : ""}`}
                 >
-                  {col.label}
-                  {col.sortable && col.key === sortKey && <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>}
+                  {col.sortable ? (
+                    // A button, so the sort is reachable by keyboard (a bare <th onClick> isn't).
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      className="inline-flex max-w-full items-center rounded-control uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    >
+                      <span className="truncate">{col.label}</span>
+                      {col.key === sortKey && (
+                        <span aria-hidden className="ml-1 text-brand-text">
+                          {sortDir === "asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    col.label
+                  )}
                 </th>
               ))}
               {/* "Fav" not "Favorite" - same reasoning as "#" above; title= keeps the full word
@@ -216,7 +232,7 @@ export function ArchiveTable<T>({
                     transition={{ layout: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
                     className="transition-colors hover:bg-white/[0.03]"
                   >
-                    <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
+                    <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
                     {columns.map((col) => (
                       <td
                         key={col.key}

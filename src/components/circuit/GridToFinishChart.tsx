@@ -52,7 +52,7 @@ export function GridToFinishChart({
   }, [results]);
 
   if (drivers.length === 0) {
-    return <p className="text-sm text-neutral-500">No position data available for this race.</p>;
+    return <p className="text-sm text-tertiary">No position data available for this race.</p>;
   }
 
   const maxRank = Math.max(...drivers.flatMap((d) => [d.grid, d.finish]));
@@ -116,13 +116,13 @@ export function GridToFinishChart({
             </span>
             <span className="text-neutral-300">
               Started P{hovered.grid}, finished P{hovered.finish}
-              <span className={`ml-2 font-mono tabular-nums ${hovered.grid - hovered.finish > 0 ? "text-emerald-400" : hovered.grid - hovered.finish < 0 ? "text-red-400" : "text-neutral-500"}`}>
+              <span className={`ml-2 font-mono tabular-nums ${hovered.grid - hovered.finish > 0 ? "text-emerald-400" : hovered.grid - hovered.finish < 0 ? "text-red-400" : "text-tertiary"}`}>
                 {hovered.grid - hovered.finish > 0 ? `▲ +${hovered.grid - hovered.finish}` : hovered.grid - hovered.finish < 0 ? `▼ ${hovered.grid - hovered.finish}` : "—"}
               </span>
             </span>
           </div>
         ) : (
-          <span className="text-[11px] text-neutral-600">Hover a curve for grid → finish detail</span>
+          <span className="text-[11px] text-tertiary">Hover a curve for grid → finish detail</span>
         )}
       </div>
     </div>

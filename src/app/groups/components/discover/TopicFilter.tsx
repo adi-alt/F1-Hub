@@ -54,14 +54,14 @@ export function TopicFilter({
                 placeholder="Search topics..."
                 aria-label="Search topics"
                 autoFocus
-                className="w-full rounded-lg bg-black/40 px-2.5 py-1.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none"
+                className="w-full rounded-lg bg-black/40 px-2.5 py-1.5 text-sm text-white placeholder:text-tertiary focus:outline-none"
               />
             </div>
           )}
 
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-6 text-center text-xs text-neutral-500">
+              <p className="px-3 py-6 text-center text-xs text-tertiary">
                 {facets.length === 0 ? "No topics on any community yet." : "No topic matches that."}
               </p>
             ) : (
@@ -86,7 +86,7 @@ export function TopicFilter({
                       )}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{facet.topic}</span>
-                    <span className="shrink-0 text-[11px] text-neutral-600 tabular-nums">{facet.count}</span>
+                    <span className="shrink-0 text-[11px] text-tertiary tabular-nums">{facet.count}</span>
                   </label>
                 );
               })

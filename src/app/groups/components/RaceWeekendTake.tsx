@@ -86,7 +86,7 @@ export function RaceWeekendTake({ location, year }: { location: string; year: nu
 function ApexLabel() {
   return (
     <div className="flex items-center gap-1.5">
-      <span aria-hidden className="text-[var(--f1-red)]">
+      <span aria-hidden className="text-brand-text">
         ✦
       </span>
       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">Apex on this circuit</p>

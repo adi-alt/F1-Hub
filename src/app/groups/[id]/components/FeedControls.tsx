@@ -117,7 +117,7 @@ export function FeedControls({
 
       {searchOpen && (
         <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-white/[0.12] bg-black/30 px-3 py-1.5 sm:max-w-xs">
-          <span aria-hidden className="shrink-0 text-neutral-500">
+          <span aria-hidden className="shrink-0 text-tertiary">
             <SearchIcon />
           </span>
           <input
@@ -132,7 +132,7 @@ export function FeedControls({
             }}
             placeholder="Search this community"
             aria-label="Search this community's posts"
-            className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-neutral-600 focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-tertiary focus:outline-none"
           />
           <button
             type="button"
@@ -142,7 +142,7 @@ export function FeedControls({
               set({ query: "" });
               setSearchOpen(false);
             }}
-            className="shrink-0 text-neutral-500 transition hover:text-white"
+            className="shrink-0 text-tertiary transition hover:text-white"
           >
             <CloseIcon />
           </button>
@@ -174,7 +174,7 @@ export function FeedControls({
         >
           {() => (
             <div className="p-1">
-              <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Sort</p>
+              <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Sort</p>
               {(Object.keys(SORT_LABELS) as PostSort[]).map((s) => (
                 <MenuOption key={s} selected={value.sort === s} onClick={() => set({ sort: s })}>
                   {SORT_LABELS[s]}
@@ -183,11 +183,11 @@ export function FeedControls({
               {/* Stated, not hidden: the two ranked sorts genuinely rank a bounded recent window
                   (see listPosts), and implying they ranked every post ever would be a lie. */}
               {(value.sort === "top" || value.sort === "discussed") && (
-                <p className="px-2.5 pb-1 pt-1 text-[10.5px] leading-snug text-neutral-600">Ranked across this community&apos;s recent posts.</p>
+                <p className="px-2.5 pb-1 pt-1 text-[10.5px] leading-snug text-tertiary">Ranked across this community&apos;s recent posts.</p>
               )}
 
               <div className="my-1 border-t border-white/10" />
-              <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Filter</p>
+              <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Filter</p>
               <MenuToggle checked={value.mediaOnly} onClick={() => set({ mediaOnly: !value.mediaOnly })}>
                 With photo or video
               </MenuToggle>
@@ -277,7 +277,7 @@ function MenuOption({ selected, onClick, children }: { selected: boolean; onClic
     >
       {children}
       {selected && (
-        <span aria-hidden className="shrink-0 text-[var(--f1-red)]">
+        <span aria-hidden className="shrink-0 text-brand-text">
           <CheckIcon />
         </span>
       )}

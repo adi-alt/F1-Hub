@@ -66,15 +66,15 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search GIFs..."
-        className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none"
+        className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-tertiary focus:outline-none"
       />
       <div className="mt-2 max-h-52 overflow-y-auto">
         {!configured ? (
-          <p className="p-3 text-center text-xs text-neutral-500">GIF search isn&apos;t configured yet - needs KLIPY_API_KEY set (see gifProvider.ts).</p>
+          <p className="p-3 text-center text-xs text-tertiary">GIF search isn&apos;t configured yet - needs KLIPY_API_KEY set (see gifProvider.ts).</p>
         ) : results === null ? (
-          <p className="p-3 text-center text-xs text-neutral-600">Searching…</p>
+          <p className="p-3 text-center text-xs text-tertiary">Searching…</p>
         ) : results.length === 0 ? (
-          <p className="p-3 text-center text-xs text-neutral-600">No GIFs found.</p>
+          <p className="p-3 text-center text-xs text-tertiary">No GIFs found.</p>
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {results.map((g) => (

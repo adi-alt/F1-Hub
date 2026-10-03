@@ -84,11 +84,11 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
     <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <h1 className="flex shrink-0 items-baseline gap-3">
         <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">Archive</span>
-        <span className="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
+        <span className="text-sm font-semibold uppercase tracking-[0.25em] text-tertiary">
           {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}
         </span>
       </h1>
-      <p className="mt-1 shrink-0 text-sm text-neutral-500">Results only, sourced from the Ergast/Jolpi historical database.</p>
+      <p className="mt-1 shrink-0 text-sm text-tertiary">Results only, sourced from the Ergast/Jolpi historical database.</p>
       <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
         {hasLoadError && <RetryBanner />}
         <ArchiveExplorer
@@ -197,10 +197,10 @@ async function renderDiagnosticIfAdmin(err: unknown) {
   return (
     <div className="page-narrow py-10">
       <div className="rounded-2xl border border-[var(--f1-red)]/40 bg-[var(--f1-carbon)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--f1-red)]">Admin-only diagnostic — this page threw</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-text">Admin-only diagnostic — this page threw</p>
         <p className="mt-3 whitespace-pre-wrap text-sm text-white">{message}</p>
-        {digest && <p className="mt-2 text-xs text-neutral-500">digest: {digest}</p>}
-        {stack && <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs text-neutral-500">{stack}</pre>}
+        {digest && <p className="mt-2 text-xs text-tertiary">digest: {digest}</p>}
+        {stack && <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs text-tertiary">{stack}</pre>}
       </div>
     </div>
   );
@@ -286,7 +286,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
       />
       {eraSegments.length > 0 && (
         <div className="mt-4 shrink-0">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Team eras</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Team eras</p>
           <ArchiveEraTimeline segments={eraSegments} />
         </div>
       )}
@@ -383,7 +383,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
       />
       {relationships.length > 0 && (
         <div className="mt-4 shrink-0">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Drivers</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Drivers</p>
           <ArchiveDriverRelationships drivers={relationships} maxHeightPx={160} />
         </div>
       )}

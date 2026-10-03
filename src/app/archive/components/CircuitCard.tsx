@@ -35,11 +35,11 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
       <div className="p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-500">Circuit</p>
+            <p className="text-xs uppercase tracking-wide text-tertiary">Circuit</p>
             <p className="font-semibold text-white">{circuit.name}</p>
           </div>
           {circuit.wikipediaUrl && (
-            <a href={circuit.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-[var(--f1-red)] hover:underline">
+            <a href={circuit.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-brand-text hover:underline">
               Wikipedia →
             </a>
           )}
@@ -52,11 +52,11 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
             </span>
             <div className="text-sm">
               <p className="text-neutral-200">{conditions.label}</p>
-              <p className="text-neutral-500">
+              <p className="text-tertiary">
                 {Math.round(weather.tempMinC)}°–{Math.round(weather.tempMaxC)}°C
                 {weather.precipitationMm > 0 ? ` · ${weather.precipitationMm.toFixed(1)}mm precip.` : ""}
               </p>
-              <p className="mt-0.5 text-[11px] text-neutral-600">Estimated from historical weather reanalysis, not a station reading.</p>
+              <p className="mt-0.5 text-[11px] text-tertiary">Estimated from historical weather reanalysis, not a station reading.</p>
             </div>
           </div>
         )}

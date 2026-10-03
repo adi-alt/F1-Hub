@@ -109,7 +109,7 @@ export function RoleSelect({
         onClick={() => setOpen((v) => !v)}
         className={`flex h-8 w-full min-w-[128px] items-center justify-between gap-2 rounded-lg border px-2.5 text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
           isLocked
-            ? "cursor-not-allowed border-[var(--f1-line)] text-neutral-500 opacity-60"
+            ? "cursor-not-allowed border-[var(--f1-line)] text-tertiary opacity-60"
             : "border-[var(--f1-line)] text-neutral-200 hover:border-white/25 hover:text-white"
         }`}
       >
@@ -118,7 +118,7 @@ export function RoleSelect({
           viewBox="0 0 20 20"
           fill="none"
           aria-hidden
-          className={`h-3 w-3 shrink-0 text-neutral-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`h-3 w-3 shrink-0 text-tertiary transition-transform duration-200 ${open ? "rotate-180" : ""}`}
         >
           <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -162,9 +162,9 @@ export function RoleSelect({
                     >
                       <span className="flex items-center justify-between gap-2 text-xs font-medium">
                         {opt.label}
-                        {selected && <span className="text-[var(--f1-red)]">✓</span>}
+                        {selected && <span className="text-brand-text">✓</span>}
                       </span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-neutral-500">{opt.hint}</span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-tertiary">{opt.hint}</span>
                     </button>
                   );
                 })}

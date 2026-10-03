@@ -31,7 +31,7 @@ function PredictionInsightBlock({ insight }: { insight: PredictionInsight }) {
         <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-neutral-400">
           {hasSeasonForm && (
             <span>
-              <span className="text-neutral-500">This season: </span>
+              <span className="text-tertiary">This season: </span>
               <span className="font-medium text-neutral-200">
                 P{insight.seasonRank} · {insight.seasonPoints} pts
                 {insight.seasonWins ? ` · ${insight.seasonWins} win${insight.seasonWins === 1 ? "" : "s"}` : ""}
@@ -40,7 +40,7 @@ function PredictionInsightBlock({ insight }: { insight: PredictionInsight }) {
           )}
           {hasTrackHistory && (
             <span>
-              <span className="text-neutral-500">At {insight.circuitLabel}: </span>
+              <span className="text-tertiary">At {insight.circuitLabel}: </span>
               <span className="font-medium text-neutral-200">
                 {track!.wins > 0
                   ? `${track!.wins} win${track!.wins === 1 ? "" : "s"}`
@@ -113,14 +113,14 @@ export function PredictionIntelligence({
     >
       <div className={isSparse ? "" : "border-b border-white/[0.06] pb-3"}>
         <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-white">Your Prediction Intelligence</h3>
-        {!isSparse && <p className="mt-0.5 text-[11px] text-neutral-500">How your race calls compare with the model and the grid.</p>}
+        {!isSparse && <p className="mt-0.5 text-[11px] text-tertiary">How your race calls compare with the model and the grid.</p>}
       </div>
 
       {latestPrediction && isSparse && (
         // Compact insight row: round is a small metadata label, the prediction itself is the large
         // focal text, model agreement is a real-data chip (not an invented confidence score).
         <div className="mt-3 border-l-2 border-white/10 pl-4">
-          <p className="text-[10px] uppercase tracking-wide text-neutral-500">Round {latestPrediction.round}</p>
+          <p className="text-[10px] uppercase tracking-wide text-tertiary">Round {latestPrediction.round}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <p className="text-base font-semibold text-white">{latestPrediction.predictedWinner} to win</p>
             {(modelAgrees || modelDisagrees) && (
@@ -133,7 +133,7 @@ export function PredictionIntelligence({
             <p className="mt-1 text-xs text-neutral-400">
               Actual: {latestPrediction.actualWinner}
               {latestPrediction.result && (
-                <span className={latestPrediction.result === "winner" ? "ml-1.5 text-[var(--f1-red)]" : "ml-1.5"}>({RESULT_LABEL[latestPrediction.result]})</span>
+                <span className={latestPrediction.result === "winner" ? "ml-1.5 text-brand-text" : "ml-1.5"}>({RESULT_LABEL[latestPrediction.result]})</span>
               )}
             </p>
           )}
@@ -144,7 +144,7 @@ export function PredictionIntelligence({
 
       {latestPrediction && !isSparse && (
         <div className="mt-4 space-y-1.5 border-l-2 border-white/10 pl-4 text-sm">
-          <p className="text-[10px] uppercase tracking-wide text-neutral-500">
+          <p className="text-[10px] uppercase tracking-wide text-tertiary">
             {latestPrediction.status === "resolved" ? `Round ${latestPrediction.round}: resolved` : `Round ${latestPrediction.round}: your latest call`}
           </p>
           <p className="text-neutral-300">
@@ -163,7 +163,7 @@ export function PredictionIntelligence({
               <span className="font-medium text-neutral-200">Actual: </span>
               {latestPrediction.actualWinner}
               {latestPrediction.result && (
-                <span className={latestPrediction.result === "winner" ? "ml-1.5 text-[var(--f1-red)]" : "ml-1.5"}>
+                <span className={latestPrediction.result === "winner" ? "ml-1.5 text-brand-text" : "ml-1.5"}>
                   ({RESULT_LABEL[latestPrediction.result]})
                 </span>
               )}
@@ -177,15 +177,15 @@ export function PredictionIntelligence({
       {showAccuracy && (
         <div className="mt-4 grid grid-cols-3 gap-4 border-t border-white/[0.06] pt-4 text-center">
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-500">Winner Acc</p>
+            <p className="text-[10px] uppercase tracking-wide text-tertiary">Winner Acc</p>
             <p className="mt-1 font-mono text-lg font-semibold text-white">{winnerAcc}%</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-500">Podium Acc</p>
+            <p className="text-[10px] uppercase tracking-wide text-tertiary">Podium Acc</p>
             <p className="mt-1 font-mono text-lg font-semibold text-white">{podiumAcc}%</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wide text-neutral-500">Avg Error</p>
+            <p className="text-[10px] uppercase tracking-wide text-tertiary">Avg Error</p>
             <p className="mt-1 font-mono text-lg font-semibold text-white">{avgError != null ? `±${avgError}` : "—"}</p>
           </div>
         </div>

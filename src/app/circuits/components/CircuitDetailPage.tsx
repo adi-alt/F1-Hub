@@ -73,14 +73,14 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
 
       {trend.length >= 2 && (
         <div className="mb-8">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Pole evolution</p>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Pole evolution</p>
           <CircuitTrendChart data={trend} />
         </div>
       )}
 
       {timeline.length > 0 && (
         <div>
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Past winners</p>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Past winners</p>
           <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
         </div>
       )}

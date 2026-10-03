@@ -81,8 +81,8 @@ export function ArchiveSeasonGrid({
           and description: those aren't shown anywhere else once the page is down to one era. */}
       {groups.length === 1 ? (
         <>
-          <p className="mb-3 max-w-2xl text-[11px] text-neutral-600">
-            <span className="text-neutral-500">
+          <p className="mb-3 max-w-2xl text-[11px] text-tertiary">
+            <span className="text-tertiary">
               {groups[0].era.startYear}–{groups[0].era.endYear ?? "present"}.
             </span>{" "}
             {groups[0].era.description}
@@ -147,34 +147,34 @@ export function ArchiveSeasonGrid({
                   {hoverIsLive ? (
                     currentLeader.driver || currentLeader.team ? (
                       <>
-                        <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress</p>
+                        <p className="mt-0.5 text-[11px] text-tertiary">Season in progress</p>
                         <div className="mt-2.5 space-y-2">
                           {currentLeader.driver && (
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Drivers&rsquo; Leader</p>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Current Drivers&rsquo; Leader</p>
                               <p className="truncate text-sm text-white">{currentLeader.driver.name}</p>
                             </div>
                           )}
                           {currentLeader.team && (
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Current Constructors&rsquo; Leader</p>
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Current Constructors&rsquo; Leader</p>
                               <p className="truncate text-sm text-white">{currentLeader.team.name}</p>
                             </div>
                           )}
                         </div>
                       </>
                     ) : (
-                      <p className="mt-0.5 text-[11px] text-neutral-500">Season in progress. No standings yet.</p>
+                      <p className="mt-0.5 text-[11px] text-tertiary">Season in progress. No standings yet.</p>
                     )
                   ) : hoverStats?.driverLeader || hoverStats?.teamLeader ? (
                     <>
-                      <p className="mt-0.5 text-[11px] text-neutral-500">
+                      <p className="mt-0.5 text-[11px] text-tertiary">
                         {hoverStats.raceCount} race{hoverStats.raceCount === 1 ? "" : "s"} · Season complete
                       </p>
                       <div className="mt-2.5 space-y-2">
                         {hoverStats.driverLeader && (
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
                               {isVerifiedChampionYear(hover.year) ? "Drivers’ Champion" : "Most Points (Driver)"}
                             </p>
                             <p className="truncate text-sm text-white">{hoverStats.driverLeader.name}</p>
@@ -182,7 +182,7 @@ export function ArchiveSeasonGrid({
                         )}
                         {hoverStats.teamLeader && (
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
                               {isVerifiedChampionYear(hover.year) ? "Constructors’ Champion" : "Most Points (Team)"}
                             </p>
                             <p className="truncate text-sm text-white">{hoverStats.teamLeader.name}</p>
@@ -191,7 +191,7 @@ export function ArchiveSeasonGrid({
                       </div>
                     </>
                   ) : (
-                    <p className="mt-0.5 text-[11px] text-neutral-500">No results recorded.</p>
+                    <p className="mt-0.5 text-[11px] text-tertiary">No results recorded.</p>
                   )}
                 </motion.div>
               </div>

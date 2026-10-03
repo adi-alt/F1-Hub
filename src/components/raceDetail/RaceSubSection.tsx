@@ -29,7 +29,7 @@ export function RaceSubSection({
         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
         {headerRight}
       </div>
-      {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
+      {description && <p className="mt-1 text-sm text-tertiary">{description}</p>}
       <div className="mt-2.5">{children}</div>
     </div>
   );

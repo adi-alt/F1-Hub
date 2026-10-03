@@ -157,7 +157,7 @@ export function ProgressionPanel({
   }, [chartData, highlightRound]);
 
   if (allCodes.length === 0) {
-    return <div className="flex min-h-[180px] items-center justify-center text-sm text-neutral-500">No {isDrivers ? "driver" : "constructor"} has scored yet this season.</div>;
+    return <div className="flex min-h-[180px] items-center justify-center text-sm text-tertiary">No {isDrivers ? "driver" : "constructor"} has scored yet this season.</div>;
   }
 
   return (
@@ -210,7 +210,7 @@ export function ProgressionPanel({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="mt-4 flex min-h-[72px] items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-neutral-500"
+            className="mt-4 flex min-h-[72px] items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-tertiary"
           >
             {driverSet === "following" ? "No favorites picked yet, mark one in the standings above." : "Pick at least one to plot."}
           </motion.div>

@@ -57,16 +57,16 @@ export function RaceResultsTable({
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-medium text-white">{r.driverName}</span>
                   {r.fastestLap && (
-                    <span className="shrink-0 rounded bg-[var(--f1-red)]/20 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--f1-red)]">FL</span>
+                    <span className="shrink-0 rounded bg-[var(--f1-red)]/20 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-brand-text">FL</span>
                   )}
                 </span>
-                <span className="block truncate text-[11px] text-neutral-500">{r.team}</span>
+                <span className="block truncate text-[11px] text-tertiary">{r.team}</span>
               </span>
               <span className="hidden shrink-0 text-xs text-neutral-400 sm:block">{r.statusLabel}</span>
               <span className="w-20 shrink-0 text-right text-xs text-neutral-400">{r.secondaryLabel}</span>
-              <span className="w-12 shrink-0 text-right text-xs text-neutral-500">{r.points && r.points > 0 ? `${r.points} pts` : ""}</span>
+              <span className="w-12 shrink-0 text-right text-xs text-tertiary">{r.points && r.points > 0 ? `${r.points} pts` : ""}</span>
               {clickable && (
-                <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 shrink-0 text-neutral-500 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" aria-hidden>
+                <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 shrink-0 text-tertiary transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" aria-hidden>
                   <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               )}

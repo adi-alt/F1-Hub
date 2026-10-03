@@ -133,13 +133,16 @@ export function GroupsHomeClient({
           column means the card itself is still free to size to its own content inside it. Net
           effect: a rail that ends under its last action instead of stretching to the viewport, but
           still never overflows it. */}
-      <aside className="order-2 min-h-0 lg:order-1 lg:h-full">
+      <aside aria-label="Your communities" className="order-2 min-h-0 lg:order-1 lg:h-full">
         <div ref={leftScrollRef} className="lg:flex lg:h-full lg:flex-col">
           <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
         </div>
       </aside>
 
-      <main className="order-1 min-h-0 min-w-0 lg:order-2 lg:h-full">
+      {/* A div, not a second <main>: the root layout already has the page's one main landmark. */}
+      <div className="order-1 min-h-0 min-w-0 lg:order-2 lg:h-full">
+        {/* Below lg the rail, and the h1 in it, are hidden, so the page keeps a heading here. */}
+        <h1 className="sr-only lg:hidden">Communities</h1>
         <div
           ref={(el) => {
             centerContainerRef.current = el;
@@ -149,19 +152,19 @@ export function GroupsHomeClient({
           // region, which reads as the feed being cut rather than finished. Padding on the
           // scroll container is part of its scrollable extent, so it's reachable space, not a
           // margin that collapses away.
-          className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:pb-3 lg:scrollbar-hide"
+          className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:scroll-pb-16 lg:pb-3 lg:scrollbar-hide"
         >
           <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
           <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
         </div>
-      </main>
+      </div>
 
       {/* Same height model as the navigation rail: the wrapper holds the workspace height (the
           definite height a percentage max-height inside it can resolve against), while being a flex
           column lets the card size to its own content. A rail with four short widgets ends under
           the last one instead of stretching to the viewport with dead space below it, and only
           starts scrolling internally once it genuinely outgrows the space. */}
-      <aside className="order-3 min-h-0 lg:h-full">
+      <aside aria-label="Race weekend and activity" className="order-3 min-h-0 lg:h-full">
         <div ref={rightScrollRef} className="lg:flex lg:h-full lg:flex-col">
           <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} onDiscover={() => setShowDiscover(true)} />
         </div>

@@ -53,7 +53,7 @@ export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
             {segments[active].raceCount} race{segments[active].raceCount === 1 ? "" : "s"}
           </span>
         ) : (
-          <span className="text-neutral-600">Hover a segment for details</span>
+          <span className="text-tertiary">Hover a segment for details</span>
         )}
       </div>
     </div>

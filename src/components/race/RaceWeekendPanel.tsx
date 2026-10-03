@@ -50,12 +50,12 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
                       ? "rounded-lg border border-emerald-500/40 bg-emerald-500/[0.1] px-3 py-1.5 text-xs"
                       : isNext
                         ? "rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.08] px-3 py-1.5 text-xs"
-                        : `rounded-lg border px-3 py-1.5 text-xs ${completed ? "border-[var(--f1-line)] bg-white/[0.03] text-neutral-500" : "border-[var(--f1-line)] bg-[var(--f1-carbon)] text-neutral-300"}`
+                        : `rounded-lg border px-3 py-1.5 text-xs ${completed ? "border-[var(--f1-line)] bg-white/[0.03] text-tertiary" : "border-[var(--f1-line)] bg-[var(--f1-carbon)] text-neutral-300"}`
                   }
                 >
                   {isLive && <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />}
-                  <span className={`font-semibold ${isLive ? "text-emerald-400" : isNext ? "text-[var(--f1-red)]" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
-                  <span className={`ml-1.5 font-mono text-[11px] ${isLive || isNext ? "text-neutral-300" : "text-neutral-500"}`}>
+                  <span className={`font-semibold ${isLive ? "text-emerald-400" : isNext ? "text-brand-text" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
+                  <span className={`ml-1.5 font-mono text-[11px] ${isLive || isNext ? "text-neutral-300" : "text-tertiary"}`}>
                     {isLive ? "Live now" : parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
@@ -74,7 +74,7 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
             countdown &&
             upcoming && (
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-wide text-neutral-500">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
+                <p className="text-[11px] uppercase tracking-wide text-tertiary">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
                 <p className="font-mono text-lg font-semibold text-white">{countdown}</p>
               </div>
             )

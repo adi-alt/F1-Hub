@@ -31,7 +31,7 @@ const marketTitle: Record<PredictionType, string> = {
  * genuinely urgent (a deadline under 24h); nothing else competes with it for attention. */
 function MetaChip({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) {
   return (
-    <span className={`rounded bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums ${accent ? "text-[var(--f1-red)]" : "text-neutral-300"}`}>
+    <span className={`rounded bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums ${accent ? "text-brand-text" : "text-neutral-300"}`}>
       {children}
     </span>
   );
@@ -109,8 +109,8 @@ export function PredictionFeedCard({
         <span aria-hidden className="shrink-0 text-neutral-700">
           ·
         </span>
-        <span className="shrink-0 text-[11px] text-neutral-500">{timeAgo(prediction.createdAt)}</span>
-        <span className="shrink-0 rounded bg-[var(--f1-red)]/[0.08] px-1.5 py-[1px] text-[10px] font-medium text-[var(--f1-red)]/85">
+        <span className="shrink-0 text-[11px] text-tertiary">{timeAgo(prediction.createdAt)}</span>
+        <span className="shrink-0 rounded bg-[var(--f1-red)]/[0.08] px-1.5 py-[1px] text-[10px] font-medium text-brand-text/85">
           {predictionTypeLabels[prediction.type]}
         </span>
       </div>
@@ -118,7 +118,7 @@ export function PredictionFeedCard({
       {/* The question is the one focal line; the race is context underneath it, small and
           readable but never competing with it. Neither repeats anywhere else on the card. */}
       <p className="mt-2 text-[14.5px] font-semibold leading-tight text-white">{marketTitle[prediction.type]}</p>
-      <p className="mt-0.5 truncate text-[11.5px] text-neutral-500">{prediction.raceName}</p>
+      <p className="mt-0.5 truncate text-[11.5px] text-tertiary">{prediction.raceName}</p>
 
       {/* Cost, real entry count, deadline - three aligned tokens, not one long sentence.
           entryCount is a real group_prediction_entries count, never a placeholder. */}
@@ -199,7 +199,7 @@ function EnteredAnswer({
           <button
             type="button"
             onClick={onEdit}
-            className="rounded text-[11px] font-medium text-neutral-500 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+            className="rounded text-[11px] font-medium text-tertiary transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
           >
             Edit
           </button>
@@ -226,7 +226,7 @@ function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; d
     <div>
       {prediction.correctAnswer !== null && (
         <div>
-          <p className="text-[10.5px] font-medium text-neutral-500">Result</p>
+          <p className="text-[10.5px] font-medium text-tertiary">Result</p>
           <div className="mt-1">
             <GuessSummary type={prediction.type} guess={prediction.correctAnswer} drivers={drivers} />
           </div>
@@ -238,9 +238,9 @@ function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; d
             {scored ? `+${prediction.myPointsAwarded} pts` : `-${prediction.entryPoints} pts`}
           </span>
         ) : (
-          <span className="text-[11px] text-neutral-500">You didn&apos;t enter this round.</span>
+          <span className="text-[11px] text-tertiary">You didn&apos;t enter this round.</span>
         )}
-        <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="text-[11px] font-medium text-neutral-500 transition hover:text-white">
+        <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="text-[11px] font-medium text-tertiary transition hover:text-white">
           View results
         </Link>
       </div>
@@ -271,7 +271,7 @@ function GuessSummary({ type, guess, drivers }: { type: PredictionType; guess: P
         const driver = drivers.find((d) => d.code === code);
         return (
           <div key={`${code}-${i}`} className="flex items-center gap-1.5">
-            {positionLabels && <span className="w-5 shrink-0 font-mono text-[10px] font-semibold text-neutral-500">{positionLabels[i]}</span>}
+            {positionLabels && <span className="w-5 shrink-0 font-mono text-[10px] font-semibold text-tertiary">{positionLabels[i]}</span>}
             <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} seed={code} size={18} />
             <span className="min-w-0 truncate text-[12.5px] font-medium text-neutral-200">{driver?.name ?? code}</span>
           </div>

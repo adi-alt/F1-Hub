@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
-import { Tabs } from "@/components/ui/LegacyTabs";
+import { Tabs, tabIdFor } from "@/components/ui/LegacyTabs";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost, FeedType, GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
@@ -244,7 +244,7 @@ export function GroupsFeed({
         <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 backdrop-blur-sm">
           <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={28} />
           <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
-            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
+            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-tertiary">
               C/
             </span>
             {selectedCommunity.name}
@@ -288,11 +288,15 @@ export function GroupsFeed({
 
       {/* role="tabpanel" only applies to the aggregate mode - that's the only content the Tabs
           strip above actually controls; a selected community's own stream isn't one of its tabs. */}
-      <div role={selectedCommunity ? undefined : "tabpanel"} id={selectedCommunity ? undefined : `groups-feed-panel-tab-${feedType}`}>
+      <div
+        role={selectedCommunity ? undefined : "tabpanel"}
+        id={selectedCommunity ? undefined : "groups-feed-panel"}
+        aria-labelledby={selectedCommunity ? undefined : tabIdFor("groups-feed-panel", feedType)}
+      >
         {selectedCommunity ? (
           communityPosts === null ? (
             communityInitialError ? (
-              <p className="py-6 text-center text-xs text-neutral-500">
+              <p className="py-6 text-center text-xs text-tertiary">
                 Couldn&apos;t load this community&apos;s feed.{" "}
                 <button type="button" onClick={refreshCommunity} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                   Retry
@@ -348,7 +352,7 @@ export function GroupsFeed({
           <div ref={communitySentinelRef} className="py-2">
             {communityLoadingMore && <PostCardSkeleton />}
             {communityMoreError && (
-              <p className="text-center text-xs text-neutral-500">
+              <p className="text-center text-xs text-tertiary">
                 Couldn&apos;t load more.{" "}
                 <button type="button" onClick={() => void loadMoreCommunity()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                   Try again
@@ -363,7 +367,7 @@ export function GroupsFeed({
         <div ref={sentinelRef} className="py-2">
           {loadingMore && <PostCardSkeleton />}
           {error && (
-            <p className="text-center text-xs text-neutral-500">
+            <p className="text-center text-xs text-tertiary">
               Couldn&apos;t load more.{" "}
               <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                 Try again
@@ -416,7 +420,7 @@ function EndOfFeed() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="flex items-center justify-center gap-1.5 py-5 text-[11.5px] text-neutral-600"
+      className="flex items-center justify-center gap-1.5 py-5 text-[11.5px] text-tertiary"
     >
       <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
         <path d="M3 8.5 6.2 11.5 13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

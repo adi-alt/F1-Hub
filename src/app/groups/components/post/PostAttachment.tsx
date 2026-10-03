@@ -75,7 +75,7 @@ export function PostAttachment({ attachment, onRemove }: { attachment: Attachmen
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 rounded-lg border border-white/[0.07] bg-black/20 p-2.5">
         <audio src={attachment.url} controls preload="metadata" onError={() => setMediaFailed(true)} className="h-9 w-full" />
         <p className="mt-1.5 truncate text-[13px] font-medium text-neutral-200">{name}</p>
-        <p className="text-[11.5px] text-neutral-500">{meta}</p>
+        <p className="text-[11.5px] text-tertiary">{meta}</p>
         {onRemove && <RemoveButton onRemove={onRemove} />}
       </motion.div>
     );
@@ -111,7 +111,7 @@ function MetaRow({ badge, name, meta, url, downloadName, kind }: { badge: string
         {/* Two lines then ellipsis: a real filename is often long, and truncating it to one line
             hides the part that identifies it. line-clamp keeps it bounded either way. */}
         <span className="line-clamp-2 break-all text-[13.5px] font-medium leading-snug text-neutral-100">{name}</span>
-        <span className="mt-0.5 block text-[11.5px] text-neutral-500">{meta}</span>
+        <span className="mt-0.5 block text-[11.5px] text-tertiary">{meta}</span>
       </a>
       {/* download carries the ORIGINAL name, so the saved file is never the storage UUID. */}
       <a
@@ -119,7 +119,7 @@ function MetaRow({ badge, name, meta, url, downloadName, kind }: { badge: string
         download={downloadName ?? undefined}
         aria-label={`Download ${name}`}
         title={`Download ${name}`}
-        className="shrink-0 rounded-md p-1.5 text-neutral-500 transition hover:bg-white/[0.06] hover:text-white"
+        className="shrink-0 rounded-md p-1.5 text-tertiary transition hover:bg-white/[0.06] hover:text-white"
       >
         <DownloadIcon />
       </a>
@@ -128,7 +128,7 @@ function MetaRow({ badge, name, meta, url, downloadName, kind }: { badge: string
 }
 
 const TONE: Record<AttachmentKind, string> = {
-  pdf: "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]",
+  pdf: "bg-[var(--f1-red)]/[0.14] text-brand-text",
   sheet: "bg-emerald-500/[0.14] text-emerald-400",
   doc: "bg-sky-500/[0.14] text-sky-400",
   slides: "bg-amber-500/[0.14] text-amber-400",

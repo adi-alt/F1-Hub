@@ -8,7 +8,7 @@ const YEARS_SHOWN_COLLAPSED = 8;
 function FactRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-white/[0.05] py-1.5 text-sm last:border-b-0">
-      <span className="text-neutral-500">{label}</span>
+      <span className="text-tertiary">{label}</span>
       <span className="text-right font-medium text-neutral-200">{value}</span>
     </div>
   );
@@ -53,11 +53,11 @@ export function GrandPrixHistoryContent({ raceName, timeline }: { raceName: stri
 
   return (
     <div>
-      <p className="mb-4 text-sm text-neutral-500">
+      <p className="mb-4 text-sm text-tertiary">
         {raceName} has been run {gpTimeline.length} time{gpTimeline.length === 1 ? "" : "s"}, since {oldestYear}.
       </p>
       {allNames.length > 1 && (
-        <p className="mb-4 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs leading-relaxed text-neutral-500">
+        <p className="mb-4 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs leading-relaxed text-tertiary">
           This circuit has hosted {allNames.length} different Grand Prix events over its history ({allNames.join(", ")}) - the records below are {raceName}&apos;s own, not the circuit&apos;s combined
           history.
         </p>
@@ -68,17 +68,17 @@ export function GrandPrixHistoryContent({ raceName, timeline }: { raceName: stri
           {records.mostPoles && <FactRow label="Most poles" value={`${joinNames(records.mostPoles.drivers)} (${records.mostPoles.count})`} />}
           {mostRecent.winnerDriver && <FactRow label="Most recent winner" value={`${mostRecent.winnerDriver} (${mostRecent.year})`} />}
           {previousRunning?.winnerDriver && <FactRow label="Previous winner" value={`${previousRunning.winnerDriver} (${previousRunning.year})`} />}
-          {!records.mostWins && !mostRecent.winnerDriver && <p className="text-sm text-neutral-500">No classified results recorded for this event yet.</p>}
+          {!records.mostWins && !mostRecent.winnerDriver && <p className="text-sm text-tertiary">No classified results recorded for this event yet.</p>}
         </div>
 
         <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Year by year</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Year by year</p>
           <div className="space-y-1">
             {rowsShown.map((r) => (
               <div key={r.year} className="flex items-center justify-between gap-3 text-sm">
-                <span className="w-12 shrink-0 font-mono text-neutral-500">{r.year}</span>
+                <span className="w-12 shrink-0 font-mono text-tertiary">{r.year}</span>
                 <span className="min-w-0 flex-1 truncate text-neutral-200">{r.winnerDriver ?? "—"}</span>
-                <span className="shrink-0 truncate text-xs text-neutral-500">{r.winnerTeam ?? ""}</span>
+                <span className="shrink-0 truncate text-xs text-tertiary">{r.winnerTeam ?? ""}</span>
               </div>
             ))}
           </div>

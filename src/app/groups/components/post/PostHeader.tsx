@@ -50,9 +50,9 @@ export function PostHeader({
   const inCommunity = showGroup && !!post.groupId;
 
   const author = (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] leading-tight text-neutral-500">
+    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] leading-tight text-tertiary">
       <span className="min-w-0 truncate font-medium text-neutral-300">
-        <span aria-hidden className="mr-1 font-mono text-[10.5px] font-normal text-neutral-600">
+        <span aria-hidden className="mr-1 font-mono text-[10.5px] font-normal text-tertiary">
           U/
         </span>
         {post.authorName}
@@ -61,7 +61,7 @@ export function PostHeader({
         ·
       </span>
       <span className="shrink-0 whitespace-nowrap">{timeAgo(post.createdAt)}</span>
-      {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
+      {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-tertiary">{roleLabel}</span>}
       {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
     </span>
   );
@@ -82,7 +82,7 @@ export function PostHeader({
         {inCommunity ? (
           <>
             <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-[13px] font-semibold leading-tight text-white transition hover:text-neutral-300">
-              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-neutral-500">
+              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-tertiary">
                 C/
               </span>
               {post.groupName}
@@ -92,7 +92,7 @@ export function PostHeader({
         ) : (
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[13px] leading-tight">
             <span className="min-w-0 truncate font-semibold text-white">
-              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-neutral-500">
+              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-tertiary">
                 U/
               </span>
               {post.authorName}
@@ -100,8 +100,8 @@ export function PostHeader({
             <span aria-hidden className="text-neutral-700">
               ·
             </span>
-            <span className="shrink-0 whitespace-nowrap text-[11.5px] text-neutral-500">{timeAgo(post.createdAt)}</span>
-            {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-neutral-600">{roleLabel}</span>}
+            <span className="shrink-0 whitespace-nowrap text-[11.5px] text-tertiary">{timeAgo(post.createdAt)}</span>
+            {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-tertiary">{roleLabel}</span>}
             {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
           </span>
         )}

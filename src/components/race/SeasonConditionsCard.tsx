@@ -55,14 +55,14 @@ export function SeasonConditionsCard({
       <div className="p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-500">Circuit</p>
+            <p className="text-xs uppercase tracking-wide text-tertiary">Circuit</p>
             <p className="font-semibold text-white">
               {circuit}
-              {country && <span className="font-normal text-neutral-500"> · {country}</span>}
+              {country && <span className="font-normal text-tertiary"> · {country}</span>}
             </p>
           </div>
           {image?.wikipediaUrl && (
-            <a href={image.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-[var(--f1-red)] hover:underline">
+            <a href={image.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-brand-text hover:underline">
               Wikipedia →
             </a>
           )}
@@ -75,7 +75,7 @@ export function SeasonConditionsCard({
             </span>
             <div className="text-sm">
               <p className="text-neutral-200">{weather.rainfall ? "Rain" : "Clear"}</p>
-              <p className="text-neutral-500">
+              <p className="text-tertiary">
                 Air {Math.round(weather.airTempC)}°C · Track {Math.round(weather.trackTempC)}°C · {Math.round(weather.humidityPct)}% humidity
               </p>
             </div>

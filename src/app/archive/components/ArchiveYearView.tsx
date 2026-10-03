@@ -14,11 +14,11 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
   if (year < ARCHIVE_EARLIEST_YEAR || year > ARCHIVE_LATEST_YEAR) {
     return (
       <div className="page-content py-10">
-        <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
+        <Link href="/archive" className="text-sm text-tertiary hover:text-neutral-300">
           ← Archive
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-white">{year}</h1>
-        <p className="mt-4 text-sm text-neutral-500">The archive covers {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}.</p>
+        <p className="mt-4 text-sm text-tertiary">The archive covers {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}.</p>
       </div>
     );
   }
@@ -28,11 +28,11 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
   if (data.raceSummaries.length === 0) {
     return (
       <div className="page-content py-10">
-        <Link href="/archive" className="text-sm text-neutral-500 hover:text-neutral-300">
+        <Link href="/archive" className="text-sm text-tertiary hover:text-neutral-300">
           ← Archive
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-white">{year}</h1>
-        <p className="mt-4 text-sm text-neutral-500">No results backfilled for this season yet.</p>
+        <p className="mt-4 text-sm text-tertiary">No results backfilled for this season yet.</p>
       </div>
     );
   }

@@ -24,7 +24,7 @@ export function SinceLastVisit() {
 
   return (
     <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Since you were last here</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Since you were last here</span>
       <span className="text-xs text-neutral-300">{since.summary}</span>
       <span className="flex items-center gap-2">
         {since.changes.map((c, i) => (

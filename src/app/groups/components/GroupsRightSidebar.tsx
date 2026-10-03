@@ -68,14 +68,14 @@ export function GroupsRightSidebar({
             onClick={onDiscover}
             className="group flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
           >
-            <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/15 text-[var(--f1-red)]">
+            <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/15 text-brand-text">
               <CompassIcon />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Explore communities</span>
-              <span className="mt-px block truncate text-[10.5px] text-neutral-500">Find new communities to join</span>
+              <span className="mt-px block truncate text-[10.5px] text-tertiary">Find new communities to join</span>
             </span>
-            <span className="shrink-0 text-neutral-600 transition group-hover:text-white">
+            <span className="shrink-0 text-tertiary transition group-hover:text-white">
               <ChevronIcon />
             </span>
           </button>
@@ -124,15 +124,15 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
   return (
     <div>
       <div className="flex items-center gap-1.5">
-        <span aria-hidden className="text-[var(--f1-red)]">
+        <span aria-hidden className="text-brand-text">
           ✦
         </span>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Community pulse</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Community pulse</p>
       </div>
-      <p className="mt-1 text-[10.5px] text-neutral-600">{pulse.hasPriorVisit ? "Since you were last here" : "Across your communities"}</p>
+      <p className="mt-1 text-[10.5px] text-tertiary">{pulse.hasPriorVisit ? "Since you were last here" : "Across your communities"}</p>
 
       {rows.length === 0 && !trending && !pulse.mostDiscussed && !pulse.predictionPulse ? (
-        <p className="mt-2 text-[11.5px] leading-relaxed text-neutral-600">
+        <p className="mt-2 text-[11.5px] leading-relaxed text-tertiary">
           {pulse.hasPriorVisit ? "You're caught up. No major changes since your last visit." : "No activity across your communities yet."}
         </p>
       ) : (
@@ -165,7 +165,7 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
                   transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: rows.length * 0.04 }}
                   className="flex items-center gap-2"
                 >
-                  <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]">
+                  <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-brand-text">
                     <TrendIcon />
                   </span>
                   <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
@@ -181,9 +181,9 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
           {pulse.mostDiscussed && (
             <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 1) * 0.04 }}>
             <Link href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
-              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Most discussed</p>
+              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-tertiary">Most discussed</p>
               <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-neutral-300">{pulse.mostDiscussed.excerpt}</p>
-              <p className="mt-0.5 text-[10.5px] tabular-nums text-neutral-500">
+              <p className="mt-0.5 text-[10.5px] tabular-nums text-tertiary">
                 {pulse.mostDiscussed.comments} {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
               </p>
             </Link>
@@ -195,7 +195,7 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
           {pulse.predictionPulse && (
             <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 2) * 0.04 }}>
             <Link href={`${groupHref(pulse.predictionPulse.groupId)}?tab=predictions`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
-              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-600">Prediction activity</p>
+              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-tertiary">Prediction activity</p>
               <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-300">
                 <span className="font-semibold text-white">{pulse.predictionPulse.pct}%</span> backing {pulse.predictionPulse.leader}
               </p>
@@ -211,7 +211,7 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
                   className="block h-full rounded-full bg-[var(--f1-red)]"
                 />
               </span>
-              <p className="mt-1 truncate text-[10.5px] text-neutral-500">
+              <p className="mt-1 truncate text-[10.5px] text-tertiary">
                 {pulse.predictionPulse.raceName} · {pulse.predictionPulse.total} entries
               </p>
             </Link>
@@ -290,7 +290,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">Race weekend</p>
 
         {!race ? (
-          <p className="mt-2 text-xs leading-relaxed text-neutral-500">No upcoming race is scheduled yet.</p>
+          <p className="mt-2 text-xs leading-relaxed text-tertiary">No upcoming race is scheduled yet.</p>
         ) : (
           <>
             <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Round {race.round}</p>
@@ -309,7 +309,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
             )}
 
             {countdown && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--f1-red)]">
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-0.5 text-[11px] font-semibold text-brand-text">
                 <ClockIcon />
                 Lights out in {countdown}
               </p>
@@ -354,12 +354,12 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Active predictions</p>
-        {predictions.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{predictions.length}</span>}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Active predictions</p>
+        {predictions.length > 0 && <span className="text-[11px] tabular-nums text-tertiary">{predictions.length}</span>}
       </div>
 
       {predictions.length === 0 ? (
-        <p className="mt-2 text-xs leading-relaxed text-neutral-600">No active predictions. New rounds open as a race weekend approaches.</p>
+        <p className="mt-2 text-xs leading-relaxed text-tertiary">No active predictions. New rounds open as a race weekend approaches.</p>
       ) : (
         <div className="mt-1.5 space-y-1">
           {predictions.map((p) => {
@@ -379,7 +379,7 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
                 <div className="flex items-start gap-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold leading-tight text-white">{p.raceName}</span>
-                    <span className="mt-0.5 block truncate text-[11px] leading-tight text-neutral-500">
+                    <span className="mt-0.5 block truncate text-[11px] leading-tight text-tertiary">
                       {predictionTypeLabels[p.type]} · {p.groupName}
                     </span>
                   </span>
@@ -396,11 +396,11 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
                       {p.myGuessLabel && <span className="min-w-0 truncate font-medium normal-case tracking-normal text-neutral-400">· {p.myGuessLabel}</span>}
                     </span>
                   ) : (
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Not entered</span>
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Not entered</span>
                   )}
 
                   {countdown ? (
-                    <span className={`flex min-w-0 items-center gap-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-[var(--f1-red)]" : "text-neutral-500"}`}>
+                    <span className={`flex min-w-0 items-center gap-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-brand-text" : "text-tertiary"}`}>
                       <ClockIcon />
                       <span className="truncate">Closes in {countdown}</span>
                     </span>

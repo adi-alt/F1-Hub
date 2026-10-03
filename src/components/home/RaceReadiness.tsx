@@ -66,8 +66,8 @@ export function RaceReadiness({ calendarEntry, race }: { calendarEntry: Calendar
             >
               {step.done && <CheckIcon className="h-3 w-3" />}
             </motion.span>
-            <span className={`text-[10px] font-semibold tracking-wide ${step.done ? "text-neutral-300" : "text-neutral-600"}`}>{step.code}</span>
-            <span className="whitespace-nowrap text-[9px] text-neutral-600">{sessionTimeLabel(step.date)}</span>
+            <span className={`text-[10px] font-semibold tracking-wide ${step.done ? "text-neutral-300" : "text-tertiary"}`}>{step.code}</span>
+            <span className="whitespace-nowrap text-[9px] text-tertiary">{sessionTimeLabel(step.date)}</span>
           </div>
           {i < steps.length - 1 && (
             <div className="mx-1.5 mb-10 h-px w-6 bg-[var(--f1-line)] sm:w-10">

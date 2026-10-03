@@ -28,9 +28,16 @@ export type DialogProps = {
    * so focus could not go back to it on close.
    */
   initialFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * Artwork beside the content from md up, such as the sign-in scene. Hidden on phones and from
+   * assistive tech, so it must hold no controls and say nothing the content doesn't. It doubles the
+   * panel's md-up width: the content column keeps `size`'s width and the aside takes the same again.
+   */
+  aside?: ReactNode;
 };
 
-export type SheetProps = DialogProps;
+/** A sheet has no room for an aside. */
+export type SheetProps = Omit<DialogProps, "aside">;
 
 type Variant = "dialog" | "sheet";
 
@@ -43,6 +50,11 @@ const EXIT_MS = 320;
 const BACKDROP = "absolute inset-0 bg-surface-0/70 transition-opacity duration-slow ease-standard starting:opacity-0 motion-reduce:transition-none";
 const PANEL =
   "relative flex w-full flex-col gap-4 overflow-hidden bg-surface-3 py-6 shadow-overlay transition-[opacity,translate] duration-slow ease-standard motion-reduce:transition-none";
+// With an aside, the panel is a row from md up: the artwork, then a column that takes the padding.
+const PANEL_WITH_ASIDE = "md:flex-row md:gap-0 md:py-0";
+const ASIDE = "hidden md:block md:w-1/2 md:shrink-0";
+const CONTENT_COLUMN = "flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:py-6";
+const ASIDE_WIDTH: Record<DialogSize, string> = { sm: "max-w-sm md:max-w-3xl", md: "max-w-lg md:max-w-4xl", lg: "max-w-2xl md:max-w-5xl" };
 const CLOSE_BUTTON =
   "-mr-2 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-control text-secondary hover:bg-primary/8 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 
@@ -148,12 +160,39 @@ export function DialogLayer({
   children,
   footer,
   size = "md",
+  aside,
 }: Omit<DialogProps, "open" | "initialFocusRef"> & { variant?: Variant; open?: boolean; panelRef?: Ref<HTMLDivElement> }) {
   const id = useId();
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const styles = VARIANTS[variant];
   const closing = !open;
+  const withAside = variant === "dialog" && hasContent(aside);
+
+  const content = (
+    <>
+      <div className="flex shrink-0 items-start gap-4 px-6">
+        <div className="min-w-0 flex-1">
+          <h2 id={titleId} className="break-words text-title-md text-primary">
+            {title}
+          </h2>
+          {description && (
+            <p id={descriptionId} className="mt-1 text-body-sm text-secondary">
+              {description}
+            </p>
+          )}
+        </div>
+        {dismissible && (
+          <button type="button" aria-label="Close" onClick={() => onClose()} className={CLOSE_BUTTON}>
+            <X aria-hidden size={20} strokeWidth={1.75} />
+          </button>
+        )}
+      </div>
+      {/* -my-1 py-1 keeps the 16px gap but gives focus rings at the scroll edges room to show. */}
+      {hasContent(children) && <div className="-my-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary">{children}</div>}
+      {hasContent(footer) && <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 px-6 pt-2">{footer}</div>}
+    </>
+  );
 
   return (
     <div className={cx(styles.root, closing && "pointer-events-none")} inert={closing}>
@@ -164,28 +203,18 @@ export function DialogLayer({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={cx(PANEL, styles.panel, styles.width[size], closing && styles.closed)}
+        className={cx(PANEL, withAside && PANEL_WITH_ASIDE, styles.panel, withAside ? ASIDE_WIDTH[size] : styles.width[size], closing && styles.closed)}
       >
-        <div className="flex shrink-0 items-start gap-4 px-6">
-          <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="break-words text-title-md text-primary">
-              {title}
-            </h2>
-            {description && (
-              <p id={descriptionId} className="mt-1 text-body-sm text-secondary">
-                {description}
-              </p>
-            )}
-          </div>
-          {dismissible && (
-            <button type="button" aria-label="Close" onClick={() => onClose()} className={CLOSE_BUTTON}>
-              <X aria-hidden size={20} strokeWidth={1.75} />
-            </button>
-          )}
-        </div>
-        {/* -my-1 py-1 keeps the 16px gap but gives focus rings at the scroll edges room to show. */}
-        {hasContent(children) && <div className="-my-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary">{children}</div>}
-        {hasContent(footer) && <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 px-6 pt-2">{footer}</div>}
+        {withAside ? (
+          <>
+            <div aria-hidden="true" className={ASIDE}>
+              {aside}
+            </div>
+            <div className={CONTENT_COLUMN}>{content}</div>
+          </>
+        ) : (
+          content
+        )}
       </div>
     </div>
   );

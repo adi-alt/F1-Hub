@@ -67,7 +67,7 @@ export function ArchiveCircuitGrid({
 }) {
   if (circuits.length === 0) {
     return (
-      <p className="mt-8 text-sm text-neutral-500">
+      <p className="mt-8 text-sm text-tertiary">
         No circuits backfilled yet. The circuit/weather enrichment pass is still working through
         the archive.
       </p>
@@ -86,7 +86,7 @@ export function ArchiveCircuitGrid({
 
   if (filtered.length === 0) {
     return (
-      <p className="mt-8 text-sm text-neutral-500">
+      <p className="mt-8 text-sm text-tertiary">
         {favoritesOnly ? "You haven't favorited any tracks yet." : `No circuits found${search ? ` for "${search}"` : ""}.`}
         {onClearFilters && (
           <>
@@ -134,12 +134,12 @@ export function ArchiveCircuitGrid({
                   </p>
                   <StatusBadge active={isActive} />
                 </div>
-                <p className="mt-1 truncate text-xs text-neutral-500" title={c.country ?? undefined}>
+                <p className="mt-1 truncate text-xs text-tertiary" title={c.country ?? undefined}>
                   {c.country ?? "Country unknown"}
                   {!!c.raceCount && ` · ${c.raceCount} race${c.raceCount === 1 ? "" : "s"}`}
                 </p>
                 {!!c.firstYear && (
-                  <p className="text-xs text-neutral-500">{c.firstYear === c.lastYear ? c.firstYear : `${c.firstYear}–${c.lastYear}`}</p>
+                  <p className="text-xs text-tertiary">{c.firstYear === c.lastYear ? c.firstYear : `${c.firstYear}–${c.lastYear}`}</p>
                 )}
               </div>
             </Link>

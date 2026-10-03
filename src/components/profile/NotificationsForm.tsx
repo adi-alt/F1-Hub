@@ -57,7 +57,7 @@ export function NotificationsForm({
       <div className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-white">Before qualifying locks</p>
-          <p className="text-xs text-neutral-500">A heads-up before the grid for the next race is set.</p>
+          <p className="text-xs text-tertiary">A heads-up before the grid for the next race is set.</p>
         </div>
         <Toggle
           checked={notifyBeforeQualifying}
@@ -71,7 +71,7 @@ export function NotificationsForm({
       <div className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-white">When results land</p>
-          <p className="text-xs text-neutral-500">A summary once a race you&apos;ve picked for finishes.</p>
+          <p className="text-xs text-tertiary">A summary once a race you&apos;ve picked for finishes.</p>
         </div>
         <Toggle
           checked={notifyOnResults}
@@ -82,7 +82,7 @@ export function NotificationsForm({
         />
       </div>
 
-      {saving && <p className="text-xs text-neutral-500">Saving…</p>}
+      {saving && <p className="text-xs text-tertiary">Saving…</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );

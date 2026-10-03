@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { isFromNestedControl } from "@/components/ui/Table";
 import type { RaceResultEntry } from "@/lib/types/race";
 import type { CurrentDriver, CurrentTeam } from "@/lib/supabase/media";
 
@@ -54,9 +55,9 @@ export function ClassificationTable({
           table, just a fixed cap here instead of that table's own resizable panel. The sticky
           header lives inside this scroll container (not on the table itself) so it stays put
           while the body scrolls under it. */}
-      <div className="max-h-[380px] overflow-y-auto">
+      <div className="max-h-[380px] overflow-y-auto scroll-pt-10">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md" style={HEADER_STYLE}>
+          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
             <tr>
               <th className="px-3 py-2.5 font-semibold">Pos</th>
               <th className="px-3 py-2.5 font-semibold">Driver</th>
@@ -73,18 +74,30 @@ export function ClassificationTable({
                   className={`group cursor-pointer transition-colors ${isActive ? "bg-white/[0.05]" : "hover:bg-white/[0.02]"}`}
                   onMouseEnter={() => setHoverDriver(r.driver)}
                   onMouseLeave={() => setHoverDriver(null)}
-                  onClick={() => setSelectedDriver(selectedDriver === r.driver ? null : r.driver)}
+                  // The whole row is the pointer target; the name button is the keyboard one, and its
+                  // own click isn't counted twice.
+                  onClick={(event) => {
+                    if (!isFromNestedControl(event.target, event.currentTarget)) setSelectedDriver(selectedDriver === r.driver ? null : r.driver);
+                  }}
                 >
-                  <td className={`px-3 py-2 font-mono tabular-nums ${r.finishPosition <= 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{r.finishPosition}</td>
+                  <td className={`px-3 py-2 font-mono tabular-nums ${r.finishPosition <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{r.finishPosition}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    <div className="flex min-w-0 items-center gap-2">
+                    {/* Highlights this driver on the track map, the same as a click on the row. */}
+                    <button
+                      type="button"
+                      aria-pressed={selectedDriver === r.driver}
+                      onClick={() => setSelectedDriver(selectedDriver === r.driver ? null : r.driver)}
+                      onFocus={() => setHoverDriver(r.driver)}
+                      onBlur={() => setHoverDriver(null)}
+                      className="flex min-w-0 items-center gap-2 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    >
                       <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
                         <EntityAvatar imageUrl={photoByCode.get(r.driver) ?? null} name={r.driverName} size={26} fit="cover" />
                       </span>
                       <span className="min-w-0 truncate font-medium text-white">
-                        {r.driverName} <span className="font-mono text-[10px] font-normal text-neutral-500">{r.driver}</span>
+                        {r.driverName} <span className="font-mono text-[10px] font-normal text-tertiary">{r.driver}</span>
                       </span>
-                    </div>
+                    </button>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-neutral-400">
                     <div className="flex min-w-0 items-center gap-1.5">
@@ -92,7 +105,7 @@ export function ClassificationTable({
                       <span className="truncate">{r.team}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-neutral-500">
+                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-tertiary">
                     {r.status === "dnf" ? "DNF" : r.finishPosition === 1 ? "Leader" : r.finishGapSec != null ? `+${r.finishGapSec.toFixed(1)}s` : "—"}
                   </td>
                 </tr>

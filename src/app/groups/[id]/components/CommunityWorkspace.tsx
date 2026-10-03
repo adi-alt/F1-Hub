@@ -197,7 +197,7 @@ export function CommunityWorkspace({
                     role="tab"
                     aria-selected={tab === t}
                     onClick={() => select(t)}
-                    className={`relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition ${tab === t ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+                    className={`relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition ${tab === t ? "text-white" : "text-tertiary hover:text-neutral-300"}`}
                   >
                     {t === "manage" ? "Manage" : MODULE_LABELS[t]}
                     {tab === t && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[var(--f1-red)]" />}

@@ -40,7 +40,7 @@ export function RaceIntelligencePanel({
   if (!trackHistory) {
     return (
       <div className="flex h-full items-center rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6">
-        <p className="text-sm text-neutral-500">No archive history yet for {circuitName}, this looks like a new addition to the calendar.</p>
+        <p className="text-sm text-tertiary">No archive history yet for {circuitName}, this looks like a new addition to the calendar.</p>
       </div>
     );
   }
@@ -82,7 +82,7 @@ export function RaceIntelligencePanel({
       )}
 
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">Track intelligence</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-tertiary">Track intelligence</p>
         <span className="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10px] font-mono text-neutral-400">
           {trackHistory.totalRaces} GP{trackHistory.totalRaces === 1 ? "" : "s"}
         </span>
@@ -98,7 +98,7 @@ export function RaceIntelligencePanel({
             <EntityAvatar imageUrl={trackHistory.topPerformer.photoUrl} name={trackHistory.topPerformer.driverName} size={32} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white">{trackHistory.topPerformer.driverName}</p>
-              <p className="text-xs text-neutral-500">Most wins here ({trackHistory.topPerformer.wins})</p>
+              <p className="text-xs text-tertiary">Most wins here ({trackHistory.topPerformer.wins})</p>
             </div>
           </Link>
         )}
@@ -108,7 +108,7 @@ export function RaceIntelligencePanel({
             <EntityAvatar imageUrl={trackHistory.topPodiumDriver.photoUrl} name={trackHistory.topPodiumDriver.driverName} size={32} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white">{trackHistory.topPodiumDriver.driverName}</p>
-              <p className="text-xs text-neutral-500">Most podiums here ({trackHistory.topPodiumDriver.podiums})</p>
+              <p className="text-xs text-tertiary">Most podiums here ({trackHistory.topPodiumDriver.podiums})</p>
             </div>
           </Link>
         )}
@@ -118,7 +118,7 @@ export function RaceIntelligencePanel({
             <EntityAvatar imageUrl={trackHistory.defendingWinner.photoUrl} name={trackHistory.defendingWinner.driverName} size={32} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white">{trackHistory.defendingWinner.driverName}</p>
-              <p className="text-xs text-neutral-500">Defending winner ({trackHistory.defendingWinner.year})</p>
+              <p className="text-xs text-tertiary">Defending winner ({trackHistory.defendingWinner.year})</p>
             </div>
           </Link>
         )}
@@ -128,7 +128,7 @@ export function RaceIntelligencePanel({
             <EntityAvatar imageUrl={trackHistory.topCurrentTeam.logoUrl} name={trackHistory.topCurrentTeam.name} size={32} fit="contain" />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white">{trackHistory.topCurrentTeam.name}</p>
-              <p className="text-xs text-neutral-500">Most team wins here ({trackHistory.topCurrentTeam.wins})</p>
+              <p className="text-xs text-tertiary">Most team wins here ({trackHistory.topCurrentTeam.wins})</p>
             </div>
           </div>
         )}
@@ -210,7 +210,7 @@ export function RaceIntelligencePanel({
           transition={{ duration: 0.25, ease: "easeOut" }}
           className="mt-3.5 border-t border-white/[0.06] pt-3"
         >
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Your outlook</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">Your outlook</p>
           <p className="mt-1 text-xs leading-relaxed text-neutral-300">{outlook.overallAssessment}</p>
         </motion.div>
       )}

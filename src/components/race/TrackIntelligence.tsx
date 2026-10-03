@@ -35,9 +35,9 @@ function fmtSec(sec: number): string {
 function StatCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="text-[11px] uppercase tracking-wide text-tertiary">{label}</p>
       <p className="mt-0.5 truncate text-sm font-semibold text-white">{value}</p>
-      {sub && <p className="text-[11px] text-neutral-500">{sub}</p>}
+      {sub && <p className="text-[11px] text-tertiary">{sub}</p>}
     </div>
   );
 }
@@ -113,7 +113,7 @@ export function TrackTrendsContent({ liveRaces, archiveRaces, circuitName }: { l
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-neutral-500">Windowed by time range - never the same fact as the Records tab, which is always all-time.</p>
+        <p className="text-sm text-tertiary">Windowed by time range - never the same fact as the Records tab, which is always all-time.</p>
         <QuietTabs options={WINDOW_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} value={window} onChange={setWindow} className="shrink-0 text-xs" />
       </div>
       {recordCells.length > 0 && (
@@ -138,13 +138,13 @@ export function TrackTrendsContent({ liveRaces, archiveRaces, circuitName }: { l
         </div>
       )}
       {recordCells.length === 0 && trendCells.length === 0 && weatherCells.length === 0 && (
-        <p className="mt-4 text-sm text-neutral-500">Not enough data in this time range - try a wider one.</p>
+        <p className="mt-4 text-sm text-tertiary">Not enough data in this time range - try a wider one.</p>
       )}
       {/* Sample size and window, said plainly - a "most wins" or "pole -> win" stat computed
           from a 1-year window (one race) reads very differently from the same stat over 20
           years, and the selector above already lets it be either. */}
       {windowed.length > 0 && (
-        <p className="mt-4 text-[11px] text-neutral-600">
+        <p className="mt-4 text-[11px] text-tertiary">
           Based on {windowed.length} {windowed.length === 1 ? "race" : "races"}{" "}
           {matchedWindow?.years ? `over the last ${matchedWindow.years} season${matchedWindow.years === 1 ? "" : "s"}` : "across all available history"} at {circuitName}.
         </p>

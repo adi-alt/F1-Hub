@@ -224,7 +224,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
         <header className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{STEP_TITLES[step].eyebrow}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{STEP_TITLES[step].eyebrow}</p>
               <h2 className="mt-0.5 text-lg font-bold text-white">{STEP_TITLES[step].title}</h2>
             </div>
             <button
@@ -280,17 +280,17 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       placeholder={meta.value === "f1" ? "Ferrari Tifosi India" : "Photography Society"}
                       aria-invalid={!!nameError}
                       aria-describedby={nameError ? "community-name-error" : undefined}
-                      className={`mt-1 w-full rounded-lg border bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none ${
+                      className={`mt-1 w-full rounded-lg border bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:outline-none ${
                         nameError ? "border-[var(--f1-red)]/60" : "border-[var(--f1-line)] focus:border-white/30"
                       }`}
                     />
                     <div className="mt-1 flex items-start justify-between gap-3 text-[11px]">
-                      <span id="community-name-error" className={nameError ? "text-[var(--f1-red)]" : "text-neutral-600"}>
+                      <span id="community-name-error" className={nameError ? "text-brand-text" : "text-tertiary"}>
                         {nameError ?? "This is how people will find you."}
                       </span>
                       {/* Shown only once it's actually relevant, not a permanent 0/40 counter. */}
                       {trimmedName.length > MAX_NAME - 10 && (
-                        <span className="shrink-0 tabular-nums text-neutral-600">
+                        <span className="shrink-0 tabular-nums text-tertiary">
                           {trimmedName.length}/{MAX_NAME}
                         </span>
                       )}
@@ -299,7 +299,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
 
                   <div>
                     <label htmlFor="community-description" className="block text-xs font-medium text-neutral-400">
-                      Description <span className="text-neutral-600">(optional)</span>
+                      Description <span className="text-tertiary">(optional)</span>
                     </label>
                     <textarea
                       id="community-description"
@@ -308,13 +308,13 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       maxLength={MAX_DESCRIPTION}
                       rows={3}
                       placeholder="What is this community about?"
-                      className="mt-1 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+                      className="mt-1 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                     />
                   </div>
 
                   <div>
                     <span className="block text-xs font-medium text-neutral-400">
-                      Topic <span className="text-neutral-600">(optional)</span>
+                      Topic <span className="text-tertiary">(optional)</span>
                     </span>
                     <Picker
                       options={COMMUNITY_TOPICS.map((t) => ({ value: t, label: t }))}
@@ -327,7 +327,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       clearable
                       className="mt-1"
                     />
-                    <p className="mt-1 text-[11px] text-neutral-600">Not in the list? Type your own.</p>
+                    <p className="mt-1 text-[11px] text-tertiary">Not in the list? Type your own.</p>
                   </div>
                 </div>
               )}
@@ -359,7 +359,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         surfaceClassName="h-20 w-20"
                         rounded
                       />
-                      <p className="pt-1 text-[11px] leading-relaxed text-neutral-600">
+                      <p className="pt-1 text-[11px] leading-relaxed text-tertiary">
                         Both are optional. Without them your community gets a generated banner and avatar derived from its name, which looks
                         deliberate rather than empty.
                       </p>
@@ -390,7 +390,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
 
               {step === "features" && (
                 <div className="space-y-3">
-                  <p className="text-xs leading-relaxed text-neutral-500">
+                  <p className="text-xs leading-relaxed text-tertiary">
                     Sensible defaults for a {meta.label.toLowerCase()} are already on. You can change any of this later.
                   </p>
                   <div className="space-y-2">
@@ -402,9 +402,9 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         <div key={m} className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-2.5">
                           <span>
                             <span className="block text-sm text-neutral-300">{MODULE_LABELS[m]}</span>
-                            <span className="block text-[11px] text-neutral-600">{MODULE_DESCRIPTIONS[m]}</span>
+                            <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
                           </span>
-                          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">Always on</span>
+                          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Always on</span>
                         </div>
                       ))}
 
@@ -423,7 +423,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         >
                           <span className="min-w-0">
                             <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
-                            <span className="block text-[11px] text-neutral-500">{MODULE_DESCRIPTIONS[m]}</span>
+                            <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
                           </span>
                           <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-[var(--f1-red)]" : "bg-white/10"}`} aria-hidden>
                             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
@@ -433,7 +433,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                     })}
                   </div>
                   {!meta.f1 && (
-                    <p className="text-[11px] leading-relaxed text-neutral-600">
+                    <p className="text-[11px] leading-relaxed text-tertiary">
                       Race predictions and leaderboards are F1-specific, so they aren&apos;t offered here. Switch the type to an F1 Community or
                       Prediction League if you want them.
                     </p>
@@ -462,7 +462,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         </span>
                       </div>
                       <p className="mt-2.5 text-base font-semibold text-white">{trimmedName}</p>
-                      <p className="mt-0.5 text-xs text-neutral-500">
+                      <p className="mt-0.5 text-xs text-tertiary">
                         {meta.label} · {VISIBILITY_OPTIONS.find((v) => v.value === visibility)?.label}
                         {topic ? ` · ${topic}` : ""}
                       </p>
@@ -478,7 +478,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                   </div>
                   <div>
                     <label htmlFor="community-invite" className="block text-xs font-medium text-neutral-400">
-                      Invite people <span className="text-neutral-600">(optional)</span>
+                      Invite people <span className="text-tertiary">(optional)</span>
                     </label>
                     <div className="mt-1 flex gap-2">
                       <input
@@ -493,7 +493,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         }}
                         type="email"
                         placeholder="person@email.com"
-                        className="flex-1 rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+                        className="flex-1 rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                       />
                       <button
                         type="button"
@@ -503,13 +503,13 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         Add
                       </button>
                     </div>
-                    {emailError && <p className="mt-1 text-[11px] text-[var(--f1-red)]">{emailError}</p>}
+                    {emailError && <p className="mt-1 text-[11px] text-brand-text">{emailError}</p>}
                     {emails.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {emails.map((email) => (
                           <span key={email} className="flex items-center gap-1.5 rounded-full border border-[var(--f1-line)] bg-black/20 px-2.5 py-1 text-[11px] text-neutral-300">
                             {email}
-                            <button type="button" onClick={() => setEmails((prev) => prev.filter((e) => e !== email))} aria-label={`Remove ${email}`} className="text-neutral-500 hover:text-white">
+                            <button type="button" onClick={() => setEmails((prev) => prev.filter((e) => e !== email))} aria-label={`Remove ${email}`} className="text-tertiary hover:text-white">
                               ×
                             </button>
                           </span>
@@ -517,14 +517,14 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-neutral-600">You&apos;ll be the admin. Everything here can be changed later from Manage.</p>
+                  <p className="text-[11px] text-tertiary">You&apos;ll be the admin. Everything here can be changed later from Manage.</p>
                 </div>
               )}
             </motion.div>
           </AnimatePresence>
 
           {error && (
-            <p role="alert" className="mt-4 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.07] px-3 py-2 text-xs text-[var(--f1-red)]">
+            <p role="alert" className="mt-4 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.07] px-3 py-2 text-xs text-brand-text">
               {error}
             </p>
           )}

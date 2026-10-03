@@ -15,7 +15,7 @@ export function UpcomingCircuitIntelligence({ race }: { race: RaceSummary }) {
 
   return (
     <section aria-label="Upcoming race">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">
         {race.state === "next" ? "Next race" : "Upcoming"}
       </p>
       <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
@@ -24,12 +24,12 @@ export function UpcomingCircuitIntelligence({ race }: { race: RaceSummary }) {
         {race.raceDate && (
           <div>
             <p className="font-mono text-3xl font-bold tabular-nums text-white">{days >= 1 ? days : "<1"}</p>
-            <p className="text-xs text-neutral-500">{days >= 1 ? `day${days === 1 ? "" : "s"} to go` : "starting soon"}</p>
+            <p className="text-xs text-tertiary">{days >= 1 ? `day${days === 1 ? "" : "s"} to go` : "starting soon"}</p>
           </div>
         )}
         {race.raceDate && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">Race date</p>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Race date</p>
             <p className="mt-0.5 text-sm font-medium text-neutral-200">
               {parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </p>
@@ -37,11 +37,11 @@ export function UpcomingCircuitIntelligence({ race }: { race: RaceSummary }) {
         )}
         {race.forecast && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">Forecast</p>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Forecast</p>
             <p className="mt-0.5 text-sm font-medium text-neutral-200">
               {Math.round(race.forecast.airTempC)}°C · {Math.round(race.forecast.rainProbability * 100)}% rain chance
             </p>
-            {race.forecast.source !== "openweathermap" && <p className="text-[10px] text-neutral-600">Based on historical conditions, no live forecast yet</p>}
+            {race.forecast.source !== "openweathermap" && <p className="text-[10px] text-tertiary">Based on historical conditions, no live forecast yet</p>}
           </div>
         )}
       </div>

@@ -18,7 +18,7 @@ export default async function NotificationsPage() {
 
   return (
     <div className="page-narrow py-10">
-      <Link href="/" className="text-sm text-neutral-500 hover:text-neutral-300">
+      <Link href="/" className="text-sm text-tertiary hover:text-neutral-300">
         ← Home
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-white">Notifications</h1>

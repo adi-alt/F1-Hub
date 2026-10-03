@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { Menu } from "lucide-react";
+import { Sheet } from "@/components/ui/Dialog";
 import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { seasonHref } from "@/lib/routes";
 
@@ -38,53 +39,39 @@ export function MobileNav({
   return (
     <div className="sm:hidden">
       <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Toggle menu"
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Open menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
-        className="relative z-50 flex h-9 w-9 flex-col items-center justify-center gap-1.5 rounded-full border border-[var(--f1-line)]"
+        className="flex size-9 items-center justify-center rounded-full border border-[var(--f1-line)] text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
-        <motion.span
-          animate={{ rotate: open ? 45 : 0, y: open ? 6 : 0 }}
-          transition={{ duration: 0.2 }}
-          className="h-0.5 w-4 bg-white"
-        />
-        <motion.span
-          animate={{ opacity: open ? 0 : 1 }}
-          transition={{ duration: 0.15 }}
-          className="h-0.5 w-4 bg-white"
-        />
-        <motion.span
-          animate={{ rotate: open ? -45 : 0, y: open ? -6 : 0 }}
-          transition={{ duration: 0.2 }}
-          className="h-0.5 w-4 bg-white"
-        />
+        <Menu aria-hidden size={20} strokeWidth={1.75} />
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.nav
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-            className="absolute inset-x-0 top-full border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] px-4 py-2 shadow-xl"
-          >
+      {/* A bottom sheet (spec §4.8) rather than the old drop-down, which had no focus trap and no
+          Escape (audit UI-30): the Sheet moves focus in, keeps Tab inside, closes on Escape or the
+          scrim, and hands focus back to the menu button. */}
+      <Sheet open={open} onClose={() => setOpen(false)} title="Menu" size="sm">
+        <nav aria-label="Main">
+          <ul className="space-y-1">
             {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setOpen(false)}
-                aria-current={link.section === activeSection ? "page" : undefined}
-                className={`block rounded-lg px-2 py-2.5 text-sm font-medium transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-                  link.section === activeSection ? "bg-white/5 text-white" : "text-neutral-300"
-                }`}
-              >
-                {link.label}
-              </Link>
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  aria-current={link.section === activeSection ? "page" : undefined}
+                  className={`block rounded-control px-3 py-3 text-body font-medium transition-colors duration-fast ease-standard hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring motion-reduce:transition-none ${
+                    link.section === activeSection ? "bg-surface-2 text-primary" : "text-secondary"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              </li>
             ))}
-          </motion.nav>
-        )}
-      </AnimatePresence>
+          </ul>
+        </nav>
+      </Sheet>
     </div>
   );
 }

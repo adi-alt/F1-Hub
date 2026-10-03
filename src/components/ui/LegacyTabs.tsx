@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useRef } from "react";
 import { motion } from "framer-motion";
 
 export type TabItem = { key: string; label: string };
@@ -22,6 +22,11 @@ export type TabItem = { key: string; label: string };
  *
  * Deliberately does NOT animate panel height on tab change (see callers) - only this bar's own
  * sliding capsule animates; content crossfade is the caller's responsibility via AnimatePresence. */
+/** The id of the tab for `key`, for its panel's aria-labelledby. */
+export function tabIdFor(panelId: string, key: string): string {
+  return `${panelId}-tab-${key}`;
+}
+
 export function Tabs({
   items,
   activeKey,
@@ -36,8 +41,10 @@ export function Tabs({
   layoutId: string;
   /** Base id for the associated tabpanel(s) - each tab button gets `aria-controls={panelId}` and
    * `id={`${panelId}-tab-${key}`}`; the caller's panel should set `id={panelId}` and
-   * `aria-labelledby` to the active tab's id. */
-  panelId: string;
+   * `aria-labelledby` to the active tab's id (`tabIdFor(panelId, activeKey)`). Leave it out for a
+   * strip that switches what something else shows rather than a panel of its own: the tabs then
+   * point at nothing, which is better than at an id that doesn't exist. */
+  panelId?: string;
   /** Extra classes on the tablist container. Exists for one real need: a caller placing this in a
    * row beside other controls (the Users page's filter/search/invite row) has to be able to pin it
    * to that row's own height, which padding alone can't do. Height set here flows through because
@@ -45,8 +52,6 @@ export function Tabs({
    * pass nothing keep the previous intrinsic sizing exactly. */
   className?: string;
 }) {
-  const reactId = useId();
-  const groupId = `tabs-${reactId}`;
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   function focusAndActivate(key: string) {
@@ -81,9 +86,11 @@ export function Tabs({
             }}
             type="button"
             role="tab"
-            id={`${groupId}-tab-${item.key}`}
+            // As documented above. These used to be `tabs-${useId()}-tab-${key}` and
+            // `${panelId}-tab-${key}`, neither of which any panel could point back at (audit UI-31).
+            id={panelId ? tabIdFor(panelId, item.key) : undefined}
             aria-selected={isActive}
-            aria-controls={`${panelId}-tab-${item.key}`}
+            aria-controls={panelId}
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(item.key)}
             onKeyDown={(e) => onKeyDown(e, i)}

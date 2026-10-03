@@ -84,13 +84,13 @@ function CommentNode({
     return (
       <div className={indent(depth)}>
         <div className="rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05] px-3 py-2">
-          <p className="text-[11px] font-semibold text-[var(--f1-red)]">Couldn&apos;t post this reply.</p>
+          <p className="text-[11px] font-semibold text-brand-text">Couldn&apos;t post this reply.</p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">{comment.content}</p>
           <div className="mt-1.5 flex items-center gap-3">
             <button type="button" onClick={() => void onReply(comment.content, comment.parentCommentId)} className="text-xs font-semibold text-white underline-offset-2 hover:underline">
               Retry
             </button>
-            <button type="button" onClick={() => onDiscard(comment.id)} className="text-xs text-neutral-500 transition hover:text-neutral-300">
+            <button type="button" onClick={() => onDiscard(comment.id)} className="text-xs text-tertiary transition hover:text-neutral-300">
               Discard
             </button>
           </div>
@@ -106,19 +106,19 @@ function CommentNode({
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-1.5 text-xs">
             <span className="font-semibold text-neutral-200">
-              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-neutral-600">
+              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-tertiary">
                 U/
               </span>
               {comment.authorName}
             </span>
-            <span className="text-neutral-600">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
+            <span className="text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
           </p>
           <p className="mt-1 whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-neutral-300">{comment.content}</p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <VoteControl score={score} myVote={myVote} onVote={vote} compact />
             {!comment.pending && (
-              <button type="button" onClick={() => setReplying((v) => !v)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-neutral-500 transition hover:bg-white/[0.05] hover:text-white">
+              <button type="button" onClick={() => setReplying((v) => !v)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white">
                 <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
                   <path d="M2.5 4h11a.8.8 0 0 1 .8.8v6a.8.8 0 0 1-.8.8H6.2L3.5 14v-2.4H2.5a.8.8 0 0 1-.8-.8v-6A.8.8 0 0 1 2.5 4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                 </svg>
@@ -126,7 +126,7 @@ function CommentNode({
               </button>
             )}
             {!atDepthLimit && children.length > 0 && (
-              <button type="button" onClick={() => setCollapsed((v) => !v)} className="rounded-lg px-2 py-1 text-xs text-neutral-500 transition hover:bg-white/[0.05] hover:text-white">
+              <button type="button" onClick={() => setCollapsed((v) => !v)} className="rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white">
                 {collapsed ? `Show ${children.length} repl${children.length === 1 ? "y" : "ies"}` : "Collapse"}
               </button>
             )}
@@ -200,7 +200,7 @@ export function CommentSortControl({ value, onChange }: { value: "top" | "newest
           aria-pressed={value === option}
           onClick={() => onChange(option)}
           className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition ${
-            value === option ? "bg-white/[0.08] text-white" : "text-neutral-500 hover:text-neutral-300"
+            value === option ? "bg-white/[0.08] text-white" : "text-tertiary hover:text-neutral-300"
           }`}
         >
           {option === "top" ? "Top" : "Newest"}

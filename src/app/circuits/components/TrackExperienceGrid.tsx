@@ -50,7 +50,7 @@ export function TrackExperienceGrid({
   return (
     <div className="mb-8">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">
           {raceForSimulation ? `Track experience — ${raceForSimulation.year}` : "Track layout"}
         </p>
         {/* The one deliberate link out of this circuit-across-time page into the event-specific
@@ -96,7 +96,7 @@ export function TrackExperienceGrid({
           {raceForSimulation?.results && (
             <>
               <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{raceForSimulation.year} classification</p>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{raceForSimulation.year} classification</p>
                 <ClassificationTable
                   results={raceForSimulation.results}
                   currentDrivers={currentDrivers}
@@ -108,7 +108,7 @@ export function TrackExperienceGrid({
                 />
               </div>
               <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Grid → finish</p>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Grid → finish</p>
                 <GridToFinishChart
                   results={raceForSimulation.results}
                   tireStints={raceForSimulation.tireStints ?? []}

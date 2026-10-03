@@ -216,18 +216,18 @@ export function SeasonRaceDashboard({
     return (
       <div className="grid gap-3 border-t border-white/10 px-3 py-2.5 text-sm sm:grid-cols-3">
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Grid → finish</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Grid → finish</p>
           <p className="text-neutral-300">
             P{r.grid ?? "–"} → P{r.finishPosition}
             {gained !== null && gained !== 0 && <span className={gained > 0 ? "text-emerald-400" : "text-red-400"}> ({gained > 0 ? "+" : ""}{gained})</span>}
           </p>
         </div>
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Fastest lap</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Fastest lap</p>
           <p className="text-neutral-300">{r.fastestLapSec !== null ? formatLapTime(r.fastestLapSec) : "–"}</p>
         </div>
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Points</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Points</p>
           <p className="text-neutral-300">{r.points}</p>
         </div>
       </div>
@@ -452,7 +452,7 @@ export function SeasonRaceDashboard({
             id="simulation"
             title="Simulation"
             description="Monte Carlo projection based on grid position, race pace and DNF probability."
-            headerRight={<span className="text-xs text-neutral-500">Based on 10,000 simulations</span>}
+            headerRight={<span className="text-xs text-tertiary">Based on 10,000 simulations</span>}
           >
             <SimulationPanel simulation={race.simulation} />
           </RaceSectionCard>

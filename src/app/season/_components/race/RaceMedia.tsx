@@ -74,7 +74,7 @@ export function RaceMedia({
         )}
         {state === "error" && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-xs text-neutral-500">Race imagery unavailable.</p>
+            <p className="text-xs text-tertiary">Race imagery unavailable.</p>
           </div>
         )}
         {/* Softens the foot of the image so the metadata beneath it doesn't butt against a hard edge. */}
@@ -129,10 +129,10 @@ function MediaPlaceholder({ label }: { label: string }) {
       style={{ aspectRatio: "16 / 7" }}
     >
       <div className="text-center">
-        <span aria-hidden className="text-lg text-[var(--f1-red)]/50">
+        <span aria-hidden className="text-lg text-brand-text/50">
           ✦
         </span>
-        <p className="mt-1 max-w-[24ch] text-xs text-neutral-600">{label}</p>
+        <p className="mt-1 max-w-[24ch] text-xs text-tertiary">{label}</p>
       </div>
     </div>
   );

@@ -111,11 +111,11 @@ export function PickPanel({
       const daysLeft = Math.ceil((opensAt - now) / (24 * 60 * 60 * 1000));
       return (
         <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Podium pick</p>
+          <p className="text-xs uppercase tracking-wide text-tertiary">Podium pick</p>
           <p className="mt-1.5 text-sm font-semibold text-white">
             Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-500">Make your prediction once picks open.</p>
+          <p className="mt-0.5 text-xs text-tertiary">Make your prediction once picks open.</p>
         </div>
       );
     }
@@ -164,7 +164,7 @@ export function PickPanel({
 
   return (
     <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-      <p className="text-xs uppercase tracking-wide text-neutral-500">Your podium pick</p>
+      <p className="text-xs uppercase tracking-wide text-tertiary">Your podium pick</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {(["p1", "p2", "p3"] as const).map((slot, i) => (
           <div key={slot} className="text-sm text-neutral-400">
@@ -190,15 +190,15 @@ export function PickPanel({
           {status === "saving" ? "Saving…" : "Save pick"}
         </button>
       )}
-      {isLocked && <p className="mt-3 text-xs text-neutral-500">Prediction locked at race start.</p>}
+      {isLocked && <p className="mt-3 text-xs text-tertiary">Prediction locked at race start.</p>}
       <AnimatePresence>
         {status === "saved" && (
-          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-neutral-500">
+          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-tertiary">
             Saved.
           </motion.p>
         )}
         {status === "error" && (
-          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-[var(--f1-red)]">
+          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-brand-text">
             {errorMessage}
           </motion.p>
         )}

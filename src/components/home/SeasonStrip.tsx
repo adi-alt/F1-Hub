@@ -118,7 +118,7 @@ export function SeasonStrip({
                   isSelected ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/[0.08]" : "border-transparent hover:border-white/20"
                 }`}
               >
-                <span className="font-mono text-[10px] text-neutral-500">R{race.round}</span>
+                <span className="font-mono text-[10px] text-tertiary">R{race.round}</span>
                 <span className="whitespace-nowrap text-[11px] font-medium text-neutral-300">{trackShortForm(race.circuit)}</span>
                 <span
                   aria-hidden
@@ -214,7 +214,7 @@ function FeaturedRound({
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div>
-            <p className="font-mono text-[11px] text-neutral-500">Round {race.round}</p>
+            <p className="font-mono text-[11px] text-tertiary">Round {race.round}</p>
             <p className="text-base font-semibold text-white">{race.name}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -267,7 +267,7 @@ function WeatherChip({ forecast }: { forecast: WeatherForecast }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-neutral-300">
       <span className="font-medium text-neutral-200">{temp}°C</span>
-      {rainPct >= 10 && <span className="text-neutral-500">· {rainPct}% rain</span>}
+      {rainPct >= 10 && <span className="text-tertiary">· {rainPct}% rain</span>}
     </span>
   );
 }
@@ -320,10 +320,10 @@ function CompletedRoundDetail({
       <div className="space-y-1 text-sm">
         {podium.map((r) => (
           <p key={r.driver} className="text-neutral-300">
-            <span className="font-mono text-neutral-500">P{r.finishPosition}</span> <span className="font-medium text-white">{r.driverName}</span>
+            <span className="font-mono text-tertiary">P{r.finishPosition}</span> <span className="font-medium text-white">{r.driverName}</span>
           </p>
         ))}
-        <div className="mt-1.5 space-y-0.5 text-xs text-neutral-500">
+        <div className="mt-1.5 space-y-0.5 text-xs text-tertiary">
           {race.poleSitter && (
             <p>
               Pole: {race.poleSitter}
@@ -353,7 +353,7 @@ function CompletedRoundDetail({
           </p>
         ) : null}
       </div>
-      <Link href={raceHref(race.year, race.round, race.name)} className="text-xs font-medium text-[var(--f1-red)] hover:brightness-125">
+      <Link href={raceHref(race.year, race.round, race.name)} className="text-xs font-medium text-brand-text hover:brightness-125">
         View race →
       </Link>
     </div>
@@ -399,12 +399,19 @@ function UpcomingRoundDetail({
        * a sprint weekend shows exactly its own real session set. Available for ANY upcoming round
        * now (calendarByRound covers the whole season), not just the immediate next one. */}
       {calendarEntry && calendarEntry.sessions.length > 0 && (
-        <div className="overflow-x-auto pt-1">
+        // Focusable and named: on a phone the schedule scrolls sideways, and a scroll region with
+        // nothing focusable inside can't be scrolled from the keyboard (axe scrollable-region-focusable).
+        <div
+          role="region"
+          aria-label="Weekend schedule"
+          tabIndex={0}
+          className="overflow-x-auto rounded-control pt-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
           <RaceReadiness calendarEntry={calendarEntry} race={race} />
         </div>
       )}
 
-      <Link href={circuitHref(race.circuit)} className="inline-block text-xs font-medium text-neutral-500 transition hover:text-white">
+      <Link href={circuitHref(race.circuit)} className="inline-block text-xs font-medium text-tertiary transition hover:text-white">
         Circuit history →
       </Link>
     </div>

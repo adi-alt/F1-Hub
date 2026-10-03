@@ -52,7 +52,7 @@ export function Footer({ season }: { season: number }) {
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Explore</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-tertiary">Explore</p>
             <ul className="mt-3 space-y-2 text-sm">
               {exploreLinks(season).map((link) => (
                 <li key={link.href}>
@@ -65,7 +65,7 @@ export function Footer({ season }: { season: number }) {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-2 border-t border-[var(--f1-line)] pt-6 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-2 border-t border-[var(--f1-line)] pt-6 text-xs text-tertiary sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} F1 Hub. Not affiliated with Formula 1 or the FIA.</p>
           <p>Predictions are a model&apos;s best estimate, not a promise of what happens on Sunday.</p>
         </div>

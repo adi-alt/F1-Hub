@@ -75,7 +75,7 @@ export function PersonalizationTabs({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={PLACEHOLDER[tab]}
-          className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
+          className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
         />
       </div>
       <AnimatePresence mode="wait">

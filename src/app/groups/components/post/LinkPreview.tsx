@@ -67,7 +67,7 @@ export function LinkPreview({ url }: { url: string }) {
         <img src={data.imageUrl} alt="" loading="lazy" onError={() => setImageFailed(true)} className="h-28 w-full border-b border-white/[0.06] object-cover" />
       )}
       <div className="px-2.5 py-2">
-        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
+        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-tertiary">
           <LinkIcon />
           <span className="truncate">{data.siteName ?? data.domain}</span>
         </p>

@@ -28,7 +28,7 @@ const PILLARS = [
 export function WhyF1Hub() {
   return (
     <motion.section initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.35, ease: "easeOut" }}>
-      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">Why F1 Hub</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">Why F1 Hub</h2>
       <p className="mt-2 max-w-2xl text-2xl font-bold text-white">F1 Hub follows the sport the way a fan actually does.</p>
       <div className="mt-8 grid gap-6 sm:grid-cols-3">
         {PILLARS.map((p, i) => (
@@ -39,7 +39,7 @@ export function WhyF1Hub() {
             viewport={{ once: true }}
             transition={{ duration: 0.35, ease: "easeOut", delay: i * 0.08 }}
           >
-            <p.Icon className="h-7 w-7 text-[var(--f1-red)]" />
+            <p.Icon className="h-7 w-7 text-brand-text" />
             <h3 className="mt-2 font-semibold text-white">{p.title}</h3>
             <p className="mt-1 text-sm text-neutral-400">{p.body}</p>
           </motion.div>

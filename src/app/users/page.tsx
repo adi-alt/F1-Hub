@@ -36,7 +36,7 @@ export default async function UsersPage() {
     <div className="page-content py-10">
       <div>
         <h1 className="text-3xl font-bold text-white">Users</h1>
-        <p className="mt-1.5 text-sm text-neutral-500">
+        <p className="mt-1.5 text-sm text-tertiary">
           {permissions.canManageRoles
             ? "Every account on F1 Hub, and who holds which role."
             : "Every account on F1 Hub. Only admins can change roles."}

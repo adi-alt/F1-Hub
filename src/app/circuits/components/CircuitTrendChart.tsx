@@ -75,17 +75,17 @@ function PoleTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
       {p.poleSitter && (
         <p className="text-neutral-300">
           {p.poleSitter}
-          {p.team && <span className="text-neutral-500"> · {p.team}</span>}
+          {p.team && <span className="text-tertiary"> · {p.team}</span>}
         </p>
       )}
       <p className="mt-1 font-mono tabular-nums text-neutral-200">{p.poleTimeSec.toFixed(3)}s</p>
       {p.diffSec !== null && (
-        <p className={`mt-0.5 font-mono text-[11px] tabular-nums ${p.diffSec < 0 ? "text-emerald-400" : "text-neutral-500"}`}>
+        <p className={`mt-0.5 font-mono text-[11px] tabular-nums ${p.diffSec < 0 ? "text-emerald-400" : "text-tertiary"}`}>
           {p.diffSec < 0 ? "" : "+"}
           {p.diffSec.toFixed(3)}s vs previous year
         </p>
       )}
-      <p className="mt-1.5 text-[10px] text-neutral-600">Click to open this race →</p>
+      <p className="mt-1.5 text-[10px] text-tertiary">Click to open this race →</p>
     </div>
   );
 }
@@ -127,7 +127,7 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
               onClick={() => setRangeWindow(w.value)}
               aria-pressed={rangeWindow === w.value}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
-                rangeWindow === w.value ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+                rangeWindow === w.value ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"
               }`}
             >
               {w.label}

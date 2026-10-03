@@ -81,10 +81,10 @@ export function YourF1Radar({
         className="transition hover:text-white"
       >
         <span className="font-semibold text-neutral-200">{driverLabel}</span>{" "}
-        <span className="font-mono text-neutral-500">P{favoriteDriverRank} WDC</span>
-        {favoriteDriverPoints != null && <span className="font-mono text-neutral-500"> · {favoriteDriverPoints} pts</span>}
+        <span className="font-mono text-tertiary">P{favoriteDriverRank} WDC</span>
+        {favoriteDriverPoints != null && <span className="font-mono text-tertiary"> · {favoriteDriverPoints} pts</span>}
         {favoriteDriverGapToLeader != null && favoriteDriverGapToLeader > 0 && (
-          <span className="font-mono text-neutral-500"> · {favoriteDriverGapToLeader} to leader</span>
+          <span className="font-mono text-tertiary"> · {favoriteDriverGapToLeader} to leader</span>
         )}
       </button>,
     );
@@ -94,14 +94,14 @@ export function YourF1Radar({
     items.push(
       <button key="team" type="button" onClick={() => go("overview", `team:${favoriteTeam.teamId}`)} className="transition hover:text-white">
         <span className="font-semibold text-neutral-200">{teamLabel}</span>{" "}
-        <span className="font-mono text-neutral-500">P{favoriteTeamRank} WCC</span>
+        <span className="font-mono text-tertiary">P{favoriteTeamRank} WCC</span>
       </button>,
     );
   }
 
   if (favoriteDriverCircuitWins != null && favoriteDriverCircuitWins > 0) {
     items.push(
-      <span key="circuit" className="font-mono text-neutral-500">
+      <span key="circuit" className="font-mono text-tertiary">
         {favoriteDriverCircuitWins} win{favoriteDriverCircuitWins === 1 ? "" : "s"} here
       </span>,
     );
@@ -109,7 +109,7 @@ export function YourF1Radar({
 
   if (predictionCount != null) {
     items.push(
-      <button key="predictions" type="button" onClick={() => go("overview")} className="font-mono text-neutral-500 transition hover:text-white">
+      <button key="predictions" type="button" onClick={() => go("overview")} className="font-mono text-tertiary transition hover:text-white">
         {predictionCount} prediction{predictionCount === 1 ? "" : "s"}
       </button>,
     );
@@ -117,7 +117,7 @@ export function YourF1Radar({
 
   if (disagrees) {
     items.push(
-      <span key="pick" className="font-semibold text-[var(--f1-red)]">
+      <span key="pick" className="font-semibold text-brand-text">
         ⚠ F1 Hub Model disagrees with your pick
       </span>,
     );

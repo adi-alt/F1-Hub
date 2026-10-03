@@ -168,17 +168,17 @@ export function ArchiveRaceDashboard({
     return (
       <div className="grid gap-3 border-t border-white/10 px-3 py-2.5 text-sm sm:grid-cols-2">
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Qualifying</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Qualifying</p>
           {quali ? (
             <p className="text-neutral-300">
               P{quali.position} – {quali.q3 ?? quali.q2 ?? quali.q1 ?? "no time"}
             </p>
           ) : (
-            <p className="text-neutral-500">Not available for this race.</p>
+            <p className="text-tertiary">Not available for this race.</p>
           )}
         </div>
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Pit stops {stops.length > 0 && `(${stops.length})`}</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Pit stops {stops.length > 0 && `(${stops.length})`}</p>
           {stops.length > 0 ? (
             <ul className="space-y-0.5 text-neutral-300">
               {stops
@@ -190,7 +190,7 @@ export function ArchiveRaceDashboard({
                 ))}
             </ul>
           ) : (
-            <p className="text-neutral-500">None recorded.</p>
+            <p className="text-tertiary">None recorded.</p>
           )}
         </div>
       </div>
@@ -253,7 +253,7 @@ export function ArchiveRaceDashboard({
           circuit ? (
             <CircuitCard circuit={circuit} weather={race.weather} />
           ) : (
-            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-500">
+            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-tertiary">
               No circuit details backfilled for this race yet.
             </div>
           )
@@ -346,7 +346,7 @@ export function ArchiveRaceDashboard({
             id="simulation"
             title="Simulation"
             description="Monte Carlo projection based on grid position, race pace and DNF probability."
-            headerRight={<span className="text-xs text-neutral-500">Based on 10,000 simulations</span>}
+            headerRight={<span className="text-xs text-tertiary">Based on 10,000 simulations</span>}
           >
             <SimulationPanel simulation={simulation} />
           </RaceSectionCard>

@@ -9,7 +9,7 @@ import type { WinnerMedia } from "../services/circuits.service";
 import type { CurrentTeam } from "@/lib/supabase/media";
 
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
-const HEADER_ROW_CLASS = "sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md";
+const HEADER_ROW_CLASS = "sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md";
 const PAGE_SIZE = 8;
 
 /** Wraps a driver's name in a real link to their profile page when this app has resolved one -
@@ -27,7 +27,7 @@ function Pagination({ page, pageCount, onChange }: { page: number; pageCount: nu
   if (pageCount <= 1) return null;
   return (
     <div className="flex items-center justify-between border-t border-white/[0.07] px-3 py-2">
-      <span className="text-[11px] text-neutral-600">
+      <span className="text-[11px] text-tertiary">
         Page {page} of {pageCount}
       </span>
       <div className="flex items-center gap-1">
@@ -125,7 +125,7 @@ export function PastWinnersList({
             key={t}
             onClick={() => setTab(t)}
             className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
-              tab === t ? "bg-white/[0.08] text-white" : "text-neutral-500 hover:text-neutral-300"
+              tab === t ? "bg-white/[0.08] text-white" : "text-tertiary hover:text-neutral-300"
             }`}
           >
             {t === "year" ? "By Year" : `Top ${t}s`}
@@ -167,7 +167,7 @@ export function PastWinnersList({
                             <span className="truncate">{r.winnerTeam || "—"}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 font-mono text-[11px] text-neutral-500">{r.winnerGrid != null ? `P${r.winnerGrid}` : "—"}</td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-tertiary">{r.winnerGrid != null ? `P${r.winnerGrid}` : "—"}</td>
                         <td className="px-3 py-2 text-right font-mono text-[11px] tabular-nums text-neutral-400">
                           {r.winningMarginSec != null ? `+${r.winningMarginSec.toFixed(3)}s` : "—"}
                         </td>
@@ -190,7 +190,7 @@ export function PastWinnersList({
                 <tbody className="divide-y divide-[var(--f1-line)]">
                   {pageDrivers.map((d, i) => (
                     <tr key={d.driver} className="transition-colors hover:bg-white/[0.02]">
-                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{start + i + 1}</td>
+                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{start + i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2">
                         <DriverLink href={d.media?.href ?? null}>
                           <div className="flex min-w-0 items-center gap-2">
@@ -221,7 +221,7 @@ export function PastWinnersList({
                 <tbody className="divide-y divide-[var(--f1-line)]">
                   {pageTeams.map((t, i) => (
                     <tr key={t.team} className="transition-colors hover:bg-white/[0.02]">
-                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{start + i + 1}</td>
+                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{start + i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <EntityAvatar imageUrl={logoByTeam.get(t.team) ?? null} name={t.team} size={20} shape="square" fit="contain" />

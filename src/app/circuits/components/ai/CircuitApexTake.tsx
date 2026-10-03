@@ -80,7 +80,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
 
   return (
     <motion.section initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Apex intelligence</p>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Apex intelligence</p>
 
       {availableTabs.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Apex circuit intelligence">
@@ -92,7 +92,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
               aria-selected={shownTab === k}
               onClick={() => setActiveTab(k)}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
-                shownTab === k ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+                shownTab === k ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"
               }`}
             >
               {TAB_LABEL[k]}
@@ -118,7 +118,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
         {shownTab === "trackVsSeason" && "metrics" in block && block.metrics.length > 0 && (
           <ul className="mt-2 flex flex-col gap-1">
             {block.metrics.map((m) => (
-              <li key={m} className="text-xs text-neutral-500">
+              <li key={m} className="text-xs text-tertiary">
                 · {m}
               </li>
             ))}

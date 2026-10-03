@@ -67,7 +67,7 @@ export function MediaTab({ groupId }: { groupId: string }) {
           )}
           <figcaption className="px-2.5 py-2">
             <p className="line-clamp-2 text-[11px] leading-snug text-neutral-400">{post.title ?? post.content}</p>
-            <p className="mt-1 text-[10px] text-neutral-600">
+            <p className="mt-1 text-[10px] text-tertiary">
               {post.authorName} · {timeAgo(post.createdAt)}
             </p>
           </figcaption>
@@ -90,7 +90,7 @@ function MediaThumbnail({ url }: { url: string | null }) {
   const [broken, setBroken] = useState(false);
   if (!url || broken) {
     return (
-      <div className="flex aspect-square w-full items-center justify-center bg-white/[0.03] text-[10px] text-neutral-600">Image unavailable</div>
+      <div className="flex aspect-square w-full items-center justify-center bg-white/[0.03] text-[10px] text-tertiary">Image unavailable</div>
     );
   }
   return (
@@ -110,14 +110,14 @@ export function AboutTab({ group, modules, memberCount }: { group: GroupDetail; 
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">About</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-tertiary">About</h2>
         <p className="mt-2 text-sm leading-relaxed text-neutral-300">
-          {group.description || <span className="text-neutral-600">No description yet.</span>}
+          {group.description || <span className="text-tertiary">No description yet.</span>}
         </p>
       </section>
 
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Details</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-tertiary">Details</h2>
         <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           <Detail label="Type" value={meta.label} />
           <Detail label="Visibility" value={visibilityLabel(group.visibility)} />
@@ -130,7 +130,7 @@ export function AboutTab({ group, modules, memberCount }: { group: GroupDetail; 
 
       {group.tags.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Tags</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-tertiary">Tags</h2>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {group.tags.map((tag) => (
               <span key={tag} className="rounded-full border border-[var(--f1-line)] px-2.5 py-0.5 text-xs text-neutral-400">
@@ -142,7 +142,7 @@ export function AboutTab({ group, modules, memberCount }: { group: GroupDetail; 
       )}
 
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Enabled</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-tertiary">Enabled</h2>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {modules.map((m) => (
             <span key={m} className="rounded-full border border-[var(--f1-line)] px-2.5 py-0.5 text-xs text-neutral-400">
@@ -153,16 +153,16 @@ export function AboutTab({ group, modules, memberCount }: { group: GroupDetail; 
       </section>
 
       <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Run by</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-tertiary">Run by</h2>
         <ul className="mt-2 space-y-1 text-sm text-neutral-300">
           {admins.map((m) => (
             <li key={m.userId}>
-              {m.displayName ?? m.username ?? "Member"} <span className="text-xs text-neutral-600">Admin</span>
+              {m.displayName ?? m.username ?? "Member"} <span className="text-xs text-tertiary">Admin</span>
             </li>
           ))}
           {moderators.map((m) => (
             <li key={m.userId}>
-              {m.displayName ?? m.username ?? "Member"} <span className="text-xs text-neutral-600">Moderator</span>
+              {m.displayName ?? m.username ?? "Member"} <span className="text-xs text-tertiary">Moderator</span>
             </li>
           ))}
         </ul>
@@ -174,7 +174,7 @@ export function AboutTab({ group, modules, memberCount }: { group: GroupDetail; 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4 border-b border-[var(--f1-line)] pb-1.5 sm:border-0 sm:pb-0">
-      <dt className="text-xs text-neutral-500">{label}</dt>
+      <dt className="text-xs text-tertiary">{label}</dt>
       <dd className="text-xs text-neutral-300">{value}</dd>
     </div>
   );

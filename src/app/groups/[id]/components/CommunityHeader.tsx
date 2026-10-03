@@ -136,7 +136,7 @@ export function CommunityHeader({
               {({ close }) => (
                 <div className="p-1">
                   <div className="px-2.5 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-neutral-600">Your role</p>
+                    <p className="text-[11px] uppercase tracking-wide text-tertiary">Your role</p>
                     <p className="mt-0.5 text-sm capitalize text-neutral-200">{group.myRole}</p>
                   </div>
                   <div className="my-1 border-t border-white/10" />
@@ -144,11 +144,11 @@ export function CommunityHeader({
                     type="button"
                     disabled={leaving}
                     onClick={() => void leave(close)}
-                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-[var(--f1-red)] transition hover:bg-[var(--f1-red)]/10 disabled:opacity-50"
+                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-brand-text transition hover:bg-[var(--f1-red)]/10 disabled:opacity-50"
                   >
                     {leaving ? "Leaving…" : "Leave community"}
                   </button>
-                  {leaveError && <p className="px-2.5 pb-1.5 pt-0.5 text-[11px] leading-snug text-[var(--f1-red)]">{leaveError}</p>}
+                  {leaveError && <p className="px-2.5 pb-1.5 pt-0.5 text-[11px] leading-snug text-brand-text">{leaveError}</p>}
                 </div>
               )}
             </Popover>
@@ -160,7 +160,7 @@ export function CommunityHeader({
         <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
           <h1 className="text-2xl font-bold leading-tight text-white">{group.name}</h1>
           {pendingRequests !== undefined && pendingRequests > 0 && (
-            <span className="rounded-full bg-[var(--f1-red)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--f1-red)]">
+            <span className="rounded-full bg-[var(--f1-red)]/15 px-2 py-0.5 text-[11px] font-semibold text-brand-text">
               {pendingRequests} request{pendingRequests === 1 ? "" : "s"}
             </span>
           )}
@@ -182,7 +182,7 @@ export function CommunityHeader({
           <Pill>{visibilityLabel(group.visibility)}</Pill>
         </div>
 
-        <p className="mt-2.5 text-xs text-neutral-500">
+        <p className="mt-2.5 text-xs text-tertiary">
           {compactCount(memberCount)} member{memberCount === 1 ? "" : "s"} · Created{" "}
           {new Date(group.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
         </p>
@@ -243,7 +243,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
 
   return (
     <div className="absolute bottom-2.5 right-2.5 flex flex-col items-end gap-1.5">
-      {error && <p className="max-w-[16rem] rounded-md bg-black/80 px-2 py-1 text-right text-[11px] leading-snug text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="max-w-[16rem] rounded-md bg-black/80 px-2 py-1 text-right text-[11px] leading-snug text-brand-text">{error}</p>}
 
       {hasBanner ? (
         <Popover
@@ -279,7 +279,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
               <button
                 type="button"
                 onClick={() => void remove(close)}
-                className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-[var(--f1-red)] transition hover:bg-[var(--f1-red)]/10"
+                className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-brand-text transition hover:bg-[var(--f1-red)]/10"
               >
                 Remove cover
               </button>
@@ -372,10 +372,10 @@ function AdminMenu({ group, onOpenManage, pendingRequests }: { group: GroupDetai
             >
               Manage community
               {pendingRequests !== undefined && pendingRequests > 0 && (
-                <span className="shrink-0 rounded-full bg-[var(--f1-red)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[var(--f1-red)]">{pendingRequests}</span>
+                <span className="shrink-0 rounded-full bg-[var(--f1-red)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand-text">{pendingRequests}</span>
               )}
             </button>
-            {error && <p className="px-2.5 pb-1.5 pt-0.5 text-[11px] leading-snug text-[var(--f1-red)]">{error}</p>}
+            {error && <p className="px-2.5 pb-1.5 pt-0.5 text-[11px] leading-snug text-brand-text">{error}</p>}
           </div>
         )}
       </Popover>

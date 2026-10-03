@@ -28,7 +28,7 @@ export default function UsersLoading() {
             <thead className="border-b border-white/[0.08]">
               <tr>
                 {["User", "Email", "Status", "Role", "Joined"].map((label) => (
-                  <th key={label} className="px-4 py-3 text-left text-caption font-semibold uppercase tracking-wider text-neutral-500">
+                  <th key={label} className="px-4 py-3 text-left text-caption font-semibold uppercase tracking-wider text-tertiary">
                     {label}
                   </th>
                 ))}

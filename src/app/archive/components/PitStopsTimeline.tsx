@@ -61,9 +61,9 @@ function PitStopTooltip({ active, payload }: TooltipContentProps) {
       style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
     >
       <p className="text-sm font-semibold text-white">{d.driverName}</p>
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Lap</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Lap</p>
       <p className="font-mono text-sm text-white">{d.lap}</p>
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Duration</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Duration</p>
       <p className="font-mono text-sm text-white">{d.durationSec !== null ? `${d.durationSec.toFixed(3)}s` : "–"}</p>
     </div>
   );

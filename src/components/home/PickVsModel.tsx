@@ -61,7 +61,7 @@ export function PickVsModel({ myPick, nextRace }: { myPick: UserPick | null; nex
           <div key={row.driver}>
             <div className="mb-1.5 flex items-center justify-between text-xs">
               <span className="font-semibold text-white">{row.driver}</span>
-              <span className="text-neutral-600">Predicted P{row.slot}</span>
+              <span className="text-tertiary">Predicted P{row.slot}</span>
             </div>
             <div className="relative h-6">
               <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[var(--f1-line)]" />
@@ -94,7 +94,7 @@ export function PickVsModel({ myPick, nextRace }: { myPick: UserPick | null; nex
           </div>
         ))}
       </div>
-      <div className="mt-4 flex flex-wrap gap-4 text-[10px] text-neutral-500">
+      <div className="mt-4 flex flex-wrap gap-4 text-[10px] text-tertiary">
         <span className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full" style={{ background: "var(--f1-red)" }} /> You
         </span>

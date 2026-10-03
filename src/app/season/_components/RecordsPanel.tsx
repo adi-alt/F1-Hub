@@ -33,9 +33,9 @@ export function RecordsPanel({ records }: { records: SeasonRecord[] }) {
             className={`flex items-start gap-4 border-b border-white/[0.055] py-3 pl-2.5 ${highlighted.has(r.id) ? "border-l-2 border-l-[var(--f1-red)]" : "border-l-2 border-l-transparent"}`}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{r.label}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{r.label}</p>
               <p className="mt-0.5 truncate text-sm text-neutral-200">{r.name}</p>
-              <p className="mt-0.5 truncate text-[11px] text-neutral-600">{r.why}</p>
+              <p className="mt-0.5 truncate text-[11px] text-tertiary">{r.why}</p>
             </div>
             <p className="min-w-[3.5ch] shrink-0 text-right font-mono text-lg font-bold tabular-nums text-white">{r.value}</p>
           </motion.div>

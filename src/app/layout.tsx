@@ -41,6 +41,14 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex h-full flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
+        {/* The first Tab stop on every page (WCAG 2.4.1): past the header and its nav, into the
+            content. Hidden until focused; the target is SmoothScroll's <main id="main">. */}
+        <a
+          href="#main"
+          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-4 focus-visible:top-3 focus-visible:z-toast focus-visible:rounded-control focus-visible:bg-surface-3 focus-visible:px-4 focus-visible:py-2.5 focus-visible:text-body-sm focus-visible:font-medium focus-visible:text-primary focus-visible:shadow-overlay focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          Skip to content
+        </a>
         <AmbientBackground />
         <AppProviders>
           {/* Apex is app-wide now rather than a homepage widget. The provider holds whatever scope

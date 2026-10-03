@@ -113,10 +113,10 @@ export function FavoriteEntityList({
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-neutral-500">Nothing indexed yet, check back once the archive catches up.</p>;
+    return <p className="text-sm text-tertiary">Nothing indexed yet, check back once the archive catches up.</p>;
   }
   if (sorted.length === 0) {
-    return <p className="text-sm text-neutral-500">No matches for &ldquo;{search}&rdquo;.</p>;
+    return <p className="text-sm text-tertiary">No matches for &ldquo;{search}&rdquo;.</p>;
   }
 
   return (
@@ -125,7 +125,7 @@ export function FavoriteEntityList({
         <table className="w-full text-left text-sm">
           <thead
             ref={theadRef}
-            className="border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-neutral-500"
+            className="border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-tertiary"
           >
             <tr>
               <th className="w-12 px-4 py-2.5">S.No</th>
@@ -145,9 +145,9 @@ export function FavoriteEntityList({
           >
             {pageItems.map((item, i) => (
               <motion.tr key={item.id} ref={i === 0 ? firstRowRef : undefined} variants={staggerItem}>
-                <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
+                <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
                 <td className="px-4 py-2.5">
-                  <Link href={item.href} className="truncate font-medium text-white hover:text-[var(--f1-red)]">
+                  <Link href={item.href} className="truncate font-medium text-white hover:text-brand-text">
                     {item.name}
                   </Link>
                 </td>
@@ -155,7 +155,7 @@ export function FavoriteEntityList({
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-neutral-400">
                   {item.firstYear === item.lastYear ? item.firstYear || "N/A" : `${item.firstYear}–${item.lastYear}`}
                 </td>
-                <td className="max-w-xs truncate px-4 py-2.5 text-neutral-500" title={item.extra}>
+                <td className="max-w-xs truncate px-4 py-2.5 text-tertiary" title={item.extra}>
                   {item.extra || "N/A"}
                 </td>
                 <td className="px-4 py-2.5 text-center">
@@ -167,7 +167,7 @@ export function FavoriteEntityList({
         </table>
       </div>
 
-      <div ref={footerRef} className="mt-3 grid shrink-0 grid-cols-3 items-center text-sm text-neutral-500">
+      <div ref={footerRef} className="mt-3 grid shrink-0 grid-cols-3 items-center text-sm text-tertiary">
         <div>
           {pageSafe > 1 && (
             <button

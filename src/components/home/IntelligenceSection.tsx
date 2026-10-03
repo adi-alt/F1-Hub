@@ -50,10 +50,10 @@ export function IntelligenceSection({
     <section id="intelligence-section" className="space-y-6 scroll-mt-6">
       <div className="flex items-baseline justify-between">
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">
             F1 Intelligence Command Center
           </h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
+          <p className="mt-0.5 text-xs text-tertiary">
             Your race context, F1 Hub Model outlook, and personalized analysis
           </p>
         </div>

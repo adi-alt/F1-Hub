@@ -120,11 +120,11 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search emoji..."
-          className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none"
+          className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-tertiary focus:outline-none"
         />
         {!q && recent.length > 0 && (
           <>
-            <p className="mb-1 mt-2 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Recent</p>
+            <p className="mb-1 mt-2 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Recent</p>
             <div className="grid grid-cols-8 gap-0.5">
               {recent.map((char) => (
                 <button key={char} type="button" onClick={() => pick(char)} className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-white/[0.06]">
@@ -140,7 +140,7 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji
               {e.char}
             </button>
           ))}
-          {filtered.length === 0 && <p className="col-span-8 py-3 text-center text-xs text-neutral-600">No matches.</p>}
+          {filtered.length === 0 && <p className="col-span-8 py-3 text-center text-xs text-tertiary">No matches.</p>}
         </div>
       </motion.div>
     </AnimatePresence>,

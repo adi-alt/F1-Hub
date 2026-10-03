@@ -72,7 +72,7 @@ export function ComparePanel({
         favoriteCodes={favoriteCodes}
         placeholder={isDrivers ? "Driver A" : "Team A"}
       />
-      <span aria-hidden className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-600 sm:block">
+      <span aria-hidden className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-tertiary sm:block">
         vs
       </span>
       <EntityMultiSelect
@@ -90,7 +90,7 @@ export function ComparePanel({
     return (
       <div className="flex min-h-[200px] flex-col justify-center gap-4">
         {picker}
-        <p className="text-center text-sm text-neutral-500">Pick two {isDrivers ? "drivers" : "teams"} to compare.</p>
+        <p className="text-center text-sm text-tertiary">Pick two {isDrivers ? "drivers" : "teams"} to compare.</p>
       </div>
     );
   }
@@ -102,9 +102,9 @@ export function ComparePanel({
       {/* 2. What is being compared, stated before anything is claimed about it. */}
       <div className="mt-5 text-center">
         <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
-          {pair.a.name} <span className="text-neutral-600">vs</span> {pair.b.name}
+          {pair.a.name} <span className="text-tertiary">vs</span> {pair.b.name}
         </h3>
-        <p className="mt-0.5 text-[11px] text-neutral-600">
+        <p className="mt-0.5 text-[11px] text-tertiary">
           {isDrivers ? "Drivers' championship" : "Constructors' championship"} · {season} season · {pair.completedRounds} round
           {pair.completedRounds === 1 ? "" : "s"} completed
         </p>
@@ -115,12 +115,12 @@ export function ComparePanel({
         <div className="grid grid-cols-[1fr_auto_1fr] items-baseline gap-3 sm:gap-5">
           <Score name={pair.a.name} value={pair.a.points} leading={pair.aheadId === pair.a.id} align="right" />
           <div className="pb-1 text-center">
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">vs</p>
-            <p className="mt-0.5 font-mono text-[11px] tabular-nums text-neutral-500">{pair.pointsGap === 0 ? "level" : `+${pair.pointsGap}`}</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-tertiary">vs</p>
+            <p className="mt-0.5 font-mono text-[11px] tabular-nums text-tertiary">{pair.pointsGap === 0 ? "level" : `+${pair.pointsGap}`}</p>
           </div>
           <Score name={pair.b.name} value={pair.b.points} leading={pair.aheadId === pair.b.id} align="left" />
         </div>
-        <p className="mt-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Championship points</p>
+        <p className="mt-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Championship points</p>
       </div>
 
       {/* 4. Apex. Its own loading state, below the facts, never blocking them. */}
@@ -144,13 +144,13 @@ export function ComparePanel({
       {/* 7. Race-by-race. */}
       {pair.raceByRace.length > 0 && (
         <div className="mt-6">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Race by race · finishing position</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Race by race · finishing position</p>
           <div ref={scrollRef} className="max-h-56 overflow-y-auto rounded-md border border-white/[0.07] scrollbar-hide">
             <table className="w-full text-sm">
               <caption className="sr-only">
                 Finishing position for {pair.a.name} and {pair.b.name} in each completed round
               </caption>
-              <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[10px] uppercase tracking-wide text-neutral-500 backdrop-blur-md" style={{ background: "var(--tooltip-surface-strong)" }}>
+              <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[10px] uppercase tracking-wide text-tertiary backdrop-blur-md" style={{ background: "var(--tooltip-surface-strong)" }}>
                 <tr>
                   <th scope="col" className="px-3 py-1.5 text-left font-semibold">
                     Round
@@ -183,7 +183,7 @@ export function ComparePanel({
 function Score({ name, value, leading, align }: { name: string; value: number; leading: boolean; align: "left" | "right" }) {
   return (
     <div className={align === "right" ? "text-right" : "text-left"}>
-      <p className="truncate text-[11px] font-medium uppercase tracking-[0.1em] text-neutral-500">{name}</p>
+      <p className="truncate text-[11px] font-medium uppercase tracking-[0.1em] text-tertiary">{name}</p>
       <AnimatePresence mode="wait" initial={false}>
         <motion.p
           key={`${name}-${value}`}
@@ -240,7 +240,7 @@ function MetricRows({ pair }: { pair: ComparePair }) {
         const [aPct, bPct] = tugPct(row.av, row.bv);
         return (
           <div key={row.label} className="py-2.5">
-            <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{row.label}</p>
+            <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{row.label}</p>
             <div className="flex items-center gap-3">
               <span className={`w-12 shrink-0 text-right font-mono text-sm tabular-nums ${row.av > row.bv ? "font-bold text-white" : "text-neutral-400"}`}>{row.aText}</span>
               <div className="flex flex-1 items-center gap-1">
@@ -260,7 +260,7 @@ function MetricRows({ pair }: { pair: ComparePair }) {
       {plain.map((row) => (
         <div key={row.label} className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-2.5">
           <span className={`text-right font-mono text-sm tabular-nums ${row.aWins ? "font-bold text-white" : "text-neutral-400"}`}>{row.aText}</span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{row.label}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{row.label}</span>
           <span className={`text-left font-mono text-sm tabular-nums ${row.bWins ? "font-bold text-white" : "text-neutral-400"}`}>{row.bText}</span>
         </div>
       ))}
@@ -276,24 +276,24 @@ function HeadToHead({ pair }: { pair: ComparePair }) {
 
   return (
     <div className="mt-6">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-        Head to head <span className="font-normal normal-case tracking-normal text-neutral-600">· who finished ahead, by race classification</span>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">
+        Head to head <span className="font-normal normal-case tracking-normal text-tertiary">· who finished ahead, by race classification</span>
       </p>
       <div className="mt-2.5 grid grid-cols-3 items-baseline gap-2 border-y border-white/[0.055] py-3">
         <div className="text-right">
           <p className="font-mono text-2xl font-bold tabular-nums text-white">{h2h.aWins}</p>
-          <p className="mt-0.5 truncate text-[11px] text-neutral-500">{a.name}</p>
+          <p className="mt-0.5 truncate text-[11px] text-tertiary">{a.name}</p>
         </div>
         <div className="text-center">
-          <p className="font-mono text-lg font-semibold tabular-nums text-neutral-500">{h2h.ties}</p>
-          <p className="mt-0.5 text-[11px] text-neutral-600">dead heats</p>
+          <p className="font-mono text-lg font-semibold tabular-nums text-tertiary">{h2h.ties}</p>
+          <p className="mt-0.5 text-[11px] text-tertiary">dead heats</p>
         </div>
         <div className="text-left">
           <p className="font-mono text-2xl font-bold tabular-nums text-white">{h2h.bWins}</p>
-          <p className="mt-0.5 truncate text-[11px] text-neutral-500">{b.name}</p>
+          <p className="mt-0.5 truncate text-[11px] text-tertiary">{b.name}</p>
         </div>
       </div>
-      <p className="mt-2 text-[11px] text-neutral-600">
+      <p className="mt-2 text-[11px] text-tertiary">
         Across {h2h.comparableRounds} round{h2h.comparableRounds === 1 ? "" : "s"} where both were classified
         {h2h.excludedRounds > 0 && `, with ${h2h.excludedRounds} round${h2h.excludedRounds === 1 ? "" : "s"} excluded because one of them had no result`}
         {h2h.isTeammates && " · teammates"}.

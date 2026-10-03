@@ -639,7 +639,7 @@ export function TrackMap({
                 <StepIcon />
               </button>
               {currentLap && (
-                <span className="ml-1 font-mono text-[11px] tabular-nums text-neutral-500">
+                <span className="ml-1 font-mono text-[11px] tabular-nums text-tertiary">
                   Lap {currentLap} / {totalLaps}
                 </span>
               )}
@@ -652,7 +652,7 @@ export function TrackMap({
                   onClick={() => setSpeed(s)}
                   aria-pressed={speed === s}
                   className={`rounded-full px-2 py-1 text-[11px] font-medium tabular-nums transition ${
-                    speed === s ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+                    speed === s ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"
                   }`}
                 >
                   {s}x
@@ -674,7 +674,7 @@ export function TrackMap({
               onClick={() => setSelectedDriver(selectedDriver === c.driver ? null : c.driver)}
               aria-pressed={selectedDriver === c.driver}
               className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium transition ${
-                activeDriver === c.driver ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.07] text-neutral-500 hover:text-neutral-300"
+                activeDriver === c.driver ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.07] text-tertiary hover:text-neutral-300"
               }`}
             >
               <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: teamColor(c.team) }} />

@@ -35,13 +35,19 @@ export function SmoothScroll({ season, children }: { season: number; children: R
     // it (the season page's race window). The document body doesn't scroll in this app - it's
     // `overflow-hidden` in the root layout - so locking `document.body.style.overflow` from a
     // modal silently does nothing. This is the node that actually moves.
-    <div ref={setContainer} data-app-scroll className="scrollbar-hide flex-1 overflow-y-auto">
+    // scroll-pb-20: a control focused near the bottom edge scrolls clear of the floating Apex
+    // launcher and the feed's "new posts" pill rather than ending up under them (WCAG 2.4.11).
+    <div ref={setContainer} data-app-scroll className="scrollbar-hide flex-1 overflow-y-auto scroll-pb-20">
       {/* One wrapper, not two siblings — Lenis measures its `content` node's height as the
           scroll limit, and this hook resolves that to the container's first child, so the
           footer has to live inside the same node as `main` or its height falls outside what
           Lenis thinks is scrollable. */}
       <div className="flex min-h-full flex-col">
-        <main className="flex-1">{children}</main>
+        {/* The page's one <main>, and the skip link's target. tabIndex -1 lets the skip link move
+            focus here, so the next Tab lands on the first control in the content. */}
+        <main id="main" tabIndex={-1} className="flex-1">
+          {children}
+        </main>
         {/* Signed-in visitors get the data-dense homepage now, not the marketing pitch this
             footer's "Explore"/tagline copy is aimed at — showing it there just repeats nav links
             already in the header. `!loading` matters just as much as `!isAuthorized` here -

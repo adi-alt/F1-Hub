@@ -61,10 +61,10 @@ export function SeasonRecap({
     return (
       <div>
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">
             {year} Season So Far
           </h2>
-          <p className="text-xs text-neutral-500">Season preparation</p>
+          <p className="text-xs text-tertiary">Season preparation</p>
         </div>
 
         <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40">
@@ -97,10 +97,10 @@ export function SeasonRecap({
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--f1-red)]">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-text">
           {year} Season So Far
         </h2>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-tertiary">
           Round {recap.roundsCompleted} of {recap.totalRounds}
         </p>
       </div>
@@ -152,7 +152,7 @@ export function SeasonRecap({
               <div className="mt-4 border-t border-white/[0.06] pt-3">
                 <div className="mb-1.5 flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-tertiary">
                     AI Season Narrative
                   </span>
                 </div>
@@ -163,7 +163,7 @@ export function SeasonRecap({
 
           {recap.driverLeader && (
             <div>
-              <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Championship leader&apos;s trajectory</p>
+              <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Championship leader&apos;s trajectory</p>
               <ChampionshipTrajectory
                 races={races}
                 series={[{ code: recap.driverLeader.driver, label: recap.driverLeader.driverName, color: chart.sequentialBlue }]}
