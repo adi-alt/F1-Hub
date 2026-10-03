@@ -83,7 +83,7 @@ mockModule("@/lib/ai/orchestrator", { generateHomepageIntelligence: leakyModel }
 mockModule("@/lib/ai/providerRateLimiter", { checkProviderCapacity: () => ({ allowed: true, currentRPM: 0, limit: 40, retryAfterSeconds: 0 }) });
 mockModule("@/lib/ai/guardrails", { checkUserRateLimit: () => ({ allowed: true, retryAfterSeconds: 0 }) });
 
-let POST: () => Promise<Response>;
+let POST: (request: Request) => Promise<Response>;
 let resetMemoryCache: () => void;
 let fake: FakeSupabase;
 
@@ -111,7 +111,7 @@ beforeEach(() => {
 type Body = { data: { raceBrief: { whyItMatters: string } }; cached: boolean; cacheTier?: string };
 async function visit(uid: string | null): Promise<Body> {
   session = uid ? { uid } : null;
-  const res = await POST();
+  const res = await POST(new Request("http://localhost/api/ai/homepage-intelligence", { method: "POST" }));
   return (await res.json()) as Body;
 }
 const text = (b: Body) => JSON.stringify(b.data);

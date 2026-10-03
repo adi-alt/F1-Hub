@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMemberRole, updateGroupAvatar } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ServiceError } from "@/services/errors";
 
@@ -10,6 +11,8 @@ const CONTENT_TYPE_EXT: Record<string, string> = { "image/png": "png", "image/jp
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "upload", session.uid);
+  if (limited) return limited;
   const { id } = await params;
 
   const role = await getMemberRole(id, session.uid);

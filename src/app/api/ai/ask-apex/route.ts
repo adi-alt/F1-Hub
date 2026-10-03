@@ -854,7 +854,7 @@ export async function POST(req: Request) {
 
     // Same combined user-quota + provider-capacity guard every other AI route uses (guardrails.ts) -
     // a cheap early exit before touching the DB or the provider at all.
-    const guard = guardAIExecution(userId);
+    const guard = await guardAIExecution(userId, req);
     if (!guard.allowed) {
       return NextResponse.json({
         answer: CAPACITY_FALLBACK_TEXT,

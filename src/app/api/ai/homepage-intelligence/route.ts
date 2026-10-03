@@ -52,6 +52,7 @@ import {
 } from "@/lib/ai/cache";
 import { checkProviderCapacity } from "@/lib/ai/providerRateLimiter";
 import { checkUserRateLimit } from "@/lib/ai/guardrails";
+import { clientIp } from "@/lib/clientIp";
 import { generateDeterministicFallback, type FallbackDataContext } from "@/lib/ai/fallback";
 import { logAIError, logDeterministicFallback } from "@/lib/ai/telemetry";
 import type { HomepageContextData } from "@/lib/ai/context";
@@ -72,7 +73,7 @@ export const maxDuration = 110;
 
 type GenerationResult = { data: HomepageIntelligence; isFallback: boolean; fallbackReason?: string; cacheTier: "personal" | "global" | "global_shared" | "fresh" };
 
-export async function POST() {
+export async function POST(request: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
   try {
@@ -365,12 +366,13 @@ export async function POST() {
     // budget whether or not the provider itself happens to also be saturated right now - otherwise a
     // user could fire unlimited attempts for free during any window the provider bucket is full and
     // have them all succeed in a burst the moment it frees up.
-    if (userId) {
-      const userLimit = checkUserRateLimit(userId);
+    {
+      // Durable, and for anonymous callers too (by IP): this used to skip anyone not signed in.
+      const userLimit = await checkUserRateLimit(userId ?? `ip:${clientIp(request)}`);
       if (!userLimit.allowed) {
-        const fallback = generateDeterministicFallback(fallbackContext, "USER_RATE_LIMITED");
-        await touchHomepageVisit(userId).catch(() => {});
-        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
+        const fallback = generateDeterministicFallback(fallbackContext, userLimit.reason ?? "USER_RATE_LIMITED");
+        if (userId) await touchHomepageVisit(userId).catch(() => {});
+        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: userLimit.reason ?? "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
       }
     }
 

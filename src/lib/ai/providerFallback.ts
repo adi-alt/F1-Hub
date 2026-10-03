@@ -64,6 +64,15 @@ function isRateLimited(err: unknown): boolean {
   return err instanceof ProviderHttpError && err.status === 429;
 }
 
+/** Thrown instead of calling a model when the AI_DISABLED kill switch is on (audit R-14). Every caller
+ * already turns a thrown provider error into its deterministic content, so this needs no per-route code. */
+export class AiDisabledError extends Error {
+  constructor() {
+    super("AI is switched off (AI_DISABLED)");
+    this.name = "AiDisabledError";
+  }
+}
+
 export type ProviderChatResult = {
   response: AIResponse;
   providerName: string;
@@ -95,6 +104,7 @@ export async function chatWithProviderFallback(
   },
   requestId: string,
 ): Promise<ProviderChatResult> {
+  if (/^(1|true|yes)$/i.test(process.env.AI_DISABLED ?? "")) throw new AiDisabledError();
   const { groqApiKey, openrouterApiKey, deadlineAt, ...generationConfig } = baseConfig;
   const primary = getDefaultProvider();
 
