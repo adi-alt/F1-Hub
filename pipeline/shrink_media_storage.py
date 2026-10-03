@@ -21,10 +21,15 @@ Run:
   export DATABASE_URL='<pooled connection string>'
   export NEXT_PUBLIC_SUPABASE_URL='...'
   export SUPABASE_SECRET_KEY='...'
-  python shrink_media_storage.py
+  python shrink_media_storage.py            # DRY RUN: says what it would delete and rewrite, changes nothing
+  python shrink_media_storage.py --apply    # does it
+
+Dry-run is the default (audit R-27): this deletes files from Storage and rewrites database rows, and
+neither is undoable.
 """
 
 import os
+import sys
 
 import requests
 
@@ -36,6 +41,16 @@ AUTH_HEADERS = {"Authorization": f"Bearer {SERVICE_KEY}", "apikey": SERVICE_KEY}
 KEEP_PER_ROW = 3
 
 
+def is_apply() -> bool:
+    """Destructive work happens only with --apply; without it every function here only reports."""
+    return "--apply" in sys.argv
+
+
+# What a dry run counted, printed at the end of main().
+would_delete_files = 0
+would_update_rows = 0
+
+
 def storage_download(bucket: str, path: str) -> bytes:
     resp = requests.get(f"{BASE_URL}/storage/v1/object/{bucket}/{path}", headers=AUTH_HEADERS, timeout=30)
     resp.raise_for_status()
@@ -43,6 +58,8 @@ def storage_download(bucket: str, path: str) -> bytes:
 
 
 def storage_upload(bucket: str, path: str, content: bytes):
+    if not is_apply():
+        return
     resp = requests.post(
         f"{BASE_URL}/storage/v1/object/{bucket}/{path}",
         headers={**AUTH_HEADERS, "Content-Type": "image/jpeg", "x-upsert": "true"},
@@ -53,7 +70,11 @@ def storage_upload(bucket: str, path: str, content: bytes):
 
 
 def storage_delete(bucket: str, paths: list[str]):
+    global would_delete_files
     if not paths:
+        return
+    if not is_apply():
+        would_delete_files += len(paths)
         return
     resp = requests.delete(f"{BASE_URL}/storage/v1/object/{bucket}", headers=AUTH_HEADERS, json={"prefixes": paths}, timeout=30)
     resp.raise_for_status()
@@ -62,6 +83,21 @@ def storage_delete(bucket: str, paths: list[str]):
 def storage_path_from_url(url: str) -> str:
     # https://{ref}.supabase.co/storage/v1/object/public/media/races/2024_..._0.png -> races/2024_..._0.png
     return url.split("/storage/v1/object/public/media/", 1)[1]
+
+
+def update_urls(cur, table: str, id_col: str, url_col: str, urls: list[str], row_id):
+    """The one database write both scripts make: a row's URL list, after its extras were deleted."""
+    global would_update_rows
+    if not is_apply():
+        would_update_rows += 1
+        return
+    cur.execute(f"update {table} set {url_col} = %s where {id_col} = %s", (urls, row_id))
+
+
+def report_dry_run():
+    if is_apply():
+        return
+    print(f"DRY RUN: would delete {would_delete_files} file(s) from Storage and rewrite {would_update_rows} row(s). Nothing was changed; pass --apply to do it.")
 
 
 def shrink_gallery_table(cur, table: str, id_col: str, url_col: str):
@@ -76,13 +112,15 @@ def shrink_gallery_table(cur, table: str, id_col: str, url_col: str):
         if dropped:
             storage_delete("media", [storage_path_from_url(u) for u in dropped])
         for url in kept:
+            if not is_apply():
+                continue  # a dry run doesn't download (egress) just to recompress nothing
             try:
                 content = storage_download("media", storage_path_from_url(url))
                 storage_upload("media", storage_path_from_url(url), _resize_photo(content))
             except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
                 print(f"    {row_id}: recompressing {url} failed: {e}")
         if dropped:
-            cur.execute(f"update {table} set {url_col} = %s where {id_col} = %s", (kept, row_id))
+            update_urls(cur, table, id_col, url_col, kept, row_id)
         print(f"  {row_id}: kept {len(kept)}, dropped {len(dropped)}")
 
 
@@ -92,6 +130,8 @@ def shrink_single_photo_table(cur, table: str, id_col: str, url_col: str):
     rows = cur.fetchall()
     print(f"{table}: {len(rows)} rows to shrink")
     for row_id, url in rows:
+        if not is_apply():
+            continue
         try:
             content = storage_download("media", storage_path_from_url(url))
             storage_upload("media", storage_path_from_url(url), _resize_photo(content))
@@ -107,6 +147,7 @@ def main():
         shrink_gallery_table(cur, "archive_circuits", "circuit_id", "image_urls")
         shrink_single_photo_table(cur, "archive_drivers", "driver_id", "photo_url")
     conn.close()
+    report_dry_run()
     print("Done.")
 
 

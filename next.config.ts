@@ -22,9 +22,48 @@ export const SECURITY_HEADERS = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
 ];
 
+/**
+ * A Content-Security-Policy in REPORT-ONLY mode (audit R-24): the browser reports what the policy would
+ * have blocked, and blocks nothing, so the policy can be tightened from real reports instead of by guess.
+ * Reports go to Sentry's security endpoint, built from the public DSN, when there is one. Enforce it
+ * (rename the header to Content-Security-Policy) once the reports have been quiet for a while.
+ *
+ * 'unsafe-inline' for scripts is what Next.js needs without per-request nonces; moving to nonces is the
+ * step after this one. Images allow any https host because a link preview's og:image can be anywhere.
+ */
+export function cspReportOnly(dsn: string | undefined): string {
+  const directives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https://*.supabase.co",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.ingest.de.sentry.io https://*.ingest.sentry.io https://vitals.vercel-insights.com https://va.vercel-scripts.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ];
+  try {
+    if (dsn) {
+      const url = new URL(dsn);
+      directives.push(`report-uri ${url.protocol}//${url.host}/api/${url.pathname.slice(1)}/security/?sentry_key=${url.username}`);
+    }
+  } catch {
+    // A malformed DSN just means no report endpoint.
+  }
+  return directives.join("; ");
+}
+
 const nextConfig: NextConfig = {
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      {
+        source: "/:path*",
+        headers: [...SECURITY_HEADERS, { key: "Content-Security-Policy-Report-Only", value: cspReportOnly(process.env.NEXT_PUBLIC_SENTRY_DSN) }],
+      },
+    ];
   },
   images: {
     remotePatterns: supabaseHostname
