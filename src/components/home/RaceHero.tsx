@@ -8,7 +8,7 @@ import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
 import { formatCountdownLive, parseUtcDateTime } from "@/lib/countdown";
-import type { NextAction, PublicHomeData } from "@/lib/homeData";
+import type { LandingData, NextAction } from "@/lib/homeData";
 import type { FactIconKind, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
 import { useAuth } from "@/providers/AuthProvider";
@@ -61,7 +61,8 @@ export function RaceHero({
   favoriteDriver,
   favoriteTeam,
 }: {
-  publicData: PublicHomeData;
+  /** The personal home passes its full public data; the public one, the landing subset. */
+  publicData: LandingData;
   variant: "public" | "personal";
   firstName?: string;
   isReturning?: boolean;
