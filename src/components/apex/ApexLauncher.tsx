@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Info } from "lucide-react";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { useAuth } from "@/providers/AuthProvider";
 import { useApexScope, type ApexScope } from "./ApexScopeProvider";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+/** `notice`: not something Apex said - "at capacity", "couldn't reach Apex". Shown as a notice,
+ * never sent back as conversation history (audit AI-16). */
+type ChatMessage = { role: "user" | "assistant"; content: string; notice?: boolean };
 type Reach = "page" | "everything";
 
 const CAPACITY_FALLBACK = "Apex is at capacity right now - try again in a moment.";
@@ -84,7 +87,10 @@ export function ApexLauncher() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question: trimmed,
-        history: messages.slice(-6),
+        history: messages
+          .filter((m) => !m.notice)
+          .slice(-6)
+          .map(({ role, content }) => ({ role, content })),
         // Widening deliberately drops the page's own snapshot rather than adding to it: "Entire F1
         // HUB" means general F1 knowledge, not this page's facts plus someone else's.
         context: reach === "page" ? scope.context : { page: "home", snapshot: {} },
@@ -92,14 +98,15 @@ export function ApexLauncher() {
       }),
     }).catch(() => null);
 
-    const body = (await res?.json().catch(() => null)) as { answer?: string; error?: string } | null;
+    const body = (await res?.json().catch(() => null)) as { answer?: string; error?: string; isFallback?: boolean } | null;
     setSending(false);
 
     if (!res?.ok || !body?.answer) {
-      setMessages((prev) => [...prev, { role: "assistant", content: body?.error ? CAPACITY_FALLBACK : NETWORK_FALLBACK }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: body?.error ? CAPACITY_FALLBACK : NETWORK_FALLBACK, notice: true }]);
       return;
     }
-    setMessages((prev) => [...prev, { role: "assistant", content: body.answer as string }]);
+    // The route's own fallback ("at capacity") arrives as an answer, flagged: still a notice.
+    setMessages((prev) => [...prev, { role: "assistant", content: body.answer as string, notice: body.isFallback === true }]);
   }
 
   return (
@@ -141,17 +148,24 @@ export function ApexLauncher() {
               ) : (
                 // role="log": a polite live region, so each answer is read out when it arrives.
                 <div role="log" aria-label="Conversation with Apex" className="space-y-3">
-                  {messages.map((message, i) => (
-                    <div key={i} className={message.role === "user" ? "text-right" : ""}>
-                      <p
-                        className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm leading-relaxed ${
-                          message.role === "user" ? "bg-white/[0.08] text-white" : "bg-black/30 text-neutral-300"
-                        }`}
-                      >
+                  {messages.map((message, i) =>
+                    message.notice ? (
+                      <p key={i} className="flex items-start gap-1.5 text-xs leading-relaxed text-tertiary">
+                        <Info aria-hidden size={14} strokeWidth={1.75} className="mt-0.5 shrink-0" />
                         {message.content}
                       </p>
-                    </div>
-                  ))}
+                    ) : (
+                      <div key={i} className={message.role === "user" ? "text-right" : ""}>
+                        <p
+                          className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                            message.role === "user" ? "bg-white/[0.08] text-white" : "bg-black/30 text-neutral-300"
+                          }`}
+                        >
+                          {message.content}
+                        </p>
+                      </div>
+                    ),
+                  )}
                   {sending && (
                     <p className="inline-block rounded-xl bg-black/30 px-3 py-2 text-sm text-tertiary">
                       <span className="sr-only">Apex is answering…</span>

@@ -1,4 +1,5 @@
-import { unstable_cache, revalidateTag } from "next/cache";
+import { unstable_cache } from "next/cache";
+import { expireTag } from "@/lib/cacheTags";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
@@ -65,5 +66,5 @@ export async function saveUserPick(uid: string, pick: Omit<UserPick, "submittedA
     if (error.message.includes("invalid_pick")) throw new ServiceError("Pick a winner and three drivers for the podium.", 400, "invalid_pick");
     throw new Error(`saveUserPick(${uid}, ${pick.raceId}): ${error.message}`);
   }
-  revalidateTag(USER_PICKS_TAG, "max");
+  expireTag(USER_PICKS_TAG);
 }
