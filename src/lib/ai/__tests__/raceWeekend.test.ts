@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { archiveRaceFacts, raceWeekendFacts } from "../context/raceWeekend";
+import { archiveRaceFacts, formatSessionSchedule, raceWeekendFacts } from "../context/raceWeekend";
 import type { RaceDoc } from "@/lib/types/race";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 
@@ -115,5 +115,23 @@ describe("archiveRaceFacts", () => {
     assert.deepEqual(facts.qualifying, { pole: "VER 1:14.5", grid: ["P1 VER 1:14.5", "P2 HAM 1:15.0"] });
     assert.ok(facts.drivers.includes("HAM Lewis Hamilton (Mercedes)"));
     assert.equal(facts.practice, undefined);
+  });
+});
+
+describe("formatSessionSchedule", () => {
+  const sessions = [
+    { label: "Qualifying", date: "2026-10-03T08:00:00" },
+    { label: "Race", date: "2026-10-04T07:00:00" },
+  ];
+
+  it("gives the times in the viewer's own zone, as the page does", () => {
+    const [quali, race] = formatSessionSchedule(sessions, "Asia/Kolkata");
+    assert.match(quali, /^Qualifying: Sat 3 Oct, 13:30 /);
+    assert.match(race, /^Race: Sun 4 Oct, 12:30 /);
+  });
+
+  it("falls back to UTC without a zone, or with one Intl doesn't know", () => {
+    assert.match(formatSessionSchedule(sessions, undefined)[0], /^Qualifying: Sat 3 Oct, 08:00 UTC$/);
+    assert.match(formatSessionSchedule(sessions, "Not/AZone")[0], /^Qualifying: Sat 3 Oct, 08:00 UTC$/);
   });
 });

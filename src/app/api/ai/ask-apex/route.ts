@@ -37,7 +37,11 @@ import { getArchiveRace, type ArchiveRaceDoc, type ArchiveResultEntry } from "@/
 import { ERAS, eraForYear, isVerifiedChampionYear } from "@/lib/eras";
 import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { buildRaceIntelligenceContext, formatRaceIntelligenceContext } from "@/lib/ai/context/raceContext";
-import { archiveRaceFacts, raceWeekendFacts } from "@/lib/ai/context/raceWeekend";
+import { archiveRaceFacts, formatSessionSchedule, raceWeekendFacts } from "@/lib/ai/context/raceWeekend";
+import { computeAgeRecords } from "@/lib/circuitRecords";
+import { getCalendarEntry } from "@/lib/supabase/calendar";
+import { getUserPick } from "@/lib/supabase/picks";
+import type { RaceDoc } from "@/lib/types/race";
 import { buildArchiveIntelligenceContext } from "@/lib/ai/context/archiveContext";
 import { getPersonalRaceContext } from "@/lib/personalRaceBriefing";
 import { computeStandings } from "@/lib/standings";
@@ -179,6 +183,11 @@ async function buildCircuitGroundingContext(userId: string, clientContext: Recor
  *  - A live-season race that has actually finished (`status === "completed"`, real `results`)
  *    gets the same buildRaceIntelligenceContext the race page's own AI narrative uses - so a
  *    question here can never disagree with what's already written on the page.
+ *  - Every live-season race, in either phase, also gets the weekend's own facts (raceWeekendFacts:
+ *    practice, the grid, the full result, the model), the circuit's history and records, the
+ *    user's own prediction history there and their pick for this race; an unrun one also gets the
+ *    session schedule in the viewer's time zone. The page shows all of these, and its starter
+ *    questions ask about them.
  *  - A live-season race that hasn't run yet - including a calendar-only placeholder with no real
  *    `races` row at all (see races.ts's own comment on why an upcoming round can exist before its
  *    first row does) - has none of that: no results, no key moments, no standings-impact-through-
@@ -201,50 +210,83 @@ async function buildRaceGroundingContext(userId: string, clientContext: Record<s
     return { page: "race", weekend: archiveRace ? archiveRaceFacts(archiveRace) : null, race: formatRaceIntelligenceContext(archiveContext, true) };
   }
 
-  if (!raceId) return null;
-  const race = await getRaceById(raceId).catch(() => null);
   // A calendar-only placeholder (no real `races` row for this round yet) has no id `getRaceById`
-  // can resolve - genuinely nothing race-specific to ground on beyond what the circuit fallback
-  // below already covers from the client's own selection state, so this falls through rather than
-  // returning null outright only when there's truly no circuit either.
+  // can resolve - genuinely nothing race-specific to ground on beyond the circuit, which the
+  // client's own circuit/year still identify.
+  const race = raceId ? await getRaceById(raceId).catch(() => null) : null;
   const raceIdentity = race
     ? { name: race.name, round: race.round, season: race.year, status: race.status, raceDate: race.raceDate ?? null }
     : null;
   // The weekend's own sessions - practice, the grid, the full result, the model's picks - in every
   // phase. Both contexts below lacked them: before the race Apex had only the circuit's history,
-  // and afterwards only the podium, so it said it had no data the page was showing. First in the
-  // object, so the size cap would cut the circuit history before it.
+  // and afterwards only the podium, so it said it had no data the page was showing.
   const weekend = race ? raceWeekendFacts(race) : null;
-
-  if (race?.status === "completed" && race.results?.length) {
-    const raceContext = await buildRaceIntelligenceContext(raceId, userId).catch(() => null);
-    if (raceContext) return { page: "race", weekend, race: formatRaceIntelligenceContext(raceContext, true) };
-  }
-
   const location = race?.circuit ?? (typeof clientContext.circuit === "string" ? clientContext.circuit : null);
   const year = race?.year ?? (typeof clientContext.year === "number" ? clientContext.year : null);
-  if (!location || !year) return null;
 
+  // Read together: the circuit's history and records with the user's own history there (both phases
+  // now - the finished-race branch had neither, though it offers "my accuracy at this circuit" and
+  // "biggest surprises here" as starter questions), the user's pick for this race, and the schedule.
+  const [circuitPart, pick, calendarEntry] = await Promise.all([
+    location && year ? circuitGroundingFor(location, year, race, userId) : Promise.resolve(null),
+    race ? getUserPick(userId, race.id).catch(() => null) : Promise.resolve(null),
+    race ? getCalendarEntry(race.year, race.round).catch(() => null) : Promise.resolve(null),
+  ]);
+  const yourPick = race
+    ? pick
+      ? `You picked ${pick.predictedWinner} to win, with a podium of ${pick.predictedPodium.join(", ")}.`
+      : "You haven't made a pick for this race."
+    : undefined;
+
+  if (race?.status === "completed" && race.results?.length) {
+    const raceContext = await buildRaceIntelligenceContext(race.id, userId).catch(() => null);
+    if (raceContext) return fitRaceContext({ page: "race", weekend, yourPick, race: formatRaceIntelligenceContext(raceContext, true), ...circuitPart });
+  }
+
+  if (!race && !circuitPart) return null;
+  const schedule = calendarEntry?.sessions.length ? formatSessionSchedule(calendarEntry.sessions, clientContext.timeZone) : undefined;
+  return fitRaceContext({ page: "race", race: raceIdentity, weekend, yourPick, schedule, ...circuitPart });
+}
+
+/** The circuit's history and records, and the user's own prediction history there, for a live-season
+ * race in either phase: the same context circuit-take/buildCircuitGroundingContext ground on. */
+async function circuitGroundingFor(location: string, year: number, race: RaceDoc | null, userId: string): Promise<{ circuit: string; personalPredictionHistory: string } | null> {
   const data = await getCircuitDetailData(location, year, userId).catch(() => null);
   if (!data) return null;
   const grandPrixName = data.currentSeasonRace?.name ?? race?.name ?? null;
   const country = race?.country ?? data.currentSeasonRace?.country ?? data.archiveRaces[0]?.country ?? null;
   const displayName = data.facts?.venueName ?? raceTitle(location);
-  const circuitCtx = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline);
-  // The user's own real prediction history at this circuit - "how has my accuracy been here"
-  // (one of this scope's own suggested questions) needs THIS, not the shared circuit facts above,
-  // which never carry anyone's personal data. Same source RaceSidebar's own personalization card
-  // reads from (personalRaceBriefing.ts) - reusing data.liveRaces/data.timeline this call already
-  // fetched rather than a second circuit-history round trip.
-  const personal = await getPersonalRaceContext(userId, data.timeline, data.liveRaces).catch(() => null);
-
+  // Ages need birthdates (circuitRecords.ts), so they're resolved here rather than in the pure
+  // builder. "Youngest winner here" is one of the race page's own starter questions.
+  //
+  // The user's own real prediction history at this circuit - "how has my accuracy been here" needs
+  // THIS, not the shared circuit facts, which never carry anyone's personal data. Same source
+  // RaceSidebar's own personalization card reads from (personalRaceBriefing.ts).
+  const [ageRecords, personal] = await Promise.all([
+    computeAgeRecords(data.timeline).catch(() => null),
+    getPersonalRaceContext(userId, data.timeline, data.liveRaces).catch(() => null),
+  ]);
+  const circuitCtx = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline, ageRecords);
   return {
-    page: "race",
-    race: raceIdentity,
-    weekend,
     circuit: formatCircuitContext(circuitCtx),
     personalPredictionHistory: personal?.accuracy ? `You've predicted the winner correctly ${personal.accuracy.correct} out of ${personal.accuracy.total} times at this circuit.` : "No prediction history at this circuit yet.",
   };
+}
+
+/** Keeps a race context inside the server-context budget by dropping its least-needed parts first,
+ * instead of letting the final hard slice cut the JSON mid-value. Measured race contexts are well
+ * under it (about 9-10 KB); this is the guarantee, not the expectation. */
+function fitRaceContext(context: Record<string, unknown>): Record<string, unknown> {
+  const budget = MAX_SERVER_CONTEXT_JSON_LENGTH - 2000;
+  const fits = () => JSON.stringify(context).length <= budget;
+  if (fits()) return context;
+  delete context.circuit;
+  if (fits()) return context;
+  const weekend = context.weekend as { practice?: unknown; model?: unknown } | null | undefined;
+  if (weekend) delete weekend.practice;
+  if (fits()) return context;
+  if (weekend) delete weekend.model;
+  return context;
 }
 
 function archiveIsClassified(status: string): boolean {
