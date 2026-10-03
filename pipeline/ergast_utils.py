@@ -7,15 +7,12 @@ import json
 import os
 import time
 
-import firebase_admin
 import pandas as pd
 import psycopg2
 import psycopg2.extras
 import requests
 from fastf1.ergast.interface import ErgastInvalidRequestError
 from fastf1.req import RateLimitExceededError
-from firebase_admin import credentials, firestore
-from google.api_core.exceptions import GoogleAPICallError
 
 MAX_RETRIES = 5
 # fastf1's own client-side hard cap (see fastf1/req.py's _CallsPerIntervalLimitRaise: "any API:
@@ -64,7 +61,7 @@ def with_retry(fn):
                 f"({http_error_attempts}/{MAX_HTTP_ERROR_RETRIES})"
             )
             time.sleep(backoff)
-        except (requests.exceptions.RequestException, GoogleAPICallError):
+        except requests.exceptions.RequestException:
             attempt += 1
             if attempt >= MAX_RETRIES:
                 raise
@@ -74,7 +71,12 @@ def with_retry(fn):
 
 def init_firestore():
     """Only migrate_export.py still needs this — everything else that used to write here writes
-    to Postgres now (see init_postgres below)."""
+    to Postgres now (see init_postgres below). firebase-admin is no longer a pipeline dependency,
+    so it is imported here rather than at module level: that one-off script needs
+    `pip install firebase-admin`, and nothing else does."""
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+
     raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
     if not raw:
         raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")

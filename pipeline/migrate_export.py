@@ -6,8 +6,9 @@ Read-only, single pass over each collection — total doc count across everythin
 in the low thousands, comfortably inside a single day's quota. Part of the Firebase -> Supabase
 migration (see supabase/schema.sql).
 
-Run:
-  export FIREBASE_SERVICE_ACCOUNT_JSON='<same service account JSON the app itself uses>'
+Run (firebase-admin is not in requirements.txt any more - install it for this script only):
+  pip install firebase-admin
+  export FIREBASE_SERVICE_ACCOUNT_JSON='<the Firebase service account JSON>'
   python3 migrate_export.py
 """
 

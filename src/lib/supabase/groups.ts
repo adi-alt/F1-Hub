@@ -14,6 +14,7 @@ import {
   type CommunityType,
   type CommunityVisibility,
 } from "@/lib/communities";
+import { ilikeContainsValue } from "@/lib/supabase/postgrestSearch";
 import { getTransporter } from "@/lib/otp";
 import { signInviteToken, verifyInviteToken } from "@/lib/inviteTokens";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -375,18 +376,26 @@ export async function listPublicGroups(query?: string, uid?: string): Promise<Pu
   return communities;
 }
 
+/** Longer than any real search; a pasted essay is cut here, not sent to the database. */
+const MAX_DISCOVER_QUERY_CHARS = 100;
+
 async function discoverCommunitiesUncached(opts: DiscoverOptions): Promise<DiscoverResult> {
   const { query, topics, sort = "recommended", cursor, limit = DISCOVER_PAGE_SIZE, uid } = opts;
   const empty: DiscoverResult = { communities: [], nextCursor: null, total: 0, facets: [] };
 
   let builder = supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).eq("visibility", "public");
-  const trimmed = query?.trim();
+  const trimmed = query?.trim().slice(0, MAX_DISCOVER_QUERY_CHARS);
   if (trimmed) {
+    // Escaped for both LIKE and PostgREST's or() grammar (SEC-21, see ilikeContainsValue): a quote,
+    // brace or asterisk in a search used to 500 the request or match everything.
+    const value = ilikeContainsValue(trimmed);
+    const clauses = [`name.ilike.${value}`, `description.ilike.${value}`, `topic.ilike.${value}`];
     // `tags` is text[], so ilike can't reach it - `cs` (contains) matches an exact lowercased tag,
-    // which is what normalizeTags() already guarantees is stored. Name/description/topic stay
-    // substring matches.
-    const escaped = trimmed.replace(/[%,()]/g, "");
-    builder = builder.or(`name.ilike.%${escaped}%,description.ilike.%${escaped}%,topic.ilike.%${escaped}%,tags.cs.{${escaped.toLowerCase()}}`);
+    // which is what normalizeTags() already guarantees is stored. Only offered for a term of plain
+    // letters, digits, spaces, `_` and `-`, so nothing in it can read as array or filter syntax.
+    const tag = normalizeTags([trimmed])[0];
+    if (tag && /^[a-z0-9 _-]+$/.test(tag)) clauses.push(`tags.cs.{${tag}}`);
+    builder = builder.or(clauses.join(","));
   }
   const { data: groups, error } = await queryWithRetry(() => builder.order("created_at", { ascending: false }));
   if (error) throw new Error(`discoverCommunities: ${error.message}`);
