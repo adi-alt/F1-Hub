@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { fetchLinkPreview } from "@/lib/linkPreview.server";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 
 /**
  * GET /api/link-preview?url=...
@@ -20,6 +21,8 @@ const cachedPreview = unstable_cache(async (url: string) => fetchLinkPreview(url
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "linkPreview", session.uid);
+  if (limited) return limited;
 
   const url = new URL(request.url).searchParams.get("url");
   if (!url) return NextResponse.json({ error: "Missing url" }, { status: 400 });

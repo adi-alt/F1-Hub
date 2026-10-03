@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { joinGroup } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { isUuid } from "@/lib/ids";
 import { ServiceError, serviceErrorBody } from "@/services/errors";
 
@@ -13,6 +14,8 @@ import { ServiceError, serviceErrorBody } from "@/services/errors";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "groupJoin", session.uid);
+  if (limited) return limited;
   const { id } = await params;
   if (!isUuid(id)) return NextResponse.json({ error: "That invite link isn't valid.", code: "group_not_found" }, { status: 404 });
   const { inviteToken } = (await request.json().catch(() => ({}))) as { inviteToken?: unknown };
