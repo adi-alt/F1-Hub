@@ -37,7 +37,7 @@ export function Footer() {
           it extends upward, overlapping the last 10vh of whatever comes right before the footer,
           rather than living inside the footer's own (clipped) box. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-full h-[10vh] bg-gradient-to-b from-transparent to-black" />
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div className="page-wide py-10">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
             <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">

@@ -9,7 +9,7 @@ import { InsightSkeleton, LoadingRegion, MediaSkeleton, TextSkeleton } from "@/c
 // page no longer renders (see CircuitsExplorer.tsx).
 export default function CircuitsLoading() {
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+    <div className="page-wide py-6">
       <SectionLoadingMessage label="Mapping the circuits…" />
       <LoadingRegion label="Loading circuits">
         <TextSkeleton width={200} height={30} />

@@ -6,7 +6,7 @@ import { GroupsHomeSkeleton } from "./components/GroupsHomeSkeleton";
 // inside the navigation rail now, so GroupsHomeSkeleton's own left column already accounts for it.
 export default function GroupsLoading() {
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 lg:px-10">
+    <div className="page-wide py-6">
       <SectionLoadingMessage label="Loading your paddock…" />
       <GroupsHomeSkeleton />
     </div>

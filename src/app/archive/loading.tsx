@@ -40,7 +40,7 @@ export default function ArchiveLoading() {
   const isHistoryRoute = ["round", "circuit", "driver", "team"].some((key) => searchParams.has(key));
   if (isHistoryRoute) {
     return (
-      <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+      <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
         <div className="shrink-0">
           <SectionLoadingMessage label="Digging through the archive…" />
           <Skeleton className="h-4 w-16" />
@@ -71,7 +71,7 @@ export default function ArchiveLoading() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
       <div className="shrink-0">
         <SectionLoadingMessage label="Digging through the archive…" />
       </div>

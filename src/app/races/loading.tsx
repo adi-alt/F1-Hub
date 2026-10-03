@@ -3,7 +3,7 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
 
 export default function RaceLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="page-content py-10">
       <SectionLoadingMessage label="Spinning up the simulator…" />
       <Skeleton className="h-4 w-24" />
       <div className="mt-2 flex items-center justify-between">

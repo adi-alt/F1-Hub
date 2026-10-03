@@ -42,7 +42,7 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
   const avgFieldMovement = circuitAvgFieldMovement(timeline);
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
+    <div className="page-content py-8">
       <CircuitApexScope location={location} circuitName={facts?.venueName ?? location} year={year} status={currentSeasonRace?.state ?? null} />
 
       <CircuitHero location={location} grandPrixName={grandPrixName} country={country} facts={facts} />

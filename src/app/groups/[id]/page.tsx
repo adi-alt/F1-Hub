@@ -56,7 +56,7 @@ export default async function CommunityPage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div className="page-narrow py-10">
         <SignInGate label="this community" />
       </div>
     );
@@ -77,7 +77,7 @@ export default async function CommunityPage({
     ]);
     if (!preview) notFound();
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+      <div className="page-narrow py-10">
         <JoinPrompt
           group={preview}
           joinRequestStatus={joinRequest?.status ?? null}
@@ -171,7 +171,7 @@ export default async function CommunityPage({
     // Wide enough for a real two-column workspace (content + context rail) at desktop widths, while
     // the content column itself stays a comfortable reading measure. Matches the Communities index's
     // own max width rather than inventing a third one for this page.
-    <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="page-wide py-6">
       <GroupRealtimeWatcher groupId={id} />
 
       <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition hover:text-neutral-300">

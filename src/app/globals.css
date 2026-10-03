@@ -145,6 +145,48 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* The page frame (spec §3). The header, the footer and every page share one 1440px frame and one
+   gutter (16px; 24px from md; 32px from xl), so the logo and all page content start on the same
+   left edge. page-content and page-narrow cap the content at 1200px and 672px but keep it on that
+   edge instead of re-centring it: the end padding takes up the difference. In new code use
+   <PageContainer> (components/ui/PageContainer.tsx), which applies these. */
+:root {
+  --page-gutter: 1rem;
+  --page-max-wide: 90rem;
+  --page-max-content: 75rem;
+  --page-max-narrow: 42rem;
+}
+@media (width >= 48rem) {
+  :root {
+    --page-gutter: 1.5rem;
+  }
+}
+@media (width >= 80rem) {
+  :root {
+    --page-gutter: 2rem;
+  }
+}
+@utility page-wide {
+  width: 100%;
+  max-width: var(--page-max-wide);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+@utility page-content {
+  width: 100%;
+  max-width: var(--page-max-wide);
+  margin-inline: auto;
+  padding-inline-start: var(--page-gutter);
+  padding-inline-end: max(var(--page-gutter), min(100%, var(--page-max-wide)) - var(--page-gutter) - var(--page-max-content));
+}
+@utility page-narrow {
+  width: 100%;
+  max-width: var(--page-max-wide);
+  margin-inline: auto;
+  padding-inline-start: var(--page-gutter);
+  padding-inline-end: max(var(--page-gutter), min(100%, var(--page-max-wide)) - var(--page-gutter) - var(--page-max-narrow));
+}
+
 /* Spacing needs no tokens: the spec's 4px scale is Tailwind's own (p-1 = 4px ... p-16 = 64px).
    z-index and duration have no Tailwind theme namespace, so they are utilities. They replace
    z-[90]...z-[400] and nineteen different durations. */

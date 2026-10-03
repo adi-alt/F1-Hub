@@ -154,7 +154,7 @@ export default async function ProfilePage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
+      <div className="page-content flex h-[calc(100dvh-4rem)] flex-col py-6">
         <SignInGate label="personalization" />
       </div>
     );
@@ -217,7 +217,7 @@ export default async function ProfilePage({
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-content flex h-[calc(100dvh-4rem)] flex-col py-6">
       <h1 className="shrink-0 text-3xl font-bold text-white">Personalization</h1>
       <p className="mt-2 shrink-0 text-sm text-neutral-400">
         Favorite any driver, team, or circuit, current or historical. Favorited ones always show

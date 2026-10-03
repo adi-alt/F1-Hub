@@ -16,7 +16,7 @@ async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const { entries, completedCount, remainingCount } = data;
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+    <div className="page-wide py-6">
       <CircuitExplorerHeader year={year} totalCircuits={entries.length} completedCount={completedCount} remainingCount={remainingCount} />
       {/* The season map, the selected round's focus panel, and Ask Apex's own circuit scope all
           live inside this one client component - see its own docstring for why selection (not
@@ -42,7 +42,7 @@ export default async function CircuitsPage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <SignInGate label="circuit intelligence" />
       </div>
     );

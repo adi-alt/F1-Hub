@@ -8,7 +8,7 @@ import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
  * rounded rectangles across that row), so this has to move whenever that row does. */
 export default function UsersLoading() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <div className="page-content py-10">
       <SectionLoadingMessage label="Checking the paddock pass list…" />
       <Skeleton className="h-9 w-32" />
       <Skeleton className="mt-2 h-4 w-72" />
