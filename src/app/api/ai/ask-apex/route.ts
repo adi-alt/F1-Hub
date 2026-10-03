@@ -33,10 +33,11 @@ import {
   archiveLatestYear,
   getArchiveYears,
 } from "@/app/archive/services/archive.service";
-import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
+import { getArchiveRace, type ArchiveRaceDoc, type ArchiveResultEntry } from "@/lib/supabase/archive";
 import { ERAS, eraForYear, isVerifiedChampionYear } from "@/lib/eras";
 import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { buildRaceIntelligenceContext, formatRaceIntelligenceContext } from "@/lib/ai/context/raceContext";
+import { archiveRaceFacts, raceWeekendFacts } from "@/lib/ai/context/raceWeekend";
 import { buildArchiveIntelligenceContext } from "@/lib/ai/context/archiveContext";
 import { getPersonalRaceContext } from "@/lib/personalRaceBriefing";
 import { computeStandings } from "@/lib/standings";
@@ -194,7 +195,10 @@ async function buildRaceGroundingContext(userId: string, clientContext: Record<s
   if (archiveYear !== null && archiveRound !== null) {
     const archiveContext = await buildArchiveIntelligenceContext(archiveYear, archiveRound, userId).catch(() => null);
     if (!archiveContext) return null;
-    return { page: "race", race: formatRaceIntelligenceContext(archiveContext, true) };
+    // The full classification and qualifying order, not just the podium (see raceWeekendFacts). A
+    // cache hit: buildArchiveIntelligenceContext has just read the same race.
+    const archiveRace = await getArchiveRace(archiveYear, archiveRound).catch(() => null);
+    return { page: "race", weekend: archiveRace ? archiveRaceFacts(archiveRace) : null, race: formatRaceIntelligenceContext(archiveContext, true) };
   }
 
   if (!raceId) return null;
@@ -206,10 +210,15 @@ async function buildRaceGroundingContext(userId: string, clientContext: Record<s
   const raceIdentity = race
     ? { name: race.name, round: race.round, season: race.year, status: race.status, raceDate: race.raceDate ?? null }
     : null;
+  // The weekend's own sessions - practice, the grid, the full result, the model's picks - in every
+  // phase. Both contexts below lacked them: before the race Apex had only the circuit's history,
+  // and afterwards only the podium, so it said it had no data the page was showing. First in the
+  // object, so the size cap would cut the circuit history before it.
+  const weekend = race ? raceWeekendFacts(race) : null;
 
   if (race?.status === "completed" && race.results?.length) {
     const raceContext = await buildRaceIntelligenceContext(raceId, userId).catch(() => null);
-    if (raceContext) return { page: "race", race: formatRaceIntelligenceContext(raceContext, true) };
+    if (raceContext) return { page: "race", weekend, race: formatRaceIntelligenceContext(raceContext, true) };
   }
 
   const location = race?.circuit ?? (typeof clientContext.circuit === "string" ? clientContext.circuit : null);
@@ -232,6 +241,7 @@ async function buildRaceGroundingContext(userId: string, clientContext: Record<s
   return {
     page: "race",
     race: raceIdentity,
+    weekend,
     circuit: formatCircuitContext(circuitCtx),
     personalPredictionHistory: personal?.accuracy ? `You've predicted the winner correctly ${personal.accuracy.correct} out of ${personal.accuracy.total} times at this circuit.` : "No prediction history at this circuit yet.",
   };
