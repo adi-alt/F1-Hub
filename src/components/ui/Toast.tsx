@@ -158,7 +158,7 @@ function ToastItem({ toast, paused, onDismiss }: { toast: Toast; paused: boolean
   const Icon = tone.icon;
 
   return (
-    <li className="pointer-events-auto flex items-start gap-3 rounded-card bg-surface-3 p-4 text-body-sm text-primary shadow-overlay transition-[opacity,translate] duration-base ease-standard starting:translate-y-2 starting:opacity-0 motion-reduce:transition-none">
+    <li className="pointer-events-auto flex items-start gap-3 rounded-card surface-glass p-4 text-body-sm text-primary shadow-overlay transition-[opacity,translate] duration-base ease-standard starting:translate-y-2 starting:opacity-0 motion-reduce:transition-none">
       <Icon aria-hidden size={20} strokeWidth={1.75} className={`shrink-0 ${tone.color}`} />
       <div className="min-w-0 flex-1">
         <p className="break-words">

@@ -34,10 +34,17 @@ export type DialogProps = {
    * panel's md-up width: the content column keeps `size`'s width and the aside takes the same again.
    */
   aside?: ReactNode;
+  /**
+   * Keeps the panel one height while its content changes, as in a multi-step flow such as sign-in:
+   * at least this tall (a CSS length, e.g. "41.5rem"), never taller than the viewport allows. Shorter
+   * content is centred in it, with the close button pinned to the top corner. Content that needs
+   * more room still grows the panel.
+   */
+  minHeight?: string;
 };
 
-/** A sheet has no room for an aside. */
-export type SheetProps = Omit<DialogProps, "aside">;
+/** A sheet has no room for an aside, and fills its edge of the screen anyway. */
+export type SheetProps = Omit<DialogProps, "aside" | "minHeight">;
 
 type Variant = "dialog" | "sheet";
 
@@ -47,16 +54,22 @@ const hasContent = (node: ReactNode) => node != null && typeof node !== "boolean
 /** How long a closing overlay stays mounted: duration-slow, the length of its exit transition. */
 const EXIT_MS = 320;
 
-const BACKDROP = "absolute inset-0 bg-surface-0/70 transition-opacity duration-slow ease-standard starting:opacity-0 motion-reduce:transition-none";
+// A lighter scrim than an opaque panel would need: the page behind has to show through the frosted
+// panel for it to read as glass.
+const BACKDROP = "absolute inset-0 bg-surface-0/35 transition-opacity duration-slow ease-standard starting:opacity-0 motion-reduce:transition-none";
+// surface-glass: the app's frosted overlay surface (globals.css).
 const PANEL =
-  "relative flex w-full flex-col gap-4 overflow-hidden bg-surface-3 py-6 shadow-overlay transition-[opacity,translate] duration-slow ease-standard motion-reduce:transition-none";
+  "relative flex w-full flex-col gap-4 overflow-hidden surface-glass py-6 shadow-overlay transition-[opacity,translate] duration-slow ease-standard motion-reduce:transition-none";
 // With an aside, the panel is a row from md up: the artwork, then a column that takes the padding.
 const PANEL_WITH_ASIDE = "md:flex-row md:gap-0 md:py-0";
 const ASIDE = "hidden md:block md:w-1/2 md:shrink-0";
 const CONTENT_COLUMN = "flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:py-6";
 const ASIDE_WIDTH: Record<DialogSize, string> = { sm: "max-w-sm md:max-w-3xl", md: "max-w-lg md:max-w-4xl", lg: "max-w-2xl md:max-w-5xl" };
-const CLOSE_BUTTON =
-  "-mr-2 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-control text-secondary hover:bg-primary/8 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+const CLOSE_BUTTON_LOOK =
+  "flex size-8 shrink-0 items-center justify-center rounded-control text-secondary hover:bg-primary/8 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+const CLOSE_BUTTON = `-mr-2 -mt-1 ${CLOSE_BUTTON_LOOK}`;
+// With minHeight, the content is centred, so the close button stays put in the corner instead.
+const CLOSE_BUTTON_PINNED = `absolute right-4 top-4 z-10 ${CLOSE_BUTTON_LOOK}`;
 
 const VARIANTS: Record<Variant, { root: string; panel: string; closed: string; width: Record<DialogSize, string> }> = {
   dialog: {
@@ -161,6 +174,7 @@ export function DialogLayer({
   footer,
   size = "md",
   aside,
+  minHeight,
 }: Omit<DialogProps, "open" | "initialFocusRef"> & { variant?: Variant; open?: boolean; panelRef?: Ref<HTMLDivElement> }) {
   const id = useId();
   const titleId = `${id}-title`;
@@ -168,10 +182,20 @@ export function DialogLayer({
   const styles = VARIANTS[variant];
   const closing = !open;
   const withAside = variant === "dialog" && hasContent(aside);
+  // A steady-height dialog: centred content, pinned close button. `safe` centring falls back to the
+  // top when the content is taller than the panel, so nothing is pushed out of reach.
+  const steady = variant === "dialog" && Boolean(minHeight);
+
+  const closeButton = dismissible && (
+    <button type="button" aria-label="Close" onClick={() => onClose()} className={steady ? CLOSE_BUTTON_PINNED : CLOSE_BUTTON}>
+      <X aria-hidden size={20} strokeWidth={1.75} />
+    </button>
+  );
 
   const content = (
     <>
-      <div className="flex shrink-0 items-start gap-4 px-6">
+      {/* pe-14 keeps a long title clear of the pinned close button. */}
+      <div className={cx("flex shrink-0 items-start gap-4 px-6", steady && dismissible && "pe-14")}>
         <div className="min-w-0 flex-1">
           <h2 id={titleId} className="break-words text-title-md text-primary">
             {title}
@@ -182,14 +206,13 @@ export function DialogLayer({
             </p>
           )}
         </div>
-        {dismissible && (
-          <button type="button" aria-label="Close" onClick={() => onClose()} className={CLOSE_BUTTON}>
-            <X aria-hidden size={20} strokeWidth={1.75} />
-          </button>
-        )}
+        {!steady && closeButton}
       </div>
-      {/* -my-1 py-1 keeps the 16px gap but gives focus rings at the scroll edges room to show. */}
-      {hasContent(children) && <div className="-my-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary">{children}</div>}
+      {/* -my-1 py-1 keeps the 16px gap but gives focus rings at the scroll edges room to show. In a
+          steady dialog the body doesn't stretch, so the header and body centre together. */}
+      {hasContent(children) && (
+        <div className={cx("-my-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary", steady ? "flex-initial" : "flex-1")}>{children}</div>
+      )}
       {hasContent(footer) && <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 px-6 pt-2">{footer}</div>}
     </>
   );
@@ -203,14 +226,24 @@ export function DialogLayer({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={cx(PANEL, withAside && PANEL_WITH_ASIDE, styles.panel, withAside ? ASIDE_WIDTH[size] : styles.width[size], closing && styles.closed)}
+        // Capped like the panel's own max height, so a short phone still gets a scrolling dialog.
+        style={steady ? { minHeight: `min(${minHeight}, calc(100dvh - 32px))` } : undefined}
+        className={cx(
+          PANEL,
+          withAside && PANEL_WITH_ASIDE,
+          steady && !withAside && "justify-center-safe",
+          styles.panel,
+          withAside ? ASIDE_WIDTH[size] : styles.width[size],
+          closing && styles.closed,
+        )}
       >
+        {steady && closeButton}
         {withAside ? (
           <>
             <div aria-hidden="true" className={ASIDE}>
               {aside}
             </div>
-            <div className={CONTENT_COLUMN}>{content}</div>
+            <div className={cx(CONTENT_COLUMN, steady && "justify-center-safe")}>{content}</div>
           </>
         ) : (
           content

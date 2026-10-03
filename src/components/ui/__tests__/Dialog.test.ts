@@ -41,9 +41,9 @@ describe("Dialog panel", () => {
     assert.equal(new Set(ids).size, 2);
   });
 
-  it("is a surface-3 overlay panel capped at the viewport height less 32px, titled in title-md", () => {
+  it("is a frosted overlay panel capped at the viewport height less 32px, titled in title-md", () => {
     const html = render();
-    assertClasses(panel(html), ["bg-surface-3", "rounded-overlay", "shadow-overlay", "max-h-[calc(100dvh-32px)]", "overflow-hidden", "flex", "flex-col"]);
+    assertClasses(panel(html), ["surface-glass", "rounded-overlay", "shadow-overlay", "max-h-[calc(100dvh-32px)]", "overflow-hidden", "flex", "flex-col"]);
     assertClasses(openingTag(html, /<h2[^>]*>/), ["text-title-md", "text-primary"]);
     // The 32px is the root's 16px padding on each side.
     assertClasses(root(html), ["p-4", "items-center", "justify-center"]);
@@ -90,7 +90,8 @@ describe("Dialog panel", () => {
   it("sits on z-dialog over an aria-hidden scrim", () => {
     const html = render();
     assertClasses(root(html), ["fixed", "inset-0", "z-dialog"]);
-    assertClasses(scrim(html), ["absolute", "inset-0", "bg-surface-0/70"]);
+    // Light enough for the page to show through the frosted panel.
+    assertClasses(scrim(html), ["absolute", "inset-0", "bg-surface-0/35"]);
     // Scrim first, so the panel paints above it.
     assert.ok(html.indexOf('aria-hidden="true"') < html.indexOf('role="dialog"'));
   });
@@ -153,6 +154,42 @@ describe("Dialog aside", () => {
   });
 });
 
+describe("Dialog minHeight (a steady-height, multi-step dialog)", () => {
+  const ART = createElement("div", null, "Every race.");
+  const closeTag = (html: string) => openingTag(html, /<button[^>]*aria-label="Close"[^>]*>/);
+  const bodyTag = (html: string) => openingTag(html, /<div class="[^"]*overflow-y-auto[^"]*">/);
+
+  it("holds the panel at least that tall, capped by the viewport like its max height", () => {
+    assert.equal(attr(panel(render({ minHeight: "40.5rem" })), "style"), "min-height:min(40.5rem, calc(100dvh - 32px))");
+  });
+
+  it("centres the title and body together, safely, and pins the close button to the corner", () => {
+    const html = render({ minHeight: "40.5rem", description: "Two lines of description." });
+    assertClasses(panel(html), ["justify-center-safe"]);
+    assertClasses(closeTag(html), ["absolute", "right-4", "top-4", "size-8"]);
+    assert.ok(html.indexOf('aria-label="Close"') < html.indexOf("<h2"), "the close button comes first, as it did in the header");
+    assertClasses(bodyTag(html), ["flex-initial", "min-h-0", "overflow-y-auto"]);
+    assert.ok(!classesOf(bodyTag(html)).includes("flex-1"), "a stretching body would stop the centring");
+    assertClasses(openingTag(html, /<div class="[^"]*items-start[^"]*">/), ["pe-14"]);
+  });
+
+  it("with an aside, centres within the content column", () => {
+    const html = render({ minHeight: "40.5rem", aside: ART });
+    assertClasses(openingTag(html, /<div class="[^"]*md:py-6[^"]*">/), ["justify-center-safe", "flex-1", "flex-col"]);
+    assert.ok(!classesOf(panel(html)).includes("justify-center-safe"));
+  });
+
+  it("changes nothing without it, and a sheet ignores it", () => {
+    const plain = render();
+    assert.equal(attr(panel(plain), "style"), undefined);
+    assertClasses(closeTag(plain), ["-mr-2", "-mt-1"]);
+    assertClasses(bodyTag(plain), ["flex-1"]);
+    const sheet = render({ variant: "sheet", minHeight: "40.5rem" });
+    assert.equal(attr(panel(sheet), "style"), undefined);
+    assert.ok(!classesOf(panel(sheet)).includes("justify-center-safe"));
+  });
+});
+
 describe("Sheet panel", () => {
   const sheet = (props: Partial<ComponentProps<typeof DialogLayer>> = {}) => render({ variant: "sheet", ...props });
 
@@ -171,7 +208,7 @@ describe("Sheet panel", () => {
     assertClasses(root(html), ["items-end", "md:items-stretch", "md:justify-end"]);
     assertClasses(panel(html), [
       "w-full",
-      "bg-surface-3",
+      "surface-glass",
       "shadow-overlay",
       "rounded-t-overlay",
       "max-h-[calc(100dvh-32px)]",
@@ -216,6 +253,8 @@ it("uses only classes Tailwind generates", async () => {
     render({ aside: createElement("div", null, "Art"), size: "sm" }),
     render({ aside: createElement("div", null, "Art"), size: "md" }),
     render({ aside: createElement("div", null, "Art"), size: "lg" }),
+    render({ minHeight: "40.5rem", description: "Description" }),
+    render({ minHeight: "40.5rem", aside: createElement("div", null, "Art"), size: "sm" }),
   ].join("");
   assert.deepEqual(await classesWithoutCss(html), []);
 });

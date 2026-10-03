@@ -221,6 +221,16 @@
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
+/* The frosted surface for overlays - dialogs, sheets, toasts: this app's own glass, the recipe the
+   sign-in dialog and the profile menu were built on, as one utility. surface-1 at 70% stays dark
+   enough for text contrast even over a bright page behind the scrim; the blur and saturation are
+   what make it read as glass rather than a grey box. */
+@utility surface-glass {
+  background-color: color-mix(in srgb, var(--surface-1) 70%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
 
 body {
   background: var(--background);
