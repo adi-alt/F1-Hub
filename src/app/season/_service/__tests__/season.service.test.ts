@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.pure";
+import { computeHeadToHead, computeRecentForm, computeStreaks, computePositionChanges, fastestPracticeLap, type RaceSummary, type DriverStandingRow, type ConstructorStandingRow } from "../season.pure";
 
 describe("season.service deterministic computations", () => {
   const mockRaceSummaries: RaceSummary[] = [
@@ -211,3 +211,18 @@ describe("season.service deterministic computations", () => {
   });
 });
 
+describe("fastestPracticeLap", () => {
+  it("picks the fastest lap, not the first stored entry (older sessions are alphabetical)", () => {
+    const laps = [
+      { driver: "ALB", lapTimeSec: 83.13, deltaToBestSec: 2.863 },
+      { driver: "LEC", lapTimeSec: 80.267, deltaToBestSec: 0 },
+      { driver: "VER", lapTimeSec: 80.9, deltaToBestSec: 0.633 },
+    ];
+    assert.equal(fastestPracticeLap(laps)?.driver, "LEC");
+  });
+
+  it("returns nothing for a missing or empty session", () => {
+    assert.equal(fastestPracticeLap(undefined), undefined);
+    assert.equal(fastestPracticeLap([]), undefined);
+  });
+});

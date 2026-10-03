@@ -9,7 +9,7 @@ import { computeChampionshipProgression } from "@/lib/personalization";
 import { sessionCode } from "@/lib/sessionCode";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
-import { buildBattles, buildRecords, completedRoundCount } from "./season.pure";
+import { buildBattles, buildRecords, completedRoundCount, fastestPracticeLap } from "./season.pure";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
@@ -42,7 +42,7 @@ function sessionResultFor(code: string, race: RaceDoc | undefined, winnerName: s
   // sessions genuinely have no stored classification, so they correctly return null here.
   if (/^P\d$/.test(code)) {
     const key = `FP${code.slice(1)}` as "FP1" | "FP2" | "FP3";
-    const best = race.practice?.[key]?.bestLaps?.[0];
+    const best = fastestPracticeLap(race.practice?.[key]?.bestLaps);
     if (!best) return null;
     const name = race.results?.find((r) => r.driver === best.driver)?.driverName ?? best.driver;
     return { label: "Fastest", value: `${name} \u00b7 ${formatLapTime(best.lapTimeSec)}` };
