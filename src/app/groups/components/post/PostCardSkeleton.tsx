@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 
 /** Mirrors PostCard's real geometry - same padding, same 34px identity avatar, the two-line header
  * a community post renders, and the same 28px control row - so a post swapping in over its own

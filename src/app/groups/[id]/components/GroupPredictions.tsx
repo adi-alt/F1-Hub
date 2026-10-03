@@ -10,7 +10,7 @@ import { predictionTypeLabels, type GroupPrediction, type PredictionType } from 
 import { PredictionCard } from "./PredictionCard";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 import type { GroupRole } from "@/lib/supabase/groups";
 
 const ENTRY_PRESETS = [10, 20, 50, 100];

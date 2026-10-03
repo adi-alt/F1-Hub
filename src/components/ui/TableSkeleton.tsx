@@ -1,4 +1,4 @@
-import { Skeleton } from "./Skeleton";
+import { Skeleton } from "./LegacySkeleton";
 
 /** The capsule tab-bar shape shared by personalization's and archive's tab switchers — a
  * bordered pill track holding one skeleton pill per real tab, sized roughly to that tab's own

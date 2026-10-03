@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 
 /** Matches ArchiveSeasonGrid/EraSection's real shape - an era-name heading, its year-range +
  * one-line description, over a dense grid of compact year badges (h-20, now that a card also

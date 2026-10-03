@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 import { Picker } from "@/components/ui/Picker";
 import type { GroupMember, GroupRole } from "@/lib/supabase/groups";
 

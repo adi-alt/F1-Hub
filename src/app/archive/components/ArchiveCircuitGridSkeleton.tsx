@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 
 /** Matches ArchiveCircuitGrid's real card shape - an image band the same h-32 height, then two
  * text lines - instead of a generic rectangle, so the "By track" facet doesn't visibly reflow once

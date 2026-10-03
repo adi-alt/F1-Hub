@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
 
 /** Below this many entries there is no consensus to draw - two entries rendered as bars would read

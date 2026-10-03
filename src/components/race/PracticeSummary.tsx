@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { tooltipStyle } from "@/components/charts/chartTheme";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import type { PracticeBestLap, PracticeData } from "@/lib/types/race";
 
 const SESSION_LABELS: Record<"FP1" | "FP2" | "FP3", string> = { FP1: "Practice 1", FP2: "Practice 2", FP3: "Practice 3" };

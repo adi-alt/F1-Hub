@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { useHomepageIntelligence } from "./ai/HomepageIntelligenceProvider";
 import type { FavoriteDriverCard, FavoriteTeamCard, TrackHistory } from "@/lib/personalization";
 

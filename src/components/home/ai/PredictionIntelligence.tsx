@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import type { PredictionInsight } from "@/lib/personalization";
 import { MIN_PREDICTIONS_FOR_TREND, type LatestPredictionSummary, type PredictionPerformance, type PredictionStyleTrait } from "@/lib/predictionPerformance";
 

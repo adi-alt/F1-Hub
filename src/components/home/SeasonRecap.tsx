@@ -1,7 +1,7 @@
 import { ChampionshipTrajectory } from "./ChampionshipTrajectory";
 import { SeasonStrip } from "./SeasonStrip";
 import { chart } from "@/components/charts/chartTheme";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import type { FavoriteDriverCard, FavoriteTeamCard, SeasonRecap as SeasonRecapData } from "@/lib/personalization";
 import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";

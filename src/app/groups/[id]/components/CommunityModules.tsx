@@ -6,7 +6,7 @@ import { communityTypeMeta, visibilityLabel, MODULE_LABELS, type CommunityModule
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupDetail } from "@/lib/supabase/groups";
 import { timeAgo } from "@/lib/format";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 
 /**
  * Media is a *view over the feed*, not a second store - it lists the posts in this community that

@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 
 /** Mirrors GroupCardShell's exact shape (aspect-[4/1] banner, -mt-6 icon overlap, name +
  * description + stats + activity + footer lines) so the grid doesn't reflow when real cards swap

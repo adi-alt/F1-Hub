@@ -6,7 +6,7 @@ import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
 import { DriverPicker } from "@/components/ui/F1Pickers";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 type Status = "idle" | "loading" | "saving" | "saved" | "error";

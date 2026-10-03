@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { modelPositionFor } from "../PickVsModel";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 import type { RaceDoc, UserPick } from "@/lib/types/race";

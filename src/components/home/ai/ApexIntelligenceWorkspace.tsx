@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Tabs, type TabItem } from "@/components/ui/Tabs";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Tabs, type TabItem } from "@/components/ui/LegacyTabs";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
 type TabKey = "briefing" | "yourRace" | "watch" | "risks";

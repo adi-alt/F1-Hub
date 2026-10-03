@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 import { canDo, permissionLevel, postKindsFor, type CommunityFeatures, type CommunityPermissions, type PostKind } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupRole } from "@/lib/supabase/groups";

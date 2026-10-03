@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { RaceReadiness } from "./RaceReadiness";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { formatLapTime, raceStatusLabel, trackShortForm } from "@/lib/format";
 import type { FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { circuitHref, raceHref } from "@/lib/routes";
