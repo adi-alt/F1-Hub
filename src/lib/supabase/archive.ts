@@ -13,7 +13,7 @@ export { ARCHIVE_EARLIEST_YEAR, archiveLatestYear };
 type QueryPage<T> = PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null; count?: number | null }>;
 
 // Cached forever (revalidate: false at every call site below) — freshness after a pipeline run
-// comes from revalidateTag("archive-data") via /api/admin/revalidate (called by every
+// comes from expireTag("archive-data") via /api/admin/revalidate (called by every
 // enrich_archive*.py/fetch_archive.py script once it finishes, see trigger_revalidation() in
 // ergast_utils.py), not from a timer. No dedicated realtime watcher for the archive tables (unlike
 // races/calendar/media) - a backfill is a rare, ad-hoc, manual operation, not a recurring cron,
