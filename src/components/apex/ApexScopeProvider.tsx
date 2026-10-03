@@ -18,6 +18,8 @@ export type BaseApexContext = {
 
 export type HomepageApexContext = BaseApexContext & {
   page: "home";
+  /** The page's own numbers (lib/ai/context/homeFacts.ts). */
+  facts?: Record<string, unknown>;
   snapshot: Record<string, unknown>; // Existing homepage intelligence snapshot
 };
 

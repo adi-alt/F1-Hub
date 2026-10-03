@@ -9,6 +9,7 @@ import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
 import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
 import { YourF1Radar } from "./YourF1Radar";
 import { HomepageApexScope } from "./ai/HomepageApexScope";
+import { buildHomeApexFacts } from "@/lib/ai/context/homeFacts";
 import {
   HomepageIntelligenceProvider,
   useHomepageIntelligence,
@@ -163,6 +164,7 @@ function PersonalHomeInner({
         raceName={publicData.nextRace?.name}
         favoriteDriverName={personalData.favoriteDriver?.name}
         favoriteTeamName={personalData.favoriteTeam?.name}
+        facts={buildHomeApexFacts(publicData, personalData, Intl.DateTimeFormat().resolvedOptions().timeZone)}
       />
     </>
   );

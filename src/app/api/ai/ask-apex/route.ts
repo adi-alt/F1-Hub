@@ -38,6 +38,7 @@ import { ERAS, eraForYear, isVerifiedChampionYear } from "@/lib/eras";
 import { getRaceById, getRacesByYear } from "@/lib/supabase/races";
 import { buildRaceIntelligenceContext, formatRaceIntelligenceContext } from "@/lib/ai/context/raceContext";
 import { archiveRaceFacts, formatSessionSchedule, raceWeekendFacts } from "@/lib/ai/context/raceWeekend";
+import { fitHomeContext } from "@/lib/ai/context/homeFacts";
 import { computeAgeRecords } from "@/lib/circuitRecords";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
 import { getUserPick } from "@/lib/supabase/picks";
@@ -907,6 +908,9 @@ export async function POST(req: Request) {
       }
     }
 
+    // Trims the AI briefing, never the page's own numbers, rather than letting the hard slice below
+    // cut the JSON mid-value.
+    if (!serverBuilt && context.page === "home") context = fitHomeContext(context, MAX_INTELLIGENCE_JSON_LENGTH - 200);
     const rawJson = JSON.stringify(context);
     if (rawJson.length > MAX_RAW_PAYLOAD_BYTES) {
       return NextResponse.json({ error: "PAYLOAD_TOO_LARGE" }, { status: 413 });
