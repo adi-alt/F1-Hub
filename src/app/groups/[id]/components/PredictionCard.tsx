@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdown, formatDeadline } from "@/lib/countdown";
 import { predictionStateAt, predictionTypeLabels, type GroupPrediction, type PredictionGuess, type PredictionState, type PredictionType } from "@/lib/groupPredictionTypes";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
@@ -84,6 +85,7 @@ export function PredictionCard({
   onChanged: () => void;
 }) {
   const now = useMinuteClock();
+  const tz = useViewerTimeZone();
   const { refreshPointsBalance } = useAuth();
   const [guess, setGuess] = useState<unknown>(prediction.myEntry?.guess ?? (prediction.type === "podium" ? ["", "", ""] : ""));
   const [editing, setEditing] = useState(false);
@@ -180,7 +182,7 @@ export function PredictionCard({
             {prediction.lockAt && (
               <span suppressHydrationWarning className="text-tertiary">
                 {" "}
-                · at the start of qualifying, {formatDeadline(prediction.lockAt)}
+                · at the start of qualifying, {formatDeadline(prediction.lockAt, tz)}
               </span>
             )}
           </p>
@@ -188,7 +190,7 @@ export function PredictionCard({
         {state === "locked" && (
           <p className="mt-2 text-xs text-tertiary">
             {prediction.lockAt ? (
-              <span suppressHydrationWarning>Closed at the start of qualifying, {formatDeadline(prediction.lockAt)}</span>
+              <span suppressHydrationWarning>Closed at the start of qualifying, {formatDeadline(prediction.lockAt, tz)}</span>
             ) : (
               "Deadline not available yet"
             )}

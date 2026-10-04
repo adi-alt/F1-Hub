@@ -7,6 +7,7 @@ import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceInte
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdownLive, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import type { LandingData, NextAction } from "@/lib/homeData";
 import type { FactIconKind, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
@@ -36,15 +37,12 @@ function useSecondClock(): number {
   return now;
 }
 
-/** The actual wall-clock date/time, in whichever timezone the viewer's own browser is in -
- * `toLocaleString` with no explicit `timeZone` already does exactly that. It genuinely differs
- * between the server's render (the deployment's own timezone) and the client's (the visitor's
- * real one) - not a bug to route around with an effect, but the documented case
- * `suppressHydrationWarning` exists for (React's own docs use a locale-formatted date as the
- * example): render the real value both times, just don't warn that the two didn't match text. */
-function localTimeLabel(iso: string | null): string | null {
+/** The race start in the viewer's own zone (UTC on the server and while hydrating - see
+ * useViewerTimeZone, which is why this isn't left to suppressHydrationWarning: React keeps the
+ * server's text when that's suppressed, so every visitor saw UTC). */
+function localTimeLabel(iso: string | null, timeZone: string | undefined): string | null {
   if (!iso) return null;
-  return formatLocalDateTime(iso);
+  return formatLocalDateTime(iso, timeZone);
 }
 
 /** The race, not the user, is the dominant visual — greeting (personal only) sits as a small
@@ -71,13 +69,14 @@ export function RaceHero({
   favoriteTeam?: FavoriteTeamCard | null;
 }) {
   const now = useSecondClock();
+  const tz = useViewerTimeZone();
   const openAuthDialog = useAuthDialogStore((s) => s.open);
   const { isAuthorized } = useAuth();
   const { nextRace, calendarEntry, facts, trackHistory } = publicData;
 
   const raceSessionDate = calendarEntry?.sessions.find((s) => s.label.toLowerCase().includes("race"))?.date ?? calendarEntry?.raceDate ?? null;
   const countdown = raceSessionDate ? formatCountdownLive(parseUtcDateTime(raceSessionDate).getTime(), now) : "";
-  const localTime = localTimeLabel(raceSessionDate);
+  const localTime = localTimeLabel(raceSessionDate, tz);
 
   if (!nextRace) {
     return (

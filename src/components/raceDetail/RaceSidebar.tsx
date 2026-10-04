@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdown, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { liveSession, nextSession, sessionCode } from "@/lib/sessionCode";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -68,6 +69,7 @@ export function RaceSidebar({
   communities: RaceCommunityCard[];
 }) {
   const now = useMinuteClock();
+  const tz = useViewerTimeZone();
   const upcoming = calendarEntry ? nextSession(calendarEntry.sessions, now) : null;
   const live = calendarEntry ? liveSession(calendarEntry.sessions, now) : null;
   const countdown = upcoming ? formatCountdown(parseUtcDateTime(upcoming.date).getTime(), now) : "";
@@ -102,16 +104,16 @@ export function RaceSidebar({
               Live now
             </p>
             <p className="mt-1 text-xl font-semibold text-white">{live.label}</p>
-            <p suppressHydrationWarning className="mt-0.5 text-xs text-tertiary">
-              Started {formatLocalDateTime(live.date)} - in progress (estimated). The full schedule is under Race Weekend.
+            <p className="mt-0.5 text-xs text-tertiary">
+              Started {formatLocalDateTime(live.date, tz)} - in progress (estimated). The full schedule is under Race Weekend.
             </p>
           </>
         ) : upcoming ? (
           <>
             <Label>{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</Label>
             <p className="mt-1 font-mono text-2xl font-semibold text-white">{countdown}</p>
-            <p suppressHydrationWarning className="mt-0.5 text-xs text-tertiary">
-              {formatLocalDateTime(upcoming.date)} (your time)
+            <p className="mt-0.5 text-xs text-tertiary">
+              {formatLocalDateTime(upcoming.date, tz)} (your time)
             </p>
           </>
         ) : (
