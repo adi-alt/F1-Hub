@@ -33,6 +33,8 @@ export const POLICIES = {
   predictionCreate: { limit: 20, windowSeconds: 3_600, by: "user" },
   invite: { limit: 20, windowSeconds: 86_400, by: "user" },
   upload: { limit: 20, windowSeconds: 3_600, by: "user" },
+  // A beacon when a community page is left or hidden: a person flips tabs a few times a minute at most.
+  groupVisit: { limit: 60, windowSeconds: 3_600, by: "user" },
 } as const satisfies Record<string, Policy>;
 
 export type PolicyName = keyof typeof POLICIES;

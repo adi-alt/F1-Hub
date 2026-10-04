@@ -12,16 +12,14 @@ import type { ListenerIdentity } from "./types";
  * of two competing ones.
  */
 
-// races/calendar/drivers/teams are all public (`"public read" using (true)` — verified live, see
-// the plan's Live verification section), unfiltered, and low-write-volume enough that one shared
-// channel for the whole group costs nothing extra over four separate ones.
+// ONE public listener, on `data_version`, replaces the four row listeners (races/calendar/drivers/teams)
+// this channel used to carry. Those fired when the pipeline wrote a row - before it had busted the
+// server's cache, which happens when the run finishes - so the refresh they triggered rendered the old
+// cache and nothing prompted another (audit R-19). The pipeline now bumps a `data_version` row AFTER the
+// bust (pipeline/ergast_utils.py bump_data_version), so by the time this event arrives a refresh is
+// guaranteed to see the new data. One event per bust also replaces a refresh per written row.
 export const GLOBAL_CHANNEL_KEY = "global";
-export const GLOBAL_LISTENERS: ListenerIdentity[] = [
-  { table: "races", event: "*", authContext: "public" },
-  { table: "calendar", event: "*", authContext: "public" },
-  { table: "drivers", event: "*", authContext: "public" },
-  { table: "teams", event: "*", authContext: "public" },
-];
+export const GLOBAL_LISTENERS: ListenerIdentity[] = [{ table: "data_version", event: "*", authContext: "public" }];
 
 // One channel per signed-in uid. Two listeners, not one: `profiles` filtered to the viewer's own
 // row (drives favorites sync — every signed-in user gets this) and `profiles` unfiltered (drives
