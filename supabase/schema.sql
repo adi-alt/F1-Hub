@@ -800,7 +800,7 @@ alter publication supabase_realtime add table group_join_requests;
 -- Migration ledger, created automatically by scripts/apply-migration.mjs the first time it runs.
 -- Lets a migration that ISN'T naturally idempotent (a one-off data backfill, say) be applied
 -- exactly once - re-running it is skipped rather than re-executed, so it can't undo a later edit.
-create table schema_migrations (
+create table if not exists schema_migrations (
   name text primary key,
   applied_at timestamptz not null default now()
 );

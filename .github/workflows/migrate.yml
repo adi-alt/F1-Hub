@@ -1,0 +1,84 @@
+name: Database migrations
+
+# Migrations reach the databases through here, not by hand (audit R-12):
+#   - a pull request that changes supabase/ applies its migrations to STAGING and checks the result
+#     against the committed schema fingerprint, so a migration is exercised before it can merge;
+#   - once it is on main, the same migrations go to PRODUCTION, but only after the person set as
+#     reviewer on the `production-db` environment approves the run in GitHub.
+# Each job names the project it must be talking to (EXPECTED_PROJECT_REF): a secret that points at the
+# wrong database stops the job before it connects to anything.
+#
+# Staging's DATABASE_URL is an environment secret on `staging`; production uses the repository-level
+# DATABASE_URL (the `production-db` environment deliberately has no secret of its own).
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "scripts/apply-pending.mjs"
+      - "scripts/schema-fingerprint.mjs"
+      - "scripts/lib/db.mjs"
+      - ".github/workflows/migrate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - "scripts/apply-pending.mjs"
+      - "scripts/schema-fingerprint.mjs"
+      - "scripts/lib/db.mjs"
+      - ".github/workflows/migrate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time, queued rather than cancelled: two runs applying migrations to the same database
+# at once is exactly what this must never do.
+concurrency:
+  group: database-migrations
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    # A fork's pull request gets no secrets, and shouldn't be trusted with staging anyway.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_PROJECT_REF: wmdgbmlpvszyapewygvs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Apply pending migrations to staging
+        run: node scripts/apply-pending.mjs
+      - name: Check staging against the committed schema fingerprint
+        run: node scripts/schema-fingerprint.mjs --check
+
+  production:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    needs: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Waits here for the reviewer's approval, and only runs from main.
+    environment: production-db
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      EXPECTED_PROJECT_REF: opnfquuowxkabtqxxraa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Show what is pending
+        run: node scripts/apply-pending.mjs --dry
+      - name: Apply pending migrations to production
+        run: node scripts/apply-pending.mjs
+      - name: Check production against the committed schema fingerprint
+        run: node scripts/schema-fingerprint.mjs --check
