@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { useAuth } from "@/providers/AuthProvider";
 
 /**
@@ -27,6 +28,7 @@ export default function ArchiveError({ error, reset }: { error: Error & { digest
 
   useEffect(() => {
     console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

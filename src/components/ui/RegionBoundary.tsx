@@ -1,6 +1,7 @@
 "use client";
 
 import { catchError, type ErrorInfo } from "next/error";
+import * as Sentry from "@sentry/nextjs";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
 
@@ -19,6 +20,9 @@ export function recordRegionFailure(label: string, error: unknown): number {
     if (isObject) entry.objects.add(error);
     else entry.values.add(error);
     entry.count += 1;
+    // Reported once per distinct failure, tagged with the region: a region that fails is exactly the
+    // partial outage the page was built to survive, and nobody would otherwise hear about it.
+    Sentry.captureException(error, { tags: { region: label } });
   }
   failures.set(label, entry);
   return entry.count;

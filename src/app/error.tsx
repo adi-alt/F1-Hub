@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * Catches a render/data error anywhere under the root layout — Header/nav still render around
@@ -16,9 +17,10 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   const retried = useRef(false);
 
   useEffect(() => {
-    // No error-tracking service wired up yet (see Vercel Analytics/Speed Insights, added
-    // alongside this) — console.error is at least visible in Vercel's own function logs today.
+    // Reported to Sentry (a no-op until a DSN is configured) as well as the console, which stays visible
+    // in Vercel's function logs.
     console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   // Most of what lands here is transient rather than a broken page: a request that went out while
