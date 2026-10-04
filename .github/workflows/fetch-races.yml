@@ -31,9 +31,16 @@ concurrency:
   group: fetch-races
   cancel-in-progress: false
 
+# The job reads the repo and nothing else: every write goes through the database and Storage secrets.
+permissions:
+  contents: read
+
 jobs:
   fetch-and-predict:
     runs-on: ubuntu-latest
+    # A hung FastF1/OpenF1 call otherwise holds the one-at-a-time queue (and a runner) for six hours,
+    # and every later tick waits behind it. A normal tick takes minutes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 

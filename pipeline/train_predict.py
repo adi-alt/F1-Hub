@@ -358,9 +358,13 @@ def update_race(cur, race_id: str, fields: dict) -> None:
     rows. Only the passed columns change, mirroring the old Firestore `doc.reference.update({...})`
     partial-write semantics this module depends on throughout: prediction/polePrediction/simulation
     each freeze once written, so a later run must never touch a column it didn't just (re)compute."""
-    set_clause = ", ".join(f"{_COLUMNS[k]} = %s" for k in fields)
+    columns = [_COLUMNS[k] for k in fields]
+    set_clause = ", ".join(f"{c} = %s" for c in columns)
     values = [json.dumps(v) for v in fields.values()]
-    cur.execute(f"update races set {set_clause} where id = %s", (*values, race_id))
+    # Only when something differs: re-running over a round whose prediction is already stored (the
+    # normal case on most ticks) must not rewrite the row. jsonb equality, so key order is irrelevant.
+    changed = f"({', '.join(columns)}) is distinct from ({', '.join(['%s::jsonb'] * len(columns))})"
+    cur.execute(f"update races set {set_clause} where id = %s and {changed}", (*values, race_id, *values))
 
 
 def process_year(conn, year: int):

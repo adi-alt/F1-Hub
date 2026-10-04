@@ -3,6 +3,7 @@ Firebase -> Supabase migration) the Postgres read/write primitives every script 
 talk to Firestore now uses instead."""
 
 import datetime
+from contextlib import contextmanager
 import json
 import os
 import time
@@ -157,7 +158,27 @@ def fetch_completed_race_docs(conn):
         return docs
 
 
-def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
+@contextmanager
+def transaction(cur):
+    """Everything inside commits together or not at all. `init_postgres` runs in autocommit mode, so
+    each statement used to commit on its own: an exception after the `races` upsert (a bad row, a
+    dropped connection, a timeout) left a race marked completed with no results, which is exactly the
+    half-written round the consistency audit exists to catch afterwards. Issues BEGIN/COMMIT itself
+    because the connection is deliberately left in autocommit for the scripts that don't need this.
+    Not reentrant: a nested call would end the outer transaction early."""
+    cur.execute("begin")
+    try:
+        yield
+    except BaseException:
+        try:
+            cur.execute("rollback")
+        except Exception:  # noqa: BLE001 - the connection is already broken; the server rolls back on disconnect
+            pass
+        raise
+    cur.execute("commit")
+
+
+def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=(), skip_unchanged=False, unchanged_ignore=()):
     """Insert-or-update by real primary key — the one write primitive every pipeline script uses
     now, same idempotent-rerun discipline each already has for its own external API calls,
     extended to its own writes too. Dedupes input rows on the conflict key first: Postgres can't
@@ -170,7 +191,14 @@ def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
     `coalesce(excluded.c, table.c)`, so a NULL from this write leaves whatever was already stored
     intact. Needed because the two race sources know different things - OpenF1 has no lap-by-lap
     car position at all (openf1_fallback.py's own _fetch_laps docstring), so a preliminary refresh
-    of a round would otherwise null out per-lap positions FastF1 had already supplied."""
+    of a round would otherwise null out per-lap positions FastF1 had already supplied.
+
+    `skip_unchanged` makes the write a no-op for a row whose stored values already match: the update
+    only fires `where (stored columns) is distinct from (new values)`. Without it the 15-minute tick
+    rewrote every row it touched with a fresh timestamp, so `updated_at` (and every realtime watcher
+    keyed on a row change) moved on every run whether or not anything had changed. `unchanged_ignore`
+    names columns left out of that comparison, i.e. the timestamps that are only meaningful when
+    something else changed: they are still written, but only along with a real change."""
     if not rows:
         print(f"  {table}: nothing to load")
         return
@@ -192,6 +220,13 @@ def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
         f"on conflict ({','.join(conflict_cols)}) do update set "
         f"{','.join(assignments)}"
     )
+    compare_cols = [c for c in update_cols if c not in unchanged_ignore]
+    if skip_unchanged and compare_cols:
+        stored = ",".join(f"{table}.{c}" for c in compare_cols)
+        incoming = ",".join(
+            f"coalesce(excluded.{c}, {table}.{c})" if c in keep_known_cols else f"excluded.{c}" for c in compare_cols
+        )
+        query += f" where ({stored}) is distinct from ({incoming})"
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
         values = [tuple(r[c] for c in cols) for r in batch]

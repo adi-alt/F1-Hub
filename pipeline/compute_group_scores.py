@@ -109,7 +109,9 @@ def main():
     conn = init_postgres()
     with conn.cursor() as cur:
         rows = compute_all(cur)
-        upsert(cur, "group_race_scores", rows, ["group_id", "race_id", "user_id"])
+        # computed_at is left out of the comparison: it is rewritten only along with a real change, so a
+        # tick that finds the same scores writes nothing instead of re-stamping every row.
+        upsert(cur, "group_race_scores", rows, ["group_id", "race_id", "user_id"], skip_unchanged=True, unchanged_ignore=("computed_at",))
     conn.close()
     print("Done.")
 

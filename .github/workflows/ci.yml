@@ -13,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -58,6 +59,7 @@ jobs:
   # doesn't need to touch the frontend to get checked, and vice versa.
   pipeline-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -77,3 +79,4 @@ jobs:
           python test_official_sources.py
           python test_compute_group_scores.py
           python test_media_scripts_dry_run.py
+          python test_pipeline_writes.py
