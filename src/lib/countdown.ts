@@ -49,6 +49,29 @@ export function formatCountdownLive(targetMs: number, nowMs: number): string {
 /** A deadline as a short local date and time ("Sat 3 Oct, 15:00"). Locale/timezone dependent, so the
  * element rendering it should carry suppressHydrationWarning (server and browser format it in their
  * own zone) - same treatment RaceHero gives its own local-time strings. */
-export function formatDeadline(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+export function formatDeadline(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleString(undefined, { timeZone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+}
+
+/** A pipeline session time in the viewer's own zone, with the day and the zone's name:
+ * "Sun 4 Oct, 12:30 IST". A bare "Sun 12:30" (what the schedule showed) gives no way to tell whose
+ * 12:30 it is, and "Live now" replaced the time altogether, so nobody could tell when a session
+ * started or when picks closed. Zone-dependent: the element rendering it needs suppressHydrationWarning. */
+export function formatLocalDateTime(iso: string, timeZone?: string): string {
+  return parseUtcDateTime(iso).toLocaleString(undefined, { timeZone, weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+
+/** Just the clock time and zone, for a chip that already sits under a day: "12:30 IST". */
+export function formatLocalTime(iso: string, timeZone?: string): string {
+  return parseUtcDateTime(iso).toLocaleTimeString(undefined, { timeZone, hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
+
+/** A weekday in the viewer's zone ("Sun"), which can differ from the UTC day. */
+export function formatLocalWeekday(iso: string, timeZone?: string): string {
+  return parseUtcDateTime(iso).toLocaleDateString(undefined, { timeZone, weekday: "short" });
+}
+
+/** The viewer's zone as the page should name it ("IST", "GMT+1"), for "times shown in ...". */
+export function localZoneLabel(timeZone?: string): string {
+  return new Date().toLocaleTimeString(undefined, { timeZone, timeZoneName: "short" }).split(" ").pop() ?? "";
 }

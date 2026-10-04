@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { parseUtcDateTime } from "@/lib/countdown";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
+import { formatCountdown, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
 import { DriverPicker } from "@/components/ui/F1Pickers";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
@@ -59,6 +60,7 @@ export function PickPanel({
 }) {
   const { user, isAuthorized, loading } = useAuth();
   const now = useMinuteClock();
+  const tz = useViewerTimeZone();
   const [pick, setPick] = useState({ p1: "", p2: "", p3: "" });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState(DEFAULT_ERROR);
@@ -115,7 +117,9 @@ export function PickPanel({
           <p className="mt-1.5 text-sm font-semibold text-white">
             Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
           </p>
-          <p className="mt-0.5 text-xs text-tertiary">Make your prediction once picks open.</p>
+          <p className="mt-0.5 text-xs text-tertiary">
+            Picks open {formatLocalDateTime(new Date(opensAt).toISOString(), tz)} and close at lights out, {formatLocalDateTime(raceSessionDate, tz)}.
+          </p>
         </div>
       );
     }
@@ -190,7 +194,14 @@ export function PickPanel({
           {status === "saving" ? "Saving…" : "Save pick"}
         </button>
       )}
-      {isLocked && <p className="mt-3 text-xs text-tertiary">Prediction locked at race start.</p>}
+      {raceSessionDate && (
+        <p className="mt-3 text-xs text-tertiary">
+          {isLocked
+            ? `Picks closed at lights out, ${formatLocalDateTime(raceSessionDate, tz)}.`
+            : `Picks close at lights out, ${formatLocalDateTime(raceSessionDate, tz)} (in ${formatCountdown(parseUtcDateTime(raceSessionDate).getTime(), now)}).`}
+        </p>
+      )}
+      {isLocked && !raceSessionDate && <p className="mt-3 text-xs text-tertiary">Prediction locked at race start.</p>}
       <AnimatePresence>
         {status === "saved" && (
           <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-tertiary">

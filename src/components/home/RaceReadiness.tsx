@@ -3,19 +3,20 @@
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { CheckIcon } from "@/components/icons/HomeIcons";
-import { parseUtcDateTime } from "@/lib/countdown";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
+import { formatLocalTime, formatLocalWeekday } from "@/lib/countdown";
 import { sessionCode } from "@/lib/sessionCode";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
 
 type Step = { code: string; done: boolean; date: string };
 
-// Weekday + time, in the viewer's own browser timezone - parseUtcDateTime is what makes that
+// Weekday + time + zone name, in the viewer's own browser timezone - parseUtcDateTime is what makes that
 // actually correct (calendar.sessions[].date is a naive "no timezone" string; see that function's
 // own comment on why a plain `new Date(...)` silently gets this wrong for anyone not in the
 // server's own timezone).
-function sessionTimeLabel(iso: string): string {
-  return parseUtcDateTime(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+function sessionTimeLabel(iso: string, timeZone: string | undefined): string {
+  return `${formatLocalWeekday(iso, timeZone)} ${formatLocalTime(iso, timeZone)}`;
 }
 
 // Session *existence* comes from the calendar (a sprint weekend genuinely has no "FP2" the
@@ -46,6 +47,7 @@ function buildSteps(calendarEntry: CalendarEntry | null, race: RaceDoc | null): 
 }
 
 export function RaceReadiness({ calendarEntry, race }: { calendarEntry: CalendarEntry | null; race: RaceDoc | null }) {
+  const tz = useViewerTimeZone();
   const steps = buildSteps(calendarEntry, race);
   if (steps.length === 0) return null;
 
@@ -67,7 +69,7 @@ export function RaceReadiness({ calendarEntry, race }: { calendarEntry: Calendar
               {step.done && <CheckIcon className="h-3 w-3" />}
             </motion.span>
             <span className={`text-[10px] font-semibold tracking-wide ${step.done ? "text-neutral-300" : "text-tertiary"}`}>{step.code}</span>
-            <span className="whitespace-nowrap text-[9px] text-tertiary">{sessionTimeLabel(step.date)}</span>
+            <span className="whitespace-nowrap text-[9px] text-tertiary">{sessionTimeLabel(step.date, tz)}</span>
           </div>
           {i < steps.length - 1 && (
             <div className="mx-1.5 mb-10 h-px w-6 bg-[var(--f1-line)] sm:w-10">
