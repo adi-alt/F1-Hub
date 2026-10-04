@@ -48,6 +48,7 @@ from ergast_utils import (
 )
 import jolpica
 from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1
+from run_ledger import ledgered
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -965,6 +966,7 @@ def seasons_to_check(now: datetime) -> list[int]:
     return years
 
 
+@ledgered("fetch-races")
 def main():
     args = sys.argv[1:]
     force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
