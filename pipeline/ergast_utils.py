@@ -300,6 +300,41 @@ def trigger_revalidation(tag: str = "archive-data") -> None:
         print(f"  cache revalidation: {resp.status_code}")
     except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
         print(f"  (cache revalidation call failed, non-fatal: {e})")
+        return
+    # Only after a successful bust: open tabs refresh on this signal, and a refresh before the cache
+    # is cleared renders the old data and nothing prompts another (audit R-19).
+    if resp.ok:
+        bump_data_version(tag)
+
+
+# The tags the browser has anything to refresh for: "archive-data" is historical data nobody has open live.
+LIVE_DATA_TAGS = ("races", "calendar", "media")
+
+
+def bump_data_version(tag: str) -> None:
+    """Tells every open browser tab "the cached data for this tag just changed" through one row in
+    `data_version` (see supabase/migrations/20261005_data_version.sql). Best-effort like the bust it
+    follows: a missing table (migration not applied yet) or a database hiccup is a warning, never a
+    failed run."""
+    if tag not in LIVE_DATA_TAGS:
+        return
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return
+    try:
+        conn = psycopg2.connect(url, connect_timeout=10)
+        try:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update data_version set version = version + 1, updated_at = now() where tag = %s",
+                    (tag,),
+                )
+        finally:
+            conn.close()
+        print(f"  data_version bumped: {tag}")
+    except Exception as e:  # noqa: BLE001 - observability/freshness signal only
+        print(f"  (data_version bump failed, non-fatal: {type(e).__name__})")
 
 
 def upload_media(bucket, path, content, content_type):
