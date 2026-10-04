@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateHealth, type PipelineRunRow } from "../observability/health";
+import { evaluateHealth, STALE_AFTER_MINUTES, type PipelineRunRow } from "../observability/health";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
 const run = (job: string, status: PipelineRunRow["status"], startedAt: string, finishedAt: string | null = startedAt): PipelineRunRow => ({ job, status, started_at: startedAt, finished_at: finishedAt });
@@ -46,5 +46,13 @@ describe("evaluateHealth (audit R-13)", () => {
     const h = evaluateHealth([], "error", NOW);
     assert.equal(h.status, "degraded");
     assert.deepEqual(h.problems, ["the database did not answer"]);
+  });
+  it("knows every job the pipeline records, and a weekly job isn't stale between its runs", () => {
+    for (const job of ["fetch-races", "train-predict", "group-scores", "data-audit", "sync-calendar"]) {
+      assert.ok(STALE_AFTER_MINUTES[job], `${job} needs its own staleness limit`);
+    }
+    // sync-calendar ran last Monday 00:00; on Sunday evening that is ~6.8 days ago: still healthy
+    const h = evaluateHealth([run("sync-calendar", "success", "2026-09-28T00:00:00Z")], "ok", new Date("2026-10-04T20:00:00Z"));
+    assert.deepEqual(h.problems, []);
   });
 });

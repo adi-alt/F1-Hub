@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 import psycopg2
 
 from race_identity import REVIEWED_VENUE_CHANGES, VENUE_OVERRIDES
+from run_ledger import ledgered
 
 
 def _connect():
@@ -256,6 +257,7 @@ def audit_venue_drift(cur) -> list[str]:
     return warnings
 
 
+@ledgered("data-audit")
 def main() -> int:
     conn = _connect()
     try:

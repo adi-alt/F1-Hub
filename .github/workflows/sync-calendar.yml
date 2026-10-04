@@ -12,9 +12,13 @@ concurrency:
   group: sync-calendar
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +33,8 @@ jobs:
         run: python pipeline/sync_calendar.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Failures go to Sentry; unset means they just stay in the job log and the pipeline_runs ledger.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # Same gap as fetch-races.yml: sync_calendar.py calls
           # ergast_utils.trigger_revalidation("calendar"), which silently no-ops without this.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
