@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     const cached = await getCachedIntelligence<Envelope>(cacheKey, requestId);
     if (cached) return NextResponse.json(cached);
 
-    const guard = guardAIExecution(userId);
+    const guard = await guardAIExecution(userId, req);
     if (!guard.allowed) {
       return NextResponse.json({ content: generateCircuitTakeFallback(context), source: "fallback", generatedAt: new Date().toISOString(), location } satisfies Envelope);
     }

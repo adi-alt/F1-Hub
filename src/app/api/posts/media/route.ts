@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const IMAGE_MAX_BYTES = 500 * 1024;
@@ -53,6 +54,8 @@ function safeOriginalName(raw: string): string {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "upload", session.uid);
+  if (limited) return limited;
 
   const form = await request.formData();
   const file = form.get("media");

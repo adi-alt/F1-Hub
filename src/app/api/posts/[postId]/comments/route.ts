@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { addComment, getPostGroupId, listComments } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { isUuid } from "@/lib/ids";
 import { ServiceError } from "@/services/errors";
 
@@ -23,6 +24,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pos
 export async function POST(request: Request, { params }: { params: Promise<{ postId: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "commentCreate", session.uid);
+  if (limited) return limited;
   const { postId } = await params;
   const { content, parentCommentId } = (await request.json().catch(() => ({}))) as { content?: string; parentCommentId?: string | null };
   if (typeof content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });

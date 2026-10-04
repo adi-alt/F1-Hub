@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
   // The same per-user rate limiting every other AI surface in this app goes through - a composer
   // button is the easiest place in the product to hold down.
-  const guard = guardAIExecution(session.uid);
+  const guard = await guardAIExecution(session.uid, req);
   if (!guard.allowed) return NextResponse.json({ error: "Too many requests - give it a moment." }, { status: 429 });
 
   const draft = sanitizePromptInput(rawText, MAX_DRAFT_CHARS);
