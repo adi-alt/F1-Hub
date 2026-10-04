@@ -325,7 +325,8 @@ export const getRacesByYear = unstable_cache(
     return withCalendarPlaceholders(year, races);
   },
   ["get-races-by-year"],
-  { revalidate: false, tags: ["races"] },
+  // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
+  { revalidate: false, tags: ["races", "calendar"] },
 );
 
 /**
@@ -353,7 +354,8 @@ export const getNextUpcomingRace = unstable_cache(
     return races.find((r) => r.status !== "completed") ?? null;
   },
   ["get-next-upcoming-race"],
-  { revalidate: false, tags: ["races"] },
+  // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
+  { revalidate: false, tags: ["races", "calendar"] },
 );
 
 /** The current grid — driver/team pairs from the most recent race with real results or a real

@@ -20,6 +20,7 @@ const ROUTES: Record<string, PolicyName> = {
   groups: "groupCreate",
   "groups/[id]/posts": "postCreate",
   "groups/[id]/join": "groupJoin",
+  "groups/[id]/visit": "groupVisit",
   "groups/[id]/invite": "invite",
   "groups/[id]/invites": "invite",
   "users/invite": "invite",

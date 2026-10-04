@@ -29,6 +29,7 @@ export const IRREPLACEABLE = [
 
 /** Public F1 facts the pipeline can fetch again (FastF1, OpenF1, Jolpica, Ergast, Wikimedia). */
 export const REBUILDABLE = [
+  "data_version",
   "calendar",
   "drivers",
   "teams",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
+import { GroupVisitBeacon } from "./components/GroupVisitBeacon";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { JoinPrompt } from "../components/JoinPrompt";
 import { CommunityWorkspace } from "./components/CommunityWorkspace";
@@ -109,9 +110,8 @@ export default async function CommunityPage({
     wantsPredictions && wantsRace ? getRacesByYear(await getCurrentSeason()) : Promise.resolve([]),
     canModerate ? countPendingJoinRequests(id).catch(() => 0) : Promise.resolve(0),
     getGroupStats(id, uid).catch(() => statsFallback(group.members.length)),
-    // Reads this member's previous visit to THIS community and stamps a new one - so it must run
-    // exactly once per page load, here, not inside a client component that could re-run and
-    // collapse the window.
+    // Reads this member's previous visit to THIS community. Read-only: the visit is stamped when
+    // the page is left (GroupVisitBeacon), so a refresh during the visit doesn't reset the window.
     getGroupPulse(id, uid),
     wantsRace ? getNextRace().catch(() => null) : Promise.resolve(null),
   ]);
@@ -174,6 +174,7 @@ export default async function CommunityPage({
     // own max width rather than inventing a third one for this page.
     <div className="page-wide py-6">
       <GroupRealtimeWatcher groupId={id} />
+      <GroupVisitBeacon groupId={id} />
 
       <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-tertiary transition hover:text-neutral-300">
         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
