@@ -77,3 +77,4 @@ jobs:
           python test_official_sources.py
           python test_compute_group_scores.py
           python test_media_scripts_dry_run.py
+          python test_promote_season.py
