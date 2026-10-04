@@ -7,7 +7,7 @@ import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceInte
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
-import { formatCountdownLive, parseUtcDateTime } from "@/lib/countdown";
+import { formatCountdownLive, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import type { LandingData, NextAction } from "@/lib/homeData";
 import type { FactIconKind, FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
@@ -44,7 +44,7 @@ function useSecondClock(): number {
  * example): render the real value both times, just don't warn that the two didn't match text. */
 function localTimeLabel(iso: string | null): string | null {
   if (!iso) return null;
-  return parseUtcDateTime(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return formatLocalDateTime(iso);
 }
 
 /** The race, not the user, is the dominant visual — greeting (personal only) sits as a small

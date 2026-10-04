@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
+import { formatCountdown, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { liveSession, nextSession, sessionCode } from "@/lib/sessionCode";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { groupHref } from "@/lib/routes";
@@ -102,14 +102,16 @@ export function RaceSidebar({
               Live now
             </p>
             <p className="mt-1 text-xl font-semibold text-white">{live.label}</p>
-            <p className="mt-0.5 text-xs text-tertiary">Session in progress (estimated) - see Race Weekend below for the full schedule.</p>
+            <p suppressHydrationWarning className="mt-0.5 text-xs text-tertiary">
+              Started {formatLocalDateTime(live.date)} - in progress (estimated). The full schedule is under Race Weekend.
+            </p>
           </>
         ) : upcoming ? (
           <>
             <Label>{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</Label>
             <p className="mt-1 font-mono text-2xl font-semibold text-white">{countdown}</p>
-            <p className="mt-0.5 text-xs text-tertiary">
-              {parseUtcDateTime(upcoming.date).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" })} your time
+            <p suppressHydrationWarning className="mt-0.5 text-xs text-tertiary">
+              {formatLocalDateTime(upcoming.date)} (your time)
             </p>
           </>
         ) : (

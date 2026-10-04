@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { parseUtcDateTime } from "@/lib/countdown";
+import { formatCountdown, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
 import { DriverPicker } from "@/components/ui/F1Pickers";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
@@ -115,7 +115,9 @@ export function PickPanel({
           <p className="mt-1.5 text-sm font-semibold text-white">
             Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
           </p>
-          <p className="mt-0.5 text-xs text-tertiary">Make your prediction once picks open.</p>
+          <p suppressHydrationWarning className="mt-0.5 text-xs text-tertiary">
+            Picks open {formatLocalDateTime(new Date(opensAt).toISOString())} and close at lights out, {formatLocalDateTime(raceSessionDate)}.
+          </p>
         </div>
       );
     }
@@ -190,7 +192,14 @@ export function PickPanel({
           {status === "saving" ? "Saving…" : "Save pick"}
         </button>
       )}
-      {isLocked && <p className="mt-3 text-xs text-tertiary">Prediction locked at race start.</p>}
+      {raceSessionDate && (
+        <p suppressHydrationWarning className="mt-3 text-xs text-tertiary">
+          {isLocked
+            ? `Picks closed at lights out, ${formatLocalDateTime(raceSessionDate)}.`
+            : `Picks close at lights out, ${formatLocalDateTime(raceSessionDate)} (in ${formatCountdown(parseUtcDateTime(raceSessionDate).getTime(), now)}).`}
+        </p>
+      )}
+      {isLocked && !raceSessionDate && <p className="mt-3 text-xs text-tertiary">Prediction locked at race start.</p>}
       <AnimatePresence>
         {status === "saved" && (
           <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-tertiary">

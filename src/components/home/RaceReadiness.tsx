@@ -3,19 +3,19 @@
 import { motion } from "framer-motion";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { CheckIcon } from "@/components/icons/HomeIcons";
-import { parseUtcDateTime } from "@/lib/countdown";
+import { formatLocalTime, parseUtcDateTime } from "@/lib/countdown";
 import { sessionCode } from "@/lib/sessionCode";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
 
 type Step = { code: string; done: boolean; date: string };
 
-// Weekday + time, in the viewer's own browser timezone - parseUtcDateTime is what makes that
+// Weekday + time + zone name, in the viewer's own browser timezone - parseUtcDateTime is what makes that
 // actually correct (calendar.sessions[].date is a naive "no timezone" string; see that function's
 // own comment on why a plain `new Date(...)` silently gets this wrong for anyone not in the
 // server's own timezone).
 function sessionTimeLabel(iso: string): string {
-  return parseUtcDateTime(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+  return `${parseUtcDateTime(iso).toLocaleDateString(undefined, { weekday: "short" })} ${formatLocalTime(iso)}`;
 }
 
 // Session *existence* comes from the calendar (a sprint weekend genuinely has no "FP2" the
