@@ -23,7 +23,15 @@ export type Health = {
 
 /** A job is stale once its last success is older than this. GitHub's own schedule runs the 15-minute
  * workflows every few hours in practice (audit OPS), so these are set to what that really delivers. */
-export const STALE_AFTER_MINUTES: Record<string, number> = { "fetch-races": 8 * 60, "sync-calendar": 36 * 60 };
+export const STALE_AFTER_MINUTES: Record<string, number> = {
+  "fetch-races": 8 * 60,
+  "train-predict": 8 * 60,
+  "group-scores": 8 * 60,
+  "data-audit": 8 * 60,
+  // Weekly (Monday 00:00 UTC), plus a day of slack for GitHub's late scheduled runs: the old 36h limit
+  // would have reported it stale from Wednesday to Monday every week.
+  "sync-calendar": 8 * 24 * 60,
+};
 const DEFAULT_STALE_MINUTES = 36 * 60;
 
 export function evaluateHealth(rows: readonly PipelineRunRow[], database: "ok" | "error", now: Date): Health {

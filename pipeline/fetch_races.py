@@ -42,11 +42,13 @@ from ergast_utils import (
     init_postgres,
     reconnect_postgres,
     prune,
+    transaction,
     trigger_revalidation,
     upsert,
 )
 import jolpica
 from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1
+from run_ledger import ledgered
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -524,7 +526,7 @@ def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None
 
     now = datetime.now(timezone.utc).isoformat()
     driver_rows = [{"code": e["driver"], "name": e["driverName"], "team": e["team"], "updated_at": now} for e in entrants]
-    upsert(cur, "drivers", driver_rows, ["code"])
+    upsert(cur, "drivers", driver_rows, ["code"], skip_unchanged=True, unchanged_ignore=("updated_at",))
 
     for e in entrants:
         if e["driver"] in known_driver_codes or not e.get("headshotUrl"):
@@ -535,7 +537,7 @@ def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None
             known_driver_codes.add(e["driver"])
 
     team_rows = {e["team"]: {"name": e["team"], "color": e.get("teamColor"), "updated_at": now} for e in entrants}
-    upsert(cur, "teams", list(team_rows.values()), ["name"])
+    upsert(cur, "teams", list(team_rows.values()), ["name"], skip_unchanged=True, unchanged_ignore=("updated_at",))
 
 
 
@@ -703,73 +705,78 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             if uploaded:
                 race_row["photo_url"] = uploaded[0]
                 race_row["photo_urls"] = uploaded
-    upsert(cur, "races", [race_row], ["id"])
+    # One transaction for the whole round, the `races` row included: a failure anywhere below rolls
+    # back every write for this round (nothing half-written, no race marked completed without its
+    # results), and the next tick starts again from what was there. Everything above only reads and
+    # builds rows in memory (the media upload is the one outside call, and it is idempotent).
+    with transaction(cur):
+        upsert(cur, "races", [race_row], ["id"], skip_unchanged=True, unchanged_ignore=("updated_at",))
 
-    roster = race["results"] if race else (qualifying["grid"] if qualifying else [])
-    sync_roster(cur, roster, known_driver_codes)
+        roster = race["results"] if race else (qualifying["grid"] if qualifying else [])
+        sync_roster(cur, roster, known_driver_codes)
 
-    if qualifying:
-        input_rows = [
-            {
-                "race_id": race_id,
-                "driver": g["driver"],
-                "driver_name": g["driverName"],
-                "team": g["team"],
-                "grid": g["gridPosition"],
-                "qualifying_gap_sec": g["qualifyingGapSec"],
-            }
-            for g in qualifying["grid"]
-        ]
-        upsert(cur, "race_inputs", input_rows, ["race_id", "driver"])
-        prune(cur, "race_inputs", "race_id", race_id, "driver", [r["driver"] for r in input_rows])
-    if race:
-        # status_source: per-driver provenance for the *derived* status specifically (not the
-        # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
-        # for every OpenF1-fallback row. The literal name is a holdover from v1 of
-        # openf1_fallback.py (a lap-count-percentage DNF heuristic, since replaced - see that
-        # module's docstring): status now comes directly from OpenF1's own dnf/dsq flags, not a
-        # derivation, so this is really "not-yet-reconciled-with-official" rather than
-        # "low-confidence" today. Kept as the existing enum value rather than renamed - the
-        # check constraint only allows these two strings (supabase/schema.sql), and a rename
-        # would need a migration for no behavior change. Still what lets predict_dnf.py's training
-        # data be filtered/weighted later if that ever matters.
-        status_source = "official" if results_source == "official" else "lap_distance_derived"
-        result_rows = [
-            {
-                "race_id": race_id,
-                "driver": r["driver"],
-                "driver_name": r["driverName"],
-                "team": r["team"],
-                "grid": r["gridPosition"],
-                "finish_position": r["finishPosition"],
-                "finish_gap_sec": r["finishGapSec"],
-                "status": r["status"],
-                "status_source": status_source,
-                "fastest_lap_sec": r["fastestLapSec"],
-                "points": r["points"],
-            }
-            for r in race["results"]
-        ]
-        # Every driver in this round's classification is in `result_rows`, so anything else under
-        # this race_id came from a superseded write and is not part of the result - see prune().
-        upsert(cur, "race_results", result_rows, ["race_id", "driver"])
-        prune(cur, "race_results", "race_id", race_id, "driver", [r["driver"] for r in result_rows])
-        stint_rows = [
-            {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
-            for t in race["tireStints"]
-        ]
-        upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"])
-        prune(cur, "tire_stints", "race_id", race_id, ("driver", "stint_number"), [(t["driver"], t["stint_number"]) for t in stint_rows])
-        lap_rows = [
-            {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
-            for t in race["lapTimings"]
-        ]
-        # position/time are keep_known: the OpenF1 path has no per-lap car position at all, so a
-        # preliminary refresh of a round must not erase positions FastF1 already stored for it.
-        upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"))
-        # Keyed on (lap_number, driver), not driver alone: the wrong-meeting write this guards
-        # against brought a longer race's lap numbers with it, for drivers who were in both.
-        prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
+        if qualifying:
+            input_rows = [
+                {
+                    "race_id": race_id,
+                    "driver": g["driver"],
+                    "driver_name": g["driverName"],
+                    "team": g["team"],
+                    "grid": g["gridPosition"],
+                    "qualifying_gap_sec": g["qualifyingGapSec"],
+                }
+                for g in qualifying["grid"]
+            ]
+            upsert(cur, "race_inputs", input_rows, ["race_id", "driver"], skip_unchanged=True)
+            prune(cur, "race_inputs", "race_id", race_id, "driver", [r["driver"] for r in input_rows])
+        if race:
+            # status_source: per-driver provenance for the *derived* status specifically (not the
+            # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
+            # for every OpenF1-fallback row. The literal name is a holdover from v1 of
+            # openf1_fallback.py (a lap-count-percentage DNF heuristic, since replaced - see that
+            # module's docstring): status now comes directly from OpenF1's own dnf/dsq flags, not a
+            # derivation, so this is really "not-yet-reconciled-with-official" rather than
+            # "low-confidence" today. Kept as the existing enum value rather than renamed - the
+            # check constraint only allows these two strings (supabase/schema.sql), and a rename
+            # would need a migration for no behavior change. Still what lets predict_dnf.py's training
+            # data be filtered/weighted later if that ever matters.
+            status_source = "official" if results_source == "official" else "lap_distance_derived"
+            result_rows = [
+                {
+                    "race_id": race_id,
+                    "driver": r["driver"],
+                    "driver_name": r["driverName"],
+                    "team": r["team"],
+                    "grid": r["gridPosition"],
+                    "finish_position": r["finishPosition"],
+                    "finish_gap_sec": r["finishGapSec"],
+                    "status": r["status"],
+                    "status_source": status_source,
+                    "fastest_lap_sec": r["fastestLapSec"],
+                    "points": r["points"],
+                }
+                for r in race["results"]
+            ]
+            # Every driver in this round's classification is in `result_rows`, so anything else under
+            # this race_id came from a superseded write and is not part of the result - see prune().
+            upsert(cur, "race_results", result_rows, ["race_id", "driver"], skip_unchanged=True)
+            prune(cur, "race_results", "race_id", race_id, "driver", [r["driver"] for r in result_rows])
+            stint_rows = [
+                {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
+                for t in race["tireStints"]
+            ]
+            upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"], skip_unchanged=True)
+            prune(cur, "tire_stints", "race_id", race_id, ("driver", "stint_number"), [(t["driver"], t["stint_number"]) for t in stint_rows])
+            lap_rows = [
+                {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
+                for t in race["lapTimings"]
+            ]
+            # position/time are keep_known: the OpenF1 path has no per-lap car position at all, so a
+            # preliminary refresh of a round must not erase positions FastF1 already stored for it.
+            upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"), skip_unchanged=True)
+            # Keyed on (lap_number, driver), not driver alone: the wrong-meeting write this guards
+            # against brought a longer race's lap numbers with it, for drivers who were in both.
+            prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows_n = len(race["results"]) if race else 0
@@ -959,6 +966,7 @@ def seasons_to_check(now: datetime) -> list[int]:
     return years
 
 
+@ledgered("fetch-races")
 def main():
     args = sys.argv[1:]
     force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
