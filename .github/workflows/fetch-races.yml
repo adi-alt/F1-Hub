@@ -57,6 +57,8 @@ jobs:
         run: python pipeline/fetch_races.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Failures go to Sentry; unset means they just stay in the job log and the pipeline_runs ledger.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # Needed now: driver headshots/team logos/race photos get re-hosted into Supabase
           # Storage as part of this step (see ergast_utils.fetch_and_upload_media), which talks
           # to Storage's REST API directly, not through DATABASE_URL.
@@ -87,6 +89,8 @@ jobs:
         run: python pipeline/train_predict.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Failures go to Sentry; unset means they just stay in the job log and the pipeline_runs ledger.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # Also calls trigger_revalidation("races") on its own - same reasoning as above.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
@@ -97,6 +101,8 @@ jobs:
         run: python pipeline/compute_group_scores.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Failures go to Sentry; unset means they just stay in the job log and the pipeline_runs ledger.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       # A smoke alarm, not a transaction guard: this step's own nonzero exit turns this job red in
       # the Actions tab within 15 minutes of a bad write landing, rather than waiting for a user to
@@ -109,3 +115,5 @@ jobs:
         run: python pipeline/audit_data_consistency.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Failures go to Sentry; unset means they just stay in the job log and the pipeline_runs ledger.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}

@@ -31,6 +31,7 @@ import json
 from datetime import datetime, timezone
 
 from ergast_utils import init_postgres, upsert
+from run_ledger import ledgered
 
 SLOTS = ("p1", "p2", "p3")
 
@@ -105,6 +106,7 @@ def compute_all(cur) -> list[dict]:
     return rows
 
 
+@ledgered("group-scores")
 def main():
     conn = init_postgres()
     with conn.cursor() as cur:

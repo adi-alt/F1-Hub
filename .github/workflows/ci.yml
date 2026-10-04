@@ -80,3 +80,5 @@ jobs:
           python test_compute_group_scores.py
           python test_media_scripts_dry_run.py
           python test_pipeline_writes.py
+          python test_training_filters.py
+          python test_run_ledger.py
