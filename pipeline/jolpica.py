@@ -173,6 +173,86 @@ def parse_qualifying(payload: dict, year: int, round_num: int, event_date) -> li
     return sorted(rows, key=lambda r: r["gridPosition"])
 
 
+LAP_PAGE_SIZE = 100  # Jolpica caps every response at 100 rows, however many are asked for
+MAX_LAP_PAGES = 40  # a 78-lap race with 22 cars is ~1,700 rows = 18 pages; this is only a runaway guard
+
+
+def _laps_problem(rows: list[dict], race_laps: int | None) -> str | None:
+    """None if these per-lap rows read as a whole race; otherwise why not. A half-ingested race or a
+    response for the wrong event must never become lap-by-lap positions on the race page."""
+    drivers = {r["driver"] for r in rows}
+    if len(drivers) < 10:
+        return f"only {len(drivers)} drivers"
+    by_lap: dict[int, list[int]] = {}
+    for r in rows:
+        by_lap.setdefault(r["lapNumber"], []).append(r["position"])
+    top = max(by_lap)
+    if sorted(by_lap) != list(range(1, top + 1)):
+        return "lap numbers are not a continuous run from 1"
+    if race_laps is not None and top < race_laps:
+        return f"laps stop at {top} but the winner completed {race_laps}"
+    for lap, positions in by_lap.items():
+        if len(set(positions)) != len(positions):
+            return f"two cars share a position on lap {lap}"
+        if min(positions) < 1 or max(positions) > len(drivers):
+            return f"a position outside 1..{len(drivers)} on lap {lap}"
+    return None
+
+
+def parse_laps(pages: list[dict], results_payload: dict, year: int, round_num: int, event_date) -> list[dict] | None:
+    """Every car's position and lap time on every lap, as [{driver, lapNumber, position, timeSec}], from
+    the pages of /laps plus the race's /results (which is what maps Jolpica's driverId to the three-letter
+    code the app stores). None when this is not the round on that date, or the laps are missing, partial or
+    inconsistent - the same "pin it to the date, never guess" rule as the other parsers."""
+    results_race = _race_for(results_payload, year, round_num, event_date)
+    if results_race is None or not results_race.get("Results"):
+        return None
+    code_by_id = {r["Driver"]["driverId"]: r["Driver"].get("code") for r in results_race["Results"]}
+    winner_laps = next((int(r["laps"]) for r in results_race["Results"] if r.get("position") == "1"), None)
+
+    rows: list[dict] = []
+    seen: set[tuple[str, int]] = set()
+    for page in pages:
+        race = _race_for(page, year, round_num, event_date)
+        if race is None:
+            return None
+        for lap in race.get("Laps", []):
+            number = int(lap["number"])
+            for timing in lap.get("Timings", []):
+                code = code_by_id.get(timing["driverId"])
+                if not code or (code, number) in seen:  # an unknown driver, or a lap repeated across a page boundary
+                    continue
+                seen.add((code, number))
+                rows.append({"driver": code, "lapNumber": number, "position": int(timing["position"]), "timeSec": parse_lap_time(timing.get("time"))})
+    if not rows:
+        return None
+    reason = _laps_problem(rows, winner_laps)
+    if reason:
+        print(f"    jolpica: round {round_num} laps rejected ({reason})")
+        return None
+    return sorted(rows, key=lambda r: (r["lapNumber"], r["position"]))
+
+
+def fetch_laps(year: int, round_num: int, event_date) -> list[dict] | None:
+    """Per-lap position and time for a finished race (see parse_laps), or None when Jolpica has not
+    published the laps yet. About a dozen requests for a full race, paced for its burst limit."""
+    try:
+        results = _get(f"{year}/{round_num}/results.json?limit=100")
+        pages: list[dict] = []
+        offset = 0
+        while len(pages) < MAX_LAP_PAGES:
+            page = _get(f"{year}/{round_num}/laps.json?limit={LAP_PAGE_SIZE}&offset={offset}")
+            pages.append(page)
+            offset += LAP_PAGE_SIZE
+            if offset >= int(page.get("total", 0)):
+                break
+            time.sleep(0.3)
+        return parse_laps(pages, results, year, round_num, event_date)
+    except Exception as exc:  # network, JSON, schema - never fatal, just "not available"
+        print(f"    jolpica: laps not available ({exc})")
+        return None
+
+
 def fetch_results(year: int, round_num: int, event_date) -> list[dict] | None:
     try:
         return parse_results(_get(f"{year}/{round_num}/results.json"), year, round_num, event_date)
