@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { QuietTabs } from "@/app/season/_components/QuietTabs";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { eraForYear } from "@/lib/eras";
@@ -96,12 +95,6 @@ export function ArchiveExplorer({
   const favoriteDrivers = useFavDriverIds();
   const favoriteTeams = useFavTeamIds();
   const toggleFavorite = useToggleFavorite();
-  // Year/track are the only two facets with their own inner scroll region (driver/team tables
-  // scroll the page itself) - one nested-region registration covers both since only one of them
-  // is ever mounted at a time. Without this, scrolling either grid also drags the whole page's
-  // own Lenis scroll along with it.
-  const scrollRef = useNestedLenisScroll(`${section}-${era}-${status}-${country}-${favParam}`);
-
   const activeCircuitIdSet = new Set(activeCircuitIds);
   const activeTeamIdSet = new Set(activeTeamIds);
   const favoritesOnly = favParam === "1";
@@ -142,7 +135,7 @@ export function ArchiveExplorer({
   const countries = [...new Set(circuits.map((c) => c.country).filter((c): c is string => !!c))].sort();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex flex-col">
       {facet === "year" && <ArchiveYearBrowserApexScope era={era} searchQuery={search} />}
       {facet === "track" && <ArchiveTrackBrowserApexScope search={search} status={trackStatus} country={country} favoritesOnly={favoritesOnly} />}
       {facet === "driver" && <ArchiveDriverBrowserApexScope search={search} favoritesOnly={favoritesOnly} />}
@@ -196,10 +189,10 @@ export function ArchiveExplorer({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-4 min-h-0 flex-1 overflow-hidden"
+          className="mt-4"
         >
           {facet === "year" && (
-            <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-hide">
+            <div>
               {filteredYears.length === 0 && !showLiveSeason ? (
                 <p className="text-sm text-tertiary">
                   No years match &ldquo;{search}&rdquo;.{" "}
@@ -226,7 +219,7 @@ export function ArchiveExplorer({
             </div>
           )}
           {facet === "track" && (
-            <div ref={scrollRef} className="h-full overflow-y-auto scrollbar-hide">
+            <div>
               <ArchiveCircuitGrid
                 circuits={circuits}
                 search={search}
@@ -254,7 +247,7 @@ export function ArchiveExplorer({
                 </button>
               </p>
             ) : !driversQuery.data ? (
-              <div className="flex h-full flex-col">
+              <div className="flex flex-col">
                 <TableRowsSkeleton />
                 <TableFooterSkeleton />
               </div>
@@ -280,7 +273,7 @@ export function ArchiveExplorer({
                 </button>
               </p>
             ) : !teamsQuery.data ? (
-              <div className="flex h-full flex-col">
+              <div className="flex flex-col">
                 <TableRowsSkeleton />
                 <TableFooterSkeleton />
               </div>

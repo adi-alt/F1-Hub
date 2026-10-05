@@ -108,7 +108,7 @@ export function ArchiveRaceExplorer({
   const paged = filtered.slice(start, start + PAGE_SIZE);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 pb-3">
         <input
           type="search"
@@ -165,13 +165,13 @@ export function ArchiveRaceExplorer({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+      <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
         {paged.length === 0 ? (
-          <div className="flex h-full min-h-[160px] items-center justify-center px-6 text-center text-sm text-tertiary">
+          <div className="flex min-h-[160px] items-center justify-center px-6 text-center text-sm text-tertiary">
             No races match this filter.
           </div>
         ) : (
-          <div className="h-full overflow-y-auto">
+          <div>
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
                 <tr>

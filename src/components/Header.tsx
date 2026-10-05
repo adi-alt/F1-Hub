@@ -42,7 +42,7 @@ export function Header({ season }: { season: number }) {
 
   // z-header (the token scale): above the page, below dialogs and sheets, whose scrim has to dim it.
   return (
-    <header className="relative z-header h-16 shrink-0 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
+    <header className="sticky top-0 z-header h-16 shrink-0 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
       {/* The same frame and gutters as every page (page-wide), so the logo shares their left edge. */}
       <div className="page-wide relative flex h-full items-center justify-between">
         <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight transition hover:opacity-80">

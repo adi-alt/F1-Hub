@@ -40,7 +40,7 @@ export function GroupsLeftSidebar({
     // gives this a definite-height flex parent so that percentage actually resolves) and only caps
     // at the workspace height once there are enough communities to need it, at which point the
     // list inside it starts scrolling instead.
-    <div className="hidden max-h-full flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex">
+    <div className="hidden flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex lg:max-h-[calc(100dvh-6rem)]">
       <div className="shrink-0 px-1">
         <h1 className="text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
         <p className="mt-0.5 text-[11.5px] leading-snug text-tertiary">Race-weekend discussion and predictions across your communities.</p>
@@ -66,7 +66,7 @@ export function GroupsLeftSidebar({
         // divide-y at very low contrast: each community is a distinct destination and the hairline
         // between them is what makes the list scan as rows rather than a run-on column. Kept to
         // white/[0.05] so it separates without drawing the borders-everywhere look.
-        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-hide">
+        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-subtle">
           {/* The scope control. Same row grammar as a community - same inset, same 36px icon
               slot, same selected treatment - so the list reads as one navigation system, with a
               squared tile instead of a circular avatar to say it is a filter and not a community.
@@ -74,7 +74,7 @@ export function GroupsLeftSidebar({
           <div data-tour="community-filter" className="mb-1 border-b border-white/[0.08] pb-1">
             <NavRow
               label="All"
-              sublabel="Everything you\u2019re in"
+              sublabel={"Everything you\u2019re in"}
               active={selectedId === null}
               onClick={() => onSelect(null)}
               icon={

@@ -7,7 +7,6 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
 import { isFromNestedControl } from "@/components/ui/Table";
 import { staggerItem } from "@/components/motion/variants";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
@@ -22,17 +21,6 @@ const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wid
 // surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
 // translucent-dark token every other floating/sticky surface on the site already uses.
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
-
-/** Two refs on one node: the shared Lenis nested-scroll registration and this component's own
- * scroll container ref. A callback ref is the only way to satisfy both. */
-function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
-  return (node: T | null) => {
-    for (const ref of refs) {
-      if (typeof ref === "function") ref(node);
-      else if (ref && typeof ref === "object") (ref as React.MutableRefObject<T | null>).current = node;
-    }
-  };
-}
 
 /** Read at call time rather than through a hook: this is consulted inside an effect, where a
  * re-render-triggering hook would be the wrong tool. */
@@ -131,7 +119,6 @@ export function ChampionshipStandings({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const scrollRef = useNestedLenisScroll(entityType);
   const favoriteCodes = new Set<string>(entityType === "drivers" ? personal.driverCodes : personal.teamNames);
   const canFilterFavorites = favoriteCodes.size > 0;
 
@@ -266,7 +253,7 @@ export function ChampionshipStandings({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
-        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="min-h-0 flex-1 overflow-auto scroll-pt-12 scrollbar-hide">
+        <div ref={scrollBodyRef} className="min-h-0 flex-1 overflow-auto scroll-pt-12 scrollbar-subtle">
           <table className="w-full min-w-[680px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>

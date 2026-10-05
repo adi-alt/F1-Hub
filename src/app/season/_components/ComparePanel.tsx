@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { teamColor } from "@/lib/teamColors";
 import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
 import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
@@ -37,7 +36,6 @@ export function ComparePanel({
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
   const isDrivers = entityType === "drivers";
-  const scrollRef = useNestedLenisScroll(`${compareA}-${compareB}`);
 
   const options: MultiSelectOption[] = useMemo(
     () =>
@@ -145,7 +143,7 @@ export function ComparePanel({
       {pair.raceByRace.length > 0 && (
         <div className="mt-6">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Race by race · finishing position</p>
-          <div ref={scrollRef} className="max-h-56 overflow-y-auto rounded-md border border-white/[0.07] scrollbar-hide">
+          <div className="max-h-56 overflow-y-auto rounded-md border border-white/[0.07] scrollbar-subtle">
             <table className="w-full text-sm">
               <caption className="sr-only">
                 Finishing position for {pair.a.name} and {pair.b.name} in each completed round

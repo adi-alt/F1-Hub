@@ -142,7 +142,7 @@ test("the header and the Apex launcher sit on the token scale, below dialogs and
   // scrim; at z-[90] the Apex launcher sat on top of the mobile menu sheet.
   const read = (file: string) => fs.readFileSync(path.join(APP_DIR, "..", file), "utf8");
   const header = read("components/Header.tsx");
-  assert.match(header, /<header className="relative z-header /);
+  assert.match(header, /<header className="sticky top-0 z-header /);
   const apex = read("components/apex/ApexLauncher.tsx");
   assert.equal((apex.match(/\bz-popover\b/g) ?? []).length >= 2, true);
   for (const [name, source] of [["Header", header], ["ApexLauncher", apex]] as const) {

@@ -1,9 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FocusEvent, type MouseEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { useFavDriverIds } from "@/queries/favorites/useFavorites";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
@@ -86,7 +85,6 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   // Opening a race is a route change, not component state - see SeasonExplorerProvider. That's
   // what survives a refresh, a shared link, and the browser's back button.
   const { openRace } = useSeasonExplorer();
-  const scrollRef = useNestedLenisScroll(year, { orientation: "horizontal", gestureOrientation: "horizontal" });
   const { ref: widthProbeRef, width: availableWidth } = useMeasuredWidth<HTMLDivElement>();
   // Same createPortal(..., document.body) SSR guard as every other floating panel fixed this
   // session (EntityMultiSelect, the year-card tooltip) - document.body is a real crash during SSR
@@ -179,7 +177,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
   // way an anchor-relative absolute position could be (the exact fix already applied to the
   // year-card tooltip, applied here defensively - this calendar sits inside no overflow-hidden
   // ancestor today, but the mechanism itself is what's now audited/shared, not a per-component guess).
-  function showTooltip(e: MouseEvent | FocusEvent, key: string, date: Date, sessions: DaySession[]) {
+  function showTooltip(e: MouseEvent<HTMLElement>, key: string, date: Date, sessions: DaySession[]) {
     const r = e.currentTarget.getBoundingClientRect();
     const idealLeft = r.left + r.width / 2 - TOOLTIP_WIDTH / 2;
     const left = Math.max(8, Math.min(idealLeft, window.innerWidth - TOOLTIP_WIDTH - 8));
@@ -220,7 +218,9 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
           </div>
 
           <div ref={widthProbeRef} className="min-w-0 flex-1">
-            <div ref={scrollRef} className="overflow-x-auto scrollbar-hide">
+            {/* Hidden from assistive technology as a whole: the strip is a visual overview whose cells are
+                hover-only, and "Open a race weekend" below is its text equivalent. */}
+            <div aria-hidden="true" className="overflow-x-auto scrollbar-hide">
               <div className="mx-auto" style={{ width: weeks.length * col - GAP }}>
                 <div className="relative" style={{ height: 18 }}>
                   {monthLabels.map((m) => (
@@ -239,7 +239,6 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
                         return (
                           <DayCell
                             key={key}
-                            date={day}
                             size={cell}
                             sessions={sessions}
                             isFavoritePodium={isFavPodium}
@@ -256,6 +255,23 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
             </div>
           </div>
         </div>
+
+        {/* The keyboard, touch and screen-reader way in: one real, 32px button per race weekend. The strip
+            above is hover-only (its cells are 9-18px). */}
+        <ul aria-label="Open a race weekend" className="mt-4 flex flex-wrap gap-1.5">
+          {raceSummaries.map((r) => (
+            <li key={r.round}>
+              <button
+                type="button"
+                onClick={() => openRace(r.round)}
+                aria-label={`Round ${r.round}, ${r.name}`}
+                className="inline-flex h-8 min-w-8 items-center justify-center rounded-control border border-subtle px-2 text-caption font-medium tabular-nums text-secondary transition hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                R{r.round}
+              </button>
+            </li>
+          ))}
+        </ul>
 
         {/* The legend has to render each state the SAME WAY the grid does, or it teaches the wrong
             mapping. A cell encodes two things at once: fill vs outline is its STATE, and hue is
@@ -373,7 +389,6 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
 }
 
 function DayCell({
-  date,
   size,
   sessions,
   isFavoritePodium,
@@ -381,38 +396,29 @@ function DayCell({
   onLeave,
   onClick,
 }: {
-  date: Date;
   size: number;
   sessions: DaySession[] | undefined;
   isFavoritePodium: boolean;
-  onEnter: (e: MouseEvent<HTMLButtonElement> | FocusEvent<HTMLButtonElement>) => void;
+  onEnter: (e: MouseEvent<HTMLElement>) => void;
   onLeave: () => void;
   onClick: () => void;
 }) {
-  const dayLabel = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   const hasSessions = !!sessions && sessions.length > 0;
-  // Empty days still get the hover tooltip (date + "no F1 session") - just no click action, since
-  // there's nothing to open.
-  const ariaLabel = hasSessions
-    ? `${dayLabel}: ${sessions[0]?.raceName ?? ""} — ${sessions.map((s) => `${s.label}, ${s.state}`).join("; ")}. Opens race detail.`
-    : `${dayLabel}: no F1 session`;
 
+  // A mouse convenience, not a control: 287 day cells of 9-18px can never meet the 24px target size
+  // (WCAG 2.5.8), and a keyboard or screen-reader user has the real buttons in the round list under the
+  // strip ("Open a race weekend"). Hover shows the date and sessions; a click on a race day opens it.
   return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
+    <span
+      aria-hidden="true"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      onFocus={onEnter}
-      onBlur={onLeave}
       onClick={hasSessions ? onClick : undefined}
       style={{ width: size, height: size, boxShadow: isFavoritePodium ? "0 0 0 1px rgba(251,191,36,0.65)" : undefined }}
-      className={`flex flex-col overflow-hidden rounded-[3px] transition-transform duration-150 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-white/70 ${
-        hasSessions ? "cursor-pointer hover:scale-110 focus-visible:scale-110" : "cursor-default"
-      }`}
+      className={`flex flex-col overflow-hidden rounded-[3px] transition-transform duration-150 ${hasSessions ? "cursor-pointer hover:scale-110" : "cursor-default"}`}
     >
       {hasSessions ? sessions.map((s) => <SessionSlice key={s.label} session={s} />) : <span className="h-full w-full bg-white/[0.05]" />}
-    </button>
+    </span>
   );
 }
 

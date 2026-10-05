@@ -62,8 +62,8 @@ export function formatLocalDateTime(iso: string, timeZone?: string): string {
 }
 
 /** Just the clock time and zone, for a chip that already sits under a day: "12:30 IST". */
-export function formatLocalTime(iso: string, timeZone?: string): string {
-  return parseUtcDateTime(iso).toLocaleTimeString(undefined, { timeZone, hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+export function formatLocalTime(iso: string, timeZone?: string, withZone = true): string {
+  return parseUtcDateTime(iso).toLocaleTimeString(undefined, { timeZone, hour: "numeric", minute: "2-digit", ...(withZone ? { timeZoneName: "short" as const } : {}) });
 }
 
 /** A weekday in the viewer's zone ("Sun"), which can differ from the UTC day. */

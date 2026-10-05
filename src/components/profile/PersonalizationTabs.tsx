@@ -48,7 +48,7 @@ export function PersonalizationTabs({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
           {TABS.map((t) => (
@@ -85,7 +85,7 @@ export function PersonalizationTabs({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-4 min-h-0 flex-1 overflow-hidden"
+          className="mt-4"
         >
           <FavoriteEntityList
             type={active.type}

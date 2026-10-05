@@ -6,7 +6,6 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
 import { buildPredictionReview, type DriverStandingRow, type RaceSummary, type RaceWeekendStatus } from "../../_service/season.pure";
 import { buildRaceInsights } from "../../_service/seasonAnalytics";
@@ -15,6 +14,7 @@ import { RaceTimeline } from "./RaceTimeline";
 import { RaceWeather } from "./RaceWeather";
 import { RacePredictionReview } from "./RacePredictionReview";
 import { RaceApexTake } from "./RaceApexTake";
+import { lockDocumentScroll } from "@/lib/scrollLock";
 
 const STATUS_LABEL: Record<RaceWeekendStatus, string> = {
   upcoming: "Upcoming",
@@ -52,7 +52,6 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
   // use - without it this region scrolls with the browser's plain (non-Lenis) wheel behaviour
   // while everything else on the page glides. Keyed by round so switching rounds re-measures
   // against the new content's real height rather than the previous round's.
-  const bodyScrollRef = useNestedLenisScroll(openRaceRound);
 
   // document.body doesn't exist during SSR, so the portal is gated on a real client commit rather
   // than a typeof window check inside render.
@@ -102,12 +101,8 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
     if (!isOpen) return;
     document.addEventListener("keydown", onKeyDown, true);
 
-    // The page behind a modal must not scroll under it. It is NOT the document body that scrolls
-    // in this app (the root layout makes body overflow-hidden and SmoothScroll owns a scrolling
-    // div inside it), so freezing body overflow here would do nothing at all.
-    const scroller = document.querySelector<HTMLElement>("[data-app-scroll]");
-    const previousOverflow = scroller?.style.overflow ?? "";
-    if (scroller) scroller.style.overflow = "hidden";
+    // The page behind a modal must not scroll under it.
+    const unlockScroll = lockDocumentScroll();
 
     // Move focus into the dialog on open, so a keyboard user isn't left behind on the page.
     const timer = window.setTimeout(() => {
@@ -116,7 +111,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
 
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
-      if (scroller) scroller.style.overflow = previousOverflow;
+      unlockScroll();
       window.clearTimeout(timer);
     };
   }, [isOpen, onKeyDown]);
@@ -184,7 +179,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
               </button>
             </header>
 
-            <div ref={bodyScrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
               <RaceQuickViewBody season={season} race={race} drivers={drivers} />
             </div>
 

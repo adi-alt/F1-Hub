@@ -155,7 +155,7 @@ export default async function ProfilePage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="page-content flex h-[calc(100dvh-4rem)] flex-col py-6">
+      <div className="page-content py-6">
         <SignInGate label="personalization" />
       </div>
     );
@@ -218,14 +218,14 @@ export default async function ProfilePage({
   }
 
   return (
-    <div className="page-content flex h-[calc(100dvh-4rem)] flex-col py-6">
+    <div className="page-content py-6">
       <h1 className="shrink-0 text-3xl font-bold text-white">Personalization</h1>
       <p className="mt-2 shrink-0 text-sm text-neutral-400">
         Favorite any driver, team, or circuit, current or historical. Favorited ones always show
         up first, then everything else, most recent first.
       </p>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mt-4 flex flex-col">
         <PersonalizationTabs
           initialTab={initialTab}
           players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}
