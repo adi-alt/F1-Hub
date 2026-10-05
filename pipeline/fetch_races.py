@@ -884,8 +884,9 @@ def backfill_lap_positions(cur):
     )
     rows = cur.fetchall()
     if not rows:
-        return
+        return 0
     print(f"{len(rows)} completed race(s) with lap rows missing a position")
+    updated = 0
     for race_id, year, round_num, race_date in rows:
         official = jolpica.fetch_laps(year, round_num, race_date)
         if not official:
@@ -903,6 +904,8 @@ def backfill_lap_positions(cur):
         with transaction(cur):
             upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"), skip_unchanged=True)
         print(f"  {race_id}: {changed} lap position(s) filled from Jolpica")
+        updated += 1
+    return updated
 
 
 def backfill_race_laps(cur):
@@ -1078,7 +1081,13 @@ def main():
         if not targets:
             print(f"No race weekend within the fetch window right now for {years} - skipping "
                   "(saves ~30 FastF1 API calls this tick; see next_relevant_round's docstring).")
+            # The lap-position catch-up does not touch FastF1 and is one query when nothing is missing, so
+            # it must not wait for a race weekend: the weekend is over by the time Jolpica has the laps.
+            with conn.cursor() as cur:
+                filled = backfill_lap_positions(cur)
             conn.close()
+            if filled:
+                trigger_revalidation("races")
             return 0
 
     print(f"Processing {len(targets)} round(s): {targets}")
