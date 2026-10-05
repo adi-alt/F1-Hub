@@ -137,7 +137,7 @@ fetch_races.jolpica.fetch_laps = lambda *a: official
 stored = [("HAM", 1, None, "1:45.512"), ("NOR", 1, 5, "1:44.001"), ("HAM", 2, None, None)]
 cur = Cur([("2026_r16_bahrain-grand-prix", 2026, 16, datetime.date(2026, 10, 4))], stored)
 fetch_races.os.environ.pop("FORCE_ALL_ROUNDS", None)
-fetch_races.backfill_lap_positions(cur)
+assert fetch_races.backfill_lap_positions(cur) == 1, "reports how many races it updated, so the caller knows to bust the cache"
 assert "current_date - 21" in cur.queries[0] and "position is null" in cur.queries[0], cur.queries[0]
 assert cur.queries[1] == "begin" or "begin" in cur.queries, cur.queries
 assert "commit" in cur.queries and "rollback" not in cur.queries
@@ -156,8 +156,20 @@ fetch_races.os.environ.pop("FORCE_ALL_ROUNDS")
 # Jolpica not ready: no write
 writes.clear()
 fetch_races.jolpica.fetch_laps = lambda *a: None
-fetch_races.backfill_lap_positions(Cur([("2026_r16_bahrain-grand-prix", 2026, 16, datetime.date(2026, 10, 4))], stored))
+assert fetch_races.backfill_lap_positions(Cur([("2026_r16_bahrain-grand-prix", 2026, 16, datetime.date(2026, 10, 4))], stored)) == 0
 assert writes == []
+assert fetch_races.backfill_lap_positions(Cur([], [])) == 0
+
+# --- the idle-tick gate must not skip it: by the time Jolpica has the laps the race weekend is over ----------
+import ast
+
+source = (Path(__file__).resolve().parent / "fetch_races.py").read_text()
+main_fn = next(n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.FunctionDef) and n.name == "main")
+gate = next(n for n in ast.walk(main_fn) if isinstance(n, ast.If) and ast.get_source_segment(source, n.test) == "not targets")
+names = [c.func.id for c in ast.walk(gate) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)]
+assert "backfill_lap_positions" in names, "the 'no race weekend' early exit must still run the lap catch-up"
+assert names.index("backfill_lap_positions") < names.index("trigger_revalidation"), names
+assert isinstance(gate.body[-1], ast.Return), "the gate still ends the run"
 
 jolpica.fetch_laps = real_fetch_laps
 print("lap positions: all checks passed")
