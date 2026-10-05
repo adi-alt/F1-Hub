@@ -259,7 +259,9 @@ def _fetch_laps(session_key: int, driver_code_by_number: dict[int, str]) -> list
     per lap) rather than a clean per-lap snapshot - matching a lap's completion timestamp to the
     nearest preceding position record is a real, error-prone join for uncertain value, not
     attempted here. `lapTimings.position` is always None on the OpenF1 path - an honest limitation,
-    same pattern already used for other not-yet-derivable fields, not a fabricated guess."""
+    same pattern already used for other not-yet-derivable fields, not a fabricated guess. The positions
+    come from Jolpica's per-lap data instead, merged in by fetch_races.with_jolpica_lap_positions (new
+    rounds) and backfill_lap_positions (rounds already stored without them)."""
     rows = _get("laps", session_key=session_key)
     lap_timings = []
     fastest_by_driver: dict[str, float] = {}

@@ -619,6 +619,9 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             race = with_official_classification(race, official, roster)
             results_source = "official"
 
+    # Lap-by-lap car position: OpenF1 has none, Jolpica does (once it has published the laps).
+    race = with_jolpica_lap_positions(race, year, round_num, calendar_event["EventDate"])
+
     # Checked only after every source has been tried: FastF1 has nothing at all on GitHub's runners,
     # so returning before the fallbacks (as this used to) meant the OpenF1/Jolpica paths were reached
     # only on runs where FastF1 happened to return qualifying.
@@ -818,6 +821,90 @@ def backfill_race_photos(cur):
         print(f"  {race_id}: {len(uploaded)} photo(s) uploaded")
 
 
+def merge_lap_positions(lap_rows: list[dict], official: list[dict]) -> tuple[list[dict], int]:
+    """Fills lap-by-lap car position from Jolpica into lap rows that have none, and adds laps only Jolpica has.
+    Returns (rows, how many positions were filled or laps added).
+
+    OpenF1 - the only race source that works from GitHub's runners - has lap times but no per-lap position
+    (see openf1_fallback._fetch_laps), so the race page's lap chart had nothing to draw on any round that
+    CI fetched. A position already stored is never replaced (FastF1's own is the same data: on Baku the two
+    agree on 974 of 976 laps, the other two being a tie), and an existing lap time is never rewritten."""
+    by_key = {(t["driver"], t["lapNumber"]): dict(t) for t in lap_rows}
+    changed = 0
+    for o in official:
+        key = (o["driver"], o["lapNumber"])
+        current = by_key.get(key)
+        if current is None:
+            seconds = o["timeSec"]
+            by_key[key] = {
+                "driver": o["driver"],
+                "lapNumber": o["lapNumber"],
+                "position": o["position"],
+                "time": format_timedelta(pd.to_timedelta(seconds, unit="s")) if seconds else None,
+            }
+            changed += 1
+        elif current.get("position") is None:
+            current["position"] = o["position"]
+            changed += 1
+    return sorted(by_key.values(), key=lambda t: (t["lapNumber"], t["driver"])), changed
+
+
+def with_jolpica_lap_positions(race: dict | None, year: int, round_num: int, event_date) -> dict | None:
+    """`race` with its lap timings' positions filled from Jolpica when it has them (see merge_lap_positions).
+    A no-op when the laps already carry positions, and when Jolpica has not published the laps yet - the
+    catch-up in backfill_lap_positions picks those up on a later run."""
+    if race is None:
+        return race
+    laps = race.get("lapTimings") or []
+    if laps and all(t.get("position") is not None for t in laps):
+        return race
+    official = jolpica.fetch_laps(year, round_num, event_date)
+    if not official:
+        return race
+    merged, changed = merge_lap_positions(laps, official)
+    print(f"    laps: {changed} lap position(s) from Jolpica")
+    return {**race, "lapTimings": merged}
+
+
+LAP_POSITION_WINDOW_DAYS = 21
+
+
+def backfill_lap_positions(cur):
+    """Catch-up for rounds already stored without lap-by-lap positions: a round fetched through OpenF1, or one
+    whose laps Jolpica had not published yet when it finished. Looks at completed races from the last
+    LAP_POSITION_WINDOW_DAYS (every season when FORCE_ALL_ROUNDS is set, for a one-off clean-up) that have a lap
+    row with no position, so once caught up it costs one query per run. A race Jolpica still has no laps for
+    costs one request per run until it does, or until it leaves the window."""
+    window = "" if os.environ.get("FORCE_ALL_ROUNDS") == "true" else f"and r.race_date::date >= current_date - {LAP_POSITION_WINDOW_DAYS} "
+    cur.execute(
+        "select r.id, r.year, r.round, r.race_date from races r "
+        "where r.status = 'completed' " + window +
+        "and exists (select 1 from race_laps l where l.race_id = r.id and l.position is null) "
+        "order by r.year, r.round"
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return
+    print(f"{len(rows)} completed race(s) with lap rows missing a position")
+    for race_id, year, round_num, race_date in rows:
+        official = jolpica.fetch_laps(year, round_num, race_date)
+        if not official:
+            print(f"  {race_id}: Jolpica has no usable lap data yet")
+            continue
+        cur.execute("select driver, lap_number, position, time from race_laps where race_id = %s", (race_id,))
+        stored = [{"driver": d, "lapNumber": n, "position": p, "time": t} for d, n, p, t in cur.fetchall()]
+        merged, changed = merge_lap_positions(stored, official)
+        if not changed:
+            print(f"  {race_id}: nothing to fill")
+            continue
+        before = {(t["driver"], t["lapNumber"]): t for t in stored}
+        write = [t for t in merged if before.get((t["driver"], t["lapNumber"])) != t]
+        lap_rows = [{"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]} for t in write]
+        with transaction(cur):
+            upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"), skip_unchanged=True)
+        print(f"  {race_id}: {changed} lap position(s) filled from Jolpica")
+
+
 def backfill_race_laps(cur):
     """Same shape as backfill_race_photos above - completed races are never revisited by the main
     per-round loop, so any already-completed race with zero race_laps rows (every race that
@@ -1013,6 +1100,7 @@ def main():
 
         backfill_race_photos(cur)
         backfill_race_laps(cur)
+        backfill_lap_positions(cur)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their
