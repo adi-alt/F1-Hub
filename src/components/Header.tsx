@@ -45,7 +45,7 @@ export function Header({ season }: { season: number }) {
     <header className="sticky top-0 z-header h-16 shrink-0 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
       {/* The same frame and gutters as every page (page-wide), so the logo shares their left edge. */}
       <div className="page-wide relative flex h-full items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight transition hover:opacity-80">
+        <Link href="/" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-lg font-bold tracking-tight transition hover:opacity-80">
           <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
           F1 HUB
         </Link>
