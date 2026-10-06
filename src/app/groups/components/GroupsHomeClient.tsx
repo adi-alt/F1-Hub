@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary } from "@/lib/supabase/groups";
@@ -21,12 +20,10 @@ import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
  *
  * At <lg this is a plain stacked flex column with no scroll behavior of its own - the document
  * scrolls it exactly like every other page, feed first (the actual content), then the community
- * selector, then predictions/next race below. At lg+, the page (see page.tsx) becomes a fixed-
- * height application workspace and this component's three regions each own a real, independent
- * scroll region within it (`useNestedLenisScroll` - the same primitive Archive's own card grids
- * and tables already use for exactly this), rather than one shared page scroll moving all three at
- * once. Sticky positioning (what this used before) doesn't apply here anymore: there's no longer a
- * page scroll for a rail to stick relative to. */
+ * selector, then predictions/next race below. At lg+ it is three columns on the one document scroll
+ * (audit R-31): the feed flows with the page, and the two rails are sticky beside it, so they stay in
+ * view. Only the community list inside the left rail scrolls on its own, when there are more
+ * communities than fit. */
 export function GroupsHomeClient({
   groups,
   initialPosts,
@@ -55,18 +52,15 @@ export function GroupsHomeClient({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
 
-  // Three independent scroll regions, not one shared page scroll (lg+ only - see this
-  // component's own top comment). `centerScrollRef` doubles as a plain element ref so switching
-  // communities can reset its native scrollTop directly below - re-registering the Lenis instance
-  // on its own (the dependency key) tears down and recreates the smoothing layer, but never moves
-  // the container's own scroll position by itself.
-  const leftScrollRef = useNestedLenisScroll();
-  const centerContainerRef = useRef<HTMLDivElement | null>(null);
-  const setCenterLenisContainer = useNestedLenisScroll(selectedId);
-  const rightScrollRef = useNestedLenisScroll();
-
+  // Picking another community swaps the feed, so bring its top into view: the page scrolls now, and the
+  // rail you picked it from is sticky, so you may be many posts down. Not on first render.
+  const firstRender = useRef(true);
   useEffect(() => {
-    centerContainerRef.current?.scrollTo({ top: 0 });
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0 });
   }, [selectedId]);
 
   // Two real scopes, not one that quietly ignores half its own state:
@@ -114,60 +108,25 @@ export function GroupsHomeClient({
   return (
     // Three columns, each its own frosted surface starting at the same top baseline - navigation,
     // the conversation, race context - sized so the centre is unmistakably the widest and the
-    // rails read as supporting it.
-    //
-    // lg:h-full (this fills the fixed-height workspace page.tsx builds) + lg:items-stretch so all
-    // three tracks are the SAME full height, which is what lets each scroll independently inside
-    // it - items-start would size each column to its own content instead, leaving nothing for the
-    // rest to scroll within. Both rails are full-height cards that handle their own internal
-    // scrolling, so only the centre column needs a scroll wrapper out here.
-    <div className="flex flex-col gap-3 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)_296px] lg:items-stretch lg:gap-3">
-      {/* The rail sizes to its own content and only grows as tall as the workspace allows
-          (lg:max-h-full, not lg:h-full) - seven communities should end in a card that ends, not one
-          stretched to the full viewport with a pool of dead space under the last action. Past that
-          height the list inside it scrolls instead, which is the point at which a fixed height
-          starts being the right answer rather than the wrong one. */}
-      {/* The wrapper keeps the full workspace height (a DEFINITE height, which is the only thing a
-          percentage max-height on the card inside it can resolve against - against an auto-height
-          parent it computes to none and the cap silently stops existing), while being a flex
-          column means the card itself is still free to size to its own content inside it. Net
-          effect: a rail that ends under its last action instead of stretching to the viewport, but
-          still never overflows it. */}
-      <aside aria-label="Your communities" className="order-2 min-h-0 lg:order-1 lg:h-full">
-        <div ref={leftScrollRef} className="lg:flex lg:h-full lg:flex-col">
-          <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
-        </div>
+    // rails read as supporting it. The rails are sticky (top-20 = the 4rem header plus a gap) and
+    // capped to the viewport, so a tall rail scrolls inside itself instead of running off-screen.
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[248px_minmax(0,1fr)_296px] lg:items-start lg:gap-3">
+      <aside aria-label="Your communities" className="order-2 lg:sticky lg:top-20 lg:order-1">
+        <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onDiscover={() => setShowDiscover(true)} />
       </aside>
 
       {/* A div, not a second <main>: the root layout already has the page's one main landmark. */}
-      <div className="order-1 min-h-0 min-w-0 lg:order-2 lg:h-full">
+      <div className="order-1 min-w-0 lg:order-2">
         {/* Below lg the rail, and the h1 in it, are hidden, so the page keeps a heading here. */}
         <h1 className="sr-only lg:hidden">Communities</h1>
-        <div
-          ref={(el) => {
-            centerContainerRef.current = el;
-            setCenterLenisContainer(el);
-          }}
-          // pb-3 at lg+: the last card ended flush against the bottom edge of its own scroll
-          // region, which reads as the feed being cut rather than finished. Padding on the
-          // scroll container is part of its scrollable extent, so it's reachable space, not a
-          // margin that collapses away.
-          className="space-y-2.5 lg:h-full lg:overflow-y-auto lg:scroll-pb-16 lg:pb-3 lg:scrollbar-hide"
-        >
+        <div className="space-y-2.5">
           <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
           <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
         </div>
       </div>
 
-      {/* Same height model as the navigation rail: the wrapper holds the workspace height (the
-          definite height a percentage max-height inside it can resolve against), while being a flex
-          column lets the card size to its own content. A rail with four short widgets ends under
-          the last one instead of stretching to the viewport with dead space below it, and only
-          starts scrolling internally once it genuinely outgrows the space. */}
-      <aside aria-label="Race weekend and activity" className="order-3 min-h-0 lg:h-full">
-        <div ref={rightScrollRef} className="lg:flex lg:h-full lg:flex-col">
-          <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} onDiscover={() => setShowDiscover(true)} />
-        </div>
+      <aside aria-label="Race weekend and activity" className="order-3 lg:sticky lg:top-20">
+        <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} onDiscover={() => setShowDiscover(true)} />
       </aside>
 
       <AnimatePresence>{showDiscover && <DiscoverSheet onClose={() => setShowDiscover(false)} />}</AnimatePresence>

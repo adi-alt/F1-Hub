@@ -113,7 +113,9 @@ export function ProfileMenu() {
             {name.charAt(0).toUpperCase()}
           </span>
         )}
-        <span className="max-w-[9rem] truncate font-medium text-white">{name}</span>
+        {/* Visually hidden below 400px so the pill fits a 320px header beside the logo and the menu button; the
+            name stays in the button's accessible name. */}
+        <span className="sr-only min-[400px]:not-sr-only min-[400px]:max-w-[9rem] min-[400px]:truncate font-medium text-white">{name}</span>
         {pointsBalance !== null && (
           <span className="flex items-center gap-1 border-l border-white/10 pl-2 text-xs font-semibold text-neutral-300">
             <StarIcon className="h-3 w-3 text-tertiary" />

@@ -83,23 +83,15 @@ export default async function GroupsPage() {
   const driversByRace = await getDriversByRace(predictions.map((p) => p.raceId));
 
   return (
-    // Same effective width as the Race page (max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16) - not a
-    // width invented for Communities alone. At <lg this is a plain block: the header takes its
-    // natural height and GroupsHomeClient's own content flows underneath it, scrolled by the
-    // document exactly like every other page. At lg+ it becomes a fixed-height application
-    // workspace instead - the same h-[calc(100dvh-4rem)] pattern Archive's own explorer already
-    // uses (4rem is the header's real height, Header.tsx's own h-16) - so the header stays put and
-    // GroupsHomeClient's three regions can each scroll independently within the space that's left,
-    // rather than the whole page scrolling as one long document. That split is deliberate, not a
-    // half-finished responsive pass: three columns each scrolling on their own is a real desktop
-    // workspace idiom, and a genuinely bad one on a phone, where it fights the one scroll gesture a
-    // touch screen actually has.
-    <div className="page-wide py-6 lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col lg:overflow-hidden lg:py-6">
+    // The same frame as every page. The document scrolls, the feed with it (audit R-31); at lg+ the
+    // two rails stay in view beside it (sticky, GroupsHomeClient), and only the community list inside
+    // the left rail scrolls on its own.
+    <div className="page-wide py-6">
       {/* No separate page header above the workspace anymore - the page title and its one-line
           description live at the top of the navigation rail itself (GroupsLeftSidebar), so the
           three columns start at the same baseline and the feed is the first thing at eye level
           rather than sitting a header's height below it. */}
-      <div className="lg:min-h-0 lg:flex-1">
+      <div>
         <GroupsHomeClient
           groups={groups}
           initialPosts={feed.posts}

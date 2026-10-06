@@ -28,7 +28,7 @@ export function ArchiveExplorerWithFocus({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
       <ArchiveRaceExplorer rows={rows} entityColumnLabel={entityColumnLabel} resultFilterKeys={resultFilterKeys} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
       <div className="min-w-0">{selected && <ArchiveFocusedRacePanel row={selected} entityColumnLabel={entityColumnLabel} />}</div>
     </div>

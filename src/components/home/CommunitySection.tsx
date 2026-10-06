@@ -97,7 +97,7 @@ export function CommunitySection({
       {/* items-start: without it, CSS grid stretches both columns to match the taller sibling by
        * default - a 1-post activity panel would visually inflate to match a full communities list.
        * Each panel now sizes to its own content instead. */}
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
         {/* Left Panel: Latest Activity */}
         <div className="flex flex-col rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6 max-h-[680px]">
           <div className={`flex items-center justify-between border-b border-white/[0.06] ${postsCompact ? "mb-3 pb-2" : "mb-4 pb-3"}`}>
@@ -243,7 +243,7 @@ export function CommunitySectionSkeleton() {
   return (
     <section>
       <Skeleton className="skeleton-shimmer h-4 w-44 rounded mb-4" />
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
         <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6 h-[400px]">
           <Skeleton className="skeleton-shimmer h-4 w-36 rounded mb-4" />
           <div className="space-y-3">

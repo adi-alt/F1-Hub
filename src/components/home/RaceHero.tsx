@@ -92,8 +92,8 @@ export function RaceHero({
   const primaryLabel = heroAction?.section === "hero" ? heroAction.label : "Explore race";
 
   return (
-    <div className="grid gap-6 pt-4 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
-      <div>
+    <div className="grid grid-cols-1 gap-6 pt-4 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
+      <div className="min-w-0">
         {variant === "personal" && firstName && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <p className="text-xs font-semibold uppercase tracking-widest text-brand-text">{isReturning ? "Welcome back" : "Welcome"}</p>
@@ -180,8 +180,8 @@ export function RaceHero({
 
 export function RaceHeroSkeleton({ variant }: { variant: "public" | "personal" }) {
   return (
-    <div className="grid gap-6 pt-4 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
-      <div>
+    <div className="grid grid-cols-1 gap-6 pt-4 lg:grid-cols-[1fr_320px] lg:items-start xl:grid-cols-[1fr_360px]">
+      <div className="min-w-0">
         {variant === "personal" && (
           <>
             <Skeleton className="skeleton-shimmer h-3 w-24 rounded" />

@@ -252,7 +252,7 @@ export function CommunityWorkspace({
             beside it would be competing for the same space and pointing at panels the admin has
             deliberately left. */}
         {showRail && (
-          <aside className="mt-6 lg:sticky lg:top-4 lg:mt-0">
+          <aside className="mt-6 lg:sticky lg:top-20 lg:mt-0">
             <CommunityRightRail
               groupId={group.id}
               stats={stats}

@@ -84,7 +84,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   const currentSeason = await getCurrentSeason();
 
   return (
-    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
+    <div className="page-wide py-6">
       <h1 className="flex shrink-0 items-baseline gap-3">
         <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">Archive</span>
         <span className="text-sm font-semibold uppercase tracking-[0.25em] text-tertiary">
@@ -92,7 +92,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
         </span>
       </h1>
       <p className="mt-1 shrink-0 text-sm text-tertiary">Results only, sourced from the Ergast/Jolpi historical database.</p>
-      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mt-4 flex flex-col">
         {hasLoadError && <RetryBanner />}
         <ArchiveExplorer
           uid={uid}
@@ -153,7 +153,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
   const topWinner = [...winCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
 
   return (
-    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
+    <div className="page-wide py-6">
       <ArchiveApexScope entityType="circuit" entityId={circuitId} name={circuit.name ?? circuit.circuitId} />
       <ArchiveEntityHeader
         backHref="/archive?section=track"
@@ -165,7 +165,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
         stats={[{ label: "Races", value: races.length }, ...(topWinner ? [{ label: "Most wins", value: `${topWinner[0]} (${topWinner[1]})` }] : [])]}
         favoriteButton={<ArchiveFavoriteToggle type="track" id={circuitId} />}
       />
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Winner" />
       </div>
     </div>
@@ -270,7 +270,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
   const eraSegments = buildEraSegments(entries.map(({ race, result }) => ({ year: race.year, label: result.constructor, raceCount: 1 })));
 
   return (
-    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
+    <div className="page-wide py-6">
       <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
       <ArchiveEntityHeader
         backHref="/archive?section=driver"
@@ -293,7 +293,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
           <ArchiveEraTimeline segments={eraSegments} />
         </div>
       )}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilterKeys={["wins", "podiums", "points", "dnf"]} />
       </div>
     </div>
@@ -367,7 +367,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
     .sort((a, b) => b.races - a.races);
 
   return (
-    <div className="page-wide flex h-[calc(100dvh-4rem)] flex-col py-6">
+    <div className="page-wide py-6">
       <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
       <ArchiveEntityHeader
         backHref="/archive?section=team"
@@ -390,7 +390,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
           <ArchiveDriverRelationships drivers={relationships} maxHeightPx={160} />
         </div>
       )}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilterKeys={["wins", "podiums"]} />
       </div>
     </div>

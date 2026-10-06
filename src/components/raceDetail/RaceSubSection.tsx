@@ -25,8 +25,9 @@ export function RaceSubSection({
 }) {
   return (
     <div className={first ? "" : "mt-6 border-t border-[var(--f1-line)] pt-6"}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
+      {/* Wraps: a filter beside a long label drops under it on a narrow screen instead of pushing the page wider. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
         {headerRight}
       </div>
       {description && <p className="mt-1 text-sm text-tertiary">{description}</p>}

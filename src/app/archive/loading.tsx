@@ -39,7 +39,7 @@ export default function ArchiveLoading() {
   const isHistoryRoute = ["round", "circuit", "driver", "team"].some((key) => searchParams.has(key));
   if (isHistoryRoute) {
     return (
-      <div role="status" className="page-wide skeleton-delay flex h-[calc(100dvh-4rem)] flex-col py-6">
+      <div role="status" className="page-wide skeleton-delay py-6">
         <span className="sr-only">Loading the archive</span>
         <div className="shrink-0">
           <Skeleton className="h-4 w-16" />
@@ -70,11 +70,11 @@ export default function ArchiveLoading() {
   }
 
   return (
-    <div role="status" className="page-wide skeleton-delay flex h-[calc(100dvh-4rem)] flex-col py-6">
+    <div role="status" className="page-wide skeleton-delay py-6">
         <span className="sr-only">Loading the archive</span>
       <Skeleton className="h-9 w-40 shrink-0" />
       <Skeleton className="mt-1 h-4 w-full max-w-lg shrink-0" />
-      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mt-4 flex flex-col">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <QuietTabsSkeleton />
           <Skeleton className="h-8 w-full max-w-xs rounded-full" />

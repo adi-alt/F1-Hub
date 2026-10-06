@@ -462,16 +462,13 @@ export function SeasonRaceDashboard({
 
       {/* Sticky, not just placed in a taller column - a short sidebar next to a long main column
           otherwise ends early and leaves a wide, empty gap beneath itself for the rest of the
-          page's scroll, which is exactly the "wasted space" this was called out for. `top-4`
-          (not the header's own height) because the header lives OUTSIDE this page's scroll
-          container entirely (SmoothScroll.tsx mounts it as a non-scrolling flex sibling of
-          `[data-app-scroll]`, not inside it) - it's already permanently visible regardless of
-          scroll position, so the sidebar only needs a small gap under it, not a header-height
-          offset. `self-start` keeps it from being stretched to the grid row's own height (which
+          page's scroll, which is exactly the "wasted space" this was called out for. `top-20` is the
+          sticky header (4rem) plus a gap, since the header now sits in the document's own scroll
+          (audit R-31) and would otherwise cover the top of the rail. `self-start` keeps it from being stretched to the grid row's own height (which
           would silently defeat position:sticky - a stretched item has nowhere left to move within
           its own box). The `max-h`/overflow pair is a safety net for the rare case its own content
           genuinely exceeds the viewport, not the common one. */}
-      <aside className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
+      <aside className="min-w-0 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
         <RaceSidebar
           race={race}
           isCompleted={isCompleted}

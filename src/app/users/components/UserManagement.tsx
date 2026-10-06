@@ -8,7 +8,6 @@ import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
 import { Tabs, tabIdFor } from "@/components/ui/LegacyTabs";
 import { InviteDialog } from "./InviteUsers";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import type { UserCounts, UserProfile } from "@/lib/supabase/users";
 import { MIN_SEARCH_LENGTH, useDebounced, useSetUserRole, useUserSearch, useUsersList } from "../_hooks/useUsers";
@@ -133,7 +132,6 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   // listener invalidates usersKeys on any change) — no per-page channel needed here.
   const usersList = useUsersList(initialUsers, initialCursor);
   const setRole = useSetUserRole();
-  const scrollRef = useNestedLenisScroll(search);
 
   const loaded = useMemo(() => usersList.data?.pages.flatMap((p) => p.users) ?? initialUsers, [usersList.data, initialUsers]);
 
@@ -296,7 +294,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
         )}
 
         {/* The region the role tablist above actually controls, labelled by its active tab. */}
-        <div ref={scrollRef} id="users-table" role="tabpanel" aria-labelledby={tabIdFor("users-table", roleFilter)} className="max-h-[520px] overflow-auto scrollbar-hide">
+        <div id="users-table" role="tabpanel" aria-labelledby={tabIdFor("users-table", roleFilter)} className="max-h-[520px] overflow-auto scrollbar-subtle">
           <table className="w-full min-w-[720px] text-sm">
             <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
               <tr>

@@ -11,6 +11,7 @@ import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Section } from "@/components/ui/Section";
+import { SessionSchedule } from "@/components/ui/SessionSchedule";
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Surface } from "@/components/ui/Surface";
 import { ChipDemo, FieldDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
@@ -104,6 +105,21 @@ export default function UiPreviewPage() {
         <ChipDemo />
         <div className="mt-3 flex flex-wrap gap-2">
           <Chip>Plain tag</Chip>
+        </div>
+      </Section>
+
+      <Section id="session-schedule" title="SessionSchedule" level={2} description="A weekend's sessions in one equal-width row: done is a check, next is the one red dot. The zone is named once.">
+        <div className="max-w-xl">
+          <SessionSchedule
+            zoneLabel="IST"
+            sessions={[
+              { code: "P1", when: ["Fri", "10:00 AM"], state: "done" },
+              { code: "P2", when: ["Fri", "1:30 PM"], state: "done" },
+              { code: "P3", when: ["Sat", "10:00 AM"], state: "next" },
+              { code: "Q", when: ["Sat", "1:30 PM"], state: "upcoming" },
+              { code: "R", when: ["Sun", "12:30 PM"], state: "upcoming" },
+            ]}
+          />
         </div>
       </Section>
 

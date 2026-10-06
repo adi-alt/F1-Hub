@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { refreshOnce } from "@/lib/refreshGuard";
 
@@ -32,13 +31,10 @@ type FavoriteType = "driver" | "team" | "track";
  * both find and favorite who they're after. Favorited entries always sort to the top; everything
  * else follows most-recent-first.
  *
- * Page size isn't fixed - it's however many whole rows actually fit the available height,
- * measured from the real rendered thead/row/footer heights via ResizeObserver. The outer `root`
- * element is the one stretched to fill the available space (h-full, measured for that fit
- * calculation); the visible bordered table and the footer inside it are sized to their own
- * content, not stretched, so any leftover space becomes plain empty room below the footer
- * instead of a gap inside the table's own border — and there's no internal scrollbar, since the
- * row count was chosen specifically so the content fits. */
+ * A fixed page size (PAGE_SIZE): the page scrolls like any other, so there is no fixed viewport
+ * height to fit rows to. */
+const PAGE_SIZE = 20;
+
 export function FavoriteEntityList({
   type,
   nameLabel,
@@ -58,11 +54,7 @@ export function FavoriteEntityList({
   const [page, setPage] = useUrlPage();
   const router = useRouter();
 
-  const rootRef = useRef<HTMLDivElement>(null);
-  const theadRef = useRef<HTMLTableSectionElement>(null);
-  const firstRowRef = useRef<HTMLTableRowElement>(null);
-  const footerRef = useRef<HTMLDivElement>(null);
-  const pageSize = useRowFitPageSize(rootRef, theadRef, firstRowRef, footerRef);
+  const pageSize = PAGE_SIZE;
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -120,11 +112,10 @@ export function FavoriteEntityList({
   }
 
   return (
-    <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex flex-col">
       <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
         <table className="w-full text-left text-sm">
           <thead
-            ref={theadRef}
             className="border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-tertiary"
           >
             <tr>
@@ -144,7 +135,7 @@ export function FavoriteEntityList({
             className="divide-y divide-[var(--f1-line)]"
           >
             {pageItems.map((item, i) => (
-              <motion.tr key={item.id} ref={i === 0 ? firstRowRef : undefined} variants={staggerItem}>
+              <motion.tr key={item.id} variants={staggerItem}>
                 <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
                 <td className="px-4 py-2.5">
                   <Link href={item.href} className="truncate font-medium text-white hover:text-brand-text">
@@ -167,7 +158,7 @@ export function FavoriteEntityList({
         </table>
       </div>
 
-      <div ref={footerRef} className="mt-3 grid shrink-0 grid-cols-3 items-center text-sm text-tertiary">
+      <div className="mt-3 grid shrink-0 grid-cols-3 items-center text-sm text-tertiary">
         <div>
           {pageSafe > 1 && (
             <button

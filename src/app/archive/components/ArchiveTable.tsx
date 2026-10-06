@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useRef, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerItem } from "@/components/motion/variants";
-import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { FavoriteButton } from "./FavoriteButton";
@@ -12,6 +11,9 @@ import { Pagination } from "./Pagination";
 // The exact same sticky-header treatment ChampionshipStandings.tsx uses (Season's own reference
 // table), not a re-derived version - real opacity behind the blur so rows scrolling underneath
 // don't bleed through, same translucent-dark token every sticky/floating surface in the app uses.
+/** Rows per page. A fixed number now: the page scrolls like any other, so the table no longer fills the
+ * viewport and there is no height to fit rows to. */
+const PAGE_SIZE = 25;
 const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
@@ -42,7 +44,7 @@ export type ArchiveTableColumn<T> = {
 /** The shared table both ArchiveDriverTable and ArchiveTeamTable are now thin wrappers around -
  * they were previously two byte-for-byte-identical implementations differing only in field names.
  * Owns search/sort/pagination (URL-backed via useUrlPage/useUrlParam, so a refresh or a shared
- * link preserves them), the same dynamic row-fit page sizing (useRowFitPageSize) the original
+ * link preserves them), the same fixed page size (PAGE_SIZE, now that the page scrolls instead of filling the viewport) the original
  * tables used, and favoriting. Wrapped in overflow-x-auto scrollbar-hide - the one real gap the
  * original tables had: zero responsive handling at all, so a table this wide simply couldn't be
  * reached on a narrow viewport before. */
@@ -82,11 +84,7 @@ export function ArchiveTable<T>({
   const sortDir: "asc" | "desc" = rawDir === "asc" ? "asc" : "desc";
   const sortColumn = columns.find((c) => c.key === sortKey);
 
-  const rootRef = useRef<HTMLDivElement>(null);
-  const theadRef = useRef<HTMLTableSectionElement>(null);
-  const firstRowRef = useRef<HTMLTableRowElement>(null);
-  const footerRef = useRef<HTMLDivElement>(null);
-  const pageSize = useRowFitPageSize(rootRef, theadRef, firstRowRef, footerRef);
+  const pageSize = PAGE_SIZE;
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -140,7 +138,7 @@ export function ArchiveTable<T>({
   }
 
   return (
-    <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex flex-col">
       <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
         {/* No min-w here - table-fixed's real minimum is already the sum of each column's own
             declared width (see ArchiveDriverTable/ArchiveTeamTable), and an extra floor on top of
@@ -161,7 +159,7 @@ export function ArchiveTable<T>({
             ))}
             <col className="w-16" />
           </colgroup>
-          <thead ref={theadRef} className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
+          <thead className={HEADER_CLASS} style={HEADER_STYLE}>
             <tr>
               {/* "#" not "S.No" - the row-index column is only 3rem wide (just enough for a 3-digit
                   number plus padding), and "S.No" at 11px bold+uppercase+tracked never actually fit
@@ -220,7 +218,6 @@ export function ArchiveTable<T>({
                   <motion.tr
                     key={id}
                     layout
-                    ref={i === 0 ? firstRowRef : undefined}
                     initial="hidden"
                     animate="show"
                     exit="hidden"
@@ -253,7 +250,7 @@ export function ArchiveTable<T>({
           </tbody>
         </table>
       </div>
-      <div ref={footerRef}>
+      <div>
         <Pagination page={pageSafe} totalPages={totalPages} totalItems={sorted.length} itemLabel={itemLabel} onPageChange={setPage} />
       </div>
     </div>
