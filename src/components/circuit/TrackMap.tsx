@@ -2,6 +2,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
+import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { teamColor } from "@/lib/teamColors";
 import { generateTrackShape, type TrackShape } from "@/lib/trackShape";
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
@@ -619,7 +621,7 @@ export function TrackMap({
                 aria-label="Previous lap"
                 className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white disabled:opacity-30"
               >
-                <StepIcon back />
+                <Icon icon={SkipBack} size={16} />
               </button>
               <button
                 type="button"
@@ -627,7 +629,7 @@ export function TrackMap({
                 aria-label={playing ? "Pause simulation" : "Play simulation"}
                 className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
               >
-                {raceT >= 1 ? <RestartIcon /> : playing ? <PauseIcon /> : <PlayIcon />}
+                {raceT >= 1 ? <Icon icon={RotateCcw} size={16} /> : playing ? <Icon icon={Pause} size={16} /> : <Icon icon={Play} size={16} />}
               </button>
               <button
                 type="button"
@@ -636,7 +638,7 @@ export function TrackMap({
                 aria-label="Next lap"
                 className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-neutral-300 transition hover:border-white/25 hover:text-white disabled:opacity-30"
               >
-                <StepIcon />
+                <Icon icon={SkipForward} size={16} />
               </button>
               {currentLap && (
                 <span className="ml-1 font-mono text-[11px] tabular-nums text-tertiary">
@@ -684,38 +686,6 @@ export function TrackMap({
         </div>
       )}
     </div>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="ml-0.5 h-3 w-3" fill="currentColor" aria-hidden>
-      <path d="M4 2.5v11l10-5.5z" />
-    </svg>
-  );
-}
-function PauseIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden>
-      <rect x="3.5" y="2.5" width="3" height="11" />
-      <rect x="9.5" y="2.5" width="3" height="11" />
-    </svg>
-  );
-}
-function RestartIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M13 8A5 5 0 1 1 8 3" strokeLinecap="round" />
-      <path d="M8 1v3.2h3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function StepIcon({ back }: { back?: boolean }) {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor" aria-hidden style={back ? { transform: "scaleX(-1)" } : undefined}>
-      <path d="M4 2.5v11l7-5.5z" />
-      <rect x="11.5" y="2.5" width="1.5" height="11" />
-    </svg>
   );
 }
 

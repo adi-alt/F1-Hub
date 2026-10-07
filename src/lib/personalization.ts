@@ -489,8 +489,8 @@ export async function getRecentCircuitPhotos(
 // client-side caller (ChampionshipTrajectory.tsx) imports the pure module directly instead.
 export { computeChampionshipProgression } from "@/lib/championshipProgression";
 
-// Semantic keys, not emoji glyphs - RaceHero renders these through the shared icon set
-// (src/components/icons/HomeIcons.tsx) instead of a literal character.
+// Semantic keys, not emoji glyphs - RaceHero renders these as lucide icons instead of a literal
+// character.
 export type FactIconKind = "trophy" | "constructor" | "target" | "star" | "wrench" | "confetti";
 export type Fact = { icon: FactIconKind; text: string };
 

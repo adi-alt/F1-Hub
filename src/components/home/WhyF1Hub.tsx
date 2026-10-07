@@ -1,21 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { BookIcon, BrainIcon, UsersIcon } from "@/components/icons/HomeIcons";
+import { Book, Brain, Users } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 
 const PILLARS = [
   {
-    Icon: BrainIcon,
+    icon: Brain,
     title: "Real predictions, not vibes",
     body: "A Random Forest model and a 10,000-run Monte Carlo simulation call every race before it starts — then AI-generated race analysis breaks down what actually happened once it's over.",
   },
   {
-    Icon: BookIcon,
+    icon: Book,
     title: "Decades of racing history",
     body: "Every season back to 1950 — results, qualifying, pit stops, lap timing where it exists.",
   },
   {
-    Icon: UsersIcon,
+    icon: Users,
     title: "A real community",
     body: "Join a group, make podium picks, and climb a real leaderboard once races finish.",
   },
@@ -39,7 +40,7 @@ export function WhyF1Hub() {
             viewport={{ once: true }}
             transition={{ duration: 0.35, ease: "easeOut", delay: i * 0.08 }}
           >
-            <p.Icon className="h-7 w-7 text-brand-text" />
+            <Icon icon={p.icon} size={24} className="text-brand-text" />
             <h3 className="mt-2 font-semibold text-white">{p.title}</h3>
             <p className="mt-1 text-sm text-neutral-400">{p.body}</p>
           </motion.div>
