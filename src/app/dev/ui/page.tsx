@@ -12,14 +12,20 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Section } from "@/components/ui/Section";
 import { SessionSchedule } from "@/components/ui/SessionSchedule";
+import { DriverIdentity } from "@/components/ui/DriverIdentity";
+import { ProbabilityMeter } from "@/components/ui/ProbabilityMeter";
+import { AiSummary } from "@/components/ui/AiSummary";
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Surface } from "@/components/ui/Surface";
 import { ChipDemo, FieldDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
 
 export const metadata: Metadata = { title: "UI primitives", robots: { index: false, follow: false } };
 
-/** Served locally and on Vercel preview deployments, never on the production deployment. */
+/** Served locally and on Vercel preview deployments, never on the production deployment. UI_PREVIEW=1 opens it
+ * in a production build too: the browser tests set it (e2e.yml) to snapshot and axe-check every primitive. It is
+ * a server-only variable and is never set on Vercel. */
 function isPreviewEnvironment(): boolean {
+  if (process.env.UI_PREVIEW === "1" && process.env.VERCEL_ENV !== "production") return true;
   return process.env.VERCEL_ENV ? process.env.VERCEL_ENV !== "production" : process.env.NODE_ENV !== "production";
 }
 
@@ -121,6 +127,35 @@ export default function UiPreviewPage() {
             ]}
           />
         </div>
+      </Section>
+
+      <Section id="driver-identity" title="DriverIdentity" level={2} description="Team bar, headshot, code and name. Below sm only the code shows; the name is still read out. Dark team colours are lightened to 3:1.">
+        <div className="flex flex-col gap-3">
+          <DriverIdentity code="NOR" name="Lando Norris" team="McLaren" headshotUrl={null} size={32} />
+          <DriverIdentity code="HAM" name="Lewis Hamilton" team="Ferrari" headshotUrl={null} />
+          <DriverIdentity code="STE" name="Jackie Stewart" color="#002d62" />
+        </div>
+      </Section>
+
+      <Section id="probability-meter" title="ProbabilityMeter" level={2} description="One stacked bar for the top few plus Other, labelled on the bar, with an sr-only table carrying the same numbers.">
+        <div className="max-w-xl">
+          <ProbabilityMeter
+            caption="Win probability, Bahrain Grand Prix"
+            entries={[
+              { label: "NOR", value: 0.44, color: "#ff8000" },
+              { label: "HAM", value: 0.21, color: "#e8002d" },
+              { label: "VER", value: 0.15, color: "#3671c6" },
+              { label: "LEC", value: 0.1 },
+              { label: "PIA", value: 0.1 },
+            ]}
+          />
+        </div>
+      </Section>
+
+      <Section id="ai-summary" title="AiSummary" level={2} description="Model-written text, labelled and timed, quieter than measured data, with the evidence on request.">
+        <AiSummary className="max-w-xl" generatedAt="2026-10-04T08:32:00Z" evidence={<ul className="list-disc pl-4"><li>Norris: pole, 0.298s clear in qualifying</li><li>Model: 44% win, 81% podium</li></ul>}>
+          Norris starts from pole with the quickest long-run pace in practice, so the model makes him a clear favourite.
+        </AiSummary>
       </Section>
 
       <Section id="icons" title="Icon" level={2} description="lucide-react at stroke 1.75, in 16, 20 and 24px.">
