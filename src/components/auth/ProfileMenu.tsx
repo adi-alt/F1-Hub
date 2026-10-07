@@ -52,7 +52,7 @@ export function ProfileMenu() {
   // overlaps below the header's bottom edge - confirmed live (screenshot showed the dropdown's
   // background fully sharp, not frosted, despite computed style correctly reporting
   // backdrop-filter: blur(24px)). Portaling escapes that root entirely, the same fix
-  // SearchableSelect/ArchiveSeasonGrid already use for their own floating panels, just for a
+  // EntityMultiSelect/ArchiveSeasonGrid already use for their own floating panels, just for a
   // different underlying reason there (scroll-clipping, not backdrop-filter scoping).
   function updatePosition() {
     const el = rootRef.current;
