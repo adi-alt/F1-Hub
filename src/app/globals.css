@@ -246,9 +246,24 @@ body {
 
 /* The document scrolls (audit R-31). The scrollbar's width stays reserved, so a modal that locks
    scrolling (lib/scrollLock.ts) does not shift the page sideways, and anchor jumps and focus scrolls
-   clear the sticky header (4rem) with a little room to spare. The page's background is the plain
-   --background colour: the ambient streaks and the grain overlay that used to sit over every page are
-   gone, so screenshots are the same on every load. */
+   clear the sticky header (4rem) with a little room to spare.
+
+   The page keeps its soft red-to-blue glow, but fixed: two diagonal light bands painted by one gradient
+   layer behind the content. It used to be four randomly placed blurred elements rebuilt on every request
+   (so no two loads, or screenshots, matched) plus a grain overlay above everything; this is the same look
+   with one static, GPU-friendly layer, no blur filter, nothing over the content, and low enough opacity that
+   text contrast is unaffected. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(118deg, transparent 6%, rgb(225 90 40 / 0.14) 22%, rgb(70 130 220 / 0.07) 35%, transparent 47%),
+    linear-gradient(118deg, transparent 54%, rgb(225 90 40 / 0.07) 67%, rgb(70 130 220 / 0.12) 80%, transparent 92%);
+}
+
 html {
   scrollbar-gutter: stable;
   scroll-padding-top: 5rem;
