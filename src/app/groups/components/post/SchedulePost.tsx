@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";
 import { useAnchoredPanel } from "./usePanelDirection";
 
@@ -60,10 +62,10 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
     const when = new Date(value);
     return (
       <span className="flex h-[30px] items-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2 text-[11.5px] text-neutral-200">
-        <ClockIcon />
+        <Icon icon={Clock} size={16} />
         <span className="whitespace-nowrap tabular-nums">{when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
         <button type="button" onClick={() => onChange("")} title="Cancel scheduling" aria-label="Cancel scheduling" className="ml-0.5 text-tertiary transition hover:text-white">
-          <CloseIcon />
+          <Icon icon={X} size={16} />
         </button>
       </span>
     );
@@ -108,11 +110,11 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                     aria-label="Close scheduling"
                     className="absolute right-3 top-3 text-tertiary transition hover:text-white"
                   >
-                    <CloseIcon size={16} />
+                    <Icon icon={X} size={16} />
                   </button>
 
                   <h3 className="mb-3 flex items-center gap-2 pr-6 text-[13px] font-semibold text-white">
-                    <ClockIcon />
+                    <Icon icon={Clock} size={16} />
                     Schedule post
                   </h3>
 
@@ -124,7 +126,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                       aria-label="Previous month"
                       className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
                     >
-                      <ChevronIcon direction="left" />
+                      <Icon icon={ChevronLeft} size={16} />
                     </button>
                     <span className="text-[12px] font-semibold text-white">{viewMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
                     <button
@@ -133,7 +135,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                       aria-label="Next month"
                       className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
                     >
-                      <ChevronIcon direction="right" />
+                      <Icon icon={ChevronRight} size={16} />
                     </button>
                   </div>
 
@@ -311,29 +313,4 @@ function localZone(): string {
   } catch {
     return "local time";
   }
-}
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 18 18" width="14" height="14" fill="none" aria-hidden className="shrink-0">
-      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M9 5.4V9l2.4 1.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden className={direction === "left" ? "rotate-180" : ""}>
-      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CloseIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" aria-hidden className="shrink-0">
-      <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
 }

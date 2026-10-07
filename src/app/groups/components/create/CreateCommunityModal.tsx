@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import {
@@ -23,7 +24,7 @@ import {
 import { GroupBanner } from "../GroupBanner";
 import { ImageDropzone } from "./ImageDropzone";
 import { SelectionCard, SelectionCardGroup } from "./SelectionCard";
-import { TypeIcon, VisibilityIcon } from "./icons";
+import { TYPE_ICONS, VISIBILITY_ICONS } from "./icons";
 
 /** One object URL per file, revoked when the file changes or the modal unmounts. ImageDropzone
  * makes its own for its own preview; the review step needs a second, independently-scoped one
@@ -258,7 +259,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       onSelect={() => setCommunityType(t.value)}
                       title={t.label}
                       description={t.tagline}
-                      icon={<TypeIcon type={t.value} />}
+                      icon={<Icon icon={TYPE_ICONS[t.value]} size={16} />}
                       footnote={t.examples.join(" · ")}
                     />
                   ))}
@@ -379,7 +380,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         onSelect={() => setVisibility(v.value)}
                         title={v.label}
                         description={v.description}
-                        icon={<VisibilityIcon visibility={v.value} />}
+                        icon={<Icon icon={VISIBILITY_ICONS[v.value]} size={16} />}
                         disabled={blocked}
                         footnote={blocked ? "Not available for a Private Circle." : undefined}
                       />

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { Link } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import type { LinkPreviewData } from "@/lib/linkPreview";
 
 /**
@@ -46,7 +48,7 @@ export function LinkPreview({ url }: { url: string }) {
         rel="noopener noreferrer"
         className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11.5px] text-neutral-400 transition hover:border-white/[0.14] hover:text-neutral-200"
       >
-        <LinkIcon />
+        <Icon icon={Link} size={16} className="size-3" />
         <span className="truncate">{domain}</span>
       </a>
     );
@@ -68,21 +70,12 @@ export function LinkPreview({ url }: { url: string }) {
       )}
       <div className="px-2.5 py-2">
         <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-tertiary">
-          <LinkIcon />
+          <Icon icon={Link} size={16} className="size-3" />
           <span className="truncate">{data.siteName ?? data.domain}</span>
         </p>
         {data.title && <p className="mt-1 line-clamp-2 text-[12.5px] font-semibold leading-snug text-neutral-100">{data.title}</p>}
         {data.description && <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-neutral-400">{data.description}</p>}
       </div>
     </motion.a>
-  );
-}
-
-function LinkIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden className="shrink-0">
-      <path d="M6.6 9.4a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.6.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M9.4 6.6a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.6-.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
   );
 }

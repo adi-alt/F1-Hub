@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { ArrowRight, Factory, PartyPopper, Star, Target, Trophy, Wrench, type LucideIcon } from "lucide-react";
 import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceIntelligencePanel";
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
 import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
+import { Icon } from "@/components/ui/Icon";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdownLive, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import type { LandingData, NextAction } from "@/lib/homeData";
@@ -15,13 +16,13 @@ import { raceHref } from "@/lib/routes";
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
 
-const FACT_ICONS: Record<FactIconKind, typeof TrophyIcon> = {
-  trophy: TrophyIcon,
-  constructor: ConstructorIcon,
-  target: TargetIcon,
-  star: StarIcon,
-  wrench: WrenchIcon,
-  confetti: ConfettiIcon,
+const FACT_ICONS: Record<FactIconKind, LucideIcon> = {
+  trophy: Trophy,
+  constructor: Factory,
+  target: Target,
+  star: Star,
+  wrench: Wrench,
+  confetti: PartyPopper,
 };
 
 /** Ticks every second (not the shared `useMinuteClock` 60s tick RaceWeekendPanel/PickPanel use) -
@@ -131,10 +132,7 @@ export function RaceHero({
 
         {facts.length > 0 && (
           <p className="mt-3 flex max-w-2xl items-start gap-1.5 text-sm text-neutral-400">
-            {(() => {
-              const FactIcon = FACT_ICONS[facts[0].icon];
-              return <FactIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-text" />;
-            })()}
+            <Icon icon={FACT_ICONS[facts[0].icon]} size={16} className="mt-0.5 text-brand-text" />
             {facts[0].text}
           </p>
         )}
@@ -157,7 +155,7 @@ export function RaceHero({
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
           >
             {primaryLabel}
-            <ArrowRightIcon className="h-4 w-4" />
+            <Icon icon={ArrowRight} size={16} />
           </Link>
           {variant === "public" && (
             <button
