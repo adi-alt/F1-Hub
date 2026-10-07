@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
+import { Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
 import { canDo, postKindsFor } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
@@ -377,17 +379,17 @@ export function PostComposer({
       )}
 
       <div ref={toolbarRef} className="relative mt-2 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
-        <ToolButton onClick={() => fileInputRef.current?.click()} icon={<MediaIcon />} label="Add media" />
+        <ToolButton onClick={() => fileInputRef.current?.click()} icon={<Icon icon={Image} size={16} />} label="Add media" />
         <Divider />
-        <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<GifIcon />} label="GIF" compactLabel />
+        <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<Icon icon={ImagePlay} size={16} />} label="GIF" compactLabel />
         <Divider />
-        <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<EmojiIcon />} label="Emoji" />
+        <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<Icon icon={FaceSlightlySmiling} size={16} />} label="Emoji" />
         <Divider />
         <ComposeAssist draft={content} onReplace={setContent} />
         {canPredict && (
           <>
             <Divider />
-            <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={<PredictionIcon />} label="Prediction" />
+            <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={<Icon icon={Compass} size={16} />} label="Prediction" />
           </>
         )}
         {/* A different thing from the chip above it: that tags THIS post as prediction talk, this
@@ -396,7 +398,7 @@ export function PostComposer({
         {canOpenPrediction && (
           <>
             <Divider />
-            <ToolButton onClick={() => setMode("prediction")} icon={<RoundIcon />} label="New round" />
+            <ToolButton onClick={() => setMode("prediction")} icon={<Icon icon={Crosshair} size={16} />} label="New round" />
           </>
         )}
 
@@ -483,51 +485,4 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
 
 function Divider() {
   return <span aria-hidden className="h-4 w-px shrink-0 bg-white/[0.08]" />;
-}
-
-function RoundIcon() {
-  return (
-    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-      <path d="M9 2.2v3.1M9 12.7v3.1M2.2 9h3.1M12.7 9h3.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <circle cx="9" cy="9" r="3.1" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
-function MediaIcon() {
-  return (
-    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-      <rect x="2.2" y="3.2" width="13.6" height="11.6" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="6.6" cy="7.2" r="1.3" stroke="currentColor" strokeWidth="1.4" />
-      <path d="m3.4 12.8 3.4-3.2 2.3 2.2 2.1-1.9 3.4 3.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function GifIcon() {
-  return (
-    <span aria-hidden className="flex h-[17px] items-center rounded-[5px] border border-current px-1 text-[9px] font-bold leading-none tracking-wide">
-      GIF
-    </span>
-  );
-}
-
-function EmojiIcon() {
-  return (
-    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M6.4 10.4a3.1 3.1 0 0 0 5.2 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <circle cx="6.8" cy="7.2" r=".85" fill="currentColor" />
-      <circle cx="11.2" cy="7.2" r=".85" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PredictionIcon() {
-  return (
-    <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="m11.7 6.3-1.6 3.9a1 1 0 0 1-.55.55L5.65 12.35l1.6-3.9a1 1 0 0 1 .55-.55L11.7 6.3Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-    </svg>
-  );
 }

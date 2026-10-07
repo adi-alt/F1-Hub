@@ -5,15 +5,16 @@ import Link from "next/link";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { Bell, LogOut, Pencil, SlidersHorizontal, Star } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
-import { StarIcon, SlidersIcon, BellIcon, PencilIcon, LogOutIcon } from "@/components/icons/HomeIcons";
+import { Icon } from "@/components/ui/Icon";
 
 const ITEMS = [
-  { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersIcon },
-  { href: "/profile/notifications", label: "Notifications", icon: BellIcon },
-  { href: "/profile/edit", label: "Edit profile", icon: PencilIcon },
+  { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersHorizontal },
+  { href: "/profile/notifications", label: "Notifications", icon: Bell },
+  { href: "/profile/edit", label: "Edit profile", icon: Pencil },
 ];
 
 // The panel's actual frosted look - a real translucent dark glass (~50% tint, not glass-surface's
@@ -118,7 +119,7 @@ export function ProfileMenu() {
         <span className="sr-only min-[400px]:not-sr-only min-[400px]:max-w-[9rem] min-[400px]:truncate font-medium text-white">{name}</span>
         {pointsBalance !== null && (
           <span className="flex items-center gap-1 border-l border-white/10 pl-2 text-xs font-semibold text-neutral-300">
-            <StarIcon className="h-3 w-3 text-tertiary" />
+            <Icon icon={Star} size={16} className="text-tertiary" />
             <span className="font-mono">{pointsBalance}</span> pts
           </span>
         )}
@@ -165,7 +166,7 @@ export function ProfileMenu() {
                           onClick={() => setOpen(false)}
                           className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                         >
-                          <item.icon className="h-4 w-4 shrink-0 text-tertiary" />
+                          <Icon icon={item.icon} size={16} className="text-tertiary" />
                           {item.label}
                         </Link>
                       ))}
@@ -195,7 +196,7 @@ export function ProfileMenu() {
                         }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
-                        <LogOutIcon className="h-4 w-4 shrink-0 text-tertiary" />
+                        <Icon icon={LogOut} size={16} className="text-tertiary" />
                         Log out
                       </button>
                     </div>

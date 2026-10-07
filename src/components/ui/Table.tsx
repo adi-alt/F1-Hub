@@ -2,6 +2,7 @@
 
 import { Fragment, useId, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
+import { Icon } from "./Icon";
 
 export type SortDirection = "ascending" | "descending";
 export type TableSort = { key: string; direction: SortDirection };
@@ -134,11 +135,11 @@ const DISCLOSURE_BUTTON = `inline-flex size-7 items-center justify-center rounde
 
 /** Every sortable header keeps the arrow's space, so its label doesn't shift when it becomes the
  * sorted column; the arrow itself shows only on the sorted column. */
-function SortIcon({ direction }: { direction: SortDirection | undefined }) {
+function SortArrow({ direction }: { direction: SortDirection | undefined }) {
   return (
     <span aria-hidden className="inline-flex size-4 shrink-0">
-      {direction === "ascending" && <ArrowUp size={16} strokeWidth={1.75} />}
-      {direction === "descending" && <ArrowDown size={16} strokeWidth={1.75} />}
+      {direction === "ascending" && <Icon icon={ArrowUp} size={16} />}
+      {direction === "descending" && <Icon icon={ArrowDown} size={16} />}
     </span>
   );
 }
@@ -224,9 +225,9 @@ export function Table<Row extends object>({
                       className={`inline-flex min-h-6 items-center gap-1 rounded-control uppercase transition-colors duration-fast ease-standard motion-reduce:transition-none hover:text-primary ${FOCUS_RING} ${sorted ? "text-primary" : ""}`}
                     >
                       {/* End-aligned columns lead with the arrow, so the label lines up with the figures. */}
-                      {end && <SortIcon direction={sorted} />}
+                      {end && <SortArrow direction={sorted} />}
                       {column.header}
-                      {!end && <SortIcon direction={sorted} />}
+                      {!end && <SortArrow direction={sorted} />}
                     </button>
                   ) : (
                     column.header

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Check, ListFilter, Search, X } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { POST_KIND_LABELS, type PostKind } from "@/lib/communities";
 import type { PostSort } from "@/lib/supabase/groupPosts";
@@ -118,7 +120,7 @@ export function FeedControls({
       {searchOpen && (
         <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-white/[0.12] bg-black/30 px-3 py-1.5 sm:max-w-xs">
           <span aria-hidden className="shrink-0 text-tertiary">
-            <SearchIcon />
+            <Icon icon={Search} size={16} />
           </span>
           <input
             ref={searchRef}
@@ -144,13 +146,13 @@ export function FeedControls({
             }}
             className="shrink-0 text-tertiary transition hover:text-white"
           >
-            <CloseIcon />
+            <Icon icon={X} size={16} />
           </button>
         </div>
       )}
 
       <div className="flex shrink-0 items-center gap-1">
-        {!searchOpen && <IconButton label="Search posts" onClick={() => setSearchOpen(true)} icon={<SearchIcon />} />}
+        {!searchOpen && <IconButton label="Search posts" onClick={() => setSearchOpen(true)} icon={<Icon icon={Search} size={16} />} />}
 
         <Popover
           align="end"
@@ -167,7 +169,7 @@ export function FeedControls({
                 open ? "border-white/25 bg-white/[0.08] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/25 hover:text-white"
               }`}
             >
-              <SlidersIcon />
+              <Icon icon={ListFilter} size={16} />
               {isFiltered(value) && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--f1-red)]" />}
             </button>
           )}
@@ -278,7 +280,7 @@ function MenuOption({ selected, onClick, children }: { selected: boolean; onClic
       {children}
       {selected && (
         <span aria-hidden className="shrink-0 text-brand-text">
-          <CheckIcon />
+          <Icon icon={Check} size={16} />
         </span>
       )}
     </button>
@@ -301,41 +303,8 @@ function MenuToggle({ checked, onClick, children }: { checked: boolean; onClick:
         aria-hidden
         className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border ${checked ? "border-[var(--f1-red)] bg-[var(--f1-red)] text-white" : "border-white/20"}`}
       >
-        {checked && <CheckIcon />}
+        {checked && <Icon icon={Check} size={16} className="size-3" />}
       </span>
     </button>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden>
-      <circle cx="7" cy="7" r="4.4" stroke="currentColor" strokeWidth="1.4" />
-      <path d="m10.4 10.4 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SlidersIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden>
-      <path d="M2.4 4.6h11.2M2.4 8h7.4M2.4 11.4h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" aria-hidden>
-      <path d="m3.5 3.5 7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="9" height="9" fill="none" aria-hidden>
-      <path d="m2.8 7.4 2.6 2.6 5.8-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

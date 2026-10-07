@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Check } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Icon } from "@/components/ui/Icon";
 import { predictionStateAt, predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import { PredictionTrendBars } from "./PredictionTrendBars";
@@ -192,7 +194,7 @@ function EnteredAnswer({
     <div>
       <div className="flex items-center gap-2">
         <span className="flex items-center gap-1.5">
-          <CheckIcon className="shrink-0 text-emerald-400" />
+          <Icon icon={Check} size={16} className="size-3 text-emerald-400" />
           <span className="text-[11px] font-medium text-neutral-300">Prediction submitted</span>
         </span>
         {!closed && (
@@ -278,13 +280,5 @@ function GuessSummary({ type, guess, drivers }: { type: PredictionType; guess: P
         );
       })}
     </div>
-  );
-}
-
-function CheckIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 14 14" width="10" height="10" fill="none" aria-hidden className={className}>
-      <path d="m2.8 7.4 2.6 2.6 5.8-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

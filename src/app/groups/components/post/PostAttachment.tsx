@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { Download } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { attachmentBadge, attachmentKind, attachmentMetaLine, displayName, type AttachmentKind } from "./attachmentMeta";
 
 export type AttachmentView = {
@@ -121,7 +123,7 @@ function MetaRow({ badge, name, meta, url, downloadName, kind }: { badge: string
         title={`Download ${name}`}
         className="shrink-0 rounded-md p-1.5 text-tertiary transition hover:bg-white/[0.06] hover:text-white"
       >
-        <DownloadIcon />
+        <Icon icon={Download} size={16} />
       </a>
     </div>
   );
@@ -181,14 +183,5 @@ function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: 
       </motion.div>
     </AnimatePresence>,
     document.body,
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden>
-      <path d="M8 2.5v7m0 0L5.2 6.7M8 9.5l2.8-2.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M2.8 11.5v1.2a.8.8 0 0 0 .8.8h8.8a.8.8 0 0 0 .8-.8v-1.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
   );
 }
