@@ -17,7 +17,11 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
   globalSetup: "./e2e/global-setup.ts",
-  use: { baseURL: `http://localhost:${PORT}`, contextOptions: { reducedMotion: "reduce" }, trace: "retain-on-failure" },
+  // Visual baselines (e2e/design-system.spec.ts): a missing one is written, not failed, so a new primitive
+  // section records its first snapshot; an existing one is compared. Baselines are per platform (CI is Linux).
+  updateSnapshots: "missing",
+  // UTC and en-US, so times and number formats in snapshots are the same on every machine (CI runs in UTC).
+  use: { baseURL: `http://localhost:${PORT}`, timezoneId: "UTC", locale: "en-US", contextOptions: { reducedMotion: "reduce" }, trace: "retain-on-failure" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 860 } } },
     { name: "phone", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, hasTouch: true } },

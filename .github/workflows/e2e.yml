@@ -35,6 +35,9 @@ jobs:
       SESSION_SECRET: e2e-${{ github.run_id }}-session-secret-for-this-run-only
       CRON_SECRET: e2e-only
       NVIDIA_API_KEY: e2e-no-model-calls
+      # Serves /dev/ui in this production build so every primitive can be snapshotted and axe-checked
+      # (e2e/design-system.spec.ts). Never set on Vercel.
+      UI_PREVIEW: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,6 +50,16 @@ jobs:
         run: npm run build
       - name: Browser tests
         run: npx playwright test
+      # Any visual baseline this run had to write (a new primitive section, or the first run on Linux). Commit
+      # these files to make them the baseline; the next run then compares against them.
+      - name: Keep new visual baselines
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: e2e/**/*-snapshots/**
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Keep the report when something fails
         if: failure()
         uses: actions/upload-artifact@v4

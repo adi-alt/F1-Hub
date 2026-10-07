@@ -56,3 +56,6 @@ supabase/.temp/
 /test-results/
 /playwright-report/
 /e2e/.users.json
+
+# Visual baselines are recorded on CI (Linux); local macOS runs write their own, which are not the baseline.
+e2e/**/*-darwin.png
