@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveCircuitHref } from "@/lib/routes";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { FavoriteButton } from "./FavoriteButton";
 import { StatusBadge } from "./StatusBadge";
 import type { ArchiveCircuit } from "@/lib/supabase/archive";
@@ -25,7 +25,7 @@ function CircuitThumbnail({ src, alt }: { src: string; alt: string }) {
   if (status === "broken") return null;
   return (
     <>
-      {status === "loading" && <Skeleton className="absolute inset-0 rounded-none" />}
+      {status === "loading" && <Skeleton shape="block" className="absolute inset-0" />}
       <Image
         src={src}
         alt={alt}

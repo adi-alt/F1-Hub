@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { PredictionInsight } from "@/lib/personalization";
 import { MIN_PREDICTIONS_FOR_TREND, type LatestPredictionSummary, type PredictionPerformance, type PredictionStyleTrait } from "@/lib/predictionPerformance";
 
@@ -221,15 +221,15 @@ export function PredictionIntelligence({
 export function PredictionIntelligenceSkeleton() {
   return (
     <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
-      <Skeleton className="skeleton-shimmer h-3.5 w-48 rounded" />
+      <Skeleton shape="block" className="h-3.5 w-48" />
       <div className="mt-4 space-y-2 border-l-2 border-white/10 pl-4">
-        <Skeleton className="skeleton-shimmer h-3 w-24 rounded" />
-        <Skeleton className="skeleton-shimmer h-4 w-full rounded" />
+        <Skeleton shape="block" className="h-3 w-24" />
+        <Skeleton shape="block" className="h-4 w-full" />
       </div>
       <div className="mt-4 grid grid-cols-3 gap-4 border-t border-white/[0.06] pt-4">
-        <Skeleton className="skeleton-shimmer h-10 rounded-xl" />
-        <Skeleton className="skeleton-shimmer h-10 rounded-xl" />
-        <Skeleton className="skeleton-shimmer h-10 rounded-xl" />
+        <Skeleton shape="block" className="h-10" />
+        <Skeleton shape="block" className="h-10" />
+        <Skeleton shape="block" className="h-10" />
       </div>
     </div>
   );

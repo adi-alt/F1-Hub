@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Matches ArchiveSeasonGrid/EraSection's real shape - an era-name heading, its year-range +
  * one-line description, over a dense grid of compact year badges (h-20, now that a card also
@@ -15,12 +15,12 @@ export function ArchiveGridSkeleton({ sections = 2, perSection = 12 }: { section
     <div>
       {Array.from({ length: sections }).map((_, s) => (
         <div key={s} className={s === 0 ? "" : "mt-7"}>
-          <Skeleton className="mb-2.5 h-3 w-28" />
-          <Skeleton className="mb-3 h-2.5 w-64 max-w-full" />
+          <Skeleton shape="block" className="mb-2.5 h-3 w-28" />
+          <Skeleton shape="block" className="mb-3 h-2.5 w-64 max-w-full" />
           <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
             {Array.from({ length: perSection }).map((_, i) => (
               <motion.div key={i} variants={staggerItem}>
-                <Skeleton className="h-20 rounded-xl" />
+                <Skeleton shape="block" className="h-20" />
               </motion.div>
             ))}
           </motion.div>

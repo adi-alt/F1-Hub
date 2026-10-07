@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { modelPositionFor } from "../PickVsModel";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
@@ -83,8 +83,8 @@ export function AIvsYou({ myPick, nextRace }: { myPick: UserPick | null; nextRac
 export function AIvsYouSkeleton() {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-      <Skeleton className="skeleton-shimmer h-3 w-28 rounded" />
-      <Skeleton className="skeleton-shimmer mt-2 h-3.5 w-full rounded" />
+      <Skeleton shape="block" className="h-3 w-28" />
+      <Skeleton shape="block" className="mt-2 h-3.5 w-full" />
     </div>
   );
 }

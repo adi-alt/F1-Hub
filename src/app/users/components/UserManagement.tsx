@@ -2,11 +2,12 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Users } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
-import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
-import { Tabs, tabIdFor } from "@/components/ui/LegacyTabs";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { InviteDialog } from "./InviteUsers";
 import { tableToCanvas } from "@/lib/export";
 import type { UserCounts, UserProfile } from "@/lib/supabase/users";
@@ -103,17 +104,17 @@ function RowsSkeleton({ rows = 6 }: { rows?: number }) {
         <tr key={i}>
           <td className="px-4 py-3">
             <div className="flex items-center gap-3">
-              <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+              <Skeleton shape="circle" className="h-8 w-8 shrink-0" />
               <div className="space-y-1.5">
-                <Skeleton className="h-3.5 w-32" />
-                <Skeleton className="h-3 w-20" />
+                <Skeleton shape="block" className="h-3.5 w-32" />
+                <Skeleton shape="block" className="h-3 w-20" />
               </div>
             </div>
           </td>
-          <td className="px-4 py-3"><Skeleton className="h-3.5 w-40" /></td>
-          <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-md" /></td>
-          <td className="px-4 py-3"><Skeleton className="h-8 w-32 rounded-lg" /></td>
-          <td className="px-4 py-3"><Skeleton className="h-3.5 w-24" /></td>
+          <td className="px-4 py-3"><Skeleton shape="block" className="h-3.5 w-40" /></td>
+          <td className="px-4 py-3"><Skeleton shape="block" className="h-5 w-24" /></td>
+          <td className="px-4 py-3"><Skeleton shape="block" className="h-8 w-32" /></td>
+          <td className="px-4 py-3"><Skeleton shape="block" className="h-3.5 w-24" /></td>
         </tr>
       ))}
     </tbody>
@@ -213,207 +214,196 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   // replace it with results — reporting a miss it hadn't actually checked for yet.
   const showSkeleton = noLocalMatch && (!settled || serverSearch.isFetching);
 
-  const roleTabs: { key: RoleFilter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "admin", label: "Admins" },
-    { key: "moderator", label: "Moderators" },
-    { key: "member", label: "Members" },
+  const roleTabs: TabItem<RoleFilter>[] = [
+    { value: "all", label: "All" },
+    { value: "admin", label: "Admins" },
+    { value: "moderator", label: "Moderators" },
+    { value: "member", label: "Members" },
   ];
 
   return (
     <div className="space-y-5">
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
-        <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-5 w-5 text-tertiary">
-              <circle cx="9" cy="8.5" r="3.25" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M3.5 19c0-3.1 2.6-5.2 5.5-5.2s5.5 2.1 5.5 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              <circle cx="17.5" cy="7.5" r="2.25" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M16 19c.2-2.3 1.8-4 4-4.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            <h2 className="text-base font-semibold text-white">
-              Users <span className="text-tertiary">({headerCount.toLocaleString()})</span>
-            </h2>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* The shared segmented control (components/ui/Tabs.tsx) rather than this page's own
-                hand-rolled pill row - it already is the structured rounded-rectangle shape with a
-                real red active segment and a Framer Motion layoutId indicator that slides between
-                tabs, plus the arrow-key roving focus the local version never had. */}
-            {/* h-9 on all four controls in this row - tray, search, Invite, ⋮ - so they sit on one
-                baseline instead of each finding its own height from its own padding. */}
-            <Tabs
-              items={roleTabs}
-              activeKey={roleFilter}
-              onChange={(key) => setRoleFilter(key as RoleFilter)}
-              layoutId="users-role-filter"
-              panelId="users-table"
-              className="h-9"
-            />
-
-            <div className="relative">
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                aria-hidden
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary"
-              >
-                <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
-                <path d="m13.5 13.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <Tabs variant="segmented" value={roleFilter} onValueChange={setRoleFilter} items={roleTabs}>
+        <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
+          <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-5 w-5 text-tertiary">
+                <circle cx="9" cy="8.5" r="3.25" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M3.5 19c0-3.1 2.6-5.2 5.5-5.2s5.5 2.1 5.5 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="17.5" cy="7.5" r="2.25" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M16 19c.2-2.3 1.8-4 4-4.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, username or email…"
-                aria-label="Search users"
-                className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none sm:w-56"
-              />
+              <h2 className="text-base font-semibold text-white">
+                Users <span className="text-tertiary">({headerCount.toLocaleString()})</span>
+              </h2>
             </div>
 
-            {/* Last in the row, hard against the right edge. Invite lives in here rather than as a
-                standing button beside the filters - it's an occasional administrative act, not
-                something that needs permanent shelf space in the toolbar. */}
-            <ExportMenu
-              filename="users"
-              getRows={exportRows}
-              getImage={async () => tableToCanvas(exportRows().columns, exportRows().rows)}
-              triggerClassName="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--f1-line)] text-neutral-400 transition hover:border-white/25 hover:text-white"
-              extraItems={canManageRoles ? [{ label: "Invite people…", onClick: () => setInviteOpen(true) }] : undefined}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Segmented: the role is a compact filter over the one table below, not navigation.
+                  Every control in this row is 36px tall - the segmented tabs by construction, the
+                  search and ⋮ with h-9 - so they sit on one baseline instead of each finding its own
+                  height from its own padding. */}
+              <TabList aria-label="Role" />
+
+              <div className="relative">
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  aria-hidden
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary"
+                >
+                  <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
+                  <path d="m13.5 13.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, username or email…"
+                  aria-label="Search users"
+                  className="h-9 w-full rounded-lg border border-[var(--f1-line)] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none sm:w-56"
+                />
+              </div>
+
+              {/* Last in the row, hard against the right edge. Invite lives in here rather than as a
+                  standing button beside the filters - it's an occasional administrative act, not
+                  something that needs permanent shelf space in the toolbar. */}
+              <ExportMenu
+                filename="users"
+                getRows={exportRows}
+                getImage={async () => tableToCanvas(exportRows().columns, exportRows().rows)}
+                triggerClassName="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--f1-line)] text-neutral-400 transition hover:border-white/25 hover:text-white"
+                extraItems={canManageRoles ? [{ label: "Invite people…", onClick: () => setInviteOpen(true) }] : undefined}
+              />
+            </div>
           </div>
-        </div>
 
-        {canManageRoles && <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />}
+          {canManageRoles && <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />}
 
-        {(setRole.isError || usersList.isError || serverSearch.isError) && (
-          <p className="border-b border-[var(--f1-line)] bg-[var(--f1-red)]/[0.08] px-4 py-2 text-sm text-red-300">
-            Something went wrong. Try again.
-          </p>
-        )}
+          {(setRole.isError || usersList.isError || serverSearch.isError) && (
+            <p className="border-b border-[var(--f1-line)] bg-[var(--f1-red)]/[0.08] px-4 py-2 text-sm text-red-300">
+              Something went wrong. Try again.
+            </p>
+          )}
 
-        {/* The region the role tablist above actually controls, labelled by its active tab. */}
-        <div id="users-table" role="tabpanel" aria-labelledby={tabIdFor("users-table", roleFilter)} className="max-h-[520px] overflow-auto scrollbar-subtle">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
-              <tr>
-                <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                  User
-                </SortHeader>
-                <th scope="col" className="px-4 py-3">
-                  Email
-                </th>
-                <th scope="col" className="px-4 py-3">
-                  Status
-                </th>
-                <SortHeader column="role" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                  Role
-                </SortHeader>
-                <SortHeader column="joined" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                  Joined
-                </SortHeader>
-              </tr>
-            </thead>
+          <TabPanels className="max-h-[520px] overflow-auto scrollbar-subtle">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
+                <tr>
+                  <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+                    User
+                  </SortHeader>
+                  <th scope="col" className="px-4 py-3">
+                    Email
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Status
+                  </th>
+                  <SortHeader column="role" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+                    Role
+                  </SortHeader>
+                  <SortHeader column="joined" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+                    Joined
+                  </SortHeader>
+                </tr>
+              </thead>
 
-            {showSkeleton ? (
-              <RowsSkeleton />
-            ) : (
-              <tbody className="divide-y divide-[var(--f1-line)]">
-                <AnimatePresence initial={false}>
-                  {rows.map((user, i) => {
-                    const isSelf = user.uid === currentUid;
-                    const name = displayNameFor(user);
-                    return (
-                      <motion.tr
-                        key={user.uid}
-                        layout
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        // Capped stagger: the first rows land in sequence so a filter change reads
-                        // as the table rebuilding, but a long list never turns that into a wait -
-                        // past the cap every remaining row arrives together.
-                        transition={{ duration: 0.2, ease: "easeOut", delay: Math.min(i, 8) * 0.025 }}
-                        className="group transition hover:bg-white/[0.03]"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <span className="shrink-0">
-                              {/* The person's real OAuth profile picture where their provider gave
-                                  us one (see getAuthAvatars in lib/supabase/users.ts) - initials
-                                  only when there genuinely isn't one. */}
-                              <EntityAvatar imageUrl={user.photoURL ?? null} name={name} seed={user.uid} size={32} />
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-white">
-                                {name}
-                                {isSelf && <span className="ml-2 text-[11px] font-normal text-tertiary">You</span>}
-                              </p>
-                              {user.username && <p className="truncate text-xs text-tertiary">@{user.username}</p>}
+              {showSkeleton ? (
+                <RowsSkeleton />
+              ) : (
+                <tbody className="divide-y divide-[var(--f1-line)]">
+                  <AnimatePresence initial={false}>
+                    {rows.map((user, i) => {
+                      const isSelf = user.uid === currentUid;
+                      const name = displayNameFor(user);
+                      return (
+                        <motion.tr
+                          key={user.uid}
+                          layout
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          // Capped stagger: the first rows land in sequence so a filter change reads
+                          // as the table rebuilding, but a long list never turns that into a wait -
+                          // past the cap every remaining row arrives together.
+                          transition={{ duration: 0.2, ease: "easeOut", delay: Math.min(i, 8) * 0.025 }}
+                          className="group transition hover:bg-white/[0.03]"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="shrink-0">
+                                {/* The person's real OAuth profile picture where their provider gave
+                                    us one (see getAuthAvatars in lib/supabase/users.ts) - initials
+                                    only when there genuinely isn't one. */}
+                                <EntityAvatar imageUrl={user.photoURL ?? null} name={name} seed={user.uid} size={32} />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-white">
+                                  {name}
+                                  {isSelf && <span className="ml-2 text-[11px] font-normal text-tertiary">You</span>}
+                                </p>
+                                {user.username && <p className="truncate text-xs text-tertiary">@{user.username}</p>}
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm text-neutral-400">{user.email ?? "—"}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge onboarded={isOnboarded(user)} />
-                        </td>
-                        <td className="px-4 py-3">
-                          {canManageRoles ? (
-                            <RoleSelect
-                              value={user.role ?? null}
-                              onChange={(role) => void changeRole(user.uid, role)}
-                              pending={pending === user.uid}
-                              disabled={isSelf}
-                              disabledReason="You can't change your own role — ask another admin."
-                            />
-                          ) : (
-                            <span className="text-sm text-neutral-400">{roleLabel(user.role ?? null)}</span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-neutral-400">
-                          {joinedLabel(user.createdAt)}
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </AnimatePresence>
-              </tbody>
-            )}
-          </table>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm text-neutral-400">{user.email ?? "—"}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge onboarded={isOnboarded(user)} />
+                          </td>
+                          <td className="px-4 py-3">
+                            {canManageRoles ? (
+                              <RoleSelect
+                                value={user.role ?? null}
+                                onChange={(role) => void changeRole(user.uid, role)}
+                                pending={pending === user.uid}
+                                disabled={isSelf}
+                                disabledReason="You can't change your own role — ask another admin."
+                              />
+                            ) : (
+                              <span className="text-sm text-neutral-400">{roleLabel(user.role ?? null)}</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-neutral-400">
+                            {joinedLabel(user.createdAt)}
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
+                  </AnimatePresence>
+                </tbody>
+              )}
+            </table>
 
-          {!showSkeleton && rows.length === 0 && (
-            <div className="p-4">
+            {!showSkeleton && rows.length === 0 && (
               <EmptyState
-                icon={EmptyIcons.members}
-                title={isSearching ? "No users match that search" : "No users in this view"}
-                description={
+                icon={Users}
+                message={
                   isSearching
-                    ? "Checked every account, not just the ones loaded here. Try a shorter term, or part of an email."
+                    ? "No account matches that search, loaded here or not: try a shorter term or part of an email."
                     : "No account currently holds this role."
                 }
               />
+            )}
+          </TabPanels>
+
+          {/* Footer only exists when there's genuinely another page to pull - the running
+              "Loaded n of n" tally it used to carry restated the count already in this card's own
+              heading, so an otherwise-empty bar sat under every table that fits on one page. */}
+          {!isSearching && usersList.hasNextPage && (
+            <div className="flex items-center justify-center border-t border-[var(--f1-line)] px-4 py-3">
+              <button
+                onClick={() => void usersList.fetchNextPage()}
+                disabled={usersList.isFetchingNextPage}
+                className="rounded-lg border border-[var(--f1-line)] px-4 py-1.5 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
+              >
+                {usersList.isFetchingNextPage ? "Loading…" : "Load more"}
+              </button>
             </div>
           )}
         </div>
-
-        {/* Footer only exists when there's genuinely another page to pull - the running
-            "Loaded n of n" tally it used to carry restated the count already in this card's own
-            heading, so an otherwise-empty bar sat under every table that fits on one page. */}
-        {!isSearching && usersList.hasNextPage && (
-          <div className="flex items-center justify-center border-t border-[var(--f1-line)] px-4 py-3">
-            <button
-              onClick={() => void usersList.fetchNextPage()}
-              disabled={usersList.isFetchingNextPage}
-              className="rounded-lg border border-[var(--f1-line)] px-4 py-1.5 text-xs text-neutral-300 transition hover:border-white/30 hover:text-white disabled:opacity-50"
-            >
-              {usersList.isFetchingNextPage ? "Loading…" : "Load more"}
-            </button>
-          </div>
-        )}
-      </div>
+      </Tabs>
     </div>
   );
 }

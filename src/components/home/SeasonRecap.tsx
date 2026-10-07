@@ -1,7 +1,7 @@
 import { ChampionshipTrajectory } from "./ChampionshipTrajectory";
 import { SeasonStrip } from "./SeasonStrip";
 import { chart } from "@/components/charts/chartTheme";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { FavoriteDriverCard, FavoriteTeamCard, SeasonRecap as SeasonRecapData } from "@/lib/personalization";
 import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
 import type { RaceDoc } from "@/lib/types/race";
@@ -191,14 +191,14 @@ export function SeasonRecap({
 export function SeasonRecapSkeleton() {
   return (
     <div>
-      <Skeleton className="skeleton-shimmer h-4 w-40 rounded" />
+      <Skeleton shape="block" className="h-4 w-40" />
       <div className="mt-4 grid gap-6 border-l-2 border-white/10 pl-5 sm:grid-cols-2 sm:pl-6">
         <div className="space-y-2">
-          <Skeleton className="skeleton-shimmer h-4 w-full rounded" />
-          <Skeleton className="skeleton-shimmer h-4 w-5/6 rounded" />
-          <Skeleton className="skeleton-shimmer h-4 w-2/3 rounded" />
+          <Skeleton shape="block" className="h-4 w-full" />
+          <Skeleton shape="block" className="h-4 w-5/6" />
+          <Skeleton shape="block" className="h-4 w-2/3" />
         </div>
-        <Skeleton className="skeleton-shimmer h-24 w-full rounded" />
+        <Skeleton shape="block" className="h-24 w-full" />
       </div>
     </div>
   );

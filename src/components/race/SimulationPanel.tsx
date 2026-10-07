@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
+import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
@@ -220,25 +220,7 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
   const visibleDistEntries = filterDriverSet(distEntries, driverSet, (e) => e.driver, customIds);
   const customSelectOptions: MultiSelectOption[] = byMedian.map((d) => ({ code: d.driver, label: d.driver }));
 
-  const driverSetFilter =
-    simulation.drivers.length > 5 ? (
-      <div className="flex flex-wrap items-center gap-3">
-        <QuietTabs
-          options={[
-            { value: "top5" as const, label: "Top 5" },
-            { value: "top10" as const, label: "Top 10" },
-            { value: "all" as const, label: "All drivers" },
-            { value: "custom" as const, label: "Custom" },
-          ]}
-          value={driverSet}
-          onChange={setDriverSet}
-          className="text-xs"
-        />
-        {driverSet === "custom" && (
-          <EntityMultiSelect options={customSelectOptions} selected={customIds} onChange={setCustomIds} placeholder="Select drivers" triggerClassName="h-8 py-1 text-xs" />
-        )}
-      </div>
-    ) : undefined;
+  const driverSetFilterable = simulation.drivers.length > 5;
 
   return (
     <motion.div initial="hidden" animate="show" variants={staggerContainer}>
@@ -263,23 +245,33 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
       </motion.div>
 
       <motion.div variants={staggerItem}>
-        <RaceSubSection label="Finishing Position Distribution" description="Probability distribution across finishing outcomes." headerRight={driverSetFilter}>
-          <div onMouseLeave={() => setHovered(null)}>
-            <AnimatePresence initial={false}>
-              {visibleDistEntries.map((entry, i) => (
-                <DistributionRow key={entry.driver} entry={entry} index={i} hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)} />
-              ))}
-            </AnimatePresence>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-tertiary">
-            {BANDS.map((band) => (
-              <span key={band.key} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ background: band.color }} />
-                {band.label}
-              </span>
-            ))}
-          </div>
-        </RaceSubSection>
+        <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
+          <RaceSubSection
+            label="Finishing Position Distribution"
+            description="Probability distribution across finishing outcomes."
+            headerRight={
+              driverSetFilterable ? <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customIds} onCustomIdsChange={setCustomIds} /> : undefined
+            }
+          >
+            <DriverSetPanels filterable={driverSetFilterable}>
+              <div onMouseLeave={() => setHovered(null)}>
+                <AnimatePresence initial={false}>
+                  {visibleDistEntries.map((entry, i) => (
+                    <DistributionRow key={entry.driver} entry={entry} index={i} hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)} />
+                  ))}
+                </AnimatePresence>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-tertiary">
+                {BANDS.map((band) => (
+                  <span key={band.key} className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: band.color }} />
+                    {band.label}
+                  </span>
+                ))}
+              </div>
+            </DriverSetPanels>
+          </RaceSubSection>
+        </DriverSetTabs>
       </motion.div>
     </motion.div>
   );

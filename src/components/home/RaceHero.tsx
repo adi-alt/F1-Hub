@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { RaceIntelligencePanel, RaceIntelligencePanelSkeleton } from "./RaceIntelligencePanel";
 import { RaceReadiness, RaceReadinessSkeleton } from "./RaceReadiness";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ArrowRightIcon, ConfettiIcon, ConstructorIcon, StarIcon, TargetIcon, TrophyIcon, WrenchIcon } from "@/components/icons/HomeIcons";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdownLive, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
@@ -184,27 +184,27 @@ export function RaceHeroSkeleton({ variant }: { variant: "public" | "personal" }
       <div className="min-w-0">
         {variant === "personal" && (
           <>
-            <Skeleton className="skeleton-shimmer h-3 w-24 rounded" />
-            <Skeleton className="skeleton-shimmer mt-2 h-6 w-40 rounded" />
+            <Skeleton shape="block" className="h-3 w-24" />
+            <Skeleton shape="block" className="mt-2 h-6 w-40" />
           </>
         )}
-        <Skeleton className={`skeleton-shimmer h-3 w-20 rounded ${variant === "personal" ? "mt-3" : ""}`} />
-        <Skeleton className="skeleton-shimmer mt-2 h-10 w-80 max-w-full rounded" />
-        <Skeleton className="skeleton-shimmer mt-2 h-4 w-32 rounded" />
+        <Skeleton shape="block" className={`h-3 w-20 ${variant === "personal" ? "mt-3" : ""}`} />
+        <Skeleton shape="block" className="mt-2 h-10 w-80 max-w-full" />
+        <Skeleton shape="block" className="mt-2 h-4 w-32" />
         <div className="mt-5 flex items-center gap-6">
           <div>
-            <Skeleton className="skeleton-shimmer h-8 w-24 rounded" />
-            <Skeleton className="skeleton-shimmer mt-1.5 h-2.5 w-28 rounded" />
+            <Skeleton shape="block" className="h-8 w-24" />
+            <Skeleton shape="block" className="mt-1.5 h-2.5 w-28" />
           </div>
           <RaceReadinessSkeleton />
         </div>
         <div className="mt-3 flex items-center gap-1.5">
-          <Skeleton className="skeleton-shimmer h-4 w-4 shrink-0 rounded" />
-          <Skeleton className="skeleton-shimmer h-3.5 w-64 max-w-full rounded" />
+          <Skeleton shape="block" className="h-4 w-4 shrink-0" />
+          <Skeleton shape="block" className="h-3.5 w-64 max-w-full" />
         </div>
         <div className="mt-4 flex items-center gap-3">
-          <Skeleton className="skeleton-shimmer h-9 w-36 rounded-lg" />
-          {variant === "public" && <Skeleton className="skeleton-shimmer h-9 w-32 rounded-lg" />}
+          <Skeleton shape="block" className="h-9 w-36" />
+          {variant === "public" && <Skeleton shape="block" className="h-9 w-32" />}
         </div>
       </div>
       <RaceIntelligencePanelSkeleton />

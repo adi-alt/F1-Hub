@@ -5,8 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { teamColor } from "@/lib/teamColors";
 import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
+import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";
-import { QuietTabs } from "./QuietTabs";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
 import { useSeasonIntelligence } from "./ai/SeasonIntelligenceProvider";
 import { SeasonInsight, SeasonInsightSkeleton } from "./ai/SeasonInsight";
@@ -14,6 +14,18 @@ import type { ConstructorStandingRow, DriverStandingRow } from "../_service/seas
 
 type Metric = "points" | "gap" | "position";
 type DriverSet = "top5" | "following" | "custom";
+
+const METRIC_TABS: TabItem<Metric>[] = [
+  { value: "points", label: "Points" },
+  { value: "position", label: "Position" },
+  { value: "gap", label: "Gap to leader" },
+];
+
+const DRIVER_SET_TABS: TabItem<DriverSet>[] = [
+  { value: "top5", label: "Top 5" },
+  { value: "following", label: "Following" },
+  { value: "custom", label: "Custom" },
+];
 
 const ChampionshipTrajectory = dynamic(() => import("@/components/charts/ChampionshipTrajectory"), {
   ssr: false,
@@ -169,63 +181,54 @@ export function ProgressionPanel({
           <SeasonInsight eyebrow="Apex on the progression" headline={intelligence.progressionInsight.headline} summary={intelligence.progressionInsight.summary} />
         )
       )}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <QuietTabs
-          options={[
-            { value: "points" as const, label: "Points" },
-            { value: "position" as const, label: "Position" },
-            { value: "gap" as const, label: "Gap to leader" },
-          ]}
-          value={metric}
-          onChange={setMetric}
-        />
-        <QuietTabs
-          options={[
-            { value: "top5" as const, label: "Top 5" },
-            { value: "following" as const, label: "Following" },
-            { value: "custom" as const, label: "Custom" },
-          ]}
-          value={driverSet}
-          onChange={setDriverSet}
-        />
-      </div>
+      {/* Both strips are compact segmented filters over the one chart. Each tab has to control a real
+          panel, so the who-to-plot tabs live inside the metric's panel, on the line below it. */}
+      <Tabs variant="segmented" value={metric} onValueChange={setMetric} items={METRIC_TABS}>
+        <TabList aria-label="Metric" />
+        <TabPanels className="mt-3">
+          <Tabs variant="segmented" value={driverSet} onValueChange={setDriverSet} items={DRIVER_SET_TABS}>
+            <TabList aria-label="Who to plot" />
+            <TabPanels>
+              {driverSet === "custom" && (
+                <div className="mt-3">
+                  <EntityMultiSelect
+                    options={multiSelectOptions}
+                    selected={customCodes}
+                    onChange={setCustomCodes}
+                    favoriteCodes={favoriteEntityCodes}
+                    placeholder={`Select ${isDrivers ? "drivers" : "teams"}`}
+                  />
+                </div>
+              )}
 
-      {driverSet === "custom" && (
-        <div className="mt-3">
-          <EntityMultiSelect
-            options={multiSelectOptions}
-            selected={customCodes}
-            onChange={setCustomCodes}
-            favoriteCodes={favoriteEntityCodes}
-            placeholder={`Select ${isDrivers ? "drivers" : "teams"}`}
-          />
-        </div>
-      )}
-
-      <AnimatePresence mode="wait" initial={false}>
-        {activeCodes.length === 0 ? (
-          <motion.div
-            key="empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="mt-4 flex min-h-[72px] items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-tertiary"
-          >
-            {driverSet === "following" ? "No favorites picked yet, mark one in the standings above." : "Pick at least one to plot."}
-          </motion.div>
-        ) : (
-          <motion.div key="chart" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="mt-4">
-            <ChampionshipTrajectory
-              chartData={chartData}
-              curves={curves}
-              metric={metric}
-              labelFor={labelFor}
-              highlightTrack={highlightTrack}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <AnimatePresence mode="wait" initial={false}>
+                {activeCodes.length === 0 ? (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="mt-4 flex min-h-[72px] items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-tertiary"
+                  >
+                    {driverSet === "following" ? "No favorites picked yet, mark one in the standings above." : "Pick at least one to plot."}
+                  </motion.div>
+                ) : (
+                  <motion.div key="chart" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="mt-4">
+                    <ChampionshipTrajectory
+                      chartData={chartData}
+                      curves={curves}
+                      metric={metric}
+                      labelFor={labelFor}
+                      highlightTrack={highlightTrack}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </TabPanels>
+          </Tabs>
+        </TabPanels>
+      </Tabs>
     </div>
   );
 }

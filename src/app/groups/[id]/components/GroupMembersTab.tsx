@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Users } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
-import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Picker } from "@/components/ui/Picker";
 import type { GroupMember, GroupRole } from "@/lib/supabase/groups";
 
@@ -108,7 +109,7 @@ export function GroupMembersTab({ groupId, members, myRole, myUserId }: { groupI
   // write that makes the row) - this is defensive, not a state the product flow can actually reach,
   // but an honest empty state costs nothing and a bare blank grid would look broken if it ever did.
   if (members.length === 0) {
-    return <EmptyState icon={EmptyIcons.members} title="This community is waiting for its first members." />;
+    return <EmptyState icon={Users} message="This community is waiting for its first members." />;
   }
 
   return (

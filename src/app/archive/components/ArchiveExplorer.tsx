@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import { motion } from "framer-motion";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
+import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { eraForYear } from "@/lib/eras";
 import type { ArchiveCircuit, ArchiveDriver, ArchiveTeam, ArchiveYearStats, CurrentLeader } from "@/lib/supabase/archive";
@@ -140,159 +140,155 @@ export function ArchiveExplorer({
       {facet === "track" && <ArchiveTrackBrowserApexScope search={search} status={trackStatus} country={country} favoritesOnly={favoritesOnly} />}
       {facet === "driver" && <ArchiveDriverBrowserApexScope search={search} favoritesOnly={favoritesOnly} />}
       {facet === "team" && <ArchiveTeamBrowserApexScope search={search} favoritesOnly={favoritesOnly} />}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <QuietTabs options={TABS} value={facet} onChange={switchTo} />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={PLACEHOLDER[facet]}
-          aria-label={PLACEHOLDER[facet]}
-          className="h-9 w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
-        />
-      </div>
-
-      {facet === "year" && (
-        <div className="mt-3 flex shrink-0 items-center gap-3">
-          <EraFilterSelect value={era} onChange={setEra} />
-          {/* Only worth a line when a filter has actually narrowed the count - with no filter
-              active, "76 seasons" states the obvious rather than confirming anything useful. */}
-          {yearFilterActive && (
-            <span className="text-xs text-tertiary">
-              {totalYearsShown} season{totalYearsShown === 1 ? "" : "s"}
-            </span>
-          )}
-        </div>
-      )}
-      {facet === "track" && (
-        <div className="mt-3 shrink-0">
-          <TrackFilters
-            status={trackStatus}
-            onStatusChange={(v) => setStatus(v)}
-            country={country}
-            onCountryChange={setCountry}
-            countries={countries}
-            favoritesOnly={favoritesOnly}
-            onFavoritesOnlyChange={(v) => setFavParam(v ? "1" : "")}
+      <Tabs value={facet} onValueChange={switchTo} items={TABS}>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          <TabList aria-label="Browse the archive" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={PLACEHOLDER[facet]}
+            aria-label={PLACEHOLDER[facet]}
+            className="h-9 w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
           />
         </div>
-      )}
-      {(facet === "driver" || facet === "team") && (
-        <div className="mt-3 shrink-0">
-          <FavoritesOnlyToggle value={favoritesOnly} onChange={(v) => setFavParam(v ? "1" : "")} />
-        </div>
-      )}
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={facet}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-4"
-        >
+        <TabPanels>
           {facet === "year" && (
-            <div>
-              {filteredYears.length === 0 && !showLiveSeason ? (
-                <p className="text-sm text-tertiary">
-                  No years match &ldquo;{search}&rdquo;.{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch("");
-                      setEra("all");
-                    }}
-                    className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline"
-                  >
-                    Clear search
-                  </button>
-                </p>
-              ) : (
-                <ArchiveSeasonGrid
-                  years={filteredYears}
-                  currentYear={currentYear}
-                  showLiveSeason={showLiveSeason}
-                  yearStats={yearStats}
-                  currentLeader={currentLeader}
-                />
+            <div className="mt-3 flex shrink-0 items-center gap-3">
+              <EraFilterSelect value={era} onChange={setEra} />
+              {/* Only worth a line when a filter has actually narrowed the count - with no filter
+                  active, "76 seasons" states the obvious rather than confirming anything useful. */}
+              {yearFilterActive && (
+                <span className="text-xs text-tertiary">
+                  {totalYearsShown} season{totalYearsShown === 1 ? "" : "s"}
+                </span>
               )}
             </div>
           )}
           {facet === "track" && (
-            <div>
-              <ArchiveCircuitGrid
-                circuits={circuits}
-                search={search}
-                favoriteIds={favoriteTracks}
-                onToggleFavorite={(id) => toggleFavorite("track", id)}
-                activeCircuitIds={activeCircuitIdSet}
+            <div className="mt-3 shrink-0">
+              <TrackFilters
                 status={trackStatus}
+                onStatusChange={(v) => setStatus(v)}
                 country={country}
+                onCountryChange={setCountry}
+                countries={countries}
                 favoritesOnly={favoritesOnly}
-                onClearFilters={() => {
-                  setSearch("");
-                  setStatus("all");
-                  setCountry("");
-                  setFavParam("");
-                }}
+                onFavoritesOnlyChange={(v) => setFavParam(v ? "1" : "")}
               />
             </div>
           )}
-          {facet === "driver" &&
-            (driversQuery.isError ? (
-              <p className="text-sm text-tertiary">
-                Couldn&apos;t load drivers.{" "}
-                <button type="button" onClick={() => driversQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
-                  Try again
-                </button>
-              </p>
-            ) : !driversQuery.data ? (
-              <div className="flex flex-col">
-                <TableRowsSkeleton />
-                <TableFooterSkeleton />
+          {(facet === "driver" || facet === "team") && (
+            <div className="mt-3 shrink-0">
+              <FavoritesOnlyToggle value={favoritesOnly} onChange={(v) => setFavParam(v ? "1" : "")} />
+            </div>
+          )}
+
+          {/* Each facet's panel mounts fresh when its tab is chosen, so this fades it in. */}
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="mt-4">
+            {facet === "year" && (
+              <div>
+                {filteredYears.length === 0 && !showLiveSeason ? (
+                  <p className="text-sm text-tertiary">
+                    No years match &ldquo;{search}&rdquo;.{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
+                        setEra("all");
+                      }}
+                      className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline"
+                    >
+                      Clear search
+                    </button>
+                  </p>
+                ) : (
+                  <ArchiveSeasonGrid
+                    years={filteredYears}
+                    currentYear={currentYear}
+                    showLiveSeason={showLiveSeason}
+                    yearStats={yearStats}
+                    currentLeader={currentLeader}
+                  />
+                )}
               </div>
-            ) : (
-              <ArchiveDriverTable
-                drivers={driversQuery.data}
-                search={search}
-                favoriteIds={favoriteDrivers}
-                onToggleFavorite={(id) => toggleFavorite("driver", id)}
-                favoritesOnly={favoritesOnly}
-                onClearFilters={() => {
-                  setSearch("");
-                  setFavParam("");
-                }}
-              />
-            ))}
-          {facet === "team" &&
-            (teamsQuery.isError ? (
-              <p className="text-sm text-tertiary">
-                Couldn&apos;t load teams.{" "}
-                <button type="button" onClick={() => teamsQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
-                  Try again
-                </button>
-              </p>
-            ) : !teamsQuery.data ? (
-              <div className="flex flex-col">
-                <TableRowsSkeleton />
-                <TableFooterSkeleton />
+            )}
+            {facet === "track" && (
+              <div>
+                <ArchiveCircuitGrid
+                  circuits={circuits}
+                  search={search}
+                  favoriteIds={favoriteTracks}
+                  onToggleFavorite={(id) => toggleFavorite("track", id)}
+                  activeCircuitIds={activeCircuitIdSet}
+                  status={trackStatus}
+                  country={country}
+                  favoritesOnly={favoritesOnly}
+                  onClearFilters={() => {
+                    setSearch("");
+                    setStatus("all");
+                    setCountry("");
+                    setFavParam("");
+                  }}
+                />
               </div>
-            ) : (
-              <ArchiveTeamTable
-                teams={teamsQuery.data}
-                search={search}
-                favoriteIds={favoriteTeams}
-                onToggleFavorite={(id) => toggleFavorite("team", id)}
-                favoritesOnly={favoritesOnly}
-                activeTeamIds={activeTeamIdSet}
-                onClearFilters={() => {
-                  setSearch("");
-                  setFavParam("");
-                }}
-              />
-            ))}
-        </motion.div>
-      </AnimatePresence>
+            )}
+            {facet === "driver" &&
+              (driversQuery.isError ? (
+                <p className="text-sm text-tertiary">
+                  Couldn&apos;t load drivers.{" "}
+                  <button type="button" onClick={() => driversQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+                    Try again
+                  </button>
+                </p>
+              ) : !driversQuery.data ? (
+                <div className="flex flex-col">
+                  <TableRowsSkeleton />
+                  <TableFooterSkeleton />
+                </div>
+              ) : (
+                <ArchiveDriverTable
+                  drivers={driversQuery.data}
+                  search={search}
+                  favoriteIds={favoriteDrivers}
+                  onToggleFavorite={(id) => toggleFavorite("driver", id)}
+                  favoritesOnly={favoritesOnly}
+                  onClearFilters={() => {
+                    setSearch("");
+                    setFavParam("");
+                  }}
+                />
+              ))}
+            {facet === "team" &&
+              (teamsQuery.isError ? (
+                <p className="text-sm text-tertiary">
+                  Couldn&apos;t load teams.{" "}
+                  <button type="button" onClick={() => teamsQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+                    Try again
+                  </button>
+                </p>
+              ) : !teamsQuery.data ? (
+                <div className="flex flex-col">
+                  <TableRowsSkeleton />
+                  <TableFooterSkeleton />
+                </div>
+              ) : (
+                <ArchiveTeamTable
+                  teams={teamsQuery.data}
+                  search={search}
+                  favoriteIds={favoriteTeams}
+                  onToggleFavorite={(id) => toggleFavorite("team", id)}
+                  favoritesOnly={favoritesOnly}
+                  activeTeamIds={activeTeamIdSet}
+                  onClearFilters={() => {
+                    setSearch("");
+                    setFavParam("");
+                  }}
+                />
+              ))}
+          </motion.div>
+        </TabPanels>
+      </Tabs>
     </div>
   );
 }

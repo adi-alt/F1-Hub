@@ -2,23 +2,23 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useMemo } from "react";
+import { useId, useMemo, type ReactNode } from "react";
 import { ChampionshipTrajectory, type TrajectorySeries } from "./ChampionshipTrajectory";
 import { DriverFormStrip, DriverFormStripSkeleton } from "./DriverFormStrip";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Tabs, tabIdFor, type TabItem } from "@/components/ui/LegacyTabs";
+import { TabList, TabPanel, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { chart } from "@/components/charts/chartTheme";
 import { trackShortForm } from "@/lib/format";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { DriverStanding, FavoriteDriverCard, FavoriteTeamCard, SeasonRecap, TeamStanding } from "@/lib/personalization";
 import type { CurrentDriver } from "@/lib/supabase/media";
 import type { RaceDoc } from "@/lib/types/race";
 import { useAuth } from "@/providers/AuthProvider";
 
 const TABS: TabItem[] = [
-  { key: "overview", label: "Overview" },
-  { key: "form", label: "Form" },
-  { key: "championship", label: "Championship" },
+  { value: "overview", label: "Overview" },
+  { value: "form", label: "Form" },
+  { value: "championship", label: "Championship" },
 ];
 
 type FavoriteOption =
@@ -40,8 +40,8 @@ function teamKey(id: string) {
  *
  * Multi-favorite: every favorite (driver or team) is a real, selectable entity - not just an
  * acknowledged count. `favoriteDrivers`/`favoriteTeams` are the full arrays; a compact switcher
- * (reusing Tabs.tsx, same shape system) appears only once there's more than one favorite total,
- * and drives which single entity Overview/Form/Championship analyze below. Deliberately NOT a
+ * (FavoriteSwitcher, below) appears only once there's more than one favorite total, and drives
+ * which single entity Overview/Form/Championship analyze below. Deliberately NOT a
  * "plot every favorite at once" chart - that would clutter a small chart - every favorite is
  * individually analyzable via selection instead. Selection state is lifted the same way
  * `activeTab` is, so it survives a tab switch and can be seeded from YourF1Radar's click. */
@@ -99,7 +99,7 @@ export function YourF1({
   const resolvedFavoriteKey = favoriteOptions.some((o) => o.key === selectedFavoriteKey) ? selectedFavoriteKey : (favoriteOptions[0]?.key ?? "");
   const selected = favoriteOptions.find((o) => o.key === resolvedFavoriteKey) ?? null;
 
-  const resolvedTab = TABS.find((t) => t.key === activeTab) ? activeTab : "overview";
+  const resolvedTab = TABS.find((t) => t.value === activeTab) ? activeTab : "overview";
 
   // Additional favorites beyond the primary in each category - small secondary avatars + a "+N"
   // overflow badge, never a second full identity block (that's what the switcher below is for).
@@ -214,95 +214,111 @@ export function YourF1({
               )}
             </div>
 
-            {/* The real functional switcher - only appears once there's more than one favorite
-             * total, and decides which single entity the tabs below analyze. Reuses Tabs.tsx (same
-             * rounded-md segmented shape, sliding indicator) rather than inventing a new control. */}
-            {favoriteOptions.length > 1 && (
-              <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Analyzing</span>
-                <Tabs
-                  items={favoriteOptions.map((o) => ({ key: o.key, label: o.label }))}
-                  activeKey={resolvedFavoriteKey}
-                  onChange={onSelectFavorite}
-                  layoutId="your-f1-favorite-switcher"
-                />
-              </div>
-            )}
+            <FavoriteSwitcher options={favoriteOptions} value={resolvedFavoriteKey} onChange={onSelectFavorite}>
+              <div className="mt-4 border-t border-white/[0.06] pt-4">
+                <Tabs value={resolvedTab} onValueChange={onTabChange} items={TABS}>
+                  <TabList aria-label="Your F1" />
 
-            <div className="mt-4 border-t border-white/[0.06] pt-4">
-              <Tabs items={TABS} activeKey={resolvedTab} onChange={onTabChange} layoutId="your-f1-tabs" panelId="your-f1-panel" />
-
-              <div id="your-f1-panel" role="tabpanel" aria-labelledby={tabIdFor("your-f1-panel", resolvedTab)} className="mt-4">
-                {resolvedTab === "overview" && (
-                  <div>
-                    <div className="flex flex-wrap items-center gap-6">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wide text-tertiary">Points</p>
-                        <p className="font-mono text-lg font-semibold text-white">{pointsBalance ?? "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wide text-tertiary">Predictions</p>
-                        <p className="font-mono text-lg font-semibold text-white">{predictionCount}</p>
-                      </div>
-                      {selectedRankInfo && (
+                  <TabPanel value="overview" className="mt-4">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-6">
                         <div>
-                          <p className="text-[11px] uppercase tracking-wide text-tertiary">{selected?.kind === "driver" ? "WDC" : "WCC"} rank</p>
-                          <p className="font-mono text-lg font-semibold text-white">
-                            P{selectedRankInfo.rank} <span className="text-sm font-normal text-neutral-400">· {selectedRankInfo.points} pts</span>
-                          </p>
+                          <p className="text-[11px] uppercase tracking-wide text-tertiary">Points</p>
+                          <p className="font-mono text-lg font-semibold text-white">{pointsBalance ?? "—"}</p>
                         </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-tertiary">Predictions</p>
+                          <p className="font-mono text-lg font-semibold text-white">{predictionCount}</p>
+                        </div>
+                        {selectedRankInfo && (
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-tertiary">{selected?.kind === "driver" ? "WDC" : "WCC"} rank</p>
+                            <p className="font-mono text-lg font-semibold text-white">
+                              P{selectedRankInfo.rank} <span className="text-sm font-normal text-neutral-400">· {selectedRankInfo.points} pts</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {lastResult && selected && (
+                        <p className="mt-3 text-xs text-tertiary">
+                          Last time out: <span className="text-neutral-300">{selected.label} {lastResult.text}</span> at{" "}
+                          {trackShortForm(lastResult.race.circuit)}.
+                        </p>
                       )}
                     </div>
-                    {lastResult && selected && (
-                      <p className="mt-3 text-xs text-tertiary">
-                        Last time out: <span className="text-neutral-300">{selected.label} {lastResult.text}</span> at{" "}
-                        {trackShortForm(lastResult.race.circuit)}.
-                      </p>
+                  </TabPanel>
+
+                  <TabPanel value="form" className="mt-4">
+                    {selected?.kind === "driver" ? (
+                      selected.card.code ? (
+                        <DriverFormStrip favoriteDriverCode={selected.card.code} races={races} />
+                      ) : (
+                        <p className="text-sm text-tertiary">No form data available for this driver.</p>
+                      )
+                    ) : selected?.kind === "team" ? (
+                      teamFormDrivers.length > 0 ? (
+                        <div className="space-y-4">
+                          {teamFormDrivers.map((d) => (
+                            <div key={d.code}>
+                              <p className="mb-1 text-xs font-medium text-neutral-300">{d.name}</p>
+                              <DriverFormStrip favoriteDriverCode={d.code} races={races} />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-tertiary">No current drivers found for this team.</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-tertiary">Choose a favorite to see recent form.</p>
                     )}
-                  </div>
-                )}
+                  </TabPanel>
 
-                {resolvedTab === "form" &&
-                  (selected?.kind === "driver" ? (
-                    selected.card.code ? (
-                      <DriverFormStrip favoriteDriverCode={selected.card.code} races={races} />
+                  <TabPanel value="championship" className="mt-4">
+                    {championshipSeries.length > 0 ? (
+                      <ChampionshipTrajectory
+                        races={races}
+                        series={championshipSeries}
+                        leaderCode={selected?.kind === "team" ? teamLeader?.team : driverLeader?.driver}
+                        mode={selected?.kind === "team" ? "team" : "driver"}
+                      />
                     ) : (
-                      <p className="text-sm text-tertiary">No form data available for this driver.</p>
-                    )
-                  ) : selected?.kind === "team" ? (
-                    teamFormDrivers.length > 0 ? (
-                      <div className="space-y-4">
-                        {teamFormDrivers.map((d) => (
-                          <div key={d.code}>
-                            <p className="mb-1 text-xs font-medium text-neutral-300">{d.name}</p>
-                            <DriverFormStrip favoriteDriverCode={d.code} races={races} />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-tertiary">No current drivers found for this team.</p>
-                    )
-                  ) : (
-                    <p className="text-sm text-tertiary">Choose a favorite to see recent form.</p>
-                  ))}
-
-                {resolvedTab === "championship" &&
-                  (championshipSeries.length > 0 ? (
-                    <ChampionshipTrajectory
-                      races={races}
-                      series={championshipSeries}
-                      leaderCode={selected?.kind === "team" ? teamLeader?.team : driverLeader?.driver}
-                      mode={selected?.kind === "team" ? "team" : "driver"}
-                    />
-                  ) : (
-                    <p className="text-sm text-tertiary">Not enough data yet to plot a trajectory.</p>
-                  ))}
+                      <p className="text-sm text-tertiary">Not enough data yet to plot a trajectory.</p>
+                    )}
+                  </TabPanel>
+                </Tabs>
               </div>
-            </div>
+            </FavoriteSwitcher>
           </>
         )}
       </motion.div>
     </section>
+  );
+}
+
+/** The real functional switcher: which favorite the tabs it wraps analyze. Segmented, since it's a
+ * compact filter over one view rather than navigation, and those tabs are its panel. With one
+ * favorite or none there's nothing to switch, so it renders just them. */
+function FavoriteSwitcher({
+  options,
+  value,
+  onChange,
+  children,
+}: {
+  options: FavoriteOption[];
+  value: string;
+  onChange: (key: string) => void;
+  children: ReactNode;
+}) {
+  const labelId = useId();
+  if (options.length < 2) return children;
+  return (
+    <Tabs variant="segmented" value={value} onValueChange={onChange} items={options.map((o) => ({ value: o.key, label: o.label }))}>
+      <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
+        <span id={labelId} className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Analyzing</span>
+        <TabList aria-labelledby={labelId} />
+      </div>
+      <TabPanels>{children}</TabPanels>
+    </Tabs>
   );
 }
 
@@ -336,20 +352,20 @@ function FavoriteOverflow({ cards, kind }: { cards: (FavoriteDriverCard | Favori
 export function PersonalOverviewSkeleton() {
   return (
     <section>
-      <Skeleton className="skeleton-shimmer h-3 w-16 rounded" />
+      <Skeleton shape="block" className="h-3 w-16" />
       <div className="mt-4 rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-8">
           <div className="flex items-center gap-3">
-            <Skeleton className="skeleton-shimmer h-9 w-9 rounded-full" />
-            <Skeleton className="skeleton-shimmer h-8 w-24 rounded" />
+            <Skeleton shape="circle" className="h-9 w-9" />
+            <Skeleton shape="block" className="h-8 w-24" />
           </div>
           <div className="flex items-center gap-3">
-            <Skeleton className="skeleton-shimmer h-9 w-9 rounded-full" />
-            <Skeleton className="skeleton-shimmer h-8 w-20 rounded" />
+            <Skeleton shape="circle" className="h-9 w-9" />
+            <Skeleton shape="block" className="h-8 w-20" />
           </div>
         </div>
         <div className="mt-4 border-t border-white/[0.06] pt-4">
-          <Skeleton className="skeleton-shimmer h-7 w-48 rounded-lg" />
+          <Skeleton shape="block" className="h-7 w-48" />
           <div className="mt-4">
             <DriverFormStripSkeleton />
           </div>

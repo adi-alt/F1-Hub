@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useHomepageIntelligence } from "./ai/HomepageIntelligenceProvider";
 import type { FavoriteDriverCard, FavoriteTeamCard, TrackHistory } from "@/lib/personalization";
 
@@ -195,11 +195,11 @@ export function RaceIntelligencePanel({
        * needed after all" case doesn't jump. */}
       {expectsOutlook && isLoading && (
         <div className="mt-3.5 border-t border-white/[0.06] pt-3">
-          <Skeleton className="skeleton-shimmer h-2.5 w-24 rounded" />
+          <Skeleton shape="block" className="h-2.5 w-24" />
           <div className="mt-2 space-y-1.5">
-            <Skeleton className="skeleton-shimmer h-3 w-full rounded" />
-            <Skeleton className="skeleton-shimmer h-3 w-full rounded" />
-            <Skeleton className="skeleton-shimmer h-3 w-2/3 rounded" />
+            <Skeleton shape="block" className="h-3 w-full" />
+            <Skeleton shape="block" className="h-3 w-full" />
+            <Skeleton shape="block" className="h-3 w-2/3" />
           </div>
         </div>
       )}
@@ -221,19 +221,19 @@ export function RaceIntelligencePanel({
 export function RaceIntelligencePanelSkeleton() {
   return (
     <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6">
-      <Skeleton className="skeleton-shimmer h-12 w-full rounded-lg mb-3 opacity-40" />
+      <Skeleton shape="block" className="h-12 w-full mb-3" />
       <div className="flex items-center justify-between">
-        <Skeleton className="skeleton-shimmer h-3 w-28 rounded" />
-        <Skeleton className="skeleton-shimmer h-3 w-12 rounded-md" />
+        <Skeleton shape="block" className="h-3 w-28" />
+        <Skeleton shape="block" className="h-3 w-12" />
       </div>
-      <Skeleton className="skeleton-shimmer mt-2 h-3 w-36 rounded" />
+      <Skeleton shape="block" className="mt-2 h-3 w-36" />
       <div className="mt-4 space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="flex items-center gap-3">
-            <Skeleton className="skeleton-shimmer h-8 w-8 rounded-full" />
+            <Skeleton shape="circle" className="h-8 w-8" />
             <div className="space-y-1">
-              <Skeleton className="skeleton-shimmer h-3 w-28 rounded" />
-              <Skeleton className="skeleton-shimmer h-2.5 w-20 rounded" />
+              <Skeleton shape="block" className="h-3 w-28" />
+              <Skeleton shape="block" className="h-2.5 w-20" />
             </div>
           </div>
         ))}

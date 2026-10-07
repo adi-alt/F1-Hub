@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
+import { MessageSquare } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { canDo, permissionLevel, postKindsFor, type CommunityFeatures, type CommunityPermissions, type PostKind } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupRole } from "@/lib/supabase/groups";
@@ -334,9 +335,8 @@ export function CommunityFeed({
               // conversation" because they searched for a word nobody has used would be wrong.
               (filtered ? (
                 <EmptyState
-                  icon={EmptyIcons.post}
-                  title="Nothing matches these filters."
-                  description={query.query.trim() ? `No posts here mention “${query.query.trim()}”.` : "Try a different filter."}
+                  icon={MessageSquare}
+                  message={query.query.trim() ? `No posts here mention “${query.query.trim()}”.` : "No posts here match these filters."}
                   action={
                     <button
                       type="button"
@@ -349,9 +349,8 @@ export function CommunityFeed({
                 />
               ) : (
                 <EmptyState
-                  icon={EmptyIcons.post}
-                  title="Nothing has been posted here yet."
-                  description={canPost ? "Start the first conversation." : "Once someone posts, it shows up here."}
+                  icon={MessageSquare}
+                  message={canPost ? "Nothing has been posted here yet: start the first conversation." : "Nothing has been posted here yet: once someone posts, it shows up here."}
                   action={
                     canPost ? (
                       <button
