@@ -2,7 +2,9 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Camera, Share2 } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
 import { compactCount } from "@/lib/format";
@@ -110,7 +112,7 @@ export function CommunityHeader({
               onClick={() => void share()}
               className="flex items-center gap-1.5 rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/30 hover:text-white"
             >
-              <ShareIcon />
+              <Icon icon={Share2} size={16} />
               {copied ? "Link copied" : "Share"}
             </button>
 
@@ -259,7 +261,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
               disabled={busy}
               className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-60"
             >
-              <CameraIcon />
+              <Icon icon={Camera} size={16} />
               {busy ? "Working…" : "Change cover"}
             </button>
           )}
@@ -293,7 +295,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
           disabled={busy}
           className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-60"
         >
-          <CameraIcon />
+          <Icon icon={Camera} size={16} />
           {busy ? "Uploading…" : "Add cover"}
         </button>
       )}
@@ -381,25 +383,5 @@ function AdminMenu({ group, onOpenManage, pendingRequests }: { group: GroupDetai
       </Popover>
       <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void uploadAvatar(e)} />
     </>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
-      <circle cx="12.4" cy="3.6" r="2" stroke="currentColor" strokeWidth="1.3" />
-      <circle cx="3.6" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
-      <circle cx="12.4" cy="12.4" r="2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="m5.4 7 5.2-2.6M5.4 9l5.2 2.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
-      <path d="M2.2 5.4h2.3l1-1.6h5l1 1.6h2.3v7.2H2.2V5.4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <circle cx="8" cy="9" r="2.2" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
   );
 }

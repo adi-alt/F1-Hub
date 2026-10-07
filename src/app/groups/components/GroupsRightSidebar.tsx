@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { Calendar, Check, ChevronRight, Clock, Compass, MessageSquare, Reply, TrendingUp } from "lucide-react";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
@@ -13,6 +14,7 @@ import { groupHref, raceHref } from "@/lib/routes";
 import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { Icon } from "@/components/ui/Icon";
 import { RaceWeekendTake } from "./RaceWeekendTake";
 import { PredictionTrendBars } from "./post/PredictionTrendBars";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
@@ -69,14 +71,14 @@ export function GroupsRightSidebar({
             className="group flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
           >
             <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/15 text-brand-text">
-              <CompassIcon />
+              <Icon icon={Compass} size={16} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Explore communities</span>
               <span className="mt-px block truncate text-[10.5px] text-tertiary">Find new communities to join</span>
             </span>
             <span className="shrink-0 text-tertiary transition group-hover:text-white">
-              <ChevronIcon />
+              <Icon icon={ChevronRight} size={16} />
             </span>
           </button>
         </div>
@@ -110,13 +112,13 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
   // rather than rendered as "0 new discussions".
   const rows = pulse.hasPriorVisit
     ? [
-        { key: "posts", tone: "sky" as const, icon: <DiscussionIcon />, count: pulse.newPosts, label: pulse.newPosts === 1 ? "new discussion" : "new discussions" },
-        { key: "replies", tone: "emerald" as const, icon: <ReplyIcon />, count: pulse.repliesToYou, label: pulse.repliesToYou === 1 ? "reply to your posts" : "replies to your posts" },
-        { key: "entries", tone: "amber" as const, icon: <TrendIcon />, count: pulse.newPredictionEntries, label: pulse.newPredictionEntries === 1 ? "new prediction entry" : "new prediction entries" },
+        { key: "posts", tone: "sky" as const, icon: <Icon icon={MessageSquare} size={16} className="size-3" />, count: pulse.newPosts, label: pulse.newPosts === 1 ? "new discussion" : "new discussions" },
+        { key: "replies", tone: "emerald" as const, icon: <Icon icon={Reply} size={16} className="size-3" />, count: pulse.repliesToYou, label: pulse.repliesToYou === 1 ? "reply to your posts" : "replies to your posts" },
+        { key: "entries", tone: "amber" as const, icon: <Icon icon={TrendingUp} size={16} className="size-3" />, count: pulse.newPredictionEntries, label: pulse.newPredictionEntries === 1 ? "new prediction entry" : "new prediction entries" },
       ].filter((r) => r.count > 0)
     : [
-        { key: "posts", tone: "sky" as const, icon: <DiscussionIcon />, count: weeklyPosts, label: weeklyPosts === 1 ? "discussion this week" : "discussions this week" },
-        { key: "open", tone: "amber" as const, icon: <TrendIcon />, count: openPredictions, label: openPredictions === 1 ? "open prediction" : "open predictions" },
+        { key: "posts", tone: "sky" as const, icon: <Icon icon={MessageSquare} size={16} className="size-3" />, count: weeklyPosts, label: weeklyPosts === 1 ? "discussion this week" : "discussions this week" },
+        { key: "open", tone: "amber" as const, icon: <Icon icon={TrendingUp} size={16} className="size-3" />, count: openPredictions, label: openPredictions === 1 ? "open prediction" : "open predictions" },
       ].filter((r) => r.count > 0);
 
   const trending = pulse.hasPriorVisit ? pulse.mostActive : weeklyMostActive ? { id: weeklyMostActive.id, name: weeklyMostActive.name } : null;
@@ -166,7 +168,7 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
                   className="flex items-center gap-2"
                 >
                   <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-brand-text">
-                    <TrendIcon />
+                    <Icon icon={TrendingUp} size={16} className="size-3" />
                   </span>
                   <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                     {trending.name} is trending
@@ -231,33 +233,6 @@ const TONE = {
   amber: "bg-amber-500/[0.14] text-amber-400",
 } as const;
 
-function DiscussionIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="11" height="11" fill="none" aria-hidden>
-      <path d="M3 4.5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-3.5 3v-3H3a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ReplyIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden>
-      <path d="M6 4 2.5 7.5 6 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M2.5 7.5H9a4.5 4.5 0 0 1 4.5 4.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function TrendIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden>
-      <path d="M2 11.5 6 7l3 2.5L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10.5 4H14v3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-
 /** The header module: the real next race, over its own real photo where the pipeline has one. The
  * countdown counts to the race itself, which is the one session time this row actually carries -
  * there is no per-session (qualifying/sprint) start time on a race row to count to, so none is
@@ -310,7 +285,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
 
             {countdown && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-0.5 text-[11px] font-semibold text-brand-text">
-                <ClockIcon />
+                <Icon icon={Clock} size={16} className="size-3" />
                 Lights out in {countdown}
               </p>
             )}
@@ -319,7 +294,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
               href={raceHref(race.year, race.round, race.name)}
               className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-1.5 text-[12.5px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
             >
-              <CalendarIcon />
+              <Icon icon={Calendar} size={16} />
               View race
             </Link>
 
@@ -389,7 +364,7 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
                 <div className="mt-1.5 flex items-center gap-2">
                   {p.hasEntered ? (
                     <span className="flex min-w-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-400/90">
-                      <CheckIcon />
+                      <Icon icon={Check} size={16} className="size-3" />
                       <span className="shrink-0">Entered</span>
                       {/* The pick itself, resolved to a real driver name server-side - "Entered"
                           alone doesn't tell you what you actually put money on. */}
@@ -401,13 +376,13 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
 
                   {countdown ? (
                     <span className={`flex min-w-0 items-center gap-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-brand-text" : "text-tertiary"}`}>
-                      <ClockIcon />
+                      <Icon icon={Clock} size={16} className="size-3" />
                       <span className="truncate">Closes in {countdown}</span>
                     </span>
                   ) : null}
 
                   <span className="ml-auto shrink-0 text-neutral-700 transition group-hover:text-neutral-300">
-                    <ChevronIcon />
+                    <Icon icon={ChevronRight} size={16} className="size-3" />
                   </span>
                 </div>
 
@@ -421,48 +396,5 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
         </div>
       )}
     </div>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="10" height="10" fill="none" aria-hidden>
-      <path d="m2.8 7.4 2.6 2.6 5.8-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden>
-      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="11" height="11" fill="none" aria-hidden>
-      <circle cx="7" cy="7" r="5.2" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M7 4.2V7l1.9 1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden>
-      <rect x="2.2" y="3.4" width="11.6" height="10.4" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M2.2 6.6h11.6M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CompassIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden>
-      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path d="m13 7-1.8 4.4a1 1 0 0 1-.6.6L6.5 13.5l1.8-4.4a1 1 0 0 1 .6-.6L13 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
   );
 }

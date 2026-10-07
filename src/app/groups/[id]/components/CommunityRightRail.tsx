@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { Activity, ChartNoAxesColumn, ChevronRight, FileText, MessageSquare, Reply, Users } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useCommunityPresence } from "@/hooks/useCommunityPresence";
@@ -175,10 +177,10 @@ function CommunityStatsCard({ groupId, stats, onOpenTab }: { groupId: string; st
     <Card>
       <CardHeader title="Community Stats" action={<ViewAllLink onClick={() => onOpenTab("members")} />} />
       <div className="flex items-start gap-3 px-4 pb-4 pt-3">
-        <Stat icon={<MembersIcon />} value={compactCount(stats.members)} label="Members" />
+        <Stat icon={<Icon icon={Users} size={16} />} value={compactCount(stats.members)} label="Members" />
         {/* Omitted entirely, not zeroed, when presence hasn't connected - see useCommunityPresence. */}
         {online !== null && <Stat icon={<OnlineDot />} value={compactCount(online)} label="Online" />}
-        <Stat icon={<PostsIcon />} value={compactCount(stats.posts)} label={stats.posts === 1 ? "Post" : "Posts"} />
+        <Stat icon={<Icon icon={FileText} size={16} />} value={compactCount(stats.posts)} label={stats.posts === 1 ? "Post" : "Posts"} />
       </div>
     </Card>
   );
@@ -244,7 +246,7 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
             onClick={() => onOpenTab("predictions")}
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2.5 text-[13px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
           >
-            <ChartIcon />
+            <Icon icon={ChartNoAxesColumn} size={16} />
             {/* "Enter" only where entering is actually still possible - a round waiting on a result
                 takes you to the same panel, but the label doesn't promise an entry it won't accept. */}
             {predictions.every(({ prediction }) => prediction.myEntry) ? "Review your predictions" : "Enter prediction"}
@@ -271,12 +273,12 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
   type PulseLine = { icon: React.ReactNode; text: string };
   const lines: PulseLine[] = pulse.hasPriorVisit
     ? ([
-        pulse.newPosts > 0 ? { icon: <DiscussionIcon />, text: `${pulse.newPosts} new ${pulse.newPosts === 1 ? "discussion" : "discussions"}` } : null,
-        pulse.repliesToYou > 0 ? { icon: <ReplyIcon />, text: `${pulse.repliesToYou} new ${pulse.repliesToYou === 1 ? "reply" : "replies"} to your posts` } : null,
+        pulse.newPosts > 0 ? { icon: <Icon icon={MessageSquare} size={16} />, text: `${pulse.newPosts} new ${pulse.newPosts === 1 ? "discussion" : "discussions"}` } : null,
+        pulse.repliesToYou > 0 ? { icon: <Icon icon={Reply} size={16} />, text: `${pulse.repliesToYou} new ${pulse.repliesToYou === 1 ? "reply" : "replies"} to your posts` } : null,
         pulse.newPredictionEntries > 0
-          ? { icon: <ChartIcon />, text: `${pulse.newPredictionEntries} prediction ${pulse.newPredictionEntries === 1 ? "entry" : "entries"}` }
+          ? { icon: <Icon icon={ChartNoAxesColumn} size={16} />, text: `${pulse.newPredictionEntries} prediction ${pulse.newPredictionEntries === 1 ? "entry" : "entries"}` }
           : null,
-        pulse.newMembers > 0 ? { icon: <MembersIcon />, text: `${pulse.newMembers} new ${pulse.newMembers === 1 ? "member" : "members"}` } : null,
+        pulse.newMembers > 0 ? { icon: <Icon icon={Users} size={16} />, text: `${pulse.newMembers} new ${pulse.newMembers === 1 ? "member" : "members"}` } : null,
       ] satisfies (PulseLine | null)[]).filter((line) => line !== null)
     : [];
 
@@ -316,7 +318,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
             <ul className="mt-2 space-y-1.5">
               <li className="flex items-center gap-2 text-xs text-neutral-300">
                 <span aria-hidden className="shrink-0 text-tertiary">
-                  <DiscussionIcon />
+                  <Icon icon={MessageSquare} size={16} />
                 </span>
                 <span>
                   {stats.weeklyPosts} {stats.weeklyPosts === 1 ? "discussion" : "discussions"}
@@ -324,7 +326,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
               </li>
               <li className="flex items-center gap-2 text-xs text-neutral-300">
                 <span aria-hidden className="shrink-0 text-tertiary">
-                  <MembersIcon />
+                  <Icon icon={Users} size={16} />
                 </span>
                 <span>
                   {stats.activeMembers} {stats.activeMembers === 1 ? "member" : "members"} active
@@ -355,7 +357,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
           >
             {expanded ? "Hide recap" : "View full recap"}
             <span aria-hidden className={expanded ? "rotate-90 transition-transform" : "transition-transform"}>
-              <ChevronIcon />
+              <Icon icon={ChevronRight} size={16} />
             </span>
           </button>
           {pulse.hasPriorVisit && lines.length > 0 && (
@@ -393,7 +395,7 @@ function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
   return (
     <p className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5 text-xs text-neutral-400">
       <span aria-hidden className="text-tertiary">
-        <ActivityIcon />
+        <Icon icon={Activity} size={16} />
       </span>
       <span className="min-w-0">
         Activity{" "}
@@ -423,66 +425,6 @@ function RecapRow({ label, value }: { label: string; value: string }) {
 
 // ---------------------------------------------------------------- icons
 
-function MembersIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-      <circle cx="6" cy="5.5" r="2.6" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M1.8 13.4c.5-2.2 2.2-3.5 4.2-3.5s3.7 1.3 4.2 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M11 3.3a2.4 2.4 0 0 1 0 4.5M12.2 10.3c1.1.5 1.9 1.6 2.2 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function OnlineDot() {
   return <span aria-hidden className="block h-2 w-2 rounded-full bg-emerald-400" />;
-}
-
-function PostsIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-      <rect x="2.2" y="2.6" width="11.6" height="10.8" rx="2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M5 6h6M5 9h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DiscussionIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-      <path d="M2.4 3.6h11.2v7H6.6L3.6 13v-2.4H2.4v-7Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ReplyIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-      <path d="M6.2 4.2 2.8 7.4l3.4 3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M2.8 7.4h6.4a3.6 3.6 0 0 1 3.6 3.6v1.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChartIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-      <path d="M2.6 13.4V9.2M6.6 13.4V4.4M10.6 13.4V7M14 13.4V2.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ActivityIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-      <path d="M1.8 9.4h2.6L6.2 5l2.4 6.6L10.4 8h3.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon() {
-  return (
-    <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden>
-      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
 }
