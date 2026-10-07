@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
-import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
-import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
@@ -15,29 +12,27 @@ import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { AgeRecords } from "@/lib/circuitRecords";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
-import { RaceSidebar } from "@/components/raceDetail/RaceSidebar";
-import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
 import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
-import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
-import type { StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { formatLapTime } from "@/lib/format";
 import { teamColor } from "@/lib/teamColors";
 import type { RaceHighlights } from "@/lib/highlights";
 import type { PredictionAccuracy, PolePredictionAccuracy } from "@/lib/predictionAccuracy";
-import type { RaceDoc, RaceResultEntry } from "@/lib/types/race";
+import type { RaceDoc } from "@/lib/types/race";
 import { ModelInfo } from "./ModelInfo";
+import { ModelOutlook } from "./ModelOutlook";
+import { PickPanel } from "./PickPanel";
+import { RaceClassification } from "./RaceClassification";
+import { RaceRail } from "./RaceRail";
+import { RaceReadiness } from "@/components/home/RaceReadiness";
 import { PoleSection } from "./PoleSection";
 import { PolePredictionComparison } from "./PolePredictionComparison";
 import { PracticeSummary } from "./PracticeSummary";
 import { PredictionComparison } from "./PredictionComparison";
-import { PredictionPanel } from "./PredictionPanel";
 import { QualifyingGapChart } from "./QualifyingGapChart";
-import { RaceWeekendPanel } from "./RaceWeekendPanel";
-import { SeasonConditionsCard } from "./SeasonConditionsCard";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
@@ -46,40 +41,24 @@ import { PositionChangesPanel, type PositionChangeEntry } from "@/components/rac
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
 import { useSeasonLaps } from "@/hooks/useSeasonLaps";
 
-// Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
-// 20-car field doesn't turn Results into a wall-length scroll inside its own card.
-const INITIAL_RESULT_ROWS = 7;
-
-function toResultRow(r: RaceResultEntry): RaceResultRow {
-  return {
-    key: r.driver,
-    positionText: r.status === "dnf" ? "DNF" : String(r.finishPosition),
-    driverName: r.driverName,
-    team: r.team,
-    statusLabel: r.status === "finished" ? "Finished" : r.status === "lapped" ? "Lapped" : "Retired",
-    secondaryLabel: r.status === "finished" && r.finishGapSec !== null ? (r.finishGapSec === 0 ? "Leader" : `+${r.finishGapSec.toFixed(3)}s`) : r.status === "lapped" ? "Lapped" : "–",
-    points: r.points,
-    fastestLap: false, // overwritten per-race by the caller, which knows the actual fastest time across the field
-  };
-}
-
-/** The season race page's actual content, as a flowing dashboard of always-visible, individually
- * bounded sections instead of the old tab shell. Practice/Qualifying/Strategy/Race Performance
- * live inside one "Race Analysis" module (RaceSubSection) rather than three separate top-level
- * glass cards - "related modules should feel grouped," not "card, card, card." Each section/
- * sub-section is still gated on exactly the same real-data condition its old tab was. */
+/** The season race page, as a story that follows the race's phase (spec §3.1). Before the race: the weekend's
+ * schedule, your pick, what the model expects, the preview, then history. After it: the result first, how the
+ * predictions did, the analysis, the race story, then history. One rail beside it with at most three blocks
+ * (RaceRail); the countdown or the winner sits in the page header. Every section still appears only when its
+ * data is real. */
 export function SeasonRaceDashboard({
   race,
   highlights,
   accuracy,
   poleAccuracy,
-  circuitImage,
   calendarEntry,
   trackHistory,
   circuitTimeline,
   ageRecords,
   personalContext,
   raceCommunities,
+  fallbackEntrants = [],
+  raceSessionDate = null,
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
@@ -108,11 +87,12 @@ export function SeasonRaceDashboard({
   // personalRaceBriefing.ts's own comment).
   personalContext: PersonalRaceContext;
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
+  // For the podium pick (PickPanel): the grid to choose from before qualifying, and lights out.
+  fallbackEntrants?: { driver: string; driverName: string; team: string }[];
+  raceSessionDate?: string | null;
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [showAllResults, setShowAllResults] = useState(false);
   // Shared between Qualifying and Strategy - one control, not each picking its own. Each side
   // keeps its own natural ordering (Qualifying by grid, Strategy by finishing position - its
   // existing convention) sliced to this same count, rather than forcing identical driver
@@ -123,31 +103,6 @@ export function SeasonRaceDashboard({
   const [customDriverIds, setCustomDriverIds] = useState<string[]>([]);
   const isCompleted = race.status === "completed" && !!race.results;
   const { data: laps, isLoading: lapsLoading, isError: lapsError } = useSeasonLaps(race.year, race.round);
-
-  const fastestLapSec = isCompleted && race.results ? Math.min(...race.results.filter((r) => r.fastestLapSec !== null).map((r) => r.fastestLapSec!)) : null;
-  const podium: PodiumEntry[] =
-    isCompleted && race.results
-      ? [...race.results]
-          .filter((r) => r.finishPosition <= 3)
-          .sort((a, b) => a.finishPosition - b.finishPosition)
-          .map((r) => ({
-            position: r.finishPosition as 1 | 2 | 3,
-            driverName: r.driverName,
-            team: r.team,
-            // No absolute race-time field on RaceResultEntry, only a gap-to-leader in seconds -
-            // "Leader" for P1, "+X.XXXs" otherwise, same convention ResultsTable.tsx already used.
-            gapOrTime: r.finishGapSec !== null ? (r.finishGapSec === 0 ? "Leader" : `+${r.finishGapSec.toFixed(3)}s`) : null,
-            points: r.points,
-          }))
-      : [];
-  const allResultRows: RaceResultRow[] =
-    isCompleted && race.results
-      ? [...race.results]
-          .filter((r) => r.finishPosition > 3)
-          .sort((a, b) => a.finishPosition - b.finishPosition)
-          .map((r) => ({ ...toResultRow(r), fastestLap: fastestLapSec !== null && r.fastestLapSec === fastestLapSec }))
-      : [];
-  const resultRows = showAllResults ? allResultRows : allResultRows.slice(0, INITIAL_RESULT_ROWS);
 
   // Same real grid/finish data the old full-width MovementChart plotted, now feeding the full-width
   // Race Performance comparison instead - every classified driver (DNFs excluded, no grid data to
@@ -167,28 +122,6 @@ export function SeasonRaceDashboard({
       ? Math.max(1, ...race.results.filter((r) => r.status !== "dnf" && r.grid !== null).map((r) => Math.max(r.grid!, r.finishPosition)))
       : 1;
 
-  // Race story + key statistics - both built from the same facts computeHighlights already
-  // produces, no new data. Winning margin is P2's own gap-to-leader (the gap-to-leader field *is*
-  // the margin, for whoever finished second).
-  const winner = isCompleted && race.results ? race.results.find((r) => r.finishPosition === 1) : undefined;
-  const storyFacts: RaceStoryFacts | null =
-    highlights && winner
-      ? {
-          winnerName: winner.driverName,
-          poleSitterName: race.results?.find((r) => r.driver === highlights.poleSitter)?.driverName ?? highlights.poleSitter,
-          fastestLap: highlights.fastestLap
-            ? { driverName: race.results?.find((r) => r.driver === highlights.fastestLap!.driver)?.driverName ?? highlights.fastestLap.driver, timeLabel: formatLapTime(highlights.fastestLap.timeSec) }
-            : null,
-          biggestGainer: highlights.biggestGainer
-            ? { driverName: race.results?.find((r) => r.driver === highlights.biggestGainer!.driver)?.driverName ?? highlights.biggestGainer.driver, positionsGained: highlights.biggestGainer.positionsGained }
-            : null,
-          biggestLoser: highlights.biggestLoser
-            ? { driverName: race.results?.find((r) => r.driver === highlights.biggestLoser!.driver)?.driverName ?? highlights.biggestLoser.driver, positionsLost: highlights.biggestLoser.positionsLost }
-            : null,
-          dnfCount: highlights.dnfs.length,
-        }
-      : null;
-  const winningMarginSec = isCompleted && race.results ? (race.results.find((r) => r.finishPosition === 2)?.finishGapSec ?? null) : null;
   // Whatever's honestly knowable client-side, pre-generation - the rest (championship/keyMoments/
   // trackHistory/favoriteDriver/favoriteTeam) only becomes known once the route responds with the
   // real server-computed dataCoverage.
@@ -200,40 +133,6 @@ export function SeasonRaceDashboard({
     safetyCar: race.safetyCarPeriods !== undefined && race.safetyCarPeriods !== null,
     traffic: !!race.trafficStats?.length,
   };
-  const statTiles: StatTile[] | null = highlights
-    ? [
-        { label: "Pole position", value: race.results?.find((r) => r.driver === highlights.poleSitter)?.driverName ?? highlights.poleSitter },
-        { label: "Fastest lap", value: highlights.fastestLap ? (race.results?.find((r) => r.driver === highlights.fastestLap!.driver)?.driverName ?? highlights.fastestLap.driver) : "–", sub: highlights.fastestLap ? formatLapTime(highlights.fastestLap.timeSec) : undefined },
-        { label: "Winning margin", value: winningMarginSec !== null ? `+${winningMarginSec.toFixed(3)}s` : "–" },
-        { label: "DNFs", value: String(highlights.dnfs.length) },
-      ]
-    : null;
-
-  function renderExpanded(key: string) {
-    const r = race.results?.find((res) => res.driver === key);
-    if (!r) return null;
-    const gained = r.grid !== null ? r.grid - r.finishPosition : null;
-    return (
-      <div className="grid gap-3 border-t border-white/10 px-3 py-2.5 text-sm sm:grid-cols-3">
-        <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Grid → finish</p>
-          <p className="text-neutral-300">
-            P{r.grid ?? "–"} → P{r.finishPosition}
-            {gained !== null && gained !== 0 && <span className={gained > 0 ? "text-emerald-400" : "text-red-400"}> ({gained > 0 ? "+" : ""}{gained})</span>}
-          </p>
-        </div>
-        <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Fastest lap</p>
-          <p className="text-neutral-300">{r.fastestLapSec !== null ? formatLapTime(r.fastestLapSec) : "–"}</p>
-        </div>
-        <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Points</p>
-          <p className="text-neutral-300">{r.points}</p>
-        </div>
-      </div>
-    );
-  }
-
   // MovementChart used to live in this section (below), gated on isCompleted alone - now that its
   // data feeds the compact Race Performance view instead, this section only ever shows real
   // prediction-accuracy content, so it's gated on that content actually existing, not on the race
@@ -271,205 +170,171 @@ export function SeasonRaceDashboard({
   const driverSetFilterable =
     Math.max(hasQualifying ? race.inputs!.length : 0, hasStrategy ? race.tireStints!.length : 0, allMovementEntries.length) > 5;
 
+  const nameByCode = new Map<string, string>([...(race.inputs ?? []), ...(race.results ?? [])].map((d) => [d.driver, d.driverName]));
+  const nameOf = (code: string) => nameByCode.get(code) ?? code;
+  const preliminary = race.resultsSource === "openf1_preliminary";
+  const byFinish = [...(race.results ?? [])].sort((a, b) => a.finishPosition - b.finishPosition);
+  const [first, second, third] = byFinish;
+  // The answer in one sentence, before the table (spec P10).
+  const resultHeadline =
+    isCompleted && first
+      ? `${first.driverName} won${second?.finishGapSec ? ` by ${second.finishGapSec.toFixed(3)}s` : ""}${second && third ? `, ahead of ${second.driverName} and ${third.driverName}` : ""}.`
+      : undefined;
+  // The race in four numbers, under the result, as plain figures rather than four boxed tiles.
+  const raceNumbers =
+    isCompleted && highlights
+      ? [
+          { label: "Pole", value: nameOf(highlights.poleSitter) },
+          { label: "Fastest lap", value: highlights.fastestLap ? `${nameOf(highlights.fastestLap.driver)} · ${formatLapTime(highlights.fastestLap.timeSec)}` : "–" },
+          { label: "Biggest climb", value: highlights.biggestGainer ? `${nameOf(highlights.biggestGainer.driver)} +${highlights.biggestGainer.positionsGained}` : "–" },
+          { label: "Retirements", value: String(highlights.dnfs.length) },
+        ]
+      : null;
+
+  const analysis = hasSessionAnalysis && (
+    <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
+      <RaceSectionCard
+        id="analysis"
+        title={isCompleted ? "Race analysis" : "Weekend so far"}
+        description={isCompleted ? "Qualifying pace, tyre strategy, lap by lap, and who gained or lost places." : "Practice and qualifying, as they happen."}
+        headerRight={
+          driverSetFilterable ? <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customDriverIds} onCustomIdsChange={setCustomDriverIds} /> : undefined
+        }
+      >
+        <DriverSetPanels filterable={driverSetFilterable}>
+          {showPracticeSlot && (
+            <RaceSubSection label="Practice" first>
+              {/* Merged, not `inputs ?? results`: race_inputs can be a few drivers short of the full field while
+                  race_results already has everyone. Same driver in both resolves to the same name either way. */}
+              <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
+            </RaceSubSection>
+          )}
+          {showQualifyingSlot && (
+            <div id="qualifying">
+              <RaceSubSection label="Qualifying" description="Gap to pole across the field." first={!showPracticeSlot}>
+                <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
+              </RaceSubSection>
+            </div>
+          )}
+          {hasStrategy && (
+            <div id="strategy">
+              <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths." first={!showPracticeSlot && !showQualifyingSlot}>
+                <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} driverSet={driverSet} customIds={customDriverIds} />
+              </RaceSubSection>
+            </div>
+          )}
+          {hasLapChart && (
+            <div id="lap-chart">
+              <RaceSubSection label="Lap by lap" description="Race position on every lap." first={!showPracticeSlot && !showQualifyingStrategyRow}>
+                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
+              </RaceSubSection>
+            </div>
+          )}
+          {hasPositionChanges && (
+            <div id="race-performance">
+              <RaceSubSection label="Places gained and lost" description="Starting grid compared with the finish." first={!hasPractice && !hasQualifying && !hasStrategy && !hasLapChart}>
+                <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
+              </RaceSubSection>
+            </div>
+          )}
+        </DriverSetPanels>
+      </RaceSectionCard>
+    </DriverSetTabs>
+  );
+
+  const communities = raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />;
+  const history = <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />;
+
   return (
-    // Two columns at lg+ (main column ~fixed 300/320px short of the container, sidebar the rest -
-    // `items-start` keeps the grid from stretching the shorter sidebar to match the taller main
-    // column, which would either blow up its cards' own height or leave it a stretched, mostly-
-    // empty column). Single column below `lg` - the sidebar moves below the main content in
-    // source order, not beside it, which only reads as a real two-column layout once there's
-    // enough width for both to sit side by side without cramping either.
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]">
-      <div id="overview" className="min-w-0 space-y-6">
+    // The main column tells the race's story; the rail (at most three blocks) sits beside it from lg, and
+    // after it on smaller screens. Sections are separated by space (48px), not boxes.
+    <div className="grid gap-x-8 gap-y-12 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="min-w-0 space-y-12">
         <RaceApexScope raceId={race.id} circuit={race.circuit} year={race.year} name={race.name} status={isCompleted ? "completed" : "upcoming"} />
-        <RaceStorySection
-          storyFacts={storyFacts}
-          statTiles={statTiles}
-          circuitCard={<SeasonConditionsCard circuit={race.circuit} country={race.country} weather={race.weather} image={circuitImage} />}
-          preRaceBrief={!isCompleted ? <ApexTrackBriefing location={race.circuit} year={race.year} /> : undefined}
-        />
 
-        {/* Real people, before real history - the social/participation layer belongs above the
-            deep circuit archive, not buried under it. Shown only once a real community has
-            actually opened a prediction for THIS race (mode === "predicting") - the general
-            "communities to join" discovery fallback read as a generic dashboard widget with no
-            connection to this specific race, so it's omitted entirely rather than shown as a
-            lower-value substitute; the page just keeps its normal layout without it. */}
-        {raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />}
-
-        {/* Both shown for every race phase, not gated on isCompleted - "who's won this race
-            before" and "the circuit's own all-time records" are exactly as true and exactly as
-            useful before a race weekend as after one. See each component's own comment. */}
-        <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
-
-        {isCompleted && <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />}
-
-        {!isCompleted && <RaceWeekendPanel calendarEntry={calendarEntry ?? null} id="weekend" />}
-
-        {/* Neither branch renders a thing when there's genuinely no model output yet (a new
-            circuit, or too early in a season for last year's data to exist) - that used to fall
-            through to a bare orphan sentence with no card, no action, nothing to do about it.
-            Omitted entirely now: Race History & Records and the sidebar's own "Your race" already
-            cover what's actually knowable this early, so there's a real alternative, not a gap. */}
-        {!isCompleted &&
-          (race.prediction ? (
-            <RaceSectionCard id="prediction" title="Pre-Race Prediction">
-              <PredictionPanel prediction={race.prediction} polePrediction={race.polePrediction} />
-            </RaceSectionCard>
-          ) : race.polePrediction ? (
-            <RaceSectionCard id="prediction" title="Pole Prediction">
-              <PoleSection polePrediction={race.polePrediction} />
-            </RaceSectionCard>
-          ) : null)}
-
-      {isCompleted && (
-        <RaceSectionCard
-          id="results"
-          title="Results"
-          description={
-            race.resultsSource === "openf1_preliminary"
-              ? "Preliminary - from live timing, ahead of the official FIA classification. Standings shown here can still change."
-              : undefined
-          }
-        >
-          <motion.div layout className="space-y-3">
-            <RacePodium entries={podium} />
-            {resultRows.length > 0 && (
-              <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
-            )}
-            {allResultRows.length > INITIAL_RESULT_ROWS && (
-              <button
-                type="button"
-                onClick={() => setShowAllResults((v) => !v)}
-                className="mx-auto block text-sm text-neutral-400 transition hover:text-white"
-              >
-                {showAllResults ? "Show fewer results ↑" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS}) ↓`}
-              </button>
-            )}
-          </motion.div>
-        </RaceSectionCard>
-      )}
-
-      {hasSessionAnalysis && (
-        <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
-            <RaceSectionCard
-              title="Race Analysis"
-              description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
-              headerRight={
-                driverSetFilterable ? (
-                  <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customDriverIds} onCustomIdsChange={setCustomDriverIds} />
-                ) : undefined
-              }
-            >
-              <DriverSetPanels filterable={driverSetFilterable}>
-                {showPracticeSlot && (
-                  <RaceSubSection label="Practice" first>
-                    {/* Merged, not `inputs ?? results` - confirmed live that race_inputs can be a few
-                        drivers short of the full field (grid data landing before every driver's row
-                        does) while race_results already has everyone, so picking just one source
-                        whole would silently drop a practice row's tooltip for whoever inputs is
-                        missing. Same driver in both resolves to the same name/team either way. */}
-                    <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
-                  </RaceSubSection>
-                )}
-                {/* Qualifying and Strategy share a row - they're the two panels that genuinely
-                    benefit from sitting side by side at a comparable width. Lap Progression needs
-                    real horizontal room to read a whole field's trajectories, and Race Performance
-                    reads best as one full-width comparison strip - forcing either into a second
-                    column here is exactly the cramped, dead-space-heavy layout this redesign
-                    replaces, so both get their own full-width row below instead. Strategy has no
-                    pre-race "not yet" slot the way Qualifying does - tyre stints are a genuinely
-                    post-race-only concept, nothing to editorialize about before the race has run. */}
-                {showQualifyingStrategyRow && (
-                  <div className={showPracticeSlot ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                    <div className={showQualifyingSlot && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
-                      {showQualifyingSlot && (
-                        <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
-                          <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
-                            <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
-                          </RaceSubSection>
-                        </div>
-                      )}
-                      {hasStrategy && (
-                        <div id="strategy" className="min-w-0">
-                          <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths across the race." first>
-                            <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} driverSet={driverSet} customIds={customDriverIds} />
-                          </RaceSubSection>
-                        </div>
-                      )}
+        {isCompleted ? (
+          <>
+            <RaceSectionCard id="results" title="Result" description={resultHeadline} bare>
+              <RaceClassification results={race.results!} stints={race.tireStints} preliminary={preliminary} />
+              {raceNumbers && (
+                <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                  {raceNumbers.map((n) => (
+                    <div key={n.label} className="min-w-0">
+                      <dt className="text-caption text-secondary">{n.label}</dt>
+                      <dd className="mt-1 truncate text-body-sm font-medium tabular text-primary">{n.value}</dd>
                     </div>
-                  </div>
-                )}
-                {hasLapChart && (
-                  <div id="lap-chart" className={showPracticeSlot || showQualifyingStrategyRow ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                    <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
-                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
-                    </RaceSubSection>
-                  </div>
-                )}
-                {hasPositionChanges && (
-                  <div id="race-performance" className={hasPractice || hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                    <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
-                      <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
-                    </RaceSubSection>
-                  </div>
-                )}
-              </DriverSetPanels>
+                  ))}
+                </dl>
+              )}
             </RaceSectionCard>
-          </DriverSetTabs>
-        </motion.div>
-      )}
 
-      {hasAnalysis && (
-        <RaceSectionCard title="Prediction Accuracy">
-          <div className="space-y-6">
-            {(accuracy || poleAccuracy) && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {accuracy && <PredictionComparison accuracy={accuracy} />}
-                {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
-              </div>
+            {hasAnalysis && (accuracy || poleAccuracy) && (
+              <RaceSectionCard id="predictions" title="How the predictions did" bare>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {accuracy && <PredictionComparison accuracy={accuracy} />}
+                  {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
+                </div>
+              </RaceSectionCard>
             )}
-            {(race.prediction || race.polePrediction) && <ModelInfo />}
-          </div>
-        </RaceSectionCard>
-      )}
 
-      {/* Only ever renders with a real simulation to show - "available after qualifying" used to
-          keep an empty card on screen for the entire pre-quali window; Race History & Records
-          and the sidebar's own "Your race" already say what's knowable before that. */}
-      {race.simulation && (
-        <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <RaceSectionCard
-            id="simulation"
-            title="Simulation"
-            description="Monte Carlo projection based on grid position, race pace and DNF probability."
-            headerRight={<span className="text-xs text-tertiary">Based on 10,000 simulations</span>}
-          >
-            <SimulationPanel simulation={race.simulation} />
-          </RaceSectionCard>
-        </motion.div>
-      )}
+            {analysis}
+            <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />
+
+            {/* The pre-race simulation, kept for comparison with what happened. */}
+            {race.simulation && (
+              <RaceSectionCard id="simulation" title="What the model expected" description="10,000 simulated races from the grid, race pace and retirement odds, frozen before the start.">
+                <SimulationPanel simulation={race.simulation} />
+              </RaceSectionCard>
+            )}
+            {communities}
+            {history}
+          </>
+        ) : (
+          <>
+            {calendarEntry && calendarEntry.sessions.length > 0 && (
+              <RaceSectionCard id="weekend" title="This weekend">
+                <RaceReadiness calendarEntry={calendarEntry} race={race} />
+              </RaceSectionCard>
+            )}
+
+            <RaceSectionCard id="pick" title="Your podium pick" description="Locks at lights out. Three points for each driver in the right place, one for the right driver in the wrong place." bare>
+              <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} />
+            </RaceSectionCard>
+
+            {race.simulation || race.prediction ? (
+              <RaceSectionCard id="prediction" title="What the model expects">
+                <ModelOutlook simulation={race.simulation} prediction={race.prediction} nameOf={nameOf} />
+                <div className="mt-5">
+                  <ModelInfo />
+                </div>
+              </RaceSectionCard>
+            ) : (
+              race.polePrediction && (
+                <RaceSectionCard id="prediction" title="Who the model expects on pole">
+                  <PoleSection polePrediction={race.polePrediction} />
+                </RaceSectionCard>
+              )
+            )}
+
+            {analysis}
+
+            <ApexTrackBriefing location={race.circuit} year={race.year} section={{ id: "preview", title: "Preview" }} />
+            {communities}
+            {history}
+          </>
+        )}
       </div>
 
-      {/* Sticky, not just placed in a taller column - a short sidebar next to a long main column
-          otherwise ends early and leaves a wide, empty gap beneath itself for the rest of the
-          page's scroll, which is exactly the "wasted space" this was called out for. `top-20` is the
-          sticky header (4rem) plus a gap, since the header now sits in the document's own scroll
-          (audit R-31) and would otherwise cover the top of the rail. `self-start` keeps it from being stretched to the grid row's own height (which
-          would silently defeat position:sticky - a stretched item has nowhere left to move within
-          its own box). The `max-h`/overflow pair is a safety net for the rare case its own content
-          genuinely exceeds the viewport, not the common one. */}
-      <aside className="min-w-0 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
-        <RaceSidebar
-          race={race}
-          isCompleted={isCompleted}
-          calendarEntry={calendarEntry}
+      <aside aria-label="About this race" className="min-w-0 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
+        <RaceRail
+          completed={isCompleted}
+          circuit={race.circuit}
+          weather={race.weather}
+          forecast={calendarEntry?.weatherForecast}
+          personal={personalContext}
           accuracy={accuracy}
-          personalContext={personalContext}
-          // Same "predicting" gate as the main column's own RaceCommunitiesSection (see its own
-          // comment right above) - the sidebar's "Trending in this race" preview is a preview OF
-          // that section, so it has nothing real to preview when that section isn't shown either.
           communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
+          nameOf={nameOf}
         />
       </aside>
     </div>

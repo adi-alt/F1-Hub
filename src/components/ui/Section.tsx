@@ -45,7 +45,9 @@ export function SectionHeader({ title, level, description, actions, provenance, 
         {description && <p className="mt-1 text-body-sm text-secondary">{description}</p>}
         {provenance && <ProvenanceLine {...provenance} className="mt-1" />}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {/* At most the row's width: a wide control (a four-way segmented filter) wraps under the title and then
+          scrolls inside itself on a 320px screen, instead of pushing the page sideways. */}
+      {actions && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

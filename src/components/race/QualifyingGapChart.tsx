@@ -155,7 +155,7 @@ export function QualifyingGapChart({ inputs, driverSet, customIds }: { inputs: R
       </div>
       {/* `layout` - height is content-driven (sessionChartHeight), so switching Top 5 -> All drivers
           animates the chart smoothly taller/shorter instead of snapping. */}
-      <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+      <div>
         <ResponsiveContainer width="100%" height={sessionChartHeight(data.length)}>
           <BarChart data={data} layout="vertical" margin={{ left: 8, right: 56, top: 8, bottom: 20 }} barCategoryGap="20%">
             {/* Vertical gridlines only (aligned to the X-axis' numeric ticks) - a horizontal-bar
@@ -185,7 +185,7 @@ export function QualifyingGapChart({ inputs, driverSet, customIds }: { inputs: R
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </motion.div>
+      </div>
     </div>
   );
 }

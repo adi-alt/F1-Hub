@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { RaceSectionCard } from "./RaceSectionCard";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type Block = { headline: string; summary: string };
@@ -85,13 +86,23 @@ function ApexLabel({ isAi }: { isAi?: boolean }) {
  * genuine failure - a real outcome for a venue with little history, not something to fill with a
  * placeholder.
  */
-export function ApexTrackBriefing({ location, year }: { location: string; year: number }) {
+export function ApexTrackBriefing({ location, year, section }: { location: string; year: number; section?: { id: string; title: string } }) {
   const state = useCircuitTake(location, year);
   const [expanded, setExpanded] = useState(false);
+  // With `section`, the briefing brings its own titled section, so a race page shows the heading only when
+  // there is a briefing under it (an empty "Preview" box when the AI has nothing was worse than no section).
+  const wrap = (content: ReactNode) =>
+    section ? (
+      <RaceSectionCard id={section.id} title={section.title}>
+        {content}
+      </RaceSectionCard>
+    ) : (
+      content
+    );
 
   if (state.status === "failed") return null;
   if (state.status === "loading") {
-    return (
+    return wrap(
       <div aria-busy>
         <ApexLabel />
         <div className="mt-2 space-y-1.5">
@@ -107,7 +118,7 @@ export function ApexTrackBriefing({ location, year }: { location: string; year: 
   const more = moreRaw.filter((b): b is Block => !!b);
   if (!headline && more.length === 0) return null;
 
-  return (
+  return wrap(
     <div>
       <ApexLabel isAi={state.isAi} />
       {headline && (

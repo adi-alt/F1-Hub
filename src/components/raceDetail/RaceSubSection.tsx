@@ -1,12 +1,9 @@
 import type { ReactNode } from "react";
 
-/** A third hierarchy level, inside a RaceSectionCard - "Race Analysis" groups Practice/
- * Qualifying/Strategy under one module instead of three separate ones, each still needing its own
- * clear sub-heading and a divider from its neighbor. Matches the 4-level model: page background ->
- * major surfaces (RaceSectionCard, the Season table's own border+fill treatment) -> inset surfaces
- * (StatTiles/podium/practice cards) -> compact rows (RaceResultsTable). This is the connective
- * tissue between the second and third levels, not a new visual language - `--f1-line` for the
- * divider matches every other divider on the page (RaceResultsTable, ChampionshipStandings). */
+/**
+ * A sub-section inside a race section: an h3 and its content, separated from the one before it by space and
+ * a hairline, never another box (spec §3.3: no nested boxes, sub-sections use h3 plus spacing).
+ */
 export function RaceSubSection({
   label,
   description,
@@ -17,21 +14,19 @@ export function RaceSubSection({
   label: string;
   description?: string;
   first?: boolean;
-  // A right-aligned control that belongs to this specific sub-section - e.g. the local Race
-  // Performance/Qualifying toggle in the merged Qualifying column (which chart, not how many
-  // drivers - the shared driver-set filter lives above the whole 2-column area instead).
+  // A control that belongs to this sub-section only.
   headerRight?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <div className={first ? "" : "mt-6 border-t border-[var(--f1-line)] pt-6"}>
+    <div className={first ? "" : "mt-8 border-t border-subtle pt-8"}>
       {/* Wraps: a filter beside a long label drops under it on a narrow screen instead of pushing the page wider. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
+        <h3 className="min-w-0 text-title-md text-primary">{label}</h3>
         {headerRight}
       </div>
-      {description && <p className="mt-1 text-sm text-tertiary">{description}</p>}
-      <div className="mt-2.5">{children}</div>
+      {description && <p className="mt-1 text-body-sm text-secondary">{description}</p>}
+      <div className="mt-4">{children}</div>
     </div>
   );
 }

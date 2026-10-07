@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
@@ -223,7 +222,7 @@ export function LapChart({
           hovering (either the legend pill or the trajectory itself, or clicking to lock it while
           the mouse moves to the chart) picks one out and fades the rest, rather than ~20
           equally-loud lines competing for attention. */}
-      <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+      <div>
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData} margin={{ left: 8, right: 16, top: 8 }}>
             {/* Two separate grids, not one - horizontal position guides read a touch more visibly
@@ -277,7 +276,7 @@ export function LapChart({
             })}
           </LineChart>
         </ResponsiveContainer>
-      </motion.div>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {visibleDriverIds.map((driverId) => {

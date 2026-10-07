@@ -5,7 +5,8 @@ import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveCircuitHist
 import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
-import { PickPanel } from "@/components/race/PickPanel";
+import { RaceKeyFact } from "@/components/race/RaceKeyFact";
+import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
@@ -72,7 +73,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const highlights = computeHighlights(race);
     const accuracy = comparePrediction(race);
     const poleAccuracy = comparePolePrediction(race);
-    const winner = race.status === "completed" ? race.results?.find((r) => r.finishPosition === 1) : undefined;
 
     // The live `races` table has no circuit_id (see findArchiveCircuitByLocation's own comment) -
     // an exact locality+country match against the archive's circuit list is the only real way to
@@ -121,16 +121,18 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
 
     return (
       <div className="page-wide py-8">
-        <RaceHeader
-          backHref="/season"
-          backLabel={`${race.year}`}
-          roundLabel={`Round ${race.round}`}
+        <RacePageHeader
+          year={race.year}
+          round={race.round}
           name={race.name}
-          circuitName={race.circuit}
+          circuit={race.circuit}
           country={race.country}
-          resultLabel={winner ? `Winner: ${winner.driverName}${race.resultsSource === "openf1_preliminary" ? " (preliminary)" : ""}` : undefined}
+          raceStart={raceSessionDate}
+          state={race.status === "completed" ? (race.resultsSource === "openf1_preliminary" ? "preliminary" : "final") : "upcoming"}
+          photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? circuitImage?.url ?? null}
+          keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
         />
-        <div className="mt-8">
+        <div className="mt-12">
           <SeasonRaceDashboard
             race={race}
             highlights={highlights}
@@ -143,15 +145,10 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             personalContext={personalContext}
             raceCommunities={raceCommunities}
             ageRecords={ageRecords}
+            fallbackEntrants={fallbackEntrants}
+            raceSessionDate={raceSessionDate}
           />
         </div>
-        {/* Never for a completed race - see PickPanel's own reasoning (the request that drove this:
-            no prediction UI, no podium-hit comparison, once a race is history). */}
-        {race.status !== "completed" && (
-          <div className="mt-8">
-            <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} />
-          </div>
-        )}
       </div>
     );
   }
