@@ -1,13 +1,12 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { Tabs, tabIdFor, type TabItem } from "@/components/ui/LegacyTabs";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { useId } from "react";
+import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { useHomepageIntelligence } from "./HomepageIntelligenceProvider";
 
 type TabKey = "briefing" | "yourRace" | "watch" | "risks";
-
-const PANEL_ID = "apex-workspace-panel";
 
 /** ONE tabbed intelligence workspace, replacing what used to be three separate stacked cards
  * (RaceBrief, YourRace, BlindSpot - all deleted). Same underlying `HomepageIntelligence` fields as
@@ -28,6 +27,7 @@ export function ApexIntelligenceWorkspace({
   onTabChange: (key: string) => void;
 }) {
   const { intelligence, isLoading } = useHomepageIntelligence();
+  const headingId = useId();
 
   if (isLoading) {
     return <ApexIntelligenceWorkspaceSkeleton />;
@@ -63,7 +63,7 @@ export function ApexIntelligenceWorkspace({
   if (tabs.length === 0) return null;
 
   const resolvedActive: TabKey = (tabs.find((t) => t.key === activeTab)?.key ?? tabs[0].key) as TabKey;
-  const tabItems: TabItem[] = tabs.map((t) => ({ key: t.key, label: t.label }));
+  const tabItems: TabItem[] = tabs.map((t) => ({ value: t.key, label: t.label }));
   const otherTabs = tabs.filter((t) => t.key !== resolvedActive && t.teaser);
 
   return (
@@ -78,28 +78,18 @@ export function ApexIntelligenceWorkspace({
        * line, not a moving glow - "restrained," per the brief. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--f1-red)]/60 to-transparent" />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="text-brand-text">✦</span>
-          <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-white">Apex Intelligence</h3>
+      <Tabs value={resolvedActive} onValueChange={onTabChange} items={tabItems}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span aria-hidden className="text-brand-text">✦</span>
+            <h3 id={headingId} className="text-xs font-semibold uppercase tracking-[0.2em] text-white">Apex Intelligence</h3>
+          </div>
+          <TabList aria-labelledby={headingId} />
         </div>
-        <Tabs items={tabItems} activeKey={resolvedActive} onChange={onTabChange} layoutId="apex-workspace-tabs" panelId={PANEL_ID} />
-      </div>
 
-      <div
-        id={PANEL_ID}
-        role="tabpanel"
-        aria-labelledby={tabIdFor(PANEL_ID, resolvedActive)}
-        className="mt-4"
-      >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={resolvedActive}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18, ease: "easeOut" }}
-          >
+        {/* Each panel mounts fresh when its tab is chosen, so this fades the new briefing in. */}
+        <TabPanels className="mt-4">
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, ease: "easeOut" }}>
             {resolvedActive === "briefing" && intelligence.raceBrief && (
               <div className="space-y-3">
                 <p className="text-base font-semibold text-white sm:text-lg leading-snug">{intelligence.raceBrief.headline}</p>
@@ -165,8 +155,8 @@ export function ApexIntelligenceWorkspace({
               </div>
             )}
           </motion.div>
-        </AnimatePresence>
-      </div>
+        </TabPanels>
+      </Tabs>
 
       {otherTabs.length > 0 && (
         <div className="mt-4 border-t border-white/[0.06] pt-3">
@@ -202,14 +192,14 @@ export function ApexIntelligenceWorkspaceSkeleton() {
   return (
     <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6">
       <div className="flex items-center justify-between">
-        <Skeleton className="skeleton-shimmer h-3.5 w-36 rounded" />
-        <Skeleton className="skeleton-shimmer h-7 w-56 rounded-lg" />
+        <Skeleton shape="block" className="h-3.5 w-36" />
+        <Skeleton shape="block" className="h-7 w-56" />
       </div>
       <div className="mt-4 space-y-3">
-        <Skeleton className="skeleton-shimmer h-6 w-5/6 rounded" />
-        <Skeleton className="skeleton-shimmer h-4 w-full rounded" />
-        <Skeleton className="skeleton-shimmer h-4 w-4/5 rounded" />
-        <Skeleton className="skeleton-shimmer h-10 w-full rounded-xl mt-2" />
+        <Skeleton shape="block" className="h-6 w-5/6" />
+        <Skeleton shape="block" className="h-4 w-full" />
+        <Skeleton shape="block" className="h-4 w-4/5" />
+        <Skeleton shape="block" className="h-10 w-full mt-2" />
       </div>
     </div>
   );

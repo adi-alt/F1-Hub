@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { tooltipStyle } from "@/components/charts/chartTheme";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { PracticeBestLap, PracticeData } from "@/lib/types/race";
 
 const SESSION_LABELS: Record<"FP1" | "FP2" | "FP3", string> = { FP1: "Practice 1", FP2: "Practice 2", FP3: "Practice 3" };
@@ -136,15 +136,15 @@ export function PracticeSummarySkeleton() {
     <div className="grid items-stretch gap-3 sm:grid-cols-3">
       {Array.from({ length: 3 }).map((_, cardIndex) => (
         <div key={cardIndex} className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3.5">
-          <Skeleton className="mb-2.5 h-3 w-20 bg-white/[0.06]" />
+          <Skeleton shape="block" className="mb-2.5 h-3 w-20" />
           <div className="space-y-1.5">
             {Array.from({ length: 5 }).map((_, rowIndex) => (
               <div key={rowIndex} className="flex items-center gap-2 px-1.5 py-1">
-                <Skeleton className="h-3 w-2.5 bg-white/[0.06]" />
-                <Skeleton className="h-3.5 w-9 bg-white/[0.06]" />
+                <Skeleton shape="block" className="h-3 w-2.5" />
+                <Skeleton shape="block" className="h-3.5 w-9" />
                 <span className="flex-1" />
-                <Skeleton className="h-3.5 w-14 bg-white/[0.06]" />
-                <Skeleton className="h-3 w-9 bg-white/[0.06]" />
+                <Skeleton shape="block" className="h-3.5 w-14" />
+                <Skeleton shape="block" className="h-3 w-9" />
               </div>
             ))}
           </div>

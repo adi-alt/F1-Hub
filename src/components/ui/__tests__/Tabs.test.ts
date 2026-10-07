@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { nextTabIndex, TabList, TabPanel, Tabs, tabId, tabPanelId, type TabItem, type TabsVariant } from "../Tabs";
+import { nextTabIndex, TabList, TabPanel, TabPanels, Tabs, tabId, tabPanelId, type TabItem, type TabsVariant } from "../Tabs";
 import { byRole, classesOf, classesWithoutCss, tags, withChildren } from "./markup";
 
 const ITEMS: readonly TabItem[] = [
@@ -159,9 +159,31 @@ test("every tab and panel gets the focus ring", () => {
   }
 });
 
-test("TabList and TabPanel refuse to render outside Tabs", () => {
+test("TabPanels gives every tab a real panel and shows its children in the selected one only", () => {
+  const html = renderToStaticMarkup(
+    withChildren(
+      Tabs<string>,
+      { variant: "segmented", value: "constructors", onValueChange: () => {}, items: ITEMS },
+      createElement(TabList, { "aria-label": "Standings" }),
+      withChildren(TabPanels, { className: "mt-4" }, "The one table"),
+    ),
+  );
+  const tabs = byRole(html, "tab");
+  const panels = byRole(html, "tabpanel");
+  assert.equal(panels.length, 3);
+  for (const tab of tabs) assert.ok(panels.some((panel) => panel.attrs.id === tab.attrs["aria-controls"]), tab.attrs["aria-controls"]);
+  assert.deepEqual(
+    panels.map((panel) => "hidden" in panel.attrs),
+    [true, false, true],
+  );
+  assert.equal(html.match(/The one table/g)?.length, 1);
+  for (const panel of panels) assert.ok(classesOf(panel).includes("mt-4"));
+});
+
+test("TabList, TabPanel and TabPanels refuse to render outside Tabs", () => {
   assert.throws(() => renderToStaticMarkup(createElement(TabList, { "aria-label": "Orphan" })), /inside <Tabs>/);
   assert.throws(() => renderToStaticMarkup(withChildren(TabPanel, { value: "x" }, "orphan")), /inside <Tabs>/);
+  assert.throws(() => renderToStaticMarkup(withChildren(TabPanels, {}, "orphan")), /inside <Tabs>/);
 });
 
 test("every class Tabs renders is a real Tailwind utility", async () => {

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export type SkeletonShape = "text" | "block" | "circle" | "row";
 
@@ -19,13 +19,15 @@ const SHAPES: Record<SkeletonShape, string> = {
  * under reduced motion. Hidden from assistive tech: wrap skeletons in SkeletonGroup, which
  * announces loading once.
  *
- * `className` is for layout only (size, margins, placement), never colour or shape.
+ * `className` is for layout only (size, margins, placement), never colour or shape. `style` is the
+ * same, for a size only known at render time, such as a line whose width steps down per index.
  */
-export function Skeleton({ shape = "text", className }: { shape?: SkeletonShape; className?: string }) {
+export function Skeleton({ shape = "text", className, style }: { shape?: SkeletonShape; className?: string; style?: CSSProperties }) {
   return (
     <span
       aria-hidden="true"
       className={["block animate-[pulse_1.6s_ease-in-out_infinite] bg-primary/10 motion-reduce:animate-none", SHAPES[shape], className].filter(Boolean).join(" ")}
+      style={style}
     />
   );
 }

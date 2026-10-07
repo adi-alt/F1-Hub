@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PostCard } from "@/app/groups/components/post/PostCard";
 import { PredictionFeedCard } from "@/app/groups/components/post/PredictionFeedCard";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { activityDensity } from "@/lib/density";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
@@ -242,21 +242,21 @@ export function CommunitySection({
 export function CommunitySectionSkeleton() {
   return (
     <section>
-      <Skeleton className="skeleton-shimmer h-4 w-44 rounded mb-4" />
+      <Skeleton shape="block" className="h-4 w-44 mb-4" />
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
         <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6 h-[400px]">
-          <Skeleton className="skeleton-shimmer h-4 w-36 rounded mb-4" />
+          <Skeleton shape="block" className="h-4 w-36 mb-4" />
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="skeleton-shimmer h-24 rounded-xl" />
+              <Skeleton key={i} shape="block" className="h-24" />
             ))}
           </div>
         </div>
         <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/40 p-5 sm:p-6 h-[400px]">
-          <Skeleton className="skeleton-shimmer h-4 w-28 rounded mb-4" />
+          <Skeleton shape="block" className="h-4 w-28 mb-4" />
           <div className="space-y-2.5">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="skeleton-shimmer h-12 rounded-xl" />
+              <Skeleton key={i} shape="block" className="h-12" />
             ))}
           </div>
         </div>

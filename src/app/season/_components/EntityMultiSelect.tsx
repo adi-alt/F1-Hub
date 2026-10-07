@@ -26,11 +26,9 @@ type Rect = { top?: number; bottom?: number; left: number; width: number; flip: 
  * Progression's Custom mode (multi, with select all/clear all and checkboxes) and reused by
  * Compare's driver/team pickers (`multiple={false}` - single click selects and closes, no
  * checkbox row) so both controls share one visual language instead of this one looking like a
- * polished popover and Compare's looking like a plain text input with a native focus ring. Kept
- * as its own component rather than generalizing SearchableSelect.tsx (still used, unmodified in
- * spirit, by the signup flow): a purpose-built component here is less risk than threading a very
- * different interaction model through code something else already relies on. Same portal/
- * position/click-outside pattern as SearchableSelect, so it behaves consistently either way. */
+ * polished popover and Compare's looking like a plain text input with a native focus ring. The
+ * dropdown is portaled and positioned from the trigger's own rect, so no clipping ancestor can cut
+ * it off, and it closes on a click outside. */
 export function EntityMultiSelect({
   options,
   selected,
@@ -149,8 +147,9 @@ export function EntityMultiSelect({
   useLayoutEffect(() => {
     if (!open) return;
     updatePosition();
-    // capture:true so a scroll on any ancestor (not just window) still repositions this - same
-    // reasoning as SearchableSelect.tsx.
+    // capture:true so a scroll on any ancestor (not just window) still repositions this - scroll
+    // events don't bubble, but a capture-phase listener on window still sees them on their way
+    // down to the target.
     window.addEventListener("scroll", updatePosition, { capture: true, passive: true });
     window.addEventListener("resize", updatePosition);
     return () => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import type { RaceDoc } from "@/lib/types/race";
 
@@ -84,10 +84,10 @@ export function DriverFormStrip({ favoriteDriverCode, races }: { favoriteDriverC
 export function DriverFormStripSkeleton() {
   return (
     <div>
-      <Skeleton className="skeleton-shimmer mb-2.5 h-3 w-24 rounded" />
+      <Skeleton shape="block" className="mb-2.5 h-3 w-24" />
       <div className="flex items-center gap-2">
         {Array.from({ length: RESULTS_SHOWN }).map((_, i) => (
-          <Skeleton key={i} className="skeleton-shimmer h-9 w-9 rounded-full" />
+          <Skeleton key={i} shape="circle" className="h-9 w-9" />
         ))}
       </div>
     </div>

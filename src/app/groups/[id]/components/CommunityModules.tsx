@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { ImageIcon } from "lucide-react";
 import { communityTypeMeta, visibilityLabel, MODULE_LABELS, type CommunityModule } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupDetail } from "@/lib/supabase/groups";
 import { timeAgo } from "@/lib/format";
-import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 /**
  * Media is a *view over the feed*, not a second store - it lists the posts in this community that
@@ -33,7 +34,7 @@ export function MediaTab({ groupId }: { groupId: string }) {
   }, [groupId]);
 
   if (error) {
-    return <EmptyState icon={EmptyIcons.media} title="Couldn't load media." description="Something went wrong reaching this community's posts." />;
+    return <EmptyState icon={ImageIcon} message="Couldn't load media: something went wrong reaching this community's posts." />;
   }
 
   if (posts === null) {
@@ -48,11 +49,7 @@ export function MediaTab({ groupId }: { groupId: string }) {
 
   if (posts.length === 0) {
     return (
-      <EmptyState
-        icon={EmptyIcons.media}
-        title="No race moments here yet."
-        description="Anything posted with a photo or video in this community's feed shows up here automatically."
-      />
+      <EmptyState icon={ImageIcon} message="No race moments here yet: anything posted with a photo or video in this community's feed shows up here automatically." />
     );
   }
 

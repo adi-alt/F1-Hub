@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { raceHref } from "@/lib/routes";
 import type { RaceDoc } from "@/lib/types/race";
 
@@ -59,7 +59,7 @@ export function ModelWatchSkeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: TOP_N }).map((_, i) => (
-        <Skeleton key={i} className="skeleton-shimmer h-4 w-full rounded" />
+        <Skeleton key={i} shape="block" className="h-4 w-full" />
       ))}
     </div>
   );

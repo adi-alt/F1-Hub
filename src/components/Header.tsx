@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { permissionsForRole } from "@/lib/rbac";
 import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { seasonHref } from "@/lib/routes";
@@ -62,7 +62,7 @@ export function Header({ season }: { season: number }) {
         {loading ? (
           <nav aria-hidden className="hidden items-center gap-6 sm:flex">
             {NAV_SKELETON_WIDTHS.map((w, i) => (
-              <Skeleton key={i} className={`skeleton-shimmer h-3.5 ${w} rounded`} />
+              <Skeleton key={i} shape="block" className={`h-3.5 ${w}`} />
             ))}
           </nav>
         ) : (

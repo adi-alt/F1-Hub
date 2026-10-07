@@ -34,13 +34,12 @@ const MIN_DROPDOWN_WIDTH = 260;
  * The app's general-purpose select/combobox: search, full keyboard navigation, portal-rendered so
  * no `overflow:hidden` ancestor can clip it, and real loading/empty/disabled states.
  *
- * WHY A THIRD ONE. This repo already has `SearchableSelect` (a plain text combobox, used by the
- * signup dialog) and `EntityMultiSelect` (Season/Archive/Compare's multi-select with avatars).
- * Neither does arrow-key navigation, a clear affordance, loading/empty/disabled states, or custom
- * value entry, and EntityMultiSelect's own header comment explicitly warns against threading a
- * different interaction model through it because four other pages depend on its exact behavior.
- * So Communities gets this one, and the other two are left untouched rather than destabilized.
- * New surfaces should reach for this; the older two are not worth a risky migration on their own.
+ * WHY A SECOND ONE. This repo already has `EntityMultiSelect` (Season/Archive/Compare's
+ * multi-select with avatars). It doesn't do arrow-key navigation, a clear affordance,
+ * loading/empty/disabled states, or custom value entry, and four other pages depend on its exact
+ * behavior, so threading a different interaction model through it was the riskier path.
+ * Communities gets this one, and EntityMultiSelect is left untouched rather than destabilized.
+ * New surfaces should reach for this; the older one is not worth a risky migration on its own.
  *
  * The portal/flip/measure-available-space positioning below is lifted deliberately from
  * EntityMultiSelect, which learned it the hard way (see its own long comment): measure the real

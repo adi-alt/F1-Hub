@@ -1,4 +1,4 @@
-import { Skeleton } from "./LegacySkeleton";
+import { Skeleton } from "./Skeleton";
 
 /** The capsule tab-bar shape shared by personalization's and archive's tab switchers — a
  * bordered pill track holding one skeleton pill per real tab, sized roughly to that tab's own
@@ -8,10 +8,10 @@ export function TabBarSkeleton({ labels }: { labels: string[] }) {
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
         {labels.map((label, i) => (
-          <Skeleton key={label} className={`h-8 rounded-full ${i === 0 ? "w-20" : "w-24"}`} />
+          <Skeleton key={label} shape="circle" className={`h-8 ${i === 0 ? "w-20" : "w-24"}`} />
         ))}
       </div>
-      <Skeleton className="h-8 w-56 rounded-full" />
+      <Skeleton shape="circle" className="h-8 w-56" />
     </div>
   );
 }
@@ -27,22 +27,22 @@ export function TableRowsSkeleton({ rows = 11 }: { rows?: number }) {
         <thead className="border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]">
           <tr>
             <th className="w-12 px-4 py-2.5">
-              <Skeleton className="h-3 w-5" />
+              <Skeleton shape="block" className="h-3 w-5" />
             </th>
             <th className="px-4 py-2.5">
-              <Skeleton className="h-3 w-16" />
+              <Skeleton shape="block" className="h-3 w-16" />
             </th>
             <th className="px-4 py-2.5 text-right">
-              <Skeleton className="ml-auto h-3 w-12" />
+              <Skeleton shape="block" className="ml-auto h-3 w-12" />
             </th>
             <th className="px-4 py-2.5 text-right">
-              <Skeleton className="ml-auto h-3 w-14" />
+              <Skeleton shape="block" className="ml-auto h-3 w-14" />
             </th>
             <th className="px-4 py-2.5">
-              <Skeleton className="h-3 w-16" />
+              <Skeleton shape="block" className="h-3 w-16" />
             </th>
             <th className="w-12 px-4 py-2.5 text-center">
-              <Skeleton className="mx-auto h-3 w-6" />
+              <Skeleton shape="block" className="mx-auto h-3 w-6" />
             </th>
           </tr>
         </thead>
@@ -50,22 +50,22 @@ export function TableRowsSkeleton({ rows = 11 }: { rows?: number }) {
           {Array.from({ length: rows }).map((_, i) => (
             <tr key={i}>
               <td className="px-4 py-3">
-                <Skeleton className="h-3.5 w-4" />
+                <Skeleton shape="block" className="h-3.5 w-4" />
               </td>
               <td className="px-4 py-3">
-                <Skeleton className="h-3.5 w-32" />
+                <Skeleton shape="block" className="h-3.5 w-32" />
               </td>
               <td className="px-4 py-3 text-right">
-                <Skeleton className="ml-auto h-3.5 w-8" />
+                <Skeleton shape="block" className="ml-auto h-3.5 w-8" />
               </td>
               <td className="px-4 py-3 text-right">
-                <Skeleton className="ml-auto h-3.5 w-16" />
+                <Skeleton shape="block" className="ml-auto h-3.5 w-16" />
               </td>
               <td className="px-4 py-3">
-                <Skeleton className="h-3.5 w-40" />
+                <Skeleton shape="block" className="h-3.5 w-40" />
               </td>
               <td className="px-4 py-3 text-center">
-                <Skeleton className="mx-auto h-5 w-5 rounded-full" />
+                <Skeleton shape="circle" className="mx-auto h-5 w-5" />
               </td>
             </tr>
           ))}
@@ -81,9 +81,9 @@ export function TableFooterSkeleton() {
   return (
     <div className="mt-3 grid shrink-0 grid-cols-3 items-center">
       <div />
-      <Skeleton className="mx-auto h-3.5 w-40" />
+      <Skeleton shape="block" className="mx-auto h-3.5 w-40" />
       <div className="flex justify-end">
-        <Skeleton className="h-7 w-20 rounded-full" />
+        <Skeleton shape="circle" className="h-7 w-20" />
       </div>
     </div>
   );

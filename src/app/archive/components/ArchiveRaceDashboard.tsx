@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
-import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
+import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
+import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -213,25 +213,8 @@ export function ArchiveRaceDashboard({
   // Nothing left to filter down to for a field of 5 or fewer. Governs Qualifying, Strategy, Lap
   // Progression, and Race Performance together - one control for the whole section, not each
   // panel's own.
-  const driverSetFilter =
-    Math.max(hasQualifying ? race.qualifying!.length : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5 ? (
-      <div className="flex flex-wrap items-center gap-3">
-        <QuietTabs
-          options={[
-            { value: "top5" as const, label: "Top 5" },
-            { value: "top10" as const, label: "Top 10" },
-            { value: "all" as const, label: "All drivers" },
-            { value: "custom" as const, label: "Custom" },
-          ]}
-          value={driverSet}
-          onChange={setDriverSet}
-          className="text-xs"
-        />
-        {driverSet === "custom" && (
-          <EntityMultiSelect options={customSelectOptions} selected={customDriverIds} onChange={setCustomDriverIds} placeholder="Select drivers" triggerClassName="h-8 py-1 text-xs" />
-        )}
-      </div>
-    ) : undefined;
+  const driverSetFilterable =
+    Math.max(hasQualifying ? race.qualifying!.length : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5;
 
   // Whatever's honestly knowable client-side, pre-generation - compoundPace/traffic/safetyCar are
   // never in this coverage object at all (archive_races has no such columns for any year), so the
@@ -295,48 +278,56 @@ export function ArchiveRaceDashboard({
 
       {hasSessionAnalysis && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <RaceSectionCard
-            title="Race Analysis"
-            description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
-            headerRight={driverSetFilter}
-          >
-            {/* Qualifying and Strategy share a row - they're the two panels that genuinely
-                benefit from sitting side by side at a comparable width. Lap Progression needs
-                real horizontal room to read a whole field's trajectories, and Race Performance
-                reads best as one full-width comparison strip - forcing either into a second
-                column here is exactly the cramped, dead-space-heavy layout this redesign
-                replaces, so both get their own full-width row below instead. */}
-            <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
-              {hasQualifying && (
-                <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
-                  <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
-                    <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
-                  </RaceSubSection>
+          <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
+            <RaceSectionCard
+              title="Race Analysis"
+              description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
+              headerRight={
+                driverSetFilterable ? (
+                  <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customDriverIds} onCustomIdsChange={setCustomDriverIds} />
+                ) : undefined
+              }
+            >
+              <DriverSetPanels filterable={driverSetFilterable}>
+                {/* Qualifying and Strategy share a row - they're the two panels that genuinely
+                    benefit from sitting side by side at a comparable width. Lap Progression needs
+                    real horizontal room to read a whole field's trajectories, and Race Performance
+                    reads best as one full-width comparison strip - forcing either into a second
+                    column here is exactly the cramped, dead-space-heavy layout this redesign
+                    replaces, so both get their own full-width row below instead. */}
+                <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
+                  {hasQualifying && (
+                    <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
+                      <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
+                        <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
+                      </RaceSubSection>
+                    </div>
+                  )}
+                  {hasStrategy && (
+                    <div id="strategy" className="min-w-0">
+                      <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths across the race." first>
+                        <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} customIds={customDriverIds} />
+                      </RaceSubSection>
+                    </div>
+                  )}
                 </div>
-              )}
-              {hasStrategy && (
-                <div id="strategy" className="min-w-0">
-                  <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths across the race." first>
-                    <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} customIds={customDriverIds} />
-                  </RaceSubSection>
-                </div>
-              )}
-            </div>
-            {hasLapChart && (
-              <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
-                  <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
-                </RaceSubSection>
-              </div>
-            )}
-            {hasPositionChanges && (
-              <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
-                  <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
-                </RaceSubSection>
-              </div>
-            )}
-          </RaceSectionCard>
+                {hasLapChart && (
+                  <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+                    <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
+                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
+                    </RaceSubSection>
+                  </div>
+                )}
+                {hasPositionChanges && (
+                  <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+                    <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
+                      <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
+                    </RaceSubSection>
+                  </div>
+                )}
+              </DriverSetPanels>
+            </RaceSectionCard>
+          </DriverSetTabs>
         </motion.div>
       )}
 

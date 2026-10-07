@@ -178,3 +178,18 @@ export function TabPanel({ value, className = "", children }: { value: string; c
     </div>
   );
 }
+
+/**
+ * A <TabPanel> for every tab of the enclosing <Tabs>, all given the same `children`, so only the
+ * selected one shows them. For content written once against the selected value rather than once
+ * per tab: a filter over one table, a metric over one chart, a list of tabs that comes from data.
+ * `className` goes on each panel and is for layout only.
+ */
+export function TabPanels({ className, children }: { className?: string; children: ReactNode }) {
+  const { items } = useTabsContext("TabPanels");
+  return items.map((item) => (
+    <TabPanel key={item.value} value={item.value} className={className}>
+      {children}
+    </TabPanel>
+  ));
+}

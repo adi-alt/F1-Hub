@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
+import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { canDo, MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupPrediction } from "@/lib/groupPredictionTypes";
@@ -102,6 +103,7 @@ export function CommunityWorkspace({
   // callback a new identity every render, and it's passed into the rail.
   const modules = useMemo(() => resolveModules(group.communityType, group.features), [group.communityType, group.features]);
   const tabs: Tab[] = useMemo(() => (isAdmin ? [...modules, "manage"] : modules), [isAdmin, modules]);
+  const tabItems: TabItem<Tab>[] = tabs.map((t) => ({ value: t, label: t === "manage" ? "Manage" : MODULE_LABELS[t] }));
 
   const defaultTab = modules[0] ?? "feed";
   // `initialTab` comes from the server's own searchParams, already validated there, so the first
@@ -187,65 +189,53 @@ export function CommunityWorkspace({
         <div className="min-w-0">
           <CommunityHeader group={group} memberCount={memberCount} pendingRequests={pendingRequests} onOpenManage={() => select("manage")} />
 
-          <div className="mt-6">
-            {/* Horizontally scrollable on a narrow screen rather than wrapping to two rows. */}
-            <div className="-mx-1 overflow-x-auto border-b border-[var(--f1-line)] px-1 scrollbar-hide">
-              <div role="tablist" aria-label="Community sections" className="flex min-w-max items-center gap-1">
-                {tabs.map((t) => (
-                  <button
-                    key={t}
-                    role="tab"
-                    aria-selected={tab === t}
-                    onClick={() => select(t)}
-                    className={`relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition ${tab === t ? "text-white" : "text-tertiary hover:text-neutral-300"}`}
-                  >
-                    {t === "manage" ? "Manage" : MODULE_LABELS[t]}
-                    {tab === t && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[var(--f1-red)]" />}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <Tabs value={tab} onValueChange={select} items={tabItems}>
+            <div className="mt-6">
+              {/* The strip scrolls sideways on a narrow screen rather than wrapping to two rows. */}
+              <TabList aria-label="Community sections" />
 
-            <AnimatePresence mode="wait">
-              <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="mt-5">
-                {tab === "feed" && (
-                  <CommunityFeed
-                    groupId={group.id}
-                    communityName={group.name}
-                    communityAvatarUrl={group.avatarUrl}
-                    communityDescription={group.description}
-                    communityType={group.communityType}
-                    features={group.features}
-                    permissions={group.permissions}
-                    initialPosts={posts}
-                    initialCursor={postsCursor}
-                    myRole={group.myRole}
-                    moderationEnabled={group.moderationEnabled}
-                    pendingCount={pendingPosts}
-                    upcomingRaces={upcomingRaces}
-                    composerOpen={composerOpen}
-                    onComposerOpenChange={setComposerOpen}
-                    focusPostId={focusPostId}
-                  />
-                )}
-                {tab === "predictions" && (
-                  <GroupPredictions
-                    groupId={group.id}
-                    myRole={group.myRole}
-                    predictions={predictions}
-                    races={races}
-                    driversByRace={driversByRace}
-                    pointsBalance={pointsBalance}
-                  />
-                )}
-                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
-                {tab === "media" && <MediaTab groupId={group.id} />}
-                {tab === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
-                {tab === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
-                {tab === "manage" && isAdmin && <ManageTabLazy group={group} />}
-              </motion.div>
-            </AnimatePresence>
-          </div>
+              {/* Each panel mounts fresh when its tab is chosen, so this fades the new one in. */}
+              <TabPanels className="mt-5">
+                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+                  {tab === "feed" && (
+                    <CommunityFeed
+                      groupId={group.id}
+                      communityName={group.name}
+                      communityAvatarUrl={group.avatarUrl}
+                      communityDescription={group.description}
+                      communityType={group.communityType}
+                      features={group.features}
+                      permissions={group.permissions}
+                      initialPosts={posts}
+                      initialCursor={postsCursor}
+                      myRole={group.myRole}
+                      moderationEnabled={group.moderationEnabled}
+                      pendingCount={pendingPosts}
+                      upcomingRaces={upcomingRaces}
+                      composerOpen={composerOpen}
+                      onComposerOpenChange={setComposerOpen}
+                      focusPostId={focusPostId}
+                    />
+                  )}
+                  {tab === "predictions" && (
+                    <GroupPredictions
+                      groupId={group.id}
+                      myRole={group.myRole}
+                      predictions={predictions}
+                      races={races}
+                      driversByRace={driversByRace}
+                      pointsBalance={pointsBalance}
+                    />
+                  )}
+                  {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
+                  {tab === "media" && <MediaTab groupId={group.id} />}
+                  {tab === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
+                  {tab === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
+                  {tab === "manage" && isAdmin && <ManageTabLazy group={group} />}
+                </motion.div>
+              </TabPanels>
+            </div>
+          </Tabs>
         </div>
 
         {/* Manage is a full-width settings surface with its own two-column layout; a context rail

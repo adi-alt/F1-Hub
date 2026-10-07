@@ -3,21 +3,23 @@
 import { useSearchParams } from "next/navigation";
 import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkeleton";
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 
 const TABS = ["By year", "By track", "By driver", "By team"];
 
-// Matches QuietTabs' own shape (plain text tabs with a thin underline, no pill/bordered-track
-// background) now that Archive's facet switcher uses that shared component directly instead of a
-// bespoke capsule - not TabBarSkeleton (@/components/ui/TableSkeleton), which is still the right
-// skeleton for personalization's own, still-capsule-styled tabs.
-function QuietTabsSkeleton() {
+// Matches the facet switcher's underline Tabs strip (the same padding, 40px tabs 24px apart, one
+// body-sm label each), so the real strip lands on top of it - not TabBarSkeleton
+// (@/components/ui/TableSkeleton), which is still the right skeleton for personalization's own,
+// still-capsule-styled tabs.
+function FacetTabsSkeleton() {
   return (
-    <div className="flex items-center gap-5">
+    <div className="-mx-1 flex gap-6 px-1 py-1">
       {TABS.map((label, i) => (
-        <Skeleton key={label} className={`h-4 ${i === 0 ? "w-14" : "w-16"}`} />
+        <span key={label} className="flex h-10 items-center">
+          <Skeleton shape="text" className={i === 0 ? "w-14" : "w-16"} />
+        </span>
       ))}
     </div>
   );
@@ -42,28 +44,28 @@ export default function ArchiveLoading() {
       <div role="status" className="page-wide skeleton-delay py-6">
         <span className="sr-only">Loading the archive</span>
         <div className="shrink-0">
-          <Skeleton className="h-4 w-16" />
+          <Skeleton shape="block" className="h-4 w-16" />
           <div className="mt-2 flex items-center gap-3">
-            <Skeleton className="h-11 w-11 rounded-full" />
+            <Skeleton shape="circle" className="h-11 w-11" />
             <div className="min-w-0 flex-1">
-              <Skeleton className="h-7 w-56" />
-              <Skeleton className="mt-1.5 h-4 w-40" />
+              <Skeleton shape="block" className="h-7 w-56" />
+              <Skeleton shape="block" className="mt-1.5 h-4 w-40" />
             </div>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-3 sm:flex sm:flex-wrap sm:gap-6">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-16" />
+              <Skeleton key={i} shape="block" className="h-10 w-16" />
             ))}
           </div>
         </div>
         <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col">
-            <Skeleton className="mb-3 h-8 w-full max-w-xs rounded-md" />
+            <Skeleton shape="block" className="mb-3 h-8 w-full max-w-xs" />
             <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/[0.07]">
               <TableRowsSkeleton />
             </div>
           </div>
-          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton shape="block" className="h-64 w-full" />
         </div>
       </div>
     );
@@ -72,12 +74,12 @@ export default function ArchiveLoading() {
   return (
     <div role="status" className="page-wide skeleton-delay py-6">
         <span className="sr-only">Loading the archive</span>
-      <Skeleton className="h-9 w-40 shrink-0" />
-      <Skeleton className="mt-1 h-4 w-full max-w-lg shrink-0" />
+      <Skeleton shape="block" className="h-9 w-40 shrink-0" />
+      <Skeleton shape="block" className="mt-1 h-4 w-full max-w-lg shrink-0" />
       <div className="mt-4 flex flex-col">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-          <QuietTabsSkeleton />
-          <Skeleton className="h-8 w-full max-w-xs rounded-full" />
+          <FacetTabsSkeleton />
+          <Skeleton shape="circle" className="h-8 w-full max-w-xs" />
         </div>
         <div className="mt-4 min-h-0 flex-1 overflow-hidden">
           {section === "track" ? (
