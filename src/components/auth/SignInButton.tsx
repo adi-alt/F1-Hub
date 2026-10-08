@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { ProfileMenu } from "./ProfileMenu";
 
 export function SignInButton() {
@@ -16,10 +16,10 @@ export function SignInButton() {
   if (loading) {
     return (
       <div aria-hidden className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5">
-        <Skeleton className="skeleton-shimmer h-7 w-7 shrink-0 rounded-full" />
-        <Skeleton className="skeleton-shimmer hidden h-3.5 w-16 rounded min-[400px]:block" />
+        <Skeleton shape="circle" className="h-7 w-7 shrink-0" />
+        <Skeleton shape="block" className="hidden h-3.5 w-16 min-[400px]:block" />
         <span className="border-l border-white/10 pl-2">
-          <Skeleton className="skeleton-shimmer h-3.5 w-10 rounded" />
+          <Skeleton shape="block" className="h-3.5 w-10" />
         </span>
       </div>
     );

@@ -7,7 +7,7 @@ import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdown, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
 import { DriverPicker } from "@/components/ui/F1Pickers";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 type Status = "idle" | "loading" | "saving" | "saved" | "error";
@@ -28,12 +28,12 @@ function toFormState(data: UserPick) {
 function PickPanelSkeleton() {
   return (
     <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-      <Skeleton className="h-3 w-32" />
+      <Skeleton shape="block" className="h-3 w-32" />
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {["P1", "P2", "P3"].map((label) => (
           <div key={label}>
-            <Skeleton className="h-3 w-6" />
-            <Skeleton className="mt-1 h-9 w-full" />
+            <Skeleton shape="block" className="h-3 w-6" />
+            <Skeleton shape="block" className="mt-1 h-9 w-full" />
           </div>
         ))}
       </div>

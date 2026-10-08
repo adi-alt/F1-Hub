@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Mirrors UserManagement's real layout — the card, its one control row, and the table — so the
  * page doesn't visibly re-flow the moment the profiles query lands. Static, not animated in: a
@@ -9,18 +9,18 @@ export default function UsersLoading() {
   return (
     <div role="status" className="page-content skeleton-delay py-10">
       <span className="sr-only">Loading users</span>
-      <Skeleton className="h-9 w-32" />
-      <Skeleton className="mt-2 h-4 w-72" />
+      <Skeleton shape="block" className="h-9 w-32" />
+      <Skeleton shape="block" className="mt-2 h-4 w-72" />
 
       <div className="mt-8 space-y-5">
         <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
           <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-            <Skeleton className="h-6 w-32" />
+            <Skeleton shape="block" className="h-6 w-32" />
             <div className="flex flex-wrap items-center gap-2">
-              <Skeleton className="h-9 w-72 rounded-lg" />
-              <Skeleton className="h-9 w-56 rounded-lg" />
-              <Skeleton className="h-9 w-24 rounded-lg" />
-              <Skeleton className="h-9 w-9 rounded-lg" />
+              <Skeleton shape="block" className="h-9 w-72" />
+              <Skeleton shape="block" className="h-9 w-56" />
+              <Skeleton shape="block" className="h-9 w-24" />
+              <Skeleton shape="block" className="h-9 w-9" />
             </div>
           </div>
 
@@ -39,17 +39,17 @@ export default function UsersLoading() {
                 <tr key={i}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                      <Skeleton shape="circle" className="h-8 w-8 shrink-0" />
                       <div className="space-y-1.5">
-                        <Skeleton className="h-3.5 w-32" />
-                        <Skeleton className="h-3 w-20" />
+                        <Skeleton shape="block" className="h-3.5 w-32" />
+                        <Skeleton shape="block" className="h-3 w-20" />
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3"><Skeleton className="h-3.5 w-40" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-5 w-24 rounded-md" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-8 w-32 rounded-lg" /></td>
-                  <td className="px-4 py-3"><Skeleton className="h-3.5 w-24" /></td>
+                  <td className="px-4 py-3"><Skeleton shape="block" className="h-3.5 w-40" /></td>
+                  <td className="px-4 py-3"><Skeleton shape="block" className="h-5 w-24" /></td>
+                  <td className="px-4 py-3"><Skeleton shape="block" className="h-8 w-32" /></td>
+                  <td className="px-4 py-3"><Skeleton shape="block" className="h-3.5 w-24" /></td>
                 </tr>
               ))}
             </tbody>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { WinnersBarList } from "./WinnersBarList";
 import { GrandPrixHistoryContent, hasGrandPrixHistory } from "./GrandPrixHistorySection";
@@ -79,19 +79,25 @@ export function RaceHistorySection({
     records: `All-time milestones at ${circuitName}.`,
   };
 
+  const content = (
+    <>
+      {activeTab === "winners" && <GrandPrixHistoryContent raceName={raceName} timeline={timeline} />}
+      {activeTab === "drivers" && <WinnersBarList entries={topDrivers.map((d) => ({ name: d.driver, count: d.wins }))} unit="win" />}
+      {activeTab === "teams" && <WinnersBarList entries={topTeams.map((t) => ({ name: t.team, count: t.wins }))} unit="win" />}
+      {activeTab === "trends" && <TrackTrendsContent liveRaces={liveRaces} archiveRaces={archiveRaces} circuitName={circuitName} />}
+      {activeTab === "records" && <CircuitRecordsContent timeline={timeline} liveRaces={liveRaces} archiveRaces={archiveRaces} ageRecords={ageRecords} />}
+    </>
+  );
+  // With one tab there's nothing to switch, so no strip and no panels.
+  const tabbed = availableTabs.length > 1;
+
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-      <RaceSectionCard
-        title="Race History & Records"
-        description={descriptionByTab[activeTab]}
-        headerRight={availableTabs.length > 1 ? <QuietTabs options={availableTabs} value={activeTab} onChange={setTab} className="text-xs" /> : undefined}
-      >
-        {activeTab === "winners" && <GrandPrixHistoryContent raceName={raceName} timeline={timeline} />}
-        {activeTab === "drivers" && <WinnersBarList entries={topDrivers.map((d) => ({ name: d.driver, count: d.wins }))} unit="win" />}
-        {activeTab === "teams" && <WinnersBarList entries={topTeams.map((t) => ({ name: t.team, count: t.wins }))} unit="win" />}
-        {activeTab === "trends" && <TrackTrendsContent liveRaces={liveRaces} archiveRaces={archiveRaces} circuitName={circuitName} />}
-        {activeTab === "records" && <CircuitRecordsContent timeline={timeline} liveRaces={liveRaces} archiveRaces={archiveRaces} ageRecords={ageRecords} />}
-      </RaceSectionCard>
+      <Tabs value={activeTab} onValueChange={setTab} items={availableTabs}>
+        <RaceSectionCard title="Race History & Records" description={descriptionByTab[activeTab]} headerRight={tabbed ? <TabList aria-label="Race history" /> : undefined}>
+          {tabbed ? <TabPanels>{content}</TabPanels> : content}
+        </RaceSectionCard>
+      </Tabs>
     </motion.div>
   );
 }

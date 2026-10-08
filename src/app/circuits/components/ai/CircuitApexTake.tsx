@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
+import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type BlockKey = "trackTake" | "raceDifference" | "trackVsSeason" | "historicalPattern";
@@ -78,53 +79,47 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   const block = take[shownTab];
   if (!block) return null;
 
+  // Each tab's panel mounts fresh when it's chosen, so this fades the new block in.
+  const content = (
+    <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }}>
+      <p className="text-[15px] font-semibold leading-snug text-white">{block.headline}</p>
+      <p className="mt-1 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
+
+      {shownTab === "raceDifference" && "factors" in block && block.factors.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {block.factors.map((f) => (
+            <li key={f.label} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-neutral-400">
+              {f.label}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {shownTab === "trackVsSeason" && "metrics" in block && block.metrics.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {block.metrics.map((m) => (
+            <li key={m} className="text-xs text-tertiary">
+              · {m}
+            </li>
+          ))}
+        </ul>
+      )}
+    </motion.div>
+  );
+
   return (
     <motion.section initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Apex intelligence</p>
 
-      {availableTabs.length > 1 && (
-        <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Apex circuit intelligence">
-          {availableTabs.map((k) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={shownTab === k}
-              onClick={() => setActiveTab(k)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
-                shownTab === k ? "bg-white/[0.1] text-white" : "text-tertiary hover:text-neutral-300"
-              }`}
-            >
-              {TAB_LABEL[k]}
-            </button>
-          ))}
-        </div>
+      {/* Segmented: small in-card tabs over one block of text, not page navigation. */}
+      {availableTabs.length > 1 ? (
+        <Tabs variant="segmented" value={shownTab} onValueChange={setActiveTab} items={availableTabs.map((k) => ({ value: k, label: TAB_LABEL[k] }))}>
+          <TabList aria-label="Apex circuit intelligence" className="mb-3" />
+          <TabPanels>{content}</TabPanels>
+        </Tabs>
+      ) : (
+        content
       )}
-
-      <motion.div key={shownTab} initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }} role="tabpanel">
-        <p className="text-[15px] font-semibold leading-snug text-white">{block.headline}</p>
-        <p className="mt-1 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
-
-        {shownTab === "raceDifference" && "factors" in block && block.factors.length > 0 && (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {block.factors.map((f) => (
-              <li key={f.label} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-neutral-400">
-                {f.label}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {shownTab === "trackVsSeason" && "metrics" in block && block.metrics.length > 0 && (
-          <ul className="mt-2 flex flex-col gap-1">
-            {block.metrics.map((m) => (
-              <li key={m} className="text-xs text-tertiary">
-                · {m}
-              </li>
-            ))}
-          </ul>
-        )}
-      </motion.div>
     </motion.section>
   );
 }

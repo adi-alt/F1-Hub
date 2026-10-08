@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Trophy } from "lucide-react";
 // From the pure groupPredictionTypes.ts, not @/lib/supabase/groupPredictions - that module reaches
 // otp.ts's nodemailer import through groups.ts, which crashes a client bundle that imports it for
 // anything beyond an erased `import type` (predictionTypeLabels is a real runtime value) - see
@@ -10,7 +11,7 @@ import { predictionTypeLabels, type GroupPrediction, type PredictionType } from 
 import { PredictionCard } from "./PredictionCard";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
-import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { GroupRole } from "@/lib/supabase/groups";
 
 const ENTRY_PRESETS = [10, 20, 50, 100];
@@ -153,9 +154,12 @@ export function GroupPredictions({
           ))}
         {predictions.length === 0 && (
           <EmptyState
-            icon={EmptyIcons.trophy}
-            title="No prediction rounds are active."
-            description={myRole === "admin" ? "Open a round and the community can start predicting." : "An admin opens rounds ahead of a race weekend."}
+            icon={Trophy}
+            message={
+              myRole === "admin"
+                ? "No prediction rounds are active: open one and the community can start predicting."
+                : "No prediction rounds are active: an admin opens them ahead of a race weekend."
+            }
             action={
               myRole === "admin" &&
               !showNew && (

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { RaceReadiness } from "./RaceReadiness";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatLapTime, raceStatusLabel, trackShortForm } from "@/lib/format";
 import type { FavoriteDriverCard, FavoriteTeamCard } from "@/lib/personalization";
 import { circuitHref, raceHref } from "@/lib/routes";
@@ -74,7 +74,7 @@ export function SeasonStrip({
   return (
     <div>
       {/* Frosted control-panel treatment for the navigator strip - reuses existing tokens
-       * (border-[var(--f1-line)]/bg-black/20, the same pairing Tabs.tsx's bar already uses) plus
+       * (border-[var(--f1-line)]/bg-black/20, the app's usual hairline-and-dim-fill pairing) plus
        * one backdrop-blur for the requested frosted feel, lighter than .glass-surface (reserved
        * for floating overlays, not an inline strip like this one). */}
       <div className="flex items-center gap-2 rounded-xl border border-[var(--f1-line)] bg-black/20 p-2 backdrop-blur-sm">
@@ -243,7 +243,7 @@ function RoundImage({ src }: { src: string }) {
   const [loaded, setLoaded] = useState(false);
   return (
     <div className="relative aspect-[3/1] max-h-[160px] w-full overflow-hidden">
-      {!loaded && <Skeleton className="skeleton-shimmer absolute inset-0" />}
+      {!loaded && <Skeleton shape="block" className="absolute inset-0" />}
       <Image
         src={src}
         alt=""

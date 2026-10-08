@@ -25,12 +25,12 @@ type Hover = { year: number; top: number; left: number; flipBelow: boolean };
  * absolutely-positioned child of a local anchor) - the grid lives inside ArchiveExplorer's own
  * overflow-y-auto scroll region, which was clipping the tooltip whenever it didn't fit inside that
  * region's own bounds. `position: fixed` + coordinates from the hovered card's own
- * getBoundingClientRect() escapes that entirely, the same way EntityMultiSelect/SearchableSelect's
- * own dropdowns already do. useSyncExternalStore (not a useEffect+setState "mounted" flag) defers
+ * getBoundingClientRect() escapes that entirely, the same way EntityMultiSelect's own dropdown
+ * already does. useSyncExternalStore (not a useEffect+setState "mounted" flag) defers
  * the portal to the client without ever touching `document` during SSR - the exact crash fixed
  * twice already this session for the exact same createPortal(..., document.body) shape; not
  * repeating it a third time here. Horizontally clamped to the viewport, flips above/below based on
- * available room, same decision SearchableSelect's own dropdown already makes.
+ * available room, same decision EntityMultiSelect's own dropdown already makes.
  *
  * Content is resolved here, not hardcoded per year: isVerifiedChampionYear(year) is the one place
  * that decides "Champion" (1991+, the real full-season-sum rule) vs "Most Points" (1950-1990, a

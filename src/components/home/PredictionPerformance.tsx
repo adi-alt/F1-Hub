@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import type { PredictionPerformance as PredictionPerformanceData, RecentPredictionResult } from "@/lib/predictionPerformance";
 
@@ -84,12 +84,12 @@ export function PredictionPerformanceSkeleton() {
   return (
     <div>
       <div className="flex gap-6">
-        <Skeleton className="skeleton-shimmer h-8 w-16 rounded" />
-        <Skeleton className="skeleton-shimmer h-8 w-16 rounded" />
+        <Skeleton shape="block" className="h-8 w-16" />
+        <Skeleton shape="block" className="h-8 w-16" />
       </div>
       <div className="mt-4 flex gap-1.5">
         {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className="skeleton-shimmer h-2.5 w-2.5 rounded-full" />
+          <Skeleton key={i} shape="circle" className="h-2.5 w-2.5" />
         ))}
       </div>
     </div>

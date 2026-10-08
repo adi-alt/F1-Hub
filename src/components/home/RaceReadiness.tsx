@@ -1,6 +1,6 @@
 "use client";
 
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { SessionSchedule, type ScheduleSession } from "@/components/ui/SessionSchedule";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatLocalTime, formatLocalWeekday, localZoneLabel } from "@/lib/countdown";
@@ -58,9 +58,9 @@ export function RaceReadinessSkeleton() {
     <div className="grid grid-cols-5 gap-1" aria-hidden>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="border-t border-subtle pt-2">
-          <Skeleton className="skeleton-shimmer h-4 w-6 rounded" />
-          <Skeleton className="skeleton-shimmer mt-1.5 h-3 w-8 rounded" />
-          <Skeleton className="skeleton-shimmer mt-1 h-3 w-10 rounded" />
+          <Skeleton shape="block" className="h-4 w-6" />
+          <Skeleton shape="block" className="mt-1.5 h-3 w-8" />
+          <Skeleton shape="block" className="mt-1 h-3 w-10" />
         </div>
       ))}
     </div>

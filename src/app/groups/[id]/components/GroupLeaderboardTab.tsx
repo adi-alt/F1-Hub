@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Trophy } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { EmptyState, EmptyIcons } from "@/components/ui/LegacyEmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { LeaderboardRow } from "@/lib/supabase/groups";
 
 /** Rank 1-3 only - a genuine podium tone (real motorsport convention, not a random three colors),
@@ -22,9 +23,7 @@ const PODIUM_TONE: Record<number, string> = { 1: "text-[#e8c866]", 2: "text-neut
  * table lists the same kind of entity and had been the one place in Communities that didn't. */
 export function GroupLeaderboardTab({ rows, myUserId }: { rows: LeaderboardRow[]; myUserId: string }) {
   if (rows.length === 0) {
-    return (
-      <EmptyState icon={EmptyIcons.trophy} title="No scored races yet." description="Scores land here once a race a member picked finishes." />
-    );
+    return <EmptyState icon={Trophy} message="No scored races yet: scores land here once a race a member picked finishes." />;
   }
 
   return (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
@@ -116,8 +116,8 @@ export function PickVsModelSkeleton() {
     <div className="space-y-5">
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i}>
-          <Skeleton className="skeleton-shimmer mb-1.5 h-3 w-24 rounded" />
-          <Skeleton className="skeleton-shimmer h-6 w-full rounded" />
+          <Skeleton shape="block" className="mb-1.5 h-3 w-24" />
+          <Skeleton shape="block" className="h-6 w-full" />
         </div>
       ))}
     </div>

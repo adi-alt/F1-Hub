@@ -37,6 +37,9 @@ test.describe("design system primitives", () => {
   test.beforeEach(async ({ page }) => {
     await blockAi(page);
     await page.goto("/dev/ui");
+    // The snapshots are of the primitives, not the page: hide the page's background glow (body::before in
+    // globals.css), which shows through transparent sections and would make every snapshot depend on it.
+    await page.addStyleTag({ content: "body::before { display: none !important; }" });
     await settle(page);
   });
 

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
-import { Skeleton } from "@/components/ui/LegacySkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { computeMoments, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
 
@@ -72,10 +72,10 @@ function curveRoundedStepAfter(radius: number): CurveFactory {
 function LapChartSkeleton() {
   return (
     <div>
-      <Skeleton className="skeleton-shimmer h-[320px] w-full" />
+      <Skeleton shape="block" className="h-[320px] w-full" />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="skeleton-shimmer h-6 w-24 rounded-md" />
+          <Skeleton key={i} shape="block" className="h-6 w-24" />
         ))}
       </div>
     </div>
