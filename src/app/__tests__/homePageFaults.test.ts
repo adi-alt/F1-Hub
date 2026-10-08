@@ -101,7 +101,7 @@ describe("home page payload (audit R-26)", () => {
     assert.ok(shell);
     assert.equal(shell.props.serverAuthed, false);
     assert.equal(shell.props.publicData.scope, "landing");
-    assert.deepEqual(Object.keys(shell.props.publicData).sort(), ["backdropPhotos", "calendarEntry", "facts", "nextRace", "scope", "trackHistory", "year"]);
+    assert.deepEqual(Object.keys(shell.props.publicData).sort(), ["backdropPhotos", "calendarEntry", "facts", "nextRace", "scope", "season", "trackHistory", "year"]);
   });
 
   test("a signed-in visitor still gets the full public data", async () => {
