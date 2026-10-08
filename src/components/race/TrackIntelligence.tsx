@@ -113,9 +113,10 @@ export function TrackTrendsContent({ liveRaces, archiveRaces, circuitName }: { l
   return (
     // Segmented: the time range is a compact filter over the stats below, not navigation.
     <Tabs variant="segmented" value={window} onValueChange={setWindow} items={WINDOW_OPTIONS}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-tertiary">Windowed by time range - never the same fact as the Records tab, which is always all-time.</p>
-        <TabList aria-label="Time range" className="shrink-0" />
+      {/* Wraps under the sentence on a narrow screen instead of pushing the page sideways. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 text-body-sm text-secondary">Windowed by time range, unlike the Records tab, which is all-time.</p>
+        <TabList aria-label="Time range" className="max-w-full" />
       </div>
       <TabPanels>
         {recordCells.length > 0 && (
