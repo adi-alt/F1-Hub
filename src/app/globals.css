@@ -111,6 +111,12 @@
 
 /* Type scale (spec §2.4): seven steps, nothing under 12px; caption is the only uppercase tier. */
 @theme {
+  /* The landing hero's title only: one size above display-lg, so the first thing a visitor reads has the
+     weight of a broadcast graphic. Not for page h1s. */
+  --text-display-xl: 3.5rem;
+  --text-display-xl--line-height: 3.75rem;
+  --text-display-xl--font-weight: 700;
+  --text-display-xl--letter-spacing: -0.03em;
   --text-display-lg: 2.5rem;
   --text-display-lg--line-height: 2.75rem;
   --text-display-lg--font-weight: 700;

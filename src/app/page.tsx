@@ -1,7 +1,8 @@
 import { HomeShell } from "@/components/home/HomeShell";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { trackShortForm } from "@/lib/format";
-import { getPersonalHomeData, type HomeData, type PublicHomeData } from "@/lib/homeData";
+import type { RaceDoc } from "@/lib/types/race";
+import { getPersonalHomeData, type HomeData, type LandingSeason, type PublicHomeData } from "@/lib/homeData";
 import { buildFacts, buildPredictionInsight, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear, getCalendarEntry, type WeatherForecast } from "@/lib/supabase/calendar";
@@ -18,6 +19,28 @@ import { getCurrentSeason } from "@/lib/currentSeason";
 // lib/supabase/races.ts (`revalidate: false`, busted by the pipeline's own `trigger_revalidation`
 // the moment it actually pushes new data - not a fixed timer), so every visit — signed in or not —
 // doesn't hit Postgres every time.
+
+/** The landing page's season summary (LandingSeason): the top five and the most recent podium. */
+function landingSeason(races: RaceDoc[], standings: { drivers: { driver: string; driverName: string; team: string; points: number; wins: number }[] }): LandingSeason {
+  const completed = races.filter((r) => r.status === "completed" && r.results?.length).sort((a, b) => b.round - a.round);
+  const last = completed[0];
+  return {
+    roundsCompleted: completed.length,
+    totalRounds: races.length,
+    top5: standings.drivers.slice(0, 5).map(({ driver, driverName, team, points, wins }) => ({ driver, driverName, team, points, wins })),
+    lastRace: last
+      ? {
+          name: last.name,
+          year: last.year,
+          round: last.round,
+          podium: [...last.results!]
+            .filter((r) => r.finishPosition <= 3 && r.status !== "dnf")
+            .sort((a, b) => a.finishPosition - b.finishPosition)
+            .map(({ driver, driverName, team, finishGapSec }) => ({ driver, driverName, team, finishGapSec })),
+        }
+      : null,
+  };
+}
 
 export default async function HomePage() {
   const session = await getSession();
@@ -183,7 +206,7 @@ export default async function HomePage() {
   // ~575 KB. Signing in refreshes the page (AuthDialog's router.refresh()), which brings the rest.
   const homeData: HomeData = session.uid
     ? { scope: "full", ...publicData }
-    : { scope: "landing", year, nextRace, calendarEntry, backdropPhotos, facts, trackHistory: trackHistoryWithFavorites };
+    : { scope: "landing", year, nextRace, calendarEntry, backdropPhotos, facts, trackHistory: trackHistoryWithFavorites, season: landingSeason(races, standings) };
 
   return (
     <>

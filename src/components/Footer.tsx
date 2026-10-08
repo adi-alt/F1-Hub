@@ -22,8 +22,7 @@ export function Footer({ season }: { season: number }) {
       // as a seam over any distance because the *rate* of change never softens near either end,
       // it just changes over more pixels. This is a linear (not radial) fade on purpose - the
       // footer's edge runs the full page width at a constant color, so a radial glow would fade
-      // faster at the corners than the center and introduce the exact non-uniform look the
-      // TreasureMapSection fade above just got fixed away from.
+      // faster at the corners than the center and look uneven along the edge.
       style={{
         backgroundImage:
           "linear-gradient(to bottom, var(--background) 0%, color-mix(in srgb, var(--background) 85%, var(--f1-carbon)) 20%, color-mix(in srgb, var(--background) 40%, var(--f1-carbon)) 55%, var(--f1-carbon) 100%)",

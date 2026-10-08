@@ -74,7 +74,24 @@ export type PublicHomeData = {
 /** What the signed-out home page renders (PublicHome: the hero, the explore story and the backdrop),
  * and all a signed-out visitor is sent. Audit R-26: the page used to serialise the whole season into
  * every anonymous visit (`races` alone was ~470 KB of a ~575 KB page) for a hero that shows one race. */
-export type LandingData = Pick<PublicHomeData, "year" | "nextRace" | "calendarEntry" | "backdropPhotos" | "facts" | "trackHistory">;
+/** What the landing page shows of the season so far: the top five and the last podium. A few hundred bytes,
+ * so it fits the slim signed-out payload (audit R-26). */
+export type LandingSeason = {
+  roundsCompleted: number;
+  totalRounds: number;
+  top5: { driver: string; driverName: string; team: string; points: number; wins: number }[];
+  lastRace: {
+    name: string;
+    year: number;
+    round: number;
+    podium: { driver: string; driverName: string; team: string; finishGapSec: number | null }[];
+  } | null;
+};
+
+export type LandingData = Pick<PublicHomeData, "year" | "nextRace" | "calendarEntry" | "backdropPhotos" | "facts" | "trackHistory"> & {
+  /** Present on a signed-out visit; absent while a signed-in home is still rendering the public view. */
+  season?: LandingSeason;
+};
 
 /** HomeShell's data: everything for a signed-in render, the landing subset for a signed-out one. */
 export type HomeData = ({ scope: "full" } & PublicHomeData) | ({ scope: "landing" } & LandingData);
