@@ -248,7 +248,7 @@ export function SeasonRaceDashboard({
   return (
     // The main column tells the race's story; the rail (at most three blocks) sits beside it from lg, and
     // after it on smaller screens. Sections are separated by space (48px), not boxes.
-    <div className="grid gap-x-8 gap-y-12 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start xl:grid-cols-[minmax(0,1fr)_320px]">
+    <div>
       <div className="min-w-0 space-y-12">
         <RaceApexScope raceId={race.id} circuit={race.circuit} year={race.year} name={race.name} status={isCompleted ? "completed" : "upcoming"} />
 
@@ -267,6 +267,19 @@ export function SeasonRaceDashboard({
                 </dl>
               )}
             </RaceSectionCard>
+
+      <section aria-label="About this race">
+              <RaceRail
+                completed={isCompleted}
+                circuit={race.circuit}
+                weather={race.weather}
+                forecast={calendarEntry?.weatherForecast}
+                personal={personalContext}
+                accuracy={accuracy}
+                communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
+                nameOf={nameOf}
+              />
+            </section>
 
             {hasAnalysis && (accuracy || poleAccuracy) && (
               <RaceSectionCard id="predictions" title="How the predictions did" bare>
@@ -297,6 +310,19 @@ export function SeasonRaceDashboard({
               </RaceSectionCard>
             )}
 
+      <section aria-label="About this race">
+              <RaceRail
+                completed={isCompleted}
+                circuit={race.circuit}
+                weather={race.weather}
+                forecast={calendarEntry?.weatherForecast}
+                personal={personalContext}
+                accuracy={accuracy}
+                communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
+                nameOf={nameOf}
+              />
+            </section>
+
             <RaceSectionCard id="pick" title="Your podium pick" description="Locks at lights out. Three points for each driver in the right place, one for the right driver in the wrong place." bare>
               <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} />
             </RaceSectionCard>
@@ -325,18 +351,6 @@ export function SeasonRaceDashboard({
         )}
       </div>
 
-      <aside aria-label="About this race" className="min-w-0 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto">
-        <RaceRail
-          completed={isCompleted}
-          circuit={race.circuit}
-          weather={race.weather}
-          forecast={calendarEntry?.weatherForecast}
-          personal={personalContext}
-          accuracy={accuracy}
-          communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
-          nameOf={nameOf}
-        />
-      </aside>
     </div>
   );
 }

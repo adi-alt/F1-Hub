@@ -493,7 +493,13 @@ export const getAllArchiveCircuits = unstable_cache(
 export function findArchiveCircuitByLocation(circuits: ArchiveCircuit[], locality: string, country?: string | null): ArchiveCircuit | null {
   const loc = locality.trim().toLowerCase();
   const ctry = country?.trim().toLowerCase();
-  return circuits.find((c) => c.locality?.trim().toLowerCase() === loc && (!ctry || c.country?.trim().toLowerCase() === ctry)) ?? null;
+  const sameLocality = circuits.filter((c) => c.locality?.trim().toLowerCase() === loc);
+  const exact = sameLocality.find((c) => !ctry || c.country?.trim().toLowerCase() === ctry);
+  if (exact) return exact;
+  // The event's country is not always the venue's: the 2026 Bahrain Grand Prix was run at Sepang, so the race
+  // row says Kuala Lumpur, Bahrain while the archive has Kuala Lumpur, Malaysia. When only one circuit has
+  // this locality the match is unambiguous; when several do (Barcelona, California) we don't guess.
+  return sameLocality.length === 1 ? sameLocality[0] : null;
 }
 
 /** A circuit's full history — every race with this circuit_id, oldest first. Only ever returns

@@ -151,7 +151,9 @@ export function RaceRail({
   nameOf: (code: string) => string;
 }) {
   return (
-    <div className="space-y-4">
+    // One compact row in the page's own column (the owner asked for no right-hand rail): up to three short
+    // blocks side by side from sm, stacked on a phone.
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {completed ? accuracy ? <ModelVerdict accuracy={accuracy} nameOf={nameOf} /> : <Conditions weather={weather} /> : <Conditions weather={weather} forecast={forecast} />}
       <YourRecord circuit={circuit} personal={personal} />
       <Communities communities={communities} />
