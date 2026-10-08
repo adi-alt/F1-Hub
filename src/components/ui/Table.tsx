@@ -26,6 +26,9 @@ export type TableColumn<Row> = {
   /** Preferred column width: a CSS length such as "8rem", or a number of pixels. */
   width?: string | number;
   render?: (row: Row) => ReactNode;
+  /** Hide the column on narrow screens, where it would push the figures off the right edge. The data it
+   * holds should be secondary or repeated elsewhere in the row (a team name beside a team-coloured driver). */
+  hideBelow?: "sm" | "md";
   /** What to sort by when it isn't the raw field, e.g. a status ranked by severity. */
   sortValue?: (row: Row) => TableSortValue;
 };
@@ -125,6 +128,7 @@ function fieldContent(row: object, key: string): ReactNode {
 }
 
 const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+const HIDE_BELOW = { sm: "max-sm:hidden", md: "max-md:hidden" } as const;
 const STICKY_CELL = "max-md:sticky max-md:left-0 max-md:z-sticky max-md:border-r max-md:bg-surface-1";
 // An activatable row draws its focus ring inset: a ring outside the row would be clipped by the
 // scroll container at both ends and under the last row.
@@ -216,7 +220,7 @@ export function Table<Row extends object>({
                   // in the APG sortable-table example; the other sortable headers are still buttons.
                   aria-sort={column.sortable ? sorted : undefined}
                   style={column.width === undefined ? undefined : { width: column.width }}
-                  className={`h-9 whitespace-nowrap border-b border-subtle px-3 text-caption uppercase tracking-[0.04em] text-secondary ${end ? "text-end" : "text-start"} ${stickyFirstColumn && index === 0 ? STICKY_CELL : ""}`}
+                  className={`h-9 whitespace-nowrap border-b border-subtle px-3 text-caption uppercase tracking-[0.04em] text-secondary ${end ? "text-end" : "text-start"} ${stickyFirstColumn && index === 0 ? STICKY_CELL : ""} ${column.hideBelow ? HIDE_BELOW[column.hideBelow] : ""}`}
                 >
                   {column.sortable ? (
                     <button
@@ -281,7 +285,7 @@ export function Table<Row extends object>({
                 >
                   {columns.map((column, index) => {
                     const sticky = stickyFirstColumn && index === 0 ? `${STICKY_CELL} ${onRowActivate ? ACTIVATABLE_STICKY_CELL : ""}` : "";
-                    const cellClass = `${cellSize} ${hairline} whitespace-nowrap px-3 ${alignOf(column) === "end" ? "text-end" : "text-start"} ${column.numeric ? "tabular" : ""} ${sticky}`;
+                    const cellClass = `${cellSize} ${hairline} whitespace-nowrap px-3 ${alignOf(column) === "end" ? "text-end" : "text-start"} ${column.numeric ? "tabular" : ""} ${sticky} ${column.hideBelow ? HIDE_BELOW[column.hideBelow] : ""}`;
                     const content = column.render ? column.render(row) : fieldContent(row, column.key);
                     return column.key === rowHeaderKey ? (
                       <th key={column.key} scope="row" id={`${rowId}-header`} className={`${cellClass} font-medium`}>

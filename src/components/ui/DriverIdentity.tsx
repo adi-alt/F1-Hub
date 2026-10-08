@@ -14,6 +14,9 @@ export type DriverIdentityProps = {
   headshotUrl?: string | null;
   /** Headshot size: 24 in dense tables and pickers, 32 in results and cards. */
   size?: 24 | 32;
+  /** "responsive" (the default) shows the name from sm up; "always" also shows it on a phone, for the one
+   * place a name is the point (a winner in a header). */
+  nameVisibility?: "responsive" | "always";
   /** Layout only. */
   className?: string;
 };
@@ -23,7 +26,7 @@ export type DriverIdentityProps = {
  * code and the name. Team colour is only ever this bar, never a tint (spec §2.3), and always beside the code,
  * so colour is never the only cue. Below sm only the code shows, which keeps tables narrow on a phone.
  */
-export function DriverIdentity({ code, name, team, color, headshotUrl, size = 24, className }: DriverIdentityProps) {
+export function DriverIdentity({ code, name, team, color, headshotUrl, size = 24, nameVisibility = "responsive", className }: DriverIdentityProps) {
   const bar = color ?? (team ? teamColor(team) : null);
   return (
     <span className={["inline-flex min-w-0 items-center gap-2", className].filter(Boolean).join(" ")}>
@@ -31,7 +34,7 @@ export function DriverIdentity({ code, name, team, color, headshotUrl, size = 24
       {headshotUrl !== undefined && <EntityAvatar imageUrl={headshotUrl ?? null} name={name ?? code} size={size} />}
       <span className="min-w-0 truncate">
         <span className="font-semibold text-primary">{code}</span>
-        {name && <span className="sr-only sm:not-sr-only sm:ml-1.5 sm:text-secondary"> {name}</span>}
+        {name && <span className={nameVisibility === "always" ? "ml-1.5 text-secondary" : "sr-only sm:not-sr-only sm:ml-1.5 sm:text-secondary"}> {name}</span>}
       </span>
     </span>
   );

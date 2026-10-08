@@ -46,7 +46,7 @@ test("the description is body-sm text-secondary, and the provenance line follows
 
 test("actions sit after the heading block, on the right", () => {
   const html = render(FULL);
-  assert.match(html, /<\/p><\/div><div class="flex shrink-0 flex-wrap items-center gap-2"><button type="button">Export<\/button><\/div>/);
+  assert.match(html, /<\/p><\/div><div class="flex min-w-0 max-w-full flex-wrap items-center gap-2"><button type="button">Export<\/button><\/div>/);
   assert.match(html, /^<section [^>]*><div class="flex flex-wrap items-start justify-between [^"]*">/);
 });
 

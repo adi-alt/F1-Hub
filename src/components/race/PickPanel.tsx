@@ -27,7 +27,7 @@ function toFormState(data: UserPick) {
 // work on first paint, unlike a synchronous tab switch elsewhere on this page.
 function PickPanelSkeleton() {
   return (
-    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
+    <div className="rounded-card bg-surface-1 p-5">
       <Skeleton shape="block" className="h-3 w-32" />
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {["P1", "P2", "P3"].map((label) => (
@@ -84,7 +84,7 @@ export function PickPanel({
 
   if (!isAuthorized) {
     return (
-      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
+      <div className="rounded-card bg-surface-1 p-5 text-sm text-neutral-400">
         Sign in to make your own podium pick for this race.
       </div>
     );
@@ -98,7 +98,7 @@ export function PickPanel({
   // PracticeSummary's own hover rows already follow.
   if (race.status === "scheduled") {
     return (
-      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
+      <div className="rounded-card bg-surface-1 p-5 text-sm text-neutral-400">
         Podium picks open once this race weekend begins.
       </div>
     );
@@ -112,8 +112,7 @@ export function PickPanel({
     if (now < opensAt) {
       const daysLeft = Math.ceil((opensAt - now) / (24 * 60 * 60 * 1000));
       return (
-        <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-          <p className="text-xs uppercase tracking-wide text-tertiary">Podium pick</p>
+        <div className="rounded-card bg-surface-1 p-5">
           <p className="mt-1.5 text-sm font-semibold text-white">
             Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
           </p>
@@ -131,7 +130,7 @@ export function PickPanel({
   const entrants = race.inputs?.length ? race.inputs : fallbackEntrants;
   if (entrants.length === 0) {
     return (
-      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
+      <div className="rounded-card bg-surface-1 p-5 text-sm text-neutral-400">
         Podium picks open once this race weekend begins.
       </div>
     );
@@ -167,9 +166,8 @@ export function PickPanel({
   const driverOptions = entrants.map((entry) => ({ code: entry.driver, name: entry.driverName, team: entry.team }));
 
   return (
-    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-      <p className="text-xs uppercase tracking-wide text-tertiary">Your podium pick</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+    <div className="rounded-card bg-surface-1 p-5">
+      <div className="grid gap-3 sm:grid-cols-3">
         {(["p1", "p2", "p3"] as const).map((slot, i) => (
           <div key={slot} className="text-sm text-neutral-400">
             P{i + 1}
