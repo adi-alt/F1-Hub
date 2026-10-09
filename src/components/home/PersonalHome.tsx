@@ -2,12 +2,15 @@
 
 import { HomeLayout } from "./HomeLayout";
 import { HomepageApexScope } from "./ai/HomepageApexScope";
+import { HomepageIntelligenceProvider } from "./ai/HomepageIntelligenceProvider";
 import {
+  ApexBriefingSection,
   PersonalHero,
   PersonalHomeOutline,
   PersonalSeasonSection,
   SinceLastVisitSection,
   YourCommunitiesSection,
+  YourDriversSection,
   YourWeekendSection,
 } from "./personal/PersonalSections";
 import { RegionBoundary } from "@/components/ui/RegionBoundary";
@@ -15,13 +18,26 @@ import { buildHomeApexFacts } from "@/lib/ai/context/homeFacts";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
 
 /**
- * The signed-in home (critique §2.2, CR-18): five sections, in the order a returning fan wants them. The race
- * and your one action; your weekend (your pick, the model's, your record, your favourites); what happened
- * since your last visit; your communities; the season. Each is its own failure region, so one bad read shows
+ * The signed-in home (critique §2.2, CR-18), in the order a returning fan wants it: the race and your one action;
+ * Apex's briefing (the weekend, and what it means for you); your weekend (your pick, the model's, your record);
+ * your drivers and teams; what happened since your last visit; your communities; the season. Model-written text
+ * is labelled as AI wherever it appears. Each is its own failure region, so one bad read shows
  * an inline error there and the rest of the page still works. Sections sit 48px apart, the race photo behind
- * the hero is the one atmospheric element, and the skeleton (PersonalHomeSkeleton) has the same five shapes.
+ * the hero is the one atmospheric element, and the skeleton (PersonalHomeSkeleton) has the same shapes.
  */
-export function PersonalHome({
+export function PersonalHome(props: { publicData: PublicHomeData; personalData: PersonalHomeData; firstName: string; isReturning: boolean }) {
+  // Refetch the briefing only when the favourite set (or its order: the first is "primary") changes, not on
+  // every new object identity from a router.refresh().
+  const profile = props.personalData.profile;
+  const favoriteContextKey = `${(profile?.favoriteDrivers ?? []).join(",")}|${(profile?.favoriteTeams ?? []).join(",")}|${(profile?.favoriteTracks ?? []).join(",")}`;
+  return (
+    <HomepageIntelligenceProvider favoriteContextKey={favoriteContextKey}>
+      <PersonalHomeInner {...props} />
+    </HomepageIntelligenceProvider>
+  );
+}
+
+function PersonalHomeInner({
   publicData,
   personalData,
   firstName,
@@ -47,8 +63,24 @@ export function PersonalHome({
           {
             tier: "major",
             content: (
+              <RegionBoundary label="the Apex briefing">
+                <ApexBriefingSection />
+              </RegionBoundary>
+            ),
+          },
+          {
+            tier: "major",
+            content: (
               <RegionBoundary label="your weekend">
                 <YourWeekendSection publicData={publicData} personalData={personalData} />
+              </RegionBoundary>
+            ),
+          },
+          {
+            tier: "major",
+            content: (
+              <RegionBoundary label="your drivers and teams">
+                <YourDriversSection publicData={publicData} personalData={personalData} />
               </RegionBoundary>
             ),
           },
