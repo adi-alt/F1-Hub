@@ -35,6 +35,7 @@ import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { raceHref } from "@/lib/routes";
+import { TrackMap } from "@/components/ui/TrackMap";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 
@@ -159,12 +160,15 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
         backHref="/archive?section=track"
         backLabel="Archive"
         name={circuit.name ?? circuit.circuitId}
-        photoUrl={circuit.imageUrls?.[0] ?? circuit.imageUrl ?? null}
-        photoShape="square"
         subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${races.length} race${races.length === 1 ? "" : "s"}`}
         stats={[{ label: "Races", value: races.length }, ...(topWinner ? [{ label: "Most wins", value: `${topWinner[0]} (${topWinner[1]})` }] : [])]}
         favoriteButton={<ArchiveFavoriteToggle type="track" id={circuitId} />}
       />
+      {circuit.trackMap && (
+        <div className="mt-6 max-w-md">
+          <TrackMap map={circuit.trackMap} name={circuit.name ?? circuit.circuitId} />
+        </div>
+      )}
       <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Winner" />
       </div>

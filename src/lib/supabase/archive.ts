@@ -69,12 +69,24 @@ export type ArchiveWeather = {
   weatherCode: number;
 };
 
+/** A circuit's track map: its Wikipedia article's free lead image, credited from Commons
+ * (pipeline/circuit_track_maps.py). The URL is Wikimedia's own 960px rendition; the browser loads it
+ * directly. All five fields or none - the database refuses anything in between. */
+export type CircuitTrackMap = {
+  url: string;
+  sourceUrl: string;
+  credit: string;
+  license: string;
+  licenseUrl: string;
+};
+
 export type ArchiveCircuit = {
   circuitId: string;
   name: string | null;
   wikipediaUrl: string | null;
-  imageUrl: string | null;
-  imageUrls: string[] | null; // real circuit photos (Wikimedia Commons), not the legacy single imageUrl
+  // The only circuit image the app shows. archive_circuits.image_url / image_urls (photos from the
+  // circuit's Commons category, often not of the track) are deliberately not read.
+  trackMap: CircuitTrackMap | null;
   lat: number | null;
   long: number | null;
   // Merged in by getAllArchiveCircuits from a full archive_races scan (getArchiveCircuitStats
@@ -377,19 +389,30 @@ type ArchiveCircuitRow = {
   circuit_id: string;
   name: string | null;
   wikipedia_url: string | null;
-  image_url: string | null;
-  image_urls: string[] | null;
+  track_map_url: string | null;
+  track_map_source_url: string | null;
+  track_map_credit: string | null;
+  track_map_license: string | null;
+  track_map_license_url: string | null;
   lat: number | null;
   long: number | null;
 };
+
+const CIRCUIT_COLUMNS =
+  "circuit_id, name, wikipedia_url, track_map_url, track_map_source_url, track_map_credit, track_map_license, track_map_license_url, lat, long";
+
+function toTrackMap(row: ArchiveCircuitRow): CircuitTrackMap | null {
+  const { track_map_url: url, track_map_source_url: sourceUrl, track_map_credit: credit, track_map_license: license, track_map_license_url: licenseUrl } = row;
+  if (!url || !sourceUrl || !credit || !license || !licenseUrl) return null;
+  return { url, sourceUrl, credit, license, licenseUrl };
+}
 
 function toArchiveCircuit(row: ArchiveCircuitRow): ArchiveCircuit {
   return {
     circuitId: row.circuit_id,
     name: row.name,
     wikipediaUrl: row.wikipedia_url,
-    imageUrl: row.image_url,
-    imageUrls: row.image_urls,
+    trackMap: toTrackMap(row),
     lat: row.lat,
     long: row.long,
   };
@@ -402,7 +425,7 @@ function toArchiveCircuit(row: ArchiveCircuitRow): ArchiveCircuit {
 export const getArchiveCircuit = unstable_cache(
   async (circuitId: string): Promise<ArchiveCircuit | null> => {
     const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_circuits").select("*").eq("circuit_id", circuitId).maybeSingle(),
+      supabaseAdmin.from("archive_circuits").select(CIRCUIT_COLUMNS).eq("circuit_id", circuitId).maybeSingle(),
     );
     if (error) throw new Error(`getArchiveCircuit(${circuitId}): ${error.message}`);
     return data ? toArchiveCircuit(data as ArchiveCircuitRow) : null;
@@ -458,7 +481,7 @@ const getArchiveCircuitStats = unstable_cache(
 export const getAllArchiveCircuits = unstable_cache(
   async (): Promise<ArchiveCircuit[]> => {
     const [{ data, error }, stats] = await Promise.all([
-      queryWithRetry(() => supabaseAdmin.from("archive_circuits").select("*")),
+      queryWithRetry(() => supabaseAdmin.from("archive_circuits").select(CIRCUIT_COLUMNS)),
       getArchiveCircuitStats(),
     ]);
     if (error) throw new Error(`getAllArchiveCircuits: ${error.message}`);

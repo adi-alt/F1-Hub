@@ -49,10 +49,9 @@ export type PublicHomeData = {
    * Drives the hero's right-side Race Intelligence panel and the Track Intelligence widget. */
   trackHistory: TrackHistory | null;
   seasonRecap: SeasonRecap;
-  /** Archive-circuit fallback image per round, resolved once server-side - SeasonStrip's per-card
-   * fallback tier when a round has no real `photoUrl` yet of its own. Null for a round whose
-   * circuit genuinely has no archive image (Miami/Vegas/Qatar, pre-race). */
-  circuitImageByRound: Record<number, string | null>;
+  /** Retired: never set. Rounds without their own photo no longer borrow a circuit photo. Kept
+   * optional only while PersonalHome still passes it on; remove with that reference. */
+  circuitImageByRound?: undefined;
   /** Real per-round weather (calendar.weather_forecast) - only ever populated for a round still
    * ahead of "now" (a forecast for an already-run race is meaningless, see sync_calendar.py's own
    * comment) - null for a completed round, or one FastF1's schedule hasn't reached yet. */

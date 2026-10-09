@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useState } from "react";
 import { MediaSkeleton } from "@/components/ui/Skeletons";
+import { TrackMap } from "@/components/ui/TrackMap";
+import type { CircuitTrackMap } from "@/lib/supabase/archive";
 
 type State = "loading" | "loaded" | "error";
 
@@ -14,21 +16,18 @@ type State = "loading" | "loaded" | "error";
  * and all four occupy the exact same box, so the crossfade never moves anything below it.
  *
  * Most of a season's still-to-run rounds have no photography of their OWN yet - the pipeline only
- * fetches a race weekend's real photos once that weekend has actually been processed, which is
- * most of "many races have no image". Rather than an empty box for every one of those, this falls
- * back to the circuit's own real photography (archive_circuits, backfilled independently of any
- * specific race weekend) and says so with a small label, so a circuit photo is never mistaken for
- * this weekend's own coverage. Nothing here is ever invented: with neither set populated, it's an
- * honest placeholder, not a stock photo of a different venue.
+ * fetches a race weekend's real photos once that weekend has actually been processed. For those,
+ * this shows the circuit's track map instead (archive_circuits.track_map_*, with its credit), never
+ * a circuit photo. With neither, it's an honest placeholder.
  */
 export function RaceMedia({
   photoUrls,
-  circuitPhotoUrls,
+  circuitTrackMap,
   raceName,
   circuit,
 }: {
   photoUrls: string[];
-  circuitPhotoUrls: string[];
+  circuitTrackMap: CircuitTrackMap | null;
   raceName: string;
   circuit: string | null;
 }) {
@@ -36,9 +35,7 @@ export function RaceMedia({
   // Keyed by URL, not index, so switching thumbnails doesn't inherit the previous image's state.
   const [states, setStates] = useState<Record<string, State>>({});
 
-  const own = photoUrls.filter(Boolean);
-  const usingFallback = own.length === 0;
-  const usable = usingFallback ? circuitPhotoUrls.filter(Boolean) : own;
+  const usable = photoUrls.filter(Boolean);
 
   const current = usable[active];
   const state: State = current ? states[current] ?? "loading" : "error";
@@ -46,15 +43,14 @@ export function RaceMedia({
   const mark = (url: string, next: State) => setStates((prev) => (prev[url] === next ? prev : { ...prev, [url]: next }));
 
   if (usable.length === 0) {
+    if (circuitTrackMap) return <TrackMap map={circuitTrackMap} name={circuit ?? raceName} />;
     return (
       <MediaPlaceholder label={circuit ? `No imagery available yet for ${circuit}.` : "No race imagery available for this round yet."} />
     );
   }
   if (state === "error" && usable.length === 1) return <MediaPlaceholder label="Race imagery unavailable." />;
 
-  const alt = usingFallback
-    ? `${circuit ?? "Circuit"} - venue photography`
-    : `${raceName}${circuit ? ` at ${circuit}` : ""}`;
+  const alt = `${raceName}${circuit ? ` at ${circuit}` : ""}`;
 
   return (
     <div>
@@ -80,13 +76,6 @@ export function RaceMedia({
         {/* Softens the foot of the image so the metadata beneath it doesn't butt against a hard edge. */}
         <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 to-transparent" />
 
-        {/* This is what keeps a circuit photo honest: labelled every time it stands in for a
-            round's own coverage, never silently presented as this weekend's photography. */}
-        {usingFallback && state === "loaded" && (
-          <span className="absolute bottom-2.5 left-2.5 rounded-full border border-white/[0.14] bg-black/50 px-2 py-0.5 text-[10px] font-medium text-neutral-300 backdrop-blur-sm">
-            Circuit imagery
-          </span>
-        )}
       </div>
 
       {usable.length > 1 && (
