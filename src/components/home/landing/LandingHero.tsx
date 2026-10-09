@@ -77,6 +77,7 @@ export function LandingHero({
   greeting,
   actions,
   aside,
+  footer,
 }: {
   landing: LandingData;
   /** Signed in: a muted line above the race ("Welcome back, Sam. Your pick isn't in yet."). */
@@ -85,6 +86,8 @@ export function LandingHero({
   actions?: ReactNode;
   /** Signed in: the right-hand widget in place of the plain circuit facts. */
   aside?: ReactNode;
+  /** Signed in: more of the race's story under the action, in the left column (your favourites at this track). */
+  footer?: ReactNode;
 }) {
   const openAuth = useAuthDialogStore((s) => s.open);
   const race = landing.nextRace;
@@ -93,10 +96,10 @@ export function LandingHero({
 
   return (
     <div className="grid grid-cols-1 gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-stretch lg:gap-16 lg:pt-14">
-      {/* Both columns share a top and a bottom edge: the lights line up with the widget's top, the action
-          with its bottom. */}
+      {/* Both columns share a top and a bottom edge: the left column's content runs from the top with no gap, and
+          the widget beside it stretches to the same height. */}
       <div className="flex min-w-0 flex-col">
-        <StartLights className="mb-6 lg:mb-auto" />
+        <StartLights className="mb-6" />
         {greeting && (
           <p className="mb-3 text-body text-secondary">{greeting}</p>
         )}
@@ -136,6 +139,7 @@ export function LandingHero({
             </>
           )}
         </div>
+        {footer && <div className="mt-10">{footer}</div>}
       </div>
 
       {aside ?? (facts.length > 0 && landing.trackHistory && (

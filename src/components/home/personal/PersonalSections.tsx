@@ -6,7 +6,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { useHomepageIntelligence } from "@/components/home/ai/HomepageIntelligenceProvider";
 import { LandingHero } from "@/components/home/landing/LandingHero";
 import { ComingUp } from "./ComingUp";
-import { TrackIntelligenceCard } from "./TrackIntelligenceCard";
+import { FavouritesHere, TrackIntelligenceCard } from "./TrackIntelligenceCard";
 import { CountUp } from "@/components/motion/CountUp";
 import { Typewriter } from "@/components/motion/Typewriter";
 import { tiltProps } from "@/components/motion/useTilt";
@@ -84,7 +84,15 @@ export function PersonalHero({ publicData, personalData, firstName, onPredict }:
       </Link>
     </>
   );
-  return <LandingHero landing={publicData} greeting={greeting} actions={action} aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} />} />;
+  return (
+    <LandingHero
+      landing={publicData}
+      greeting={greeting}
+      actions={action}
+      aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} />}
+      footer={<FavouritesHere circuit={race.circuit} history={publicData.trackHistory} />}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------------------- 2. apex briefing
