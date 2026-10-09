@@ -11,6 +11,7 @@ import { tableToCanvas } from "@/lib/export";
 import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
+import { buildProgression, positionChanges } from "../_utils/championship";
 import { useSeasonExplorer, type EntityType } from "../_context/SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, RaceSummary } from "../_service/season.pure";
 
@@ -32,6 +33,24 @@ const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
  * re-render-triggering hook would be the wrong tool. */
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Championship position, with the places gained (▲) or lost (▼) since the previous round. */
+function PositionCell({ position, change }: { position: number; change: number | null }) {
+  return (
+    <td className="px-4 py-3">
+      <span className="flex items-center gap-2">
+        <span className={`w-5 font-mono tabular-nums ${position <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{position}</span>
+        {change !== null && change !== 0 && (
+          <span className={`flex items-center text-caption tabular ${change > 0 ? "text-success" : "text-danger"}`}>
+            <span aria-hidden>{change > 0 ? "▲" : "▼"}</span>
+            {Math.abs(change)}
+            <span className="sr-only">{change > 0 ? " places gained since the last round" : " places lost since the last round"}</span>
+          </span>
+        )}
+      </span>
+    </td>
+  );
 }
 
 function gapLabel(points: number, leaderPoints: number): string {
@@ -130,6 +149,13 @@ export function ChampionshipStandings({
   const canFilterFavorites = favoriteCodes.size > 0;
 
   const isDrivers = entityType === "drivers";
+  // The championship position (by points, as the standings are ranked) and the places gained or lost since the
+  // previous completed round: never the row's index, which changes with sorting and filtering.
+  const { champPos, changes } = useMemo(() => {
+    const { rounds, series } = buildProgression(raceSummaries, entityType);
+    const ranked = isDrivers ? drivers.map((d) => d.driver) : constructors.map((c) => c.team);
+    return { champPos: new Map(ranked.map((id, k) => [id, k + 1])), changes: positionChanges(series, rounds) };
+  }, [raceSummaries, entityType, isDrivers, drivers, constructors]);
   const favoriteDriverCodes = useMemo(() => new Set(personal.driverCodes), [personal.driverCodes]);
   const favoriteTeamNames = useMemo(() => new Set(personal.teamNames), [personal.teamNames]);
   const leaderPoints = isDrivers
@@ -308,7 +334,7 @@ export function ChampionshipStandings({
                             onRowClick={() => toggleExpanded(d.driver)}
                             cells={
                               <>
-                                <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{i + 1}</td>
+                                <PositionCell position={champPos.get(d.driver) ?? i + 1} change={changes.get(d.driver) ?? null} />
                                 <td className="whitespace-nowrap px-4 py-3">
                                   <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(d.driver)} onClick={() => toggleExpanded(d.driver)} className={NAME_BUTTON}>
                                     <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
@@ -364,7 +390,7 @@ export function ChampionshipStandings({
                             onRowClick={() => toggleExpanded(c.team)}
                             cells={
                               <>
-                                <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{i + 1}</td>
+                                <PositionCell position={champPos.get(c.team) ?? i + 1} change={changes.get(c.team) ?? null} />
                                 <td className="whitespace-nowrap px-4 py-3">
                                   <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(c.team)} onClick={() => toggleExpanded(c.team)} className={NAME_BUTTON}>
                                     <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">

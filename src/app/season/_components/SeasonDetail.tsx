@@ -1,22 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
-import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
+import { ChampionshipBattle } from "./v2/ChampionshipBattle";
+import { RaceTimeline } from "./v2/RaceTimeline";
+import { SeasonInsights } from "./v2/SeasonInsights";
+import { SeasonOverview } from "./v2/SeasonOverview";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
-import { SeasonCalendar } from "./SeasonCalendar";
-import { SeasonSnapshot } from "./SeasonSnapshot";
-import { WhatChangedRecently } from "./WhatChangedRecently";
 import { RaceQuickView } from "./race/RaceQuickView";
-import { ApexSeasonTake } from "./ai/ApexSeasonTake";
-import { SeasonIntelligenceProvider } from "./ai/SeasonIntelligenceProvider";
+import {
+  SeasonIntelligenceProvider,
+  SeasonIntelligenceTrigger,
+} from "./ai/SeasonIntelligenceProvider";
 import { SeasonApexScope } from "./ai/SeasonApexScope";
 import { SeasonExplorerProvider } from "../_context/SeasonExplorerContext";
 import {
   buildPersonalSeasonContext,
-  buildSeasonSnapshot,
   type Battle,
   type ConstructorStandingRow,
   type DriverStandingRow,
@@ -35,8 +35,6 @@ export function SeasonDetail({
   constructors,
   progression,
   raceSummaries,
-  racesCompleted,
-  racesRemaining,
   battles,
   records,
   favoriteDriverIds,
@@ -60,30 +58,54 @@ export function SeasonDetail({
   // thing favorites affect. The season narrative below stays shared and stays cached once for
   // everyone; having a favorite driver never triggers a second model call.
   const personal = useMemo(
-    () => buildPersonalSeasonContext(favoriteDriverIds, favoriteTeamIds, drivers, constructors, raceSummaries, progression),
-    [favoriteDriverIds, favoriteTeamIds, drivers, constructors, raceSummaries, progression],
+    () =>
+      buildPersonalSeasonContext(
+        favoriteDriverIds,
+        favoriteTeamIds,
+        drivers,
+        constructors,
+        raceSummaries,
+        progression,
+      ),
+    [
+      favoriteDriverIds,
+      favoriteTeamIds,
+      drivers,
+      constructors,
+      raceSummaries,
+      progression,
+    ],
   );
-
-  const snapshot = useMemo(() => buildSeasonSnapshot(drivers, raceSummaries, battles), [drivers, raceSummaries, battles]);
 
   // A favorite driver is the sensible default Compare selection - a personalized default, not a
   // personalized section. Checks every favorite in standings order rather than whichever was
   // saved first, so someone following several gets the one actually ahead.
-  const favoriteDriver = drivers.find((d) => d.favoriteId && favoriteDriverIds.includes(d.favoriteId));
+  const favoriteDriver = drivers.find(
+    (d) => d.favoriteId && favoriteDriverIds.includes(d.favoriteId),
+  );
   const defaultA = favoriteDriver ?? drivers[0];
   const defaultAIndex = defaultA ? drivers.indexOf(defaultA) : -1;
   // A favorite TEAM's own lead driver beats "whoever is adjacent in the standings" as a default
   // opponent, since comparing someone against their own teammate is a weaker default.
-  const favoriteTeam = constructors.find((c) => favoriteTeamIds.includes(c.favoriteId) && c.team !== defaultA?.team);
-  const favoriteTeamDriver = favoriteTeam ? drivers.find((d) => d.team === favoriteTeam.team) : undefined;
-  const defaultB = favoriteTeamDriver ?? drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
+  const favoriteTeam = constructors.find(
+    (c) => favoriteTeamIds.includes(c.favoriteId) && c.team !== defaultA?.team,
+  );
+  const favoriteTeamDriver = favoriteTeam
+    ? drivers.find((d) => d.team === favoriteTeam.team)
+    : undefined;
+  const defaultB =
+    favoriteTeamDriver ??
+    drivers[defaultAIndex === 0 ? 1 : Math.max(defaultAIndex - 1, 0)];
 
   // The constructors' table gets its own default pair: the top two teams, or a favorite team
   // against the leader when the reader follows one.
-  const favoriteTeamRow = constructors.find((c) => favoriteTeamIds.includes(c.favoriteId));
+  const favoriteTeamRow = constructors.find((c) =>
+    favoriteTeamIds.includes(c.favoriteId),
+  );
   const teamA = favoriteTeamRow ?? constructors[0];
   const teamAIndex = teamA ? constructors.indexOf(teamA) : -1;
-  const teamB = constructors[teamAIndex === 0 ? 1 : Math.max(teamAIndex - 1, 0)];
+  const teamB =
+    constructors[teamAIndex === 0 ? 1 : Math.max(teamAIndex - 1, 0)];
 
   const defaultCompare = useMemo(
     () => ({
@@ -93,9 +115,6 @@ export function SeasonDetail({
     [defaultA?.driver, defaultB?.driver, teamA?.team, teamB?.team],
   );
 
-  const currentRound = status === "ongoing" ? raceSummaries.find((r) => r.state === "next") : undefined;
-  const progressPct = racesCompleted + racesRemaining > 0 ? (racesCompleted / (racesCompleted + racesRemaining)) * 100 : 0;
-
   return (
     <SeasonExplorerProvider defaultCompare={defaultCompare}>
       {/* Season sends only the year. Everything the model sees is fetched server-side from the
@@ -103,114 +122,65 @@ export function SeasonDetail({
       <SeasonIntelligenceProvider season={year}>
         <SeasonApexScope season={year} />
 
-        {/* ── Identity ─────────────────────────────────────────────────────────
-            The page's masthead, not another dashboard component: the year, how far through the
-            season it is, and what's next, tied together by one hairline progress rule rather than
-            stacked in separate boxes. */}
-        <header className="mb-8">
-          {backHref && (
-            <Link href={backHref} className="mb-3 inline-block text-xs text-tertiary transition hover:text-neutral-300">
-              ← Archive
-            </Link>
-          )}
+        {/* The season page owns the championship (the home owns your race weekend): a compact masthead, the
+            championship as it has developed, the standings, the season race by race, then evidence-backed form
+            and the deeper analysis tools. */}
+        <SeasonOverview
+          year={year}
+          status={status}
+          raceSummaries={raceSummaries}
+          drivers={drivers}
+          backHref={backHref}
+        />
 
-          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-            <h1 className="flex items-baseline gap-3">
-              <span className="text-[44px] font-bold leading-none tracking-[-0.03em] text-white sm:text-6xl">{year}</span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-tertiary">Season</span>
-            </h1>
-
-            {currentRound && (
-              <p className="flex items-center gap-2 text-xs text-neutral-400">
-                <span aria-hidden className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
-                <span className="text-tertiary">Next</span>
-                <span className="font-medium text-neutral-200">
-                  R{currentRound.round} · {currentRound.name}
-                </span>
-              </p>
-            )}
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <div aria-hidden className="h-px flex-1 bg-white/[0.07]">
-              <div className="progress-sweep h-px bg-[var(--f1-red)]/60" style={{ width: `${progressPct}%` }} />
-            </div>
-            <p className="shrink-0 text-[11px] tabular-nums text-tertiary">
-              {status === "ongoing" ? (
-                <>
-                  <span className="font-medium text-neutral-300">
-                    <CountUp value={racesCompleted} />
-                  </span>{" "}
-                  of {racesCompleted + racesRemaining} rounds complete
-                </>
-              ) : (
-                <>
-                  <span className="font-medium text-neutral-300">{racesCompleted}</span> rounds · season complete
-                </>
-              )}
-            </p>
-          </div>
-        </header>
-
-
-        <Reveal>
-          <ApexSeasonTake personal={personal} />
-        </Reveal>
-
-        <Reveal>
-          <SeasonSnapshot items={snapshot} personal={personal} />
-        </Reveal>
-
-        {/* ── Standings + what changed ─────────────────────────────────────────
-            The two columns share ONE declared row height and each fills it, scrolling internally.
-            That is what makes their bottom edges line up exactly, and it holds regardless of which
-            championship tab is active, how many rows a search leaves, or how tall the viewport is -
-            none of which a "tallest child wins" stretch could guarantee. No padding is added to
-            fake the match; the space is real and both components use it.
-            `lg:grid-rows-[1fr]` alongside the height, not just the height alone: a single
-            `auto`-sized grid row DOES stretch to absorb a definite container height per spec, but
-            that's a secondary "leftover space" behaviour, not what actually sizes the row - stating
-            the row track itself as `1fr` makes the fill the primary, unambiguous rule instead of
-            leaning on that fallback.
-            Height applies only from `lg`, where they sit side by side. Stacked on smaller screens
-            they size to their own content, because matching heights in a single column is
-            meaningless. */}
-        <Reveal className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[1fr] lg:gap-10">
-          <div className="flex min-h-0 min-w-0 flex-col">
-            <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} personal={personal} />
-          </div>
-          <div className="flex min-h-0 min-w-0 flex-col">
-            <WhatChangedRecently
-              drivers={drivers}
-              constructors={constructors}
-              raceSummaries={raceSummaries}
-              progression={progression}
-              personal={personal}
-            />
-          </div>
-        </Reveal>
-
-        <Reveal className="mb-8">
-          <AnalysisWorkspace
-            season={year}
-            battles={battles}
-            records={records}
-            drivers={drivers}
-            constructors={constructors}
-            progression={progression}
+        <Reveal className="mb-12">
+          <ChampionshipBattle
             raceSummaries={raceSummaries}
             personal={personal}
           />
         </Reveal>
 
-        <Reveal>
-          <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
+        {/* The standings scroll inside one fixed height from lg, so a long list never pushes the page apart. */}
+        <Reveal className="mb-12 flex flex-col lg:h-[36rem]">
+          <ChampionshipStandings
+            drivers={drivers}
+            constructors={constructors}
+            raceSummaries={raceSummaries}
+            personal={personal}
+          />
+        </Reveal>
+
+        <Reveal className="mb-12">
+          <RaceTimeline year={year} raceSummaries={raceSummaries} />
+        </Reveal>
+
+        <Reveal className="mb-12">
+          <SeasonInsights year={year} raceSummaries={raceSummaries} />
+        </Reveal>
+
+        <Reveal className="mb-8">
+          <SeasonIntelligenceTrigger>
+            <AnalysisWorkspace
+              season={year}
+              battles={battles}
+              records={records}
+              drivers={drivers}
+              constructors={constructors}
+              progression={progression}
+              raceSummaries={raceSummaries}
+              personal={personal}
+            />
+          </SeasonIntelligenceTrigger>
         </Reveal>
 
         {/* Rendered once, driven by the route. Mounted here (not inside the calendar) so a race can
             be opened from anywhere on the page, and so a direct link with ?race= opens it without
             the calendar needing to be involved at all. */}
-        <RaceQuickView season={year} raceSummaries={raceSummaries} drivers={drivers} />
+        <RaceQuickView
+          season={year}
+          raceSummaries={raceSummaries}
+          drivers={drivers}
+        />
       </SeasonIntelligenceProvider>
     </SeasonExplorerProvider>
   );
