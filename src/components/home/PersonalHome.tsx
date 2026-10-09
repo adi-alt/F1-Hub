@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { HomeLayout } from "./HomeLayout";
+import { PredictionSheet } from "@/components/predictions/PredictionSheet";
 import { HomepageApexScope } from "./ai/HomepageApexScope";
 import { HomepageIntelligenceProvider } from "./ai/HomepageIntelligenceProvider";
 import {
@@ -47,6 +50,14 @@ function PersonalHomeInner({
   firstName: string;
   isReturning: boolean;
 }) {
+  const router = useRouter();
+  const [predicting, setPredicting] = useState(false);
+  const race = publicData.nextRace;
+  // The prediction window opens over the home for a race that can still be picked; otherwise the buttons link
+  // to the race page instead.
+  const canPredict = !!race && race.status === "upcoming";
+  const entrants = race?.inputs?.length ? race.inputs : publicData.currentDrivers.map((d) => ({ driver: d.code, driverName: d.name, team: d.team }));
+  const onPredict = canPredict ? () => setPredicting(true) : undefined;
   return (
     <>
       <HomeLayout
@@ -56,7 +67,7 @@ function PersonalHomeInner({
             tier: "major",
             content: (
               <RegionBoundary label="the next race">
-                <PersonalHero publicData={publicData} personalData={personalData} firstName={firstName} />
+                <PersonalHero publicData={publicData} personalData={personalData} firstName={firstName} onPredict={onPredict} />
               </RegionBoundary>
             ),
           },
@@ -72,7 +83,7 @@ function PersonalHomeInner({
             tier: "major",
             content: (
               <RegionBoundary label="your weekend">
-                <YourWeekendSection publicData={publicData} personalData={personalData} />
+                <YourWeekendSection publicData={publicData} personalData={personalData} onPredict={onPredict} />
               </RegionBoundary>
             ),
           },
@@ -108,6 +119,17 @@ function PersonalHomeInner({
           },
         ]}
       />
+
+      {canPredict && race && (
+        <PredictionSheet
+          open={predicting}
+          onClose={() => setPredicting(false)}
+          race={race}
+          entrants={entrants}
+          sessions={publicData.calendarEntry?.sessions ?? []}
+          onSaved={() => router.refresh()}
+        />
+      )}
 
       {/* Apex is global (ApexLauncher, root layout); the home contributes its facts as the launcher's scope. */}
       <HomepageApexScope

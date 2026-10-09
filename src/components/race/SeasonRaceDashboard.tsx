@@ -331,8 +331,8 @@ export function SeasonRaceDashboard({
               />
             </section>
 
-            <RaceSectionCard id="pick" title="Your podium pick" description="Locks at lights out. Three points for each driver in the right place, one for the right driver in the wrong place." bare>
-              <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} />
+            <RaceSectionCard id="pick" title="Your predictions" description="Podium, pole, fastest lap, top five, safety car and winning margin, each against the model. Pole locks at qualifying, the rest at lights out." bare>
+              <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} sessions={calendarEntry?.sessions ?? []} />
             </RaceSectionCard>
 
             {race.simulation || race.prediction ? (

@@ -40,6 +40,11 @@ export const pickSchema = z.object({
   raceId: z.string().trim().min(1).max(LIMITS.id),
   predictedWinner: driverCode,
   predictedPodium: z.tuple([driverCode, driverCode, driverCode]),
+  predictedPole: driverCode.nullish(),
+  predictedFastestLap: driverCode.nullish(),
+  predictedTop5: z.tuple([driverCode, driverCode, driverCode, driverCode, driverCode]).nullish(),
+  predictedSafetyCar: z.boolean().nullish(),
+  predictedMargin: z.enum(["under_2", "2_5", "5_10", "over_10"]).nullish(),
 });
 
 /** POST /api/archive/favorites (one id at a time). */

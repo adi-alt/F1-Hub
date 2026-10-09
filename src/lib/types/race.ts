@@ -195,9 +195,20 @@ export type RaceDoc = {
   dataCompleteness?: Record<string, boolean> | null;
 };
 
+export const MARGIN_BUCKETS = ["under_2", "2_5", "5_10", "over_10"] as const;
+export type MarginBucket = (typeof MARGIN_BUCKETS)[number];
+
 export type UserPick = {
   raceId: string;
   predictedWinner: string;
   predictedPodium: [string, string, string];
+  /** Optional categories (20261011_pick_categories.sql): pole locks at qualifying, the rest at lights out. */
+  predictedPole?: string | null;
+  predictedFastestLap?: string | null;
+  predictedTop5?: [string, string, string, string, string] | null;
+  /** Will there be at least one safety car. */
+  predictedSafetyCar?: boolean | null;
+  /** The winning margin's bucket: P2's gap to the winner. */
+  predictedMargin?: MarginBucket | null;
   submittedAt: string;
 };
