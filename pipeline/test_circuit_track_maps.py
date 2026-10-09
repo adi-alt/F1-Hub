@@ -66,12 +66,26 @@ class FakeWiki:
         return self.responder(params)
 
 
+ARTICLE_IMAGES = {
+    # Lead image is a photo or a logo: the article's own track map is used instead.
+    "Speedway Circuit": ["File:Commons-logo.svg", "File:Grandstand photo.jpg", "File:Speedway road course.svg"],
+    "Logo Lead Circuit": ["File:Logo Lead Circuit Logo.svg", "File:Corniche track map.svg"],
+    "Fair Use Circuit": ["File:Some aerial view.jpg"],
+}
+
+
 def wikipedia(params):
     titles = params["titles"].split("|")
+    if params.get("prop") == "images":
+        return {"query": {"pages": [{"title": t, "images": [{"title": f} for f in ARTICLE_IMAGES.get(t, [])]} for t in titles]}}
     assert params["ppprop"] == "page_image_free", "only the free lead image is ever used"
     pages, redirects = [], []
     for t in titles:
-        if t == "Monza":
+        if t == "Speedway Circuit":
+            pages.append({"title": t, "pageprops": {"page_image_free": "Indianapolis-motor-speedway-1848561.jpg"}})
+        elif t == "Logo Lead Circuit":
+            pages.append({"title": t, "pageprops": {"page_image_free": "Jeddah_Corniche_Circuit_Logo.svg"}})
+        elif t == "Monza":
             redirects.append({"from": "Monza", "to": "Monza Circuit"})
             pages.append({"title": "Monza Circuit", "pageprops": {"page_image_free": "Monza_track_map.svg"}})
         elif t == "Fair Use Circuit":
@@ -93,12 +107,28 @@ def commons(params):
 
 
 wp, cm = FakeWiki(wikipedia), FakeWiki(commons)
-titles = ["Monza", "Fair Use Circuit", "Nowhere"] + [f"Circuit {i}" for i in range(60)]
+titles = ["Monza", "Fair Use Circuit", "Nowhere", "Speedway Circuit", "Logo Lead Circuit"] + [f"Circuit {i}" for i in range(60)]
 results = tm.find_maps(wp, cm, titles)
-assert len(wp.calls) == 2 and len(cm.calls) == 2, "batched 50 at a time"
-assert all(len(c["titles"].split("|")) <= 50 for c in wp.calls + cm.calls)
+lead_calls = [c for c in wp.calls if c.get("ppprop")]
+assert len(lead_calls) == 2 and len(cm.calls) == 2, "lead images and file pages batched 50 at a time"
+assert all(len(c["titles"].split("|")) <= 50 for c in lead_calls + cm.calls)
 assert results["Monza"][0].file == "File:Monza track map.svg", "redirect followed back to the asked title"
-assert results["Fair Use Circuit"] == (None, "no free lead image on the article")
+assert results["Fair Use Circuit"] == (None, "no track map on the article"), "a photo is never a map"
+assert results["Speedway Circuit"][0].file == "File:Speedway road course.svg", "photo lead image skipped for the article's map"
+assert results["Logo Lead Circuit"][0].file == "File:Corniche track map.svg", "logo lead image skipped for the article's map"
+
+# What counts as a map file.
+assert tm.is_map_file("File:Monza track map.svg") and tm.is_map_file("File:Zandvoort Circuit.png")
+for f in ["File:Indianapolis-motor-speedway-1848561.jpg", "File:Sirius track.jpg", "File:Jeddah Corniche Circuit Logo.svg", "File:Logo Brands Hatch Circuit.svg"]:
+    assert not tm.is_map_file(f), f
+assert not tm.is_map_file("File:Flag of Italy.svg", named_like_map=True)
+assert not tm.is_map_file("File:Jeddah Formula E Layout.png", named_like_map=True) and not tm.is_map_file("File:Long Beach Street Circuit IndyCar.svg"), "another series' layout is not the F1 track"
+assert not tm.is_map_file("File:Jeddah Corniche Circuit viewed from above.png", named_like_map=True), "an aerial view is not a map"
+assert not tm.is_map_file("File:Some building.svg", named_like_map=True), "fallback images must be named like a map"
+
+# Public domain and CC0 carry no LicenseUrl on Commons: the canonical deed is used.
+assert tm.evaluate(page(licence="Public domain", licence_url=""))[0].license_url == "https://creativecommons.org/publicdomain/mark/1.0/"
+assert tm.evaluate(page(licence="CC0", licence_url=""))[0].license_url == "https://creativecommons.org/publicdomain/zero/1.0/"
 assert results["Nowhere"][0] is None
 assert results["Circuit 59"][0] is not None
 
