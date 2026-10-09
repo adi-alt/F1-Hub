@@ -130,6 +130,12 @@ export function ChampionshipStandings({
   const canFilterFavorites = favoriteCodes.size > 0;
 
   const isDrivers = entityType === "drivers";
+  // The championship position (the standings' own points order), never the row index, which changed with sorting
+  // and filtering (a search for one driver showed them as 1st).
+  const champPos = useMemo(
+    () => new Map<string, number>((isDrivers ? drivers.map((d) => d.driver) : constructors.map((c) => c.team)).map((id, k) => [id, k + 1])),
+    [isDrivers, drivers, constructors],
+  );
   const favoriteDriverCodes = useMemo(() => new Set(personal.driverCodes), [personal.driverCodes]);
   const favoriteTeamNames = useMemo(() => new Set(personal.teamNames), [personal.teamNames]);
   const leaderPoints = isDrivers
@@ -308,7 +314,7 @@ export function ChampionshipStandings({
                             onRowClick={() => toggleExpanded(d.driver)}
                             cells={
                               <>
-                                <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{i + 1}</td>
+                                <td className={`px-4 py-3 font-mono tabular-nums ${(champPos.get(d.driver) ?? i + 1) <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{champPos.get(d.driver) ?? i + 1}</td>
                                 <td className="whitespace-nowrap px-4 py-3">
                                   <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(d.driver)} onClick={() => toggleExpanded(d.driver)} className={NAME_BUTTON}>
                                     <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
@@ -364,7 +370,7 @@ export function ChampionshipStandings({
                             onRowClick={() => toggleExpanded(c.team)}
                             cells={
                               <>
-                                <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{i + 1}</td>
+                                <td className={`px-4 py-3 font-mono tabular-nums ${(champPos.get(c.team) ?? i + 1) <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{champPos.get(c.team) ?? i + 1}</td>
                                 <td className="whitespace-nowrap px-4 py-3">
                                   <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(c.team)} onClick={() => toggleExpanded(c.team)} className={NAME_BUTTON}>
                                     <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">

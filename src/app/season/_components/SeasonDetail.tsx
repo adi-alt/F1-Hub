@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
+import { RoundStrip } from "./RoundStrip";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
 import { SeasonCalendar } from "./SeasonCalendar";
@@ -94,7 +95,6 @@ export function SeasonDetail({
   );
 
   const currentRound = status === "ongoing" ? raceSummaries.find((r) => r.state === "next") : undefined;
-  const progressPct = racesCompleted + racesRemaining > 0 ? (racesCompleted / (racesCompleted + racesRemaining)) * 100 : 0;
 
   return (
     <SeasonExplorerProvider defaultCompare={defaultCompare}>
@@ -132,9 +132,7 @@ export function SeasonDetail({
           </div>
 
           <div className="mt-4 flex items-center gap-3">
-            <div aria-hidden className="h-px flex-1 bg-white/[0.07]">
-              <div className="progress-sweep h-px bg-[var(--f1-red)]/60" style={{ width: `${progressPct}%` }} />
-            </div>
+            <RoundStrip year={year} raceSummaries={raceSummaries} />
             <p className="shrink-0 text-[11px] tabular-nums text-tertiary">
               {status === "ongoing" ? (
                 <>
