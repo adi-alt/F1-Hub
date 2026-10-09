@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
+import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
+import type { RacePhoto } from "@/lib/racePhotos";
 import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
@@ -59,6 +61,7 @@ export function SeasonRaceDashboard({
   raceCommunities,
   fallbackEntrants = [],
   raceSessionDate = null,
+  photos = [],
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
@@ -90,6 +93,8 @@ export function SeasonRaceDashboard({
   // For the podium pick (PickPanel): the grid to choose from before qualifying, and lights out.
   fallbackEntrants?: { driver: string; driverName: string; team: string }[];
   raceSessionDate?: string | null;
+  // Approved Wikimedia photos of this weekend (/admin/race-photos), up to four; empty -> no photo section.
+  photos?: RacePhoto[];
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -280,6 +285,12 @@ export function SeasonRaceDashboard({
                 nameOf={nameOf}
               />
             </section>
+
+            {photos.length > 0 && (
+              <RaceSectionCard id="photos" title="Photos from the weekend" bare>
+                <RacePhotoGallery photos={photos} />
+              </RaceSectionCard>
+            )}
 
             {hasAnalysis && (accuracy || poleAccuracy) && (
               <RaceSectionCard id="predictions" title="How the predictions did" bare>

@@ -1,5 +1,7 @@
 # Database
 
+> **No staging project right now.** Staging (`wmdgbmlpvszyapewygvs`) was deleted on 2026-10-09. Every job that used it (migrate's staging job, e2e, the backup drill, race-photos' staging target) is off behind the repository variable `STAGING_ENABLED`, and production migrations no longer wait for staging: the `production-db` approval and the fingerprint check are the only gate. To bring staging back: create a project, put its secrets in the GitHub `staging` environment, replace the old project ref in the workflows and scripts, rebuild it (below), restore `needs: staging` in migrate.yml, and set `STAGING_ENABLED=true`.
+
 Two Supabase projects, and migrations reach both through CI (`.github/workflows/migrate.yml`):
 
 | | Project | Gets migrations | Data |
