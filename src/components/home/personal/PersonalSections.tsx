@@ -499,6 +499,11 @@ export function PersonalSeasonSection({ publicData }: Pick<Props, "publicData">)
       level={2}
       title={`${publicData.year} season`}
       description={`${leader.driverName} leads${second ? ` by ${leader.points - second.points} points` : ""} after ${season.roundsCompleted} of ${season.totalRounds} rounds.`}
+      actions={
+        <Link href={seasonHref(publicData.year)} className={TEXT_LINK}>
+          Full standings <Icon icon={ArrowRight} size={16} />
+        </Link>
+      }
     >
       {narrative && (
         <div className="mb-5 max-w-3xl">
@@ -506,13 +511,15 @@ export function PersonalSeasonSection({ publicData }: Pick<Props, "publicData">)
           <p className="mt-1 text-body-sm text-secondary">{narrative}</p>
         </div>
       )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
-        <div className="min-w-0">
+      {/* Two columns with the same top and bottom: each opens with its own heading, and Coming up stretches its
+          cards to the table's height. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-stretch">
+        <section aria-labelledby="standings-top5" className="flex min-w-0 flex-col">
+          <h3 id="standings-top5" className="mb-3 text-body-sm font-semibold text-primary">
+            Drivers&rsquo; championship
+          </h3>
           <Table caption={`${publicData.year} drivers' championship, top five`} columns={columns} rows={rows} getRowKey={(s) => s.driver} rowHeader="driver" />
-          <Link href={seasonHref(publicData.year)} className={`${TEXT_LINK} mt-3`}>
-            Full standings <Icon icon={ArrowRight} size={16} />
-          </Link>
-        </div>
+        </section>
         <ComingUp publicData={publicData} />
       </div>
     </Section>
