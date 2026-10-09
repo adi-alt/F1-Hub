@@ -17,6 +17,7 @@ import {
   YourWeekendSection,
 } from "./personal/PersonalSections";
 import { RegionBoundary } from "@/components/ui/RegionBoundary";
+import { StandingsTicker, standingsTickerItems } from "@/components/motion/StandingsTicker";
 import { buildHomeApexFacts } from "@/lib/ai/context/homeFacts";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
 
@@ -70,6 +71,10 @@ function PersonalHomeInner({
                 <PersonalHero publicData={publicData} personalData={personalData} firstName={firstName} onPredict={onPredict} />
               </RegionBoundary>
             ),
+          },
+          {
+            tier: "compact",
+            content: <StandingsTicker label={`${publicData.year} drivers' championship`} items={standingsTickerItems(publicData.season?.ticker)} />,
           },
           {
             tier: "major",

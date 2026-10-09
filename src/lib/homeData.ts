@@ -78,6 +78,8 @@ export type LandingSeason = {
   roundsCompleted: number;
   totalRounds: number;
   top5: { driver: string; driverName: string; team: string; points: number; wins: number }[];
+  /** The top ten, for the standings ticker (driver code, points). */
+  ticker?: { driver: string; driverName: string; team: string; points: number }[];
   lastRace: {
     name: string;
     year: number;

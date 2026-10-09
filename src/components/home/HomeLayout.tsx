@@ -1,5 +1,6 @@
 import { Children, type ReactNode } from "react";
 import { RotatingBackdrop } from "./RotatingBackdrop";
+import { Reveal } from "@/components/motion/Reveal";
 
 export type SectionTier = "major" | "normal" | "compact";
 
@@ -57,9 +58,9 @@ export function HomeLayout({
       {/* data-surface="frosted": the home's panels are glass over the race photo (globals.css), not opaque. */}
       <div data-surface="frosted" className="page-content relative py-10">
         {resolvedSections.map((s, i) => (
-          <div key={i} className={i === 0 ? "" : TIER_GAP[s.tier]}>
+          <Reveal key={i} className={i === 0 ? "" : TIER_GAP[s.tier]}>
             {s.content}
-          </div>
+          </Reveal>
         ))}
       </div>
     </div>

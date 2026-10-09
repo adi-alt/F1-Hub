@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { RaceReadiness } from "@/components/home/RaceReadiness";
+import { StartLights } from "@/components/motion/StartLights";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -90,6 +91,7 @@ export function LandingHero({
   return (
     <div className="grid grid-cols-1 gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end lg:gap-16 lg:pt-14">
       <div className="min-w-0">
+        <StartLights className="mb-6" />
         {greeting && (
           <p className="mb-3 text-body text-secondary">{greeting}</p>
         )}

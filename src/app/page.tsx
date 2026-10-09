@@ -28,6 +28,7 @@ function landingSeason(races: RaceDoc[], standings: { drivers: { driver: string;
     roundsCompleted: completed.length,
     totalRounds: races.length,
     top5: standings.drivers.slice(0, 5).map(({ driver, driverName, team, points, wins }) => ({ driver, driverName, team, points, wins })),
+    ticker: standings.drivers.slice(0, 10).map(({ driver, driverName, team, points }) => ({ driver, driverName, team, points })),
     lastRace: last
       ? {
           name: last.name,

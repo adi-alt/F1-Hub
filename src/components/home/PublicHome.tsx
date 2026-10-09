@@ -1,6 +1,7 @@
 "use client";
 
 import { HomeLayout } from "./HomeLayout";
+import { StandingsTicker, standingsTickerItems } from "@/components/motion/StandingsTicker";
 import { LandingHero } from "./landing/LandingHero";
 import { LandingArchiveSection, LandingModelSection, LandingSeasonSection } from "./landing/LandingSections";
 import type { LandingData } from "@/lib/homeData";
@@ -17,6 +18,7 @@ export function PublicHome({ landing }: { landing: LandingData }) {
       photos={landing.backdropPhotos}
       sections={[
         { tier: "major", content: <LandingHero landing={landing} /> },
+        { tier: "compact", content: <StandingsTicker label={`${landing.year} drivers' championship`} items={standingsTickerItems(landing.season?.ticker)} /> },
         ...(landing.season ? [{ tier: "major" as const, content: <LandingSeasonSection year={landing.year} season={landing.season} /> }] : []),
         { tier: "major", content: <LandingModelSection landing={landing} /> },
         { tier: "major", content: <LandingArchiveSection /> },

@@ -34,7 +34,7 @@ export function RotatingBackdrop({ photos }: { photos: string[] }) {
           fill
           sizes="100vw"
           priority={i === 0}
-          className={`object-cover transition-opacity duration-1000 ${i === index ? "opacity-40" : "opacity-0"}`}
+          className={`backdrop-drift object-cover transition-opacity duration-1000 ${i === index ? "opacity-40" : "opacity-0"}`}
         />
       ))}
     </>
