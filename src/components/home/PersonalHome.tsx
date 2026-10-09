@@ -1,47 +1,36 @@
 "use client";
 
-import { useState } from "react";
-import { CommunitySection, CommunitySectionSkeleton } from "./CommunitySection";
 import { HomeLayout } from "./HomeLayout";
-import { IntelligenceSection, IntelligenceSkeleton } from "./IntelligenceSection";
-import { RaceHero, RaceHeroSkeleton } from "./RaceHero";
-import { SeasonRecap, SeasonRecapSkeleton } from "./SeasonRecap";
-import { PersonalOverviewSkeleton, YourF1 } from "./YourF1";
-import { YourF1Radar } from "./YourF1Radar";
 import { HomepageApexScope } from "./ai/HomepageApexScope";
-import { buildHomeApexFacts } from "@/lib/ai/context/homeFacts";
 import {
-  HomepageIntelligenceProvider,
-  useHomepageIntelligence,
-} from "./ai/HomepageIntelligenceProvider";
+  PersonalHero,
+  PersonalHomeOutline,
+  PersonalSeasonSection,
+  SinceLastVisitSection,
+  YourCommunitiesSection,
+  YourWeekendSection,
+} from "./personal/PersonalSections";
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
+import { buildHomeApexFacts } from "@/lib/ai/context/homeFacts";
 import type { PersonalHomeData, PublicHomeData } from "@/lib/homeData";
 
-function PersonalHomeInner({
+/**
+ * The signed-in home (critique §2.2, CR-18): five sections, in the order a returning fan wants them. The race
+ * and your one action; your weekend (your pick, the model's, your record, your favourites); what happened
+ * since your last visit; your communities; the season. Each is its own failure region, so one bad read shows
+ * an inline error there and the rest of the page still works. Sections sit 48px apart, the race photo behind
+ * the hero is the one atmospheric element, and the skeleton (PersonalHomeSkeleton) has the same five shapes.
+ */
+export function PersonalHome({
   publicData,
   personalData,
   firstName,
-  isReturning,
 }: {
   publicData: PublicHomeData;
   personalData: PersonalHomeData;
   firstName: string;
   isReturning: boolean;
 }) {
-  const { intelligence } = useHomepageIntelligence();
-  // Lifted here (not in HomepageIntelligenceProvider, whose memoized value was fixed earlier this
-  // session specifically to stop unrelated re-renders - adding tab state there would reintroduce
-  // that) so the hero radar and the floating Apex widget can each drive a tab they don't own the
-  // rendering of. Both default once and are never reset by an AI data refresh - only explicit user
-  // actions (a tab click, a quick-jump button, a radar element) change them.
-  const [apexActiveTab, setApexActiveTab] = useState("briefing");
-  const [yourF1ActiveTab, setYourF1ActiveTab] = useState("overview");
-  // The favorite entity YourF1's switcher currently analyzes - defaults to the primary driver, or
-  // the primary team if there's no favorite driver, matching what the compact header already
-  // treats as "the" favorite everywhere else on the page.
-  const [selectedFavoriteKey, setSelectedFavoriteKey] = useState(
-    () => (personalData.favoriteDriver ? `driver:${personalData.favoriteDriver.driverId}` : personalData.favoriteTeam ? `team:${personalData.favoriteTeam.teamId}` : ""),
-  );
-
   return (
     <>
       <HomeLayout
@@ -50,116 +39,45 @@ function PersonalHomeInner({
           {
             tier: "major",
             content: (
-              <RaceHero
-                publicData={publicData}
-                variant="personal"
-                firstName={firstName}
-                isReturning={isReturning}
-                nextAction={personalData.nextAction}
-                favoriteDriver={personalData.favoriteDriver}
-                favoriteTeam={personalData.favoriteTeam}
-              />
-            ),
-          },
-          {
-            // Thin status rail, not a section - reads as one connected block with the hero above
-            // it (see YourF1Radar's own -mt-6 local pull-up), hence the tightest tier.
-            tier: "compact",
-            content: (
-              <YourF1Radar
-                favoriteDriver={personalData.favoriteDriver}
-                favoriteTeam={personalData.favoriteTeam}
-                favoriteDrivers={personalData.favoriteDrivers}
-                favoriteTeams={personalData.favoriteTeams}
-                favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
-                favoriteTeamRank={publicData.seasonRecap.favoriteTeamRank}
-                favoriteDriverCircuitWins={publicData.trackHistory?.favoriteDriverCircuitStats?.wins}
-                favoriteDriverPoints={publicData.seasonRecap.favoriteDriverPoints}
-                favoriteDriverGapToLeader={publicData.seasonRecap.favoriteDriverGapToLeader}
-                predictionCount={personalData.predictionPerformance.winner.total}
-                onNavigate={setYourF1ActiveTab}
-                onSelectFavorite={setSelectedFavoriteKey}
-              />
-            ),
-          },
-          {
-            tier: "normal",
-            content: (
-              <YourF1
-                favoriteDriver={personalData.favoriteDriver}
-                favoriteTeam={personalData.favoriteTeam}
-                favoriteDrivers={personalData.favoriteDrivers}
-                favoriteTeams={personalData.favoriteTeams}
-                races={publicData.races}
-                predictionCount={personalData.predictionPerformance.winner.total}
-                driverLeader={publicData.seasonRecap.driverLeader}
-                teamLeader={publicData.seasonRecap.teamLeader}
-                favoriteDriverRanks={publicData.seasonRecap.favoriteDriverRanks}
-                favoriteTeamRanks={publicData.seasonRecap.favoriteTeamRanks}
-                currentDrivers={publicData.currentDrivers}
-                favoriteDriverRank={publicData.seasonRecap.favoriteDriverRank}
-                favoriteTeamRank={publicData.seasonRecap.favoriteTeamRank}
-                favoriteDriverPoints={publicData.seasonRecap.favoriteDriverPoints}
-                favoriteDriverGapToLeader={publicData.seasonRecap.favoriteDriverGapToLeader}
-                activeTab={yourF1ActiveTab}
-                onTabChange={setYourF1ActiveTab}
-                selectedFavoriteKey={selectedFavoriteKey}
-                onSelectFavorite={setSelectedFavoriteKey}
-              />
-            ),
-          },
-          {
-            // The flagship Apex + Prediction Intelligence combination - genuinely dense, keeps
-            // generous breathing room on both sides.
-            tier: "major",
-            content: (
-              <IntelligenceSection
-                myPick={personalData.myPick}
-                nextRace={publicData.nextRace}
-                performance={personalData.predictionPerformance}
-                latestPrediction={personalData.latestPrediction}
-                predictionInsight={publicData.predictionInsight}
-                styleTraits={personalData.styleTraits}
-                apexActiveTab={apexActiveTab}
-                onApexTabChange={setApexActiveTab}
-              />
-            ),
-          },
-          {
-            tier: "normal",
-            content: (
-              <CommunitySection
-                posts={personalData.feedPosts}
-                predictions={personalData.recentPredictions}
-                driversByRace={personalData.predictionDriversByRace}
-                groups={personalData.groups}
-                discoverGroups={personalData.discoverGroups}
-              />
+              <RegionBoundary label="the next race">
+                <PersonalHero publicData={publicData} personalData={personalData} firstName={firstName} />
+              </RegionBoundary>
             ),
           },
           {
             tier: "major",
             content: (
-              <SeasonRecap
-                year={publicData.year}
-                races={publicData.races}
-                recap={publicData.seasonRecap}
-                aiNarrative={intelligence?.seasonNarrative}
-                nextRaceRound={publicData.nextRace?.round}
-                favoriteDriver={personalData.favoriteDriver}
-                favoriteTeam={personalData.favoriteTeam}
-                circuitImageByRound={publicData.circuitImageByRound}
-                calendarByRound={publicData.calendarByRound}
-                weatherByRound={publicData.weatherByRound}
-              />
+              <RegionBoundary label="your weekend">
+                <YourWeekendSection publicData={publicData} personalData={personalData} />
+              </RegionBoundary>
+            ),
+          },
+          {
+            tier: "major",
+            // Two short lists side by side from lg: neither leaves the other a column of empty space.
+            content: (
+              <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+                <RegionBoundary label="your recent activity">
+                  <SinceLastVisitSection personalData={personalData} />
+                </RegionBoundary>
+                <RegionBoundary label="your communities">
+                  <YourCommunitiesSection personalData={personalData} />
+                </RegionBoundary>
+              </div>
+            ),
+          },
+          {
+            tier: "major",
+            content: (
+              <RegionBoundary label="the season">
+                <PersonalSeasonSection publicData={publicData} />
+              </RegionBoundary>
             ),
           },
         ]}
       />
 
-      {/* Apex itself is global now (ApexLauncher, root layout). The homepage contributes its
-          already-fetched intelligence as that launcher's scope rather than running a second,
-          homepage-only chat with its own floating pill. */}
+      {/* Apex is global (ApexLauncher, root layout); the home contributes its facts as the launcher's scope. */}
       <HomepageApexScope
         raceName={publicData.nextRace?.name}
         favoriteDriverName={personalData.favoriteDriver?.name}
@@ -170,42 +88,11 @@ function PersonalHomeInner({
   );
 }
 
-/** The personal F1 command center wrapped in the single bundled HomepageIntelligenceProvider */
-export function PersonalHome(props: {
-  publicData: PublicHomeData;
-  personalData: PersonalHomeData;
-  firstName: string;
-  isReturning: boolean;
-}) {
-  // Stable identity string, not the card objects themselves - a new object reference every render
-  // (e.g. from router.refresh() re-fetching the same favorite) must NOT retrigger the AI fetch,
-  // only an actual identity change should. Uses the RAW favorite arrays off the profile (already
-  // present on PersonalHomeData, no new data threading), deliberately UNSORTED - a reorder (e.g.
-  // toggling a favorite off then back on, which moves it to the end - see setArchiveFavorite) must
-  // also bust this key, since it changes which entry is "primary" even though the set itself
-  // didn't change; a sorted join would hide that (see homepage-intelligence/route.ts's own comment
-  // on the identical gap it has to guard against server-side, where the key IS sorted for
-  // order-independent set-change coverage and needs the primary id appended separately instead).
-  const profile = props.personalData.profile;
-  const favoriteContextKey = `${(profile?.favoriteDrivers ?? []).join(",")}|${(profile?.favoriteTeams ?? []).join(",")}|${(profile?.favoriteTracks ?? []).join(",")}`;
-  return (
-    <HomepageIntelligenceProvider favoriteContextKey={favoriteContextKey}>
-      <PersonalHomeInner {...props} />
-    </HomepageIntelligenceProvider>
-  );
-}
-
+/** Shown while the signed-in data loads: the same five sections, in the same places. */
 export function PersonalHomeSkeleton() {
   return (
-    <HomeLayout
-      photos={[]}
-      sections={[
-        { tier: "major", content: <RaceHeroSkeleton variant="personal" /> },
-        { tier: "normal", content: <PersonalOverviewSkeleton /> },
-        { tier: "major", content: <IntelligenceSkeleton /> },
-        { tier: "normal", content: <CommunitySectionSkeleton /> },
-        { tier: "major", content: <SeasonRecapSkeleton /> },
-      ]}
-    />
+    <HomeLayout photos={[]}>
+      <PersonalHomeOutline />
+    </HomeLayout>
   );
 }

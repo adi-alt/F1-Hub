@@ -74,8 +74,7 @@ export default async function HomePage() {
 
   // Real per-round weather (calendar's own field, only ever populated for a round still ahead of
   // "now" - see sync_calendar.py's own comment on why a forecast for an already-run race is
-  // meaningless) - keyed once here, same "resolve every round up front, not per card" pattern
-  // circuitImageByRound already uses.
+  // meaningless) - keyed once here, resolved for every round up front rather than per card.
   const weatherByRound: Record<number, WeatherForecast | null> = {};
   // The full season's real session schedule, keyed by round - not just nextRace's (that's what
   // `calendarEntry` below still is, for the hero's own RaceReadiness) - so SeasonStrip's featured
@@ -89,20 +88,7 @@ export default async function HomePage() {
 
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
-  const archiveImageByCircuitId = new Map(archiveCircuits.map((c) => [c.circuitId, c.imageUrl]));
   const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
-
-  // Every round's circuit resolved once, server-side, here - not per-card in SeasonStrip (which
-  // renders one card per round from this one shared map). Real photo (race.photoUrl) always wins
-  // in SeasonStrip itself; this is purely the archive-image fallback tier for rounds that don't
-  // have one yet. Circuits truly missing from archive_circuits (Miami/Vegas/Qatar, pre-race - see
-  // circuitSlug.ts's own comment) simply resolve to null here and fall through to SeasonStrip's
-  // abstract CSS treatment - an honest, verified gap, not a guess.
-  const circuitImageByRound: Record<number, string | null> = {};
-  for (const race of races) {
-    const resolved = resolveCurrentCircuitToArchiveId(race.circuit, circuitLocalities, circuitIdsByName);
-    circuitImageByRound[race.round] = (resolved && archiveImageByCircuitId.get(resolved)) || null;
-  }
 
   // getPersonalHomeData (below) already resolves the full favorite-card arrays for the signed-in
   // case — fetched once here, reused for buildFacts/buildSeasonRecap/getTrackHistory, rather than
@@ -174,14 +160,8 @@ export default async function HomePage() {
     personalData?.favoriteTeams ?? [],
   );
 
-  const backdropPhotos =
-    recentPhotos.length > 0
-      ? recentPhotos.map((p) => p.url)
-      : trackHistory?.circuitImageUrls?.length
-        ? trackHistory.circuitImageUrls
-        : trackHistory?.circuitImageUrl
-          ? [trackHistory.circuitImageUrl]
-          : [];
+  // Photos of past races at this circuit only: never the archive circuit's Commons photos.
+  const backdropPhotos = recentPhotos.map((p) => p.url);
 
   const publicData: PublicHomeData = {
     year,
@@ -192,7 +172,6 @@ export default async function HomePage() {
     facts,
     trackHistory: trackHistoryWithFavorites,
     seasonRecap,
-    circuitImageByRound,
     calendarByRound,
     weatherByRound,
     currentDrivers,
@@ -205,7 +184,7 @@ export default async function HomePage() {
   // publicData feeds the signed-in home; serialised into every anonymous visit it made the page
   // ~575 KB. Signing in refreshes the page (AuthDialog's router.refresh()), which brings the rest.
   const homeData: HomeData = session.uid
-    ? { scope: "full", ...publicData }
+    ? { scope: "full", ...publicData, season: landingSeason(races, standings) }
     : { scope: "landing", year, nextRace, calendarEntry, backdropPhotos, facts, trackHistory: trackHistoryWithFavorites, season: landingSeason(races, standings) };
 
   return (

@@ -24,13 +24,10 @@ export type NextRaceSummary = {
  * by copying the photo-fallback chain - and a copied fallback chain is exactly how the two would
  * have drifted apart.
  *
- * The photo follows the SAME two-tier fallback the homepage's own season strip uses (see
- * app/page.tsx's circuitImageByRound): the round's own pipeline photo first, then the archive
- * circuit's image, resolved through resolveCurrentCircuitToArchiveId. Only using the first tier -
- * which this did originally - shows no image at all for the common case, since an upcoming round
- * hasn't been photographed yet precisely because it hasn't been run. A circuit genuinely missing
- * from archive_circuits still resolves to null and the widget degrades to its plain header, rather
- * than to a placeholder.
+ * The photo is the round's own pipeline photo, else the most recent photo of a past race at the
+ * same circuit (resolved through resolveCurrentCircuitToArchiveId). Never the archive circuit's
+ * Commons category photo (often not the track at all): with no race photo the widget degrades to
+ * its plain header, rather than to a stand-in.
  */
 export async function getNextRace(races?: Awaited<ReturnType<typeof getRacesByYear>>): Promise<NextRaceSummary> {
   const all = races ?? (await getRacesByYear(await getCurrentSeason()));
@@ -46,7 +43,7 @@ export async function getNextRace(races?: Awaited<ReturnType<typeof getRacesByYe
     // Photos of past races AT this circuit - the same real source the homepage's rotating backdrop
     // draws on. Sorted ascending by year, so the last entry is the most recent one.
     const recent = await getRecentCircuitPhotos(archiveId, upcoming.circuit, upcoming.year);
-    photoUrl = recent.at(-1)?.url ?? (archiveId ? (archiveCircuits.find((c) => c.circuitId === archiveId)?.imageUrl ?? null) : null);
+    photoUrl = recent.at(-1)?.url ?? null;
   }
 
   return {

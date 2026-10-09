@@ -49,10 +49,6 @@ export type PublicHomeData = {
    * Drives the hero's right-side Race Intelligence panel and the Track Intelligence widget. */
   trackHistory: TrackHistory | null;
   seasonRecap: SeasonRecap;
-  /** Archive-circuit fallback image per round, resolved once server-side - SeasonStrip's per-card
-   * fallback tier when a round has no real `photoUrl` yet of its own. Null for a round whose
-   * circuit genuinely has no archive image (Miami/Vegas/Qatar, pre-race). */
-  circuitImageByRound: Record<number, string | null>;
   /** Real per-round weather (calendar.weather_forecast) - only ever populated for a round still
    * ahead of "now" (a forecast for an already-run race is meaningless, see sync_calendar.py's own
    * comment) - null for a completed round, or one FastF1's schedule hasn't reached yet. */
@@ -69,6 +65,8 @@ export type PublicHomeData = {
    * all. Lives here (not on PersonalHomeData) for the same reason facts/seasonRecap do: it's a
    * page.tsx-level computation combining public standings with one personal input. */
   predictionInsight: PredictionInsight | null;
+  /** The championship's top five and the last podium, as on the landing page (the signed-in home's Season section). */
+  season?: LandingSeason;
 };
 
 /** What the signed-out home page renders (PublicHome: the hero, the explore story and the backdrop),
@@ -162,12 +160,12 @@ const TRANSACTION_LABEL: Record<PointsReason, string> = {
  * entry (points_transactions) — merged and sorted, never a fabricated activity log (there is no
  * such table; see groups.ts's own comment on why one was deliberately not invented). */
 function buildRecentActivity(picks: UserPick[], races: RaceDoc[], transactions: { amount: number; reason: PointsReason; createdAt: string }[]): ActivityEntry[] {
-  const raceNameById = new Map(races.map((r) => [r.id, r.name]));
-  const fromPicks: ActivityEntry[] = picks.map((p) => ({
-    key: `pick-${p.raceId}`,
-    timestamp: p.submittedAt,
-    text: `You predicted ${p.predictedWinner} to win at ${raceNameById.get(p.raceId) ?? "a race"}`,
-  }));
+  const raceById = new Map(races.map((r) => [r.id, r]));
+  const fromPicks: ActivityEntry[] = picks.map((p) => {
+    const race = raceById.get(p.raceId);
+    const winner = race?.inputs?.find((i) => i.driver === p.predictedWinner)?.driverName ?? race?.results?.find((r) => r.driver === p.predictedWinner)?.driverName ?? p.predictedWinner;
+    return { key: `pick-${p.raceId}`, timestamp: p.submittedAt, text: `You predicted ${winner} to win the ${race?.name ?? "race"}` };
+  });
   const fromTransactions: ActivityEntry[] = transactions.map((t, i) => ({
     key: `txn-${i}-${t.createdAt}`,
     timestamp: t.createdAt,

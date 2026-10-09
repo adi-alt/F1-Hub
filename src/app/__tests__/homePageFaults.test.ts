@@ -108,7 +108,7 @@ describe("home page payload (audit R-26)", () => {
     const shell = homeShell(await HomePage());
     assert.ok(shell);
     assert.equal(shell.props.publicData.scope, "full");
-    for (const key of ["races", "seasonRecap", "calendarByRound", "weatherByRound", "circuitImageByRound", "currentDrivers"]) {
+    for (const key of ["races", "seasonRecap", "calendarByRound", "weatherByRound", "currentDrivers"]) {
       assert.ok(key in shell.props.publicData, key);
     }
   });

@@ -87,7 +87,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
       getCalendarEntry(year, roundMatch.round),
     ]);
     const matchedCircuit = findArchiveCircuitByLocation(circuits, race.circuit, race.country);
-    const circuitImage = matchedCircuit?.imageUrl ? { url: matchedCircuit.imageUrl, wikipediaUrl: matchedCircuit.wikipediaUrl } : null;
     const raceSessionDate = calendarEntry?.sessions.find((s) => /race/i.test(s.label) && !/sprint/i.test(s.label))?.date ?? calendarEntry?.raceDate ?? null;
 
     // Only fetched for the one case that actually needs it - a real `upcoming` race (a genuine
@@ -101,7 +100,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // would be redundant") - true for Track Intelligence's own trend/weather panel (still gated to
     // !isCompleted below), but Grand Prix History and this circuit's all-time records are not
     // redundant with a single race's own result; a completed race's page is exactly where "how
-    // does this result fit into history" belongs. Both real sources, same match `circuitImage`
+    // does this result fit into history" belongs. Both real sources, same match `matchedCircuit`
     // above already resolved - archive_races is NOT pre-2018-only (confirmed live: it
     // comprehensively covers a circuit's full history, including years `races` also has), so
     // circuitIntelligence.ts's own merge dedupes by year rather than treating these as two
@@ -132,7 +131,8 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           country={race.country}
           raceStart={raceSessionDate}
           state={race.status === "completed" ? (race.resultsSource === "openf1_preliminary" ? "preliminary" : "final") : "upcoming"}
-          photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? circuitImage?.url ?? null}
+          // The race's own photos only: no circuit photo stands in for a race that has none.
+          photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? null}
           keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
         />
         <div className="mt-12">
@@ -141,7 +141,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             highlights={highlights}
             accuracy={accuracy}
             poleAccuracy={poleAccuracy}
-            circuitImage={circuitImage}
             calendarEntry={calendarEntry}
             trackHistory={trackHistory}
             circuitTimeline={circuitTimeline}
