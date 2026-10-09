@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
-import { StandingsTicker } from "@/components/motion/StandingsTicker";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
 import { SeasonCalendar } from "./SeasonCalendar";
@@ -153,12 +152,6 @@ export function SeasonDetail({
           </div>
         </header>
 
-        <div className="mb-8">
-          <StandingsTicker
-            label={`${year} drivers' championship`}
-            items={drivers.slice(0, 10).map((d, i) => ({ key: d.driver, position: i + 1, code: d.driver, name: d.driverName, team: d.team, value: `${d.points} pts` }))}
-          />
-        </div>
 
         <Reveal>
           <ApexSeasonTake personal={personal} />
