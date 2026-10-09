@@ -5,6 +5,10 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useHomepageIntelligence } from "@/components/home/ai/HomepageIntelligenceProvider";
 import { LandingHero } from "@/components/home/landing/LandingHero";
+import { CountUp } from "@/components/motion/CountUp";
+import { Typewriter } from "@/components/motion/Typewriter";
+import { tiltProps } from "@/components/motion/useTilt";
+import { teamColor } from "@/lib/teamColors";
 import { Button } from "@/components/ui/Button";
 import { DriverIdentity } from "@/components/ui/DriverIdentity";
 import { Icon } from "@/components/ui/Icon";
@@ -134,7 +138,9 @@ export function ApexBriefingSection() {
         <div className="mt-4 grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-10">
           <div className="min-w-0">
             <p className="text-caption text-secondary">This weekend</p>
-            <p className="mt-1 text-title-md text-primary">{race.headline}</p>
+            <p className="mt-1 text-title-md text-primary">
+              <Typewriter text={race.headline} />
+            </p>
             <p className="mt-2 text-body-sm text-secondary">{race.whyItMatters}</p>
             {race.keyFactor && (
               <p className="mt-3 text-body-sm text-secondary">
@@ -306,6 +312,7 @@ export function YourDriversSection({ publicData, personalData }: Props) {
     const stats = history?.favoriteDriverCircuitStatsList.find((s) => s.driverId === d.driverId);
     return {
       key: `d-${d.driverId}`,
+      team: d.team || publicData.currentDrivers.find((x) => x.code === d.code)?.team || null,
       name: d.name,
       href: d.href,
       image: d.headshotUrl ?? headshot(d.code),
@@ -320,6 +327,7 @@ export function YourDriversSection({ publicData, personalData }: Props) {
     const stats = history?.favoriteTeamCircuitStatsList.find((s) => s.teamId === t.teamId);
     return {
       key: `t-${t.teamId}`,
+      team: t.currentName ?? t.name,
       name: t.name,
       href: t.href,
       image: t.logoUrl,
@@ -344,6 +352,7 @@ export function YourDriversSection({ publicData, personalData }: Props) {
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((c) => (
             <li key={c.key} className="min-w-0">
+              <div {...tiltProps(c.team ? teamColor(c.team) : null)} className="tilt h-full rounded-card">
               <Surface level={1} padding="sm" interactive href={c.href} linkLabel={c.name} className="h-full">
                 <div className="flex items-center gap-3">
                   <EntityAvatar imageUrl={c.image} name={c.name} size={40} shape={c.logo ? "square" : "circle"} fit={c.logo ? "contain" : "cover"} />
@@ -365,6 +374,7 @@ export function YourDriversSection({ publicData, personalData }: Props) {
                   </p>
                 )}
               </Surface>
+              </div>
             </li>
           ))}
         </ul>
@@ -479,7 +489,7 @@ export function PersonalSeasonSection({ publicData }: Pick<Props, "publicData">)
     { key: "position", header: "Pos", numeric: true, width: "3.5rem" },
     { key: "driver", header: "Driver", render: (s) => <DriverIdentity code={s.driver} name={s.driverName} team={s.team} /> },
     { key: "wins", header: "Wins", align: "end", numeric: true },
-    { key: "points", header: "Pts", align: "end", numeric: true, render: (s) => <span className="font-semibold">{s.points}</span> },
+    { key: "points", header: "Pts", align: "end", numeric: true, render: (s) => <span className="font-semibold"><CountUp value={s.points} /></span> },
   ];
   const nextRound = publicData.nextRace?.round ?? 0;
   const upcoming = publicData.races
