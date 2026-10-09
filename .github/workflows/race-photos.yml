@@ -1,0 +1,127 @@
+name: Race photos
+
+# Finds Wikimedia Commons photo candidates for recent races and re-checks the approved ones (pipeline/
+# race_photos.py). It never publishes a photo: candidates wait for a person on /admin/race-photos.
+#
+# Weekly, the Tuesday after a race weekend, because uploads to Commons trickle in for days; a race is revisited
+# for five weeks. The weekly re-check removes any approved photo that was deleted from Commons or whose licence
+# no longer passes the allow-list.
+#
+# Production is opt-in: the schedule only touches production once the repository variable
+# RACE_PHOTOS_PRODUCTION is "true". A manual run can target staging (the staging environment's database) or
+# production (main only). A pull request that changes the pipeline runs the 2026 Australian GP against STAGING
+# only, after migrate.yml's staging job has created the tables, so the change is tried end to end before merge.
+on:
+  pull_request:
+    paths:
+      - pipeline/race_photos.py
+      - .github/workflows/race-photos.yml
+      - supabase/migrations/20261009_race_photos.sql
+  schedule:
+    - cron: "0 6 * * 2"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which database"
+        type: choice
+        options: [staging, production]
+        default: staging
+      race:
+        description: "One race: its id or title, e.g. 2026 Australian Grand Prix (empty = races from the last 5 weeks)"
+        type: string
+        default: ""
+      mode:
+        description: "scan finds candidates; recheck re-verifies approved photos"
+        type: choice
+        options: [scan, recheck, both]
+        default: scan
+
+concurrency:
+  group: race-photos
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    # A fork's pull request gets no secrets, and shouldn't be trusted with staging anyway.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+      - name: Refuse anything but the staging project
+        run: |
+          case "$DATABASE_URL" in *wmdgbmlpvszyapewygvs*) echo "staging database";; *) echo "DATABASE_URL is not staging"; exit 1;; esac
+      # Wikimedia asks API clients to cache: category listings and file metadata are reused for six hours.
+      - uses: actions/cache@v4
+        with:
+          path: pipeline/f1_cache/wikimedia
+          key: wikimedia-${{ github.run_id }}
+          restore-keys: wikimedia-
+      - name: Wait for the race_photos tables (migrate.yml's staging job runs alongside on a pull request)
+        run: |
+          for i in $(seq 1 40); do
+            python -c "import os,psycopg2,sys; c=psycopg2.connect(os.environ['DATABASE_URL']).cursor(); c.execute(\"select to_regclass('public.race_photo_candidates')\"); sys.exit(0 if c.fetchone()[0] else 1)" && exit 0
+            echo "tables not there yet; waiting"; sleep 15
+          done
+          echo "the race_photos migration never reached staging"; exit 1
+      - name: Scan
+        if: github.event_name == 'pull_request' || inputs.mode != 'recheck'
+        working-directory: pipeline
+        # Through the environment, never interpolated into the script (no shell injection from the input).
+        env:
+          RACE: ${{ github.event_name == 'pull_request' && '2026 Australian Grand Prix' || inputs.race }}
+        run: python race_photos.py ${RACE:+--race "$RACE"}
+      - name: Re-check approved photos
+        if: github.event_name == 'pull_request' || inputs.mode != 'scan'
+        working-directory: pipeline
+        run: python race_photos.py --recheck
+
+  production:
+    if: >-
+      (github.event_name == 'schedule' && vars.RACE_PHOTOS_PRODUCTION == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      # Busts the race-photos cache when the re-check removed or updated a photo.
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: pipeline/f1_cache/wikimedia
+          key: wikimedia-${{ github.run_id }}
+          restore-keys: wikimedia-
+      - name: Scan
+        if: github.event_name == 'schedule' || inputs.mode != 'recheck'
+        working-directory: pipeline
+        # Through the environment, never interpolated into the script (no shell injection from the input).
+        env:
+          RACE: ${{ inputs.race }}
+        run: python race_photos.py ${RACE:+--race "$RACE"}
+      - name: Re-check approved photos
+        if: github.event_name == 'schedule' || inputs.mode != 'scan'
+        working-directory: pipeline
+        run: python race_photos.py --recheck

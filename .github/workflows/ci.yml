@@ -85,3 +85,4 @@ jobs:
           python test_data_version_signal.py
           python test_promote_season.py
           python test_lap_positions.py
+          python test_race_photos.py

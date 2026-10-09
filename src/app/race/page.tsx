@@ -19,6 +19,7 @@ import { listRaceCommunities } from "@/lib/supabase/groupPredictions";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
 import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
@@ -113,10 +114,12 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext, raceCommunities] = await Promise.all([
+    const [ageRecords, personalContext, raceCommunities, photos] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
       listRaceCommunities(race.id, session.uid),
+      // Approved Wikimedia photos only (pipeline/race_photos.py, /admin/race-photos); none -> no section.
+      getApprovedRacePhotos(race.id),
     ]);
 
     return (
@@ -147,6 +150,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             ageRecords={ageRecords}
             fallbackEntrants={fallbackEntrants}
             raceSessionDate={raceSessionDate}
+            photos={photos}
           />
         </div>
       </div>

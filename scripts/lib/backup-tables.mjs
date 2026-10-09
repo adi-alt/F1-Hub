@@ -23,6 +23,8 @@ export const IRREPLACEABLE = [
   "points_transactions",
   "user_invites",
   "races",
+  // A person chose these photos; the candidates they were chosen from can be found again.
+  "race_photos",
   "model_benchmarks",
   "schema_migrations",
 ];
@@ -46,6 +48,7 @@ export const REBUILDABLE = [
   "archive_qualifying",
   "archive_pit_stops",
   "archive_laps",
+  "race_photo_candidates",
 ];
 
 /** Short-lived or regenerable, and some of it sensitive (one-time codes): deliberately not backed up. */
