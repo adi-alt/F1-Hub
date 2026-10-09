@@ -153,8 +153,8 @@
 
 /* The page frame (spec §3). The header, the footer and every page share one 1440px frame and one
    gutter (16px; 24px from md; 32px from xl), so the logo and all page content start on the same
-   left edge. page-content and page-narrow cap the content at 1200px and 672px but keep it on that
-   edge instead of re-centring it: the end padding takes up the difference. In new code use
+   left edge. page-content spans the frame like page-wide; page-narrow (forms, reading) caps at 672px
+   on that edge, the end padding taking up the difference. In new code use
    <PageContainer> (components/ui/PageContainer.tsx), which applies these. */
 :root {
   --page-gutter: 1rem;
@@ -178,12 +178,14 @@
   margin-inline: auto;
   padding-inline: var(--page-gutter);
 }
+/* Same frame as page-wide: content spans the header's width with equal gutters both sides. It used to cap
+   at 1200px pinned to the left edge, which left every page except the race page with a visibly wider
+   right margin than left. */
 @utility page-content {
   width: 100%;
   max-width: var(--page-max-wide);
   margin-inline: auto;
-  padding-inline-start: var(--page-gutter);
-  padding-inline-end: max(var(--page-gutter), min(100%, var(--page-max-wide)) - var(--page-gutter) - var(--page-max-content));
+  padding-inline: var(--page-gutter);
 }
 @utility page-narrow {
   width: 100%;

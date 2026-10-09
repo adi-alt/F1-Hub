@@ -205,7 +205,7 @@ export default async function HomePage() {
   // publicData feeds the signed-in home; serialised into every anonymous visit it made the page
   // ~575 KB. Signing in refreshes the page (AuthDialog's router.refresh()), which brings the rest.
   const homeData: HomeData = session.uid
-    ? { scope: "full", ...publicData }
+    ? { scope: "full", ...publicData, season: landingSeason(races, standings) }
     : { scope: "landing", year, nextRace, calendarEntry, backdropPhotos, facts, trackHistory: trackHistoryWithFavorites, season: landingSeason(races, standings) };
 
   return (
