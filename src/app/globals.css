@@ -401,3 +401,26 @@ html {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
+
+/* Frosted surfaces (the home page). Inside [data-surface="frosted"] the opaque data surfaces become glass:
+   translucent carbon, a blur of whatever is behind (the race photo, the glow), and a hairline edge, as the
+   home has always looked. Text contrast holds: the blur and the 40% carbon keep the backdrop well below
+   the text. Opaque everywhere else; reduced transparency gets the solid surfaces back. */
+[data-surface="frosted"] .bg-surface-1:not(td):not(th) {
+  background-color: rgb(22 22 26 / 0.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+[data-surface="frosted"] .bg-surface-2,
+[data-surface="frosted"] .hover\:bg-surface-2:hover,
+[data-surface="frosted"] .hover\:bg-surface-1:hover {
+  background-color: rgb(255 255 255 / 0.06);
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-surface="frosted"] .bg-surface-1:not(td):not(th) {
+    background-color: var(--surface-1);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

@@ -54,7 +54,8 @@ export function HomeLayout({
           anyway. Widened from 8vh - too short to actually read as a blend, just a smaller version
           of the same abrupt stop. */}
       <div className="pointer-events-none absolute inset-x-0 top-[100vh] h-[18vh] bg-gradient-to-b from-[var(--background)]/70 to-transparent" />
-      <div className="page-content relative py-10">
+      {/* data-surface="frosted": the home's panels are glass over the race photo (globals.css), not opaque. */}
+      <div data-surface="frosted" className="page-content relative py-10">
         {resolvedSections.map((s, i) => (
           <div key={i} className={i === 0 ? "" : TIER_GAP[s.tier]}>
             {s.content}
