@@ -9,14 +9,8 @@ name: Race photos
 #
 # Production is opt-in: the schedule only touches production once the repository variable
 # RACE_PHOTOS_PRODUCTION is "true". A manual run can target staging (the staging environment's database) or
-# production (main only). A pull request that changes the pipeline runs the 2026 Australian GP against STAGING
-# only, after migrate.yml's staging job has created the tables, so the change is tried end to end before merge.
+# production (main only). The staging target only works while a staging project exists (STAGING_ENABLED).
 on:
-  pull_request:
-    paths:
-      - pipeline/race_photos.py
-      - .github/workflows/race-photos.yml
-      - supabase/migrations/20261009_race_photos.sql
   schedule:
     - cron: "0 6 * * 2"
   workflow_dispatch:
@@ -46,9 +40,7 @@ permissions:
 jobs:
   staging:
     # A fork's pull request gets no secrets, and shouldn't be trusted with staging anyway.
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && vars.STAGING_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: staging
@@ -71,22 +63,15 @@ jobs:
           path: pipeline/f1_cache/wikimedia
           key: wikimedia-${{ github.run_id }}
           restore-keys: wikimedia-
-      - name: Wait for the race_photos tables (migrate.yml's staging job runs alongside on a pull request)
-        run: |
-          for i in $(seq 1 40); do
-            python -c "import os,psycopg2,sys; c=psycopg2.connect(os.environ['DATABASE_URL']).cursor(); c.execute(\"select to_regclass('public.race_photo_candidates')\"); sys.exit(0 if c.fetchone()[0] else 1)" && exit 0
-            echo "tables not there yet; waiting"; sleep 15
-          done
-          echo "the race_photos migration never reached staging"; exit 1
       - name: Scan
-        if: github.event_name == 'pull_request' || inputs.mode != 'recheck'
+        if: inputs.mode != 'recheck'
         working-directory: pipeline
         # Through the environment, never interpolated into the script (no shell injection from the input).
         env:
-          RACE: ${{ github.event_name == 'pull_request' && '2026 Australian Grand Prix' || inputs.race }}
+          RACE: ${{ inputs.race }}
         run: python race_photos.py ${RACE:+--race "$RACE"}
       - name: Re-check approved photos
-        if: github.event_name == 'pull_request' || inputs.mode != 'scan'
+        if: inputs.mode != 'scan'
         working-directory: pipeline
         run: python race_photos.py --recheck
 

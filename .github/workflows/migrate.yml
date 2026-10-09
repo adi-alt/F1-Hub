@@ -40,7 +40,9 @@ concurrency:
 jobs:
   staging:
     # A fork's pull request gets no secrets, and shouldn't be trusted with staging anyway.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Off while there is no staging project (deleted 2026-10-09): set the repository variable STAGING_ENABLED
+    # to "true" once a new one exists and its secrets are in the staging environment.
+    if: vars.STAGING_ENABLED == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: staging
@@ -61,7 +63,8 @@ jobs:
 
   production:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
-    needs: staging
+    # Not `needs: staging`: with no staging project, production's own approval gate and fingerprint check are
+    # the safety net. Restore the dependency when staging comes back.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Waits here for the reviewer's approval, and only runs from main.
