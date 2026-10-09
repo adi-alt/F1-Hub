@@ -49,9 +49,6 @@ export type PublicHomeData = {
    * Drives the hero's right-side Race Intelligence panel and the Track Intelligence widget. */
   trackHistory: TrackHistory | null;
   seasonRecap: SeasonRecap;
-  /** Retired: never set. Rounds without their own photo no longer borrow a circuit photo. Kept
-   * optional only while PersonalHome still passes it on; remove with that reference. */
-  circuitImageByRound?: undefined;
   /** Real per-round weather (calendar.weather_forecast) - only ever populated for a round still
    * ahead of "now" (a forecast for an already-run race is meaningless, see sync_calendar.py's own
    * comment) - null for a completed round, or one FastF1's schedule hasn't reached yet. */
