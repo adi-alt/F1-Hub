@@ -90,6 +90,13 @@ export default async function HomePage() {
   const circuitLocalities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
   const circuitIdsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
   const resolvedCircuitId = nextRace ? resolveCurrentCircuitToArchiveId(nextRace.circuit, circuitLocalities, circuitIdsByName) : null;
+  // The track map of each of the next few rounds (the home's Coming up), only for those: a handful of URLs.
+  const trackMapById = new Map(archiveCircuits.map((c) => [c.circuitId, c.trackMap ?? null]));
+  const trackMapByRound: PublicHomeData["trackMapByRound"] = {};
+  for (const r of races.filter((r) => r.status !== "completed").slice(0, 4)) {
+    const id = resolveCurrentCircuitToArchiveId(r.circuit, circuitLocalities, circuitIdsByName);
+    trackMapByRound[r.round] = id ? (trackMapById.get(id) ?? null) : null;
+  }
 
   // getPersonalHomeData (below) already resolves the full favorite-card arrays for the signed-in
   // case — fetched once here, reused for buildFacts/buildSeasonRecap/getTrackHistory, rather than
@@ -174,6 +181,7 @@ export default async function HomePage() {
     trackHistory: trackHistoryWithFavorites,
     seasonRecap,
     calendarByRound,
+    trackMapByRound,
     weatherByRound,
     currentDrivers,
     predictionInsight,

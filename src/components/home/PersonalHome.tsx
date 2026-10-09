@@ -56,7 +56,7 @@ function PersonalHomeInner({
   const race = publicData.nextRace;
   // The prediction window opens over the home for a race that can still be picked; otherwise the buttons link
   // to the race page instead.
-  const canPredict = !!race && race.status === "upcoming";
+  const canPredict = !!race && race.status !== "completed";
   const entrants = race?.inputs?.length ? race.inputs : publicData.currentDrivers.map((d) => ({ driver: d.code, driverName: d.name, team: d.team }));
   const onPredict = canPredict ? () => setPredicting(true) : undefined;
   return (

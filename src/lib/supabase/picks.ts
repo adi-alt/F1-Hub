@@ -81,6 +81,7 @@ export async function saveUserPick(uid: string, pick: Omit<UserPick, "submittedA
     p_margin: pick.predictedMargin ?? null,
   });
   if (error) {
+    if (error.message.includes("picks_not_open")) throw new ServiceError("Predictions open 24 hours before the weekend's first session.", 403, "picks_not_open");
     if (error.message.includes("pole_closed")) throw new ServiceError("Qualifying has started, so your pole pick is locked. Keep it as it was to save the rest.", 403, "pole_closed");
     if (error.message.includes("picks_closed")) throw new ServiceError("Picks are closed for this race.", 403, "picks_closed");
     if (error.message.includes("race_not_found")) throw new ServiceError("That race doesn't exist.", 404, "race_not_found");

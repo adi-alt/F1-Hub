@@ -5,6 +5,8 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useHomepageIntelligence } from "@/components/home/ai/HomepageIntelligenceProvider";
 import { LandingHero } from "@/components/home/landing/LandingHero";
+import { ComingUp } from "./ComingUp";
+import { TrackIntelligenceCard } from "./TrackIntelligenceCard";
 import { CountUp } from "@/components/motion/CountUp";
 import { Typewriter } from "@/components/motion/Typewriter";
 import { tiltProps } from "@/components/motion/useTilt";
@@ -56,24 +58,24 @@ export function PersonalHero({ publicData, personalData, firstName, onPredict }:
       ? `Welcome back, ${firstName}. Your pick: ${nameOf(pick.predictedWinner)} to win.`
       : `Welcome back, ${firstName}. Your predictions for ${shortName(race)} aren't in yet.`;
   const action = completed ? (
-    <Button variant="primary" size="lg" asChild>
+    <Button variant="primary" size="md" asChild>
       <Link href={`${href}#results`}>
         See how you did
-        <Icon icon={ArrowRight} size={20} />
+        <Icon icon={ArrowRight} size={16} />
       </Link>
     </Button>
   ) : (
     <>
       {onPredict ? (
-        <Button variant="primary" size="lg" onClick={onPredict}>
+        <Button variant="primary" size="md" onClick={onPredict}>
           {pick ? "Edit your predictions" : "Make your predictions"}
-          <Icon icon={ArrowRight} size={20} />
+          <Icon icon={ArrowRight} size={16} />
         </Button>
       ) : (
-        <Button variant="primary" size="lg" asChild>
+        <Button variant="primary" size="md" asChild>
           <Link href={`${href}#pick`}>
             {pick ? "Edit your predictions" : "Make your predictions"}
-            <Icon icon={ArrowRight} size={20} />
+            <Icon icon={ArrowRight} size={16} />
           </Link>
         </Button>
       )}
@@ -82,7 +84,7 @@ export function PersonalHero({ publicData, personalData, firstName, onPredict }:
       </Link>
     </>
   );
-  return <LandingHero landing={publicData} greeting={greeting} actions={action} />;
+  return <LandingHero landing={publicData} greeting={greeting} actions={action} aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} />} />;
 }
 
 // ---------------------------------------------------------------------------------------- 2. apex briefing
@@ -491,15 +493,6 @@ export function PersonalSeasonSection({ publicData }: Pick<Props, "publicData">)
     { key: "wins", header: "Wins", align: "end", numeric: true },
     { key: "points", header: "Pts", align: "end", numeric: true, render: (s) => <span className="font-semibold"><CountUp value={s.points} /></span> },
   ];
-  const nextRound = publicData.nextRace?.round ?? 0;
-  const upcoming = publicData.races
-    .filter((r) => r.round > nextRound && r.status !== "completed")
-    .sort((a, b) => a.round - b.round)
-    .slice(0, 3);
-  const dateOf = (round: number) => {
-    const d = publicData.calendarByRound[round]?.raceDate;
-    return d ? new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "";
-  };
   return (
     <Section
       id="season"
@@ -513,35 +506,14 @@ export function PersonalSeasonSection({ publicData }: Pick<Props, "publicData">)
           <p className="mt-1 text-body-sm text-secondary">{narrative}</p>
         </div>
       )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:items-start">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
         <div className="min-w-0">
           <Table caption={`${publicData.year} drivers' championship, top five`} columns={columns} rows={rows} getRowKey={(s) => s.driver} rowHeader="driver" />
           <Link href={seasonHref(publicData.year)} className={`${TEXT_LINK} mt-3`}>
             Full standings <Icon icon={ArrowRight} size={16} />
           </Link>
         </div>
-        {upcoming.length > 0 && (
-          <Surface level={1} as="section" aria-labelledby="coming-up">
-            <h3 id="coming-up" className="text-body-sm font-semibold text-primary">
-              Coming up
-            </h3>
-            <ol className="mt-3 divide-y divide-subtle">
-              {upcoming.map((r) => (
-                <li key={r.id}>
-                  <Link
-                    href={raceHref(r.year, r.round, r.name)}
-                    className="-mx-2 flex items-baseline justify-between gap-3 rounded-control px-2 py-2.5 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-                  >
-                    <span className="min-w-0 truncate text-body-sm text-primary">
-                      <span className="tabular text-secondary">R{r.round}</span> {r.name}
-                    </span>
-                    <span className="shrink-0 text-caption tabular text-secondary">{dateOf(r.round)}</span>
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </Surface>
-        )}
+        <ComingUp publicData={publicData} />
       </div>
     </Section>
   );

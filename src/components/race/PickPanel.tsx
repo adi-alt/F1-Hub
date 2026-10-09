@@ -10,11 +10,6 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
-// Picks open this many days out, not the instant a race is technically "upcoming" - a real `races`
-// row (and even a fallback grid) can exist weeks before there's anything meaningfully fresh to
-// predict against; opening right at the start of that window is a deliberate product choice, not a
-// data constraint the way the "scheduled" gate above it is.
-const PICK_WINDOW_DAYS = 10;
 
 // Shaped like the real card (label + P1/P2/P3 selects) - `useAuth`'s auth check is genuine async
 // work on first paint, unlike a synchronous tab switch elsewhere on this page.
@@ -82,38 +77,16 @@ export function PickPanel({
     );
   }
 
-  // `race.status === "scheduled"` means there's no real `races` row for this round yet (see
-  // toCalendarPlaceholder in races.ts) - `race.id` in that case doesn't exist in the `races` table
-  // at all, so save_pick() (the server-side lock, see saveUserPick) would answer race_not_found on
-  // every save attempt regardless of what's shown here. An editable form that can never actually save is
-  // worse than this informational message - the same "don't create fake interactions" reasoning
-  // PracticeSummary's own hover rows already follow.
-  if (race.status === "scheduled") {
+  // Opens 24 hours before the weekend's first session (save_pick enforces the same).
+  const firstSession = sessions.length ? Math.min(...sessions.map((x) => parseUtcDateTime(x.date).getTime())) : null;
+  if (firstSession !== null && now < firstSession - 24 * 3600 * 1000) {
+    const opensAt = firstSession - 24 * 3600 * 1000;
     return (
-      <div className="rounded-card bg-surface-1 p-5 text-sm text-neutral-400">
-        Predictions open once this race weekend begins.
+      <div className="rounded-card bg-surface-1 p-5">
+        <p className="text-body-sm font-semibold text-primary">Predictions open {formatLocalDateTime(new Date(opensAt).toISOString(), tz)}</p>
+        <p className="mt-1 text-caption text-secondary">24 hours before the first session, and close at lights out{raceSessionDate ? `, ${formatLocalDateTime(raceSessionDate, tz)}` : ""}.</p>
       </div>
     );
-  }
-
-  // Opens PICK_WINDOW_DAYS before the real "Race" session datetime - only when that date is
-  // actually known; a missing calendar entry fails open (shows the form) rather than blocking picks
-  // indefinitely over a date this app just doesn't have yet.
-  if (raceSessionDate) {
-    const opensAt = parseUtcDateTime(raceSessionDate).getTime() - PICK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    if (now < opensAt) {
-      const daysLeft = Math.ceil((opensAt - now) / (24 * 60 * 60 * 1000));
-      return (
-        <div className="rounded-card bg-surface-1 p-5">
-          <p className="mt-1.5 text-sm font-semibold text-white">
-            Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
-          </p>
-          <p className="mt-0.5 text-xs text-tertiary">
-            Picks open {formatLocalDateTime(new Date(opensAt).toISOString(), tz)} and close at lights out, {formatLocalDateTime(raceSessionDate, tz)}.
-          </p>
-        </div>
-      );
-    }
   }
 
   // race.inputs (this race's own qualifying-derived grid) once it exists, else the current

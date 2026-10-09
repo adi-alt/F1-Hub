@@ -25,6 +25,7 @@ import {
 } from "@/lib/personalization";
 import { raceHref } from "@/lib/routes";
 import type { CalendarEntry, WeatherForecast } from "@/lib/supabase/calendar";
+import type { CircuitTrackMap } from "@/lib/supabase/archive";
 import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSummary } from "@/lib/supabase/groups";
 import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
@@ -65,6 +66,8 @@ export type PublicHomeData = {
    * all. Lives here (not on PersonalHomeData) for the same reason facts/seasonRecap do: it's a
    * page.tsx-level computation combining public standings with one personal input. */
   predictionInsight: PredictionInsight | null;
+  /** Track maps (Wikimedia) of the next few rounds, for the home's Coming up. */
+  trackMapByRound?: Record<number, CircuitTrackMap | null>;
   /** The championship's top five and the last podium, as on the landing page (the signed-in home's Season section). */
   season?: LandingSeason;
 };
