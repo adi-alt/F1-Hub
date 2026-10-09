@@ -4,6 +4,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Surface } from "@/components/ui/Surface";
+import { tiltProps } from "@/components/motion/useTilt";
 import { groupHref } from "@/lib/routes";
 import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
@@ -13,10 +14,12 @@ import type { SessionWeather } from "@/lib/types/race";
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Surface level={1} padding="md" as="section" aria-label={title}>
-      <h2 className="text-body-sm font-semibold text-primary">{title}</h2>
-      <div className="mt-3">{children}</div>
-    </Surface>
+    <div {...tiltProps()} className="tilt h-full rounded-card">
+      <Surface level={1} padding="md" as="section" aria-label={title} className="h-full">
+        <h2 className="text-body-sm font-semibold text-primary">{title}</h2>
+        <div className="mt-3">{children}</div>
+      </Surface>
+    </div>
   );
 }
 

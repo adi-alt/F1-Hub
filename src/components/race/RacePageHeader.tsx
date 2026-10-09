@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { StartLights } from "@/components/motion/StartLights";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StateLabel, type DomainState } from "@/components/ui/Badge";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
@@ -31,7 +32,18 @@ export type RacePageHeaderProps = {
  * when, in your time), one state label, and the phase's key fact. The race photo, when there is one, is the
  * page's one atmospheric element (spec §1.3): behind a scrim measured so text stays readable on any photo.
  */
-export function RacePageHeader({ year, round, name, circuit, country, raceStart, state, photoUrl, keyFact, seasonLink }: RacePageHeaderProps) {
+export function RacePageHeader({
+  year,
+  round,
+  name,
+  circuit,
+  country,
+  raceStart,
+  state,
+  photoUrl,
+  keyFact,
+  seasonLink,
+}: RacePageHeaderProps) {
   const timeZone = useViewerTimeZone();
   const where = [circuit, country].filter(Boolean).join(", ");
   const when = raceStart ? formatLocalDateTime(raceStart, timeZone) : null;
@@ -40,27 +52,46 @@ export function RacePageHeader({ year, round, name, circuit, country, raceStart,
     <div className="relative isolate overflow-hidden rounded-overlay bg-surface-1">
       {photoUrl && (
         <>
-          <Image src={photoUrl} alt="" fill priority sizes="(min-width: 1440px) 1376px, 100vw" className="-z-20 object-cover opacity-60" />
+          <Image
+            src={photoUrl}
+            alt=""
+            fill
+            priority
+            sizes="(min-width: 1440px) 1376px, 100vw"
+            className="backdrop-drift -z-20 object-cover opacity-60"
+          />
           {/* Solid on the text side, clear on the far side, and solid along the bottom edge, so the title
               and meta line sit on near-surface-1 whatever the photo is. */}
-          <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-surface-1 via-surface-1/85 to-surface-1/30" />
-          <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-gradient-to-t from-surface-1 to-transparent" />
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-gradient-to-r from-surface-1 via-surface-1/85 to-surface-1/30"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-gradient-to-t from-surface-1 to-transparent"
+          />
         </>
       )}
       <div className="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
-        <PageHeader
-          title={name}
-          breadcrumbs={[{ label: `${year} season`, href: seasonLink ?? seasonHref(year) }, { label: `Round ${round}` }]}
-          badge={<StateLabel state={state} />}
-          meta={
-            <>
-              {where}
-              {where && when && " · "}
-              {when}
-            </>
-          }
-          className="min-w-0 lg:max-w-2xl"
-        />
+        <div className="min-w-0 lg:max-w-2xl">
+          {state === "upcoming" && <StartLights className="mb-5" />}
+          <PageHeader
+            title={name}
+            breadcrumbs={[
+              { label: `${year} season`, href: seasonLink ?? seasonHref(year) },
+              { label: `Round ${round}` },
+            ]}
+            badge={<StateLabel state={state} />}
+            meta={
+              <>
+                {where}
+                {where && when && " · "}
+                {when}
+              </>
+            }
+            className="min-w-0"
+          />
+        </div>
         {keyFact && <div className="shrink-0 lg:text-end">{keyFact}</div>}
       </div>
     </div>

@@ -592,3 +592,19 @@ html {
     display: none;
   }
 }
+
+/* The season's progress line sweeps in from the left when the page opens. */
+@keyframes progress-sweep {
+  from {
+    transform: scaleX(0);
+  }
+}
+.progress-sweep {
+  transform-origin: left;
+  animation: progress-sweep 1.4s var(--ease-standard) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-sweep {
+    animation: none;
+  }
+}

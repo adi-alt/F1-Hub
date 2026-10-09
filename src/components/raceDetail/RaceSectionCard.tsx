@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Reveal } from "@/components/motion/Reveal";
 import { Section } from "@/components/ui/Section";
 import { Surface } from "@/components/ui/Surface";
 
@@ -26,14 +27,29 @@ export function RaceSectionCard({
   children: ReactNode;
 }) {
   return (
-    <Section id={id ?? title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")} title={title} level={2} description={description} actions={headerRight} className="scroll-mt-24">
-      {bare ? (
-        children
-      ) : (
-        <Surface level={1} padding="md">
-          {children}
-        </Surface>
-      )}
-    </Section>
+    <Reveal>
+      <Section
+        id={
+          id ??
+          title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "")
+        }
+        title={title}
+        level={2}
+        description={description}
+        actions={headerRight}
+        className="scroll-mt-24"
+      >
+        {bare ? (
+          children
+        ) : (
+          <Surface level={1} padding="md">
+            {children}
+          </Surface>
+        )}
+      </Section>
+    </Reveal>
   );
 }
