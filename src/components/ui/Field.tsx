@@ -21,13 +21,15 @@ type FieldOwnProps = {
 };
 
 /** The standard styling for a native input, select or textarea inside a Field: at least 40px tall,
- * surface-2 fill, a border-strong boundary (danger when invalid) and the focus ring. Body-size text,
+ * surface-2 fill, a border-strong boundary (danger when invalid) that brightens on focus. Body-size text,
  * so iOS Safari doesn't zoom the page when the control is focused. */
 export function fieldControlClass(invalid: boolean): string {
   return [
     "min-h-10 w-full rounded-control border bg-surface-2 px-3 py-1.5 text-body text-primary placeholder:text-tertiary",
     "transition-colors duration-fast ease-standard motion-reduce:transition-none",
-    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
+    // Focus: the boundary brightens and the fill lifts, instead of a thick white ring two pixels outside the field
+    // (which read as a stray white border, most of all in the sign-in dialog, where the email field is focused on open).
+    "focus-visible:outline-none focus-visible:border-secondary focus-visible:bg-surface-3",
     "disabled:cursor-not-allowed disabled:border-subtle disabled:text-disabled",
     invalid ? "border-danger" : "border-strong",
   ].join(" ");

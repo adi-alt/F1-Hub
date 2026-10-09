@@ -70,7 +70,7 @@ test("fieldControlClass: 40px, border-strong boundary (danger when invalid), sur
   const valid = fieldControlClass(false).split(" ");
   const invalid = fieldControlClass(true).split(" ");
   for (const classes of [valid, invalid]) {
-    for (const cls of ["min-h-10", "rounded-control", "border", "bg-surface-2", "text-body", "focus-visible:outline-2", "focus-visible:outline-offset-2", "focus-visible:outline-focus-ring"]) {
+    for (const cls of ["min-h-10", "rounded-control", "border", "bg-surface-2", "text-body", "focus-visible:border-secondary", "focus-visible:bg-surface-3"]) {
       assert.ok(classes.includes(cls), cls);
     }
   }
