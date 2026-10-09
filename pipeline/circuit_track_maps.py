@@ -1,6 +1,7 @@
 """Circuit track maps: each circuit's Wikipedia lead image, which for a circuit article is its track map.
 
-    archive_circuits.wikipedia_url -> en.wikipedia.org pageprops.page_image_free (the free lead image only)
+    archive_circuits.wikipedia_url -> en.wikipedia.org pageprops.page_image_free (the free lead image), used only
+      when it is a map (SVG/PNG, not a logo); otherwise the article's own images, first one named like a map
       -> Commons imageinfo (licence allow-list, author, licence URL, source page)
       -> archive_circuits.track_map_* -> the app loads Wikimedia's 960px rendition directly
 
@@ -30,6 +31,16 @@ from dataclasses import dataclass
 from urllib.parse import unquote, urlparse
 
 from race_photos import WIKIPEDIA_API, RateLimited, Wikimedia, normalise_licence, strip_html, thumb_url
+
+# A map is a drawing: SVG or PNG. A JPEG is a photograph (Indianapolis', Sochi's and Zeltweg's lead images
+# are), and some articles lead with the circuit's logo (Jeddah, Brands Hatch).
+MAP_EXT = re.compile(r"\.(svg|png)$", re.I)
+NOT_A_MAP = re.compile(r"formula[ _-]?e\b|\bFE\b|indycar|indy[ _]car|motogp|nascar|superbike|wec\b|logo|emblem|aerial|satellite|viewed|from above|panorama|photo|flag|coat[ _]of[ _]arms|crest|icon|portrait|signature|commons-|wikidata|wiki_|symbol", re.I)
+MAP_NAME = re.compile(r"circuit|track|layout|map|course|kurs|strecke|raceway|speedway|ring\b|autodrom|street", re.I)
+MAX_FALLBACK_FILES = 5   # article images tried per circuit when its lead image isn't a map
+
+# Public-domain and CC0 files carry no LicenseUrl on Commons; these are the canonical pages for them.
+PD_URLS = {"Public domain": "https://creativecommons.org/publicdomain/mark/1.0/", "CC0": "https://creativecommons.org/publicdomain/zero/1.0/"}
 
 MAP_WIDTH = 960      # a standard Wikimedia thumbnail width (330/500/960/1280/1920); others return HTTP 400
 BATCH = 50           # titles per API request, the MediaWiki limit for ordinary clients
@@ -83,6 +94,8 @@ def evaluate(page: dict | None) -> tuple[TrackMap | None, str | None]:
     licence_url = strip_html(value("LicenseUrl"))
     if licence_url.startswith("//"):
         licence_url = "https:" + licence_url
+    if not licence_url and licence in PD_URLS:
+        licence_url = PD_URLS[licence]
     if not re.match(r"^https?://", licence_url):
         return None, "no licence URL"
     author = strip_html(value("Artist"))
@@ -135,17 +148,50 @@ def file_pages(commons: Wikimedia, files: list[str]) -> dict[str, dict]:
     return out
 
 
+def is_map_file(name: str, named_like_map: bool = False) -> bool:
+    """A drawing (SVG/PNG) that isn't a logo; for an article's other images, also named like a track map."""
+    base = name.removeprefix("File:")
+    return bool(MAP_EXT.search(base)) and not NOT_A_MAP.search(base) and (not named_like_map or bool(MAP_NAME.search(base)))
+
+
+def article_images(wp: Wikimedia, title: str) -> list[str]:
+    """The article's own image files, in page order ('File:Name.svg')."""
+    data = wp.get(action="query", titles=title, prop="images", imlimit="max", redirects="1")
+    return [i["title"] for p in data.get("query", {}).get("pages", []) for i in p.get("images", [])]
+
+
+def candidates(wp: Wikimedia, titles: list[str]) -> dict[str, list[str]]:
+    """Article title -> files to try, best first: the lead image when it is a map, else the article's images
+    named like a track map."""
+    out: dict[str, list[str]] = {}
+    for t, name in lead_images(wp, titles).items():
+        lead = f"File:{name.replace('_', ' ')}" if name else None
+        if lead and is_map_file(lead):
+            out[t] = [lead]
+            continue
+        out[t] = [f for f in article_images(wp, t) if is_map_file(f, named_like_map=True)][:MAX_FALLBACK_FILES]
+    return out
+
+
 def find_maps(wp: Wikimedia, commons: Wikimedia, titles: list[str]) -> dict[str, tuple[TrackMap | None, str | None]]:
-    """Article title -> (map, None) or (None, reason)."""
-    leads = lead_images(wp, titles)
-    files = {t: f"File:{name.replace('_', ' ')}" for t, name in leads.items() if name}
-    pages = file_pages(commons, list(files.values())) if files else {}
+    """Article title -> (map, None) or (None, reason): the first candidate file that passes every check."""
+    files = candidates(wp, titles)
+    every = [f for fs in files.values() for f in fs]
+    pages = file_pages(commons, every) if every else {}
     out: dict[str, tuple[TrackMap | None, str | None]] = {}
     for t in titles:
-        if t not in files:
-            out[t] = (None, "no free lead image on the article")
+        if not files.get(t):
+            out[t] = (None, "no track map on the article")
+            continue
+        reasons = []
+        for f in files[t]:
+            m, why = evaluate(pages.get(f))
+            if m:
+                out[t] = (m, None)
+                break
+            reasons.append(why)
         else:
-            out[t] = evaluate(pages.get(files[t]))
+            out[t] = (None, reasons[0])
     return out
 
 
