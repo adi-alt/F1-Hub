@@ -22,27 +22,28 @@ export function ComingUp({ publicData }: { publicData: PublicHomeData }) {
     .slice(0, 3);
   if (rounds.length === 0) return null;
   return (
-    <section aria-labelledby="coming-up" className="min-w-0">
-      <h3 id="coming-up" className="text-body-sm font-semibold text-primary">
+    <section aria-labelledby="coming-up" className="flex min-w-0 flex-col">
+      <h3 id="coming-up" className="mb-3 text-body-sm font-semibold text-primary">
         Coming up
       </h3>
-      <ol className="mt-3 space-y-3">
+      {/* Fills the column's height (set by the standings table beside it), the three cards sharing it equally. */}
+      <ol className="flex flex-1 flex-col gap-3">
         {rounds.map((r) => {
           const date = publicData.calendarByRound[r.round]?.raceDate ?? null;
           const at = date ? new Date(`${date.slice(0, 10)}T12:00:00Z`) : null;
           const days = at ? Math.max(0, Math.round((at.getTime() - now) / 86400000)) : null;
           return (
-            <li key={r.id}>
+            <li key={r.id} className="flex flex-1">
               <Link
                 href={raceHref(r.year, r.round, r.name)}
                 {...tiltProps()}
-                className="tilt group flex items-center gap-4 rounded-card bg-surface-1 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="tilt group flex w-full items-center gap-4 rounded-card bg-surface-1 px-3 py-2.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
-                <div className="w-24 shrink-0">
+                <div className="w-20 shrink-0">
                   {publicData.trackMapByRound?.[r.round] ? (
-                    <TrackMap map={publicData.trackMapByRound[r.round]} name={r.circuit} compact className="aspect-[3/2] w-24" />
+                    <TrackMap map={publicData.trackMapByRound[r.round]} name={r.circuit} compact className="aspect-[3/2] w-20" />
                   ) : (
-                    <div className="flex aspect-[3/2] w-24 items-center justify-center rounded-card bg-white/[0.04] text-title-md tabular text-tertiary">R{r.round}</div>
+                    <div className="flex aspect-[3/2] w-20 items-center justify-center rounded-card bg-white/[0.04] text-title-md tabular text-tertiary">R{r.round}</div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">

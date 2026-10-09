@@ -92,9 +92,11 @@ export function LandingHero({
   const facts = landing.trackHistory ? circuitFacts(landing.trackHistory) : [];
 
   return (
-    <div className="grid grid-cols-1 gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end lg:gap-16 lg:pt-14">
-      <div className="min-w-0">
-        <StartLights className="mb-6" />
+    <div className="grid grid-cols-1 gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-stretch lg:gap-16 lg:pt-14">
+      {/* Both columns share a top and a bottom edge: the lights line up with the widget's top, the action
+          with its bottom. */}
+      <div className="flex min-w-0 flex-col">
+        <StartLights className="mb-6 lg:mb-auto" />
         {greeting && (
           <p className="mb-3 text-body text-secondary">{greeting}</p>
         )}
