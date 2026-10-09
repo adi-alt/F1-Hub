@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { SharedSeasonIntelligence, IntelligenceSource } from "@/lib/ai/schemas/seasonIntelligence";
 
 type State = {
@@ -33,8 +33,13 @@ const SeasonIntelligenceContext = createContext<State>({
  * one cache entry serve every reader of the same season. Personalization is a deterministic
  * overlay applied on top (see buildPersonalSeasonContext).
  */
+// Asked for only once a section that shows it is on screen (SeasonIntelligenceTrigger): the page no longer opens
+// with an AI summary, so a visit that never scrolls to the analysis makes no request at all.
+const RequestContext = createContext<() => void>(() => {});
+
 export function SeasonIntelligenceProvider({ children, season }: { children: React.ReactNode; season: number }) {
   const [state, setState] = useState<State>({ intelligence: null, source: null, loading: true, failed: false, season });
+  const [requested, setRequested] = useState(false);
 
   // Reset to "loading" for a new season DURING RENDER (React's own documented "adjust state when
   // a prop changes" pattern), not at the top of the effect below. Doing it in the effect body
@@ -47,6 +52,7 @@ export function SeasonIntelligenceProvider({ children, season }: { children: Rea
   }
 
   useEffect(() => {
+    if (!requested) return;
     const controller = new AbortController();
 
     (async () => {
@@ -71,9 +77,34 @@ export function SeasonIntelligenceProvider({ children, season }: { children: Rea
     })();
 
     return () => controller.abort();
-  }, [season]);
+  }, [season, requested]);
 
-  return <SeasonIntelligenceContext.Provider value={state}>{children}</SeasonIntelligenceContext.Provider>;
+  return (
+    <RequestContext.Provider value={() => setRequested(true)}>
+      <SeasonIntelligenceContext.Provider value={state}>{children}</SeasonIntelligenceContext.Provider>
+    </RequestContext.Provider>
+  );
+}
+
+/** Wraps a section that shows season intelligence: the request is made the first time it nears the viewport. */
+export function SeasonIntelligenceTrigger({ children }: { children: ReactNode }) {
+  const request = useContext(RequestContext);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return request();
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        io.disconnect();
+        request();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [request]);
+  return <div ref={ref}>{children}</div>;
 }
 
 export function useSeasonIntelligence(): State {
