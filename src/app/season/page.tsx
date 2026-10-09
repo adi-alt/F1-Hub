@@ -53,7 +53,7 @@ export default async function SeasonPage({
   const data = await getSeasonDetailData(year, session.uid);
 
   return (
-    <div className="page-content py-8">
+    <div data-surface="frosted" className="page-content py-8">
       <FavoritesHydrator uid={session.uid} driverIds={data.favoriteDriverIds} teamIds={data.favoriteTeamIds} />
       <Suspense fallback={<SeasonDetailSkeleton />}>
         <SeasonDetail

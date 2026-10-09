@@ -7,6 +7,7 @@ import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
+import { StandingsTicker, raceTickerItems } from "@/components/motion/StandingsTicker";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
@@ -122,7 +123,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     ]);
 
     return (
-      <div className="page-wide py-8">
+      <div data-surface="frosted" className="page-wide py-8">
         <RacePageHeader
           year={race.year}
           round={race.round}
@@ -135,6 +136,9 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? null}
           keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
         />
+        <div className="mt-6">
+          <StandingsTicker label={race.status === "completed" ? `${race.name} result` : `${race.name}: the model's win odds`} items={raceTickerItems(race)} />
+        </div>
         <div className="mt-12">
           <SeasonRaceDashboard
             race={race}
@@ -179,7 +183,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const [ageRecords, raceCommunities] = await Promise.all([computeAgeRecords(circuitTimeline), listRaceCommunities(race.id, session.uid)]);
 
   return (
-    <div className="page-wide py-8">
+    <div data-surface="frosted" className="page-wide py-8">
       <RaceHeader
         backHref={archiveSeasonHref(year)}
         backLabel={`${year}`}

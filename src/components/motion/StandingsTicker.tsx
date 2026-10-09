@@ -1,6 +1,7 @@
 "use client";
 
 import { teamColor } from "@/lib/teamColors";
+import type { RaceDoc } from "@/lib/types/race";
 
 export type TickerItem = { key: string; position?: number; code: string; name: string; team?: string; value: string };
 
@@ -44,4 +45,27 @@ export function StandingsTicker({ items, label }: { items: TickerItem[]; label: 
 /** The championship as ticker items: "1 | ANT Kimi Antonelli 294 pts". */
 export function standingsTickerItems(rows: { driver: string; driverName: string; team: string; points: number }[] | undefined): TickerItem[] {
   return (rows ?? []).map((r, i) => ({ key: r.driver, position: i + 1, code: r.driver, name: r.driverName, team: r.team, value: `${r.points} pts` }));
+}
+
+/** A race as ticker items: the classification once it has run, the model's win odds before it, else nothing. */
+export function raceTickerItems(race: RaceDoc): TickerItem[] {
+  if (race.status === "completed" && race.results?.length) {
+    return [...race.results]
+      .sort((a, b) => a.finishPosition - b.finishPosition)
+      .slice(0, 10)
+      .map((r) => ({
+        key: r.driver,
+        position: r.finishPosition,
+        code: r.driver,
+        name: r.driverName,
+        team: r.team,
+        value: r.finishPosition === 1 ? "Winner" : r.status === "dnf" ? "DNF" : r.finishGapSec !== null ? `+${r.finishGapSec.toFixed(3)}s` : r.status === "lapped" ? "Lapped" : "",
+      }));
+  }
+  const sim = race.simulation?.drivers ?? [];
+  const nameOf = (code: string) => race.inputs?.find((i) => i.driver === code)?.driverName ?? code;
+  return [...sim]
+    .sort((a, b) => b.p1 - a.p1)
+    .slice(0, 10)
+    .map((d, i) => ({ key: d.driver, position: i + 1, code: d.driver, name: nameOf(d.driver), team: d.team, value: `${Math.round(d.p1 * 100)}% to win` }));
 }

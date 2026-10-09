@@ -1,5 +1,6 @@
 "use client";
 
+import { Typewriter } from "@/components/motion/Typewriter";
 import { DriverIdentity } from "@/components/ui/DriverIdentity";
 import { ProbabilityMeter } from "@/components/ui/ProbabilityMeter";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
@@ -45,7 +46,9 @@ export function ModelOutlook({ simulation, prediction, nameOf }: { simulation?: 
     ];
     return (
       <div className="space-y-5">
-        <p className="text-body text-primary">{outlookHeadline(simulation.drivers, nameOf)}</p>
+        <p className="text-body text-primary">
+          <Typewriter text={outlookHeadline(simulation.drivers, nameOf) ?? ""} />
+        </p>
         <ProbabilityMeter caption="Chance of winning" entries={simulation.drivers.map((d) => ({ label: d.driver, value: d.p1, color: teamColor(d.team) }))} />
         <Table caption="Model outlook by driver" columns={columns} rows={rows} getRowKey={(d) => d.driver} density="compact" />
         <ProvenanceLine source={`Apex model ${simulation.modelVersion}`} status={`10,000 simulated races, frozen ${generatedLabel(simulation.generatedAt) ?? "after qualifying"}`} />
