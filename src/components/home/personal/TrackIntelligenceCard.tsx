@@ -13,8 +13,9 @@ import type { TrackHistory } from "@/lib/personalization";
 const n = (count: number, one: string) => `${count} ${count === 1 ? one : `${one}s`}`;
 
 /**
- * The hero's right-hand widget (the old home's, kept by request): the circuit's track map and its record holders,
- * how your favourites have done here, and Apex's outlook for your driver. One frosted card beside the race.
+ * The hero's right-hand widget (the old home's, kept by request): the circuit's track map and its record holders, and
+ * Apex's outlook for your driver. One frosted card beside the race; your favourites' records here sit in the left
+ * column (FavouritesHere), so the two columns come out the same height.
  */
 export function TrackIntelligenceCard({ circuit, history }: { circuit: string; history: TrackHistory | null }) {
   const { intelligence, isLoading } = useHomepageIntelligence();
@@ -25,13 +26,9 @@ export function TrackIntelligenceCard({ circuit, history }: { circuit: string; h
     history.defendingWinner && { key: `d-${history.defendingWinner.driverId}`, name: history.defendingWinner.driverName, img: history.defendingWinner.photoUrl, href: history.defendingWinner.href, detail: `Defending winner (${history.defendingWinner.year})`, logo: false },
     history.topCurrentTeam && { key: `t-${history.topCurrentTeam.name}`, name: history.topCurrentTeam.name, img: history.topCurrentTeam.logoUrl, href: null, detail: `Most team wins here (${history.topCurrentTeam.wins})`, logo: true },
   ].filter(Boolean) as { key: string; name: string; img: string | null; href: string | null; detail: string; logo: boolean }[];
-  const favourites = [
-    ...history.favoriteDriverCircuitStatsList.map((s) => ({ key: s.driverId, name: s.driverName, wins: s.wins, podiums: s.podiums, starts: s.appearances, best: s.bestFinish })),
-    ...history.favoriteTeamCircuitStatsList.map((s) => ({ key: s.teamId, name: s.teamName, wins: s.wins, podiums: s.podiums, starts: s.appearances, best: s.bestFinish })),
-  ];
 
   return (
-    <section aria-labelledby="track-intel" className="min-w-0 rounded-card bg-surface-1 p-5">
+    <section aria-labelledby="track-intel" className="flex h-full min-w-0 flex-col rounded-card bg-surface-1 p-5">
       <TrackMap map={history.trackMap} name={circuit} className="aspect-[16/9] w-full" />
       <div className={`${history.trackMap ? "mt-4" : ""} flex items-baseline justify-between gap-3`}>
         <h2 id="track-intel" className="text-title-md text-primary">
@@ -68,24 +65,9 @@ export function TrackIntelligenceCard({ circuit, history }: { circuit: string; h
         })}
       </ul>
 
-      {favourites.length > 0 && (
-        <div className="mt-4 rounded-control bg-white/[0.04] p-3">
-          <p className="text-caption font-semibold text-primary">Your favourites here</p>
-          <ul className="mt-1.5 space-y-1">
-            {favourites.slice(0, 6).map((f) => (
-              <li key={f.key} className="flex items-baseline justify-between gap-3 text-caption">
-                <span className="truncate text-primary">{f.name}</span>
-                <span className="shrink-0 tabular text-secondary">
-                  {f.wins ? n(f.wins, "win") : f.podiums ? n(f.podiums, "podium") : f.best ? `best P${f.best}` : n(f.starts, "start")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {(outlook || isLoading) && (
-        <div className="mt-4 border-t border-subtle pt-4">
+        <div className="mt-auto border-t border-subtle pt-4">
           <p className="flex items-center gap-1.5 text-caption text-tertiary">
             <Icon icon={Sparkles} size={16} className="text-brand-text" />
             Your outlook · AI summary
@@ -102,6 +84,33 @@ export function TrackIntelligenceCard({ circuit, history }: { circuit: string; h
           )}
         </div>
       )}
+    </section>
+  );
+}
+
+/** Your favourites' records at this circuit, as a row of chips under the hero's action. */
+export function FavouritesHere({ circuit, history }: { circuit: string; history: TrackHistory | null }) {
+  if (!history) return null;
+  const favourites = [
+    ...history.favoriteDriverCircuitStatsList.map((s) => ({ key: s.driverId, name: s.driverName, wins: s.wins, podiums: s.podiums, starts: s.appearances, best: s.bestFinish })),
+    ...history.favoriteTeamCircuitStatsList.map((s) => ({ key: s.teamId, name: s.teamName, wins: s.wins, podiums: s.podiums, starts: s.appearances, best: s.bestFinish })),
+  ];
+  if (favourites.length === 0) return null;
+  return (
+    <section aria-labelledby="favs-here">
+      <h2 id="favs-here" className="text-body-sm font-semibold text-primary">
+        Your favourites at {circuit}
+      </h2>
+      <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {favourites.slice(0, 6).map((f) => (
+          <li key={f.key} className="min-w-0 rounded-control bg-surface-1 px-3 py-2">
+            <p className="truncate text-body-sm font-medium text-primary">{f.name}</p>
+            <p className="text-caption tabular text-secondary">
+              {f.wins ? n(f.wins, "win") : f.podiums ? n(f.podiums, "podium") : f.best ? `Best P${f.best}` : n(f.starts, "start")} in {n(f.starts, "start")}
+            </p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
