@@ -14,7 +14,7 @@ import type { Battle, ConstructorStandingRow, DriverStandingRow, PersonalSeasonC
 const TABS: TabItem<AnalysisTab>[] = [
   { value: "battles", label: "Battles" },
   { value: "compare", label: "Compare" },
-  { value: "progression", label: "Gaps & positions" },
+  { value: "progression", label: "Progression" },
   { value: "records", label: "Records" },
 ];
 

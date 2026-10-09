@@ -16,6 +16,7 @@ type Metric = "points" | "gap" | "position";
 type DriverSet = "top5" | "following" | "custom";
 
 const METRIC_TABS: TabItem<Metric>[] = [
+  { value: "points", label: "Points" },
   { value: "position", label: "Position" },
   { value: "gap", label: "Gap to leader" },
 ];
@@ -50,9 +51,7 @@ export function ProgressionPanel({
   const { intelligence, loading: intelligenceLoading } = useSeasonIntelligence();
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
-  // Points over the season is the page's main chart (Championship battle); this tab goes deeper: how far
-  // each contender is from the lead, and how championship positions moved, round by round.
-  const [metric, setMetric] = useState<Metric>("gap");
+  const [metric, setMetric] = useState<Metric>("points");
   const [driverSet, setDriverSet] = useState<DriverSet>("top5");
   const [customCodes, setCustomCodes] = useState<string[]>([]);
   const isDrivers = entityType === "drivers";
