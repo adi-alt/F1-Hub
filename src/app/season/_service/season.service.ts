@@ -148,14 +148,14 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], 
       isSprintWeekend,
       weekendStatus: calendarWeekendStatus(entry.status) ?? derivedStatus,
       photoUrls: race?.photoUrls ?? (race?.photoUrl ? [race.photoUrl] : []),
-      // Matched on the same (locality, country) pair the archive side already keys circuit
-      // photography by - a FastF1 `location` is a city name, exactly what "locality" means there.
-      circuitPhotoUrls: (() => {
+      // Matched on the same (locality, country) pair the archive side keys circuits by - a FastF1
+      // `location` is a city name, exactly what "locality" means there.
+      circuitTrackMap: (() => {
         const locality = race?.circuit ?? entry.circuit;
         // No real circuit ever has an empty locality, so an empty string would already fail to
         // match anything - skipping the lookup outright is just making that explicit rather than
         // relying on the incidental non-match.
-        return locality ? (findArchiveCircuitByLocation(circuits, locality, race?.country ?? null)?.imageUrls ?? []) : [];
+        return locality ? (findArchiveCircuitByLocation(circuits, locality, race?.country ?? null)?.trackMap ?? null) : null;
       })(),
       forecast: entry.weatherForecast,
       raceWeather: race?.weather ?? null,
@@ -342,7 +342,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       isSprintWeekend: false,
       weekendStatus: "completed" as const,
       photoUrls: r.photoUrls ?? (r.photoUrl ? [r.photoUrl] : []),
-      circuitPhotoUrls: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.imageUrls ?? []) : [],
+      circuitTrackMap: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.trackMap ?? null) : null,
       forecast: null,
       raceWeather: null,
       podium: results

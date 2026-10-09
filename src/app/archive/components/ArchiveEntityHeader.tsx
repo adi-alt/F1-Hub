@@ -21,7 +21,8 @@ export function ArchiveEntityHeader({
   backHref: string;
   backLabel: string;
   name: string;
-  photoUrl: string | null;
+  /** Omit for an entity with no photo slot at all (a circuit: its track map is shown below the header). */
+  photoUrl?: string | null;
   photoShape?: "circle" | "square";
   subtitle: string;
   stats: { label: string; value: string | number }[];
@@ -33,7 +34,9 @@ export function ArchiveEntityHeader({
         ← {backLabel}
       </Link>
       <div className="mt-2 flex items-center gap-3">
-        <EntityAvatar imageUrl={photoUrl} name={name} size={44} shape={photoShape} fit={photoShape === "square" ? "contain" : "cover"} />
+        {photoUrl !== undefined && (
+          <EntityAvatar imageUrl={photoUrl} name={name} size={44} shape={photoShape} fit={photoShape === "square" ? "contain" : "cover"} />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-2xl font-bold text-white sm:text-3xl">{name}</h1>

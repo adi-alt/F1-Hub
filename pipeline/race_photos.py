@@ -36,6 +36,7 @@ from urllib.parse import quote
 import requests
 
 API = "https://commons.wikimedia.org/w/api.php"
+WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
 USER_AGENT = "ApexF1Hub-RacePhotos/1.0 (https://www.apexf1hub.com; https://github.com/adi-alt/F1-Hub/issues)"
 REQUEST_GAP_SEC = 1.0          # sequential, one request at a time, at most about one a second
 MAX_RETRY_AFTER_SEC = 300      # a longer wait than this means "come back next week", not "sleep"
@@ -70,9 +71,11 @@ FRAME = re.compile(r"\(([0-9A-Za-z]*[A-Za-z])?[ _]?(\d{3,6})\)\.\w+$")  # "(028A
 # ------------------------------------------------------------------------------------------------ Wikimedia
 
 class Wikimedia:
-    """Sequential, cached, rate-limit-respecting MediaWiki API client. Never downloads image bytes."""
+    """Sequential, cached, rate-limit-respecting MediaWiki API client. Never downloads image bytes.
+    Commons by default; pass api=WIKIPEDIA_API for English Wikipedia (same etiquette, same cache directory)."""
 
-    def __init__(self, cache: bool = True, sleep=time.sleep, session: requests.Session | None = None):
+    def __init__(self, cache: bool = True, sleep=time.sleep, session: requests.Session | None = None, api: str = API):
+        self.api = api
         self.session = session or requests.Session()
         self.session.headers["User-Agent"] = USER_AGENT
         self.cache = cache
@@ -81,7 +84,9 @@ class Wikimedia:
         self.requests_made = 0
 
     def _cache_path(self, params: dict) -> Path:
-        key = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:32]
+        # Commons keys stay as they were (existing caches remain valid); other wikis add their endpoint.
+        keyed = params if self.api == API else {**params, "_api": self.api}
+        key = hashlib.sha256(json.dumps(keyed, sort_keys=True).encode()).hexdigest()[:32]
         return CACHE_DIR / f"{key}.json"
 
     def get(self, **params) -> dict:
@@ -95,7 +100,7 @@ class Wikimedia:
                 self.sleep(wait)
             self._last = time.monotonic()
             self.requests_made += 1
-            resp = self.session.get(API, params=params, timeout=30)
+            resp = self.session.get(self.api, params=params, timeout=30)
             if resp.status_code in (429, 503):
                 retry_after = _retry_after_seconds(resp.headers.get("Retry-After"), default=30 * attempt)
                 if retry_after > MAX_RETRY_AFTER_SEC or attempt == MAX_ATTEMPTS:

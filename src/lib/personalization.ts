@@ -6,6 +6,7 @@
 // already have: a derived view-model layer on top of the data layer, not a data source itself.
 
 import { getArchiveCircuit, getArchiveDriver, getArchiveDriverIdsByCode, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
+import type { CircuitTrackMap } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
 import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
@@ -41,7 +42,7 @@ export type FavoriteTeamCard = {
 export type FavoriteTrackCard = {
   circuitId: string;
   name: string;
-  imageUrl: string | null;
+  trackMap: CircuitTrackMap | null;
   href: string;
 };
 
@@ -85,7 +86,7 @@ export async function getFavoriteTeamCard(teamId: string): Promise<FavoriteTeamC
 export async function getFavoriteTrackCard(circuitId: string): Promise<FavoriteTrackCard | null> {
   const circuit = await getArchiveCircuit(circuitId);
   if (!circuit) return null;
-  return { circuitId, name: circuit.name ?? circuitId, imageUrl: circuit.imageUrl, href: archiveCircuitHref(circuitId) };
+  return { circuitId, name: circuit.name ?? circuitId, trackMap: circuit.trackMap, href: archiveCircuitHref(circuitId) };
 }
 
 export type DriverStanding = { driver: string; driverName: string; team: string; points: number; wins: number; podiums: number };
@@ -158,8 +159,8 @@ export type TeamCircuitStats = {
 
 export type TrackHistory = {
   circuitId: string;
-  circuitImageUrl: string | null;
-  circuitImageUrls: string[] | null;
+  /** The circuit's track map (archive_circuits.track_map_*), or null. Never a Commons circuit photo. */
+  trackMap: CircuitTrackMap | null;
   totalRaces: number;
   firstYear: number;
   lastYear: number;
@@ -334,8 +335,7 @@ export async function getTrackHistory(
 
   return {
     circuitId,
-    circuitImageUrl: circuit?.imageUrl ?? null,
-    circuitImageUrls: circuit?.imageUrls ?? null,
+    trackMap: circuit?.trackMap ?? null,
     totalRaces: races.length,
     firstYear: races[0].year,
     lastYear: races.at(-1)!.year,

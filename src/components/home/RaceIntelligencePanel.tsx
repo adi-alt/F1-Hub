@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TrackMap } from "@/components/ui/TrackMap";
 import { useHomepageIntelligence } from "./ai/HomepageIntelligenceProvider";
 import type { FavoriteDriverCard, FavoriteTeamCard, TrackHistory } from "@/lib/personalization";
 
@@ -60,24 +60,10 @@ export function RaceIntelligencePanel({
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/30 p-5 backdrop-blur-md sm:p-6"
     >
-      {trackHistory.circuitImageUrl && (
+      {trackHistory.trackMap && (
         <div className="mb-3 border-b border-white/[0.06] pb-3">
-          {/* Fills the full width and a fixed height with zero empty space around it -
-           * `object-cover` scales the image UNIFORMLY (so it's never warped/stretched
-           * out of proportion) and crops whatever doesn't fit, instead of `object-contain`'s
-           * letterboxing - real circuit diagrams vary widely in aspect ratio (confirmed:
-           * Monza ~1:1, Jeddah ~2:1), so a "no gaps" requirement inherently means some of a
-           * very square or very wide one gets cropped at the edges; that's the deliberate
-           * trade-off this asks for, not a bug. */}
-          <div className="relative h-28 w-full overflow-hidden rounded-lg">
-            <Image
-              src={trackHistory.circuitImageUrl}
-              alt={circuitName}
-              fill
-              sizes="(min-width: 640px) 360px, 100vw"
-              className="object-cover opacity-75 transition hover:opacity-100"
-            />
-          </div>
+          {/* The circuit's track map, whole (object-contain on a light panel): never cropped. */}
+          <TrackMap map={trackHistory.trackMap} name={circuitName} className="h-28 w-full" />
         </div>
       )}
 

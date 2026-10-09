@@ -10,6 +10,7 @@ import type { ConstructorStanding, DriverStanding } from "@/lib/standings";
 // bundle through them, same rule the rest of this file follows.
 import type { WeatherForecast } from "@/lib/supabase/calendar";
 import type { SessionWeather } from "@/lib/types/race";
+import type { CircuitTrackMap } from "@/lib/supabase/archive";
 
 export type DriverStandingRow = DriverStanding & {
   headshotUrl: string | null;
@@ -91,11 +92,9 @@ export type RaceSummary = {
    * exists once this specific round has actually been processed (a `races`/`archive_races` row
    * with results or at least practice data) - most of a season's still-to-run rounds have none. */
   photoUrls: string[];
-  /** The circuit's own real photography, independent of whether THIS round has run yet - circuits
-   * are known well ahead of the calendar and archive_circuits is backfilled from the venue itself,
-   * not from a specific race weekend. The fallback for every round photoUrls is empty for, never a
-   * fabricated or wrong-venue substitute: null when even the circuit hasn't been matched yet. */
-  circuitPhotoUrls: string[];
+  /** The circuit's track map (archive_circuits.track_map_*), shown when the round has no photos of
+   * its own. Null when the circuit isn't matched or has no map: never a circuit photo. */
+  circuitTrackMap: CircuitTrackMap | null;
   /** Pre-event forecast snapshot, written once by the pipeline when the race was close enough. */
   forecast: WeatherForecast | null;
   /** What the weather actually was during the session, for a race that has run. */

@@ -26,7 +26,6 @@ export function SeasonStrip({
   nextRaceRound,
   favoriteDriver,
   favoriteTeam,
-  circuitImageByRound = {},
   calendarByRound = {},
   weatherByRound = {},
 }: {
@@ -34,9 +33,6 @@ export function SeasonStrip({
   nextRaceRound?: number | null;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
-  /** Archive-circuit fallback image per round (resolved once, server-side, in page.tsx) - the
-   * second tier of the image fallback chain, behind the round's own real `photoUrl`. */
-  circuitImageByRound?: Record<number, string | null>;
   /** Real session-schedule data for EVERY round (page.tsx's getCalendarEntriesByYear, keyed by
    * round) - not just nextRace, so any round the navigator selects gets its own real FP1/FP2/FP3/
    * Q/R (or sprint-weekend equivalent) schedule, not just "this weekend"'s. */
@@ -162,7 +158,6 @@ export function SeasonStrip({
             isHere={selected.round === nextRaceRound}
             favoriteDriver={favoriteDriver}
             favoriteTeam={favoriteTeam}
-            fallbackImageUrl={circuitImageByRound[selected.round] ?? null}
             calendarEntry={calendarByRound[selected.round] ?? null}
             weather={weatherByRound[selected.round] ?? null}
           />
@@ -177,7 +172,6 @@ function FeaturedRound({
   isHere,
   favoriteDriver,
   favoriteTeam,
-  fallbackImageUrl,
   calendarEntry,
   weather,
 }: {
@@ -185,19 +179,13 @@ function FeaturedRound({
   isHere: boolean;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
-  fallbackImageUrl: string | null;
   calendarEntry: CalendarEntry | null;
   weather: WeatherForecast | null;
 }) {
-  // Every round gets a real image slot now, not just completed/"this weekend" ones - a far-future
-  // round used to stay text-only on the theory it had "the least real content to justify one," but
-  // the fallback chain below already guarantees a real, meaningful image (or an honest abstract
-  // treatment) regardless of how much text sits next to it, so there's no reason to withhold it.
-  // Fallback chain: the round's own real photo first, then the resolved archive-circuit photo
-  // (page.tsx's circuitImageByRound, itself already alias-resolved via resolveCurrentCircuitToArchiveId),
-  // then (only when both are genuinely absent - a confirmed gap, e.g. Miami/Vegas/Qatar pre-race)
-  // the one abstract CSS treatment below. Never a blank image slot.
-  const resolvedImageUrl = race.photoUrl ?? fallbackImageUrl;
+  // The round's own photo only. No circuit photo stands in for it (the archive's Commons circuit
+  // photos were often not of the track); without one the banner is the abstract CSS treatment below,
+  // which shows no real place.
+  const resolvedImageUrl = race.photoUrl ?? null;
 
   return (
     <div>

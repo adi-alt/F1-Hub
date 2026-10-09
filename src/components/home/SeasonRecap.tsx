@@ -35,7 +35,6 @@ export function SeasonRecap({
   nextRaceRound,
   favoriteDriver,
   favoriteTeam,
-  circuitImageByRound,
   calendarByRound,
   weatherByRound,
 }: {
@@ -46,7 +45,9 @@ export function SeasonRecap({
   nextRaceRound?: number | null;
   favoriteDriver: FavoriteDriverCard | null;
   favoriteTeam: FavoriteTeamCard | null;
-  circuitImageByRound?: Record<number, string | null>;
+  /** Unused: the season strip no longer falls back to circuit photos. Still accepted only because
+   * PersonalHome passes it; drop it there and here together. */
+  circuitImageByRound?: unknown;
   /** Real session-schedule data for every round, threaded through to SeasonStrip's featured panel
    * - any round the navigator selects gets its own real schedule now, not just "this weekend"'s. */
   calendarByRound?: Record<number, CalendarEntry | undefined>;
@@ -84,7 +85,6 @@ export function SeasonRecap({
               nextRaceRound={nextRaceRound}
               favoriteDriver={favoriteDriver}
               favoriteTeam={favoriteTeam}
-              circuitImageByRound={circuitImageByRound ?? {}}
               calendarByRound={calendarByRound}
               weatherByRound={weatherByRound ?? {}}
             />
@@ -178,7 +178,6 @@ export function SeasonRecap({
             nextRaceRound={nextRaceRound}
             favoriteDriver={favoriteDriver}
             favoriteTeam={favoriteTeam}
-            circuitImageByRound={circuitImageByRound ?? {}}
             calendarByRound={calendarByRound}
             weatherByRound={weatherByRound ?? {}}
           />

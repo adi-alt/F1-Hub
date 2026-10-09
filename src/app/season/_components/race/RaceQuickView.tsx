@@ -217,7 +217,7 @@ function RaceQuickViewBody({ season, race, drivers }: { season: number; race: Ra
         <StatusPill status={race.weekendStatus} />
       </div>
 
-      <RaceMedia photoUrls={race.photoUrls} circuitPhotoUrls={race.circuitPhotoUrls} raceName={race.name} circuit={race.circuit} />
+      <RaceMedia photoUrls={race.photoUrls} circuitTrackMap={race.circuitTrackMap} raceName={race.name} circuit={race.circuit} />
 
       {isOff ? (
         <p className="max-w-2xl text-sm leading-relaxed text-neutral-400">

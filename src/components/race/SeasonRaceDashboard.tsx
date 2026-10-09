@@ -67,11 +67,8 @@ export function SeasonRaceDashboard({
   highlights: RaceHighlights | null;
   accuracy: PredictionAccuracy | null;
   poleAccuracy: PolePredictionAccuracy | null;
-  // Real, not fabricated - see race/page.tsx's findArchiveCircuitByLocation call and
-  // SeasonConditionsCard's own comment. Null/undefined for a venue the archive hasn't reached yet.
-  circuitImage?: { url: string; wikipediaUrl: string | null } | null;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
-  // has no row for, same "real or absent, never fabricated" rule as circuitImage above.
+  // has no row for, real or absent, never fabricated.
   calendarEntry?: CalendarEntry | null;
   // This exact physical track's own real history, both real sources (see RaceHistorySection /
   // circuitIntelligence.ts) - fetched by the caller for every race regardless of phase (see

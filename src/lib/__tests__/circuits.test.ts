@@ -125,7 +125,7 @@ describe("buildCircuitContext", () => {
       isSprintWeekend: false,
       weekendStatus,
       photoUrls: [],
-      circuitPhotoUrls: [],
+      circuitTrackMap: null,
       forecast: null,
       raceWeather: null,
       podium: [
@@ -188,7 +188,7 @@ describe("validateSharedCircuitIntelligence", () => {
     isSprintWeekend: false,
     weekendStatus: "completed",
     photoUrls: [],
-    circuitPhotoUrls: [],
+    circuitTrackMap: null,
     forecast: null,
     raceWeather: null,
     podium: [{ position: 1, driver: "ANT", driverName: "Kimi Antonelli", team: "Mercedes" }],

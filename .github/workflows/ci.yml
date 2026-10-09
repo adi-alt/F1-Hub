@@ -86,3 +86,4 @@ jobs:
           python test_promote_season.py
           python test_lap_positions.py
           python test_race_photos.py
+          python test_circuit_track_maps.py
