@@ -420,7 +420,7 @@ describe("prediction lifecycle (SQL)", () => {
 
   describe("personal picks", () => {
     const savePick = (race: string, user: string, now: string, podium = ["VER", "NOR", "LEC"]) =>
-      t.as<{ save_pick: string }>("service_role", null, `select save_pick($1::uuid, $2, $3, $4::text[], $5::timestamptz) as save_pick`, [user, race, podium[0], `{${podium.join(",")}}`, now]);
+      t.as<{ save_pick: string }>("service_role", null, `select save_pick($1::uuid, $2, $3, $4::text[], p_now => $5::timestamptz) as save_pick`, [user, race, podium[0], `{${podium.join(",")}}`, now]);
     const RACE_START_MS = Date.parse("2026-10-04T13:00:00Z");
 
     test("accepted before race start with the SERVER's timestamp; rejected at and after it", async () => {

@@ -39,7 +39,7 @@ const shortName = (race: RaceDoc) => race.name.replace(/ Grand Prix$/, "");
  * The race is the page's h1 and the greeting a muted line above it (critique §2.2). One primary action that
  * follows the user's state: make the pick, change it, or, once the race has run, see how it went.
  */
-export function PersonalHero({ publicData, personalData, firstName }: Props & { firstName: string }) {
+export function PersonalHero({ publicData, personalData, firstName, onPredict }: Props & { firstName: string; onPredict?: () => void }) {
   const race = publicData.nextRace;
   const nameOf = useNameOf(publicData);
   if (!race) return null;
@@ -50,7 +50,7 @@ export function PersonalHero({ publicData, personalData, firstName }: Props & { 
     ? `Welcome back, ${firstName}. The ${shortName(race)} results are in.`
     : pick
       ? `Welcome back, ${firstName}. Your pick: ${nameOf(pick.predictedWinner)} to win.`
-      : `Welcome back, ${firstName}. Your pick for ${shortName(race)} isn't in yet.`;
+      : `Welcome back, ${firstName}. Your predictions for ${shortName(race)} aren't in yet.`;
   const action = completed ? (
     <Button variant="primary" size="lg" asChild>
       <Link href={`${href}#results`}>
@@ -60,12 +60,19 @@ export function PersonalHero({ publicData, personalData, firstName }: Props & { 
     </Button>
   ) : (
     <>
-      <Button variant="primary" size="lg" asChild>
-        <Link href={`${href}#pick`}>
-          {pick ? "Change your pick" : "Make your pick"}
+      {onPredict ? (
+        <Button variant="primary" size="lg" onClick={onPredict}>
+          {pick ? "Edit your predictions" : "Make your predictions"}
           <Icon icon={ArrowRight} size={20} />
-        </Link>
-      </Button>
+        </Button>
+      ) : (
+        <Button variant="primary" size="lg" asChild>
+          <Link href={`${href}#pick`}>
+            {pick ? "Edit your predictions" : "Make your predictions"}
+            <Icon icon={ArrowRight} size={20} />
+          </Link>
+        </Button>
+      )}
       <Link href={href} className={TEXT_LINK}>
         Explore the race
       </Link>
@@ -184,7 +191,7 @@ function Podium({ codes, publicData }: { codes: readonly string[]; publicData: P
  * "Your weekend" (critique §2.2): your pick, the model's and your record as three columns of one panel, and
  * Apex's read on your pick once you have made one.
  */
-export function YourWeekendSection({ publicData, personalData }: Props) {
+export function YourWeekendSection({ publicData, personalData, onPredict }: Props & { onPredict?: () => void }) {
   const nameOf = useNameOf(publicData);
   const { intelligence } = useHomepageIntelligence();
   const race = publicData.nextRace;
@@ -206,11 +213,16 @@ export function YourWeekendSection({ publicData, personalData }: Props) {
             ) : (
               <>
                 <p className="mt-2 text-body-sm text-secondary">Not in yet. It locks at lights out.</p>
-                {race && race.status !== "completed" && (
-                  <Link href={`${raceHref(race.year, race.round, race.name)}#pick`} className={`${TEXT_LINK} mt-2`}>
-                    Make your pick <Icon icon={ArrowRight} size={16} />
-                  </Link>
-                )}
+                {race && race.status !== "completed" &&
+                  (onPredict ? (
+                    <button type="button" onClick={onPredict} className={`${TEXT_LINK} mt-2`}>
+                      Make your predictions <Icon icon={ArrowRight} size={16} />
+                    </button>
+                  ) : (
+                    <Link href={`${raceHref(race.year, race.round, race.name)}#pick`} className={`${TEXT_LINK} mt-2`}>
+                      Make your predictions <Icon icon={ArrowRight} size={16} />
+                    </Link>
+                  ))}
               </>
             )}
           </div>
