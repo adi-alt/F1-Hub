@@ -735,9 +735,10 @@
   "race_start_at(text)": "dfc29da34a6b9e74a64e77661cf59c94",
   "rate_limit_hit(text,integer,integer)": "48425e3af449aabe21a5152c750476f5",
   "redeem_group_invite(uuid,uuid,uuid,timestamp with time zone)": "5403449527f6f6023fe2f6d4ecaa21af",
-  "save_pick(uuid,text,text,text[],text,text,text[],boolean,text,timestamp with time zone)": "a4cd51d685106be7ec2eb4f643b5c82e",
+  "save_pick(uuid,text,text,text[],text,text,text[],boolean,text,timestamp with time zone)": "bec838f6a59eecbbac88da6e840a3f31",
   "settle_prediction(uuid,uuid,jsonb,text,timestamp with time zone)": "3fb99efc52a7654350d7734781b9ec1f",
-  "valid_prediction_guess(text,jsonb)": "3ac56ad384fbaead945c2863b6c12249"
+  "valid_prediction_guess(text,jsonb)": "3ac56ad384fbaead945c2863b6c12249",
+  "weekend_start_at(text)": "a298395f7bf535cf6de70e5268928e5b"
  },
  "triggers": {
   "cron.job.cron_job_cache_invalidate": "e3011ad77543c788f3edd738290fc716",

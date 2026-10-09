@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select, TextInput } from "@/components/ui/Field";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { StartLights } from "@/components/motion/StartLights";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useSignupOptions } from "@/queries/useSignupOptions";
 import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
@@ -33,37 +34,52 @@ function Messages({ info, error }: { info?: string | null; error: string | null 
 
 // A lightweight 2D illustration, not another WebGL canvas - a modal that opens and closes
 // repeatedly is exactly the wrong place to re-init a GLTF-loading r3f scene on every open. It is the
-// Dialog's aside: shown from md up only, and hidden from assistive tech.
+const SCENE_TRACK = "M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500";
+const SCENE_LINES = [
+  ["Every race.", "Every prediction."],
+  ["Beat the model.", "Lap after lap."],
+  ["75 years of F1.", "One place."],
+] as const;
+
+// Dialog's aside: shown from md up only, and hidden from assistive tech. It moves: the track draws itself in,
+// the centre line streams past, a car runs the lap, the start lights cycle and the tagline changes. All of it is
+// CSS/SVG animation that stops under reduced motion (globals.css .auth-scene).
 function FormulaScene() {
+  const [line, setLine] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setInterval(() => setLine((l) => (l + 1) % SCENE_LINES.length), 3200);
+    return () => window.clearInterval(t);
+  }, []);
   return (
-    <div className="relative flex h-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[var(--f1-carbon)] via-black to-[var(--f1-carbon-2)] p-8">
-      <svg viewBox="0 0 300 500" className="pointer-events-none absolute inset-0 h-full w-full opacity-70" aria-hidden>
-        <path
-          d="M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500"
-          fill="none"
-          stroke="#33333a"
-          strokeWidth="26"
-          strokeLinecap="round"
-        />
-        <path
-          d="M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500"
-          fill="none"
-          stroke="#f2f2f3"
-          strokeWidth="2"
-          strokeDasharray="10 10"
-          strokeLinecap="round"
-          opacity={0.5}
-        />
+    <div className="auth-scene relative flex h-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[var(--f1-carbon)] via-black to-[var(--f1-carbon-2)] p-8">
+      <div className="auth-scene-glow pointer-events-none absolute inset-0" aria-hidden />
+      <svg viewBox="0 0 300 500" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
+        <defs>
+          <filter id="auth-car-glow" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+        </defs>
+        <path className="auth-track" d={SCENE_TRACK} fill="none" stroke="#2e2e35" strokeWidth="26" strokeLinecap="round" pathLength={1} />
+        <path className="auth-lane" d={SCENE_TRACK} fill="none" stroke="#f2f2f3" strokeWidth="2" strokeDasharray="10 10" strokeLinecap="round" opacity={0.45} />
+        <g className="auth-car">
+          <circle r="9" fill="#ff1e1e" filter="url(#auth-car-glow)" opacity={0.8} />
+          <circle r="4" fill="#ff4b4b" />
+          <animateMotion dur="5.5s" repeatCount="indefinite" rotate="auto" path={SCENE_TRACK} keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.55 1" />
+        </g>
       </svg>
-      <div className="relative z-10 flex items-center gap-2 text-lg font-bold tracking-tight text-white">
-        <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
-        F1 HUB
+      <div className="relative z-10 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
+          <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+          F1 HUB
+        </div>
+        <StartLights className="scale-75" />
       </div>
       <div className="relative z-10">
-        <p className="text-2xl font-bold leading-tight text-white">
-          Every race.
+        <p key={line} className="auth-line text-2xl font-bold leading-tight text-white">
+          {SCENE_LINES[line][0]}
           <br />
-          Every prediction.
+          {SCENE_LINES[line][1]}
         </p>
         <p className="mt-2 text-sm text-neutral-400">Predictions, a race simulator, and a full archive back to 1950.</p>
       </div>

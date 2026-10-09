@@ -76,12 +76,15 @@ export function LandingHero({
   landing,
   greeting,
   actions,
+  aside,
 }: {
   landing: LandingData;
   /** Signed in: a muted line above the race ("Welcome back, Sam. Your pick isn't in yet."). */
   greeting?: string;
   /** Signed in: the one action that follows the user's state, in place of the sign-up prompt. */
   actions?: ReactNode;
+  /** Signed in: the right-hand widget in place of the plain circuit facts. */
+  aside?: ReactNode;
 }) {
   const openAuth = useAuthDialogStore((s) => s.open);
   const race = landing.nextRace;
@@ -89,7 +92,7 @@ export function LandingHero({
   const facts = landing.trackHistory ? circuitFacts(landing.trackHistory) : [];
 
   return (
-    <div className="grid grid-cols-1 gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end lg:gap-16 lg:pt-14">
+    <div className="grid grid-cols-1 gap-10 pt-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end lg:gap-16 lg:pt-14">
       <div className="min-w-0">
         <StartLights className="mb-6" />
         {greeting && (
@@ -115,10 +118,10 @@ export function LandingHero({
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">
           {actions ?? (
             <>
-              <Button variant="primary" size="lg" asChild>
+              <Button variant="primary" size="md" asChild>
                 <Link href={raceHref(race.year, race.round, race.name)}>
                   Explore the race
-                  <Icon icon={ArrowRight} size={20} />
+                  <Icon icon={ArrowRight} size={16} />
                 </Link>
               </Button>
               <button
@@ -133,7 +136,7 @@ export function LandingHero({
         </div>
       </div>
 
-      {facts.length > 0 && landing.trackHistory && (
+      {aside ?? (facts.length > 0 && landing.trackHistory && (
         <section aria-labelledby="circuit-facts" className="min-w-0">
           <h2 id="circuit-facts" className="text-title-md text-primary">
             At {race.circuit}
@@ -164,7 +167,7 @@ export function LandingHero({
             ))}
           </ul>
         </section>
-      )}
+      ))}
     </div>
   );
 }

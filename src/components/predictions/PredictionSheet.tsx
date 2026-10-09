@@ -151,8 +151,12 @@ export function PredictionSheet({
   }, [open, race.id]);
 
   const raceAt = sessionTime(sessions, "race");
+  // Open 24h before the weekend's first session (save_pick enforces the same, 20261012_pick_window.sql).
+  const firstSession = sessions.length ? Math.min(...sessions.map((s) => parseUtcDateTime(s.date).getTime())) : null;
+  const opensAt = firstSession !== null ? firstSession - 24 * 3600 * 1000 : null;
+  const notOpen = opensAt !== null && now < opensAt;
   const qualiAt = sessionTime(sessions, "qualifying");
-  const locked = race.status !== "upcoming" || (raceAt !== null && now >= raceAt);
+  const locked = notOpen || race.status === "completed" || (raceAt !== null && now >= raceAt);
   const poleLocked = locked || (qualiAt !== null && now >= qualiAt);
   const model = modelPicks(race);
   const nameOf = (code: string | null) => (code ? entrants.find((e) => e.driver === code)?.driverName ?? code : null);
@@ -203,7 +207,7 @@ export function PredictionSheet({
       onClose={onClose}
       size="lg"
       title={`Your predictions: ${race.name}`}
-      description={locked ? "Predictions are closed for this race." : `The podium is required; everything else is optional.${raceClose ? ` Locks at lights out, ${raceClose}.` : ""}`}
+      description={notOpen && opensAt ? `Predictions open ${formatLocalDateTime(new Date(opensAt).toISOString(), tz)}, 24 hours before the first session. Here is what the model thinks so far.` : locked ? "Predictions are closed for this race." : `The podium is required; everything else is optional.${raceClose ? ` Locks at lights out, ${raceClose}.` : ""}`}
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <p role="status" className={`min-w-0 text-body-sm ${message?.tone === "error" ? "text-danger" : "text-success"}`}>

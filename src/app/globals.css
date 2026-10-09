@@ -539,3 +539,56 @@ html {
     transition: none;
   }
 }
+
+/* The sign-in dialog's scene (AuthDialog FormulaScene): the track draws in, the centre line streams, the car
+   runs the lap (SVG animateMotion), the glow breathes and each tagline rises in. */
+@keyframes auth-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.auth-track {
+  stroke-dasharray: 1;
+  animation: auth-draw 1.6s var(--ease-standard) both;
+}
+@keyframes auth-stream {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+.auth-lane {
+  animation: auth-stream 0.9s linear infinite;
+}
+@keyframes auth-breathe {
+  50% {
+    opacity: 0.9;
+  }
+}
+.auth-scene-glow {
+  opacity: 0.5;
+  background: radial-gradient(60% 45% at 70% 85%, rgb(225 6 0 / 0.22), transparent 70%);
+  animation: auth-breathe 4s ease-in-out infinite;
+}
+@keyframes auth-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.auth-line {
+  animation: auth-line-in 500ms var(--ease-standard) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-track,
+  .auth-lane,
+  .auth-scene-glow,
+  .auth-line {
+    animation: none;
+  }
+  .auth-car {
+    display: none;
+  }
+}
