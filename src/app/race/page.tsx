@@ -6,6 +6,7 @@ import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
+import { RaceBannerStats } from "@/components/race/RaceBannerStats";
 import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -135,6 +136,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           // The race's own photos only: no circuit photo stands in for a race that has none.
           photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? null}
           keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
+          stats={<RaceBannerStats race={race} highlights={highlights} forecast={calendarEntry?.weatherForecast} />}
           actions={
             <RaceMoreMenu
               race={race}
@@ -151,7 +153,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         <div className="mt-12">
           <SeasonRaceDashboard
             race={race}
-            highlights={highlights}
             calendarEntry={calendarEntry}
             trackHistory={trackHistory}
             circuitTimeline={circuitTimeline}

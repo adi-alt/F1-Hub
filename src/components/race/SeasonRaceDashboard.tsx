@@ -18,10 +18,9 @@ import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
-import { formatLapTime } from "@/lib/format";
 import { teamColor } from "@/lib/teamColors";
-import type { RaceHighlights } from "@/lib/highlights";
 import type { RaceDoc } from "@/lib/types/race";
+import { InViewMount } from "@/components/motion/InViewMount";
 import { ModelInfo } from "./ModelInfo";
 import { ModelOutlook } from "./ModelOutlook";
 import { RaceClassification } from "./RaceClassification";
@@ -44,7 +43,6 @@ import { useSeasonLaps } from "@/hooks/useSeasonLaps";
  * data is real. */
 export function SeasonRaceDashboard({
   race,
-  highlights,
   calendarEntry,
   trackHistory,
   circuitTimeline,
@@ -53,7 +51,6 @@ export function SeasonRaceDashboard({
   photos = [],
 }: {
   race: RaceDoc;
-  highlights: RaceHighlights | null;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
   // has no row for, real or absent, never fabricated.
   calendarEntry?: CalendarEntry | null;
@@ -157,16 +154,6 @@ export function SeasonRaceDashboard({
     isCompleted && first
       ? `${first.driverName} won${second?.finishGapSec ? ` by ${second.finishGapSec.toFixed(3)}s` : ""}${second && third ? `, ahead of ${second.driverName} and ${third.driverName}` : ""}.`
       : undefined;
-  // The race in four numbers, under the result, as plain figures rather than four boxed tiles.
-  const raceNumbers =
-    isCompleted && highlights
-      ? [
-          { label: "Pole", value: nameOf(highlights.poleSitter) },
-          { label: "Fastest lap", value: highlights.fastestLap ? `${nameOf(highlights.fastestLap.driver)} · ${formatLapTime(highlights.fastestLap.timeSec)}` : "–" },
-          { label: "Biggest climb", value: highlights.biggestGainer ? `${nameOf(highlights.biggestGainer.driver)} +${highlights.biggestGainer.positionsGained}` : "–" },
-          { label: "Retirements", value: String(highlights.dnfs.length) },
-        ]
-      : null;
 
   const analysis = hasSessionAnalysis && (
     <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
@@ -183,20 +170,20 @@ export function SeasonRaceDashboard({
             <RaceSubSection label="Practice" first>
               {/* Merged, not `inputs ?? results`: race_inputs can be a few drivers short of the full field while
                   race_results already has everyone. Same driver in both resolves to the same name either way. */}
-              <PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} />
+              <InViewMount><PracticeSummary practice={race.practice!} roster={[...(race.inputs ?? []), ...(race.results ?? [])]} /></InViewMount>
             </RaceSubSection>
           )}
           {showQualifyingSlot && (
             <div id="qualifying">
               <RaceSubSection label="Qualifying" description="Gap to pole across the field." first={!showPracticeSlot}>
-                <QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} />
+                <InViewMount><QualifyingGapChart inputs={race.inputs!} driverSet={driverSet} customIds={customDriverIds} /></InViewMount>
               </RaceSubSection>
             </div>
           )}
           {hasStrategy && (
             <div id="strategy">
               <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths." first={!showPracticeSlot && !showQualifyingSlot}>
-                <TireStintTimeline stints={race.tireStints!} results={race.results ?? []} driverSet={driverSet} customIds={customDriverIds} />
+                <InViewMount><TireStintTimeline stints={race.tireStints!} results={race.results ?? []} driverSet={driverSet} customIds={customDriverIds} /></InViewMount>
               </RaceSubSection>
             </div>
           )}
@@ -210,7 +197,7 @@ export function SeasonRaceDashboard({
           {hasPositionChanges && (
             <div id="race-performance">
               <RaceSubSection label="Places gained and lost" description="Starting grid compared with the finish." first={!hasPractice && !hasQualifying && !hasStrategy && !hasLapChart}>
-                <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
+                <InViewMount><PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} /></InViewMount>
               </RaceSubSection>
             </div>
           )}
@@ -233,23 +220,10 @@ export function SeasonRaceDashboard({
           <>
             <RaceSectionCard id="results" title="Result" description={resultHeadline} bare>
               <RaceClassification results={race.results!} stints={race.tireStints} preliminary={preliminary} />
-              {raceNumbers && (
-                <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-                  {raceNumbers.map((n) => (
-                    <div key={n.label} className="min-w-0">
-                      <dt className="text-caption text-secondary">{n.label}</dt>
-                      <dd className="mt-1 truncate text-body-sm font-medium tabular text-primary">{n.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
             </RaceSectionCard>
 
       <section aria-label="About this race">
               <RaceRail
-                completed={isCompleted}
-                weather={race.weather}
-                forecast={calendarEntry?.weatherForecast}
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
               />
             </section>
@@ -266,7 +240,7 @@ export function SeasonRaceDashboard({
             {/* The pre-race simulation, kept for comparison with what happened. */}
             {race.simulation && (
               <RaceSectionCard id="simulation" title="What the model expected" description="10,000 simulated races from the grid, race pace and retirement odds, frozen before the start.">
-                <SimulationPanel simulation={race.simulation} />
+                <InViewMount><SimulationPanel simulation={race.simulation} /></InViewMount>
               </RaceSectionCard>
             )}
             {communities}
@@ -282,9 +256,6 @@ export function SeasonRaceDashboard({
 
       <section aria-label="About this race">
               <RaceRail
-                completed={isCompleted}
-                weather={race.weather}
-                forecast={calendarEntry?.weatherForecast}
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
               />
             </section>

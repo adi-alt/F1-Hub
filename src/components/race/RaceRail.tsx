@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { CloudRain, Sun } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Icon } from "@/components/ui/Icon";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Surface } from "@/components/ui/Surface";
 import { tiltProps } from "@/components/motion/useTilt";
@@ -9,8 +7,6 @@ import { groupHref } from "@/lib/routes";
 import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import type { PredictionAccuracy } from "@/lib/predictionAccuracy";
-import type { WeatherForecast } from "@/lib/supabase/calendar";
-import type { SessionWeather } from "@/lib/types/race";
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -32,34 +28,6 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Conditions({ weather, forecast }: { weather?: SessionWeather | null; forecast?: WeatherForecast | null }) {
-  if (weather) {
-    return (
-      <Block title="Race conditions">
-        <div className="flex items-center gap-3">
-          <Icon icon={weather.rainfall ? CloudRain : Sun} size={24} className="text-secondary" />
-          <p className="text-title-md tabular text-primary">{Math.round(weather.airTempC)}°C</p>
-        </div>
-        <Row label="Track" value={`${Math.round(weather.trackTempC)}°C`} />
-        <Row label="Humidity" value={`${Math.round(weather.humidityPct)}%`} />
-        <Row label="Rain" value={weather.rainfall ? "Yes" : "Dry"} />
-      </Block>
-    );
-  }
-  if (forecast) {
-    return (
-      <Block title="Forecast for race day">
-        <div className="flex items-center gap-3">
-          <Icon icon={forecast.rainProbability >= 0.4 ? CloudRain : Sun} size={24} className="text-secondary" />
-          <p className="text-title-md tabular text-primary">{Math.round(forecast.airTempC)}°C</p>
-        </div>
-        <Row label="Chance of rain" value={`${Math.round(forecast.rainProbability * 100)}%`} />
-        <ProvenanceLine className="mt-2" source={forecast.source === "openweathermap" ? "OpenWeatherMap forecast" : "Typical weather here"} status={forecast.source === "openweathermap" ? undefined : "no live forecast yet"} />
-      </Block>
-    );
-  }
-  return null;
-}
 
 /** Whether "You at <circuit>" has anything to show (the race banner's ⋯ menu offers it only then). */
 export function hasYourRecord(personal: PersonalRaceContext) {
@@ -135,26 +103,16 @@ function Communities({ communities }: { communities: RaceCommunityCard[] }) {
 }
 
 /**
- * The race page's rail (spec §3.4): conditions and the communities predicting the race. Your record here and how
+ * The race page's rail (spec §3.4): the communities predicting the race. Conditions sit in the banner
+ * (RaceBannerStats). Your record here and how
  * the model did live in the race banner's ⋯ menu (RaceMoreMenu); the countdown and the winner in the header.
  */
-export function RaceRail({
-  completed,
-  weather,
-  forecast,
-  communities,
-}: {
-  completed: boolean;
-  weather?: SessionWeather | null;
-  forecast?: WeatherForecast | null;
-  communities: RaceCommunityCard[];
-}) {
-  if (!weather && (completed || !forecast) && communities.length === 0) return null;
+export function RaceRail({ communities }: { communities: RaceCommunityCard[] }) {
+  if (communities.length === 0) return null;
   return (
     // One compact row in the page's own column (the owner asked for no right-hand rail): up to three short
     // blocks side by side from sm, stacked on a phone.
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {completed ? <Conditions weather={weather} /> : <Conditions weather={weather} forecast={forecast} />}
       <Communities communities={communities} />
     </div>
   );
