@@ -258,7 +258,7 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
 
         {/* The keyboard, touch and screen-reader way in: one real, 32px button per race weekend. The strip
             above is hover-only (its cells are 9-18px). */}
-        <ul aria-label="Open a race weekend" className="mt-4 flex flex-wrap gap-1.5">
+        <ul aria-label="Open a race weekend" className="mt-4 flex flex-wrap justify-center gap-1.5">
           {raceSummaries.map((r) => (
             <li key={r.round}>
               <button

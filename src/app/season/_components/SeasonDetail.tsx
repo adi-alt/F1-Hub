@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
-import { RoundStrip } from "./RoundStrip";
+import { SeasonScrubber } from "./SeasonScrubber";
 import { AnalysisWorkspace } from "./AnalysisWorkspace";
 import { ChampionshipStandings } from "./ChampionshipStandings";
 import { SeasonCalendar } from "./SeasonCalendar";
@@ -131,9 +131,9 @@ export function SeasonDetail({
             )}
           </div>
 
-          <div className="mt-4 flex items-center gap-3">
-            <RoundStrip year={year} raceSummaries={raceSummaries} />
-            <p className="shrink-0 text-[11px] tabular-nums text-tertiary">
+          <div className="mt-4 flex items-start gap-3">
+            <SeasonScrubber year={year} raceSummaries={raceSummaries} />
+            <p className="mt-3 shrink-0 text-[11px] tabular-nums text-tertiary">
               {status === "ongoing" ? (
                 <>
                   <span className="font-medium text-neutral-300">
