@@ -24,7 +24,7 @@ test("a completed round: winner and start, lead changes, the decisive pass, the 
   assert.deepEqual(s.lines, [
     "The lead changed hands 2 times: 1 pass on track, 1 pit-stop change.",
     "The last lead change on track: Charles Leclerc passed Kimi Antonelli on lap 1, between Turn 18 and Turn 1.",
-    "Fastest lap: Charles Leclerc, 87.512s.",
+    "Fastest lap: Charles Leclerc, 1:27.512.",
   ]);
 });
 
@@ -40,7 +40,7 @@ test("no turn is named for an approximate pass, and no story means no invented l
 test("an upcoming or cancelled round", () => {
   const up = roundStory(race({ state: "upcoming", results: [], forecast: { airTempC: 18.4, rainProbability: 0.3, source: "openweathermap" } as never }), null, { lengthKm: 5.891, turns: 18, trackType: "permanent", lapRecord: { timeSec: 85.093, driverName: "Max Verstappen", year: 2020 } } as never, 12);
   assert.equal(up.headline, "British Grand Prix, round 9. In 12 days.");
-  assert.deepEqual(up.lines, ["5.891 km, 18 turns.", "The lap record: 85.093s by Max Verstappen, 2020.", "18°C expected, 30% chance of rain."]);
+  assert.deepEqual(up.lines, ["5.891 km, 18 turns.", "The lap record: 1:25.093 by Max Verstappen, 2020.", "18°C expected, 30% chance of rain."]);
   assert.equal(roundStory(race({ weekendStatus: "cancelled" }), null, null, null).headline, "British Grand Prix was cancelled.");
 });
 

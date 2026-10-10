@@ -1,23 +1,30 @@
-import { PageContainer } from "@/components/ui/PageContainer";
-import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 
-// A circuit's own page (CircuitDetailPage): the hero with the circuit's name and facts, the track
-// experience grid, then its history - not the circuits explorer's grid, which circuits/loading.tsx
-// is for (audit UI-35).
+// The circuit page's own outline (CircuitDetailPage): breadcrumb, name, the answer beside the circuit's figures,
+// then the race story. Same container and spacing as the page (spec §9: the skeleton matches the final geometry).
 export default function CircuitLoading() {
   return (
-    <PageContainer className="py-8">
-      <SkeletonGroup label="Loading the circuit">
-        <Skeleton shape="block" className="h-9 w-2/5 max-w-sm" />
-        <Skeleton shape="text" className="mt-3 w-1/3 max-w-xs" />
-        <Skeleton shape="block" className="mt-6 aspect-[21/8] w-full" />
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <Skeleton shape="block" className="h-56" />
-          <Skeleton shape="block" className="h-56" />
-          <Skeleton shape="block" className="h-56" />
+    <div role="status" className="page-content skeleton-delay py-8">
+      <span className="sr-only">Loading the circuit</span>
+      <div className="mb-12 grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-12">
+        <div>
+          <Skeleton shape="block" className="h-4 w-40" />
+          <Skeleton shape="block" className="mt-3 h-14 w-4/5" />
+          <Skeleton shape="block" className="mt-3 h-4 w-64" />
+          <Skeleton shape="block" className="mt-8 h-3 w-40" />
+          <Skeleton shape="block" className="mt-2 h-7 w-72" />
         </div>
-        <Skeleton shape="block" className="mt-8 h-64" />
-      </SkeletonGroup>
-    </PageContainer>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:border-l lg:border-subtle lg:pl-12">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i}>
+              <Skeleton shape="block" className="h-3 w-16" />
+              <Skeleton shape="block" className="mt-2 h-5 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <Skeleton shape="block" className="h-6 w-64" />
+      <Skeleton shape="block" className="mt-4 h-[28rem] w-full rounded-card" />
+    </div>
   );
 }
