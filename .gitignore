@@ -59,3 +59,20 @@ supabase/.temp/
 
 # Visual baselines are recorded on CI (Linux); local macOS runs write their own, which are not the baseline.
 e2e/**/*-darwin.png
+
+# docs/audit: the M0 audit. Only the design and UI documents are in the repo (it's public); these describe
+# security findings, auth wiring or operational weaknesses, so they stay local.
+docs/audit/README.md
+docs/audit/ARCHITECTURE_MAP.md
+docs/audit/AUDIT_COVERAGE.md
+docs/audit/BACKEND_DATA_AND_SECURITY_AUDIT.md
+docs/audit/DECISIONS_AND_OPEN_QUESTIONS.md
+docs/audit/EXECUTIVE_SUMMARY.md
+docs/audit/FEATURE_GAP_ANALYSIS.md
+docs/audit/LLM_AI_AUDIT.md
+docs/audit/M0_IMPLEMENTATION_STATUS.md
+docs/audit/PERFORMANCE_TESTING_AND_OPERATIONS.md
+docs/audit/PRIORITIZED_ROADMAP.md
+docs/audit/RLS_LOCKDOWN_CHECKLIST.md
+docs/audit/ROUTE_AND_COMPONENT_INVENTORY.md
+docs/audit/UI_CRITIQUE_AND_REDESIGN.md
