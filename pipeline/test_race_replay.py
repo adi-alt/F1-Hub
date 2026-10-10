@@ -35,4 +35,24 @@ assert back_header["stepBytes"] == [len(steps["LEC"]), len(steps["HAM"])]
 for c, v in cars.items():
     assert np.array_equal(back[c], np.round(v).astype(np.int64)), (c, back[c])
 
+# --- deterministic output, content-hashed publishing, old files kept -----------------------------------------------
+import json, tempfile
+from pathlib import Path
+blob = rr.pack(header, steps)
+assert blob == rr.pack(header, steps), "identical data gives identical bytes (no timestamp in the gzip header)"
+with tempfile.TemporaryDirectory() as tmp:
+    pub, man = Path(tmp) / "public" / "replays", Path(tmp) / "src" / "data" / "replays.json"
+    e1 = rr.publish(blob, "2026-9", pub, man)
+    assert e1["file"].startswith("/replays/2026-9.") and e1["file"].endswith(".bin") and e1["sha256"][:8] in e1["file"]
+    assert (pub / e1["file"].split("/")[-1]).read_bytes() == blob and e1["bytes"] == len(blob)
+    assert rr.publish(blob, "2026-9", pub, man) == e1 and len(list(pub.iterdir())) == 1, "the same content again: a no-op"
+    steps2 = {**steps, "HAM": rr.encode_steps(np.array([-20.0, 9.0, 38.0, 60.0, 90.0, 120.0]))}
+    e2 = rr.publish(rr.pack(header, steps2), "2026-9", pub, man)
+    assert e2["file"] != e1["file"], "new content, new name"
+    assert (pub / e1["file"].split("/")[-1]).exists(), "the old file is kept for visitors on an older deployment"
+    manifest = json.loads(man.read_text())
+    assert manifest["2026-9"] == e2 and manifest["2026-9"]["version"] == rr.REPLAY_VERSION
+    rr.publish(blob, "2018-12", pub, man)
+    assert list(json.loads(man.read_text())) == ["2018-12", "2026-9"], "ordered by season and round, numerically"
+
 print("race_replay: all checks passed")

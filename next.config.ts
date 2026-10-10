@@ -22,6 +22,16 @@ export const SECURITY_HEADERS = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
 ];
 
+/** Race replay files (public/replays/, pipeline/race_replay.py). Each name carries a hash of its content, so a file
+ * never changes: browsers and the CDN may keep it for a year without asking again (`immutable` - a repeat view makes
+ * no request at all). Next.js otherwise sends public/ files with `max-age=0`, a revalidation on every view.
+ * The bytes are gzip that the browser decompresses itself (loadReplay), so they go out as plain binary: never with
+ * Content-Encoding, or the browser would decompress them first. */
+export const REPLAY_HEADERS = [
+  { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+  { key: "Content-Type", value: "application/octet-stream" },
+];
+
 /**
  * A Content-Security-Policy in REPORT-ONLY mode (audit R-24): the browser reports what the policy would
  * have blocked, and blocks nothing, so the policy can be tightened from real reports instead of by guess.
@@ -63,6 +73,7 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [...SECURITY_HEADERS, { key: "Content-Security-Policy-Report-Only", value: cspReportOnly(process.env.NEXT_PUBLIC_SENTRY_DSN) }],
       },
+      { source: "/replays/:file", headers: REPLAY_HEADERS },
     ];
   },
   images: {

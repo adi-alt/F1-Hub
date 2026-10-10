@@ -29,6 +29,8 @@ import { PositionChangesPanel, type PositionChangeEntry } from "@/components/rac
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
 import type { CircuitLayout } from "@/lib/circuitLayout";
+import type { ReplayEntry } from "@/lib/replayManifest";
+import { ReplaySection } from "@/components/raceDetail/ReplaySection";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
@@ -81,6 +83,7 @@ export function ArchiveRaceDashboard({
   raceCommunities,
   trackStory = null,
   layout = null,
+  replay = null,
 }: {
   race: ArchiveRaceDoc;
   circuit: ArchiveCircuit | null;
@@ -96,6 +99,8 @@ export function ArchiveRaceDashboard({
   trackStory?: RaceTrackStory | null;
   // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
   layout?: CircuitLayout | null;
+  // This race's replay file (src/data/replays.json), or null: no replay section at all.
+  replay?: ReplayEntry | null;
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -337,6 +342,12 @@ export function ArchiveRaceDashboard({
             </RaceSectionCard>
           </DriverSetTabs>
         </motion.div>
+      )}
+
+      {replay && (
+        <RaceSectionCard id="replay" title="Race replay">
+          <ReplaySection entry={replay} />
+        </RaceSectionCard>
       )}
 
       {simulation && (

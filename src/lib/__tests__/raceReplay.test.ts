@@ -84,3 +84,71 @@ test("lap counter and track status", () => {
   assert.equal(statusAt(r.header, 2), "vsc");
   assert.equal(statusAt(r.header, 3), "clear");
 });
+
+// --- loading: missing, corrupted, already decompressed, cancelled -------------------------------------------------
+import { gzipSync } from "node:zlib";
+import { isAbortError, loadReplay, ReplayUnavailableError } from "../raceReplay";
+
+async function withFetch(impl: typeof fetch, run: () => Promise<void>) {
+  const saved = globalThis.fetch;
+  globalThis.fetch = impl;
+  try {
+    await run();
+  } finally {
+    globalThis.fetch = saved;
+  }
+}
+const plain = new Uint8Array(build({ LEC: [0, 30, 60], HAM: [-8, 20, 50] }));
+
+test("loads a gzipped replay", async () => {
+  await withFetch(async () => new Response(gzipSync(plain)), async () => {
+    const r = await loadReplay("/replays/x.bin");
+    assert.deepEqual([...r.distances.LEC], [0, 30, 60]);
+  });
+});
+
+test("loads a replay the network already decompressed (Content-Encoding: gzip), without decompressing it twice", async () => {
+  await withFetch(async () => new Response(plain), async () => {
+    const r = await loadReplay("/replays/x.bin");
+    assert.deepEqual([...r.distances.HAM], [-8, 20, 50]);
+  });
+});
+
+test("a missing file (404) is 'unavailable', not a crash", async () => {
+  await withFetch(async () => new Response("not found", { status: 404 }), async () => {
+    await assert.rejects(loadReplay("/replays/gone.bin"), (e) => e instanceof ReplayUnavailableError && /404/.test(e.message));
+  });
+});
+
+test("corrupted gzip data is 'unavailable'", async () => {
+  const bad = gzipSync(plain);
+  bad[bad.length - 12] ^= 0xff; // flip bits inside the compressed stream
+  await withFetch(async () => new Response(bad), async () => {
+    await assert.rejects(loadReplay("/replays/x.bin"), ReplayUnavailableError);
+  });
+  await withFetch(async () => new Response(Uint8Array.from([0x1f, 0x8b, 1, 2, 3])), async () => {
+    await assert.rejects(loadReplay("/replays/x.bin"), ReplayUnavailableError, "a truncated gzip");
+  });
+});
+
+test("a network failure is 'unavailable'", async () => {
+  await withFetch(async () => { throw new TypeError("fetch failed"); }, async () => {
+    await assert.rejects(loadReplay("/replays/x.bin"), ReplayUnavailableError);
+  });
+});
+
+test("a cancelled load rejects as an abort, never as 'unavailable'", async () => {
+  const ac = new AbortController();
+  await withFetch(
+    (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")));
+      }),
+    async () => {
+      const p = loadReplay("/replays/x.bin", ac.signal);
+      ac.abort();
+      await assert.rejects(p, (e) => isAbortError(e) && !(e instanceof ReplayUnavailableError));
+    },
+  );
+  assert.equal(isAbortError(new ReplayUnavailableError("x")), false);
+});

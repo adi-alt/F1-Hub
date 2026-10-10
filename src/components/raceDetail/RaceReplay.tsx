@@ -20,11 +20,12 @@ function clock(s: number): string {
  * player. Positions are interpolated between the replay's two samples a second. A car in the pits is drawn faded
  * beside the track (the pit lane's own line isn't traced); a retired car disappears.
  */
-export function RaceReplay({ replay }: { replay: Replay }) {
+export function RaceReplay({ replay, autoPlay = false }: { replay: Replay; autoPlay?: boolean }) {
   const { header } = replay;
   const reduceMotion = useReducedMotion();
   const [t, setT] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  // Starts playing when it was opened by pressing Play - unless the visitor prefers reduced motion.
+  const [playing, setPlaying] = useState(() => autoPlay && !(typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
   const [speed, setSpeed] = useState(16);
   const last = useRef<number | null>(null);
 
@@ -108,8 +109,7 @@ export function RaceReplay({ replay }: { replay: Replay }) {
 
   return (
     <section aria-label="Race replay" className="rounded-control focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/25" tabIndex={0} onKeyDown={onKey}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Race replay</p>
+      <div className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
         <p className="text-caption tabular text-tertiary" aria-live="off">
           Lap {lap}
           {header.totalLaps ? `/${header.totalLaps}` : ""} · {clock(elapsed)}

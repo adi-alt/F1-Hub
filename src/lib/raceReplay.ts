@@ -68,12 +68,44 @@ export function decodeReplay(buf: ArrayBuffer): Replay {
   return { header, distances };
 }
 
-/** Fetches and decodes a replay file (gzipped), with the browser's own decompressor. */
+/** A replay that can't be played: missing (404), unreadable or in an unknown format. The page shows the race
+ * without it; it's never a crash. */
+export class ReplayUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReplayUnavailableError";
+  }
+}
+
+/** A load cancelled on purpose (the visitor left, or pressed Play again): not an error worth showing. */
+export function isAbortError(e: unknown): boolean {
+  return e instanceof DOMException ? e.name === "AbortError" : (e as { name?: string })?.name === "AbortError";
+}
+
+/** Fetches and decodes a replay file. The file is gzip bytes served as application/octet-stream - no
+ * Content-Encoding - and decompressed here with the browser's own DecompressionStream. If something on the way
+ * ever does set Content-Encoding: gzip, the browser has already decompressed it: the gzip magic bytes (1f 8b) are
+ * checked first, so it isn't decompressed twice. A cancelled load rejects with an AbortError (see isAbortError);
+ * anything else that goes wrong is a ReplayUnavailableError. */
 export async function loadReplay(url: string, signal?: AbortSignal): Promise<Replay> {
-  const res = await fetch(url, { signal });
-  if (!res.ok || !res.body) throw new Error(`replay ${res.status}`);
-  const stream = res.body.pipeThrough(new DecompressionStream("gzip"));
-  return decodeReplay(await new Response(stream).arrayBuffer());
+  let bytes: ArrayBuffer;
+  try {
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new ReplayUnavailableError(`replay ${res.status}`);
+    bytes = await res.arrayBuffer();
+  } catch (e) {
+    if (isAbortError(e) || e instanceof ReplayUnavailableError) throw e;
+    throw new ReplayUnavailableError(`replay could not be fetched: ${(e as Error)?.message ?? e}`);
+  }
+  const head = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
+  const gzipped = head[0] === 0x1f && head[1] === 0x8b;
+  try {
+    const raw = gzipped ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer() : bytes;
+    return decodeReplay(raw);
+  } catch (e) {
+    if (isAbortError(e)) throw e;
+    throw new ReplayUnavailableError(`replay is unreadable: ${(e as Error)?.message ?? e}`);
+  }
 }
 
 /** A car's distance at a fractional sample: interpolated between the two samples either side. */

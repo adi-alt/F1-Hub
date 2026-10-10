@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import struct
+from pathlib import Path
 import os
 import sys
 
@@ -102,7 +104,9 @@ def pack(replay: dict, steps: dict[str, bytes]) -> bytes:
     (their byte lengths are in the header). The browser reads it with DecompressionStream - no library."""
     header = {**replay, "stepBytes": [len(steps[c["code"]]) for c in replay["cars"]]}
     h = json.dumps(header, separators=(",", ":")).encode()
-    return gzip.compress(struct.pack("<I", len(h)) + h + b"".join(steps[c["code"]] for c in replay["cars"]), 9)
+    # mtime=0: gzip otherwise stamps the current time into the file, so rebuilding identical data would give new bytes
+    # - and a new content-hashed filename - every time.
+    return gzip.compress(struct.pack("<I", len(h)) + h + b"".join(steps[c["code"]] for c in replay["cars"]), 9, mtime=0)
 
 
 def unpack(blob: bytes) -> tuple[dict, dict[str, np.ndarray]]:
@@ -204,12 +208,45 @@ def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]
     return {"header": replay, "steps": steps, "distances": dist}, {"cars": len(cars), "minutes": round(len(grid) / REPLAY_HZ / 60, 1), "pits": len(pits), "retired": len(retired)}
 
 
+REPO = Path(__file__).resolve().parent.parent
+PUBLIC_DIR = REPO / "public" / "replays"
+MANIFEST = REPO / "src" / "data" / "replays.json"
+
+
+def replay_key(year: int, round_num: int) -> str:
+    """How a replay is found: by season and round, which both current-season and archive race pages know (their race
+    ids come from different tables)."""
+    return f"{year}-{round_num}"
+
+
+def publish(blob: bytes, key: str, public_dir: Path = PUBLIC_DIR, manifest_path: Path = MANIFEST) -> dict:
+    """Writes the replay as public/replays/<key>.<sha256[:8]>.bin and points the manifest at it.
+
+    The name changes whenever the content does, so the file can be cached forever (immutable). An older file for the
+    same race is never deleted here: a visitor still on an earlier deployment may request it, and it must keep
+    working. Old files are removed by a later, deliberate cleanup. Writing the same content twice is a no-op."""
+    sha = hashlib.sha256(blob).hexdigest()
+    name = f"{key}.{sha[:8]}.bin"
+    public_dir.mkdir(parents=True, exist_ok=True)
+    target = public_dir / name
+    if not target.exists():
+        target.write_bytes(blob)
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    entry = {"file": f"/replays/{name}", "bytes": len(blob), "sha256": sha, "version": REPLAY_VERSION}
+    manifest[key] = entry
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(dict(sorted(manifest.items(), key=lambda kv: [int(x) for x in kv[0].split("-")])), indent=2) + "\n")
+    return entry
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--year", type=int, required=True)
     ap.add_argument("--round", type=int, required=True)
     ap.add_argument("--date", help="the race date, to match the archive session (recommended)")
-    ap.add_argument("--out", required=True)
+    dest = ap.add_mutually_exclusive_group(required=True)
+    dest.add_argument("--out", help="write the file here only (for a look)")
+    dest.add_argument("--publish", action="store_true", help="write it into public/replays/ and src/data/replays.json")
     args = ap.parse_args()
     path = ts.session_path(args.year, args.round, args.date)
     if path is None:
@@ -236,12 +273,17 @@ def main() -> int:
     if replay is None:
         return 0
     blob = pack(replay["header"], replay["steps"])
-    with open(args.out, "wb") as f:
-        f.write(blob)
-    # Round trip: what the browser will decode must be exactly what was built.
+    # Round trip: what the browser will decode must be exactly what was built - or nothing is written.
     _, back = unpack(blob)
-    exact = all(np.array_equal(back[c], np.round(v).astype(np.int64)) for c, v in replay["distances"].items())
-    print(f"saved {args.out}: {len(blob) / 1e3:.0f} KB (gzipped binary); round trip exact: {exact}")
+    if not all(np.array_equal(back[c], np.round(v).astype(np.int64)) for c, v in replay["distances"].items()):
+        print("round trip failed: not written", file=sys.stderr)
+        return 1
+    if args.out:
+        Path(args.out).write_bytes(blob)
+        print(f"saved {args.out}: {len(blob) / 1e3:.0f} KB")
+    else:
+        entry = publish(blob, replay_key(args.year, args.round))
+        print(f"published {entry['file']} ({entry['bytes'] / 1e3:.0f} KB) -> {MANIFEST.relative_to(REPO)}")
     return 0
 
 
