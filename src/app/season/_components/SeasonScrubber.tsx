@@ -213,7 +213,7 @@ export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSumm
       </div>
 
       {showDetail ? (
-        <div aria-hidden className="pointer-events-none absolute top-full z-popover mt-1 w-72 -translate-x-1/2 rounded-card border border-subtle bg-surface-2 px-4 py-3 shadow-overlay" style={{ left: `${detailLeft}%` }}>
+        <div aria-hidden className="pointer-events-none absolute top-full z-popover mt-1 w-72 -translate-x-1/2 rounded-card surface-glass px-4 py-3 shadow-overlay" style={{ left: `${detailLeft}%` }}>
           <div className="flex items-baseline justify-between gap-3 text-caption">
             <span className="tabular text-secondary">
               Round {r.round}

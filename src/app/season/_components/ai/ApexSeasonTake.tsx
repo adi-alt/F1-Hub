@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Typewriter } from "@/components/motion/Typewriter";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
 import { Eyebrow } from "./SeasonInsight";
 import { useSeasonIntelligence } from "./SeasonIntelligenceProvider";
@@ -53,7 +54,9 @@ export function ApexSeasonTake({ personal }: { personal: PersonalSeasonContext }
     >
       <Eyebrow>Apex season take</Eyebrow>
       <h2 className="mt-2.5 max-w-3xl text-balance text-xl font-semibold leading-[1.25] tracking-[-0.01em] text-white sm:text-[26px]">{story.headline}</h2>
-      <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-neutral-400">{story.summary}</p>
+      <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-neutral-400">
+        <Typewriter text={story.summary} msPerChar={14} />
+      </p>
 
       {story.themes.length > 0 && (
         <p className="mt-3.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-tertiary">
