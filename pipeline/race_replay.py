@@ -8,7 +8,7 @@ in whole metres - the circuit's shape is already in the race's story, so the bro
 from how far round the lap it is, and the running order is just who has gone furthest. Sampled at REPLAY_HZ,
 stored as the change since the previous sample - one byte each (an escape for the rare bigger pit-lane jump) -
 in one gzipped binary file with a small JSON header (pack/unpack). Measured on the 2026 British GP: an 88-minute
-race, 22 cars, from a 12.7 MB position feed to 152 KB, outline included.
+race, 22 cars, from a 12.7 MB position feed to 152 KB at two samples a second, ~75 KB at one (REPLAY_HZ).
 
 What it can't show: the pit lane's own line (a car in the pits is drawn on the track beside it, and marked in the
 pits), or two cars side by side (they're one distance apart, not two lines).
@@ -33,7 +33,10 @@ import numpy as np
 import race_track_story as ts
 
 REPLAY_VERSION = 1
-REPLAY_HZ = 2
+# One sample a second: the browser interpolates between samples, so motion stays smooth, and a race is ~75 KB
+# (2 a second was ~150 KB). An overtake is timed to within half a second.
+REPLAY_HZ = 1
+MIN_COVERAGE = 0.9  # the median car's samples must span this share of the race
 TAIL_S = 30  # keep a little after the flag: the last cars crossing the line
 # TrackStatus codes F1 uses in the feed.
 TRACK_STATUS = {"1": "clear", "2": "yellow", "4": "sc", "5": "red", "6": "vsc", "7": "vsc_ending"}
@@ -149,7 +152,7 @@ def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]
                 d = drivers.setdefault(car, {})
                 d.update({k: v[k] for k in ("Tla", "TeamName", "TeamColour", "FullName") if v.get(k)})
     grid = np.arange(start, end, 1 / REPLAY_HZ)
-    cars, dist = [], {}
+    cars, dist, coverage = [], {}, []
     for car, info in sorted(drivers.items(), key=lambda kv: int(kv[0])):
         tr = tracks.get(car)
         if tr is None or "Tla" not in info:
@@ -157,9 +160,15 @@ def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]
         t, s = distance_since_start(tr, outline, start, end)
         if len(t) < 10:
             continue
+        # A car's samples must cover the race: a feed that stops early (2026 Monaco's ends 5 minutes in) would leave
+        # the car frozen for the rest of the replay.
+        coverage.append(min(1.0, (t[-1] - start) / (end - start)))
         cars.append({"code": info["Tla"], "number": car, "team": info.get("TeamName"), "color": f"#{info['TeamColour']}" if info.get("TeamColour") else None, "name": info.get("FullName")})
         # Before a car's first sample or after its last (retired, garage): hold the nearest - np.interp does.
         dist[info["Tla"]] = despike(np.interp(grid, t, s))
+
+    if not coverage or float(np.median(coverage)) < MIN_COVERAGE:
+        return None, {"rejected": f"position data covers only {np.median(coverage or [0]):.0%} of the race"}
 
     # Pit stops and retirements, from the timing feed, as sample indexes.
     pits, retired, in_pit = [], {}, {}
@@ -232,52 +241,108 @@ def publish(blob: bytes, key: str, public_dir: Path = PUBLIC_DIR, manifest_path:
     if not target.exists():
         target.write_bytes(blob)
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
-    entry = {"file": f"/replays/{name}", "bytes": len(blob), "sha256": sha, "version": REPLAY_VERSION}
+    entry = {"file": f"/replays/{name}", "bytes": len(blob), "sha256": sha, "version": REPLAY_VERSION, "hz": REPLAY_HZ}
     manifest[key] = entry
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(dict(sorted(manifest.items(), key=lambda kv: [int(x) for x in kv[0].split("-")])), indent=2) + "\n")
     return entry
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--year", type=int, required=True)
-    ap.add_argument("--round", type=int, required=True)
-    ap.add_argument("--date", help="the race date, to match the archive session (recommended)")
-    dest = ap.add_mutually_exclusive_group(required=True)
-    dest.add_argument("--out", help="write the file here only (for a look)")
-    dest.add_argument("--publish", action="store_true", help="write it into public/replays/ and src/data/replays.json")
-    args = ap.parse_args()
-    path = ts.session_path(args.year, args.round, args.date)
+def build_one(year: int, round_num: int, race_date: str | None) -> tuple[bytes | None, str]:
+    """One race's replay file, or None with why. Uses the race's own traced track, or the same weekend's qualifying
+    when the race's positions can't trace it (as race_track_story's backfill does). Round-trip checked."""
+    path = ts.session_path(year, round_num, race_date)
     if path is None:
-        print("no archive session")
-        return 0
+        return None, "no archive session"
     feeds = ts.fetch_feeds(path)
     if feeds is None:
-        print("a feed is missing")
-        return 0
+        return None, "a feed is missing"
     for name in ("SessionStatus.jsonStream", "TrackStatus.jsonStream", "LapCount.jsonStream"):
         resp = ts._get(f"{ts.LIVETIMING}{path}{name}")
         if resp is None:
-            print(f"{name} missing")
-            return 0
+            return None, f"{name} missing"
         feeds[name] = resp.content.decode("utf-8-sig")
     info = json.loads(feeds["SessionInfo.json"])
-    corners, rotation = ts.fetch_circuit(int(info["Meeting"]["Circuit"]["Key"]), args.year)
-    story, diag = ts.build_story(feeds, corners, rotation, None)
+    corners, rotation = ts.fetch_circuit(int(info["Meeting"]["Circuit"]["Key"]), year)
+    quali = ts.qualifying_path(year, path)
+    story, diag = ts.build_story(feeds, corners, rotation, None, (lambda: ts.trace_session(quali)) if quali else None)
     if story is None:
-        print("no story:", diag)
-        return 0
+        return None, f"no traced track: {diag.get('rejected')}"
     replay, rdiag = build_replay(feeds, story)
-    print(json.dumps(rdiag))
     if replay is None:
-        return 0
+        return None, str(rdiag.get("rejected"))
     blob = pack(replay["header"], replay["steps"])
-    # Round trip: what the browser will decode must be exactly what was built - or nothing is written.
     _, back = unpack(blob)
     if not all(np.array_equal(back[c], np.round(v).astype(np.int64)) for c, v in replay["distances"].items()):
-        print("round trip failed: not written", file=sys.stderr)
-        return 1
+        return None, "round trip failed"
+    return blob, f"{rdiag['cars']} cars, {rdiag['minutes']} min"
+
+
+def backfill(races: list[tuple[int, int, str | None]], manifest_path: Path = MANIFEST, dry_run: bool = False) -> tuple[int, list[str]]:
+    """Builds and publishes every race in `races` whose manifest entry is missing or older (another format or sample
+    rate). One race failing never stops the rest. Returns (published, report lines)."""
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    done, report = 0, []
+    for year, round_num, race_date in races:
+        key = replay_key(year, round_num)
+        current = manifest.get(key)
+        if current and current.get("version") == REPLAY_VERSION and current.get("hz") == REPLAY_HZ:
+            continue
+        try:
+            blob, why = build_one(year, round_num, race_date)
+        except Exception as e:  # noqa: BLE001 - one race's bad data must not end the run
+            blob, why = None, f"{type(e).__name__}: {e}"
+        if blob is None:
+            report.append(f"{key}: skipped ({why})")
+            continue
+        if dry_run:
+            report.append(f"{key}: would publish {len(blob) / 1e3:.0f} KB ({why})")
+        else:
+            entry = publish(blob, key, manifest_path=manifest_path)
+            report.append(f"{key}: published {entry['file']} ({entry['bytes'] / 1e3:.0f} KB, {why})")
+        done += 1
+    return done, report
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--year", type=int)
+    ap.add_argument("--round", type=int)
+    ap.add_argument("--date", help="the race date, to match the archive session (recommended)")
+    ap.add_argument("--out", help="write one race's file here only (for a look)")
+    ap.add_argument("--publish", action="store_true", help="write one race into public/replays/ and src/data/replays.json")
+    ap.add_argument("--backfill", action="store_true", help="every completed race of --season missing a current replay (reads races, read-only)")
+    ap.add_argument("--season", type=int, help="--backfill: the season (default: the current one)")
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    if args.backfill:
+        import datetime as _dt
+
+        if not os.environ.get("DATABASE_URL"):
+            print("--backfill needs DATABASE_URL", file=sys.stderr)
+            return 1
+        import psycopg2
+
+        season = args.season or _dt.datetime.now(_dt.timezone.utc).year
+        conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        conn.set_session(readonly=True)  # this only reads the race list
+        with conn.cursor() as cur:
+            cur.execute("select year, round, race_date from races where status = 'completed' and year = %s order by round", (season,))
+            races = [(y, r, str(d) if d else None) for y, r, d in cur.fetchall()]
+        conn.close()
+        done, report = backfill(races, dry_run=args.dry_run)
+        for line in report:
+            print("  " + line)
+        print(f"{season}: {len(races)} completed race(s), {'would publish' if args.dry_run else 'published'} {done}")
+        return 0
+
+    if args.year is None or args.round is None or not (args.out or args.publish):
+        ap.error("--year, --round and --out or --publish; or --backfill")
+    blob, why = build_one(args.year, args.round, args.date)
+    print(why)
+    if blob is None:
+        return 0
     if args.out:
         Path(args.out).write_bytes(blob)
         print(f"saved {args.out}: {len(blob) / 1e3:.0f} KB")

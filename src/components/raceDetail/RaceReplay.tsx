@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useReducedMotion } from "framer-motion";
 import { Pause, Play } from "lucide-react";
-import { lapAt, standingsAt, statusAt, type Replay } from "@/lib/raceReplay";
+import { lapAt, leadChanges, standingsAt, statusAt, type Replay } from "@/lib/raceReplay";
 import { projectTrack, smoothClosedPath, TRACK_STORY_VERSION, type RaceTrackStory } from "@/lib/raceTrackStory";
 
-const SPEEDS = [1, 4, 16, 60];
+// Fast by default: at 60x an 88-minute race plays in under a minute and a half. Slower speeds for a close look.
+const SPEEDS = [10, 30, 60, 120];
 const STATUS_LABEL: Record<string, string | null> = { clear: null, yellow: "Yellow flag", sc: "Safety car", vsc: "Virtual safety car", vsc_ending: "VSC ending", red: "Red flag" };
 
 function clock(s: number): string {
@@ -26,7 +27,7 @@ export function RaceReplay({ replay, autoPlay = false }: { replay: Replay; autoP
   const [t, setT] = useState(0);
   // Starts playing when it was opened by pressing Play - unless the visitor prefers reduced motion.
   const [playing, setPlaying] = useState(() => autoPlay && !(typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
-  const [speed, setSpeed] = useState(16);
+  const [speed, setSpeed] = useState(60);
   const last = useRef<number | null>(null);
 
   const track: RaceTrackStory = useMemo(
@@ -98,6 +99,7 @@ export function RaceReplay({ replay, autoPlay = false }: { replay: Replay; autoP
   const lap = lapAt(replay, t);
   const carsByCode = useMemo(() => new Map(header.cars.map((c) => [c.code, c])), [header.cars]);
   const elapsed = t / header.hz;
+  const moments = useMemo(() => leadChanges(replay), [replay]);
 
   function onKey(e: KeyboardEvent) {
     if (e.key === " ") setPlaying((p) => !p);
@@ -199,6 +201,25 @@ export function RaceReplay({ replay, autoPlay = false }: { replay: Replay; autoP
           ))}
         </div>
       </div>
+      {moments.length > 0 && (
+        // Straight to the action: each change of the lead, a few seconds before it happens.
+        <div className="mt-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Jump to a lead change">
+          <span className="text-caption text-tertiary">Lead changes</span>
+          {moments.map((m) => (
+            <button
+              key={m.sample}
+              type="button"
+              onClick={() => {
+                setT(Math.max(0, m.sample - 8 * header.hz));
+                setPlaying(true);
+              }}
+              className="rounded-control border border-subtle px-2 py-1 text-caption tabular text-secondary transition-colors hover:text-primary"
+            >
+              L{m.lap} · {m.code}
+            </button>
+          ))}
+        </div>
+      )}
       {reduceMotion && <p className="mt-2 text-caption text-tertiary">Reduced motion is on: the replay doesn&apos;t start by itself.</p>}
     </section>
   );
