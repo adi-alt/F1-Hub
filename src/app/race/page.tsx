@@ -195,16 +195,43 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   ]);
   const archiveWinner = race.results.find((r) => r.position === 1);
   const circuitTimeline = buildCircuitTimeline(circuitLiveRaces, circuitArchiveRaces);
-  const [ageRecords, raceCommunities, trackStory, layout] = await Promise.all([
+  // The season pipeline's own row for this race (2018 on): practice, qualifying with gaps, the photo and the race
+  // stats the archive tables don't have. Null before 2018 - the page is then the archive's alone.
+  const liveRace = year >= 2018 ? await getRace(year, race.round) : null;
+  const [ageRecords, raceCommunities, trackStory, layout, photos] = await Promise.all([
     computeAgeRecords(circuitTimeline),
     listRaceCommunities(race.id, session.uid),
     // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
     getRaceTrackStoryByRound(year, race.round),
     getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }),
+    liveRace ? getApprovedRacePhotos(liveRace.id) : Promise.resolve([]),
   ]);
+  const archivePhoto = race.photoUrls?.[0] ?? race.photoUrl ?? liveRace?.photoUrls?.[0] ?? liveRace?.photoUrl ?? null;
 
   return (
     <div data-surface="frosted" className="page-wide py-8">
+      {liveRace ? (
+        // 2018 on: the same header as the current season's races - the photo, the race in figures, the winner.
+        <RacePageHeader
+          year={year}
+          round={race.round}
+          name={race.raceName}
+          circuit={race.circuitName ?? liveRace.circuit}
+          country={race.country ?? liveRace.country}
+          state="final"
+          photoUrl={archivePhoto}
+          seasonLink={archiveSeasonHref(year)}
+          keyFact={<RaceKeyFact sessions={[]} results={liveRace.results ?? null} />}
+          stats={<RaceBannerStats race={liveRace} highlights={computeHighlights(liveRace)} />}
+          actions={
+            race.wikipediaUrl ? (
+              <a href={race.wikipediaUrl} target="_blank" rel="noopener noreferrer" className="rounded-control border border-subtle px-2.5 py-1.5 text-caption text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                Race report ↗
+              </a>
+            ) : undefined
+          }
+        />
+      ) : (
       <RaceHeader
         backHref={archiveSeasonHref(year)}
         backLabel={`${year}`}
@@ -217,6 +244,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         externalLink={race.wikipediaUrl ? { href: race.wikipediaUrl, label: "Full race report" } : undefined}
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
+      )}
       <div className="mt-8">
         <ArchiveRaceDashboard
           race={race}
@@ -229,6 +257,9 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           trackStory={trackStory}
           layout={layout}
           replay={replayFor(year, race.round)}
+          practice={liveRace?.practice ?? null}
+          liveQualifying={liveRace?.inputs ?? []}
+          photos={photos}
         />
       </div>
     </div>
