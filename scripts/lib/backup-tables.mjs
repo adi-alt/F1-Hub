@@ -49,6 +49,8 @@ export const REBUILDABLE = [
   "archive_pit_stops",
   "archive_laps",
   "race_photo_candidates",
+  // Derived from F1's live-timing archive by pipeline/race_track_story.py; rebuilt by its --backfill.
+  "race_track_stories",
 ];
 
 /** Short-lived or regenerable, and some of it sensitive (one-time codes): deliberately not backed up. */

@@ -6,6 +6,7 @@ import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/ra
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
+import type { RaceTrackStory } from "@/lib/raceTrackStory";
 import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
@@ -49,6 +50,7 @@ export function SeasonRaceDashboard({
   ageRecords,
   raceCommunities,
   photos = [],
+  trackStory = null,
 }: {
   race: RaceDoc;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
@@ -69,6 +71,8 @@ export function SeasonRaceDashboard({
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
   // Approved Wikimedia photos of this weekend (/admin/race-photos), up to four; empty -> no photo section.
   photos?: RacePhoto[];
+  // The real circuit and where the lead changed (race_track_stories); null -> the storyline's fallback route.
+  trackStory?: RaceTrackStory | null;
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -190,7 +194,7 @@ export function SeasonRaceDashboard({
           {hasLapChart && (
             <div id="lap-chart">
               <RaceSubSection label="Lap by lap" description="Race position on every lap." first={!showPracticeSlot && !showQualifyingStrategyRow}>
-                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
+                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} />
               </RaceSubSection>
             </div>
           )}
