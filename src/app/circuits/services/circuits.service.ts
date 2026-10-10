@@ -189,6 +189,8 @@ export type CircuitDetailData = {
   raceLayout: CircuitLayout | null;
   /** The replay of this season's race here - only the current season's races have one. */
   replay: ReplayEntry | null;
+  /** Days from now to this season's race here (negative once past), null without a date. */
+  daysToGo: number | null;
 };
 
 /** `location` is the exact string this app already routes circuits by (circuitHref's own query
@@ -244,6 +246,7 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
     trackStory,
     raceLayout,
     replay,
+    daysToGo: currentSeasonRace?.raceDate ? Math.round((new Date(`${currentSeasonRace.raceDate.slice(0, 10)}T12:00:00Z`).getTime() - Date.now()) / 86_400_000) : null,
   };
 }
 

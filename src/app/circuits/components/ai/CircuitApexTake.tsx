@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
+import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type BlockKey = "trackTake" | "raceDifference" | "trackVsSeason" | "historicalPattern";
@@ -64,11 +65,14 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
     return () => controller.abort();
   }, [location, year, status]);
 
+  // Its own section, so that when Apex has nothing for this circuit the page shows nothing - never an empty box.
   if (loading) {
     return (
-      <LoadingRegion label="Apex is reading this circuit">
-        <InsightSkeleton lines={2} />
-      </LoadingRegion>
+      <Frame>
+        <LoadingRegion label="Apex is reading this circuit">
+          <InsightSkeleton lines={2} />
+        </LoadingRegion>
+      </Frame>
     );
   }
   if (!take) return null;
@@ -82,13 +86,13 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   // Each tab's panel mounts fresh when it's chosen, so this fades the new block in.
   const content = (
     <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }}>
-      <p className="text-[15px] font-semibold leading-snug text-white">{block.headline}</p>
-      <p className="mt-1 text-sm leading-relaxed text-neutral-400">{block.summary}</p>
+      <p className="text-body font-semibold text-primary">{block.headline}</p>
+      <p className="mt-1 text-body-sm text-secondary">{block.summary}</p>
 
       {shownTab === "raceDifference" && "factors" in block && block.factors.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {block.factors.map((f) => (
-            <li key={f.label} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-neutral-400">
+            <li key={f.label} className="rounded-sm border border-subtle px-2 py-0.5 text-caption text-secondary">
               {f.label}
             </li>
           ))}
@@ -98,7 +102,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
       {shownTab === "trackVsSeason" && "metrics" in block && block.metrics.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1">
           {block.metrics.map((m) => (
-            <li key={m} className="text-xs text-tertiary">
+            <li key={m} className="text-caption text-secondary">
               · {m}
             </li>
           ))}
@@ -108,8 +112,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   );
 
   return (
-    <motion.section initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Apex intelligence</p>
+    <Frame>
 
       {/* Segmented: small in-card tabs over one block of text, not page navigation. */}
       {availableTabs.length > 1 ? (
@@ -120,6 +123,15 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
       ) : (
         content
       )}
-    </motion.section>
+      <p className="mt-4 text-caption text-tertiary">AI summary · Apex, from this circuit&apos;s results</p>
+    </Frame>
+  );
+}
+
+function Frame({ children }: { children: React.ReactNode }) {
+  return (
+    <RaceSectionCard id="apex" title="Apex on this circuit">
+      {children}
+    </RaceSectionCard>
   );
 }

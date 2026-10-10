@@ -1,32 +1,23 @@
-import { InsightSkeleton, LoadingRegion, MediaSkeleton, TextSkeleton } from "@/components/ui/Skeletons";
+import { Skeleton } from "@/components/ui/Skeleton";
 
-// Shared by both branches this route can render (the Explorer homepage and an individual circuit
-// page) - Next shows this while the async Server Component is still resolving either shape, so it
-// can't be perfectly tailored to one. Matches the real page's own max-w-[1400px] container, the
-// season map's real (large) circuit-geometry chip size, and the focus panel's real three-column
-// composition - the old thin single-band shape belonged to the earlier NextRaceFocus strip this
-// page no longer renders (see CircuitsExplorer.tsx).
+// The circuits home's own outline (CircuitsHome): the year, the round scrubber, then the circuit beside its story.
+// Same container as the page, so nothing jumps when the real content replaces it.
 export default function CircuitsLoading() {
   return (
-    <div className="page-wide skeleton-delay py-6">
-      <LoadingRegion label="Loading circuits">
-        <TextSkeleton width={200} height={30} />
-        <TextSkeleton className="mt-3" width="40%" height={12} />
-        <div className="mt-6 flex gap-2 overflow-hidden">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="flex w-24 shrink-0 flex-col items-center gap-1.5">
-              <TextSkeleton width={64} height={64} />
-              <TextSkeleton width={36} height={10} />
-            </div>
-          ))}
+    <div role="status" className="page-wide skeleton-delay py-8">
+      <span className="sr-only">Loading circuits</span>
+      <Skeleton shape="block" className="h-12 w-40" />
+      <Skeleton shape="block" className="mt-6 h-16 w-full" />
+      <div className="mt-8 grid items-center gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-12">
+        <Skeleton shape="block" className="aspect-[4/3] w-full max-h-[24rem]" />
+        <div>
+          <Skeleton shape="block" className="h-3 w-32" />
+          <Skeleton shape="block" className="mt-3 h-7 w-64" />
+          <Skeleton shape="block" className="mt-6 h-5 w-3/4" />
+          <Skeleton shape="block" className="mt-3 h-4 w-full" />
+          <Skeleton shape="block" className="mt-2 h-4 w-5/6" />
         </div>
-        <div className="mt-6">
-          <MediaSkeleton ratio="21 / 8" />
-        </div>
-        <div className="mt-8">
-          <InsightSkeleton lines={2} />
-        </div>
-      </LoadingRegion>
+      </div>
     </div>
   );
 }

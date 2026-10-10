@@ -60,7 +60,10 @@ export function RaceStoryline({
   track: ownTrack = null,
   layout = null,
   nameFor = (code) => code,
+  heading = "How the race unfolded",
 }: {
+  /** The block's own label; null when the surrounding section already says it. */
+  heading?: string | null;
   chapters: Chapter[];
   totalLaps: number;
   colorFor: (driverId: string) => string;
@@ -125,7 +128,7 @@ export function RaceStoryline({
   return (
     <section aria-label="The race as a story">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">How the race unfolded</p>
+        {heading && <p className="text-body-sm font-semibold text-primary">{heading}</p>}
         <p className="text-caption text-tertiary">
           {ownTrack
             ? "Where it happened, on this race's own track"
