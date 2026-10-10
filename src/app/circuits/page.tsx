@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { CircuitExplorerHeader } from "./components/CircuitExplorerHeader";
-import { CircuitsExplorer } from "./components/CircuitsExplorer";
+import { CircuitsHome } from "./components/CircuitsHome";
 import { getCircuitsExplorerData } from "./services/circuits.service";
 import { getUserProfile } from "@/lib/supabase/users";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -17,12 +16,8 @@ async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const { entries, completedCount, remainingCount } = data;
 
   return (
-    <div className="page-wide py-6">
-      <CircuitExplorerHeader year={year} totalCircuits={entries.length} completedCount={completedCount} remainingCount={remainingCount} />
-      {/* The season map, the selected round's focus panel, and Ask Apex's own circuit scope all
-          live inside this one client component - see its own docstring for why selection (not
-          just "the next race") drives all three together. */}
-      <CircuitsExplorer entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} year={year} />
+    <div data-surface="frosted" className="page-wide py-8">
+      <CircuitsHome entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} year={year} completedCount={completedCount} remainingCount={remainingCount} />
     </div>
   );
 }

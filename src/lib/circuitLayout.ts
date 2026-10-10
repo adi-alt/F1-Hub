@@ -2,7 +2,7 @@
 // seasons it was used, so any race draws its circuit by (circuit, season). Client-safe: types, the shape check,
 // choosing a race's layout, and turning a measured layout into the shape the circuit view draws.
 import type { RaceTrackStory } from "./raceTrackStory";
-import { TRACK_STORY_VERSION } from "./raceTrackStory";
+import { projectTrack, smoothClosedPath, TRACK_STORY_VERSION } from "./raceTrackStory";
 
 type XY = [number, number];
 
@@ -76,6 +76,17 @@ export function chooseLayout(layouts: CircuitLayout[], year: number, raceName: s
   return fits.sort((a, b) => rank(a) - rank(b))[0] ?? null;
 }
 
+/**
+ * The layout to show for a race still to come, which no layout covers yet: the circuit's latest one, if it was raced
+ * last season or this one (a track that hasn't been raced for years may have changed). Measured before drawn. The
+ * caller says it's "as last raced" - this is a stand-in for a layout that doesn't exist yet, never a claim about it.
+ */
+export function latestLayout(layouts: CircuitLayout[], year: number): CircuitLayout | null {
+  const recent = layouts.filter((l) => !l.raceNameMatch && Math.max(...l.seasons) >= year - 1);
+  const last = (l: CircuitLayout) => Math.max(...l.seasons);
+  return recent.sort((a, b) => last(b) - last(a) || Number(b.source === "measured") - Number(a.source === "measured"))[0] ?? null;
+}
+
 /** A measured layout in the shape the circuit view draws: the same geometry, with nothing on it located (this
  * race has no positions of its own) and the timing line not claimed (it can move between seasons). */
 export function layoutAsTrack(layout: MeasuredLayout): RaceTrackStory {
@@ -101,4 +112,56 @@ export function seasonRanges(seasons: number[]): string {
     i = j;
   }
   return out.join(", ");
+}
+
+/** A layout as the circuit pages draw it: a ready SVG path (smoothed, in SVG units), so the client is sent a few
+ * kilobytes of path rather than every traced point. Turn numbers only for a measured layout with verified corners. */
+export type CircuitDrawing = {
+  layoutId: string;
+  source: "drawn" | "measured";
+  seasons: number[];
+  viewBox: string;
+  path: string;
+  turns: { label: string; x: number; y: number }[];
+  attribution: string | null;
+};
+
+export function layoutToDrawing(layout: CircuitLayout): CircuitDrawing {
+  if (layout.source === "drawn") {
+    return { layoutId: layout.layoutId, source: "drawn", seasons: layout.seasons, viewBox: layout.viewBox, path: layout.path, turns: [], attribution: layout.attribution };
+  }
+  const track = layoutAsTrack(layout);
+  const proj = projectTrack(track);
+  return {
+    layoutId: layout.layoutId,
+    source: "measured",
+    seasons: layout.seasons,
+    viewBox: proj.viewBox,
+    path: smoothClosedPath(proj.points),
+    turns: layout.corners.map((c) => {
+      const [x, y] = proj.toSvg(c.x, c.y);
+      return { label: `${c.number}${c.letter}`, x: Math.round(x), y: Math.round(y) };
+    }),
+    attribution: layout.attribution,
+  };
+}
+
+/** Every layout of a circuit as eras, oldest first. Where a measured and a drawn layout cover the same seasons the
+ * measured one wins (the real geometry over a drawing): a drawing keeps only the seasons no measured layout covers,
+ * and goes altogether when none are left. A variant (one race's layout) is its own era, named for its race. */
+export function circuitEras(layouts: CircuitLayout[]): CircuitLayout[] {
+  const measuredYears = new Set(layouts.filter((l) => l.source === "measured" && !l.raceNameMatch).flatMap((l) => l.seasons));
+  const eras = layouts
+    .map((l) => (l.source === "drawn" && !l.raceNameMatch ? { ...l, seasons: l.seasons.filter((y) => !measuredYears.has(y)) } : l))
+    .filter((l) => l.seasons.length > 0);
+  return eras.sort((a, b) => Math.min(...a.seasons) - Math.min(...b.seasons) || Number(!!a.raceNameMatch) - Number(!!b.raceNameMatch));
+}
+
+/** A short label for a layout's seasons: "2010–2017", "2021", or - for a circuit that shared its Grand Prix with
+ * another venue in the early years (Silverstone's 1950s) - just the span, "1950–1973", not every year. */
+export function seasonLabel(seasons: number[]): string {
+  const ranges = seasonRanges(seasons).split(", ");
+  if (ranges.length <= 2) return ranges.join(", ");
+  const ys = [...seasons].sort((a, b) => a - b);
+  return `${ys[0]}–${ys[ys.length - 1]}`;
 }
