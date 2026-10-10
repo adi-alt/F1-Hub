@@ -86,8 +86,11 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   // Each tab's panel mounts fresh when it's chosen, so this fades the new block in.
   const content = (
     <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }}>
-      <p className="text-body font-semibold text-primary">{block.headline}</p>
-      <p className="mt-1 text-body-sm text-secondary">{block.summary}</p>
+      {/* Headline beside the read, so a full-width section is filled rather than half empty. */}
+      <div className="grid gap-x-10 gap-y-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <p className="text-title-md font-semibold text-primary">{block.headline}</p>
+      <div>
+      <p className="text-body-sm text-secondary">{block.summary}</p>
 
       {shownTab === "raceDifference" && "factors" in block && block.factors.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -108,6 +111,8 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
           ))}
         </ul>
       )}
+      </div>
+      </div>
     </motion.div>
   );
 

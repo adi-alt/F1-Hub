@@ -1,22 +1,18 @@
 import { Skeleton } from "@/components/ui/Skeleton";
 
-// The circuits home's own outline (CircuitsHome): the year, the round scrubber, then the circuit beside its story.
-// Same container as the page, so nothing jumps when the real content replaces it.
+// The circuits home's own outline (CircuitsHome): the title, the next race, then the calendar grid of cards.
 export default function CircuitsLoading() {
   return (
     <div role="status" className="page-wide skeleton-delay py-8">
       <span className="sr-only">Loading circuits</span>
-      <Skeleton shape="block" className="h-12 w-40" />
-      <Skeleton shape="block" className="mt-6 h-16 w-full" />
-      <div className="mt-8 grid items-center gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-12">
-        <Skeleton shape="block" className="aspect-[4/3] w-full max-h-[24rem]" />
-        <div>
-          <Skeleton shape="block" className="h-3 w-32" />
-          <Skeleton shape="block" className="mt-3 h-7 w-64" />
-          <Skeleton shape="block" className="mt-6 h-5 w-3/4" />
-          <Skeleton shape="block" className="mt-3 h-4 w-full" />
-          <Skeleton shape="block" className="mt-2 h-4 w-5/6" />
-        </div>
+      <Skeleton shape="block" className="h-4 w-24" />
+      <Skeleton shape="block" className="mt-2 h-10 w-48" />
+      <Skeleton shape="block" className="mt-8 h-72 w-full rounded-card" />
+      <Skeleton shape="block" className="mt-12 h-6 w-40" />
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} shape="block" className="h-64 w-full rounded-card" />
+        ))}
       </div>
     </div>
   );
