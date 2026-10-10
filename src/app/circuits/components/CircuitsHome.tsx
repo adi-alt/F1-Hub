@@ -8,6 +8,7 @@ import { CircuitCanvas } from "@/components/circuit/CircuitCanvas";
 import { SeasonScrubber } from "@/app/season/_components/SeasonScrubber";
 import { circuitHref, raceHref } from "@/lib/routes";
 import { roundStory } from "@/lib/circuitStory";
+import { formatLapTime } from "@/lib/format";
 import { nodeStatus } from "./nodeStatus";
 import { CircuitInsights } from "./CircuitInsights";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
@@ -108,7 +109,7 @@ export function CircuitsHome({
                   <Fact label="Type" value={facts.trackType === "street" ? "Street" : facts.trackType === "hybrid" ? "Hybrid" : "Permanent"} />
                   <Fact label="First GP" value={String(facts.firstGrandPrix)} />
                   {facts.drsZones != null && <Fact label="DRS zones" value={String(facts.drsZones)} />}
-                  {facts.lapRecord && <Fact label={`Lap record · ${facts.lapRecord.year}`} value={`${facts.lapRecord.timeSec.toFixed(3)}s`} />}
+                  {facts.lapRecord && <Fact label={`Lap record · ${facts.lapRecord.year}`} value={formatLapTime(facts.lapRecord.timeSec)} />}
                 </dl>
               )}
 

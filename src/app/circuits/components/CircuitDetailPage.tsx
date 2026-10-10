@@ -1,28 +1,25 @@
 import Link from "next/link";
-import { CircuitHero } from "./CircuitHero";
-import { UpcomingCircuitIntelligence } from "./UpcomingCircuitIntelligence";
+import { CircuitHero, type HeroAnswer } from "./CircuitHero";
+import { CircuitRecords } from "./CircuitRecords";
 import { PastWinnersList } from "./PastWinnersList";
 import { CircuitTrendChart } from "./CircuitTrendChart";
-import { CurrentSeasonPerformance } from "./CurrentSeasonPerformance";
 import { CircuitEras } from "./CircuitEras";
 import { CircuitRaceStory } from "./CircuitRaceStory";
-import { CircuitResultTables } from "./CircuitResultTables";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
-import { TrackIntelligence } from "@/components/race/TrackIntelligence";
 import { raceHref } from "@/lib/routes";
 import { circuitAvgFieldMovement, type CircuitDetailData } from "../services/circuits.service";
 
 /**
- * The individual circuit page, as a story: who this circuit is, how its latest race unfolded on the circuit itself
- * (the replay plays here, for the current season), how the track has changed through the years, then the numbers -
- * the classification, Apex's read, the records, the winners. Section order adapts to the circuit's own current-season
- * round: a completed one gets its performance card; one still to come gets upcoming intelligence instead, never both
- * and never an empty placeholder. The full history renders every time.
+ * The individual circuit page, as a story (audit spec: answer first, one container level, no repeats). The header
+ * answers first - who won here last, or when the next race is - beside the circuit's figures. Then how that race
+ * unfolded on the circuit itself (the replay plays here, for the current season), the track through the years, its
+ * records and winners, pole times, and Apex's read when it has one. The full classification lives on the race page,
+ * one link away, rather than being repeated here.
  */
 export function CircuitDetailPage({ location, data }: { location: string; data: CircuitDetailData }) {
-  const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation, raceLaps, winnerMedia, currentDrivers, currentTeams, eras, trackStory, raceLayout, replay } = data;
+  const { year, currentSeasonRace, facts, timeline, liveRaces, archiveRaces, raceForSimulation, raceLaps, winnerMedia, currentTeams, eras, trackStory, raceLayout, replay } = data;
   const grandPrixName =
     currentSeasonRace?.name ?? liveRaces.find((r) => r.year === timeline[0]?.year)?.name ?? archiveRaces.find((r) => r.year === timeline[0]?.year)?.raceName ?? null;
   const country = currentSeasonRace?.country ?? archiveRaces[0]?.country ?? null;
@@ -46,37 +43,35 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
   const winners = timeline.filter((t) => t.winnerDriver).map((t) => ({ year: t.year, winner: t.winnerDriver as string }));
   const isCurrent = raceForSimulation?.year === year;
 
+  const dateOf = (iso: string | null | undefined) =>
+    iso ? new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) : null;
+  // Answer first: the next race when this season's hasn't run, otherwise who won here last.
+  const answer: HeroAnswer =
+    currentSeasonRace && currentSeasonRace.state !== "completed"
+      ? { kind: "next", race: currentSeasonRace, daysToGo: data.daysToGo, dateLabel: dateOf(currentSeasonRace.raceDate) }
+      : raceForSimulation
+        ? { kind: "result", year, race: raceForSimulation, dateLabel: isCurrent ? dateOf(currentSeasonRace?.raceDate) : null }
+        : null;
+
   return (
     <div data-surface="frosted" className="page-content py-8">
       <CircuitApexScope location={location} circuitName={facts?.venueName ?? location} year={year} status={currentSeasonRace?.state ?? null} />
 
-      <CircuitHero location={location} grandPrixName={grandPrixName} country={country} facts={facts} />
+      <CircuitHero location={location} grandPrixName={grandPrixName} country={country} facts={facts} answer={answer} avgFieldMovement={avgFieldMovement} />
 
-      <div className="space-y-12">
+      <div className="space-y-8 lg:space-y-12">
         {raceForSimulation && (
           <RaceSectionCard
             id={replay ? "replay" : "race-story"}
-            title={isCurrent ? `${year} ${raceForSimulation.name}` : `The last race here: ${raceForSimulation.year}`}
-            description={replay ? "How the race unfolded on the circuit, and a replay of every car." : "How the race unfolded, where it happened on the circuit."}
+            title={isCurrent ? `How the ${year} race unfolded` : `How the ${raceForSimulation.year} race unfolded`}
+            description={replay ? "Where the race was won, on the circuit itself, and a replay of every car." : "Where the race was won, on the circuit itself."}
             headerRight={
               <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
-                Full race analysis
+                Full results and analysis
               </Link>
             }
           >
             <CircuitRaceStory laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} replay={replay} />
-          </RaceSectionCard>
-        )}
-
-        {currentSeasonRace && currentSeasonRace.state !== "completed" && (
-          <RaceSectionCard id="next-race" title={currentSeasonRace.state === "next" ? "Next race" : "Upcoming"}>
-            <UpcomingCircuitIntelligence race={currentSeasonRace} />
-          </RaceSectionCard>
-        )}
-
-        {currentSeasonRace?.state === "completed" && (
-          <RaceSectionCard id="performance" title={`${year} at this circuit`}>
-            <CurrentSeasonPerformance race={currentSeasonRace} year={year} facts={facts} avgFieldMovement={avgFieldMovement} />
           </RaceSectionCard>
         )}
 
@@ -86,21 +81,9 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
           </RaceSectionCard>
         )}
 
-        {raceForSimulation?.results && (
-          <RaceSectionCard id="classification" title={`${raceForSimulation.year} result`} bare>
-            <CircuitResultTables race={raceForSimulation} currentDrivers={currentDrivers} currentTeams={currentTeams} />
-          </RaceSectionCard>
-        )}
-
-        <RaceSectionCard id="apex" title="Apex on this circuit">
-          <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
-        </RaceSectionCard>
-
-        {timeline.length > 0 && <TrackIntelligence liveRaces={liveRaces} archiveRaces={archiveRaces} circuitName={facts?.venueName ?? location} />}
-
-        {trend.length >= 2 && (
-          <RaceSectionCard id="pole-evolution" title="Pole evolution">
-            <CircuitTrendChart data={trend} />
+        {timeline.length > 0 && (
+          <RaceSectionCard id="records" title="Records">
+            <CircuitRecords timeline={timeline} />
           </RaceSectionCard>
         )}
 
@@ -109,6 +92,14 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
             <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
           </RaceSectionCard>
         )}
+
+        {trend.length >= 2 && (
+          <RaceSectionCard id="pole-evolution" title="Pole times">
+            <CircuitTrendChart data={trend} />
+          </RaceSectionCard>
+        )}
+
+        <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
       </div>
     </div>
   );

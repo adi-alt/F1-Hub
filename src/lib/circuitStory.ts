@@ -6,6 +6,7 @@ import type { CircuitFacts } from "./circuitFacts";
 import type { CircuitLayout } from "./circuitLayout";
 import { seasonLabel } from "./circuitLayout";
 import type { RaceTrackStory } from "./raceTrackStory";
+import { formatLapTime } from "./format";
 
 export type RoundStory = {
   /** The one-line headline: who won, and how. */
@@ -26,7 +27,7 @@ export function roundStory(race: RaceSummary, story: RaceTrackStory | null, fact
   if (race.state !== "completed") {
     const lines: string[] = [];
     if (facts) lines.push(`${facts.lengthKm.toFixed(3)} km, ${plural(facts.turns, "turn")}${facts.trackType === "street" ? ", on the streets" : ""}.`);
-    if (facts?.lapRecord) lines.push(`The lap record: ${facts.lapRecord.timeSec.toFixed(3)}s by ${facts.lapRecord.driverName}, ${facts.lapRecord.year}.`);
+    if (facts?.lapRecord) lines.push(`The lap record: ${formatLapTime(facts.lapRecord.timeSec)} by ${facts.lapRecord.driverName}, ${facts.lapRecord.year}.`);
     if (race.forecast) lines.push(`${Math.round(race.forecast.airTempC)}°C expected, ${Math.round(race.forecast.rainProbability * 100)}% chance of rain.`);
     const when = daysToGo === null ? "" : daysToGo <= 0 ? " This weekend." : ` In ${plural(daysToGo, "day")}.`;
     return { headline: `${race.name}, round ${race.round}.${when}`, lines };
@@ -51,7 +52,7 @@ export function roundStory(race: RaceSummary, story: RaceTrackStory | null, fact
   } else if (story) {
     lines.push("Lights to flag, the lead never changed hands.");
   }
-  if (race.fastestLap) lines.push(`Fastest lap: ${race.fastestLap.driverName}, ${race.fastestLap.lapTimeSec.toFixed(3)}s.`);
+  if (race.fastestLap) lines.push(`Fastest lap: ${race.fastestLap.driverName}, ${formatLapTime(race.fastestLap.lapTimeSec)}.`);
   return { headline, lines };
 }
 

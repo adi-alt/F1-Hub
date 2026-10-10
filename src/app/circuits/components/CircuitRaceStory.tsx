@@ -73,7 +73,7 @@ export function CircuitRaceStory({
       {mode === "replay" && replay ? (
         <ReplaySection entry={replay} />
       ) : chapters.length > 0 ? (
-        <RaceStoryline chapters={chapters} totalLaps={totalLaps} colorFor={(id) => colors.get(id) ?? "#bbb"} selected={selected} onSelect={setSelected} track={trackStory} layout={layout} nameFor={nameFor} />
+        <RaceStoryline heading={null} chapters={chapters} totalLaps={totalLaps} colorFor={(id) => colors.get(id) ?? "#bbb"} selected={selected} onSelect={setSelected} track={trackStory} layout={layout} nameFor={nameFor} />
       ) : (
         <p className="text-body-sm text-secondary">The lap-by-lap data for this race isn&apos;t in yet, so there&apos;s no story to tell.</p>
       )}
