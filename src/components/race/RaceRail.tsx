@@ -61,7 +61,12 @@ function Conditions({ weather, forecast }: { weather?: SessionWeather | null; fo
   return null;
 }
 
-function YourRecord({ circuit, personal }: { circuit: string; personal: PersonalRaceContext }) {
+/** Whether "You at <circuit>" has anything to show (the race banner's ⋯ menu offers it only then). */
+export function hasYourRecord(personal: PersonalRaceContext) {
+  return personal.isFirstTime || !!personal.favoriteDriver || !!personal.favoriteTeam || !!personal.accuracy;
+}
+
+export function YourRecord({ circuit, personal }: { circuit: string; personal: PersonalRaceContext }) {
   if (personal.isFirstTime) {
     return (
       <Block title="Make it yours">
@@ -89,7 +94,7 @@ function YourRecord({ circuit, personal }: { circuit: string; personal: Personal
   );
 }
 
-function ModelVerdict({ accuracy, nameOf }: { accuracy: PredictionAccuracy; nameOf: (code: string) => string }) {
+export function ModelVerdict({ accuracy, nameOf }: { accuracy: PredictionAccuracy; nameOf: (code: string) => string }) {
   const right = accuracy.predictedWinner === accuracy.actualWinner;
   return (
     <Block title="How the model did">
@@ -130,35 +135,26 @@ function Communities({ communities }: { communities: RaceCommunityCard[] }) {
 }
 
 /**
- * The race page's rail (spec §3.4): at most three blocks, chosen by phase, never repeating what the main column
- * already says. Before the race: conditions, your record here, the communities predicting it. After: how the
- * model did, your record here, the communities. The countdown and the winner live in the page header instead.
+ * The race page's rail (spec §3.4): conditions and the communities predicting the race. Your record here and how
+ * the model did live in the race banner's ⋯ menu (RaceMoreMenu); the countdown and the winner in the header.
  */
 export function RaceRail({
   completed,
-  circuit,
   weather,
   forecast,
-  personal,
-  accuracy,
   communities,
-  nameOf,
 }: {
   completed: boolean;
-  circuit: string;
   weather?: SessionWeather | null;
   forecast?: WeatherForecast | null;
-  personal: PersonalRaceContext;
-  accuracy: PredictionAccuracy | null;
   communities: RaceCommunityCard[];
-  nameOf: (code: string) => string;
 }) {
+  if (!weather && (completed || !forecast) && communities.length === 0) return null;
   return (
     // One compact row in the page's own column (the owner asked for no right-hand rail): up to three short
     // blocks side by side from sm, stacked on a phone.
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {completed ? accuracy ? <ModelVerdict accuracy={accuracy} nameOf={nameOf} /> : <Conditions weather={weather} /> : <Conditions weather={weather} forecast={forecast} />}
-      <YourRecord circuit={circuit} personal={personal} />
+      {completed ? <Conditions weather={weather} /> : <Conditions weather={weather} forecast={forecast} />}
       <Communities communities={communities} />
     </div>
   );

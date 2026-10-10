@@ -1,5 +1,7 @@
 "use client";
 
+import { Typewriter } from "@/components/motion/Typewriter";
+
 import { useEffect, useState, type ReactNode } from "react";
 import { RaceSectionCard } from "./RaceSectionCard";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
@@ -124,7 +126,8 @@ export function ApexTrackBriefing({ location, year, section }: { location: strin
       {headline && (
         <>
           <p className="mt-2 text-[13px] font-semibold leading-snug text-white">{headline.headline}</p>
-          <p className="mt-0.5 text-sm leading-relaxed text-neutral-400">{headline.summary}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-neutral-400"><Typewriter text={headline.summary} msPerChar={12} />
+          </p>
         </>
       )}
       {more.length > 0 && (

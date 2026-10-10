@@ -25,6 +25,8 @@ export type RacePageHeaderProps = {
   keyFact?: ReactNode;
   /** Where the breadcrumb's season link goes (the archive season for an older race). */
   seasonLink?: string;
+  /** The banner's top-right actions: the race's ⋯ menu (RaceMoreMenu). */
+  actions?: ReactNode;
 };
 
 /**
@@ -43,6 +45,7 @@ export function RacePageHeader({
   photoUrl,
   keyFact,
   seasonLink,
+  actions,
 }: RacePageHeaderProps) {
   const timeZone = useViewerTimeZone();
   const where = [circuit, country].filter(Boolean).join(", ");
@@ -72,8 +75,9 @@ export function RacePageHeader({
           />
         </>
       )}
+      {actions && <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">{actions}</div>}
       <div className="flex flex-col gap-6 px-5 py-6 sm:px-8 sm:py-8 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 lg:max-w-2xl">
+        <div className="min-w-0 pr-12 lg:max-w-2xl">
           {state === "upcoming" && <StartLights className="mb-5" />}
           <PageHeader
             title={name}
