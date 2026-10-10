@@ -8,8 +8,6 @@ import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
 import type { CircuitLayout } from "@/lib/circuitLayout";
-import type { ReplayEntry } from "@/lib/replayManifest";
-import { ReplaySection } from "@/components/raceDetail/ReplaySection";
 import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
@@ -55,7 +53,6 @@ export function SeasonRaceDashboard({
   photos = [],
   trackStory = null,
   layout = null,
-  replay = null,
 }: {
   race: RaceDoc;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
@@ -80,8 +77,6 @@ export function SeasonRaceDashboard({
   trackStory?: RaceTrackStory | null;
   // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
   layout?: CircuitLayout | null;
-  // This race's replay file (src/data/replays.json), or null: no replay section at all.
-  replay?: ReplayEntry | null;
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -248,11 +243,6 @@ export function SeasonRaceDashboard({
             )}
 
             {analysis}
-            {replay && (
-              <RaceSectionCard id="replay" title="Race replay">
-                <ReplaySection entry={replay} />
-              </RaceSectionCard>
-            )}
             <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />
 
             {/* The pre-race simulation, kept for comparison with what happened. */}

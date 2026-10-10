@@ -30,39 +30,36 @@ export function CurrentSeasonPerformance({
 
   return (
     <section aria-label={`${year} performance at this circuit`}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">{year} performance</p>
-      <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
-
       {/* Grid->finish for this same race is already shown once, in Track Experience's right
           column above - not repeated here, same real data either way. */}
       <div className="mt-4">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
           {race.winnerName && (
             <div>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Winner</p>
-              <p className="mt-0.5 truncate text-lg font-semibold text-white">{race.winnerName}</p>
+              <p className="text-caption text-secondary">Winner</p>
+              <p className="mt-0.5 truncate text-title-md font-semibold text-primary">{race.winnerName}</p>
             </div>
           )}
           {race.poleSitterName && (
             <div>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Pole</p>
-              <p className="mt-0.5 truncate text-sm font-medium text-neutral-200">{race.poleSitterName}</p>
+              <p className="text-caption text-secondary">Pole</p>
+              <p className="mt-0.5 truncate text-body-sm font-medium text-primary">{race.poleSitterName}</p>
             </div>
           )}
           {race.fastestLap && (
             <div>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Fastest lap</p>
-              <p className="mt-0.5 truncate text-sm font-medium text-neutral-200">{race.fastestLap.driverName}</p>
+              <p className="text-caption text-secondary">Fastest lap</p>
+              <p className="mt-0.5 truncate text-body-sm font-medium text-primary">{race.fastestLap.driverName}</p>
             </div>
           )}
           {podium.length > 1 && (
             <div className="col-span-2 sm:col-span-3">
-              <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Podium</p>
+              <p className="text-caption text-secondary">Podium</p>
               <ol className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
                 {podium.map((p) => (
-                  <li key={p.driver} className="flex items-baseline gap-1.5 text-sm">
-                    <span className="font-mono text-[11px] tabular-nums text-tertiary">P{p.position}</span>
-                    <span className="text-neutral-300">{p.driverName}</span>
+                  <li key={p.driver} className="flex items-baseline gap-1.5 text-body-sm">
+                    <span className="text-caption tabular text-tertiary">P{p.position}</span>
+                    <span className="text-secondary">{p.driverName}</span>
                   </li>
                 ))}
               </ol>
@@ -70,27 +67,27 @@ export function CurrentSeasonPerformance({
           )}
 
           {(gainer || loser || dnfCount > 0) && (
-            <div className="col-span-2 grid grid-cols-1 gap-3 border-t border-white/[0.06] pt-3 sm:col-span-3 sm:grid-cols-3">
+            <div className="col-span-2 grid grid-cols-1 gap-3 border-t border-subtle pt-3 sm:col-span-3 sm:grid-cols-3">
               {gainer && gainer.grid! - gainer.finishPosition > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Biggest gainer</p>
-                  <p className="mt-0.5 text-sm text-neutral-200">
+                  <p className="text-caption text-secondary">Biggest gainer</p>
+                  <p className="mt-0.5 text-body-sm text-primary">
                     {gainer.driverName} <span className="text-emerald-400">+{gainer.grid! - gainer.finishPosition}</span>
                   </p>
                 </div>
               )}
               {loser && loser.grid! - loser.finishPosition < 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Most positions lost</p>
-                  <p className="mt-0.5 text-sm text-neutral-200">
+                  <p className="text-caption text-secondary">Most positions lost</p>
+                  <p className="mt-0.5 text-body-sm text-primary">
                     {loser.driverName} <span className="text-brand-text">{loser.grid! - loser.finishPosition}</span>
                   </p>
                 </div>
               )}
               {dnfCount > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Retirements</p>
-                  <p className="mt-0.5 text-sm text-neutral-200">{dnfCount}</p>
+                  <p className="text-caption text-secondary">Retirements</p>
+                  <p className="mt-0.5 text-body-sm text-primary">{dnfCount}</p>
                 </div>
               )}
             </div>
@@ -98,7 +95,7 @@ export function CurrentSeasonPerformance({
         </div>
 
         {facts && (
-          <div className="mt-6 border-t border-white/[0.06] pt-5">
+          <div className="mt-6 border-t border-subtle pt-5">
             <CircuitCharacteristics facts={facts} avgFieldMovement={avgFieldMovement} />
           </div>
         )}

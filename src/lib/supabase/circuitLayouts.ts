@@ -45,3 +45,13 @@ export async function getRaceLayout({
     return null;
   }
 }
+
+/** Every layout of a circuit (all seasons, drawn and measured), for the circuit page's history. Never throws. */
+export async function getCircuitLayouts({ circuitId, circuitName }: { circuitId: string | null; circuitName: string | null }): Promise<CircuitLayout[]> {
+  try {
+    return await cachedLayouts(circuitId, circuitName);
+  } catch (e) {
+    console.warn(e instanceof Error ? e.message : e);
+    return [];
+  }
+}

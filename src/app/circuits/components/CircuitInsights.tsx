@@ -55,9 +55,9 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {hasRecords && (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Circuit records</p>
-          <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+        <div className="rounded-card border border-subtle bg-surface-1 p-4">
+          <p className="text-caption text-secondary">Circuit records</p>
+          <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-2.5 text-body-sm">
             {trackRecords.mostWins && <Fact label="Most wins" value={`${joinNames(trackRecords.mostWins.drivers)} (${trackRecords.mostWins.count})`} />}
             {trackRecords.mostPoles && <Fact label="Most poles" value={`${joinNames(trackRecords.mostPoles.drivers)} (${trackRecords.mostPoles.count})`} />}
             {raceTrends.poleToWinPct != null && <Fact label="Pole → win" value={`${raceTrends.poleToWinPct.toFixed(0)}%`} />}
@@ -69,12 +69,12 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
       )}
 
       {hasPersonal && (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Your history here</p>
+        <div className="rounded-card border border-subtle bg-surface-1 p-4">
+          <p className="text-caption text-secondary">Your history here</p>
           <div className="mt-2.5 flex flex-col gap-2">
             {personalDrivers.map((d) => (
-              <p key={d.code} className="text-sm">
-                <span className="font-medium text-white">{d.name}</span>
+              <p key={d.code} className="text-body-sm">
+                <span className="font-medium text-primary">{d.name}</span>
                 <span className="text-tertiary">
                   {" "}
                   · {d.races} race{d.races === 1 ? "" : "s"}
@@ -84,8 +84,8 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
               </p>
             ))}
             {personalTeams.map((t) => (
-              <p key={t.name} className="text-sm">
-                <span className="font-medium text-white">{t.name}</span>
+              <p key={t.name} className="text-body-sm">
+                <span className="font-medium text-primary">{t.name}</span>
                 <span className="text-tertiary">
                   {" "}
                   · {t.races} race{t.races === 1 ? "" : "s"}
@@ -104,8 +104,8 @@ export function CircuitInsights({ location, year }: { location: string; year: nu
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dd className="truncate font-medium text-white">{value}</dd>
-      <dt className="text-[10px] text-tertiary">{label}</dt>
+      <dd className="truncate font-medium text-primary">{value}</dd>
+      <dt className="text-caption text-tertiary">{label}</dt>
     </div>
   );
 }

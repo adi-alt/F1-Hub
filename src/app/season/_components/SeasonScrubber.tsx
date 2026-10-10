@@ -55,7 +55,19 @@ type Kind = "done" | "active" | "upcoming" | "cancelled";
  * steps from round 1 through the lead changing hands. Built only from the season's race summaries, so any year, a
  * partial calendar, cancelled rounds and missing results all work.
  */
-export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSummaries: RaceSummary[] }) {
+export function SeasonScrubber({
+  year,
+  raceSummaries,
+  selectedRound,
+  onSelectRound,
+}: {
+  year: number;
+  raceSummaries: RaceSummary[];
+  /** Selection mode (the circuits page): the round shown as selected when nothing is hovered. */
+  selectedRound?: number | null;
+  /** Selection mode: clicking or pressing Enter picks a round instead of opening its race page. */
+  onSelectRound?: (round: number) => void;
+}) {
   const router = useRouter();
   const now = useMinuteClock();
   const rounds = useMemo(() => [...raceSummaries].sort((a, b) => a.round - b.round), [raceSummaries]);
@@ -64,6 +76,8 @@ export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSumm
   const nextIdx = rounds.findIndex((r) => r.state === "next");
   const lastDone = rounds.reduce((acc, r, i) => (r.state === "completed" ? i : acc), -1);
   const homeIdx = nextIdx >= 0 ? nextIdx : Math.max(0, lastDone);
+  const selectedIdx = selectedRound != null ? rounds.findIndex((r) => r.round === selectedRound) : -1;
+  const baseIdx = selectedIdx >= 0 ? selectedIdx : homeIdx;
 
   const [hover, setHover] = useState<number | null>(null);
   const [replay, setReplay] = useState<number | null>(null);
@@ -91,7 +105,7 @@ export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSumm
   }, [replay, homeIdx]);
 
   if (n === 0) return null;
-  const active = replay ?? hover ?? homeIdx;
+  const active = replay ?? hover ?? baseIdx;
   const showDetail = replay !== null || hover !== null;
   const per = width > 0 ? width / n : 0;
   const showCodes = per >= 34;
@@ -110,14 +124,15 @@ export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSumm
     setHover(indexAt(e.clientX));
   };
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const at = hover ?? homeIdx;
+    const at = hover ?? baseIdx;
     if (["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) {
       e.preventDefault();
       setReplay(null);
       setHover(e.key === "Home" ? 0 : e.key === "End" ? n - 1 : Math.min(n - 1, Math.max(0, at + (e.key === "ArrowRight" ? 1 : -1))));
     } else if (e.key === "Enter") {
       const round = rounds[at];
-      router.push(raceHref(year, round.round, round.name));
+      if (onSelectRound) onSelectRound(round.round);
+      else router.push(raceHref(year, round.round, round.name));
     } else if (e.key === "Escape") setHover(null);
   };
 
@@ -150,7 +165,8 @@ export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSumm
           onPointerLeave={() => setHover(null)}
           onClick={(e) => {
             const i = indexAt(e.clientX);
-            router.push(raceHref(year, rounds[i].round, rounds[i].name));
+            if (onSelectRound) onSelectRound(rounds[i].round);
+            else router.push(raceHref(year, rounds[i].round, rounds[i].name));
           }}
           onKeyDown={onKey}
           onBlur={() => setHover(null)}
@@ -244,7 +260,10 @@ export function SeasonScrubber({ year, raceSummaries }: { year: number; raceSumm
         </div>
       ) : (
         <p className="mt-1 text-caption text-tertiary">
-          <span className="text-secondary">{home.state === "completed" ? "Season complete" : home.weekendStatus === "live" ? `Live · Round ${home.round}, ${home.name}` : `Next · Round ${home.round}, ${home.name}`}</span>
+          {onSelectRound && selectedIdx >= 0 ? (
+            <span className="text-secondary">Selected · Round {rounds[selectedIdx].round}, {rounds[selectedIdx].name}</span>
+          ) : null}
+          <span className={onSelectRound && selectedIdx >= 0 ? "hidden" : "text-secondary"}>{home.state === "completed" ? "Season complete" : home.weekendStatus === "live" ? `Live · Round ${home.round}, ${home.name}` : `Next · Round ${home.round}, ${home.name}`}</span>
           <span className="hidden sm:inline"> · Hover or use ← → for any round</span>
         </p>
       )}

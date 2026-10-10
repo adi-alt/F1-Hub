@@ -2,10 +2,9 @@ import Link from "next/link";
 import { raceTitle } from "@/lib/format";
 import type { CircuitFacts } from "@/lib/circuitFacts";
 
-/** The circuit's own identity - not the Grand Prix's. A venue can host different Grand Prix names
- * over the decades; the physical place, its length, its turns and its lap record do not change
- * with the name on the trophy. Every metadata pill here is omitted, not guessed at, when this
- * circuit isn't in circuitFacts.ts yet - a real gap stays visibly a gap. */
+/** The circuit's own identity - not the Grand Prix's. A venue can host different Grand Prix names over the decades;
+ * the physical place, its length, its turns and its lap record do not change with the name on the trophy. Every
+ * figure is omitted, not guessed at, when this circuit isn't in circuitFacts.ts yet - a real gap stays a gap. */
 export function CircuitHero({
   location,
   grandPrixName,
@@ -19,42 +18,43 @@ export function CircuitHero({
 }) {
   const displayName = facts?.venueName ?? raceTitle(location);
 
-  const metaItems = facts
+  const stats = facts
     ? [
         { label: "Length", value: `${facts.lengthKm.toFixed(3)} km` },
         { label: "Turns", value: String(facts.turns) },
         { label: "Direction", value: facts.direction === "clockwise" ? "Clockwise" : "Anticlockwise" },
         { label: "Type", value: facts.trackType === "street" ? "Street" : facts.trackType === "hybrid" ? "Hybrid" : "Permanent" },
         { label: "First Grand Prix", value: String(facts.firstGrandPrix) },
-        facts.lapRecord ? { label: "Lap record", value: `${facts.lapRecord.timeSec.toFixed(3)}s · ${facts.lapRecord.driverName} (${facts.lapRecord.year})` } : null,
-      ].filter((x): x is { label: string; value: string } => x !== null)
+        facts.lapRecord ? { label: `Lap record · ${facts.lapRecord.year}`, value: `${facts.lapRecord.timeSec.toFixed(3)}s`, detail: facts.lapRecord.driverName } : null,
+      ].filter((x): x is { label: string; value: string; detail?: string } => x !== null)
     : [];
 
   return (
-    <header className="mb-8">
-      <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-xs">
-        <Link href="/circuits" className="text-tertiary transition hover:text-neutral-300">
+    <header className="mb-12">
+      <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-body-sm">
+        <Link href="/circuits" className="text-secondary transition-colors hover:text-primary">
           Circuits
         </Link>
-        <span aria-hidden className="text-neutral-700">
+        <span aria-hidden className="text-tertiary">
           /
         </span>
-        <span className="truncate text-neutral-400" aria-current="page">
+        <span className="truncate text-primary" aria-current="page">
           {displayName}
         </span>
       </nav>
-      <h1 className="text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-white sm:text-[40px]">{displayName}</h1>
-      <p className="mt-2 text-sm text-neutral-400">
+      <h1 className="text-[40px] font-bold leading-none tracking-[-0.03em] text-white sm:text-6xl">{displayName}</h1>
+      <p className="mt-3 text-body text-secondary">
         {grandPrixName ?? "Grand Prix"}
         {(location || country) && <span className="text-tertiary"> · {[location, country].filter(Boolean).join(", ")}</span>}
       </p>
 
-      {metaItems.length > 0 && (
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
-          {metaItems.map((item) => (
+      {stats.length > 0 && (
+        <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-white/[0.08] pt-6 sm:grid-cols-3 lg:grid-cols-6">
+          {stats.map((item) => (
             <div key={item.label} className="min-w-0">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{item.label}</dt>
-              <dd className="mt-0.5 truncate text-sm font-medium text-neutral-200">{item.value}</dd>
+              <dt className="text-caption text-secondary">{item.label}</dt>
+              <dd className="mt-1 truncate text-body-sm font-medium tabular text-primary">{item.value}</dd>
+              {item.detail && <dd className="mt-0.5 truncate text-caption text-secondary">{item.detail}</dd>}
             </div>
           ))}
         </dl>

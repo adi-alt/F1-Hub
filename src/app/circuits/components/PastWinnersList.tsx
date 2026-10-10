@@ -9,7 +9,7 @@ import type { WinnerMedia } from "../services/circuits.service";
 import type { CurrentTeam } from "@/lib/supabase/media";
 
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
-const HEADER_ROW_CLASS = "sticky top-0 z-10 border-b border-white/[0.08] text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md";
+const HEADER_ROW_CLASS = "sticky top-0 z-10 border-b border-subtle text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md";
 const PAGE_SIZE = 8;
 
 /** Wraps a driver's name in a real link to their profile page when this app has resolved one -
@@ -17,7 +17,7 @@ const PAGE_SIZE = 8;
 function DriverLink({ href, children }: { href: string | null; children: React.ReactNode }) {
   if (!href) return <>{children}</>;
   return (
-    <Link href={href} className="transition hover:text-white hover:underline">
+    <Link href={href} className="transition hover:text-primary hover:underline">
       {children}
     </Link>
   );
@@ -26,8 +26,8 @@ function DriverLink({ href, children }: { href: string | null; children: React.R
 function Pagination({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) {
   if (pageCount <= 1) return null;
   return (
-    <div className="flex items-center justify-between border-t border-white/[0.07] px-3 py-2">
-      <span className="text-[11px] text-tertiary">
+    <div className="flex items-center justify-between border-t border-subtle px-3 py-2">
+      <span className="text-caption text-tertiary">
         Page {page} of {pageCount}
       </span>
       <div className="flex items-center gap-1">
@@ -35,7 +35,7 @@ function Pagination({ page, pageCount, onChange }: { page: number; pageCount: nu
           type="button"
           onClick={() => onChange(page - 1)}
           disabled={page <= 1}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-400 transition hover:text-white disabled:opacity-30 disabled:hover:text-neutral-400"
+          className="rounded-md px-2.5 py-1 text-caption font-medium text-secondary transition hover:text-primary disabled:opacity-30 disabled:hover:text-secondary"
         >
           Prev
         </button>
@@ -43,7 +43,7 @@ function Pagination({ page, pageCount, onChange }: { page: number; pageCount: nu
           type="button"
           onClick={() => onChange(page + 1)}
           disabled={page >= pageCount}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-neutral-400 transition hover:text-white disabled:opacity-30 disabled:hover:text-neutral-400"
+          className="rounded-md px-2.5 py-1 text-caption font-medium text-secondary transition hover:text-primary disabled:opacity-30 disabled:hover:text-secondary"
         >
           Next
         </button>
@@ -124,8 +124,8 @@ export function PastWinnersList({
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition ${
-              tab === t ? "bg-white/[0.08] text-white" : "text-tertiary hover:text-neutral-300"
+            className={`rounded-md px-3 py-1.5 text-caption font-medium capitalize transition ${
+              tab === t ? "bg-white/[0.08] text-primary" : "text-tertiary hover:text-secondary"
             }`}
           >
             {t === "year" ? "By Year" : `Top ${t}s`}
@@ -133,27 +133,27 @@ export function PastWinnersList({
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+      <div className="overflow-hidden rounded-lg border border-subtle bg-surface-1">
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}>
             {tab === "year" && (
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-body-sm">
                 <thead className={HEADER_ROW_CLASS} style={HEADER_STYLE}>
                   <tr>
-                    <th className="px-3 py-2.5 font-mono font-semibold">Year</th>
+                    <th className="px-3 py-2.5 font-semibold">Year</th>
                     <th className="px-3 py-2.5 font-semibold">Driver</th>
                     <th className="px-3 py-2.5 font-semibold">Team</th>
                     <th className="px-3 py-2.5 font-semibold">Grid</th>
                     <th className="px-3 py-2.5 text-right font-semibold">Margin</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--f1-line)]">
+                <tbody className="divide-y divide-subtle">
                   {pageWinners.map((r) => {
                     const media = winnerMedia.get(r.year) ?? null;
                     return (
-                      <tr key={r.year} className="group transition-colors hover:bg-white/[0.02]">
-                        <td className="px-3 py-2 font-mono text-[13px] font-medium text-white">{r.year}</td>
-                        <td className="whitespace-nowrap px-3 py-2 text-neutral-200">
+                      <tr key={r.year} className="group transition-colors hover:bg-white/[0.04]">
+                        <td className="px-3 py-2 text-body-sm font-medium text-primary">{r.year}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-primary">
                           <DriverLink href={media?.href ?? null}>
                             <div className="flex min-w-0 items-center gap-2">
                               <EntityAvatar imageUrl={media?.photoUrl ?? null} name={r.winnerDriver as string} size={26} fit="cover" />
@@ -161,14 +161,14 @@ export function PastWinnersList({
                             </div>
                           </DriverLink>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-neutral-400">
+                        <td className="whitespace-nowrap px-3 py-2 text-secondary">
                           <div className="flex min-w-0 items-center gap-1.5">
                             {r.winnerTeam && <EntityAvatar imageUrl={logoByTeam.get(r.winnerTeam) ?? null} name={r.winnerTeam} size={16} shape="square" fit="contain" />}
                             <span className="truncate">{r.winnerTeam || "—"}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 font-mono text-[11px] text-tertiary">{r.winnerGrid != null ? `P${r.winnerGrid}` : "—"}</td>
-                        <td className="px-3 py-2 text-right font-mono text-[11px] tabular-nums text-neutral-400">
+                        <td className="px-3 py-2 text-caption text-tertiary">{r.winnerGrid != null ? `P${r.winnerGrid}` : "—"}</td>
+                        <td className="px-3 py-2 text-right text-caption tabular text-secondary">
                           {r.winningMarginSec != null ? `+${r.winningMarginSec.toFixed(3)}s` : "—"}
                         </td>
                       </tr>
@@ -179,7 +179,7 @@ export function PastWinnersList({
             )}
 
             {tab === "driver" && (
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-body-sm">
                 <thead className={HEADER_ROW_CLASS} style={HEADER_STYLE}>
                   <tr>
                     <th className="px-3 py-2.5 font-semibold">#</th>
@@ -187,20 +187,20 @@ export function PastWinnersList({
                     <th className="px-3 py-2.5 text-right font-semibold">Wins</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--f1-line)]">
+                <tbody className="divide-y divide-subtle">
                   {pageDrivers.map((d, i) => (
-                    <tr key={d.driver} className="transition-colors hover:bg-white/[0.02]">
-                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{start + i + 1}</td>
+                    <tr key={d.driver} className="transition-colors hover:bg-white/[0.04]">
+                      <td className={`px-3 py-2 tabular ${start + i < 3 ? "font-semibold text-primary" : "text-tertiary"}`}>{start + i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2">
                         <DriverLink href={d.media?.href ?? null}>
                           <div className="flex min-w-0 items-center gap-2">
                             <EntityAvatar imageUrl={d.media?.photoUrl ?? null} name={d.driver} size={26} fit="cover" />
                             {d.team && <EntityAvatar imageUrl={logoByTeam.get(d.team) ?? null} name={d.team} size={14} shape="square" fit="contain" />}
-                            <span className="truncate font-medium text-white">{d.driver}</span>
+                            <span className="truncate font-medium text-primary">{d.driver}</span>
                           </div>
                         </DriverLink>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-white">
+                      <td className="px-3 py-2 text-right text-caption tabular text-primary">
                         {d.count} win{d.count !== 1 && "s"}
                       </td>
                     </tr>
@@ -210,7 +210,7 @@ export function PastWinnersList({
             )}
 
             {tab === "team" && (
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-body-sm">
                 <thead className={HEADER_ROW_CLASS} style={HEADER_STYLE}>
                   <tr>
                     <th className="px-3 py-2.5 font-semibold">#</th>
@@ -218,17 +218,17 @@ export function PastWinnersList({
                     <th className="px-3 py-2.5 text-right font-semibold">Wins</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--f1-line)]">
+                <tbody className="divide-y divide-subtle">
                   {pageTeams.map((t, i) => (
-                    <tr key={t.team} className="transition-colors hover:bg-white/[0.02]">
-                      <td className={`px-3 py-2 font-mono tabular-nums ${start + i < 3 ? "font-semibold text-white" : "text-tertiary"}`}>{start + i + 1}</td>
+                    <tr key={t.team} className="transition-colors hover:bg-white/[0.04]">
+                      <td className={`px-3 py-2 tabular ${start + i < 3 ? "font-semibold text-primary" : "text-tertiary"}`}>{start + i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2">
                         <div className="flex min-w-0 items-center gap-2">
                           <EntityAvatar imageUrl={logoByTeam.get(t.team) ?? null} name={t.team} size={20} shape="square" fit="contain" />
-                          <span className="truncate font-medium text-white">{t.team}</span>
+                          <span className="truncate font-medium text-primary">{t.team}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-white">
+                      <td className="px-3 py-2 text-right text-caption tabular text-primary">
                         {t.count} win{t.count !== 1 && "s"}
                       </td>
                     </tr>

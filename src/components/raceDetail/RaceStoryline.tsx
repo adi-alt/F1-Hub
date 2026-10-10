@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Crown, Flag, TrendingUp } from "lucide-react
 import { Typewriter } from "@/components/motion/Typewriter";
 import type { Chapter, ChapterKind } from "@/lib/raceMoments";
 import { matchLeadChange, type RaceTrackStory } from "@/lib/raceTrackStory";
-import { layoutAsTrack, seasonRanges, type CircuitLayout } from "@/lib/circuitLayout";
+import { layoutAsTrack, seasonLabel, type CircuitLayout } from "@/lib/circuitLayout";
 import { DrawnCircuit } from "./DrawnCircuit";
 import { placeChapters, RaceCircuitStory, type ChapterPlace } from "./RaceCircuitStory";
 
@@ -130,9 +130,9 @@ export function RaceStoryline({
           {ownTrack
             ? "Where it happened, on this race's own track"
             : layout?.source === "measured"
-              ? `Traced from F1 timing data (${seasonRanges(layout.seasons)})`
+              ? `Traced from F1 timing data (${seasonLabel(layout.seasons)})`
               : drawn
-                ? `The circuit as raced in ${seasonRanges(drawn.seasons)}`
+                ? `The circuit as raced in ${seasonLabel(drawn.seasons)}`
                 : "Pick a moment to follow it on the chart"}
         </p>
       </div>
