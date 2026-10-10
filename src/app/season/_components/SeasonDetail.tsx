@@ -131,9 +131,9 @@ export function SeasonDetail({
             )}
           </div>
 
-          <div className="mt-4 flex items-start gap-3">
+          <div className="mt-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
             <SeasonScrubber year={year} raceSummaries={raceSummaries} />
-            <p className="mt-3 shrink-0 text-[11px] tabular-nums text-tertiary">
+            <p className="shrink-0 text-[11px] sm:mt-5 tabular-nums text-tertiary">
               {status === "ongoing" ? (
                 <>
                   <span className="font-medium text-neutral-300">
