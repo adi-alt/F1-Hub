@@ -10,6 +10,7 @@ import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { computeStoryline, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
 import { RaceStoryline } from "./RaceStoryline";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitLayout } from "@/lib/circuitLayout";
 
 export type { LapEntry, LapTiming, Moment };
 export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
@@ -121,6 +122,7 @@ export function LapChart({
   driverSet,
   customIds,
   trackStory = null,
+  layout = null,
 }: {
   laps: LapEntry[] | undefined;
   isLoading: boolean;
@@ -130,6 +132,8 @@ export function LapChart({
   customIds: string[];
   /** This race's real circuit and lead-change locations, when validated; the storyline falls back without. */
   trackStory?: RaceTrackStory | null;
+  /** The track library's layout for this race's circuit and season, drawn when there's no trackStory. */
+  layout?: CircuitLayout | null;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
@@ -347,6 +351,7 @@ export function LapChart({
             selected={chapterIndex}
             onSelect={selectChapter}
             track={trackStory}
+            layout={layout}
             nameFor={nameFor}
           />
         </div>

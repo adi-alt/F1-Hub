@@ -51,6 +51,9 @@ export const REBUILDABLE = [
   "race_photo_candidates",
   // Derived from F1's live-timing archive by pipeline/race_track_story.py; rebuilt by its --backfill.
   "race_track_stories",
+  // The track library: drawn layouts from f1-circuits-svg, measured ones rebuilt from race_track_stories
+  // (pipeline/circuit_layouts.py).
+  "circuit_layouts",
 ];
 
 /** Short-lived or regenerable, and some of it sensitive (one-time codes): deliberately not backed up. */

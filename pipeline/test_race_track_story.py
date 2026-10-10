@@ -139,34 +139,47 @@ ts.season_races = real_season_races
 
 # --- the backfill: one bad race doesn't end the run, and failures can't use up the budget -------------------
 class FakeCursor:
-    def __init__(self, rows):
-        self.rows, self.stored, self.rollbacks, self.commits = rows, [], 0, 0
-        self.connection = self
+    def __init__(self, rows, donors=()):
+        self.rows, self.donors, self.stored, self.rollbacks, self.commits = rows, list(donors), [], 0, 0
+        self.connection, self._result = self, []
     def execute(self, sql, params=None):
-        if sql.strip().startswith("insert"):
+        sql = sql.strip()
+        if sql.startswith("insert"):
             if params[0] == "bad_write":
                 raise RuntimeError("constraint violated")
             self.stored.append(params[0])
+        elif "left join race_track_stories" in sql:
+            self._result = self.rows
+        elif "race_track_stories s join races" in sql:  # donors already stored, at this circuit
+            self._result = [d for d in self.donors if d[4] == params[0]]
     def fetchall(self):
-        return self.rows
+        return [d[:4] for d in self._result] if self._result and len(self._result[0]) == 5 else self._result
     def commit(self):
         self.commits += 1
     def rollback(self):
         self.rollbacks += 1
 
-STORY = {"version": ts.STORY_VERSION, "outline": [[0, 0]] * 60, "corners": [], "leadChanges": []}
-def fake_build(feeds, corners, rotation, winner):
+STORY = {"version": ts.STORY_VERSION, "circuitKey": 7, "outline": [[0, 0]] * 60, "startFinish": {"x": 0, "y": 0, "verified": True}, "corners": [], "leadChanges": []}
+def fake_build(feeds, corners, rotation, winner, fallback=None):
     if feeds["id"] == "crash":
         raise IndexError("malformed feed")
     return (None, {"rejected": "outline failed its checks"}) if feeds["id"] == "reject" else (STORY, {})
-saved = (ts.session_path, ts.fetch_feeds, ts.fetch_circuit, ts.build_story)
+saved = (ts.session_path, ts.fetch_feeds, ts.fetch_circuit, ts.build_story, ts.qualifying_path)
+ts.qualifying_path = lambda year, path: None  # no network in tests
 ts.session_path = lambda y, r, d=None: None if r == 0 else f"/static/{r}/"
 ts.fetch_feeds = lambda path: {"SessionInfo.json": '{"Meeting":{"Circuit":{"Key":1}}}', "id": IDS[path]}
 ts.fetch_circuit = lambda key, year: ([], None)
 ts.build_story = fake_build
-rows = [("missing", 2026, 0, None, None), ("crash", 2026, 1, None, None), ("reject", 2026, 2, None, None),
-        ("bad_write", 2026, 3, None, None), ("ok1", 2026, 4, None, None), ("ok2", 2026, 5, None, None), ("ok3", 2026, 6, None, None)]
+rows = [("missing", 2026, 0, None, None, "A"), ("crash", 2026, 1, None, None, "B"), ("reject", 2026, 2, None, None, "C"),
+        ("bad_write", 2026, 3, None, None, "D"), ("ok1", 2026, 4, None, None, "E"), ("ok2", 2026, 5, None, None, "F"), ("ok3", 2026, 6, None, None, "G")]
 IDS = {f"/static/{r[2]}/": r[0] for r in rows}
+ts.season_races = lambda year: None  # the archive refuses this machine: every index unreadable
+try:
+    ts.backfill(FakeCursor(rows), since=2026, limit=2, dry_run=True)
+    raise AssertionError("a blocked archive must stop the run")
+except RuntimeError as e:
+    assert "refused" in str(e)
+ts.season_races = lambda year: INDEX
 cur = FakeCursor(rows)
 assert ts.backfill(cur, since=2026, limit=2, dry_run=False) == 2
 assert cur.stored == ["ok1", "ok2"], cur.stored
@@ -176,7 +189,8 @@ assert ts.backfill(cur, since=2026, limit=1, dry_run=False) == 0, "4 attempts (m
 dry = FakeCursor(rows)
 ts.backfill(dry, since=2026, limit=10, dry_run=True)
 assert dry.stored == [] and dry.commits == 0, "a dry run writes nothing"
-ts.session_path, ts.fetch_feeds, ts.fetch_circuit, ts.build_story = saved
+
+ts.session_path, ts.fetch_feeds, ts.fetch_circuit, ts.build_story, ts.qualifying_path = saved
 
 # --- corners ------------------------------------------------------------------------------------------------
 corners = [{"number": n, "letter": "", "x": float(x), "y": float(y)} for n, (x, y) in enumerate(circle([0.1, 0.4, 0.7]), start=1)]
@@ -188,5 +202,34 @@ assert ts.describe_location(0.1 * LAP + 300, vc, LAP) == "into Turn 1"
 assert ts.describe_location(0.25 * LAP, vc, LAP) == "between Turn 1 and Turn 2"
 assert ts.describe_location(0.95 * LAP, vc, LAP) == "between Turn 3 and Turn 1", "wraps through the line"
 assert ts.describe_location(0.25 * LAP, [], LAP) is None, "no verified corners, no turn names"
+
+# --- a race whose own positions can't trace the track uses the fallback (qualifying), and says so ---------------
+def feed_lines(frames):  # Position.z lines: one sample per car per frame
+    return "\n".join(f"00:00:{i:02d}.000{z({'Position': [fr]})}" for i, fr in enumerate(frames))
+frames = [{"Timestamp": f"2026-07-26T13:00:{i:02d}.000Z", "Entries": {"1": {"X": 10 * i, "Y": 0, "Z": 0}}} for i in range(5)]
+tiny = {
+    "Position.z.jsonStream": feed_lines(frames),
+    "DriverList.jsonStream": '00:00:00.000{"1":{"Tla":"NOR"}}',
+    "TimingData.jsonStream": '00:00:01.000{"Lines":{"1":{"Position":"1"}}}',
+    "SessionInfo.json": '{"Meeting":{"Circuit":{"Key":4}}}',
+}
+assert ts.build_story(tiny, [], None, None)[0] is None, "no clean lap and no fallback: no story"
+fallback_used = []
+def fallback():
+    fallback_used.append(1)
+    return outline, ts.check_outline(outline, [circle(np.arange(150) / 150)])
+qstory, qdiag = ts.build_story(tiny, [], None, None, fallback)
+assert fallback_used and qstory is not None and qstory["outlineSession"] == "qualifying", qdiag
+assert ts.build_story(tiny, [], None, None, lambda: None)[0] is None, "the fallback failing too: still no story"
+
+# MultiViewer gives "corners": null for some venues (2020's Sakhir Outer Track).
+class _Resp:
+    status_code = 200
+    def json(self):
+        return {"corners": None, "rotation": 0}
+saved_get = ts._get
+ts._get = lambda url, headers=None: _Resp()
+assert ts.fetch_circuit(148, 2020) == ([], 0.0)
+ts._get = saved_get
 
 print("race_track_story: all checks passed")

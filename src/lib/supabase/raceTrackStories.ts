@@ -18,14 +18,37 @@ const cachedStory = unstable_cache(
   { revalidate: false, tags: ["races"] },
 );
 
-/** The race's real circuit and lead-change locations (race_track_stories), or null: no story yet, one in a
- * shape this app doesn't know, or no table at all (before its migration is applied). Never throws - the race
- * page draws the storyline's fallback route instead, as it always has. */
-export async function getRaceTrackStory(raceId: string): Promise<RaceTrackStory | null> {
+// Archive-season race pages know a race by season and round, not by `races.id` (their ids come from
+// archive_races): the story is found through its race's year and round instead.
+const cachedStoryByRound = unstable_cache(
+  async (year: number, round: number): Promise<RaceTrackStory | null> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("race_track_stories").select("story, races!inner(year, round)").eq("races.year", year).eq("races.round", round).maybeSingle(),
+    );
+    if (error) throw new Error(`getRaceTrackStoryByRound(${year}, ${round}): ${error.message}`);
+    return data ? parseTrackStory(data.story) : null;
+  },
+  ["get-race-track-story-by-round-v1"],
+  { revalidate: false, tags: ["races"] },
+);
+
+async function orNull(read: () => Promise<RaceTrackStory | null>): Promise<RaceTrackStory | null> {
   try {
-    return await cachedStory(raceId);
+    return await read();
   } catch (e) {
     console.warn(e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+/** The race's real circuit and lead-change locations (race_track_stories), or null: no story yet, one in a
+ * shape this app doesn't know, or no table at all (before its migration is applied). Never throws - the race
+ * page draws the storyline's fallback route instead, as it always has. */
+export function getRaceTrackStory(raceId: string): Promise<RaceTrackStory | null> {
+  return orNull(() => cachedStory(raceId));
+}
+
+/** The same, for an archive-season race page, by season and round. */
+export function getRaceTrackStoryByRound(year: number, round: number): Promise<RaceTrackStory | null> {
+  return orNull(() => cachedStoryByRound(year, round));
 }

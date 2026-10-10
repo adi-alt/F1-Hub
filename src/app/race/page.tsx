@@ -6,7 +6,8 @@ import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
-import { getRaceTrackStory } from "@/lib/supabase/raceTrackStories";
+import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
+import { getRaceLayout } from "@/lib/supabase/circuitLayouts";
 import { RaceBannerStats } from "@/components/race/RaceBannerStats";
 import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
@@ -116,7 +117,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext, raceCommunities, photos, trackStory] = await Promise.all([
+    const [ageRecords, personalContext, raceCommunities, photos, trackStory, layout] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
       listRaceCommunities(race.id, session.uid),
@@ -124,6 +125,8 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
       getApprovedRacePhotos(race.id),
       // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
       race.status === "completed" ? getRaceTrackStory(race.id) : Promise.resolve(null),
+      // The track library's layout for this circuit and season, drawn when the race has no story of its own.
+      getRaceLayout({ circuitId: matchedCircuit?.circuitId ?? null, circuitName: race.circuit, year: race.year, raceName: race.name }),
     ]);
 
     return (
@@ -163,6 +166,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             ageRecords={ageRecords}
             photos={photos}
             trackStory={trackStory}
+            layout={layout}
           />
         </div>
       </div>
@@ -189,7 +193,13 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   ]);
   const archiveWinner = race.results.find((r) => r.position === 1);
   const circuitTimeline = buildCircuitTimeline(circuitLiveRaces, circuitArchiveRaces);
-  const [ageRecords, raceCommunities] = await Promise.all([computeAgeRecords(circuitTimeline), listRaceCommunities(race.id, session.uid)]);
+  const [ageRecords, raceCommunities, trackStory, layout] = await Promise.all([
+    computeAgeRecords(circuitTimeline),
+    listRaceCommunities(race.id, session.uid),
+    // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
+    getRaceTrackStoryByRound(year, race.round),
+    getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }),
+  ]);
 
   return (
     <div data-surface="frosted" className="page-wide py-8">
@@ -214,6 +224,8 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           circuitTimeline={circuitTimeline}
           ageRecords={ageRecords}
           raceCommunities={raceCommunities}
+          trackStory={trackStory}
+          layout={layout}
         />
       </div>
     </div>
