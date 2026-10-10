@@ -6,6 +6,7 @@ import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
+import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
@@ -134,21 +135,28 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           // The race's own photos only: no circuit photo stands in for a race that has none.
           photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? null}
           keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
+          actions={
+            <RaceMoreMenu
+              race={race}
+              completed={race.status === "completed" && !!race.results}
+              accuracy={accuracy}
+              poleAccuracy={poleAccuracy}
+              personal={personalContext}
+              fallbackEntrants={fallbackEntrants}
+              raceSessionDate={raceSessionDate}
+              sessions={calendarEntry?.sessions ?? []}
+            />
+          }
         />
         <div className="mt-12">
           <SeasonRaceDashboard
             race={race}
             highlights={highlights}
-            accuracy={accuracy}
-            poleAccuracy={poleAccuracy}
             calendarEntry={calendarEntry}
             trackHistory={trackHistory}
             circuitTimeline={circuitTimeline}
-            personalContext={personalContext}
             raceCommunities={raceCommunities}
             ageRecords={ageRecords}
-            fallbackEntrants={fallbackEntrants}
-            raceSessionDate={raceSessionDate}
             photos={photos}
           />
         </div>

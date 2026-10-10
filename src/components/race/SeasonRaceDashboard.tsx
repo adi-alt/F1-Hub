@@ -13,7 +13,6 @@ import { RaceCommunitiesSection } from "@/components/raceDetail/RaceCommunitiesS
 import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { AgeRecords } from "@/lib/circuitRecords";
-import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/RaceIntelligenceSection";
 import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
@@ -22,18 +21,14 @@ import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { formatLapTime } from "@/lib/format";
 import { teamColor } from "@/lib/teamColors";
 import type { RaceHighlights } from "@/lib/highlights";
-import type { PredictionAccuracy, PolePredictionAccuracy } from "@/lib/predictionAccuracy";
 import type { RaceDoc } from "@/lib/types/race";
 import { ModelInfo } from "./ModelInfo";
 import { ModelOutlook } from "./ModelOutlook";
-import { PickPanel } from "./PickPanel";
 import { RaceClassification } from "./RaceClassification";
 import { RaceRail } from "./RaceRail";
 import { RaceReadiness } from "@/components/home/RaceReadiness";
 import { PoleSection } from "./PoleSection";
-import { PolePredictionComparison } from "./PolePredictionComparison";
 import { PracticeSummary } from "./PracticeSummary";
-import { PredictionComparison } from "./PredictionComparison";
 import { QualifyingGapChart } from "./QualifyingGapChart";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
@@ -44,29 +39,21 @@ import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapC
 import { useSeasonLaps } from "@/hooks/useSeasonLaps";
 
 /** The season race page, as a story that follows the race's phase (spec §3.1). Before the race: the weekend's
- * schedule, your pick, what the model expects, the preview, then history. After it: the result first, how the
- * predictions did, the analysis, the race story, then history. One rail beside it with at most three blocks
+ * schedule, what the model expects, the preview, then history. After it: the result first, the analysis, the race story, then history. One rail beside it with at most three blocks
  * (RaceRail); the countdown or the winner sits in the page header. Every section still appears only when its
  * data is real. */
 export function SeasonRaceDashboard({
   race,
   highlights,
-  accuracy,
-  poleAccuracy,
   calendarEntry,
   trackHistory,
   circuitTimeline,
   ageRecords,
-  personalContext,
   raceCommunities,
-  fallbackEntrants = [],
-  raceSessionDate = null,
   photos = [],
 }: {
   race: RaceDoc;
   highlights: RaceHighlights | null;
-  accuracy: PredictionAccuracy | null;
-  poleAccuracy: PolePredictionAccuracy | null;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
   // has no row for, real or absent, never fabricated.
   calendarEntry?: CalendarEntry | null;
@@ -82,14 +69,7 @@ export function SeasonRaceDashboard({
   // Real ages, resolved server-side - see circuitRecords.ts's own top comment for why (Supabase
   // access this page's other client components can't have).
   ageRecords: AgeRecords;
-  // Real user data (favorites, this circuit's own real prediction accuracy) - null-shaped fields
-  // throughout for whichever the user genuinely hasn't got yet, never a guessed favorite (see
-  // personalRaceBriefing.ts's own comment).
-  personalContext: PersonalRaceContext;
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
-  // For the podium pick (PickPanel): the grid to choose from before qualifying, and lights out.
-  fallbackEntrants?: { driver: string; driverName: string; team: string }[];
-  raceSessionDate?: string | null;
   // Approved Wikimedia photos of this weekend (/admin/race-photos), up to four; empty -> no photo section.
   photos?: RacePhoto[];
 }) {
@@ -135,11 +115,6 @@ export function SeasonRaceDashboard({
     safetyCar: race.safetyCarPeriods !== undefined && race.safetyCarPeriods !== null,
     traffic: !!race.trafficStats?.length,
   };
-  // MovementChart used to live in this section (below), gated on isCompleted alone - now that its
-  // data feeds the compact Race Performance view instead, this section only ever shows real
-  // prediction-accuracy content, so it's gated on that content actually existing, not on the race
-  // simply being completed.
-  const hasAnalysis = !!accuracy || !!poleAccuracy || !!race.prediction || !!race.polePrediction;
   const hasPractice = !!race.practice;
   const hasQualifying = !!race.inputs?.length;
   const hasStrategy = !!race.tireStints?.length;
@@ -273,28 +248,15 @@ export function SeasonRaceDashboard({
       <section aria-label="About this race">
               <RaceRail
                 completed={isCompleted}
-                circuit={race.circuit}
                 weather={race.weather}
                 forecast={calendarEntry?.weatherForecast}
-                personal={personalContext}
-                accuracy={accuracy}
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
-                nameOf={nameOf}
               />
             </section>
 
             {photos.length > 0 && (
               <RaceSectionCard id="photos" title="Photos from the weekend" bare>
                 <RacePhotoGallery photos={photos} />
-              </RaceSectionCard>
-            )}
-
-            {hasAnalysis && (accuracy || poleAccuracy) && (
-              <RaceSectionCard id="predictions" title="How the predictions did" bare>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {accuracy && <PredictionComparison accuracy={accuracy} />}
-                  {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
-                </div>
               </RaceSectionCard>
             )}
 
@@ -321,19 +283,11 @@ export function SeasonRaceDashboard({
       <section aria-label="About this race">
               <RaceRail
                 completed={isCompleted}
-                circuit={race.circuit}
                 weather={race.weather}
                 forecast={calendarEntry?.weatherForecast}
-                personal={personalContext}
-                accuracy={accuracy}
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
-                nameOf={nameOf}
               />
             </section>
-
-            <RaceSectionCard id="pick" title="Your predictions" description="Podium, pole, fastest lap, top five, safety car and winning margin, each against the model. Pole locks at qualifying, the rest at lights out." bare>
-              <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} sessions={calendarEntry?.sessions ?? []} />
-            </RaceSectionCard>
 
             {race.simulation || race.prediction ? (
               <RaceSectionCard id="prediction" title="What the model expects">

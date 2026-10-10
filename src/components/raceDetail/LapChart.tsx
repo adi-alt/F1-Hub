@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
@@ -127,6 +128,9 @@ export function LapChart({
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInView = useInView(chartRef, { once: true, amount: 0.3 });
+  const reduceMotion = useReducedMotion();
 
   const nameFor = (driverId: string) => results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
   const highlighted = locked ?? hovered;
@@ -222,7 +226,7 @@ export function LapChart({
           hovering (either the legend pill or the trajectory itself, or clicking to lock it while
           the mouse moves to the chart) picks one out and fades the rest, rather than ~20
           equally-loud lines competing for attention. */}
-      <div>
+      <div ref={chartRef}>
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData} margin={{ left: 8, right: 16, top: 8 }}>
             {/* Two separate grids, not one - horizontal position guides read a touch more visibly
@@ -246,7 +250,9 @@ export function LapChart({
               label={{ value: "Position", angle: -90, position: "insideLeft", fill: chart.mutedInk, fontSize: 12 }}
             />
             <Tooltip cursor={{ stroke: "rgba(255,255,255,0.15)", strokeDasharray: "3 3" }} content={LapTooltip} />
-            {orderedDriverIds.map((driverId) => {
+            {/* The lines draw in left to right, lap by lap, once the chart scrolls into view - staggered a beat
+                per driver so the field fans out rather than appearing at once. */}
+            {chartInView && orderedDriverIds.map((driverId, lineIndex) => {
               const isHighlighted = highlighted === null || highlighted === driverId;
               // Color is keyed off the full grid's index, not the visible subset's - so a
               // driver's line color stays the same one when switching Top 5 -> All, not reshuffled.
@@ -266,7 +272,10 @@ export function LapChart({
                   dot={endpoints ? makeEndpointDot(endpoints.first, endpoints.last, color, highlighted === driverId) : false}
                   activeDot={false}
                   connectNulls
-                  isAnimationActive={false}
+                  isAnimationActive={!reduceMotion}
+                  animationBegin={lineIndex * 40}
+                  animationDuration={1400}
+                  animationEasing="ease-out"
                   onMouseEnter={() => setHovered(driverId)}
                   onMouseLeave={() => setHovered(null)}
                   onClick={() => setLocked((prev) => (prev === driverId ? null : driverId))}
@@ -305,10 +314,17 @@ export function LapChart({
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Key race moments</p>
           <ul className="space-y-1.5">
             {moments.map((m, i) => (
-              <li key={i} className="flex gap-2 text-sm text-neutral-300">
+              <motion.li
+                key={i}
+                className="flex gap-2 text-sm text-neutral-300"
+                initial={reduceMotion ? false : { opacity: 0, x: -6 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.3, delay: i * 0.06, ease: "easeOut" }}
+              >
                 <span className="w-12 shrink-0 font-mono text-xs text-tertiary">Lap {m.lap}</span>
                 {m.text}
-              </li>
+              </motion.li>
             ))}
           </ul>
         </div>
