@@ -34,7 +34,11 @@ import { ReplaySection } from "@/components/raceDetail/ReplaySection";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
-import type { RaceDoc, RaceSimulation } from "@/lib/types/race";
+import type { PracticeData, RaceDoc, RaceInputEntry, RaceSimulation } from "@/lib/types/race";
+import { PracticeSummary } from "@/components/race/PracticeSummary";
+import { QualifyingGapChart } from "@/components/race/QualifyingGapChart";
+import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
+import type { RacePhoto } from "@/lib/racePhotos";
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20+ car historical field doesn't turn Results into a wall-length scroll inside its own card.
@@ -67,7 +71,8 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
  * pit-stops/laps) doesn't render at all, rather than taking up space to say so. Qualifying,
  * Race Performance (grid -> finish) and Strategy live inside one "Race Analysis" module
  * (RaceSubSection), same grouping SeasonRaceDashboard uses for Practice/Qualifying/Strategy -
- * Archive has no practice data, so this side's Race Analysis is just the two columns. Results
+ * The archive tables have no practice, but for 2018 on the season pipeline's own `races` row does: the page
+ * passes its practice and qualifying in (`practice`, `liveQualifying`), and they show here. Results
  * always renders - final classification
  * isn't optional for a classified historical race. `simulation` comes from `races.simulation`
  * (the current-season table), fetched separately by the page and passed in here - confirmed live
@@ -84,6 +89,9 @@ export function ArchiveRaceDashboard({
   trackStory = null,
   layout = null,
   replay = null,
+  practice = null,
+  liveQualifying = [],
+  photos = [],
 }: {
   race: ArchiveRaceDoc;
   circuit: ArchiveCircuit | null;
@@ -101,6 +109,12 @@ export function ArchiveRaceDashboard({
   layout?: CircuitLayout | null;
   // This race's replay file (src/data/replays.json), or null: no replay section at all.
   replay?: ReplayEntry | null;
+  // From the season pipeline's `races` row (2018 on): the archive tables have no practice at all, and a few
+  // races' archive qualifying has no times (2025 Miami). Absent before 2018.
+  practice?: PracticeData | null;
+  liveQualifying?: RaceInputEntry[];
+  // Approved photos of this weekend (/admin/race-photos); empty -> no photo section.
+  photos?: RacePhoto[];
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -210,11 +224,16 @@ export function ArchiveRaceDashboard({
     );
   }
 
-  const hasQualifying = !!race.qualifying?.length;
+  // Archive qualifying with no times can't be charted (2025 Miami's rows have none): the season pipeline's own
+  // qualifying (gap to pole) stands in when it has gaps.
+  const archiveQualifyingTimed = !!race.qualifying?.some((q) => q.q1 || q.q2 || q.q3);
+  const liveQualifyingTimed = liveQualifying.filter((q) => q.qualifyingGapSec !== null).length >= 3;
+  const hasQualifying = archiveQualifyingTimed || liveQualifyingTimed;
+  const hasPractice = !!practice && Object.keys(practice).length > 0;
   const hasStrategy = !!race.pitStops?.length;
   const hasPositionChanges = allMovementEntries.length > 0;
   const hasLapChart = race.lapsBackfilled;
-  const hasSessionAnalysis = hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
+  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
   // Real ArchiveResultEntry rows already have driverId/driverName/position - LapChart's own prop
   // type is exactly that shape (defined there, not here) so this needs no field renaming, just a
   // type-level assertion that the wider ArchiveResultEntry satisfies it.
@@ -227,7 +246,7 @@ export function ArchiveRaceDashboard({
   // Progression, and Race Performance together - one control for the whole section, not each
   // panel's own.
   const driverSetFilterable =
-    Math.max(hasQualifying ? race.qualifying!.length : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5;
+    Math.max(hasQualifying ? (archiveQualifyingTimed ? race.qualifying!.length : liveQualifying.length) : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5;
 
   // Whatever's honestly knowable client-side, pre-generation - compoundPace/traffic/safetyCar are
   // never in this coverage object at all (archive_races has no such columns for any year), so the
@@ -289,6 +308,12 @@ export function ArchiveRaceDashboard({
         </motion.div>
       </RaceSectionCard>
 
+      {photos.length > 0 && (
+        <RaceSectionCard id="photos" title="Photos from the weekend" bare>
+          <RacePhotoGallery photos={photos} />
+        </RaceSectionCard>
+      )}
+
       {hasSessionAnalysis && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
@@ -302,6 +327,13 @@ export function ArchiveRaceDashboard({
               }
             >
               <DriverSetPanels filterable={driverSetFilterable}>
+                {hasPractice && (
+                  <div id="practice" className={hasQualifying || hasStrategy ? "mb-6 border-b border-[var(--f1-line)] pb-6" : undefined}>
+                    <RaceSubSection label="Practice" description="Best lap in each session, and the conditions." first>
+                      <PracticeSummary practice={practice!} roster={liveQualifying.map((q) => ({ driver: q.driver, driverName: q.driverName, team: q.team }))} />
+                    </RaceSubSection>
+                  </div>
+                )}
                 {/* Qualifying and Strategy share a row - they're the two panels that genuinely
                     benefit from sitting side by side at a comparable width. Lap Progression needs
                     real horizontal room to read a whole field's trajectories, and Race Performance
@@ -312,7 +344,11 @@ export function ArchiveRaceDashboard({
                   {hasQualifying && (
                     <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
                       <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
-                        <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
+                        {archiveQualifyingTimed ? (
+                          <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
+                        ) : (
+                          <QualifyingGapChart inputs={liveQualifying} driverSet={driverSet} customIds={customDriverIds} />
+                        )}
                       </RaceSubSection>
                     </div>
                   )}
