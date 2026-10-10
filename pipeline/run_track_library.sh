@@ -2,20 +2,24 @@
 # Keeps the track library current, from this machine: F1's live-timing archive refuses GitHub's runners (its
 # CloudFront blocks datacenter IPs - see run_local.sh), so this can't be a scheduled workflow.
 #
-#   1. race_track_story.py --backfill   each completed race without a story: its own traced outline and where the
+#   1. circuit_layouts.py --seed-drawn  every historical layout as a drawing (circuit_layouts), 1950-2025: what
+#                                        any race with no traced track of its own draws
+#   2. race_track_story.py --backfill   each completed race without a story: its own traced outline and where the
 #                                        lead changed (race_track_stories)
-#   2. circuit_layouts.py --rebuild-measured
+#   3. circuit_layouts.py --rebuild-measured
 #                                        regroups every traced season into layout versions (circuit_layouts): a
 #                                        season whose track no longer matches starts a new version - a changed or
 #                                        new circuit enters the library here
 #
-# A dry run (reads production, writes nothing) unless --apply. Run after a race weekend, or any time: both
+# A dry run (reads production, writes no layouts or stories) unless --apply. Run after a race weekend, or any time: both
 # steps are idempotent and only do what's missing or changed.
 #
 # Usage:
 #   ./pipeline/run_track_library.sh                  # dry run: what would be stored, and any layout changes
 #   ./pipeline/run_track_library.sh --apply          # store it
 #   ./pipeline/run_track_library.sh --apply --since 2018 --limit 200   # a first, full backfill
+#
+# Run from the repository root, on main (the script reads .env.local and pipeline/.venv from there).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -40,9 +44,11 @@ done
 
 cd pipeline
 if [ -n "$apply" ]; then
+  ../pipeline/.venv/bin/python circuit_layouts.py --seed-drawn --apply
   ../pipeline/.venv/bin/python race_track_story.py "${story_args[@]}"
   ../pipeline/.venv/bin/python circuit_layouts.py --rebuild-measured --apply
 else
+  ../pipeline/.venv/bin/python circuit_layouts.py --seed-drawn
   ../pipeline/.venv/bin/python race_track_story.py "${story_args[@]}" --dry-run
   ../pipeline/.venv/bin/python circuit_layouts.py --rebuild-measured
 fi
