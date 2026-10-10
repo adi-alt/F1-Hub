@@ -7,6 +7,7 @@ import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitLayout } from "@/lib/circuitLayout";
 import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
@@ -51,6 +52,7 @@ export function SeasonRaceDashboard({
   raceCommunities,
   photos = [],
   trackStory = null,
+  layout = null,
 }: {
   race: RaceDoc;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
@@ -73,6 +75,8 @@ export function SeasonRaceDashboard({
   photos?: RacePhoto[];
   // The real circuit and where the lead changed (race_track_stories); null -> the storyline's fallback route.
   trackStory?: RaceTrackStory | null;
+  // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
+  layout?: CircuitLayout | null;
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -194,7 +198,7 @@ export function SeasonRaceDashboard({
           {hasLapChart && (
             <div id="lap-chart">
               <RaceSubSection label="Lap by lap" description="Race position on every lap." first={!showPracticeSlot && !showQualifyingStrategyRow}>
-                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} />
+                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} layout={layout} />
               </RaceSubSection>
             </div>
           )}

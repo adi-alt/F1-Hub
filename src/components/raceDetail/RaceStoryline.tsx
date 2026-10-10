@@ -6,6 +6,8 @@ import { ChevronLeft, ChevronRight, Crown, Flag, TrendingUp } from "lucide-react
 import { Typewriter } from "@/components/motion/Typewriter";
 import type { Chapter, ChapterKind } from "@/lib/raceMoments";
 import { matchLeadChange, type RaceTrackStory } from "@/lib/raceTrackStory";
+import { layoutAsTrack, seasonRanges, type CircuitLayout } from "@/lib/circuitLayout";
+import { DrawnCircuit } from "./DrawnCircuit";
 import { placeChapters, RaceCircuitStory, type ChapterPlace } from "./RaceCircuitStory";
 
 const ICON: Record<ChapterKind, typeof Flag> = { start: Flag, lead: Crown, charge: TrendingUp, finish: Flag };
@@ -55,7 +57,8 @@ export function RaceStoryline({
   colorFor,
   selected,
   onSelect,
-  track = null,
+  track: ownTrack = null,
+  layout = null,
   nameFor = (code) => code,
 }: {
   chapters: Chapter[];
@@ -64,8 +67,14 @@ export function RaceStoryline({
   selected: number | null;
   onSelect: (index: number | null) => void;
   track?: RaceTrackStory | null;
+  /** The track library's layout for this race's circuit and season: drawn when the race has no story of its own. */
+  layout?: CircuitLayout | null;
   nameFor?: (code: string) => string;
 }) {
+  // The race's own traced track first (with where things happened); else the library's measured layout for its
+  // season (the real geometry, nothing located); else the library's drawing; else the route below.
+  const track = useMemo(() => ownTrack ?? (layout?.source === "measured" ? layoutAsTrack(layout) : null), [ownTrack, layout]);
+  const drawn = !track && layout?.source === "drawn" ? layout : null;
   const reduceMotion = useReducedMotion();
   const [hovered, setHovered] = useState<number | null>(null);
   const [routeEl, setRouteEl] = useState<HTMLDivElement | null>(null);
@@ -117,12 +126,24 @@ export function RaceStoryline({
     <section aria-label="The race as a story">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">How the race unfolded</p>
-        <p className="text-caption text-tertiary">{track ? "Where it happened, on this race's own track" : "Pick a moment to follow it on the chart"}</p>
+        <p className="text-caption text-tertiary">
+          {ownTrack
+            ? "Where it happened, on this race's own track"
+            : layout?.source === "measured"
+              ? `Traced from F1 timing data (${seasonRanges(layout.seasons)})`
+              : drawn
+                ? `The circuit as raced in ${seasonRanges(drawn.seasons)}`
+                : "Pick a moment to follow it on the chart"}
+        </p>
       </div>
 
-      {track && places ? (
+      {(track && places) || drawn ? (
         <div className="mt-4">
-          <RaceCircuitStory track={track} chapters={chapters} places={places} active={active} colorFor={colorFor} onSelect={onSelect} />
+          {track && places ? (
+            <RaceCircuitStory track={track} chapters={chapters} places={places} active={active} colorFor={colorFor} onSelect={onSelect} />
+          ) : (
+            drawn && <DrawnCircuit layout={drawn} />
+          )}
           {/* Every chapter, located or not: the selectable list behind the map. */}
           <div
             role="listbox"
@@ -149,7 +170,7 @@ export function RaceStoryline({
                 >
                   <Icon aria-hidden size={12} strokeWidth={2} style={{ color: colorFor(c.driverId) }} />
                   L{c.lap}
-                  {!places[i].xy && <span className="sr-only"> (no single location)</span>}
+                  {!places?.[i]?.xy && <span className="sr-only"> (no single location)</span>}
                 </button>
               );
             })}

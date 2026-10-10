@@ -27,6 +27,8 @@ import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
+import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitLayout } from "@/lib/circuitLayout";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
@@ -77,6 +79,8 @@ export function ArchiveRaceDashboard({
   circuitTimeline,
   ageRecords,
   raceCommunities,
+  trackStory = null,
+  layout = null,
 }: {
   race: ArchiveRaceDoc;
   circuit: ArchiveCircuit | null;
@@ -88,6 +92,10 @@ export function ArchiveRaceDashboard({
   circuitTimeline: CircuitYearRecord[];
   ageRecords: AgeRecords;
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
+  // The real circuit and where the lead changed (race_track_stories); null -> the storyline's fallback route.
+  trackStory?: RaceTrackStory | null;
+  // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
+  layout?: CircuitLayout | null;
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -314,7 +322,7 @@ export function ArchiveRaceDashboard({
                 {hasLapChart && (
                   <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
                     <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
-                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
+                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} layout={layout} />
                     </RaceSubSection>
                   </div>
                 )}

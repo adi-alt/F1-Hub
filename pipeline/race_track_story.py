@@ -74,6 +74,12 @@ REORDER_CLOCK_TOLERANCE_S = 1.5
 # with its uncertainty, never with a turn name.
 VERIFIED_UNCERTAINTY_M = 25
 ON_LINE_M = 25  # further than this from the outline at the move: pit lane, run-off, or a bad sample
+# Two traced layouts of one circuit are the same layout when they agree within this (95th percentile, metres):
+# used by the track library (circuit_layouts.py) to group seasons into layout versions. Measured: the
+# same layout in different years agrees within ~1-4 m (Silverstone 2019/2026 0.6 m, Monza 2019/2026 4.2 m); a
+# changed one doesn't come close (Albert Park 2019/2022 19 m, Barcelona 2022/2023 65 m, Yas Marina 2020/2021
+# 512 m).
+SAME_LAYOUT_P95_M = 8
 INTO_CORNER_BEFORE_M = 150  # a pass this far before a corner, or...
 INTO_CORNER_AFTER_M = 50  # ...this far after it, is "into Turn N"
 
@@ -102,14 +108,20 @@ def _get(url: str, *, headers: dict | None = None) -> requests.Response | None:
 
 
 @lru_cache(maxsize=None)
+def season_index(year: int) -> dict | None:
+    """The season's archive index, fetched once per season per run. None when there is none (2022's returns
+    AccessDenied)."""
+    resp = _get(f"{LIVETIMING}/static/{year}/Index.json")
+    return None if resp is None else json.loads(resp.content.decode("utf-8-sig"))
+
+
+@lru_cache(maxsize=None)
 def season_races(year: int) -> tuple[tuple[str, str], ...] | None:
     """(start date, archive path) of every Grand Prix in the season's archive index, in date order - sprints
-    excluded (their session is named 'Sprint'). Fetched once per season per run. None when the season has no
-    index (2022's returns AccessDenied)."""
-    resp = _get(f"{LIVETIMING}/static/{year}/Index.json")
-    if resp is None:
+    excluded (their session is named 'Sprint')."""
+    index = season_index(year)
+    if index is None:
         return None
-    index = json.loads(resp.content.decode("utf-8-sig"))
     races = []
     for meeting in index.get("Meetings", []):
         if "test" in (meeting.get("Name") or "").lower():
@@ -138,6 +150,34 @@ def session_path(year: int, round_num: int, race_date: str | None = None) -> str
     return f"/static/{races[round_num - 1][1]}"
 
 
+def qualifying_path(year: int, race_path: str) -> str | None:
+    """The archive path of qualifying at the same meeting as `race_path`, or None."""
+    index = season_index(year) or {}
+    for meeting in index.get("Meetings", []):
+        paths = {f"/static/{s.get('Path')}": s for s in meeting.get("Sessions", []) if s.get("Path")}
+        if race_path in paths:
+            q = [p for p, s in paths.items() if (s.get("Name") or "") == "Qualifying"]
+            return q[0] if q else None
+    return None
+
+
+def trace_session(path: str) -> tuple[np.ndarray, OutlineCheck] | None:
+    """A checked outline from any session's positions (used for qualifying, when a race's own are unusable):
+    the same lap selection and checks as a race. None when no lap passes them."""
+    feeds = {}
+    for name in ("DriverList.jsonStream", "TimingData.jsonStream", "Position.z.jsonStream"):
+        resp = _get(f"{LIVETIMING}{path}{name}")
+        if resp is None:
+            return None
+        feeds[name] = resp.content.decode("utf-8-sig")
+    tracks, clock = parse_positions(feeds["Position.z.jsonStream"])
+    codes = parse_driver_codes(feeds["DriverList.jsonStream"])
+    tracks = {car: tr for car, tr in tracks.items() if car in codes}
+    laps, _ = parse_timing(feeds["TimingData.jsonStream"], clock)
+    rep = representative_outline(tracks, laps, None)
+    return rep if rep is not None and rep[1].ok else None
+
+
 def fetch_feeds(path: str) -> dict[str, str] | None:
     feeds = {}
     for name in ("SessionInfo.json", "DriverList.jsonStream", "TimingData.jsonStream", "Position.z.jsonStream"):
@@ -146,6 +186,18 @@ def fetch_feeds(path: str) -> dict[str, str] | None:
             return None
         feeds[name] = resp.content.decode("utf-8-sig")
     return feeds
+
+
+@lru_cache(maxsize=None)
+def fetch_circuit_trace(circuit_key: int, year: int) -> np.ndarray | None:
+    """MultiViewer's track trace for the circuit that year, in the feed's coordinate frame, or None."""
+    resp = _get(MULTIVIEWER.format(key=circuit_key, year=year), headers={"User-Agent": "f1-hub-pipeline"})
+    if resp is None:
+        return None
+    data = resp.json()
+    if not data.get("x") or len(data["x"]) != len(data.get("y", [])):
+        return None
+    return np.c_[data["x"], data["y"]].astype(float)
 
 
 def fetch_circuit(circuit_key: int, year: int) -> tuple[list[dict], float | None]:
@@ -157,7 +209,8 @@ def fetch_circuit(circuit_key: int, year: int) -> tuple[list[dict], float | None
     data = resp.json()
     corners = [
         {"number": int(c["number"]), "letter": c.get("letter") or "", "x": float(c["trackPosition"]["x"]), "y": float(c["trackPosition"]["y"])}
-        for c in data.get("corners", [])
+        # "corners": null for some venues (2020's Sakhir Outer Track), not just a missing key.
+        for c in (data.get("corners") or [])
     ]
     rotation = data.get("rotation")
     return corners, float(rotation) if rotation is not None else None
@@ -525,11 +578,18 @@ def describe_location(along: float, corners: list[dict], length: float) -> str |
 # ── The story ───────────────────────────────────────────────────────────────────────────────────────
 
 
-def build_story(feeds: dict[str, str], corners: list[dict], rotation: float | None, winner_code: str | None) -> tuple[dict | None, dict]:
+def build_story(
+    feeds: dict[str, str],
+    corners: list[dict],
+    rotation: float | None,
+    winner_code: str | None,
+    fallback_outline=None,
+) -> tuple[dict | None, dict]:
     """(story or None, diagnostics). The story is None when the outline fails its checks: no circuit is
     better than a wrong one."""
     tracks, clock = parse_positions(feeds["Position.z.jsonStream"])
     codes = parse_driver_codes(feeds["DriverList.jsonStream"])
+    circuit_key = int(json.loads(feeds["SessionInfo.json"])["Meeting"]["Circuit"]["Key"])
     laps, changes = parse_timing(feeds["TimingData.jsonStream"], clock)
     by_code = {v: k for k, v in codes.items()}
     # Only race cars: the archive also carries other vehicles (car numbers not in the driver list).
@@ -537,6 +597,14 @@ def build_story(feeds: dict[str, str], corners: list[dict], rotation: float | No
     diag: dict = {"cars": len(tracks), "laps": len(laps), "leadChanges": len(changes)}
 
     rep = representative_outline(tracks, laps, by_code.get(winner_code or ""))
+    outline_session = "race"
+    if (rep is None or not rep[1].ok) and fallback_outline is not None:
+        # The race's own positions can't trace the track (2026 Hungary: gaps of 350 m); the same weekend's
+        # qualifying, on the same track in the same frame, can. Passes are still located from the race's own
+        # positions where they hold up - the sample-gap uncertainty marks the rest approximate.
+        traced = fallback_outline()
+        if traced is not None:
+            rep, outline_session = traced, "qualifying"
     if rep is None:
         diag["rejected"] = "no clean lap to trace"
         return None, diag
@@ -594,6 +662,8 @@ def build_story(feeds: dict[str, str], corners: list[dict], rotation: float | No
     story = {
         "version": STORY_VERSION,
         "source": "F1 live timing",
+        "outlineSession": outline_session,
+        "circuitKey": circuit_key,
         "lapLengthM": int(round(length / 10)),
         "outline": [[int(round(x)), int(round(y))] for x, y in outline],
         "startFinish": {"x": int(round(outline[0][0])), "y": int(round(outline[0][1])), "verified": sf_verified},
@@ -626,7 +696,8 @@ def backfill(cur, *, since: int, limit: int, dry_run: bool) -> int:
     cur.execute(
         """
         select r.id, r.year, r.round, r.race_date,
-               (select rr.driver from race_results rr where rr.race_id = r.id and rr.finish_position = 1 limit 1)
+               (select rr.driver from race_results rr where rr.race_id = r.id and rr.finish_position = 1 limit 1),
+               r.circuit
         from races r
         left join race_track_stories s on s.race_id = r.id
         where r.status = 'completed' and r.year >= %s and (s.race_id is null or s.version < %s)
@@ -635,45 +706,63 @@ def backfill(cur, *, since: int, limit: int, dry_run: bool) -> int:
         (since, STORY_VERSION),
     )
     todo = cur.fetchall()
+    # The archive answers 403 both for a missing file and for a refused client - and it refuses GitHub's runners
+    # outright (F1's CloudFront blocks datacenter IPs; see run_local.sh). The current season's index always
+    # exists, so if it can't be read, this machine is blocked: stop loudly rather than report every race as
+    # "no session" (what the first CI dry run did, 189 times).
+    if todo and season_races(datetime.now(timezone.utc).year) is None:
+        raise RuntimeError(
+            "the live-timing archive refused this machine (the current season's index is unreadable). "
+            "GitHub Actions runners are blocked by F1's CloudFront: run this from a residential connection."
+        )
     # Stops after `limit` stored, or `limit` x 4 attempted: a race that can never be built (no archive session)
     # stays at the front of the queue, and must not use up every run's budget so that nothing behind it is done.
     max_attempts = limit * 4
     print(f"{len(todo)} race(s) without a current story; storing up to {limit}, trying up to {max_attempts}{' (dry run: nothing written)' if dry_run else ''}")
     stored = attempted = 0
-    for race_id, year, round_num, race_date, winner in todo:
+
+    def save(race_id: str, story: dict, path: str) -> None:
+        nonlocal stored
+        if dry_run:
+            stored += 1
+            return
+        try:
+            store(cur, race_id, story, path)
+            cur.connection.commit()
+            stored += 1
+        except Exception as e:  # noqa: BLE001 - roll this race back, keep the connection usable for the next
+            cur.connection.rollback()
+            print(f"  {race_id}: not stored ({type(e).__name__}: {e})")
+
+    # Races with no usable data of their own get no story: the track library (circuit_layouts.py) draws their
+    # circuit instead, from another season on the same, confirmed layout.
+    for race_id, year, round_num, race_date, winner, circuit in todo:
         if stored >= limit or attempted >= max_attempts:
             break
         attempted += 1
         try:
             path = session_path(year, round_num, race_date)
             if path is None:
-                print(f"  {race_id}: no matching live-timing session; skipped")
+                print(f"  {race_id}: no matching live-timing session")
                 continue
             feeds = fetch_feeds(path)
             if feeds is None:
-                print(f"  {race_id}: a feed is missing; skipped")
+                print(f"  {race_id}: a feed is missing")
                 continue
             info = json.loads(feeds["SessionInfo.json"])
             corners, rotation = fetch_circuit(int(info["Meeting"]["Circuit"]["Key"]), year)
-            story, diag = build_story(feeds, corners, rotation, winner)
+            quali = qualifying_path(year, path)
+            story, diag = build_story(feeds, corners, rotation, winner, (lambda: trace_session(quali)) if quali else None)
         except Exception as e:  # noqa: BLE001 - one race's bad data must not end the run for the rest
-            print(f"  {race_id}: {type(e).__name__}: {e}; skipped")
+            print(f"  {race_id}: {type(e).__name__}: {e}")
             continue
         if story is None:
-            print(f"  {race_id}: {diag.get('rejected')} {diag.get('outline', '')}; skipped")
+            print(f"  {race_id}: {diag.get('rejected')} {diag.get('outline', '')}")
             continue
         located = sum(1 for e in story["leadChanges"] if e["kind"] == "pass")
         print(f"  {race_id}: {len(story['outline'])} points, {len(story['corners'])} corners, {len(story['leadChanges'])} lead changes ({located} located)")
-        if not dry_run:
-            try:
-                store(cur, race_id, story, path)
-                cur.connection.commit()
-                stored += 1
-            except Exception as e:  # noqa: BLE001 - roll this race back, keep the connection usable for the next
-                cur.connection.rollback()
-                print(f"  {race_id}: not stored ({type(e).__name__}: {e})")
-        else:
-            stored += 1
+        save(race_id, story, path)
+
     print(f"attempted {attempted}, {'would store' if dry_run else 'stored'} {stored}")
     return 0 if dry_run else stored
 
