@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { computeStoryline, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
 import { RaceStoryline } from "./RaceStoryline";
+import type { RaceTrackStory } from "@/lib/raceTrackStory";
 
 export type { LapEntry, LapTiming, Moment };
 export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
@@ -119,6 +120,7 @@ export function LapChart({
   results,
   driverSet,
   customIds,
+  trackStory = null,
 }: {
   laps: LapEntry[] | undefined;
   isLoading: boolean;
@@ -126,6 +128,8 @@ export function LapChart({
   results: LapChartResultEntry[];
   driverSet: DriverSet;
   customIds: string[];
+  /** This race's real circuit and lead-change locations, when validated; the storyline falls back without. */
+  trackStory?: RaceTrackStory | null;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
@@ -342,6 +346,8 @@ export function LapChart({
             colorFor={(id) => driverColor(driverIds.indexOf(id), driverIds.length)}
             selected={chapterIndex}
             onSelect={selectChapter}
+            track={trackStory}
+            nameFor={nameFor}
           />
         </div>
       )}

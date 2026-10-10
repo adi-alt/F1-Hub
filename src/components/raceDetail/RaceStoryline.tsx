@@ -5,6 +5,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Crown, Flag, TrendingUp } from "lucide-react";
 import { Typewriter } from "@/components/motion/Typewriter";
 import type { Chapter, ChapterKind } from "@/lib/raceMoments";
+import { matchLeadChange, type RaceTrackStory } from "@/lib/raceTrackStory";
+import { placeChapters, RaceCircuitStory, type ChapterPlace } from "./RaceCircuitStory";
 
 const ICON: Record<ChapterKind, typeof Flag> = { start: Flag, lead: Crown, charge: TrendingUp, finish: Flag };
 const KIND_LABEL: Record<ChapterKind, string> = { start: "Lights out", lead: "Lead change", charge: "Biggest move", finish: "Chequered flag" };
@@ -19,11 +21,33 @@ const ROUTE = Array.from({ length: 121 }, (_, i) => {
   return `${i === 0 ? "M" : "L"}${(t * W).toFixed(1)},${routeY(t).toFixed(1)}`;
 }).join(" ");
 
+/** Where a chapter happened, in words - only what the track story supports. */
+function whereText(chapter: Chapter, place: ChapterPlace | undefined, nameFor: (code: string) => string, lapLengthM: number): string | null {
+  if (!place) return null;
+  const c = place.change;
+  if (chapter.kind === "finish") return place.xy ? "At the timing line." : null;
+  if (!c) return null;
+  if (c.kind !== "pass") return c.kind === "pit" ? `In the pit lane: ${nameFor(c.from)} pitted, so no pass on track.` : null;
+  const metres = `${c.alongM.toLocaleString("en-GB")} m into the lap`;
+  // Approximate: only the distance, with how far off it could be - never a turn name or "at the line".
+  if (c.precision === "approximate") {
+    return `Passed ${nameFor(c.from)} around ${metres} (give or take ${c.uncertaintyM} m: the position samples around the move are far apart).`;
+  }
+  // Within 100 m of the line, "into the lap" reads oddly at either end: say where it is plainly.
+  const atLine = c.alongM < 100 ? "just after the timing line" : lapLengthM - c.alongM < 100 ? "just before the timing line" : null;
+  const spot = `Passed ${nameFor(c.from)} ${atLine ?? c.near ?? metres}${atLine || c.near ? ` (${metres})` : ""}`;
+  const battle = c.battle ? " After a battle, this is where the move stuck." : "";
+  const later = c.recordedLaterS >= 3 ? ` The timing screens showed it ${Math.round(c.recordedLaterS)} s later, at the next timing loop.` : "";
+  return `${spot}.${battle}${later}`;
+}
+
 /**
- * Key race moments as a storyline: the race is a winding route from lights out to the flag, each chapter a
- * waypoint along it at its lap. Select a waypoint (click, or ←/→ on the focused route) and its story is told
- * underneath, and the lap chart above marks that lap and follows that driver. The route behind the selection
- * is drawn solid - the part of the race already told.
+ * Key race moments as a storyline. With a validated track story (race_track_stories), the race is drawn on
+ * its real circuit and each chapter that happened at one place - an on-track pass, the flag - is marked where
+ * it happened; chapters without one (a pit-stop lead change) say why instead. Without one, the race is a
+ * winding route from lights out to the flag with each chapter a waypoint at its lap. Either way: select a
+ * chapter (click, or ←/→ on the focused list) and its story is told underneath, and the lap chart above marks
+ * that lap and follows that driver.
  */
 export function RaceStoryline({
   chapters,
@@ -31,12 +55,16 @@ export function RaceStoryline({
   colorFor,
   selected,
   onSelect,
+  track = null,
+  nameFor = (code) => code,
 }: {
   chapters: Chapter[];
   totalLaps: number;
   colorFor: (driverId: string) => string;
   selected: number | null;
   onSelect: (index: number | null) => void;
+  track?: RaceTrackStory | null;
+  nameFor?: (code: string) => string;
 }) {
   const reduceMotion = useReducedMotion();
   const [hovered, setHovered] = useState<number | null>(null);
@@ -65,6 +93,10 @@ export function RaceStoryline({
       return { t: x / 100, x, y: (routeY(x / 100) / H) * 100 };
     });
   }, [chapters, span, routeWidth]);
+  const places = useMemo(
+    () => (track ? placeChapters(chapters, track, (lap, driver) => matchLeadChange(track, lap, driver)) : null),
+    [chapters, track],
+  );
   if (chapters.length === 0) return null;
 
   const active = selected ?? 0;
@@ -85,10 +117,45 @@ export function RaceStoryline({
     <section aria-label="The race as a story">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">How the race unfolded</p>
-        <p className="text-caption text-tertiary">Pick a moment to follow it on the chart</p>
+        <p className="text-caption text-tertiary">{track ? "Where it happened, on this race's own track" : "Pick a moment to follow it on the chart"}</p>
       </div>
 
-      {/* The route */}
+      {track && places ? (
+        <div className="mt-4">
+          <RaceCircuitStory track={track} chapters={chapters} places={places} active={active} colorFor={colorFor} onSelect={onSelect} />
+          {/* Every chapter, located or not: the selectable list behind the map. */}
+          <div
+            role="listbox"
+            aria-label="Race moments"
+            aria-activedescendant={`chapter-${active}`}
+            tabIndex={0}
+            onKeyDown={onKey}
+            className="mt-4 flex flex-wrap justify-center gap-1.5 rounded-control focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/25"
+          >
+            {chapters.map((c, i) => {
+              const Icon = ICON[c.kind];
+              const isActive = i === active;
+              return (
+                <button
+                  key={`${c.kind}-${c.lap}-${i}`}
+                  id={`chapter-${i}`}
+                  role="option"
+                  aria-selected={isActive}
+                  aria-label={`Lap ${c.lap}: ${c.title}`}
+                  tabIndex={-1}
+                  type="button"
+                  onClick={() => onSelect(i)}
+                  className={`flex items-center gap-1.5 rounded-control border px-2 py-1 text-caption tabular transition-colors duration-fast ${isActive ? "border-white/40 bg-white/[0.06] text-primary" : "border-subtle text-secondary hover:text-primary"}`}
+                >
+                  <Icon aria-hidden size={12} strokeWidth={2} style={{ color: colorFor(c.driverId) }} />
+                  L{c.lap}
+                  {!places[i].xy && <span className="sr-only"> (no single location)</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
       <div
         ref={setRouteEl}
         role="listbox"
@@ -152,6 +219,7 @@ export function RaceStoryline({
           );
         })}
       </div>
+      )}
 
       {/* The chapter */}
       <div className="mt-6 flex items-start gap-4">
@@ -173,6 +241,10 @@ export function RaceStoryline({
             <p className="mt-1 text-body-sm text-secondary">
               <Typewriter text={chapter.story} msPerChar={12} />
             </p>
+            {(() => {
+              const where = whereText(chapter, places?.[active], nameFor, track?.lapLengthM ?? 0);
+              return where ? <p className="mt-1.5 text-caption text-tertiary">{where}</p> : null;
+            })()}
           </motion.div>
         </AnimatePresence>
         <div className="flex shrink-0 gap-1">

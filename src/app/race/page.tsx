@@ -6,6 +6,7 @@ import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
+import { getRaceTrackStory } from "@/lib/supabase/raceTrackStories";
 import { RaceBannerStats } from "@/components/race/RaceBannerStats";
 import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
@@ -115,12 +116,14 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext, raceCommunities, photos] = await Promise.all([
+    const [ageRecords, personalContext, raceCommunities, photos, trackStory] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
       listRaceCommunities(race.id, session.uid),
       // Approved Wikimedia photos only (pipeline/race_photos.py, /admin/race-photos); none -> no section.
       getApprovedRacePhotos(race.id),
+      // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
+      race.status === "completed" ? getRaceTrackStory(race.id) : Promise.resolve(null),
     ]);
 
     return (
@@ -159,6 +162,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             raceCommunities={raceCommunities}
             ageRecords={ageRecords}
             photos={photos}
+            trackStory={trackStory}
           />
         </div>
       </div>
