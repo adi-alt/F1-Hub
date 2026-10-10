@@ -220,6 +220,11 @@ export function RaceReplay({ replay, autoPlay = false }: { replay: Replay; autoP
           ))}
         </div>
       )}
+      {header.approximate && (
+        <p className="mt-3 text-caption text-tertiary">
+          Approximated from lap times: F1&apos;s position data for this race is incomplete. The order is exact at every lap line; between laps cars are shown at an even pace.
+        </p>
+      )}
       {reduceMotion && <p className="mt-2 text-caption text-tertiary">Reduced motion is on: the replay doesn&apos;t start by itself.</p>}
     </section>
   );

@@ -36,6 +36,7 @@ REPLAY_VERSION = 1
 # One sample a second: the browser interpolates between samples, so motion stays smooth, and a race is ~75 KB
 # (2 a second was ~150 KB). An overtake is timed to within half a second.
 REPLAY_HZ = 1
+CREEP_MS, CREEP_CAP_M = 3.0, 90.0  # lap-timing fallback: roll-on speed and cap after a car's last lap
 MIN_COVERAGE = 0.9  # the median car's samples must span this share of the race
 TAIL_S = 30  # keep a little after the flag: the last cars crossing the line
 # TrackStatus codes F1 uses in the feed.
@@ -135,6 +136,30 @@ def unpack(blob: bytes) -> tuple[dict, dict[str, np.ndarray]]:
     return header, out
 
 
+def distances_from_laps(laps: list, car: str, start: float, end: float, lap_m: float, grid_offset_m: float, grid: np.ndarray) -> np.ndarray | None:
+    """Metres travelled since lights out from lap completions alone, for a race whose position feed is missing or
+    cut short (2026 Monaco's stops 10 minutes in; OpenF1 republishes the same feed). A car is at the line at each
+    lap completion (lap k: k laps' worth of metres) and moves at an even pace between them. The order is exact at
+    every lap line and estimated in between - so the replay says so (header "approximate"). None when the car
+    completed no lap."""
+    mine = sorted((l for l in laps if l.car == car and start <= l.end <= end + TAIL_S), key=lambda l: l.number)
+    if not mine:
+        return None
+    times = [start] + [l.end for l in mine]
+    metres = [-grid_offset_m] + [l.number * lap_m for l in mine]
+    # A completion that goes backwards in time or distance is a timing glitch: keep the increasing ones.
+    keep_t, keep_m = [times[0]], [metres[0]]
+    for t, m in zip(times[1:], metres[1:]):
+        if t > keep_t[-1] and m > keep_m[-1]:
+            keep_t.append(t)
+            keep_m.append(m)
+    d = np.interp(grid, keep_t, keep_m)
+    # After its last lap the car rolls on past the line at a few metres a second (a cool-down), so cars that finished
+    # on the same lap stay in the order they crossed it, instead of tying.
+    after = np.clip(grid - keep_t[-1], 0, None)
+    return d + np.minimum(after * CREEP_MS, CREEP_CAP_M)
+
+
 def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]:
     """The replay for one race and its story (for the outline), or None with why."""
     tracks, clock = ts.parse_positions(feeds["Position.z.jsonStream"])
@@ -167,8 +192,22 @@ def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]
         # Before a car's first sample or after its last (retired, garage): hold the nearest - np.interp does.
         dist[info["Tla"]] = despike(np.interp(grid, t, s))
 
+    approximate = False
     if not coverage or float(np.median(coverage)) < MIN_COVERAGE:
-        return None, {"rejected": f"position data covers only {np.median(coverage or [0]):.0%} of the race"}
+        # The position feed doesn't cover the race: fall back to the lap timing, honestly labelled.
+        laps, _ = ts.parse_timing(feeds["TimingData.jsonStream"], clock)
+        order = sorted({l.car for l in laps if l.number == 1 and start <= l.end}, key=lambda c: min(l.end for l in laps if l.car == c and l.number == 1))
+        cars, dist = [], {}
+        for rank, car in enumerate(order):
+            info = drivers.get(car)
+            d = distances_from_laps(laps, car, start, end, story["lapLengthM"], 8.0 * rank, grid) if info and "Tla" in info else None
+            if d is None:
+                continue
+            cars.append({"code": info["Tla"], "number": car, "team": info.get("TeamName"), "color": f"#{info['TeamColour']}" if info.get("TeamColour") else None, "name": info.get("FullName")})
+            dist[info["Tla"]] = d
+        if len(cars) < 10:
+            return None, {"rejected": f"position data covers only {np.median(coverage or [0]):.0%} of the race, and lap timing has too few cars"}
+        approximate = True
 
     # Pit stops and retirements, from the timing feed, as sample indexes.
     pits, retired, in_pit = [], {}, {}
@@ -192,6 +231,20 @@ def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]
         if a < end:
             pits.append([code_of[car], idx(a), len(grid) - 1])
 
+    if approximate:
+        # A car whose laps stop well short of the leader's, long before the end, retired where it last crossed the
+        # line. (Not a red flag: then every car stops together and none is short of laps for long.)
+        by_car: dict[str, list] = {}
+        for l in laps:
+            if start <= l.end <= end:
+                by_car.setdefault(l.car, []).append(l)
+        lead_laps = max((max(x.number for x in v) for v in by_car.values()), default=0)
+        for car, v in by_car.items():
+            code = code_of.get(car)
+            last = max(v, key=lambda x: x.number)
+            if code and code not in retired and last.number < lead_laps - 3 and last.end < end - 600:
+                retired[code] = idx(last.end)
+
     track_status = [[idx(off + clock), TRACK_STATUS.get(str(e.get("Status")), "clear")] for off, e in _events(feeds["TrackStatus.jsonStream"]) if start - 60 <= off + clock <= end]
     total_laps = None
     for _, e in _events(feeds["LapCount.jsonStream"]):
@@ -205,6 +258,8 @@ def build_replay(feeds: dict[str, str], story: dict) -> tuple[dict | None, dict]
         "lapLengthM": story["lapLengthM"],
         "totalLaps": total_laps,
         "cars": [c for c in cars if c["code"] in dist],
+        # True when built from lap timing, not car positions: exact at each lap line, estimated between them.
+        "approximate": approximate,
         "pits": sorted(pits, key=lambda p: p[1]),
         "retired": retired,
         "trackStatus": track_status,

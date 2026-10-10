@@ -71,5 +71,22 @@ with tempfile.TemporaryDirectory() as tmp:
     assert built == [2, 3, 4], f"round 1 is current and skipped; round 2 (2 Hz) is rebuilt: {built}"
     assert done == 2 and any("2026-3: skipped" in l for l in report), report
 
+# --- the lap-timing fallback (a race whose position feed is missing or cut short) -------------------------------------
+class _Lap:
+    def __init__(self, car, number, end):
+        self.car, self.number, self.end = car, number, end
+
+grid = np.arange(0.0, 400.0, 1.0)
+laps = [_Lap("1", n, 100.0 * n) for n in (1, 2, 3)] + [_Lap("2", n, 100.0 * n + 5) for n in (1, 2, 3)] + [_Lap("3", 1, 120.0)]
+d1 = rr.distances_from_laps(laps, "1", 0.0, 300.0, 1000.0, 0.0, grid)
+d2 = rr.distances_from_laps(laps, "2", 0.0, 300.0, 1000.0, 8.0, grid)
+assert d1[0] == 0 and abs(d1[100] - 1000) < 1e-6 and abs(d1[200] - 2000) < 1e-6, "at the line exactly at each lap completion"
+assert abs(d1[50] - 500) < 1e-6, "an even pace between completions"
+assert d2[0] == -8.0, "behind the line on the grid"
+assert d1[300] > d2[300], "two cars finishing on the same lap stay in the order they crossed the line"
+assert rr.distances_from_laps(laps, "9", 0.0, 300.0, 1000.0, 0.0, grid) is None, "a car with no laps has no replay"
+glitch = laps + [_Lap("1", 2, 50.0)]  # a lap-2 completion stamped before lap 1's: a timing glitch
+assert np.all(np.diff(rr.distances_from_laps(glitch, "1", 0.0, 300.0, 1000.0, 0.0, grid)) >= 0), "never backwards"
+
 assert rr.MIN_COVERAGE >= 0.9, "a replay whose position feed stops early must be refused, not published frozen"
 print("race_replay: all checks passed")

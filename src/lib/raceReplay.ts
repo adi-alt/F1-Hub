@@ -24,6 +24,8 @@ export type ReplayHeader = {
   corners: { number: number; letter: string; x: number; y: number }[];
   rotation: number | null;
   startFinish: { x: number; y: number; verified: boolean };
+  /** Built from lap timing, not car positions (the feed was missing): exact at each lap line, estimated between. */
+  approximate?: boolean;
 };
 
 export type Replay = { header: ReplayHeader; distances: Record<string, Float32Array> };
