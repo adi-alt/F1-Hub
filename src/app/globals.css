@@ -627,3 +627,27 @@ html {
     animation: none;
   }
 }
+
+/* The season scrubber's car: a glowing marker riding the round track; it pulses red during a live weekend. */
+.scrubber-car {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow:
+    0 0 0 3px var(--brand),
+    0 0 14px 3px rgb(225 6 0 / 0.55);
+}
+.scrubber-car-live {
+  animation: pip-pulse 1.4s ease-in-out infinite;
+}
+.scrubber:hover .scrubber-car {
+  box-shadow:
+    0 0 0 3px var(--brand),
+    0 0 20px 5px rgb(225 6 0 / 0.65);
+}
+@media (prefers-reduced-motion: reduce) {
+  .scrubber-car-live {
+    animation: none;
+  }
+}
