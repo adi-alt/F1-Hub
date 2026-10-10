@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import { useReducedMotion } from "framer-motion";
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
-import { computeMoments, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
+import { computeStoryline, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
+import { RaceStoryline } from "./RaceStoryline";
 
 export type { LapEntry, LapTiming, Moment };
 export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
@@ -128,8 +129,24 @@ export function LapChart({
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
-  const chartRef = useRef<HTMLDivElement>(null);
-  const chartInView = useInView(chartRef, { once: true, amount: 0.3 });
+  // A callback ref, not useInView(ref): the chart's own <div> only exists once the laps have loaded (the
+  // skeleton renders first), and a ref-object observer set up on mount would never see it - the lines
+  // would then never mount at all.
+  const [chartEl, setChartEl] = useState<HTMLDivElement | null>(null);
+  const [chartInView, setChartInView] = useState(false);
+  useEffect(() => {
+    if (!chartEl || chartInView) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setChartInView(true);
+        io.disconnect();
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(chartEl);
+    return () => io.disconnect();
+  }, [chartEl, chartInView]);
   const reduceMotion = useReducedMotion();
 
   const nameFor = (driverId: string) => results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
@@ -180,7 +197,14 @@ export function LapChart({
     return out;
   }, [chartData, driverIds]);
 
-  const moments = useMemo(() => (laps ? computeMoments(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
+  const chapters = useMemo(() => (laps ? computeStoryline(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
+  // The storyline's selected chapter: marks its lap on the chart and follows its driver's line.
+  const [chapterIndex, setChapterIndex] = useState<number | null>(null);
+  const storyLap = chapterIndex !== null ? chapters[chapterIndex]?.lap : undefined;
+  function selectChapter(i: number | null) {
+    setChapterIndex(i);
+    setLocked(i === null ? null : (chapters[i]?.driverId ?? null));
+  }
 
   if (isLoading) return <LapChartSkeleton />;
   if (isError || chartData.length === 0) {
@@ -226,7 +250,7 @@ export function LapChart({
           hovering (either the legend pill or the trajectory itself, or clicking to lock it while
           the mouse moves to the chart) picks one out and fades the rest, rather than ~20
           equally-loud lines competing for attention. */}
-      <div ref={chartRef}>
+      <div ref={setChartEl}>
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData} margin={{ left: 8, right: 16, top: 8 }}>
             {/* Two separate grids, not one - horizontal position guides read a touch more visibly
@@ -249,6 +273,7 @@ export function LapChart({
               width={32}
               label={{ value: "Position", angle: -90, position: "insideLeft", fill: chart.mutedInk, fontSize: 12 }}
             />
+            {storyLap !== undefined && <ReferenceLine x={storyLap} stroke="rgb(255 255 255 / 0.45)" strokeDasharray="3 4" label={{ value: `Lap ${storyLap}`, position: "top", fill: "rgb(255 255 255 / 0.7)", fontSize: 11 }} />}
             <Tooltip cursor={{ stroke: "rgba(255,255,255,0.15)", strokeDasharray: "3 3" }} content={LapTooltip} />
             {/* The lines draw in left to right, lap by lap, once the chart scrolls into view - staggered a beat
                 per driver so the field fans out rather than appearing at once. */}
@@ -309,24 +334,15 @@ export function LapChart({
         })}
       </div>
 
-      {moments.length > 0 && (
-        <div className="mt-6 border-t border-white/10 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Key race moments</p>
-          <ul className="space-y-1.5">
-            {moments.map((m, i) => (
-              <motion.li
-                key={i}
-                className="flex gap-2 text-sm text-neutral-300"
-                initial={reduceMotion ? false : { opacity: 0, x: -6 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.3, delay: i * 0.06, ease: "easeOut" }}
-              >
-                <span className="w-12 shrink-0 font-mono text-xs text-tertiary">Lap {m.lap}</span>
-                {m.text}
-              </motion.li>
-            ))}
-          </ul>
+      {chapters.length > 0 && (
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <RaceStoryline
+            chapters={chapters}
+            totalLaps={chartData[chartData.length - 1]?.lap ?? 1}
+            colorFor={(id) => driverColor(driverIds.indexOf(id), driverIds.length)}
+            selected={chapterIndex}
+            onSelect={selectChapter}
+          />
         </div>
       )}
     </div>

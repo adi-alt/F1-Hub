@@ -26,6 +26,7 @@ export function Popover({
   align = "start",
   panelClassName = "",
   ariaLabel,
+  glass = false,
 }: {
   /** Gets `open` so the caller can render its own chevron/active state. */
   trigger: (props: { open: boolean; toggle: () => void; ref: React.Ref<HTMLButtonElement> }) => React.ReactNode;
@@ -34,6 +35,8 @@ export function Popover({
   align?: "start" | "end";
   panelClassName?: string;
   ariaLabel?: string;
+  /** The app's frosted overlay surface (surface-glass) instead of the near-opaque default. */
+  glass?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -117,7 +120,7 @@ export function Popover({
                 exit={{ opacity: 0, y: -4, scale: 0.99 }}
                 transition={{ duration: 0.12 }}
                 style={{ position: "fixed", top: rect.top, bottom: rect.bottom, left: rect.left, minWidth: rect.minWidth, maxHeight: rect.maxHeight, zIndex: 120 }}
-                className={`flex flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl ${panelClassName}`}
+                className={`flex flex-col overflow-hidden rounded-xl shadow-2xl ${glass ? "surface-glass" : "border border-white/10 bg-zinc-900/95 backdrop-blur-xl"} ${panelClassName}`}
               >
                 {children({ close })}
               </motion.div>

@@ -27,6 +27,8 @@ export type RacePageHeaderProps = {
   seasonLink?: string;
   /** The banner's top-right actions: the race's ⋯ menu (RaceMoreMenu). */
   actions?: ReactNode;
+  /** The race in figures (RaceBannerStats), along the bottom of the banner under a hairline. */
+  stats?: ReactNode;
 };
 
 /**
@@ -46,6 +48,7 @@ export function RacePageHeader({
   keyFact,
   seasonLink,
   actions,
+  stats,
 }: RacePageHeaderProps) {
   const timeZone = useViewerTimeZone();
   const where = [circuit, country].filter(Boolean).join(", ");
@@ -96,8 +99,9 @@ export function RacePageHeader({
             className="min-w-0"
           />
         </div>
-        {keyFact && <div className="shrink-0 lg:text-end">{keyFact}</div>}
+        {keyFact && <div className={`shrink-0 lg:text-end ${actions ? "lg:pr-12" : ""}`}>{keyFact}</div>}
       </div>
+      {stats && <div className="border-t border-white/[0.08] px-5 py-5 sm:px-8">{stats}</div>}
     </div>
   );
 }

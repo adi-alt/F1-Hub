@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { Sheet } from "@/components/ui/Dialog";
 import { Popover } from "@/components/ui/Popover";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
@@ -79,6 +79,7 @@ export function RaceMoreMenu({
         align="end"
         ariaLabel="More for this race"
         panelClassName="p-1"
+        glass
         trigger={({ open, toggle, ref }) => (
           <button
             ref={ref}
@@ -88,7 +89,7 @@ export function RaceMoreMenu({
             aria-label="More for this race"
             className={`flex size-9 items-center justify-center rounded-control border border-subtle text-secondary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${open ? "bg-white/[0.06] text-primary" : ""}`}
           >
-            <MoreHorizontal aria-hidden size={18} strokeWidth={1.75} />
+            <MoreVertical aria-hidden size={18} strokeWidth={1.75} />
           </button>
         )}
       >
