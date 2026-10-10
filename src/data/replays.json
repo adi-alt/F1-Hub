@@ -34,6 +34,13 @@
     "version": 1,
     "hz": 1
   },
+  "2026-6": {
+    "file": "/replays/2026-6.62aedcd0.bin",
+    "bytes": 13339,
+    "sha256": "62aedcd0d88520f6943e3e6150c47bbcd8da36cd03a02c8b5116cfa328089439",
+    "version": 1,
+    "hz": 1
+  },
   "2026-7": {
     "file": "/replays/2026-7.9aa2f55f.bin",
     "bytes": 85538,
