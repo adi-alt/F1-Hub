@@ -15,10 +15,9 @@ export type EraEntry = { layout: CircuitLayout; drawing: CircuitDrawing };
  * positions from 2018 - so a change to the track is a new chapter on its own.
  */
 export function CircuitEras({ eras, winners, currentYear }: { eras: EraEntry[]; winners: { year: number; winner: string }[]; currentYear: number }) {
-  const startIndex = useMemo(() => {
-    const now = eras.findIndex((e) => e.layout.seasons.includes(currentYear) && !e.layout.raceNameMatch);
-    return now >= 0 ? now : eras.length - 1;
-  }, [eras, currentYear]);
+  // Opens at the beginning, so the story runs forward through time - today's layout is already drawn in the hero.
+  // A circuit with only one layout (nothing to tell) shows that one.
+  const startIndex = useMemo(() => (eras.length > 1 ? 0 : eras.findIndex((e) => e.layout.seasons.includes(currentYear)) || 0), [eras, currentYear]);
   const [selected, setSelected] = useState(startIndex);
   if (eras.length === 0) return null;
 

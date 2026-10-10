@@ -99,7 +99,7 @@ function PoleTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
  * own full analysis - the Circuit page stays "this track across time," the Race page stays "this
  * one event," exactly the split this section is meant to preserve.
  */
-export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
+export function CircuitTrendChart({ data, height = 320 }: { data: PoleTrendPoint[]; height?: number }) {
   const [rangeWindow, setRangeWindow] = useState<TrendWindow>(null);
   const router = useRouter();
 
@@ -147,7 +147,7 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
           ))}
         </div>
       )}
-      <ResponsiveContainer width="100%" height={320}>
+      <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={shown} margin={{ left: 8, right: 16, top: 8 }}>
           <defs>
             <linearGradient id="poleEvolutionFill" x1="0" y1="0" x2="0" y2="1">

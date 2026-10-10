@@ -53,53 +53,83 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
         ? { kind: "result", year, race: raceForSimulation, dateLabel: isCurrent ? dateOf(currentSeasonRace?.raceDate) : null }
         : null;
 
+  // The hero's photography: this season's race here, else the most recent race here that has photos.
+  const photos =
+    (currentSeasonRace?.photoUrls?.length ? currentSeasonRace.photoUrls : null) ??
+    [...liveRaces].sort((a, b) => b.year - a.year).find((r) => r.photoUrls?.length)?.photoUrls ??
+    [];
+  const heroDrawing = (eras.find((e) => e.layout.seasons.includes(year) && !e.layout.raceNameMatch) ?? eras[eras.length - 1])?.drawing ?? null;
+
   return (
-    <div data-surface="frosted" className="page-content py-8">
+    <div data-surface="frosted" className="page-wide pb-12">
       <CircuitApexScope location={location} circuitName={facts?.venueName ?? location} year={year} status={currentSeasonRace?.state ?? null} />
 
-      <CircuitHero location={location} grandPrixName={grandPrixName} country={country} facts={facts} answer={answer} avgFieldMovement={avgFieldMovement} />
+      <CircuitHero
+        location={location}
+        grandPrixName={grandPrixName}
+        country={country}
+        facts={facts}
+        answer={answer}
+        avgFieldMovement={avgFieldMovement}
+        photos={photos.slice(0, 4)}
+        drawing={heroDrawing}
+      />
 
-      <div className="space-y-8 lg:space-y-12">
-        {raceForSimulation && (
-          <RaceSectionCard
-            id={replay ? "replay" : "race-story"}
-            title={isCurrent ? `How the ${year} race unfolded` : `How the ${raceForSimulation.year} race unfolded`}
-            description={replay ? "Where the race was won, on the circuit itself, and a replay of every car." : "Where the race was won, on the circuit itself."}
-            headerRight={
-              <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
-                Full results and analysis
-              </Link>
-            }
-          >
-            <CircuitRaceStory laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} replay={replay} />
-          </RaceSectionCard>
-        )}
+      {/* Main column and rail, as on the season page: the race story beside Apex and the records. */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_var(--rail-width,340px)] lg:gap-10">
+        <div className="min-w-0">
+          {raceForSimulation ? (
+            <RaceSectionCard
+              id={replay ? "replay" : "race-story"}
+              title={`How the ${raceForSimulation.year} race unfolded`}
+              description={replay ? "Where the race was won, on the circuit itself, and a replay of every car." : "Where the race was won, on the circuit itself."}
+              headerRight={
+                <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
+                  Full results
+                </Link>
+              }
+            >
+              <CircuitRaceStory laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} replay={replay} />
+            </RaceSectionCard>
+          ) : (
+            eras.length > 0 && (
+              <RaceSectionCard id="eras" title="The track through time" description="Every layout this circuit has had, from the earliest on record to the one raced today.">
+                <CircuitEras eras={eras} winners={winners} currentYear={year} />
+              </RaceSectionCard>
+            )
+          )}
+        </div>
+        <aside className="min-w-0 space-y-8" aria-label="About this circuit">
+          <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
+          {timeline.length > 0 && (
+            <RaceSectionCard id="records" title="Records">
+              <CircuitRecords timeline={timeline} winnerMedia={winnerMedia} />
+            </RaceSectionCard>
+          )}
+        </aside>
+      </div>
 
-        {eras.length > 0 && (
+      <div className="mt-8 space-y-8 lg:mt-12 lg:space-y-12">
+        {raceForSimulation && eras.length > 0 && (
           <RaceSectionCard id="eras" title="The track through time" description="Every layout this circuit has had, from the earliest on record to the one raced today.">
             <CircuitEras eras={eras} winners={winners} currentYear={year} />
           </RaceSectionCard>
         )}
 
-        {timeline.length > 0 && (
-          <RaceSectionCard id="records" title="Records">
-            <CircuitRecords timeline={timeline} />
-          </RaceSectionCard>
+        {(timeline.length > 0 || trend.length >= 2) && (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:gap-10">
+            {timeline.length > 0 && (
+              <RaceSectionCard id="past-winners" title="Past winners" bare>
+                <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
+              </RaceSectionCard>
+            )}
+            {trend.length >= 2 && (
+              <RaceSectionCard id="pole-evolution" title="Pole times">
+                <CircuitTrendChart data={trend} height={240} />
+              </RaceSectionCard>
+            )}
+          </div>
         )}
-
-        {timeline.length > 0 && (
-          <RaceSectionCard id="past-winners" title="Past winners" bare>
-            <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
-          </RaceSectionCard>
-        )}
-
-        {trend.length >= 2 && (
-          <RaceSectionCard id="pole-evolution" title="Pole times">
-            <CircuitTrendChart data={trend} />
-          </RaceSectionCard>
-        )}
-
-        <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
       </div>
     </div>
   );
