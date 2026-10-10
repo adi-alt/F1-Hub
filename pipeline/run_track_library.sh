@@ -10,6 +10,8 @@
 #                                        regroups every traced season into layout versions (circuit_layouts): a
 #                                        season whose track no longer matches starts a new version - a changed or
 #                                        new circuit enters the library here
+#   4. race_replay.py --backfill        this season's race replays (public/replays/, src/data/replays.json): the
+#                                        files live in the repo, so commit them afterwards (the script says so)
 #
 # A dry run (reads production, writes no layouts or stories) unless --apply. Run after a race weekend, or any time: both
 # steps are idempotent and only do what's missing or changed.
@@ -47,8 +49,16 @@ if [ -n "$apply" ]; then
   ../pipeline/.venv/bin/python circuit_layouts.py --seed-drawn --apply
   ../pipeline/.venv/bin/python race_track_story.py "${story_args[@]}"
   ../pipeline/.venv/bin/python circuit_layouts.py --rebuild-measured --apply
+  ../pipeline/.venv/bin/python race_replay.py --backfill
+  cd ..
+  if [ -n "$(git status --porcelain public/replays src/data/replays.json)" ]; then
+    echo
+    echo "New race replays - commit them (on a branch) and open a PR:"
+    git status --short public/replays src/data/replays.json
+  fi
 else
   ../pipeline/.venv/bin/python circuit_layouts.py --seed-drawn
   ../pipeline/.venv/bin/python race_track_story.py "${story_args[@]}" --dry-run
   ../pipeline/.venv/bin/python circuit_layouts.py --rebuild-measured
+  ../pipeline/.venv/bin/python race_replay.py --backfill --dry-run
 fi

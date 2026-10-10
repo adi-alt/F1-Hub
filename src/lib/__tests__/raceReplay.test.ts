@@ -152,3 +152,21 @@ test("a cancelled load rejects as an abort, never as 'unavailable'", async () =>
   );
   assert.equal(isAbortError(new ReplayUnavailableError("x")), false);
 });
+
+import { leadChanges } from "../raceReplay";
+
+test("lead changes: each real change once, a momentary flip dropped", () => {
+  // hz 2. AAA leads; BBB passes at sample 4 and stays ahead; CCC is ahead of BBB for one sample only (noise).
+  const r = decodeReplay(
+    build(
+      {
+        AAA: [100, 130, 160, 190, 205, 220, 235, 250, 265, 280, 295, 310, 325, 340, 355, 370, 385, 400, 415, 430, 445],
+        BBB: [90, 125, 158, 189, 215, 245, 275, 305, 335, 365, 395, 425, 455, 485, 515, 545, 575, 605, 635, 665, 695],
+        CCC: [80, 110, 140, 170, 200, 230, 260, 290, 320, 350, 380, 410, 470, 480, 510, 540, 570, 600, 630, 660, 690],
+      },
+      { hz: 2, lapLengthM: 10_000, totalLaps: 1 },
+    ),
+  );
+  const changes = leadChanges(r);
+  assert.deepEqual(changes.map((c) => [c.sample, c.code]), [[4, "BBB"]], "CCC's one-sample lead at 12 flips straight back and is noise");
+});

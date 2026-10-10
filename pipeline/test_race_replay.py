@@ -55,4 +55,21 @@ with tempfile.TemporaryDirectory() as tmp:
     rr.publish(blob, "2018-12", pub, man)
     assert list(json.loads(man.read_text())) == ["2018-12", "2026-9"], "ordered by season and round, numerically"
 
+# --- backfill: only races missing a current replay; one failure doesn't stop the rest ----------------------------
+with tempfile.TemporaryDirectory() as tmp:
+    man = Path(tmp) / "replays.json"
+    man.write_text(json.dumps({
+        "2026-1": {"file": "/replays/2026-1.aaaaaaaa.bin", "bytes": 1, "sha256": "a" * 64, "version": rr.REPLAY_VERSION, "hz": rr.REPLAY_HZ},
+        "2026-2": {"file": "/replays/2026-2.bbbbbbbb.bin", "bytes": 1, "sha256": "b" * 64, "version": rr.REPLAY_VERSION, "hz": 2},
+    }))
+    built = []
+    saved_build, saved_publish = rr.build_one, rr.publish
+    rr.build_one = lambda y, r, d: (built.append(r) or (None, "no archive session")) if r == 3 else (built.append(r) or (b"x", "ok"))
+    rr.publish = lambda blob, key, manifest_path=None: {"file": f"/replays/{key}.cccccccc.bin", "bytes": len(blob)}
+    done, report = rr.backfill([(2026, 1, None), (2026, 2, None), (2026, 3, None), (2026, 4, None)], manifest_path=man)
+    rr.build_one, rr.publish = saved_build, saved_publish
+    assert built == [2, 3, 4], f"round 1 is current and skipped; round 2 (2 Hz) is rebuilt: {built}"
+    assert done == 2 and any("2026-3: skipped" in l for l in report), report
+
+assert rr.MIN_COVERAGE >= 0.9, "a replay whose position feed stops early must be refused, not published frozen"
 print("race_replay: all checks passed")

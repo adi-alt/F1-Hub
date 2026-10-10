@@ -165,3 +165,30 @@ export function lapAt(replay: Replay, t: number): number {
   const lap = Math.floor(Math.max(0, lead) / replay.header.lapLengthM) + 1;
   return replay.header.totalLaps ? Math.min(lap, replay.header.totalLaps) : lap;
 }
+
+export type LeadChange = { sample: number; lap: number; code: string };
+
+/** Every change of the lead, from the replay itself: the sample where a new car is first furthest on track. A car
+ * in the pits holds its place (as in standingsAt), so a leader pitting is a lead change only when someone actually
+ * gets ahead. A change that flips straight back within a few seconds is timing noise and is dropped. */
+export function leadChanges(replay: Replay, minHoldS = 5): LeadChange[] {
+  const { header } = replay;
+  const out: LeadChange[] = [];
+  let first: string | null = null; // the leader at lights out
+  let leader: string | null = null;
+  let since = 0;
+  for (let t = 0; t < header.samples; t++) {
+    const lead = standingsAt(replay, t)[0]?.code ?? null;
+    if (!lead || lead === leader) continue;
+    if (leader === null) {
+      first = lead;
+    } else {
+      const before: string | null = out.length >= 2 ? out[out.length - 2].code : first;
+      if (out.length && t - since < minHoldS * header.hz && lead === before) out.pop(); // flipped straight back: noise
+      else out.push({ sample: t, lap: lapAt(replay, t), code: lead });
+    }
+    leader = lead;
+    since = t;
+  }
+  return out;
+}
