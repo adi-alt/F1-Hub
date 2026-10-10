@@ -8,6 +8,7 @@ import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
 import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
 import { getRaceLayout } from "@/lib/supabase/circuitLayouts";
+import { replayFor } from "@/lib/replayManifest";
 import { RaceBannerStats } from "@/components/race/RaceBannerStats";
 import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
@@ -167,6 +168,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             photos={photos}
             trackStory={trackStory}
             layout={layout}
+            replay={race.status === "completed" ? replayFor(race.year, race.round) : null}
           />
         </div>
       </div>
@@ -226,6 +228,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           raceCommunities={raceCommunities}
           trackStory={trackStory}
           layout={layout}
+          replay={replayFor(year, race.round)}
         />
       </div>
     </div>
