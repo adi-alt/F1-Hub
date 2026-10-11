@@ -528,48 +528,60 @@ export function generateRaceEventFallback(race: RaceSummary): RaceEventTake {
 /** The circuit take's own fallback - same no-implementation-vocabulary rule as every other
  * fallback here, and state-aware for the same reason the real prompt is: a circuit whose round
  * hasn't run yet must never get a sentence that reads like a result. */
+const WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const count = (n: number, one: string, many = `${one}s`) => `${WORDS[n] ?? n} ${n === 1 ? one : many}`;
+
+/** The circuit take when the model isn't available: a few plain sentences from the same facts, written to read like
+ * the model's own take (no "win(s)", no fact list), and only ever stating what the context holds. */
 export function generateCircuitTakeFallback(ctx: CircuitContext): SharedCircuitIntelligence {
+  const f = ctx.facts;
+  const wins = ctx.records.mostWins;
+  const winsLine = wins ? `${joinNames(wins.drivers)} ${wins.drivers.length === 1 ? "has" : "have"} won here most, ${count(wins.count, "time")}.` : null;
+  const poleLine = ctx.trends.poleToWinPct != null ? `Pole has turned into the win ${ctx.trends.poleToWinPct.toFixed(0)}% of the time here${ctx.trends.poleToWinPct >= 60 ? ", so qualifying carries real weight" : ctx.trends.poleToWinPct <= 40 ? ", so the race is often won after the start" : ""}.` : null;
+  const shape = f ? `${f.lengthKm.toFixed(3)} km and ${f.turns} turns${f.trackType === "street" ? " of street circuit" : ""}${f.nightRace ? ", raced at night" : ""}` : null;
+
   if (ctx.state === "completed" && ctx.currentSeasonResult?.winner) {
     const r = ctx.currentSeasonResult;
-    const trackTake = {
-      headline: `${r.winner} takes ${ctx.grandPrixName ?? "the race"} at ${ctx.displayName}`,
-      summary: [
-        `${r.winner} won at ${ctx.displayName} this season.`,
-        r.biggestGainer ? `${r.biggestGainer.name} made up the most ground from the grid, gaining ${r.biggestGainer.places} places.` : null,
-        r.dnfCount > 0 ? `${r.dnfCount} car${r.dnfCount === 1 ? "" : "s"} retired.` : null,
-      ]
-        .filter(Boolean)
-        .join(" "),
-      evidenceIds: [],
+    const lc = ctx.leadChanges;
+    return {
+      trackTake: {
+        headline: `${r.winner} wins ${ctx.grandPrixName ?? `at ${ctx.displayName}`}`,
+        summary: [
+          `${r.winner} won ${r.pole === r.winner ? "from pole" : r.pole ? `after ${r.pole} took pole` : "here this season"}.`,
+          lc && lc.total > 0 ? `The lead changed hands ${count(lc.total, "time")}: ${[lc.onTrack ? `${WORDS[lc.onTrack] ?? lc.onTrack} on track` : null, lc.inPits ? `${WORDS[lc.inPits] ?? lc.inPits} in the pit stops` : null].filter(Boolean).join(" and ")}.` : null,
+          lc?.lastPass ? `${lc.lastPass.by} made the last pass for the lead on lap ${lc.lastPass.lap}, past ${lc.lastPass.from}${lc.lastPass.near ? `, ${lc.lastPass.near}` : ""}.` : null,
+          r.biggestGainer ? `${r.biggestGainer.name} made up the most ground, ${count(r.biggestGainer.places, "place")}.` : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        evidenceIds: [],
+      },
     };
-    return { trackTake };
   }
 
   if (ctx.state === "next" || ctx.state === "upcoming") {
-    const record = ctx.records.mostWins;
-    const trackTake = {
-      headline: `${ctx.displayName}${ctx.facts ? `, ${ctx.facts.trackType} circuit` : ""}`,
-      summary: [
-        ctx.facts ? `${ctx.displayName} runs ${ctx.facts.lengthKm.toFixed(1)}km over ${ctx.facts.turns} turns.` : `Full track characteristics for ${ctx.displayName} aren't recorded yet.`,
-        record ? `${joinNames(record.drivers)} ${record.drivers.length === 1 ? "holds" : "hold"} the record with ${record.count} win(s) here.` : "No winner history recorded.",
-      ]
-        .filter(Boolean)
-        .join(" "),
-      evidenceIds: [],
+    const leader = ctx.form?.leaders[0];
+    const second = ctx.form?.leaders[1];
+    return {
+      trackTake: {
+        headline: `${ctx.displayName}${shape ? `: ${shape}` : ""}`,
+        summary: [
+          poleLine,
+          winsLine,
+          leader ? `${leader.name} arrives leading the championship${second ? ` by ${leader.points - second.points} points from ${second.name}` : ""}.` : null,
+        ]
+          .filter(Boolean)
+          .join(" ") || `There isn't enough on record about ${ctx.displayName} yet to say more.`,
+        evidenceIds: [],
+      },
     };
-    return { trackTake };
   }
 
-  const record = ctx.records.mostWins;
-  const trackTake = {
-    headline: ctx.displayName,
-    summary: [
-      ctx.facts ? `${ctx.displayName} is a ${ctx.facts.trackType} circuit of ${ctx.facts.lengthKm.toFixed(1)}km with ${ctx.facts.turns} turns.` : `Detailed characteristics for ${ctx.displayName} aren't recorded yet.`,
-      record ? `${joinNames(record.drivers)} ${record.drivers.length === 1 ? "holds" : "hold"} the record here with ${record.count} wins.` : "This circuit isn't on the current season's calendar.",
-    ]
-      .filter(Boolean)
-      .join(" "),
-    evidenceIds: [],
+  return {
+    trackTake: {
+      headline: ctx.displayName,
+      summary: [shape ? `${ctx.displayName}: ${shape}.` : null, winsLine, poleLine, "It isn't on this season's calendar."].filter(Boolean).join(" "),
+      evidenceIds: [],
+    },
   };
-  return { trackTake };
 }

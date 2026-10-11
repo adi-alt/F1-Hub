@@ -14,7 +14,9 @@ import type { CircuitAiState } from "../context/circuitContext";
 // reads as having none of the four expected blocks - not a UI bug, an unbusted cache. Bumping
 // this is the fix, not a manual per-row cache deletion (every other circuit generated before this
 // rewrite has the exact same stale shape sitting in ai_cache, silently, until its own TTL expires).
-export const CIRCUIT_TAKE_PROMPT_VERSION = "circuit_take_v2";
+// v3: the context gained this season's form, the layout history and the traced lead changes, and the prompt says
+// how to use them; the bump also clears the thin takes cached from the old, history-only context.
+export const CIRCUIT_TAKE_PROMPT_VERSION = "circuit_take_v3";
 
 const STATE_FOCUS: Record<CircuitAiState, string> = {
   completed: "Focus on what actually decided THIS SEASON'S race here - the result, what made it happen, and how it fits the circuit's own history. Never forecast; the race is over.",
@@ -37,6 +39,10 @@ EDITORIAL RULES
 - Two to three sentences per block. Specific, not atmospheric ("iconic", "legendary" and "unforgiving" used without a reason attached are filler).
 - Do not just restate the fact list - say what it MEANS: why the track behaves the way its history shows, or why this season's result here mattered.
 - At most two specific numbers in any summary.
+- Connect the circuit to the season. For a round still to come, use THIS SEASON'S FORM: say which of the championship leaders this track's history and character should suit or trouble, and why, framed as outlook.
+- For a race that has run, use HOW THIS SEASON'S RACE HERE WAS WON: where the lead was won, on track or in the pits. Name a turn only when the context names it.
+- When LAYOUT HISTORY shows the track changed, say records from older layouts aren't like-for-like, if a record you mention predates the change.
+- Write numbers naturally ("five wins", "69% of poles"); never "win(s)".
 - Plain motorsport-press register. No hype, no second person, no emoji, no em dash or en dash.
 
 Respond with a JSON object with exactly these blocks, using your judgment to omit any block if there isn't enough data (or if it isn't relevant to the current state). Do NOT output empty blocks, omit them instead.

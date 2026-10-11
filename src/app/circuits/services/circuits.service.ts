@@ -28,11 +28,12 @@ import type { RaceDoc } from "@/lib/types/race";
 import { slugifyRaceName, archiveDriverHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
-import { chooseLayout, circuitEras, latestLayout, layoutToDrawing, type CircuitDrawing, type CircuitLayout } from "@/lib/circuitLayout";
+import { chooseLayout, circuitEras, latestLayout, layoutToDrawing, seasonLabel, type CircuitDrawing, type CircuitLayout } from "@/lib/circuitLayout";
 import { getCircuitLayouts, getRaceLayout } from "@/lib/supabase/circuitLayouts";
 import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
 import { replayFor, type ReplayEntry } from "@/lib/replayManifest";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitExtras } from "@/lib/ai/context/circuitContext";
 
 export type CircuitExplorerEntry = {
   race: RaceSummary;
@@ -363,4 +364,43 @@ export async function getCircuitInsightsData(location: string, year: number, uid
  * full timeline/archive payload. */
 export function circuitAvgFieldMovement(timeline: CircuitYearRecord[]): number | null {
   return computeRaceTrends(timeline).avgFieldMovement;
+}
+
+/** The circuit take's extras (see CircuitExtras): this season's form for a round still to come, the layout history,
+ * and where the lead changed hands in this season's race here. Built from what getCircuitDetailData already loaded,
+ * plus the season's standings (cached). */
+export async function getCircuitTakeExtras(data: CircuitDetailData, uid: string): Promise<CircuitExtras> {
+  const { year, currentSeasonRace, raceForSimulation, trackStory, eras } = data;
+  const layouts = eras.filter((e) => !e.layout.raceNameMatch).map((e) => seasonLabel(e.layout.seasons));
+
+  let form: CircuitExtras["form"] = null;
+  if (currentSeasonRace && currentSeasonRace.state !== "completed") {
+    const season = await getSeasonPageData(year, uid);
+    form = {
+      leaders: season.drivers.slice(0, 3).map((d) => ({ name: d.driverName, team: d.team, points: d.points, wins: d.wins })),
+      recentWinners: season.raceSummaries
+        .filter((r) => r.state === "completed" && r.winnerName)
+        .slice(-3)
+        .map((r) => `${r.name}: ${r.winnerName}`),
+    };
+  }
+
+  let leadChanges: CircuitExtras["leadChanges"] = null;
+  if (trackStory && raceForSimulation && raceForSimulation.year === year) {
+    const name = (code: string) => raceForSimulation.results?.find((r) => r.driver === code)?.driverName ?? code;
+    const changes = trackStory.leadChanges;
+    const last = [...changes].reverse().find((c) => c.kind === "pass");
+    leadChanges = {
+      lastPass: last && last.kind === "pass" ? { lap: last.lap, by: name(last.to), from: name(last.from), near: last.near } : null,
+      total: changes.length,
+      onTrack: changes.filter((c) => c.kind === "pass").length,
+      inPits: changes.filter((c) => c.kind === "pit").length,
+      lines: changes.map((c) =>
+        c.kind === "pass"
+          ? `from lap ${c.lap}, ${name(c.to)} leads (passed ${name(c.from)} on track${c.near ? `, ${c.near}` : ""})`
+          : `from lap ${c.lap}, ${name(c.to)} leads (${name(c.from)} lost the lead in the pit stops)`,
+      ),
+    };
+  }
+  return { form, layouts, leadChanges };
 }
