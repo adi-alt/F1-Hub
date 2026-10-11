@@ -27,8 +27,8 @@ export function CircuitRecords({ timeline, winnerMedia }: { timeline: CircuitYea
   if (rows.length === 0) return null;
   const years = timeline.map((t) => t.year);
   return (
-    <div>
-      <ul className="grid grid-cols-1 gap-x-10 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="@container">
+      <ul className="grid grid-cols-1 gap-x-10 @xl:grid-cols-2 @4xl:grid-cols-3">
         {rows.map((r) =>
           r.photo !== undefined ? (
             // A person: their face, the record, the count.
