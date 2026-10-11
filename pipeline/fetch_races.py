@@ -889,17 +889,19 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             # against brought a longer race's lap numbers with it, for drivers who were in both.
             prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
-    if sprint:
-        # Same team string as this weekend's race rows, when those are in hand, so a constructor's
-        # sprint and race points always add up under one name.
-        team_by_driver = {r["driver"]: r["team"] for r in race["results"]} if race else {}
-        for r in sprint:
-            r["team"] = team_by_driver.get(r["driver"], r["team"])
-        # Written after the races row it references. The whole classification is in `sprint_rows`,
-        # so anything else under this race_id is from a superseded write - see prune().
-        sprint_rows = sprint_result_rows(race_id, sprint, sprint_source)
-        upsert(cur, "sprint_results", sprint_rows, ["race_id", "driver"])
-        prune(cur, "sprint_results", "race_id", race_id, "driver", [r["driver"] for r in sprint_rows])
+        if sprint:
+            # Inside the round's transaction, like every other write: a failure rolls the sprint back
+            # with the rest. Same team string as this weekend's race rows, when those are in hand, so a
+            # constructor's sprint and race points always add up under one name.
+            team_by_driver = {r["driver"]: r["team"] for r in race["results"]} if race else {}
+            for r in sprint:
+                r["team"] = team_by_driver.get(r["driver"], r["team"])
+            # After the races row it references. The whole classification is in `sprint_rows`, so
+            # anything else under this race_id is from a superseded write - see prune().
+            sprint_rows = sprint_result_rows(race_id, sprint, sprint_source)
+            upsert(cur, "sprint_results", sprint_rows, ["race_id", "driver"])
+            prune(cur, "sprint_results", "race_id", race_id, "driver", [r["driver"] for r in sprint_rows])
+
 
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows_n = len(race["results"]) if race else 0
