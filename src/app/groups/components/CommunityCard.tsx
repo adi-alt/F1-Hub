@@ -88,7 +88,7 @@ export function CommunityCard({
                 not silently lose most of itself to an ellipsis. */}
             <p className="mt-2.5 line-clamp-2 font-semibold leading-tight text-white">{community.name}</p>
 
-            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-neutral-500">
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] text-tertiary">
               <span>{meta.label}</span>
               {community.topic && (
                 <>
@@ -103,7 +103,7 @@ export function CommunityCard({
               <span>{visibilityLabel("public")}</span>
             </p>
 
-            {community.description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-neutral-500">{community.description}</p>}
+            {community.description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-tertiary">{community.description}</p>}
 
             <p className="mt-2.5 text-xs text-neutral-400">
               {compactCount(community.memberCount)} member{community.memberCount === 1 ? "" : "s"}
@@ -129,7 +129,7 @@ export function CommunityCard({
                   >
                     {joining ? "Joining…" : community.activePredictions > 0 ? "Join & predict" : "Join"}
                   </button>
-                  {error && <p className="mt-1.5 text-center text-[11px] text-[var(--f1-red)]">{error}</p>}
+                  {error && <p className="mt-1.5 text-center text-[11px] text-brand-text">{error}</p>}
                 </>
               )}
             </div>
@@ -144,7 +144,7 @@ export function CommunityCard({
 function CommunitySignal({ community }: { community: PublicGroupSummary }) {
   if (community.activePredictions > 0) {
     return (
-      <p className="flex items-center gap-1.5 border-t border-[var(--f1-line)] pt-3 text-xs text-[var(--f1-red)]">
+      <p className="flex items-center gap-1.5 border-t border-[var(--f1-line)] pt-3 text-xs text-brand-text">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" aria-hidden />
         {community.activePredictions} prediction{community.activePredictions === 1 ? "" : "s"} open now
       </p>
@@ -160,13 +160,13 @@ function CommunitySignal({ community }: { community: PublicGroupSummary }) {
   }
   if (community.latestPost) {
     return (
-      <p className="border-t border-[var(--f1-line)] pt-3 text-xs text-neutral-500">
+      <p className="border-t border-[var(--f1-line)] pt-3 text-xs text-tertiary">
         <span className="line-clamp-1">&ldquo;{community.latestPost.content}&rdquo;</span>
-        <span className="text-neutral-600">{timeAgo(community.latestPost.createdAt)}</span>
+        <span className="text-tertiary">{timeAgo(community.latestPost.createdAt)}</span>
       </p>
     );
   }
   // Said plainly. A brand-new community with one member is a real state, and pretending otherwise
   // is how fake activity indicators get born.
-  return <p className="border-t border-[var(--f1-line)] pt-3 text-xs text-neutral-600">No activity yet - be the first to post</p>;
+  return <p className="border-t border-[var(--f1-line)] pt-3 text-xs text-tertiary">No activity yet - be the first to post</p>;
 }

@@ -1,9 +1,9 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/supabase/queryWithRetry";
-import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
+import { ARCHIVE_EARLIEST_YEAR, archiveLatestYear } from "@/lib/archiveYears";
 
-export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
+export { ARCHIVE_EARLIEST_YEAR, archiveLatestYear };
 
 // The shape fetchAllRows expects a query to resolve to. Mostly needed as an explicit cast target
 // for a PostgREST to-one embed (e.g. archive_races(year) off archive_results) - the untyped client
@@ -13,7 +13,7 @@ export { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR };
 type QueryPage<T> = PromiseLike<{ data: T[] | null; error: SupabaseQueryError | null; count?: number | null }>;
 
 // Cached forever (revalidate: false at every call site below) — freshness after a pipeline run
-// comes from revalidateTag("archive-data") via /api/admin/revalidate (called by every
+// comes from expireTag("archive-data") via /api/admin/revalidate (called by every
 // enrich_archive*.py/fetch_archive.py script once it finishes, see trigger_revalidation() in
 // ergast_utils.py), not from a timer. No dedicated realtime watcher for the archive tables (unlike
 // races/calendar/media) - a backfill is a rare, ad-hoc, manual operation, not a recurring cron,
@@ -69,12 +69,24 @@ export type ArchiveWeather = {
   weatherCode: number;
 };
 
+/** A circuit's track map: its Wikipedia article's free lead image, credited from Commons
+ * (pipeline/circuit_track_maps.py). The URL is Wikimedia's own 960px rendition; the browser loads it
+ * directly. All five fields or none - the database refuses anything in between. */
+export type CircuitTrackMap = {
+  url: string;
+  sourceUrl: string;
+  credit: string;
+  license: string;
+  licenseUrl: string;
+};
+
 export type ArchiveCircuit = {
   circuitId: string;
   name: string | null;
   wikipediaUrl: string | null;
-  imageUrl: string | null;
-  imageUrls: string[] | null; // real circuit photos (Wikimedia Commons), not the legacy single imageUrl
+  // The only circuit image the app shows. archive_circuits.image_url / image_urls (photos from the
+  // circuit's Commons category, often not of the track) are deliberately not read.
+  trackMap: CircuitTrackMap | null;
   lat: number | null;
   long: number | null;
   // Merged in by getAllArchiveCircuits from a full archive_races scan (getArchiveCircuitStats
@@ -377,19 +389,30 @@ type ArchiveCircuitRow = {
   circuit_id: string;
   name: string | null;
   wikipedia_url: string | null;
-  image_url: string | null;
-  image_urls: string[] | null;
+  track_map_url: string | null;
+  track_map_source_url: string | null;
+  track_map_credit: string | null;
+  track_map_license: string | null;
+  track_map_license_url: string | null;
   lat: number | null;
   long: number | null;
 };
+
+const CIRCUIT_COLUMNS =
+  "circuit_id, name, wikipedia_url, track_map_url, track_map_source_url, track_map_credit, track_map_license, track_map_license_url, lat, long";
+
+function toTrackMap(row: ArchiveCircuitRow): CircuitTrackMap | null {
+  const { track_map_url: url, track_map_source_url: sourceUrl, track_map_credit: credit, track_map_license: license, track_map_license_url: licenseUrl } = row;
+  if (!url || !sourceUrl || !credit || !license || !licenseUrl) return null;
+  return { url, sourceUrl, credit, license, licenseUrl };
+}
 
 function toArchiveCircuit(row: ArchiveCircuitRow): ArchiveCircuit {
   return {
     circuitId: row.circuit_id,
     name: row.name,
     wikipediaUrl: row.wikipedia_url,
-    imageUrl: row.image_url,
-    imageUrls: row.image_urls,
+    trackMap: toTrackMap(row),
     lat: row.lat,
     long: row.long,
   };
@@ -402,7 +425,7 @@ function toArchiveCircuit(row: ArchiveCircuitRow): ArchiveCircuit {
 export const getArchiveCircuit = unstable_cache(
   async (circuitId: string): Promise<ArchiveCircuit | null> => {
     const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_circuits").select("*").eq("circuit_id", circuitId).maybeSingle(),
+      supabaseAdmin.from("archive_circuits").select(CIRCUIT_COLUMNS).eq("circuit_id", circuitId).maybeSingle(),
     );
     if (error) throw new Error(`getArchiveCircuit(${circuitId}): ${error.message}`);
     return data ? toArchiveCircuit(data as ArchiveCircuitRow) : null;
@@ -458,7 +481,7 @@ const getArchiveCircuitStats = unstable_cache(
 export const getAllArchiveCircuits = unstable_cache(
   async (): Promise<ArchiveCircuit[]> => {
     const [{ data, error }, stats] = await Promise.all([
-      queryWithRetry(() => supabaseAdmin.from("archive_circuits").select("*")),
+      queryWithRetry(() => supabaseAdmin.from("archive_circuits").select(CIRCUIT_COLUMNS)),
       getArchiveCircuitStats(),
     ]);
     if (error) throw new Error(`getAllArchiveCircuits: ${error.message}`);
@@ -493,7 +516,13 @@ export const getAllArchiveCircuits = unstable_cache(
 export function findArchiveCircuitByLocation(circuits: ArchiveCircuit[], locality: string, country?: string | null): ArchiveCircuit | null {
   const loc = locality.trim().toLowerCase();
   const ctry = country?.trim().toLowerCase();
-  return circuits.find((c) => c.locality?.trim().toLowerCase() === loc && (!ctry || c.country?.trim().toLowerCase() === ctry)) ?? null;
+  const sameLocality = circuits.filter((c) => c.locality?.trim().toLowerCase() === loc);
+  const exact = sameLocality.find((c) => !ctry || c.country?.trim().toLowerCase() === ctry);
+  if (exact) return exact;
+  // The event's country is not always the venue's: the 2026 Bahrain Grand Prix was run at Sepang, so the race
+  // row says Kuala Lumpur, Bahrain while the archive has Kuala Lumpur, Malaysia. When only one circuit has
+  // this locality the match is unambiguous; when several do (Barcelona, California) we don't guess.
+  return sameLocality.length === 1 ? sameLocality[0] : null;
 }
 
 /** A circuit's full history — every race with this circuit_id, oldest first. Only ever returns
@@ -797,8 +826,17 @@ export const getArchiveRaceLaps = unstable_cache(
     );
     if (raceError) throw new Error(`getArchiveRaceLaps(${year}, ${round}): ${raceError.message}`);
     if (!race) return [];
-    const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("archive_laps").select("lap_number, driver_id, position, time").eq("archive_race_id", race.id).order("lap_number"),
+    // Every page of rows (audit R-18): 313 of 464 archive races have more than PostgREST's 1000-row
+    // cap, and a single request silently stopped the chart short of the flag. Ordered by the whole
+    // primary key, so the pages split the rows the same way every time.
+    const { data, error } = await fetchAllRows<{ lap_number: number; driver_id: string; position: number | null; time: string | null }>((from, to) =>
+      supabaseAdmin
+        .from("archive_laps")
+        .select("lap_number, driver_id, position, time", { count: "exact" })
+        .eq("archive_race_id", race.id)
+        .order("lap_number")
+        .order("driver_id")
+        .range(from, to),
     );
     if (error) throw new Error(`getArchiveRaceLaps(${year}, ${round}): ${error.message}`);
 
@@ -810,6 +848,7 @@ export const getArchiveRaceLaps = unstable_cache(
     }
     return [...byLap.entries()].map(([lap, timings]) => ({ lap, timings })).sort((a, b) => a.lap - b.lap);
   },
-  ["get-archive-race-laps"],
+  // v2: entries cached before R-18 hold truncated laps and never expire on their own.
+  ["get-archive-race-laps-v2"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );

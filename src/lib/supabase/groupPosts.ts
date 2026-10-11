@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
 import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
+import { allowedMediaUrl, isAllowedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
@@ -73,14 +74,16 @@ export type FeedPost = {
  * no name (posted before metadata existed) still renders - it just has nothing better than its
  * type to show, which is the honest outcome rather than resurrecting the UUID as a "name". */
 function attachmentFromRow(row: Record<string, unknown>): PostAttachment | null {
-  const url = (row.media_url as string | null) ?? null;
+  // Dropped rather than rendered when it isn't one of the app's own uploads or a Klipy GIF (see
+  // mediaUrls.ts) - including rows written before that was checked on write.
+  const url = allowedMediaUrl(row.media_url);
   if (!url) return null;
   return {
     url,
     name: (row.media_name as string | null) ?? null,
     mime: (row.media_mime as string | null) ?? null,
     size: (row.media_size as number | null) ?? null,
-    thumbUrl: (row.media_thumb_url as string | null) ?? null,
+    thumbUrl: allowedMediaUrl(row.media_thumb_url),
     pages: (row.media_pages as number | null) ?? null,
   };
 }
@@ -123,6 +126,13 @@ export async function createPost(
   if (trimmedContent.length > MAX_POST_CHARS) throw new ServiceError(`Posts are limited to ${MAX_POST_CHARS} characters.`, 400);
   const trimmedTitle = input.title?.trim() || null;
   if (trimmedTitle && trimmedTitle.length > MAX_TITLE_CHARS) throw new ServiceError(`Titles are limited to ${MAX_TITLE_CHARS} characters.`, 400);
+  // Only the app's own uploads and Klipy GIFs (SEC-17, see mediaUrls.ts). An empty string is "no
+  // attachment", not a bad one.
+  const mediaUrl = input.mediaUrl || null;
+  const thumbUrl = input.attachment?.thumbUrl || null;
+  if ((mediaUrl && !isAllowedMediaUrl(mediaUrl)) || (thumbUrl && !isAllowedMediaUrl(thumbUrl))) {
+    throw new ServiceError("That attachment can't be used here. Upload the file, or pick a GIF.", 400);
+  }
 
   let status: PostStatus = "published";
   // A post's kind must be one this community actually offers - a Photography community can't be
@@ -167,11 +177,11 @@ export async function createPost(
       user_id: uid,
       title: trimmedTitle,
       content: trimmedContent,
-      media_url: input.mediaUrl ?? null,
+      media_url: mediaUrl,
       media_name: input.attachment?.name ?? null,
       media_mime: input.attachment?.mime ?? null,
       media_size: input.attachment?.size ?? null,
-      media_thumb_url: input.attachment?.thumbUrl ?? null,
+      media_thumb_url: thumbUrl,
       media_pages: input.attachment?.pages ?? null,
       status,
       kind,
@@ -325,7 +335,7 @@ export async function listPosts(
     authorRole: roleByAuthor.get(p.user_id as string) ?? "member",
     title: (p.title as string | null) ?? null,
     content: p.content as string,
-    mediaUrl: (p.media_url as string | null) ?? null,
+    mediaUrl: allowedMediaUrl(p.media_url),
     attachment: attachmentFromRow(p as Record<string, unknown>),
     kind: (p.kind as PostKind | null) ?? "discussion",
     status: p.status as PostStatus,
@@ -389,7 +399,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     authorRole,
     title: (post.title as string | null) ?? null,
     content: post.content as string,
-    mediaUrl: (post.media_url as string | null) ?? null,
+    mediaUrl: allowedMediaUrl(post.media_url),
     attachment: attachmentFromRow(post as Record<string, unknown>),
     kind: (post.kind as PostKind | null) ?? "discussion",
     status,
@@ -546,7 +556,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       authorName: nameFor(profileById.get(p.user_id as string), p.user_id as string),
       title: (p.title as string | null) ?? null,
       content: p.content as string,
-      mediaUrl: (p.media_url as string | null) ?? null,
+      mediaUrl: allowedMediaUrl(p.media_url),
       attachment: attachmentFromRow(p as Record<string, unknown>),
       kind: (p.kind as PostKind | null) ?? "discussion",
       createdAt: p.created_at as string,

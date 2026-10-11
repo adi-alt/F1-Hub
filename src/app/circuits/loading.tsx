@@ -1,34 +1,19 @@
-import { SectionLoadingMessage } from "@/components/ui/SectionLoadingMessage";
-import { InsightSkeleton, LoadingRegion, MediaSkeleton, TextSkeleton } from "@/components/ui/Skeletons";
+import { Skeleton } from "@/components/ui/Skeleton";
 
-// Shared by both branches this route can render (the Explorer homepage and an individual circuit
-// page) - Next shows this while the async Server Component is still resolving either shape, so it
-// can't be perfectly tailored to one. Matches the real page's own max-w-[1400px] container, the
-// season map's real (large) circuit-geometry chip size, and the focus panel's real three-column
-// composition - the old thin single-band shape belonged to the earlier NextRaceFocus strip this
-// page no longer renders (see CircuitsExplorer.tsx).
+// The circuits home's own outline (CircuitsHome): the title, the next race, then the calendar grid of cards.
 export default function CircuitsLoading() {
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-      <SectionLoadingMessage label="Mapping the circuits…" />
-      <LoadingRegion label="Loading circuits">
-        <TextSkeleton width={200} height={30} />
-        <TextSkeleton className="mt-3" width="40%" height={12} />
-        <div className="mt-6 flex gap-2 overflow-hidden">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="flex w-24 shrink-0 flex-col items-center gap-1.5">
-              <TextSkeleton width={64} height={64} />
-              <TextSkeleton width={36} height={10} />
-            </div>
-          ))}
-        </div>
-        <div className="mt-6">
-          <MediaSkeleton ratio="21 / 8" />
-        </div>
-        <div className="mt-8">
-          <InsightSkeleton lines={2} />
-        </div>
-      </LoadingRegion>
+    <div role="status" className="page-wide skeleton-delay py-8">
+      <span className="sr-only">Loading circuits</span>
+      <Skeleton shape="block" className="h-4 w-24" />
+      <Skeleton shape="block" className="mt-2 h-10 w-48" />
+      <Skeleton shape="block" className="mt-8 h-72 w-full rounded-card" />
+      <Skeleton shape="block" className="mt-12 h-6 w-40" />
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} shape="block" className="h-64 w-full rounded-card" />
+        ))}
+      </div>
     </div>
   );
 }

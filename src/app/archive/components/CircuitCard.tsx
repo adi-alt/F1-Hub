@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { describeWeatherCode } from "@/lib/weatherCodes";
 import { archiveCircuitHref } from "@/lib/routes";
+import { TrackMap } from "@/components/ui/TrackMap";
 import type { ArchiveCircuit, ArchiveWeather } from "@/lib/supabase/archive";
 
 /** A compact vertical block (image on top, text below) - now embedded as Race Overview's own
@@ -21,25 +21,21 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
       transition={{ duration: 0.25, ease: "easeOut" }}
       className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60"
     >
-      {circuit.imageUrl && (
-        <div className="relative h-32 w-full bg-black/30">
-          {/* Sourced from Wikipedia's own lead image for this circuit, re-hosted in Supabase
-              Storage - usually the actual track layout, sometimes just a locator photo (see
-              pipeline/enrich_archive_circuits.py). Not necessarily the exact configuration this
-              specific historical year raced on. object-cover, not contain - fills the panel
-              intentionally instead of a letterboxed image floating in empty margin; the trade-off
-              is a wide track outline can crop at the edges, same as any cover-fit image. */}
-          <Image src={circuit.imageUrl} alt={`${circuit.name ?? "Circuit"} layout`} fill className="object-cover" />
+      {circuit.trackMap && (
+        <div className="p-3.5 pb-0">
+          {/* The circuit's current Wikipedia track map: not necessarily the configuration this
+              historical year raced on. */}
+          <TrackMap map={circuit.trackMap} name={circuit.name ?? "Circuit"} />
         </div>
       )}
       <div className="p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-neutral-500">Circuit</p>
+            <p className="text-xs uppercase tracking-wide text-tertiary">Circuit</p>
             <p className="font-semibold text-white">{circuit.name}</p>
           </div>
           {circuit.wikipediaUrl && (
-            <a href={circuit.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-[var(--f1-red)] hover:underline">
+            <a href={circuit.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-brand-text hover:underline">
               Wikipedia →
             </a>
           )}
@@ -52,11 +48,11 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
             </span>
             <div className="text-sm">
               <p className="text-neutral-200">{conditions.label}</p>
-              <p className="text-neutral-500">
+              <p className="text-tertiary">
                 {Math.round(weather.tempMinC)}°–{Math.round(weather.tempMaxC)}°C
                 {weather.precipitationMm > 0 ? ` · ${weather.precipitationMm.toFixed(1)}mm precip.` : ""}
               </p>
-              <p className="mt-0.5 text-[11px] text-neutral-600">Estimated from historical weather reanalysis, not a station reading.</p>
+              <p className="mt-0.5 text-[11px] text-tertiary">Estimated from historical weather reanalysis, not a station reading.</p>
             </div>
           </div>
         )}

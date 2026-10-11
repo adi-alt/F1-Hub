@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
+import { GroupVisitBeacon } from "./components/GroupVisitBeacon";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { JoinPrompt } from "../components/JoinPrompt";
 import { CommunityWorkspace } from "./components/CommunityWorkspace";
@@ -23,6 +24,7 @@ import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } 
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** How many open rounds the context rail shows before it stops being a rail. The rest are one
  * click away in the Predictions tab it links to. */
@@ -56,7 +58,7 @@ export default async function CommunityPage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      <div className="page-narrow py-10">
         <SignInGate label="this community" />
       </div>
     );
@@ -77,7 +79,7 @@ export default async function CommunityPage({
     ]);
     if (!preview) notFound();
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+      <div className="page-narrow py-10">
         <JoinPrompt
           group={preview}
           joinRequestStatus={joinRequest?.status ?? null}
@@ -105,12 +107,11 @@ export default async function CommunityPage({
     wantsLeaderboard ? getGroupLeaderboard(id, uid) : Promise.resolve([]),
     wantsPredictions ? listPredictions(id, uid) : Promise.resolve([]),
     getPointsBalance(uid),
-    wantsPredictions && wantsRace ? getRacesByYear(new Date().getFullYear()) : Promise.resolve([]),
+    wantsPredictions && wantsRace ? getRacesByYear(await getCurrentSeason()) : Promise.resolve([]),
     canModerate ? countPendingJoinRequests(id).catch(() => 0) : Promise.resolve(0),
     getGroupStats(id, uid).catch(() => statsFallback(group.members.length)),
-    // Reads this member's previous visit to THIS community and stamps a new one - so it must run
-    // exactly once per page load, here, not inside a client component that could re-run and
-    // collapse the window.
+    // Reads this member's previous visit to THIS community. Read-only: the visit is stamped when
+    // the page is left (GroupVisitBeacon), so a refresh during the visit doesn't reset the window.
     getGroupPulse(id, uid),
     wantsRace ? getNextRace().catch(() => null) : Promise.resolve(null),
   ]);
@@ -171,10 +172,11 @@ export default async function CommunityPage({
     // Wide enough for a real two-column workspace (content + context rail) at desktop widths, while
     // the content column itself stays a comfortable reading measure. Matches the Communities index's
     // own max width rather than inventing a third one for this page.
-    <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8">
+    <div className="page-wide py-6">
       <GroupRealtimeWatcher groupId={id} />
+      <GroupVisitBeacon groupId={id} />
 
-      <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition hover:text-neutral-300">
+      <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-tertiary transition hover:text-neutral-300">
         <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
           <path d="M9.5 3.5 5 8l4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
+import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import {
   buildCircuitTimeline,
   computeRaceTrends,
@@ -35,9 +35,9 @@ function fmtSec(sec: number): string {
 function StatCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="text-[11px] uppercase tracking-wide text-tertiary">{label}</p>
       <p className="mt-0.5 truncate text-sm font-semibold text-white">{value}</p>
-      {sub && <p className="text-[11px] text-neutral-500">{sub}</p>}
+      {sub && <p className="text-[11px] text-tertiary">{sub}</p>}
     </div>
   );
 }
@@ -111,45 +111,49 @@ export function TrackTrendsContent({ liveRaces, archiveRaces, circuitName }: { l
   ].filter((c): c is { label: string; value: string; sub?: string } => c !== null);
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-neutral-500">Windowed by time range - never the same fact as the Records tab, which is always all-time.</p>
-        <QuietTabs options={WINDOW_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} value={window} onChange={setWindow} className="shrink-0 text-xs" />
+    // Segmented: the time range is a compact filter over the stats below, not navigation.
+    <Tabs variant="segmented" value={window} onValueChange={setWindow} items={WINDOW_OPTIONS}>
+      {/* Wraps under the sentence on a narrow screen instead of pushing the page sideways. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 text-body-sm text-secondary">Windowed by time range, unlike the Records tab, which is all-time.</p>
+        <TabList aria-label="Time range" className="max-w-full" />
       </div>
-      {recordCells.length > 0 && (
-        <div className="mt-4">
-          <RaceSubSection label="Track Records" first>
-            <StatGrid cells={recordCells} />
-          </RaceSubSection>
-        </div>
-      )}
-      {trendCells.length > 0 && (
-        <div className={recordCells.length > 0 ? "mt-6 border-t border-[var(--f1-line)] pt-6" : "mt-4"}>
-          <RaceSubSection label="Race Trends" first>
-            <StatGrid cells={trendCells} />
-          </RaceSubSection>
-        </div>
-      )}
-      {weatherCells.length > 0 && (
-        <div className={recordCells.length > 0 || trendCells.length > 0 ? "mt-6 border-t border-[var(--f1-line)] pt-6" : "mt-4"}>
-          <RaceSubSection label="Weather History" first>
-            <StatGrid cells={weatherCells} />
-          </RaceSubSection>
-        </div>
-      )}
-      {recordCells.length === 0 && trendCells.length === 0 && weatherCells.length === 0 && (
-        <p className="mt-4 text-sm text-neutral-500">Not enough data in this time range - try a wider one.</p>
-      )}
-      {/* Sample size and window, said plainly - a "most wins" or "pole -> win" stat computed
-          from a 1-year window (one race) reads very differently from the same stat over 20
-          years, and the selector above already lets it be either. */}
-      {windowed.length > 0 && (
-        <p className="mt-4 text-[11px] text-neutral-600">
-          Based on {windowed.length} {windowed.length === 1 ? "race" : "races"}{" "}
-          {matchedWindow?.years ? `over the last ${matchedWindow.years} season${matchedWindow.years === 1 ? "" : "s"}` : "across all available history"} at {circuitName}.
-        </p>
-      )}
-    </div>
+      <TabPanels>
+        {recordCells.length > 0 && (
+          <div className="mt-4">
+            <RaceSubSection label="Track Records" first>
+              <StatGrid cells={recordCells} />
+            </RaceSubSection>
+          </div>
+        )}
+        {trendCells.length > 0 && (
+          <div className={recordCells.length > 0 ? "mt-6 border-t border-[var(--f1-line)] pt-6" : "mt-4"}>
+            <RaceSubSection label="Race Trends" first>
+              <StatGrid cells={trendCells} />
+            </RaceSubSection>
+          </div>
+        )}
+        {weatherCells.length > 0 && (
+          <div className={recordCells.length > 0 || trendCells.length > 0 ? "mt-6 border-t border-[var(--f1-line)] pt-6" : "mt-4"}>
+            <RaceSubSection label="Weather History" first>
+              <StatGrid cells={weatherCells} />
+            </RaceSubSection>
+          </div>
+        )}
+        {recordCells.length === 0 && trendCells.length === 0 && weatherCells.length === 0 && (
+          <p className="mt-4 text-sm text-tertiary">Not enough data in this time range - try a wider one.</p>
+        )}
+        {/* Sample size and window, said plainly - a "most wins" or "pole -> win" stat computed
+            from a 1-year window (one race) reads very differently from the same stat over 20
+            years, and the selector above already lets it be either. */}
+        {windowed.length > 0 && (
+          <p className="mt-4 text-[11px] text-tertiary">
+            Based on {windowed.length} {windowed.length === 1 ? "race" : "races"}{" "}
+            {matchedWindow?.years ? `over the last ${matchedWindow.years} season${matchedWindow.years === 1 ? "" : "s"}` : "across all available history"} at {circuitName}.
+          </p>
+        )}
+      </TabPanels>
+    </Tabs>
   );
 }
 

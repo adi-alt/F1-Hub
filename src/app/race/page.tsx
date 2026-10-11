@@ -2,10 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArchiveRaceDashboard } from "@/app/archive/components/ArchiveRaceDashboard";
 import { getAllArchiveCircuitsData, getArchiveCircuitData, getArchiveCircuitHistoryData, getArchiveSeasonData } from "@/app/archive/services/archive.service";
-import { seasonStatus } from "@/app/season/_service/season.service";
+import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
-import { PickPanel } from "@/components/race/PickPanel";
+import { RaceKeyFact } from "@/components/race/RaceKeyFact";
+import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
+import { getRaceLayout } from "@/lib/supabase/circuitLayouts";
+import { RaceBannerStats } from "@/components/race/RaceBannerStats";
+import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
+import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
@@ -18,6 +23,8 @@ import { listRaceCommunities } from "@/lib/supabase/groupPredictions";
 import { comparePolePrediction, comparePrediction } from "@/lib/predictionAccuracy";
 import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
  * Archive year) - "the race detail page must be identical regardless of where the user came
@@ -32,7 +39,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const year = Number(yearParam);
   if (!yearParam || !raceParam || Number.isNaN(year)) return { title: "Race" };
 
-  if (seasonStatus(year) === "ongoing") {
+  if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     const match = (await getRacesByYear(year)).find((r) => slugifyRaceName(r.name) === raceParam);
     return match ? { title: `${match.name} ${year}` } : { title: "Race" };
   }
@@ -44,7 +51,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+      <div className="page-wide py-8">
         <SignInGate label="this race" />
       </div>
     );
@@ -55,7 +62,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const slug = raceParam ?? "";
   if (!yearParam || !raceParam || Number.isNaN(year)) notFound();
 
-  if (seasonStatus(year) === "ongoing") {
+  if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     // getRacesByYear also returns calendar placeholders for rounds with no real row yet (see its
     // own comment) - resolves slug -> round, and doubles as the fallback RaceDoc just below for a
     // round `getRace` itself has nothing for yet.
@@ -71,7 +78,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const highlights = computeHighlights(race);
     const accuracy = comparePrediction(race);
     const poleAccuracy = comparePolePrediction(race);
-    const winner = race.status === "completed" ? race.results?.find((r) => r.finishPosition === 1) : undefined;
 
     // The live `races` table has no circuit_id (see findArchiveCircuitByLocation's own comment) -
     // an exact locality+country match against the archive's circuit list is the only real way to
@@ -85,7 +91,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
       getCalendarEntry(year, roundMatch.round),
     ]);
     const matchedCircuit = findArchiveCircuitByLocation(circuits, race.circuit, race.country);
-    const circuitImage = matchedCircuit?.imageUrl ? { url: matchedCircuit.imageUrl, wikipediaUrl: matchedCircuit.wikipediaUrl } : null;
     const raceSessionDate = calendarEntry?.sessions.find((s) => /race/i.test(s.label) && !/sprint/i.test(s.label))?.date ?? calendarEntry?.raceDate ?? null;
 
     // Only fetched for the one case that actually needs it - a real `upcoming` race (a genuine
@@ -99,7 +104,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // would be redundant") - true for Track Intelligence's own trend/weather panel (still gated to
     // !isCompleted below), but Grand Prix History and this circuit's all-time records are not
     // redundant with a single race's own result; a completed race's page is exactly where "how
-    // does this result fit into history" belongs. Both real sources, same match `circuitImage`
+    // does this result fit into history" belongs. Both real sources, same match `matchedCircuit`
     // above already resolved - archive_races is NOT pre-2018-only (confirmed live: it
     // comprehensively covers a circuit's full history, including years `races` also has), so
     // circuitIntelligence.ts's own merge dedupes by year rather than treating these as two
@@ -112,45 +117,58 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext, raceCommunities] = await Promise.all([
+    const [ageRecords, personalContext, raceCommunities, photos, trackStory, layout] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
       listRaceCommunities(race.id, session.uid),
+      // Approved Wikimedia photos only (pipeline/race_photos.py, /admin/race-photos); none -> no section.
+      getApprovedRacePhotos(race.id),
+      // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
+      race.status === "completed" ? getRaceTrackStory(race.id) : Promise.resolve(null),
+      // The track library's layout for this circuit and season, drawn when the race has no story of its own.
+      getRaceLayout({ circuitId: matchedCircuit?.circuitId ?? null, circuitName: race.circuit, year: race.year, raceName: race.name }),
     ]);
 
     return (
-      <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
-        <RaceHeader
-          backHref="/season"
-          backLabel={`${race.year}`}
-          roundLabel={`Round ${race.round}`}
+      <div data-surface="frosted" className="page-wide py-8">
+        <RacePageHeader
+          year={race.year}
+          round={race.round}
           name={race.name}
-          circuitName={race.circuit}
+          circuit={race.circuit}
           country={race.country}
-          resultLabel={winner ? `Winner: ${winner.driverName}${race.resultsSource === "openf1_preliminary" ? " (preliminary)" : ""}` : undefined}
+          raceStart={raceSessionDate}
+          state={race.status === "completed" ? (race.resultsSource === "openf1_preliminary" ? "preliminary" : "final") : "upcoming"}
+          // The race's own photos only: no circuit photo stands in for a race that has none.
+          photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? null}
+          keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
+          stats={<RaceBannerStats race={race} highlights={highlights} forecast={calendarEntry?.weatherForecast} />}
+          actions={
+            <RaceMoreMenu
+              race={race}
+              completed={race.status === "completed" && !!race.results}
+              accuracy={accuracy}
+              poleAccuracy={poleAccuracy}
+              personal={personalContext}
+              fallbackEntrants={fallbackEntrants}
+              raceSessionDate={raceSessionDate}
+              sessions={calendarEntry?.sessions ?? []}
+            />
+          }
         />
-        <div className="mt-8">
+        <div className="mt-12">
           <SeasonRaceDashboard
             race={race}
-            highlights={highlights}
-            accuracy={accuracy}
-            poleAccuracy={poleAccuracy}
-            circuitImage={circuitImage}
             calendarEntry={calendarEntry}
             trackHistory={trackHistory}
             circuitTimeline={circuitTimeline}
-            personalContext={personalContext}
             raceCommunities={raceCommunities}
             ageRecords={ageRecords}
+            photos={photos}
+            trackStory={trackStory}
+            layout={layout}
           />
         </div>
-        {/* Never for a completed race - see PickPanel's own reasoning (the request that drove this:
-            no prediction UI, no podium-hit comparison, once a race is history). */}
-        {race.status !== "completed" && (
-          <div className="mt-8">
-            <PickPanel race={race} fallbackEntrants={fallbackEntrants} raceSessionDate={raceSessionDate} />
-          </div>
-        )}
       </div>
     );
   }
@@ -175,10 +193,43 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   ]);
   const archiveWinner = race.results.find((r) => r.position === 1);
   const circuitTimeline = buildCircuitTimeline(circuitLiveRaces, circuitArchiveRaces);
-  const [ageRecords, raceCommunities] = await Promise.all([computeAgeRecords(circuitTimeline), listRaceCommunities(race.id, session.uid)]);
+  // The season pipeline's own row for this race (2018 on): practice, qualifying with gaps, the photo and the race
+  // stats the archive tables don't have. Null before 2018 - the page is then the archive's alone.
+  const liveRace = year >= 2018 ? await getRace(year, race.round) : null;
+  const [ageRecords, raceCommunities, trackStory, layout, photos] = await Promise.all([
+    computeAgeRecords(circuitTimeline),
+    listRaceCommunities(race.id, session.uid),
+    // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
+    getRaceTrackStoryByRound(year, race.round),
+    getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }),
+    liveRace ? getApprovedRacePhotos(liveRace.id) : Promise.resolve([]),
+  ]);
+  const archivePhoto = race.photoUrls?.[0] ?? race.photoUrl ?? liveRace?.photoUrls?.[0] ?? liveRace?.photoUrl ?? null;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-16">
+    <div data-surface="frosted" className="page-wide py-8">
+      {liveRace ? (
+        // 2018 on: the same header as the current season's races - the photo, the race in figures, the winner.
+        <RacePageHeader
+          year={year}
+          round={race.round}
+          name={race.raceName}
+          circuit={race.circuitName ?? liveRace.circuit}
+          country={race.country ?? liveRace.country}
+          state="final"
+          photoUrl={archivePhoto}
+          seasonLink={archiveSeasonHref(year)}
+          keyFact={<RaceKeyFact sessions={[]} results={liveRace.results ?? null} />}
+          stats={<RaceBannerStats race={liveRace} highlights={computeHighlights(liveRace)} />}
+          actions={
+            race.wikipediaUrl ? (
+              <a href={race.wikipediaUrl} target="_blank" rel="noopener noreferrer" className="rounded-control border border-subtle px-2.5 py-1.5 text-caption text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                Race report ↗
+              </a>
+            ) : undefined
+          }
+        />
+      ) : (
       <RaceHeader
         backHref={archiveSeasonHref(year)}
         backLabel={`${year}`}
@@ -191,6 +242,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         externalLink={race.wikipediaUrl ? { href: race.wikipediaUrl, label: "Full race report" } : undefined}
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
+      )}
       <div className="mt-8">
         <ArchiveRaceDashboard
           race={race}
@@ -200,6 +252,11 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           circuitTimeline={circuitTimeline}
           ageRecords={ageRecords}
           raceCommunities={raceCommunities}
+          trackStory={trackStory}
+          layout={layout}
+          practice={liveRace?.practice ?? null}
+          liveQualifying={liveRace?.inputs ?? []}
+          photos={photos}
         />
       </div>
     </div>

@@ -25,7 +25,7 @@ export function PredictionPanel({
               <span className="font-semibold text-white">
                 {entry.predictedPosition}. {entry.driver}
               </span>
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-tertiary">
                 {entry.team}
                 {entry.spread !== null ? ` · ±${entry.spread.toFixed(1)}` : ""}
               </span>

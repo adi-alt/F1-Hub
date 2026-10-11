@@ -65,13 +65,13 @@ export function PredictionComposer({
   }
 
   if (races.length === 0) {
-    return <p className="mt-2 text-[11.5px] text-neutral-500">There are no upcoming rounds left this season to open a prediction on.</p>;
+    return <p className="mt-2 text-[11.5px] text-tertiary">There are no upcoming rounds left this season to open a prediction on.</p>;
   }
 
   return (
     <div className="mt-2">
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
           Community
           <div className="mt-1">
             <Picker
@@ -82,13 +82,13 @@ export function PredictionComposer({
             />
           </div>
         </label>
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
           Race
           <div className="mt-1">
             <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this prediction" />
           </div>
         </label>
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
           Prediction type
           <div className="mt-1">
             <Picker
@@ -99,7 +99,7 @@ export function PredictionComposer({
             />
           </div>
         </label>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
           Entry cost
           <div className="mt-1 flex flex-wrap items-center gap-1" role="group" aria-label="Entry cost in points">
             {ENTRY_PRESETS.map((n) => (
@@ -109,7 +109,7 @@ export function PredictionComposer({
                 onClick={() => setEntryPoints(n)}
                 aria-pressed={entryPoints === n}
                 className={`rounded-md px-2 py-1 text-[11.5px] font-semibold tabular-nums transition ${
-                  entryPoints === n ? "bg-[var(--f1-red)]/[0.16] text-[var(--f1-red)]" : "bg-white/[0.04] text-neutral-400 hover:text-white"
+                  entryPoints === n ? "bg-[var(--f1-red)]/[0.16] text-brand-text" : "bg-white/[0.04] text-neutral-400 hover:text-white"
                 }`}
               >
                 {n}
@@ -128,11 +128,11 @@ export function PredictionComposer({
         </div>
       </div>
 
-      {error && <p className="mt-2 text-[11px] text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="mt-2 text-[11px] text-brand-text">{error}</p>}
 
       <div className="mt-2.5 flex items-center gap-2">
         {community && (
-          <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-500">
+          <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-tertiary">
             <EntityAvatar imageUrl={community.avatarUrl} name={community.name} seed={community.id} size={16} shape="square" />
             <span className="truncate">Opens in {community.name}</span>
           </span>

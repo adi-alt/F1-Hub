@@ -61,6 +61,8 @@ export function RaceApexScope({
       archiveRound,
       circuit,
       year,
+      // So "when is qualifying?" is answered in the time the page shows, not UTC.
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
     suggestions: suggestions.slice(0, 4),
   });

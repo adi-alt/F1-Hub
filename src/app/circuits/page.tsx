@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { CircuitExplorerHeader } from "./components/CircuitExplorerHeader";
-import { CircuitsExplorer } from "./components/CircuitsExplorer";
+import { CircuitsHome } from "./components/CircuitsHome";
 import { getCircuitsExplorerData } from "./services/circuits.service";
 import { getUserProfile } from "@/lib/supabase/users";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { slugifyRaceName } from "@/lib/routes";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const [data, profile] = await Promise.all([
@@ -16,12 +16,8 @@ async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const { entries, completedCount, remainingCount } = data;
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-      <CircuitExplorerHeader year={year} totalCircuits={entries.length} completedCount={completedCount} remainingCount={remainingCount} />
-      {/* The season map, the selected round's focus panel, and Ask Apex's own circuit scope all
-          live inside this one client component - see its own docstring for why selection (not
-          just "the next race") drives all three together. */}
-      <CircuitsExplorer entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} year={year} />
+    <div data-surface="frosted" className="page-wide py-8">
+      <CircuitsHome entries={entries} favoriteTracks={profile?.favoriteTracks ?? []} year={year} completedCount={completedCount} remainingCount={remainingCount} />
     </div>
   );
 }
@@ -42,7 +38,7 @@ export default async function CircuitsPage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <SignInGate label="circuit intelligence" />
       </div>
     );
@@ -69,6 +65,6 @@ export default async function CircuitsPage({
     redirect(queryString ? `${newPath}?${queryString}` : newPath);
   }
 
-  const year = new Date().getFullYear();
+  const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
   return <CircuitsIndex year={year} uid={session.uid} />;
 }

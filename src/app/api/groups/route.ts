@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { CommunityFeatures, CommunityType } from "@/lib/communities";
 import { createGroup, discoverCommunities, type DiscoverSort, type GroupVisibility } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError } from "@/services/errors";
 
 const SORTS: DiscoverSort[] = ["recommended", "trending", "active", "new", "members"];
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "groupCreate", session.uid);
+  if (limited) return limited;
 
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;

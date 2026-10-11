@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from "react";
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
-import { Skeleton } from "@/components/Skeleton";
-import { SearchableSelect } from "@/components/ui/SearchableSelect";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
+import { Select, TextInput } from "@/components/ui/Field";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { StartLights } from "@/components/motion/StartLights";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useSignupOptions } from "@/queries/useSignupOptions";
 import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
@@ -20,59 +22,64 @@ type OAuthProvider = "google" | "github" | "discord" | "gitlab";
 // disagrees with what the server would actually accept.
 const RESEND_COOLDOWN_MS = 60_000;
 
-function ErrorBanner({ message }: { message: string }) {
+// Alert announces itself: danger as role="alert", info as role="status".
+function Messages({ info, error }: { info?: string | null; error: string | null }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
-      <svg viewBox="0 0 20 20" className="mt-0.5 h-4 w-4 shrink-0" fill="currentColor" aria-hidden>
-        <path
-          fillRule="evenodd"
-          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.28 11.18c.75 1.334-.213 2.98-1.742 2.98H3.72c-1.53 0-2.492-1.646-1.743-2.98l6.28-11.18ZM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-.25-6.5a.75.75 0 0 0-1.5 0v3a.75.75 0 0 0 1.5 0v-3Z"
-          clipRule="evenodd"
-        />
-      </svg>
-      <span>{message}</span>
-    </div>
-  );
-}
-
-function InfoBanner({ message }: { message: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-neutral-300">{message}</div>
+    <>
+      {info && <Alert tone="info">{info}</Alert>}
+      {error && <Alert tone="danger">{error}</Alert>}
+    </>
   );
 }
 
 // A lightweight 2D illustration, not another WebGL canvas - a modal that opens and closes
-// repeatedly is exactly the wrong place to re-init a GLTF-loading r3f scene on every open.
+// repeatedly is exactly the wrong place to re-init a GLTF-loading r3f scene on every open. It is the
+const SCENE_TRACK = "M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500";
+const SCENE_LINES = [
+  ["Every race.", "Every prediction."],
+  ["Beat the model.", "Lap after lap."],
+  ["75 years of F1.", "One place."],
+] as const;
+
+// Dialog's aside: shown from md up only, and hidden from assistive tech. It moves: the track draws itself in,
+// the centre line streams past, a car runs the lap, the start lights cycle and the tagline changes. All of it is
+// CSS/SVG animation that stops under reduced motion (globals.css .auth-scene).
 function FormulaScene() {
+  const [line, setLine] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setInterval(() => setLine((l) => (l + 1) % SCENE_LINES.length), 3200);
+    return () => window.clearInterval(t);
+  }, []);
   return (
-    <div className="relative flex h-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[var(--f1-carbon)] via-black to-[var(--f1-carbon-2)] p-8">
-      <svg viewBox="0 0 300 500" className="pointer-events-none absolute inset-0 h-full w-full opacity-70" aria-hidden>
-        <path
-          d="M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500"
-          fill="none"
-          stroke="#33333a"
-          strokeWidth="26"
-          strokeLinecap="round"
-        />
-        <path
-          d="M -20 40 C 80 20, 140 90, 120 160 C 100 230, 20 240, 40 310 C 60 380, 180 360, 220 430 C 250 480, 300 470, 320 500"
-          fill="none"
-          stroke="#f2f2f3"
-          strokeWidth="2"
-          strokeDasharray="10 10"
-          strokeLinecap="round"
-          opacity={0.5}
-        />
+    <div className="auth-scene relative flex h-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[var(--f1-carbon)] via-black to-[var(--f1-carbon-2)] p-8">
+      <div className="auth-scene-glow pointer-events-none absolute inset-0" aria-hidden />
+      <svg viewBox="0 0 300 500" className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden>
+        <defs>
+          <filter id="auth-car-glow" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+        </defs>
+        <path className="auth-track" d={SCENE_TRACK} fill="none" stroke="#2e2e35" strokeWidth="26" strokeLinecap="round" pathLength={1} />
+        <path className="auth-lane" d={SCENE_TRACK} fill="none" stroke="#f2f2f3" strokeWidth="2" strokeDasharray="10 10" strokeLinecap="round" opacity={0.45} />
+        <g className="auth-car">
+          <circle r="9" fill="#ff1e1e" filter="url(#auth-car-glow)" opacity={0.8} />
+          <circle r="4" fill="#ff4b4b" />
+          <animateMotion dur="5.5s" repeatCount="indefinite" rotate="auto" path={SCENE_TRACK} keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.55 1" />
+        </g>
       </svg>
-      <div className="relative z-10 flex items-center gap-2 text-lg font-bold tracking-tight text-white">
-        <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
-        F1 HUB
+      <div className="relative z-10 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
+          <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
+          F1 HUB
+        </div>
+        <StartLights className="scale-75" />
       </div>
       <div className="relative z-10">
-        <p className="text-2xl font-bold leading-tight text-white">
-          Every race.
+        <p key={line} className="auth-line text-2xl font-bold leading-tight text-white">
+          {SCENE_LINES[line][0]}
           <br />
-          Every prediction.
+          {SCENE_LINES[line][1]}
         </p>
         <p className="mt-2 text-sm text-neutral-400">Predictions, a race simulator, and a full archive back to 1950.</p>
       </div>
@@ -80,7 +87,7 @@ function FormulaScene() {
   );
 }
 
-function GoogleIcon() {
+function GoogleLogo() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
       <path
@@ -100,7 +107,7 @@ function GoogleIcon() {
   );
 }
 
-function GitHubIcon() {
+function GitHubLogo() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
       <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.79-.25.79-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.05 11.05 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.15 0 1.55-.01 2.8-.01 3.18 0 .3.21.66.79.55A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
@@ -108,7 +115,7 @@ function GitHubIcon() {
   );
 }
 
-function DiscordIcon() {
+function DiscordLogo() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
       <path
@@ -119,7 +126,7 @@ function DiscordIcon() {
   );
 }
 
-function GitLabIcon() {
+function GitLabLogo() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
       <path fill="#FC6D26" d="M12 21 4 9h5l3-7 3 7h5l-8 12Z" />
@@ -128,8 +135,21 @@ function GitLabIcon() {
 }
 
 // Six single-digit boxes rather than one text field - types forward automatically, backspace on
-// an empty box steps back, and pasting a full code anywhere fills all six at once.
-function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// an empty box steps back, and pasting a full code anywhere fills all six at once. A labelled group,
+// so a screen reader announces "6-digit code" on entering it and "Digit 1 of 6" on each box.
+function OtpInput({
+  value,
+  onChange,
+  firstInputRef,
+  labelledBy,
+  describedBy,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  firstInputRef: RefObject<HTMLInputElement | null>;
+  labelledBy: string;
+  describedBy: string;
+}) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length: 6 }, (_, i) => value[i] ?? "");
 
@@ -154,21 +174,23 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
   }
 
   return (
-    <div className="flex justify-center gap-2">
+    <div role="group" aria-labelledby={labelledBy} aria-describedby={describedBy} className="flex justify-center gap-2">
       {digits.map((d, i) => (
         <input
           key={i}
           ref={(el) => {
             refs.current[i] = el;
+            if (i === 0) firstInputRef.current = el;
           }}
           type="text"
           inputMode="numeric"
           maxLength={1}
+          aria-label={`Digit ${i + 1} of 6`}
           value={d}
           onChange={(e) => setDigit(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
-          className="h-12 w-10 rounded-lg border border-[var(--f1-line)] bg-black/20 text-center text-lg font-bold text-white focus:border-white/30 focus:outline-none"
+          className="h-12 w-10 rounded-control border border-strong bg-surface-2 text-center text-title-md text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         />
       ))}
     </div>
@@ -202,6 +224,7 @@ function OtpStep({
   busy,
   info,
   error,
+  firstInputRef,
   onSubmit,
   onResend,
 }: {
@@ -212,50 +235,51 @@ function OtpStep({
   busy: boolean;
   info: string | null;
   error: string | null;
+  firstInputRef: RefObject<HTMLInputElement | null>;
   onSubmit: () => void;
   onResend: () => void;
 }) {
   const secondsUntilResend = useCountdown(resendAvailableAt);
+  const id = useId();
 
   return (
-    <motion.div
-      key="otp"
-      initial={{ opacity: 0, x: 12 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -12 }}
-      transition={{ duration: 0.2 }}
+    <form
+      noValidate
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        if (!busy && code.length === 6) onSubmit();
+      }}
       className="space-y-4"
     >
-      <h2 className="text-lg font-bold text-white">Check your email</h2>
-      <p className="flex flex-wrap items-center gap-1.5 text-sm text-neutral-400">
+      <p id={`${id}-sent`} className="flex flex-wrap items-center gap-1.5 text-body-sm text-secondary">
         {/* Empty only during the OAuth-redirect resume path, while the effect above is still
             fetching whose email this actually was (see AuthDialog's own comment on that fetch) -
             a skeleton in place of the email itself, not the generic sentence this used to fall
             back to, so it reads as "still loading" rather than as the final copy. */}
         <span>We sent a 6-digit code to</span>
-        {verifiedEmail ? <span className="text-white">{verifiedEmail}.</span> : <Skeleton className="h-4 w-36 rounded" />}
+        {verifiedEmail ? <span className="text-primary">{verifiedEmail}.</span> : <Skeleton className="h-4 w-36" />}
       </p>
-      <OtpInput value={code} onChange={setCode} />
-      <p className="text-xs text-neutral-500">Don&apos;t see it? Check your spam folder as well.</p>
-      <button
-        disabled={busy || code.length !== 6}
-        onClick={onSubmit}
-        className="w-full rounded-lg bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-      >
-        {busy ? "Verifying…" : "Verify"}
-      </button>
-      <button
-        disabled={secondsUntilResend > 0}
-        onClick={onResend}
-        className="w-full text-center text-xs text-neutral-500 transition hover:text-neutral-300 disabled:hover:text-neutral-500"
-      >
+      <p id={`${id}-label`} className="sr-only">
+        6-digit code
+      </p>
+      <OtpInput value={code} onChange={setCode} firstInputRef={firstInputRef} labelledBy={`${id}-label`} describedBy={`${id}-sent`} />
+      <p className="text-body-sm text-secondary">Don&apos;t see it? Check your spam folder as well.</p>
+      <Button type="submit" variant="primary" size="md" className="w-full" disabled={code.length !== 6} loading={busy}>
+        Verify
+      </Button>
+      <Button variant="ghost" size="md" className="w-full" disabled={secondsUntilResend > 0} onClick={onResend}>
         {secondsUntilResend > 0 ? `Resend code in ${secondsUntilResend}s` : "Resend code"}
-      </button>
-      {info && <InfoBanner message={info} />}
-      {error && <ErrorBanner message={error} />}
-    </motion.div>
+      </Button>
+      <Messages info={info} error={error} />
+    </form>
   );
 }
+
+const STEP_TITLES: Record<Step, string> = {
+  method: "Sign in or sign up",
+  otp: "Check your email",
+  profile: "Tell us a bit about you",
+};
 
 // The caller mounts this only while it should be open (`{open && <AuthDialog .../>}`) rather
 // than always rendering it with an `open` prop — a fresh mount every time it opens is what gives
@@ -285,6 +309,17 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
 
   const { data: options } = useSignupOptions(step === "profile");
   const { status: usernameStatus, suggestions: usernameSuggestions } = useUsernameAvailability(username);
+
+  // The first field of whichever step is showing. The Dialog focuses it on open (initialFocusRef,
+  // after its trap has recorded the trigger to return to); the effect below moves focus to it when
+  // the step changes, since the button that was focused is gone by then.
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    firstFieldRef.current?.focus();
+  }, [step]);
 
   // /auth/callback already exchanged the OAuth code and sent the OTP by the time this mounts —
   // this just needs to find out *whose* email that was, since the callback redirect deliberately
@@ -465,6 +500,8 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
     }
   }
 
+  const profileIncomplete = !firstName.trim() || !lastName.trim() || username.trim().length < 3 || usernameStatus === "taken";
+
   async function handleProfileSubmit() {
     setBusy(true);
     setError(null);
@@ -510,244 +547,180 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
     }
   }
 
-  const inputClass =
-    "w-full rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none";
-
-  // Rendered straight into document.body via a portal - inline (no portal) leaves position:fixed
-  // exposed to any ancestor that happens to establish its own containing block (a transform, a
-  // filter, plenty of other CSS a page can pick up over time), which is exactly what made this
-  // render pinned to wherever its parent was instead of centered in the viewport. A portal makes
-  // that whole category of bug structurally impossible rather than tracking down one ancestor.
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 px-4"
-      onClick={onClose}
+  // The Dialog primitive supplies what this used to lack (audit UI-30, CR-24): role="dialog" named
+  // by the step's title, focus moved in and trapped, Escape and the scrim close it, focus goes back
+  // to whatever opened it, and the page behind stops scrolling. It is portalled to document.body,
+  // which also keeps position:fixed safe from any ancestor that establishes a containing block.
+  // The panel is frosted glass (surface-glass) and capped at the viewport height with the body
+  // scrolling inside, so a short phone no longer clips the form.
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={STEP_TITLES[step]}
+      description={step === "method" ? "One account either way — we'll figure out which." : undefined}
+      size="sm"
+      aside={<FormulaScene />}
+      // The first step's own height (646px measured), held for every step: the code step used to
+      // shrink the dialog to half that, and the profile step to resize it again. Shorter steps are
+      // centred in the space instead.
+      minHeight="40.5rem"
+      initialFocusRef={firstFieldRef}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative grid min-h-[560px] w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl md:max-w-4xl md:grid-cols-2"
-      >
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white"
+      {step === "method" && (
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!busy && email && password.length >= 6) void handleEmailContinue();
+          }}
+          className="space-y-3"
         >
-          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
-            <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </button>
-
-        <div className="hidden md:block">
-          <FormulaScene />
-        </div>
-
-        <div className="flex flex-col justify-center overflow-hidden p-6">
-        <AnimatePresence mode="wait">
-        {step === "method" && (
-          <motion.div
-            key="method"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-3"
-          >
-            <h2 className="text-lg font-bold text-white">Sign in or sign up</h2>
-            <p className="text-sm text-neutral-400">One account either way — we&apos;ll figure out which.</p>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
-            />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => void handleForgotPassword()}
-                className="text-xs text-neutral-500 transition hover:text-neutral-300"
-              >
-                Forgot password?
-              </button>
-            </div>
-            <button
-              disabled={busy || !email || password.length < 6}
-              onClick={() => void handleEmailContinue()}
-              className="w-full rounded-lg bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-            >
-              {busy ? "Please wait…" : "Continue"}
-            </button>
-
-            <div className="flex items-center gap-2 py-1 text-xs text-neutral-500">
-              <div className="h-px flex-1 bg-[var(--f1-line)]" />
-              or
-              <div className="h-px flex-1 bg-[var(--f1-line)]" />
-            </div>
-
-            <button
-              disabled={busy}
-              onClick={() => void handleProvider("google")}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-            <button
-              disabled={busy}
-              onClick={() => void handleProvider("github")}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
-            >
-              <GitHubIcon />
-              Continue with GitHub
-            </button>
-            <button
-              disabled={busy}
-              onClick={() => void handleProvider("discord")}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
-            >
-              <DiscordIcon />
-              Continue with Discord
-            </button>
-            <button
-              disabled={busy}
-              onClick={() => void handleProvider("gitlab")}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--f1-line)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-50"
-            >
-              <GitLabIcon />
-              Continue with GitLab
-            </button>
-            {info && <InfoBanner message={info} />}
-            {error && <ErrorBanner message={error} />}
-          </motion.div>
-        )}
-
-        {step === "otp" && (
-          <OtpStep
-            verifiedEmail={verifiedEmail}
-            code={code}
-            setCode={setCode}
-            resendAvailableAt={resendAvailableAt}
-            busy={busy}
-            info={info}
-            error={error}
-            onSubmit={() => void handleOtpSubmit()}
-            onResend={handleResend}
+          <TextInput ref={firstFieldRef} label="Email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <TextInput
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            hint="At least 6 characters."
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
-        )}
+          <div className="flex justify-end">
+            <Button variant="ghost" size="sm" onClick={() => void handleForgotPassword()}>
+              Forgot password?
+            </Button>
+          </div>
+          <Button type="submit" variant="primary" size="md" className="w-full" disabled={!email || password.length < 6} loading={busy}>
+            Continue
+          </Button>
 
-        {step === "profile" && (
-          <motion.div
-            key="profile"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
-            className="max-h-[70vh] space-y-3 overflow-y-auto scrollbar-hide">
-            <h2 className="text-lg font-bold text-white">Tell us a bit about you</h2>
-            <div className="flex gap-2">
-              <input
-                placeholder="First name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className={inputClass}
-              />
-              <input
-                placeholder="Last name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <input
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className={inputClass}
-              />
-              {usernameStatus === "taken" && (
-                <p className="mt-1 text-xs text-red-400">
+          <div className="flex items-center gap-2 py-1 text-body-sm text-secondary">
+            <div aria-hidden className="h-px flex-1 bg-strong" />
+            or
+            <div aria-hidden className="h-px flex-1 bg-strong" />
+          </div>
+
+          <Button variant="secondary" size="md" className="w-full" disabled={busy} onClick={() => handleProvider("google")}>
+            <GoogleLogo />
+            Continue with Google
+          </Button>
+          <Button variant="secondary" size="md" className="w-full" disabled={busy} onClick={() => handleProvider("github")}>
+            <GitHubLogo />
+            Continue with GitHub
+          </Button>
+          <Button variant="secondary" size="md" className="w-full" disabled={busy} onClick={() => handleProvider("discord")}>
+            <DiscordLogo />
+            Continue with Discord
+          </Button>
+          <Button variant="secondary" size="md" className="w-full" disabled={busy} onClick={() => handleProvider("gitlab")}>
+            <GitLabLogo />
+            Continue with GitLab
+          </Button>
+          <Messages info={info} error={error} />
+        </form>
+      )}
+
+      {step === "otp" && (
+        <OtpStep
+          verifiedEmail={verifiedEmail}
+          code={code}
+          setCode={setCode}
+          resendAvailableAt={resendAvailableAt}
+          busy={busy}
+          info={info}
+          error={error}
+          firstInputRef={firstFieldRef}
+          onSubmit={() => void handleOtpSubmit()}
+          onResend={handleResend}
+        />
+      )}
+
+      {step === "profile" && (
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!profileIncomplete) void handleProfileSubmit();
+          }}
+          className="space-y-3"
+        >
+          <div className="flex gap-2">
+            <TextInput ref={firstFieldRef} label="First name" autoComplete="given-name" className="min-w-0 flex-1" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <TextInput label="Last name" autoComplete="family-name" className="min-w-0 flex-1" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </div>
+          <TextInput
+            label="Username"
+            autoComplete="username"
+            hint={usernameStatus === "available" ? "Available." : "At least 3 characters."}
+            error={
+              usernameStatus === "taken" ? (
+                <>
                   Taken.
                   {usernameSuggestions.length > 0 && (
                     <>
                       {" "}
                       Try:{" "}
-                      {usernameSuggestions.map((s, i) => (
+                      {usernameSuggestions.map((suggestion, i) => (
                         <button
-                          key={s}
-                          onClick={() => setUsername(s)}
-                          className="ml-1 text-[var(--f1-red)] underline hover:no-underline"
+                          key={suggestion}
+                          type="button"
+                          onClick={() => setUsername(suggestion)}
+                          className="ml-1 rounded-control text-primary underline hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                         >
-                          {s}
+                          {suggestion}
                           {i < usernameSuggestions.length - 1 ? "," : ""}
                         </button>
                       ))}
                     </>
                   )}
-                </p>
-              )}
-              {usernameStatus === "available" && <p className="mt-1 text-xs text-green-400">Available.</p>}
+                </>
+              ) : undefined
+            }
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+
+          {options ? (
+            <>
+              <Select label="Favourite driver (optional)" value={favoriteDriver} onChange={(e) => setFavoriteDriver(e.target.value)}>
+                <option value="">None</option>
+                {options.drivers.map((d) => (
+                  <option key={d.code} value={d.code}>
+                    {d.name}
+                  </option>
+                ))}
+              </Select>
+              <Select label="Favourite team (optional)" value={favoriteTeam} onChange={(e) => setFavoriteTeam(e.target.value)}>
+                <option value="">None</option>
+                {options.teams.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </Select>
+              <Select label="Favourite track (optional)" value={favoriteTrack} onChange={(e) => setFavoriteTrack(e.target.value)}>
+                <option value="">None</option>
+                {options.tracks.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </Select>
+            </>
+          ) : (
+            <div className="space-y-3" role="status" aria-label="Loading the favourites lists">
+              <Skeleton shape="block" className="h-16 w-full" />
+              <Skeleton shape="block" className="h-16 w-full" />
+              <Skeleton shape="block" className="h-16 w-full" />
             </div>
+          )}
 
-            {options ? (
-              <>
-                <SearchableSelect
-                  value={favoriteDriver}
-                  onChange={setFavoriteDriver}
-                  placeholder="Favorite driver (optional)"
-                  className={inputClass}
-                  options={options.drivers.map((d) => ({ value: d.code, label: d.name }))}
-                />
-                <SearchableSelect
-                  value={favoriteTeam}
-                  onChange={setFavoriteTeam}
-                  placeholder="Favorite team (optional)"
-                  className={inputClass}
-                  options={options.teams.map((t) => ({ value: t, label: t }))}
-                />
-                <SearchableSelect
-                  value={favoriteTrack}
-                  onChange={setFavoriteTrack}
-                  placeholder="Favorite track (optional)"
-                  className={inputClass}
-                  options={options.tracks.map((t) => ({ value: t, label: t }))}
-                />
-              </>
-            ) : (
-              <>
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-                <Skeleton className="h-9 w-full" />
-              </>
-            )}
-
-            <button
-              disabled={
-                busy ||
-                !firstName.trim() ||
-                !lastName.trim() ||
-                username.trim().length < 3 ||
-                usernameStatus === "taken"
-              }
-              onClick={() => void handleProfileSubmit()}
-              className="w-full rounded-lg bg-[var(--f1-red)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
-            >
-              {busy ? "Creating account…" : "Create account"}
-            </button>
-            {error && <ErrorBanner message={error} />}
-          </motion.div>
-        )}
-        </AnimatePresence>
-        </div>
-      </div>
-    </div>,
-    document.body,
+          <Button type="submit" variant="primary" size="md" className="w-full" disabled={profileIncomplete} loading={busy}>
+            Create account
+          </Button>
+          <Messages error={error} />
+        </form>
+      )}
+    </Dialog>
   );
 }

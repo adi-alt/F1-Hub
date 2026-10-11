@@ -401,8 +401,22 @@ export async function generateHomepageIntelligence(
 // answer isn't cacheable the way race-wide intelligence is). Architected so real multi-turn/
 // streaming conversation can be layered on later without redoing this: `history` already threads
 // through in the exact {role,content}[] shape a persisted conversation would use.
-const ASK_APEX_MAX_TOKENS = 350;
-const ASK_APEX_FALLBACK_TEXT = "Apex is at capacity right now - try again in a moment.";
+// 1500, not the original 350 (audit AI-06): gpt-oss spends part of max_tokens on its hidden reasoning
+// pass before writing `content`, and at 350 that left empty answers ("Apex is at capacity") and
+// answers cut off mid-sentence. Reasoning effort "low" keeps more of the budget for the answer.
+const ASK_APEX_MAX_TOKENS = 1500;
+export const ASK_APEX_FALLBACK_TEXT = "Apex is at capacity right now - try again in a moment.";
+
+/** An answer the model was cut off in (finish_reason "length"), ended at its last full sentence
+ * rather than mid-word. Kept whole, with an ellipsis, if the last sentence end is too early to be
+ * worth cutting back to. */
+export function trimTruncatedAnswer(answer: string): string {
+  const text = answer.trimEnd();
+  const lastEnd = Math.max(text.lastIndexOf(". "), text.lastIndexOf("! "), text.lastIndexOf("? "), text.lastIndexOf(".\n"));
+  if (/[.!?]$/.test(text)) return text;
+  if (lastEnd >= text.length * 0.5) return text.slice(0, lastEnd + 1);
+  return `${text}…`;
+}
 
 export async function generateAskApexAnswer(
   question: string,
@@ -410,6 +424,8 @@ export async function generateAskApexAnswer(
   page: string,
   intelligenceJson: string,
   ctx: AgentContext,
+  /** Epoch ms the answer has to be ready by; see chatWithProviderFallback. */
+  deadlineAt?: number,
 ): Promise<{ answer: string; isFallback: boolean; fallbackReason?: string; modelIdentifier: string }> {
   const startTime = Date.now();
   const plannedModel = "groq/openai/gpt-oss-120b";
@@ -443,15 +459,22 @@ export async function generateAskApexAnswer(
   const baseConfig = {
     maxTokens: ASK_APEX_MAX_TOKENS,
     temperature: 0.6,
+    reasoningEffort: "low" as const,
     // Own Groq/OpenRouter account for this feature, same isolation reasoning as every other
     // feature-specific key in this file - falls back to the shared keys when unset.
     groqApiKey: process.env.GROQ_HOMEPAGE_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_HOMEPAGE_API_KEY,
+    deadlineAt,
   };
 
   try {
     const result = await chatWithProviderFallback(messages, null, baseConfig, ctx.requestId);
-    const answer = (result.response.content ?? "").trim();
+    const raw = (result.response.content ?? "").trim();
+    const truncated = result.response.finishReason === "length";
+    // Logged on their own, so the empty and cut-off rates can be counted (audit AI-06).
+    if (!raw) logAIError(ctx.requestId, "ask_apex_empty_response", `finish_reason=${result.response.finishReason}`);
+    else if (truncated) logAIError(ctx.requestId, "ask_apex_truncated_response", `${raw.length} chars`);
+    const answer = raw && truncated ? trimTruncatedAnswer(raw) : raw;
     logAIOperation({
       requestId: ctx.requestId,
       agentType: "ask_apex",

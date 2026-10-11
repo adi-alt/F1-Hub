@@ -18,7 +18,7 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       // No logo - Archive is the restrained, statistical/reference counterpart to Season's richer
       // identity-driven cards; the team's own name is the entire identity element here.
       render: (t) => (
-        <Link href={archiveTeamHref(t.teamId)} title={t.name} className="truncate font-medium text-white hover:text-[var(--f1-red)]">
+        <Link href={archiveTeamHref(t.teamId)} title={t.name} className="truncate font-medium text-white hover:text-brand-text">
           {t.name}
         </Link>
       ),
@@ -55,7 +55,7 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       hideOnMobile: true,
       widthClassName: "w-56",
       render: (t) => (
-        <span className="block truncate text-neutral-500" title={t.drivers?.join(", ")}>
+        <span className="block truncate text-tertiary" title={t.drivers?.join(", ")}>
           {t.drivers?.length ? t.drivers.join(", ") : "N/A"}
         </span>
       ),

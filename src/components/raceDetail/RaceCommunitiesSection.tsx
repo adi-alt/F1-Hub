@@ -37,7 +37,7 @@ function CommunityRow({ card }: { card: RaceCommunityCard }) {
       <EntityAvatar imageUrl={card.avatarUrl} name={card.name} seed={card.groupId} size={38} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{card.name}</p>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-tertiary">
           <span>
             {card.memberCount} {card.memberCount === 1 ? "member" : "members"}
           </span>

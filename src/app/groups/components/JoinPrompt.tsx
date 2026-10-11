@@ -106,12 +106,12 @@ export function JoinPrompt({
         </div>
 
         <h1 className="mt-3 text-2xl font-bold text-white">{group.name}</h1>
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-tertiary">
           {meta.label} · {visibilityLabel(group.visibility)}
           {group.topic ? ` · ${group.topic}` : ""}
         </p>
         {group.description && <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-400">{group.description}</p>}
-        <p className="mt-3 text-xs text-neutral-500">
+        <p className="mt-3 text-xs text-tertiary">
           {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
         </p>
 
@@ -139,8 +139,8 @@ export function JoinPrompt({
           ) : requestState === "pending" ? (
             <div>
               <p className="text-sm font-medium text-neutral-200">Request sent</p>
-              <p className="mt-1 text-xs text-neutral-500">An admin will review it. You&apos;ll get in as soon as they approve.</p>
-              <button onClick={() => void withdraw()} disabled={status === "working"} className="mt-3 text-xs text-neutral-500 transition hover:text-white disabled:opacity-50">
+              <p className="mt-1 text-xs text-tertiary">An admin will review it. You&apos;ll get in as soon as they approve.</p>
+              <button onClick={() => void withdraw()} disabled={status === "working"} className="mt-3 text-xs text-tertiary transition hover:text-white disabled:opacity-50">
                 Withdraw request
               </button>
             </div>
@@ -167,7 +167,7 @@ export function JoinPrompt({
                   autoFocus
                   placeholder="Tell them why you'd like to join (optional)"
                   aria-label="Message to the admins"
-                  className="mb-3 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-left text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+                  className="mb-3 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-left text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                 />
               )}
               <button
@@ -178,7 +178,7 @@ export function JoinPrompt({
                 {status === "working" ? "Sending…" : "Request to Join"}
               </button>
               {!showMessage && (
-                <button onClick={() => setShowMessage(true)} className="mt-2 block w-full text-xs text-neutral-500 transition hover:text-neutral-300">
+                <button onClick={() => setShowMessage(true)} className="mt-2 block w-full text-xs text-tertiary transition hover:text-neutral-300">
                   Add a message
                 </button>
               )}
@@ -187,7 +187,7 @@ export function JoinPrompt({
         </div>
 
         {error && (
-          <p role="alert" className="mt-3 text-xs text-[var(--f1-red)]">
+          <p role="alert" className="mt-3 text-xs text-brand-text">
             {error}
           </p>
         )}

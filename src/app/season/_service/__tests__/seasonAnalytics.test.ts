@@ -28,7 +28,7 @@ function race(round: number, over: Partial<RaceSummary> = {}): RaceSummary {
     isSprintWeekend: false,
     weekendStatus: "completed",
     photoUrls: [],
-    circuitPhotoUrls: [],
+    circuitTrackMap: null,
     forecast: null,
     raceWeather: null,
     podium: [],

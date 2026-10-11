@@ -1,0 +1,114 @@
+{
+  "2026-1": {
+    "file": "/replays/2026-1.74503fcb.bin",
+    "bytes": 73715,
+    "sha256": "74503fcb79c50715f5bec98d8ca3da4b450c1acb93da7656b6e95d06730ef08d",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-2": {
+    "file": "/replays/2026-2.72825ec8.bin",
+    "bytes": 79586,
+    "sha256": "72825ec8989710a9ba9931cf64a3ddeddee02b5b07a905d80d96bce10208bbe7",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-3": {
+    "file": "/replays/2026-3.53ee5dd0.bin",
+    "bytes": 91263,
+    "sha256": "53ee5dd0df338103a2c66c9694fbb089e48aafe6221527c84434dbdf5bbf7388",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-4": {
+    "file": "/replays/2026-4.239b2f64.bin",
+    "bytes": 86609,
+    "sha256": "239b2f64a3a78817eb1ed87634144993924644a4276190313be78ce2a95229cc",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-5": {
+    "file": "/replays/2026-5.0ec93dbf.bin",
+    "bytes": 80382,
+    "sha256": "0ec93dbf7f6300da53472ffb6d089d285a5f46b0250b32154acd6e17c82f2082",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-6": {
+    "file": "/replays/2026-6.62aedcd0.bin",
+    "bytes": 13339,
+    "sha256": "62aedcd0d88520f6943e3e6150c47bbcd8da36cd03a02c8b5116cfa328089439",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-7": {
+    "file": "/replays/2026-7.9aa2f55f.bin",
+    "bytes": 85538,
+    "sha256": "9aa2f55f9b9f1be1aeb648bffffef331e687f0f2aaf292d0d13ba7da4025dbdb",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-8": {
+    "file": "/replays/2026-8.bd0ccb46.bin",
+    "bytes": 81472,
+    "sha256": "bd0ccb46d326b61218f02be8ed47a523482a6c7a196dbc16d2d87966ca0d35f2",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-9": {
+    "file": "/replays/2026-9.55a12c99.bin",
+    "bytes": 90172,
+    "sha256": "55a12c999dd32905f2fb52afabc51b32e98e1a3e794bf808bbdad7feb79edc75",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-10": {
+    "file": "/replays/2026-10.e0a94ad9.bin",
+    "bytes": 84786,
+    "sha256": "e0a94ad944a6b7b41076a181139dd41c5b83e5db5c2685c8aedbdd9b55a7e148",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-11": {
+    "file": "/replays/2026-11.ab908674.bin",
+    "bytes": 67510,
+    "sha256": "ab908674f7939bea59157f8dd07cdb95e26ddf2a121d047c7978fe2bf4788f69",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-12": {
+    "file": "/replays/2026-12.6d84e326.bin",
+    "bytes": 93177,
+    "sha256": "6d84e326e35beb3f6f3f80f45eb171608dfdaf11b32b529657c8f36b18b00030",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-13": {
+    "file": "/replays/2026-13.c17aad32.bin",
+    "bytes": 80787,
+    "sha256": "c17aad32650a980fd69698fb6636901e616dce4e56af1805ccce974c0f20e6b0",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-14": {
+    "file": "/replays/2026-14.d522295d.bin",
+    "bytes": 90289,
+    "sha256": "d522295d4866991cb05db00e089c8f83fd298d0d0c3655eedbcca7fdc22edece",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-15": {
+    "file": "/replays/2026-15.5cb946f5.bin",
+    "bytes": 93906,
+    "sha256": "5cb946f503ddb60ab89eb9d07b9d97c03a6d838920bac7df6f12d8d99f4c34c7",
+    "version": 1,
+    "hz": 1
+  },
+  "2026-16": {
+    "file": "/replays/2026-16.641b653b.bin",
+    "bytes": 107716,
+    "sha256": "641b653bbdede8fca0c862cba0ca0c0dad7dfdf9f60e97f9aa4ef0a5d04e92a4",
+    "version": 1,
+    "hz": 1
+  }
+}

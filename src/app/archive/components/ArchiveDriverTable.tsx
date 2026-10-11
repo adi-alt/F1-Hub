@@ -19,7 +19,7 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     // identity element here. ArchiveDriver.photoUrl still exists in the data layer, unused by
     // this table on purpose, not deleted - Season still uses the same field.
     render: (d) => (
-      <Link href={archiveDriverHref(d.driverId)} title={d.name} className="truncate font-medium text-white hover:text-[var(--f1-red)]">
+      <Link href={archiveDriverHref(d.driverId)} title={d.name} className="truncate font-medium text-white hover:text-brand-text">
         {d.name}
       </Link>
     ),
@@ -47,7 +47,7 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     hideOnMobile: true,
     widthClassName: "w-56",
     render: (d) => (
-      <span className="block truncate text-neutral-500" title={d.constructors?.join(", ")}>
+      <span className="block truncate text-tertiary" title={d.constructors?.join(", ")}>
         {d.constructors?.length ? d.constructors.join(", ") : "N/A"}
       </span>
     ),

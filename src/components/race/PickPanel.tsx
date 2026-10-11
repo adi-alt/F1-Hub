@@ -1,38 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { parseUtcDateTime } from "@/lib/countdown";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
+import { formatCountdown, formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { useAuth } from "@/providers/AuthProvider";
-import { DriverPicker } from "@/components/ui/F1Pickers";
+import { PredictionSheet } from "@/components/predictions/PredictionSheet";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
-type Status = "idle" | "loading" | "saving" | "saved" | "error";
-
-const DEFAULT_ERROR = "Pick 3 different drivers.";
-// Picks open this many days out, not the instant a race is technically "upcoming" - a real `races`
-// row (and even a fallback grid) can exist weeks before there's anything meaningfully fresh to
-// predict against; opening right at the start of that window is a deliberate product choice, not a
-// data constraint the way the "scheduled" gate above it is.
-const PICK_WINDOW_DAYS = 10;
-
-function toFormState(data: UserPick) {
-  return { p1: data.predictedPodium[0], p2: data.predictedPodium[1], p3: data.predictedPodium[2] };
-}
 
 // Shaped like the real card (label + P1/P2/P3 selects) - `useAuth`'s auth check is genuine async
 // work on first paint, unlike a synchronous tab switch elsewhere on this page.
 function PickPanelSkeleton() {
   return (
-    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-      <Skeleton className="h-3 w-32" />
+    <div className="rounded-card bg-surface-1 p-5">
+      <Skeleton shape="block" className="h-3 w-32" />
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {["P1", "P2", "P3"].map((label) => (
           <div key={label}>
-            <Skeleton className="h-3 w-6" />
-            <Skeleton className="mt-1 h-9 w-full" />
+            <Skeleton shape="block" className="h-3 w-6" />
+            <Skeleton shape="block" className="mt-1 h-9 w-full" />
           </div>
         ))}
       </div>
@@ -44,6 +33,7 @@ export function PickPanel({
   race,
   fallbackEntrants = [],
   raceSessionDate,
+  sessions = [],
 }: {
   race: RaceDoc;
   fallbackEntrants?: { driver: string; driverName: string; team: string }[];
@@ -56,12 +46,14 @@ export function PickPanel({
   // doesn't close (someone hitting the API directly could still save mid-race until the pipeline
   // catches up) - out of scope here, a genuine follow-up if picks-as-scoring integrity matters.
   raceSessionDate?: string | null;
+  /** The weekend's sessions, for the prediction window's locks (pole at qualifying). */
+  sessions?: { label: string; date: string }[];
 }) {
-  const { user, isAuthorized, loading } = useAuth();
+  const { isAuthorized, loading } = useAuth();
   const now = useMinuteClock();
-  const [pick, setPick] = useState({ p1: "", p2: "", p3: "" });
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorMessage, setErrorMessage] = useState(DEFAULT_ERROR);
+  const tz = useViewerTimeZone();
+  const [saved, setSaved] = useState<UserPick | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     // isAuthorized, not raw user — a session mid-OTP-flow isn't a real one yet.
@@ -71,54 +63,30 @@ export function PickPanel({
     // rather than reading cookies() in the (ISR-cached) race page itself.
     fetch(`/api/picks?raceId=${encodeURIComponent(race.id)}`)
       .then((res) => res.json())
-      .then((data: { pick: UserPick | null }) => {
-        if (data.pick) setPick(toFormState(data.pick));
-        setStatus("idle");
-      })
-      .catch(() => setStatus("error"));
+      .then((data: { pick: UserPick | null }) => setSaved(data.pick))
+      .catch(() => setSaved(null));
   }, [isAuthorized, race.id]);
 
   if (loading) return <PickPanelSkeleton />;
 
   if (!isAuthorized) {
     return (
-      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
-        Sign in to make your own podium pick for this race.
+      <div className="rounded-card bg-surface-1 p-5 text-sm text-neutral-400">
+        Sign in to make your predictions for this race.
       </div>
     );
   }
 
-  // `race.status === "scheduled"` means there's no real `races` row for this round yet (see
-  // toCalendarPlaceholder in races.ts) - `race.id` in that case doesn't exist in the `races` table
-  // at all, so save_pick() (the server-side lock, see saveUserPick) would answer race_not_found on
-  // every save attempt regardless of what's shown here. An editable form that can never actually save is
-  // worse than this informational message - the same "don't create fake interactions" reasoning
-  // PracticeSummary's own hover rows already follow.
-  if (race.status === "scheduled") {
+  // Opens 24 hours before the weekend's first session (save_pick enforces the same).
+  const firstSession = sessions.length ? Math.min(...sessions.map((x) => parseUtcDateTime(x.date).getTime())) : null;
+  if (firstSession !== null && now < firstSession - 24 * 3600 * 1000) {
+    const opensAt = firstSession - 24 * 3600 * 1000;
     return (
-      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
-        Podium picks open once this race weekend begins.
+      <div className="rounded-card bg-surface-1 p-5">
+        <p className="text-body-sm font-semibold text-primary">Predictions open {formatLocalDateTime(new Date(opensAt).toISOString(), tz)}</p>
+        <p className="mt-1 text-caption text-secondary">24 hours before the first session, and close at lights out{raceSessionDate ? `, ${formatLocalDateTime(raceSessionDate, tz)}` : ""}.</p>
       </div>
     );
-  }
-
-  // Opens PICK_WINDOW_DAYS before the real "Race" session datetime - only when that date is
-  // actually known; a missing calendar entry fails open (shows the form) rather than blocking picks
-  // indefinitely over a date this app just doesn't have yet.
-  if (raceSessionDate) {
-    const opensAt = parseUtcDateTime(raceSessionDate).getTime() - PICK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    if (now < opensAt) {
-      const daysLeft = Math.ceil((opensAt - now) / (24 * 60 * 60 * 1000));
-      return (
-        <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Podium pick</p>
-          <p className="mt-1.5 text-sm font-semibold text-white">
-            Opens in {daysLeft} {daysLeft === 1 ? "day" : "days"}
-          </p>
-          <p className="mt-0.5 text-xs text-neutral-500">Make your prediction once picks open.</p>
-        </div>
-      );
-    }
   }
 
   // race.inputs (this race's own qualifying-derived grid) once it exists, else the current
@@ -127,82 +95,59 @@ export function PickPanel({
   const entrants = race.inputs?.length ? race.inputs : fallbackEntrants;
   if (entrants.length === 0) {
     return (
-      <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-400">
-        Podium picks open once this race weekend begins.
+      <div className="rounded-card bg-surface-1 p-5 text-sm text-neutral-400">
+        Predictions open once this race weekend begins.
       </div>
     );
   }
 
   const isLocked = race.status !== "upcoming" || (!!raceSessionDate && parseUtcDateTime(raceSessionDate).getTime() <= now);
-
-  async function submit() {
-    if (!user) return;
-    if (!pick.p1 || !pick.p2 || !pick.p3 || new Set([pick.p1, pick.p2, pick.p3]).size !== 3) {
-      setErrorMessage(DEFAULT_ERROR);
-      setStatus("error");
-      return;
-    }
-    setStatus("saving");
-    try {
-      const res = await fetch("/api/picks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raceId: race.id, predictedWinner: pick.p1, predictedPodium: [pick.p1, pick.p2, pick.p3] }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setErrorMessage(body?.error ?? DEFAULT_ERROR);
-        throw new Error("save failed");
-      }
-      setStatus("saved");
-    } catch {
-      setStatus("error");
-    }
-  }
-
-  const driverOptions = entrants.map((entry) => ({ code: entry.driver, name: entry.driverName, team: entry.team }));
+  const nameOf = (code: string | null | undefined) => (code ? entrants.find((e) => e.driver === code)?.driverName ?? code : null);
+  const rows: [string, string | null][] = saved
+    ? [
+        ["Podium", saved.predictedPodium.map((c) => nameOf(c)).join(", ")],
+        ["Pole", nameOf(saved.predictedPole)],
+        ["Fastest lap", nameOf(saved.predictedFastestLap)],
+        ["Top five", saved.predictedTop5 ? saved.predictedTop5.map((c) => nameOf(c)).join(", ") : null],
+        ["Safety car", saved.predictedSafetyCar === null || saved.predictedSafetyCar === undefined ? null : saved.predictedSafetyCar ? "Yes" : "No"],
+        ["Winning margin", saved.predictedMargin ? { under_2: "Under 2s", "2_5": "2–5s", "5_10": "5–10s", over_10: "Over 10s" }[saved.predictedMargin] : null],
+      ]
+    : [];
 
   return (
-    <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
-      <p className="text-xs uppercase tracking-wide text-neutral-500">Your podium pick</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {(["p1", "p2", "p3"] as const).map((slot, i) => (
-          <div key={slot} className="text-sm text-neutral-400">
-            P{i + 1}
-            <DriverPicker
-              drivers={driverOptions}
-              value={pick[slot]}
-              disabled={isLocked}
-              onChange={(code) => setPick((prev) => ({ ...prev, [slot]: code }))}
-              ariaLabel={`Podium P${i + 1}`}
-              className="mt-1"
-            />
-          </div>
-        ))}
-      </div>
-
-      {!isLocked && (
-        <button
-          onClick={() => void submit()}
-          disabled={status === "saving"}
-          className="mt-4 rounded-full bg-[var(--f1-red)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
-        >
-          {status === "saving" ? "Saving…" : "Save pick"}
-        </button>
+    <div className="rounded-card bg-surface-1 p-5">
+      {saved ? (
+        <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <dt className="text-caption text-secondary">{label}</dt>
+              <dd className={`mt-0.5 truncate text-body-sm ${value ? "text-primary" : "text-tertiary"}`}>{value ?? "Not picked"}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="text-body-sm text-secondary">{isLocked ? "You didn't make predictions for this race." : "No predictions yet. Six categories, each against the model."}</p>
       )}
-      {isLocked && <p className="mt-3 text-xs text-neutral-500">Prediction locked at race start.</p>}
-      <AnimatePresence>
-        {status === "saved" && (
-          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-neutral-500">
-            Saved.
-          </motion.p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {!isLocked && (
+          <Button variant="primary" size="md" onClick={() => setOpen(true)}>
+            {saved ? "Edit predictions" : "Make your predictions"}
+          </Button>
         )}
-        {status === "error" && (
-          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-2 text-xs text-[var(--f1-red)]">
-            {errorMessage}
-          </motion.p>
+        {isLocked && saved && (
+          <Button variant="secondary" size="md" onClick={() => setOpen(true)}>
+            View predictions
+          </Button>
         )}
-      </AnimatePresence>
+        {raceSessionDate && (
+          <p className="text-caption text-tertiary">
+            {isLocked
+              ? `Closed at lights out, ${formatLocalDateTime(raceSessionDate, tz)}.`
+              : `Close at lights out, ${formatLocalDateTime(raceSessionDate, tz)} (in ${formatCountdown(parseUtcDateTime(raceSessionDate).getTime(), now)}).`}
+          </p>
+        )}
+      </div>
+      <PredictionSheet open={open} onClose={() => setOpen(false)} race={race} entrants={entrants} sessions={sessions} onSaved={setSaved} />
     </div>
   );
 }

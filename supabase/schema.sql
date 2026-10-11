@@ -429,6 +429,19 @@ alter publication supabase_realtime add table calendar;
 alter publication supabase_realtime add table drivers;
 alter publication supabase_realtime add table teams;
 
+-- One realtime signal for "cached data changed" (migration 20261005_data_version.sql): the pipeline bumps
+-- a row after it busts the server cache, and browsers refresh on that, not on the raw row writes above.
+create table if not exists data_version (
+  tag text primary key,
+  version bigint not null default 0,
+  updated_at timestamptz not null default now()
+);
+insert into data_version (tag) values ('races'), ('calendar'), ('media') on conflict (tag) do nothing;
+alter table data_version enable row level security;
+create policy "public read" on data_version for select using (true);
+revoke insert, update, delete on table data_version from anon, authenticated;
+alter publication supabase_realtime add table data_version;
+
 -- ============================================================= groups
 
 -- Deliberately no separate group_picks table: a member's prediction is their existing row in
@@ -800,7 +813,7 @@ alter publication supabase_realtime add table group_join_requests;
 -- Migration ledger, created automatically by scripts/apply-migration.mjs the first time it runs.
 -- Lets a migration that ISN'T naturally idempotent (a one-off data backfill, say) be applied
 -- exactly once - re-running it is skipped rather than re-executed, so it can't undo a later edit.
-create table schema_migrations (
+create table if not exists schema_migrations (
   name text primary key,
   applied_at timestamptz not null default now()
 );

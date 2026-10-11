@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
+import { formatCountdown, formatLocalDateTime, formatLocalTime, formatLocalWeekday, localZoneLabel, parseUtcDateTime } from "@/lib/countdown";
 import { liveSession, nextSession, sessionCode } from "@/lib/sessionCode";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 
@@ -16,6 +17,7 @@ import type { CalendarEntry } from "@/lib/supabase/calendar";
  * RaceHeader dateLabel and doesn't need a schedule reconstructed from scratch. */
 export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: CalendarEntry | null; id?: string }) {
   const now = useMinuteClock();
+  const tz = useViewerTimeZone();
   if (!calendarEntry || calendarEntry.sessions.length === 0) return null;
 
   const raceSessionDate = calendarEntry.sessions.find((s) => sessionCode(s.label) === "R")?.date ?? calendarEntry.raceDate;
@@ -35,7 +37,7 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} viewport={{ once: true }} whileInView={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-      <RaceSectionCard id={id} title="Race Weekend" description={awaitingResults ? "Race day has passed - results will appear here once posted." : "Session schedule for this Grand Prix weekend."}>
+      <RaceSectionCard id={id} title="Race Weekend" description={awaitingResults ? "Race day has passed - results will appear here once posted." : `Session schedule for this Grand Prix weekend, in your time (${localZoneLabel(tz)}).`}>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             {calendarEntry.sessions.map((s) => {
@@ -50,13 +52,14 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
                       ? "rounded-lg border border-emerald-500/40 bg-emerald-500/[0.1] px-3 py-1.5 text-xs"
                       : isNext
                         ? "rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.08] px-3 py-1.5 text-xs"
-                        : `rounded-lg border px-3 py-1.5 text-xs ${completed ? "border-[var(--f1-line)] bg-white/[0.03] text-neutral-500" : "border-[var(--f1-line)] bg-[var(--f1-carbon)] text-neutral-300"}`
+                        : `rounded-lg border px-3 py-1.5 text-xs ${completed ? "border-[var(--f1-line)] bg-white/[0.03] text-tertiary" : "border-[var(--f1-line)] bg-[var(--f1-carbon)] text-neutral-300"}`
                   }
                 >
                   {isLive && <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />}
-                  <span className={`font-semibold ${isLive ? "text-emerald-400" : isNext ? "text-[var(--f1-red)]" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
-                  <span className={`ml-1.5 font-mono text-[11px] ${isLive || isNext ? "text-neutral-300" : "text-neutral-500"}`}>
-                    {isLive ? "Live now" : parseUtcDateTime(s.date).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}
+                  <span className={`font-semibold ${isLive ? "text-emerald-400" : isNext ? "text-brand-text" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
+                  <span className={`ml-1.5 font-mono text-[11px] ${isLive || isNext ? "text-neutral-300" : "text-tertiary"}`}>
+                    {isLive && "Live · "}
+                    {formatLocalWeekday(s.date, tz)} {formatLocalTime(s.date, tz)}
                   </span>
                 </div>
               );
@@ -69,13 +72,15 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
                 Live now
               </p>
               <p className="text-sm font-semibold text-white">{live.label}</p>
+              <p className="text-xs text-tertiary">Started {formatLocalDateTime(live.date, tz)}</p>
             </div>
           ) : (
             countdown &&
             upcoming && (
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-wide text-neutral-500">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
+                <p className="text-[11px] uppercase tracking-wide text-tertiary">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
                 <p className="font-mono text-lg font-semibold text-white">{countdown}</p>
+                <p className="text-xs text-tertiary">{formatLocalDateTime(upcoming.date, tz)}</p>
               </div>
             )
           )}

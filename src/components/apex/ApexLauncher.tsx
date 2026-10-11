@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Info, X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { fieldControlClass } from "@/components/ui/Field";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { useAuth } from "@/providers/AuthProvider";
 import { useApexScope, type ApexScope } from "./ApexScopeProvider";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+/** `notice`: not something Apex said - "at capacity", "couldn't reach Apex". Shown as a notice,
+ * never sent back as conversation history (audit AI-16). */
+type ChatMessage = { role: "user" | "assistant"; content: string; notice?: boolean };
 type Reach = "page" | "everything";
 
 const CAPACITY_FALLBACK = "Apex is at capacity right now - try again in a moment.";
@@ -34,6 +40,7 @@ export function ApexLauncher() {
   const [reach, setReach] = useState<Reach>("page");
   const inputRef = useRef<HTMLInputElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const scopeKey = scope?.key ?? null;
   const [lastScopeKey, setLastScopeKey] = useState(scopeKey);
@@ -52,14 +59,11 @@ export function ApexLauncher() {
     setReach("page");
   }
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
+  // Tab stays inside the panel, Escape closes it and focus goes back to the launcher (audit UI-30).
+  // No scroll lock: the panel is meant to sit beside the page it is answering about. Declared before
+  // the effect below, so the trap records the launcher as the place to return focus to first.
+  const close = useCallback(() => setOpen(false), []);
+  useModalFocusTrap(panelRef, open, close, { lockScroll: false });
 
   useEffect(() => {
     if (!open) return;
@@ -85,7 +89,10 @@ export function ApexLauncher() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question: trimmed,
-        history: messages.slice(-6),
+        history: messages
+          .filter((m) => !m.notice)
+          .slice(-6)
+          .map(({ role, content }) => ({ role, content })),
         // Widening deliberately drops the page's own snapshot rather than adding to it: "Entire F1
         // HUB" means general F1 knowledge, not this page's facts plus someone else's.
         context: reach === "page" ? scope.context : { page: "home", snapshot: {} },
@@ -93,66 +100,77 @@ export function ApexLauncher() {
       }),
     }).catch(() => null);
 
-    const body = (await res?.json().catch(() => null)) as { answer?: string; error?: string } | null;
+    const body = (await res?.json().catch(() => null)) as { answer?: string; error?: string; isFallback?: boolean } | null;
     setSending(false);
 
     if (!res?.ok || !body?.answer) {
-      setMessages((prev) => [...prev, { role: "assistant", content: body?.error ? CAPACITY_FALLBACK : NETWORK_FALLBACK }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: body?.error ? CAPACITY_FALLBACK : NETWORK_FALLBACK, notice: true }]);
       return;
     }
-    setMessages((prev) => [...prev, { role: "assistant", content: body.answer as string }]);
+    // The route's own fallback ("at capacity") arrives as an answer, flagged: still a notice.
+    setMessages((prev) => [...prev, { role: "assistant", content: body.answer as string, notice: body.isFallback === true }]);
   }
 
   return (
     <>
       {/* Bottom-left rather than bottom-right: the right is where this app's own scroll affordances
-          and a browser's own UI tend to sit, and the ask was explicitly that it not block controls. */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label="Ask Apex"
-        data-tour="apex-launcher"
-        className="fixed bottom-4 left-4 z-[90] flex items-center gap-1.5 rounded-full border border-white/15 bg-zinc-900/90 px-3.5 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition hover:border-white/30 hover:bg-zinc-800/90 sm:bottom-5 sm:left-5"
-      >
-        <span aria-hidden className="text-[var(--f1-red)]">
-          ✦
-        </span>
-        Apex
-      </button>
+          and a browser's own UI tend to sit, and the ask was explicitly that it not block controls.
+          z-popover: above the page and the header, below dialogs and sheets (it sat on top of the
+          mobile menu at its old hard-coded 90). The panel, later in the DOM, stacks above the launcher. */}
+      {/* The wrapper is what's fixed: Button carries its own `relative` (for its loading spinner),
+          which would win over a `fixed` passed in its className. */}
+      <div className="fixed bottom-4 left-4 z-popover sm:bottom-5 sm:left-5">
+        <Button variant="secondary" size="md" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Ask Apex" data-tour="apex-launcher" className="shadow-overlay">
+          <span aria-hidden className="text-brand-text">
+            ✦
+          </span>
+          Apex
+        </Button>
+      </div>
 
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={panelRef}
             role="dialog"
+            aria-modal="false"
             aria-label="Ask Apex"
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="fixed inset-x-3 bottom-3 z-[95] flex max-h-[75vh] flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:bottom-5 sm:left-5 sm:w-[26rem]"
+            className="fixed inset-x-3 bottom-3 z-popover flex max-h-[75vh] flex-col overflow-hidden rounded-overlay surface-glass shadow-overlay sm:inset-x-auto sm:bottom-5 sm:left-5 sm:w-[26rem]"
           >
-            <ScopeHeader scope={scope} reach={reach} onReach={setReach} onClose={() => setOpen(false)} />
+            <ScopeHeader scope={scope} reach={reach} onReach={setReach} onClose={close} />
 
             <div ref={transcriptRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {messages.length === 0 ? (
                 <Starters scope={scope} reach={reach} onPick={(q) => void ask(q)} />
               ) : (
-                <div className="space-y-3">
-                  {messages.map((message, i) => (
-                    <div key={i} className={message.role === "user" ? "text-right" : ""}>
-                      <p
-                        className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-xl px-3 py-2 text-sm leading-relaxed ${
-                          message.role === "user" ? "bg-white/[0.08] text-white" : "bg-black/30 text-neutral-300"
-                        }`}
-                      >
+                // role="log": a polite live region, so each answer is read out when it arrives.
+                <div role="log" aria-label="Conversation with Apex" className="space-y-3">
+                  {messages.map((message, i) =>
+                    message.notice ? (
+                      <p key={i} className="flex items-start gap-1.5 text-body-sm text-tertiary">
+                        <Info aria-hidden size={14} strokeWidth={1.75} className="mt-0.5 shrink-0" />
                         {message.content}
                       </p>
-                    </div>
-                  ))}
+                    ) : (
+                      <div key={i} className={message.role === "user" ? "text-right" : ""}>
+                        <p
+                          className={`inline-block max-w-[85%] whitespace-pre-wrap rounded-card px-3 py-2 text-body-sm ${
+                            message.role === "user" ? "bg-surface-3 text-primary" : "bg-surface-2 text-primary"
+                          }`}
+                        >
+                          {message.content}
+                        </p>
+                      </div>
+                    ),
+                  )}
                   {sending && (
-                    <p className="inline-block rounded-xl bg-black/30 px-3 py-2 text-sm text-neutral-500">
-                      <span className="inline-flex gap-1">
+                    <p className="inline-block rounded-card bg-surface-2 px-3 py-2 text-body-sm text-tertiary">
+                      <span className="sr-only">Apex is answering…</span>
+                      <span aria-hidden className="inline-flex gap-1">
                         <Dot delay={0} />
                         <Dot delay={0.15} />
                         <Dot delay={0.3} />
@@ -168,7 +186,7 @@ export function ApexLauncher() {
                 e.preventDefault();
                 void ask(input);
               }}
-              className="flex shrink-0 items-center gap-2 border-t border-white/10 px-3 py-2.5"
+              className="flex shrink-0 items-center gap-2 border-t border-white/10 px-3 py-3"
             >
               <input
                 ref={inputRef}
@@ -177,15 +195,11 @@ export function ApexLauncher() {
                 maxLength={500}
                 placeholder={reach === "page" ? `Ask about ${scope.label}...` : "Ask anything about F1..."}
                 aria-label="Ask Apex a question"
-                className="min-w-0 flex-1 rounded-lg bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none"
+                className={`min-w-0 flex-1 ${fieldControlClass(false)}`}
               />
-              <button
-                type="submit"
-                disabled={!input.trim() || sending}
-                className="shrink-0 rounded-full bg-[var(--f1-red)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
-              >
+              <Button type="submit" variant="primary" size="md" disabled={!input.trim()} loading={sending} className="shrink-0">
                 Ask
-              </button>
+              </Button>
             </form>
           </motion.div>
         )}
@@ -201,23 +215,17 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
     <header className="shrink-0 border-b border-white/10 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Apex is looking at</p>
-          <p className="mt-0.5 truncate text-sm font-semibold text-white">{reach === "page" ? scope.label : "Everything on F1 HUB"}</p>
-          {reach === "page" && scope.sublabel && <p className="truncate text-[11px] text-neutral-500">{scope.sublabel}</p>}
+          <p className="text-caption font-semibold uppercase tracking-wide text-tertiary">Apex is looking at</p>
+          <p className="mt-0.5 truncate text-body-sm font-semibold text-primary">{reach === "page" ? scope.label : "Everything on F1 HUB"}</p>
+          {reach === "page" && scope.sublabel && <p className="truncate text-caption text-tertiary">{scope.sublabel}</p>}
         </div>
-        <button
-          onClick={onClose}
-          aria-label="Close Apex"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white"
-        >
-          <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden>
-            <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-        </button>
+        <Button variant="ghost" size="sm" iconOnly iconStart={X} aria-label="Close Apex" onClick={onClose} className="-mr-1.5 -mt-1" />
       </div>
 
       {scope.widenable !== false && (
-        <div className="mt-2.5 flex gap-1" role="radiogroup" aria-label="Apex scope">
+        // The spec's segmented look for a small two-way switch (§4.6): rounded rectangles in one
+        // outlined group. Radio semantics, since it is one choice of two.
+        <div className="mt-2.5 inline-flex gap-0.5 rounded-control border border-white/12 p-0.5" role="radiogroup" aria-label="Apex scope">
           {(
             [
               { value: "page" as const, label: "This page" },
@@ -230,8 +238,8 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
               role="radio"
               aria-checked={reach === option.value}
               onClick={() => onReach(option.value)}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition ${
-                reach === option.value ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+              className={`h-7 rounded-control px-2.5 text-caption font-medium transition-colors duration-fast ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring motion-reduce:transition-none ${
+                reach === option.value ? "bg-surface-3 text-primary" : "text-tertiary hover:text-primary"
               }`}
             >
               {option.label}
@@ -250,10 +258,10 @@ function Starters({ scope, reach, onPick }: { scope: ApexScope; reach: Reach; on
 
   return (
     <div className="py-2">
-      <p className="text-sm leading-relaxed text-neutral-400">
+      <p className="text-body-sm text-secondary">
         {reach === "page" ? (
           <>
-            Ask me about <span className="text-neutral-200">{scope.label}</span>. I only use what&apos;s on this page.
+            Ask me about <span className="text-primary">{scope.label}</span>. I only use what&apos;s on this page.
           </>
         ) : (
           "Ask me anything about Formula 1."
@@ -266,7 +274,7 @@ function Starters({ scope, reach, onPick }: { scope: ApexScope; reach: Reach; on
               key={question}
               type="button"
               onClick={() => onPick(question)}
-              className="block w-full rounded-lg border border-[var(--f1-line)] px-3 py-2 text-left text-xs text-neutral-300 transition hover:border-white/25 hover:bg-white/[0.03] hover:text-white"
+              className="block w-full rounded-control border border-strong px-3 py-2 text-left text-body-sm text-secondary transition-colors duration-fast ease-standard hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring motion-reduce:transition-none"
             >
               {question}
             </button>

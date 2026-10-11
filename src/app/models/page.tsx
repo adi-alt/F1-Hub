@@ -16,7 +16,7 @@ export default async function ModelsPage() {
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div className="page-content py-10">
         <SignInGate label="model benchmarks" />
       </div>
     );
@@ -31,7 +31,7 @@ export default async function ModelsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <div className="page-content py-10">
       <h1 className="text-3xl font-bold text-white">Models</h1>
       <div className="mt-8">
         <BenchmarksTable benchmarks={benchmarks} />

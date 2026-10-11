@@ -10,6 +10,7 @@ import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
 
@@ -32,7 +33,7 @@ async function mergeCurrentSeason(
   circuitItems: FavoriteEntity[],
   circuitLocalities: Map<string, string>,
 ) {
-  const year = new Date().getFullYear();
+  const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
   const [races, entrants] = await Promise.all([getRacesByYear(year), getCurrentEntrants(year)]);
   const completed = races.filter((r) => r.status === "completed");
 
@@ -154,7 +155,7 @@ export default async function ProfilePage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
+      <div className="page-content py-6">
         <SignInGate label="personalization" />
       </div>
     );
@@ -217,14 +218,14 @@ export default async function ProfilePage({
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-content py-6">
       <h1 className="shrink-0 text-3xl font-bold text-white">Personalization</h1>
       <p className="mt-2 shrink-0 text-sm text-neutral-400">
         Favorite any driver, team, or circuit, current or historical. Favorited ones always show
         up first, then everything else, most recent first.
       </p>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="mt-4 flex flex-col">
         <PersonalizationTabs
           initialTab={initialTab}
           players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}

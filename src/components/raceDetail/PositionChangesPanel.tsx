@@ -42,7 +42,7 @@ function trackWidth(fromFraction: number, toFraction: number): string {
  * dots, so they can't collide with each other regardless of how close together the two positions
  * are. */
 export function PositionChangesPanel({ entries, fieldSize }: { entries: PositionChangeEntry[]; fieldSize: number }) {
-  if (entries.length === 0) return <p className="text-sm text-neutral-500">No classified results to compare.</p>;
+  if (entries.length === 0) return <p className="text-sm text-tertiary">No classified results to compare.</p>;
 
   const span = Math.max(fieldSize - 1, 1);
   const fractionOf = (position: number) => (position - 1) / span;
@@ -52,10 +52,10 @@ export function PositionChangesPanel({ entries, fieldSize }: { entries: Position
       <div className="mb-2 flex items-center gap-3">
         <span className="w-12 shrink-0" />
         <div className="relative h-3 flex-1">
-          <span className="absolute font-mono text-[10px] text-neutral-600" style={{ left: trackLeft(0), transform: "translateX(-50%)" }}>
+          <span className="absolute font-mono text-[10px] text-tertiary" style={{ left: trackLeft(0), transform: "translateX(-50%)" }}>
             P1
           </span>
-          <span className="absolute font-mono text-[10px] text-neutral-600" style={{ left: trackLeft(1), transform: "translateX(-50%)" }}>
+          <span className="absolute font-mono text-[10px] text-tertiary" style={{ left: trackLeft(1), transform: "translateX(-50%)" }}>
             P{fieldSize}
           </span>
         </div>
@@ -91,7 +91,7 @@ export function PositionChangesPanel({ entries, fieldSize }: { entries: Position
                       style={{ left: trackLeft(startFraction), borderColor: color }}
                     />
                     <span
-                      className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] text-neutral-500"
+                      className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] text-tertiary"
                       style={{ left: trackLeft(startFraction), transform: "translate(10px, -50%)" }}
                     >
                       P{e.grid}
@@ -115,13 +115,13 @@ export function PositionChangesPanel({ entries, fieldSize }: { entries: Position
                       style={{ left: trackLeft(endFraction), background: color }}
                     />
                     <span
-                      className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] text-neutral-500"
+                      className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] text-tertiary"
                       style={{ left: trackLeft(leftFraction), transform: "translate(calc(-100% - 8px), -50%)" }}
                     >
                       P{leftFraction === startFraction ? e.grid : e.finish}
                     </span>
                     <span
-                      className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] text-neutral-500"
+                      className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-[10px] text-tertiary"
                       style={{ left: trackLeft(rightFraction), transform: "translate(8px, -50%)" }}
                     >
                       P{rightFraction === startFraction ? e.grid : e.finish}

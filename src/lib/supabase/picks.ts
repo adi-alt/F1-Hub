@@ -1,4 +1,5 @@
-import { unstable_cache, revalidateTag } from "next/cache";
+import { unstable_cache } from "next/cache";
+import { expireTag } from "@/lib/cacheTags";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
@@ -10,13 +11,28 @@ import type { UserPick } from "@/lib/types/race";
 // homepage request.
 const USER_PICKS_TAG = "user-picks";
 
-type PickRow = { race_id: string; predicted_winner: string; predicted_podium: string[]; submitted_at: string };
+type PickRow = {
+  race_id: string;
+  predicted_winner: string;
+  predicted_podium: string[];
+  predicted_pole?: string | null;
+  predicted_fastest_lap?: string | null;
+  predicted_top5?: string[] | null;
+  predicted_safety_car?: boolean | null;
+  predicted_margin?: string | null;
+  submitted_at: string;
+};
 
 function fromRow(row: PickRow): UserPick {
   return {
     raceId: row.race_id,
     predictedWinner: row.predicted_winner,
     predictedPodium: row.predicted_podium as [string, string, string],
+    predictedPole: row.predicted_pole ?? null,
+    predictedFastestLap: row.predicted_fastest_lap ?? null,
+    predictedTop5: (row.predicted_top5 as UserPick["predictedTop5"]) ?? null,
+    predictedSafetyCar: row.predicted_safety_car ?? null,
+    predictedMargin: (row.predicted_margin as UserPick["predictedMargin"]) ?? null,
     submittedAt: row.submitted_at,
   };
 }
@@ -58,12 +74,19 @@ export async function saveUserPick(uid: string, pick: Omit<UserPick, "submittedA
     p_race_id: pick.raceId,
     p_winner: pick.predictedWinner,
     p_podium: pick.predictedPodium,
+    p_pole: pick.predictedPole || null,
+    p_fastest_lap: pick.predictedFastestLap || null,
+    p_top5: pick.predictedTop5 ?? null,
+    p_safety_car: pick.predictedSafetyCar ?? null,
+    p_margin: pick.predictedMargin ?? null,
   });
   if (error) {
+    if (error.message.includes("picks_not_open")) throw new ServiceError("Predictions open 24 hours before the weekend's first session.", 403, "picks_not_open");
+    if (error.message.includes("pole_closed")) throw new ServiceError("Qualifying has started, so your pole pick is locked. Keep it as it was to save the rest.", 403, "pole_closed");
     if (error.message.includes("picks_closed")) throw new ServiceError("Picks are closed for this race.", 403, "picks_closed");
     if (error.message.includes("race_not_found")) throw new ServiceError("That race doesn't exist.", 404, "race_not_found");
-    if (error.message.includes("invalid_pick")) throw new ServiceError("Pick a winner and three drivers for the podium.", 400, "invalid_pick");
+    if (error.message.includes("invalid_pick")) throw new ServiceError("Pick three different drivers for the podium, and five different drivers for the top five.", 400, "invalid_pick");
     throw new Error(`saveUserPick(${uid}, ${pick.raceId}): ${error.message}`);
   }
-  revalidateTag(USER_PICKS_TAG, "max");
+  expireTag(USER_PICKS_TAG);
 }

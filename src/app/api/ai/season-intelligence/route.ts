@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
     // The capacity guard runs AFTER the context is built, so a rate-limited request still returns
     // a fully grounded deterministic result rather than a generic one.
-    const guard = guardAIExecution(userId);
+    const guard = await guardAIExecution(userId, req);
     if (!guard.allowed) {
       return NextResponse.json({ content: generateSeasonFallbackFromContext(context), source: "fallback", generatedAt: new Date().toISOString() } satisfies Envelope);
     }

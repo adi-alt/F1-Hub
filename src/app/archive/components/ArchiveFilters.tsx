@@ -124,7 +124,7 @@ export function TrackFilters({
             onCountryChange("");
             onFavoritesOnlyChange(false);
           }}
-          className="text-xs text-neutral-500 underline-offset-2 transition hover:text-white hover:underline"
+          className="text-xs text-tertiary underline-offset-2 transition hover:text-white hover:underline"
         >
           Clear filters
         </button>

@@ -55,13 +55,13 @@ export function BannerUpload({ groupId, hasBanner }: { groupId: string; hasBanne
           {status === "uploading" ? "Uploading…" : hasBanner ? "Replace banner" : "Upload banner"}
         </button>
         {hasBanner && (
-          <button type="button" onClick={() => void remove()} disabled={status === "uploading" || status === "removing"} className="text-neutral-500 hover:text-neutral-300 disabled:opacity-60">
+          <button type="button" onClick={() => void remove()} disabled={status === "uploading" || status === "removing"} className="text-tertiary hover:text-neutral-300 disabled:opacity-60">
             {status === "removing" ? "Removing…" : "Remove"}
           </button>
         )}
       </div>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void onChange(e)} />
-      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">{error}</p>}
+      {status === "error" && <p className="mt-2 text-xs text-brand-text">{error}</p>}
     </div>
   );
 }

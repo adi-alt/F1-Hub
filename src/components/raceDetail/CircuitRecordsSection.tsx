@@ -9,9 +9,9 @@ type Tile = { label: string; value: string; sub?: string };
 function Tile({ tile }: { tile: Tile }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-wide text-neutral-500">{tile.label}</p>
+      <p className="text-[10px] uppercase tracking-wide text-tertiary">{tile.label}</p>
       <p className="mt-0.5 truncate text-sm font-semibold text-white">{tile.value}</p>
-      {tile.sub && <p className="text-[11px] text-neutral-500">{tile.sub}</p>}
+      {tile.sub && <p className="text-[11px] text-tertiary">{tile.sub}</p>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { fetchAllRows, queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds } from "@/lib/supabase/archive";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { oneRowPerRound } from "@/lib/supabase/calendar";
@@ -298,8 +298,17 @@ export const getRaceLaps = unstable_cache(
     );
     if (raceError) throw new Error(`getRaceLaps(${year}, ${round}): ${raceError.message}`);
     if (!race) return [];
-    const { data, error } = await queryWithRetry(() =>
-      supabaseAdmin.from("race_laps").select("lap_number, driver, position, time").eq("race_id", race.id).order("lap_number"),
+    // Every page of rows (audit R-18): a race is ~20 drivers x 50-80 laps, past PostgREST's
+    // 1000-row cap, and a single request silently stopped the chart short of the flag. Ordered by
+    // the whole primary key, so the pages split the rows the same way every time.
+    const { data, error } = await fetchAllRows<{ lap_number: number; driver: string; position: number | null; time: string | null }>((from, to) =>
+      supabaseAdmin
+        .from("race_laps")
+        .select("lap_number, driver, position, time", { count: "exact" })
+        .eq("race_id", race.id)
+        .order("lap_number")
+        .order("driver")
+        .range(from, to),
     );
     if (error) throw new Error(`getRaceLaps(${year}, ${round}): ${error.message}`);
 
@@ -311,7 +320,8 @@ export const getRaceLaps = unstable_cache(
     }
     return [...byLap.entries()].map(([lap, timings]) => ({ lap, timings })).sort((a, b) => a.lap - b.lap);
   },
-  ["get-race-laps"],
+  // v2: entries cached before R-18 hold truncated laps and never expire on their own.
+  ["get-race-laps-v2"],
   { revalidate: false, tags: ["races"] },
 );
 
@@ -331,7 +341,8 @@ export const getRacesByYear = unstable_cache(
     return withCalendarPlaceholders(year, races);
   },
   ["get-races-by-year"],
-  { revalidate: false, tags: ["races"] },
+  // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
+  { revalidate: false, tags: ["races", "calendar"] },
 );
 
 /**
@@ -359,7 +370,8 @@ export const getNextUpcomingRace = unstable_cache(
     return races.find((r) => r.status !== "completed") ?? null;
   },
   ["get-next-upcoming-race"],
-  { revalidate: false, tags: ["races"] },
+  // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
+  { revalidate: false, tags: ["races", "calendar"] },
 );
 
 /** The current grid — driver/team pairs from the most recent race with real results or a real

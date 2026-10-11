@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import { useReducedMotion } from "framer-motion";
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
-import { computeMoments, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
+import { computeStoryline, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
+import { RaceStoryline } from "./RaceStoryline";
+import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitLayout } from "@/lib/circuitLayout";
 
 export type { LapEntry, LapTiming, Moment };
 export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
@@ -72,10 +75,10 @@ function curveRoundedStepAfter(radius: number): CurveFactory {
 function LapChartSkeleton() {
   return (
     <div>
-      <Skeleton className="skeleton-shimmer h-[320px] w-full" />
+      <Skeleton shape="block" className="h-[320px] w-full" />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="skeleton-shimmer h-6 w-24 rounded-md" />
+          <Skeleton key={i} shape="block" className="h-6 w-24" />
         ))}
       </div>
     </div>
@@ -118,6 +121,8 @@ export function LapChart({
   results,
   driverSet,
   customIds,
+  trackStory = null,
+  layout = null,
 }: {
   laps: LapEntry[] | undefined;
   isLoading: boolean;
@@ -125,9 +130,32 @@ export function LapChart({
   results: LapChartResultEntry[];
   driverSet: DriverSet;
   customIds: string[];
+  /** This race's real circuit and lead-change locations, when validated; the storyline falls back without. */
+  trackStory?: RaceTrackStory | null;
+  /** The track library's layout for this race's circuit and season, drawn when there's no trackStory. */
+  layout?: CircuitLayout | null;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
+  // A callback ref, not useInView(ref): the chart's own <div> only exists once the laps have loaded (the
+  // skeleton renders first), and a ref-object observer set up on mount would never see it - the lines
+  // would then never mount at all.
+  const [chartEl, setChartEl] = useState<HTMLDivElement | null>(null);
+  const [chartInView, setChartInView] = useState(false);
+  useEffect(() => {
+    if (!chartEl || chartInView) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setChartInView(true);
+        io.disconnect();
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(chartEl);
+    return () => io.disconnect();
+  }, [chartEl, chartInView]);
+  const reduceMotion = useReducedMotion();
 
   const nameFor = (driverId: string) => results.find((r) => r.driverId === driverId)?.driverName ?? driverId;
   const highlighted = locked ?? hovered;
@@ -177,11 +205,18 @@ export function LapChart({
     return out;
   }, [chartData, driverIds]);
 
-  const moments = useMemo(() => (laps ? computeMoments(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
+  const chapters = useMemo(() => (laps ? computeStoryline(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
+  // The storyline's selected chapter: marks its lap on the chart and follows its driver's line.
+  const [chapterIndex, setChapterIndex] = useState<number | null>(null);
+  const storyLap = chapterIndex !== null ? chapters[chapterIndex]?.lap : undefined;
+  function selectChapter(i: number | null) {
+    setChapterIndex(i);
+    setLocked(i === null ? null : (chapters[i]?.driverId ?? null));
+  }
 
   if (isLoading) return <LapChartSkeleton />;
   if (isError || chartData.length === 0) {
-    return <p className="text-sm text-neutral-500">No lap data available for this race.</p>;
+    return <p className="text-sm text-tertiary">No lap data available for this race.</p>;
   }
 
   // Dark, blurred, single-driver-focused tooltip - Recharts' own multi-series LineChart tooltip
@@ -205,9 +240,9 @@ export function LapChart({
         style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
       >
         <p className="text-sm font-semibold text-white">{nameFor(highlighted)}</p>
-        <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Lap {lap}</p>
+        <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Lap {lap}</p>
         <p className="font-mono text-sm text-white">Position: P{position}</p>
-        {prevPosition != null && <p className="font-mono text-xs text-neutral-500">Previous lap: P{prevPosition}</p>}
+        {prevPosition != null && <p className="font-mono text-xs text-tertiary">Previous lap: P{prevPosition}</p>}
         {delta !== null && delta !== 0 && (
           <p className="mt-1 font-mono text-xs font-semibold" style={{ color: delta > 0 ? chart.sequentialGreen : chart.divergingRed }}>
             {delta > 0 ? `▲ Gained ${delta} position${delta === 1 ? "" : "s"}` : `▼ Lost ${-delta} position${delta === -1 ? "" : "s"}`}
@@ -223,7 +258,7 @@ export function LapChart({
           hovering (either the legend pill or the trajectory itself, or clicking to lock it while
           the mouse moves to the chart) picks one out and fades the rest, rather than ~20
           equally-loud lines competing for attention. */}
-      <motion.div layout initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
+      <div ref={setChartEl}>
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData} margin={{ left: 8, right: 16, top: 8 }}>
             {/* Two separate grids, not one - horizontal position guides read a touch more visibly
@@ -246,8 +281,11 @@ export function LapChart({
               width={32}
               label={{ value: "Position", angle: -90, position: "insideLeft", fill: chart.mutedInk, fontSize: 12 }}
             />
+            {storyLap !== undefined && <ReferenceLine x={storyLap} stroke="rgb(255 255 255 / 0.45)" strokeDasharray="3 4" label={{ value: `Lap ${storyLap}`, position: "top", fill: "rgb(255 255 255 / 0.7)", fontSize: 11 }} />}
             <Tooltip cursor={{ stroke: "rgba(255,255,255,0.15)", strokeDasharray: "3 3" }} content={LapTooltip} />
-            {orderedDriverIds.map((driverId) => {
+            {/* The lines draw in left to right, lap by lap, once the chart scrolls into view - staggered a beat
+                per driver so the field fans out rather than appearing at once. */}
+            {chartInView && orderedDriverIds.map((driverId, lineIndex) => {
               const isHighlighted = highlighted === null || highlighted === driverId;
               // Color is keyed off the full grid's index, not the visible subset's - so a
               // driver's line color stays the same one when switching Top 5 -> All, not reshuffled.
@@ -267,7 +305,10 @@ export function LapChart({
                   dot={endpoints ? makeEndpointDot(endpoints.first, endpoints.last, color, highlighted === driverId) : false}
                   activeDot={false}
                   connectNulls
-                  isAnimationActive={false}
+                  isAnimationActive={!reduceMotion}
+                  animationBegin={lineIndex * 40}
+                  animationDuration={1400}
+                  animationEasing="ease-out"
                   onMouseEnter={() => setHovered(driverId)}
                   onMouseLeave={() => setHovered(null)}
                   onClick={() => setLocked((prev) => (prev === driverId ? null : driverId))}
@@ -277,7 +318,7 @@ export function LapChart({
             })}
           </LineChart>
         </ResponsiveContainer>
-      </motion.div>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {visibleDriverIds.map((driverId) => {
@@ -301,17 +342,18 @@ export function LapChart({
         })}
       </div>
 
-      {moments.length > 0 && (
-        <div className="mt-6 border-t border-white/10 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Key race moments</p>
-          <ul className="space-y-1.5">
-            {moments.map((m, i) => (
-              <li key={i} className="flex gap-2 text-sm text-neutral-300">
-                <span className="w-12 shrink-0 font-mono text-xs text-neutral-500">Lap {m.lap}</span>
-                {m.text}
-              </li>
-            ))}
-          </ul>
+      {chapters.length > 0 && (
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <RaceStoryline
+            chapters={chapters}
+            totalLaps={chartData[chartData.length - 1]?.lap ?? 1}
+            colorFor={(id) => driverColor(driverIds.indexOf(id), driverIds.length)}
+            selected={chapterIndex}
+            onSelect={selectChapter}
+            track={trackStory}
+            layout={layout}
+            nameFor={nameFor}
+          />
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserPick, saveUserPick } from "@/lib/supabase/picks";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError, serviceErrorBody } from "@/services/errors";
+import { pickSchema } from "@/lib/inputLimits";
 
 /**
  * Deliberately a separate dynamic endpoint rather than reading the session in the race page
@@ -29,24 +30,12 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
-  const body = await request.json();
-  const { raceId, predictedWinner, predictedPodium } = body;
-  if (
-    typeof raceId !== "string" ||
-    typeof predictedWinner !== "string" ||
-    !Array.isArray(predictedPodium) ||
-    predictedPodium.length !== 3 ||
-    !predictedPodium.every((d) => typeof d === "string")
-  ) {
-    return NextResponse.json({ error: "Invalid pick" }, { status: 400 });
-  }
+  // Shape and size caps (SEC-25, see inputLimits.ts); whether the race is still open is save_pick's.
+  const parsed = pickSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid pick" }, { status: 400 });
 
   try {
-    await saveUserPick(session.uid, {
-      raceId,
-      predictedWinner,
-      predictedPodium: predictedPodium as [string, string, string],
-    });
+    await saveUserPick(session.uid, parsed.data);
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;

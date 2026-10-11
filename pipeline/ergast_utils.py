@@ -3,19 +3,17 @@ Firebase -> Supabase migration) the Postgres read/write primitives every script 
 talk to Firestore now uses instead."""
 
 import datetime
+from contextlib import contextmanager
 import json
 import os
 import time
 
-import firebase_admin
 import pandas as pd
 import psycopg2
 import psycopg2.extras
 import requests
 from fastf1.ergast.interface import ErgastInvalidRequestError
 from fastf1.req import RateLimitExceededError
-from firebase_admin import credentials, firestore
-from google.api_core.exceptions import GoogleAPICallError
 
 MAX_RETRIES = 5
 # fastf1's own client-side hard cap (see fastf1/req.py's _CallsPerIntervalLimitRaise: "any API:
@@ -64,7 +62,7 @@ def with_retry(fn):
                 f"({http_error_attempts}/{MAX_HTTP_ERROR_RETRIES})"
             )
             time.sleep(backoff)
-        except (requests.exceptions.RequestException, GoogleAPICallError):
+        except requests.exceptions.RequestException:
             attempt += 1
             if attempt >= MAX_RETRIES:
                 raise
@@ -74,7 +72,12 @@ def with_retry(fn):
 
 def init_firestore():
     """Only migrate_export.py still needs this — everything else that used to write here writes
-    to Postgres now (see init_postgres below)."""
+    to Postgres now (see init_postgres below). firebase-admin is no longer a pipeline dependency,
+    so it is imported here rather than at module level: that one-off script needs
+    `pip install firebase-admin`, and nothing else does."""
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+
     raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
     if not raw:
         raise SystemExit("FIREBASE_SERVICE_ACCOUNT_JSON is not set.")
@@ -155,7 +158,27 @@ def fetch_completed_race_docs(conn):
         return docs
 
 
-def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
+@contextmanager
+def transaction(cur):
+    """Everything inside commits together or not at all. `init_postgres` runs in autocommit mode, so
+    each statement used to commit on its own: an exception after the `races` upsert (a bad row, a
+    dropped connection, a timeout) left a race marked completed with no results, which is exactly the
+    half-written round the consistency audit exists to catch afterwards. Issues BEGIN/COMMIT itself
+    because the connection is deliberately left in autocommit for the scripts that don't need this.
+    Not reentrant: a nested call would end the outer transaction early."""
+    cur.execute("begin")
+    try:
+        yield
+    except BaseException:
+        try:
+            cur.execute("rollback")
+        except Exception:  # noqa: BLE001 - the connection is already broken; the server rolls back on disconnect
+            pass
+        raise
+    cur.execute("commit")
+
+
+def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=(), skip_unchanged=False, unchanged_ignore=()):
     """Insert-or-update by real primary key — the one write primitive every pipeline script uses
     now, same idempotent-rerun discipline each already has for its own external API calls,
     extended to its own writes too. Dedupes input rows on the conflict key first: Postgres can't
@@ -168,7 +191,14 @@ def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
     `coalesce(excluded.c, table.c)`, so a NULL from this write leaves whatever was already stored
     intact. Needed because the two race sources know different things - OpenF1 has no lap-by-lap
     car position at all (openf1_fallback.py's own _fetch_laps docstring), so a preliminary refresh
-    of a round would otherwise null out per-lap positions FastF1 had already supplied."""
+    of a round would otherwise null out per-lap positions FastF1 had already supplied.
+
+    `skip_unchanged` makes the write a no-op for a row whose stored values already match: the update
+    only fires `where (stored columns) is distinct from (new values)`. Without it the 15-minute tick
+    rewrote every row it touched with a fresh timestamp, so `updated_at` (and every realtime watcher
+    keyed on a row change) moved on every run whether or not anything had changed. `unchanged_ignore`
+    names columns left out of that comparison, i.e. the timestamps that are only meaningful when
+    something else changed: they are still written, but only along with a real change."""
     if not rows:
         print(f"  {table}: nothing to load")
         return
@@ -190,6 +220,13 @@ def upsert(cur, table, rows, conflict_cols, batch_size=500, keep_known_cols=()):
         f"on conflict ({','.join(conflict_cols)}) do update set "
         f"{','.join(assignments)}"
     )
+    compare_cols = [c for c in update_cols if c not in unchanged_ignore]
+    if skip_unchanged and compare_cols:
+        stored = ",".join(f"{table}.{c}" for c in compare_cols)
+        incoming = ",".join(
+            f"coalesce(excluded.{c}, {table}.{c})" if c in keep_known_cols else f"excluded.{c}" for c in compare_cols
+        )
+        query += f" where ({stored}) is distinct from ({incoming})"
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
         values = [tuple(r[c] for c in cols) for r in batch]
@@ -298,6 +335,41 @@ def trigger_revalidation(tag: str = "archive-data") -> None:
         print(f"  cache revalidation: {resp.status_code}")
     except Exception as e:  # noqa: BLE001 - deliberately broad, this is best-effort
         print(f"  (cache revalidation call failed, non-fatal: {e})")
+        return
+    # Only after a successful bust: open tabs refresh on this signal, and a refresh before the cache
+    # is cleared renders the old data and nothing prompts another (audit R-19).
+    if resp.ok:
+        bump_data_version(tag)
+
+
+# The tags the browser has anything to refresh for: "archive-data" is historical data nobody has open live.
+LIVE_DATA_TAGS = ("races", "calendar", "media")
+
+
+def bump_data_version(tag: str) -> None:
+    """Tells every open browser tab "the cached data for this tag just changed" through one row in
+    `data_version` (see supabase/migrations/20261005_data_version.sql). Best-effort like the bust it
+    follows: a missing table (migration not applied yet) or a database hiccup is a warning, never a
+    failed run."""
+    if tag not in LIVE_DATA_TAGS:
+        return
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return
+    try:
+        conn = psycopg2.connect(url, connect_timeout=10)
+        try:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update data_version set version = version + 1, updated_at = now() where tag = %s",
+                    (tag,),
+                )
+        finally:
+            conn.close()
+        print(f"  data_version bumped: {tag}")
+    except Exception as e:  # noqa: BLE001 - observability/freshness signal only
+        print(f"  (data_version bump failed, non-fatal: {type(e).__name__})")
 
 
 def upload_media(bucket, path, content, content_type):

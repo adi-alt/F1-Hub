@@ -104,16 +104,16 @@ function TrendSkeleton({ compact }: { compact: boolean }) {
     <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
-          <Skeleton className="h-2.5 w-32" />
-          <Skeleton className="h-2.5 w-14" />
+          <Skeleton shape="block" className="h-2.5 w-32" />
+          <Skeleton shape="block" className="h-2.5 w-14" />
         </div>
       )}
       <ul className={compact ? "space-y-1.5" : "mt-2 space-y-1.5"}>
         {[0, 1, 2].map((i) => (
           <li key={i} className="flex items-center gap-2.5">
-            <Skeleton className="h-3 min-w-0 flex-1" />
-            <Skeleton className={`h-1.5 ${compact ? "w-20" : "w-24"} shrink-0 rounded-full`} />
-            <Skeleton className="h-3 w-9 shrink-0" />
+            <Skeleton shape="block" className="h-3 min-w-0 flex-1" />
+            <Skeleton shape="circle" className={`h-1.5 ${compact ? "w-20" : "w-24"} shrink-0`} />
+            <Skeleton shape="block" className="h-3 w-9 shrink-0" />
           </li>
         ))}
       </ul>
@@ -126,8 +126,8 @@ function TrendBody({ trend, isPodium, compact }: { trend: PredictionTrend; isPod
     <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Community trend{isPodium ? " · winner pick" : ""}</p>
-          <span className="text-[11px] tabular-nums text-neutral-600">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Community trend{isPodium ? " · winner pick" : ""}</p>
+          <span className="text-[11px] tabular-nums text-tertiary">
             {trend.total} {trend.total === 1 ? "entry" : "entries"}
           </span>
         </div>

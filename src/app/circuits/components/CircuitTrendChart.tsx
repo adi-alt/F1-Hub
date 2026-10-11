@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
+import { formatLapTime } from "@/lib/format";
+import { teamColor } from "@/lib/teamColors";
 import { raceHref } from "@/lib/routes";
 
 export type PoleTrendPoint = {
@@ -46,10 +48,11 @@ function ClickableDot({
     <circle
       cx={cx}
       cy={cy}
-      r={4}
-      fill={chart.sequentialBlue}
-      stroke="transparent"
-      strokeWidth={8}
+      r={6}
+      // The pole-sitter's team colour: who held this track each year reads straight off the chart.
+      fill={payload.team ? teamColor(payload.team) : "rgb(255 255 255 / 0.9)"}
+      stroke="rgb(10 10 10)"
+      strokeWidth={2}
       className="cursor-pointer"
       role="button"
       tabIndex={0}
@@ -71,34 +74,34 @@ function PoleTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
   if (!p) return null;
   return (
     <div className="min-w-[180px] rounded-lg border px-3 py-2.5 text-xs shadow-xl backdrop-blur-md" style={{ ...tooltipStyle, borderRadius: 8 }}>
-      <p className="mb-1 text-[11px] font-semibold text-white">{p.year}</p>
+      <p className="mb-1 text-caption font-semibold text-primary">{p.year}</p>
       {p.poleSitter && (
-        <p className="text-neutral-300">
+        <p className="text-secondary">
           {p.poleSitter}
-          {p.team && <span className="text-neutral-500"> · {p.team}</span>}
+          {p.team && <span className="text-tertiary"> · {p.team}</span>}
         </p>
       )}
-      <p className="mt-1 font-mono tabular-nums text-neutral-200">{p.poleTimeSec.toFixed(3)}s</p>
+      <p className="mt-1 tabular text-primary">{p.poleTimeSec.toFixed(3)}s</p>
       {p.diffSec !== null && (
-        <p className={`mt-0.5 font-mono text-[11px] tabular-nums ${p.diffSec < 0 ? "text-emerald-400" : "text-neutral-500"}`}>
+        <p className={`mt-0.5 text-caption tabular ${p.diffSec < 0 ? "text-emerald-400" : "text-tertiary"}`}>
           {p.diffSec < 0 ? "" : "+"}
           {p.diffSec.toFixed(3)}s vs previous year
         </p>
       )}
-      <p className="mt-1.5 text-[10px] text-neutral-600">Click to open this race →</p>
+      <p className="mt-1.5 text-caption text-tertiary">Click to open this race →</p>
     </div>
   );
 }
 
 /**
  * Pole evolution - real interactive history, not a static line. Every point is a real classified
- * pole time; the connecting line is Recharts' own monotone interpolation between them (no
+ * pole time; the connecting line is straight between them (a smoothed curve would invent peaks between seasons) (no
  * synthetic points inserted), so "actual data" and "smoothed curve" never get confused with each
  * other. Hover shows the real driver/team/gap-to-previous-year; clicking a point opens that race's
  * own full analysis - the Circuit page stays "this track across time," the Race page stays "this
  * one event," exactly the split this section is meant to preserve.
  */
-export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
+export function CircuitTrendChart({ data, height = 320 }: { data: PoleTrendPoint[]; height?: number }) {
   const [rangeWindow, setRangeWindow] = useState<TrendWindow>(null);
   const router = useRouter();
 
@@ -116,18 +119,29 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
     router.push(raceHref(point.year, point.round, point.raceName));
   }
 
+  const fastest = shown.reduce((a, b) => (b.poleTimeSec < a.poleTimeSec ? b : a), shown[0]);
+  const lap = formatLapTime;
+  const lo = Math.floor(Math.min(...shown.map((p) => p.poleTimeSec))) - 1;
+  const hi = Math.ceil(Math.max(...shown.map((p) => p.poleTimeSec))) + 1;
+
   return (
     <div>
+      {/* Headline above the chart (spec §7): the answer, then the shape. */}
+      <p className="mb-4 text-body text-primary">
+        Fastest pole: <span className="font-semibold tabular">{lap(fastest.poleTimeSec)}</span>
+        {fastest.poleSitter ? `, ${fastest.poleSitter}` : ""} in {fastest.year}
+        <span className="text-secondary"> · {shown.length} seasons</span>
+      </p>
       {data.length > 5 && (
-        <div className="mb-2 flex items-center gap-1" role="group" aria-label="Pole evolution range">
+        <div className="mb-3 flex items-center gap-1" role="group" aria-label="Pole evolution range">
           {WINDOWS.map((w) => (
             <button
               key={w.label}
               type="button"
               onClick={() => setRangeWindow(w.value)}
               aria-pressed={rangeWindow === w.value}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
-                rangeWindow === w.value ? "bg-white/[0.1] text-white" : "text-neutral-500 hover:text-neutral-300"
+              className={`rounded-sm px-2.5 py-1 text-caption font-medium transition-colors duration-fast ${
+                rangeWindow === w.value ? "bg-white/[0.08] text-primary" : "text-secondary hover:text-primary"
               }`}
             >
               {w.label}
@@ -135,12 +149,12 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
           ))}
         </div>
       )}
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={shown} margin={{ left: 8, right: 16, top: 8 }}>
           <defs>
             <linearGradient id="poleEvolutionFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={chart.sequentialBlue} stopOpacity={0.32} />
-              <stop offset="100%" stopColor={chart.sequentialBlue} stopOpacity={0} />
+              <stop offset="0%" stopColor="rgb(255 255 255)" stopOpacity={0.08} />
+              <stop offset="100%" stopColor="rgb(255 255 255)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke={chart.gridline} vertical={false} />
@@ -163,18 +177,22 @@ export function CircuitTrendChart({ data }: { data: PoleTrendPoint[] }) {
             tick={{ fill: chart.mutedInk, fontSize: 12 }}
             axisLine={{ stroke: chart.gridline }}
             tickLine={false}
-            unit="s"
-            width={56}
-            domain={["dataMin - 1", "dataMax + 1"]}
+            width={64}
+            domain={[lo, hi]}
+            allowDecimals={false}
+            tickFormatter={(v: number) => lap(v).replace(/\.\d+$/, "")}
           />
           <Tooltip content={<PoleTooltip />} cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }} />
           <Area
-            type="monotone"
+            type="linear"
             dataKey="poleTimeSec"
-            stroke={chart.sequentialBlue}
+            stroke="rgb(255 255 255 / 0.8)"
             strokeWidth={2.5}
             fill="url(#poleEvolutionFill)"
             dot={<ClickableDot onSelect={openRace} />}
+            isAnimationActive
+            animationDuration={1200}
+            animationEasing="ease-out"
             activeDot={<ClickableDot onSelect={openRace} />}
           />
         </AreaChart>

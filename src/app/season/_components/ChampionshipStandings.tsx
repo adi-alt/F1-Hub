@@ -1,37 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
+import { isFromNestedControl } from "@/components/ui/Table";
 import { staggerItem } from "@/components/motion/variants";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { tableToCanvas } from "@/lib/export";
 import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
-import { QuietTabs } from "./QuietTabs";
-import { useSeasonExplorer } from "../_context/SeasonExplorerContext";
+import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
+import { useSeasonExplorer, type EntityType } from "../_context/SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, RaceSummary } from "../_service/season.pure";
 
 type SortKey = "name" | "wins" | "podiums" | "points";
 
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+// Underline: which championship the page is reading is this section's main switch.
+const ENTITY_TABS: TabItem<EntityType>[] = [
+  { value: "drivers", label: "Drivers" },
+  { value: "constructors", label: "Constructors" },
+];
+
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 // Sticky headers need real opacity behind that blur, not the table's own near-transparent
 // surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
 // translucent-dark token every other floating/sticky surface on the site already uses.
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
-
-/** Two refs on one node: the shared Lenis nested-scroll registration and this component's own
- * scroll container ref. A callback ref is the only way to satisfy both. */
-function mergeRefs<T>(...refs: (React.Ref<T> | undefined)[]) {
-  return (node: T | null) => {
-    for (const ref of refs) {
-      if (typeof ref === "function") ref(node);
-      else if (ref && typeof ref === "object") (ref as React.MutableRefObject<T | null>).current = node;
-    }
-  };
-}
 
 /** Read at call time rather than through a hook: this is consulted inside an effect, where a
  * re-render-triggering hook would be the wrong tool. */
@@ -45,10 +40,62 @@ function gapLabel(points: number, leaderPoints: number): string {
 
 function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") {
   if (key !== sortKey) return null;
-  return <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  // aria-sort on the header says this; the arrow is for sighted users only.
+  return (
+    <span aria-hidden className="ml-1 text-brand-text">
+      {sortDir === "asc" ? "↑" : "↓"}
+    </span>
+  );
 }
 
-/** The one standings table for the whole page — a Drivers/Constructors quiet-tab switch swaps
+/** The id of a row's details, for the name button's aria-controls. Team names have spaces. */
+function detailsId(entityId: string): string {
+  return `standings-${entityId.replace(/[^A-Za-z0-9_-]/g, "-")}-details`;
+}
+
+const NAME_BUTTON =
+  "flex items-center gap-2.5 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+const SORT_BUTTON = "inline-flex items-center rounded-control font-semibold uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+/** A sortable column header, as in the APG sortable table: a button in the cell (a bare <th onClick>
+ * can't be reached by keyboard), and aria-sort on the sorted column only. `fullLabel` names an
+ * abbreviated header ("W") for screen readers. */
+function SortHeader({
+  column,
+  sortKey,
+  sortDir,
+  onSort,
+  fullLabel,
+  className,
+  children,
+}: {
+  column: SortKey;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  fullLabel?: string;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <th scope="col" aria-sort={column === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined} title={fullLabel} className={className}>
+      <button type="button" onClick={() => onSort(column)} className={SORT_BUTTON}>
+        {fullLabel ? (
+          <>
+            <span aria-hidden>{children}</span>
+            <span className="sr-only">{fullLabel}</span>
+          </>
+        ) : (
+          children
+        )}
+        {sortIndicator(column, sortKey, sortDir)}
+      </button>
+    </th>
+  );
+}
+
+/** The one standings table for the whole page — a Drivers/Constructors tab switch swaps
  * its rows in place (see spec: "the same analytical system updates", not two separate tables
  * stacked or two separate pages). Clicking a row expands an inline detail panel instead of
  * navigating away; "Compare"/"Progression" from there jump into the analysis workspace below
@@ -67,6 +114,7 @@ export function ChampionshipStandings({
 }) {
   const { entityType, setEntityType, openCompare, setAnalysisTab, focus } = useSeasonExplorer();
   const scrollBodyRef = useRef<HTMLDivElement>(null);
+  const championshipLabelId = useId();
   const [marked, setMarked] = useState<string | null>(null);
   const favDrivers = useFavDriverIds();
   const favTeams = useFavTeamIds();
@@ -78,11 +126,16 @@ export function ChampionshipStandings({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const scrollRef = useNestedLenisScroll(entityType);
   const favoriteCodes = new Set<string>(entityType === "drivers" ? personal.driverCodes : personal.teamNames);
   const canFilterFavorites = favoriteCodes.size > 0;
 
   const isDrivers = entityType === "drivers";
+  // The championship position (the standings' own points order), never the row index, which changed with sorting
+  // and filtering (a search for one driver showed them as 1st).
+  const champPos = useMemo(
+    () => new Map<string, number>((isDrivers ? drivers.map((d) => d.driver) : constructors.map((c) => c.team)).map((id, k) => [id, k + 1])),
+    [isDrivers, drivers, constructors],
+  );
   const favoriteDriverCodes = useMemo(() => new Set(personal.driverCodes), [personal.driverCodes]);
   const favoriteTeamNames = useMemo(() => new Set(personal.teamNames), [personal.teamNames]);
   const leaderPoints = isDrivers
@@ -121,6 +174,11 @@ export function ChampionshipStandings({
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => (prev === id ? null : id));
+  }
+
+  function switchEntityType(next: EntityType) {
+    setEntityType(next);
+    setExpanded(null);
   }
 
   // Snapshot / What-changed clicks land here. Scrolling INSIDE the table's own scroll container
@@ -162,195 +220,200 @@ export function ChampionshipStandings({
     // Fills its grid cell so the table body (not the whole component) is what scrolls - the
     // header/tabs/search stay pinned and the bottom edge lands exactly where What Changed's does.
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Championship</p>
-          <div className="mt-2.5">
-            <QuietTabs
-              options={[
-                { value: "drivers" as const, label: "Drivers" },
-                { value: "constructors" as const, label: "Constructors" },
-              ]}
-              value={entityType}
-              onChange={(t) => {
-                setEntityType(t);
-                setExpanded(null);
-              }}
-              className="text-[15px]"
+      <Tabs value={entityType} onValueChange={switchEntityType} items={ENTITY_TABS}>
+        <div className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4">
+          <div>
+            <p id={championshipLabelId} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Championship</p>
+            <div className="mt-2.5">
+              <TabList aria-labelledby={championshipLabelId} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canFilterFavorites && (
+              <button
+                type="button"
+                onClick={() => setFavoritesOnly((v) => !v)}
+                aria-pressed={favoritesOnly}
+                // A fixed `h-9` on both this button and the search input beside it, rather than
+                // matching padding - text-xs and text-sm have different line-heights, so identical
+                // padding alone still rendered two different total heights. An explicit height is
+                // the only thing that's actually pixel-exact regardless of font metrics.
+                className={`flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
+                  favoritesOnly ? "border-[var(--f1-red)]/45 bg-[var(--f1-red)]/[0.09] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/20 hover:text-neutral-200"
+                }`}
+              >
+                <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
+                My favorites
+              </button>
+            )}
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={isDrivers ? "Search drivers or teams…" : "Search teams…"}
+              className="h-9 w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+            />
+            <ExportMenu
+              filename={isDrivers ? "drivers-championship" : "constructors-championship"}
+              getRows={isDrivers ? driverRows : constructorRows}
+              getImage={async () => tableToCanvas((isDrivers ? driverRows() : constructorRows()).columns, (isDrivers ? driverRows() : constructorRows()).rows)}
             />
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canFilterFavorites && (
-            <button
-              type="button"
-              onClick={() => setFavoritesOnly((v) => !v)}
-              aria-pressed={favoritesOnly}
-              // A fixed `h-9` on both this button and the search input beside it, rather than
-              // matching padding - text-xs and text-sm have different line-heights, so identical
-              // padding alone still rendered two different total heights. An explicit height is
-              // the only thing that's actually pixel-exact regardless of font metrics.
-              className={`flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
-                favoritesOnly ? "border-[var(--f1-red)]/45 bg-[var(--f1-red)]/[0.09] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/20 hover:text-neutral-200"
-              }`}
-            >
-              <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
-              My favorites
-            </button>
-          )}
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={isDrivers ? "Search drivers or teams…" : "Search teams…"}
-            className="h-9 w-48 rounded-lg border border-[var(--f1-line)] bg-white/[0.02] px-3 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
-          />
-          <ExportMenu
-            filename={isDrivers ? "drivers-championship" : "constructors-championship"}
-            getRows={isDrivers ? driverRows : constructorRows}
-            getImage={async () => tableToCanvas((isDrivers ? driverRows() : constructorRows()).columns, (isDrivers ? driverRows() : constructorRows()).rows)}
-          />
-        </div>
-      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
-        <div ref={mergeRefs(scrollRef, scrollBodyRef)} className="min-h-0 flex-1 overflow-auto scrollbar-hide">
-          <table className="w-full min-w-[680px] text-sm">
-            <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
-              <tr>
-                <th className="px-4 py-3 font-semibold">Pos</th>
-                <th className="cursor-pointer select-none px-4 py-3 font-semibold" onClick={() => toggleSort("name")}>
-                  {isDrivers ? "Driver" : "Team"}
-                  {sortIndicator("name", sortKey, sortDir)}
-                </th>
-                {isDrivers && <th className="px-4 py-3 font-semibold">Team</th>}
-                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Wins" onClick={() => toggleSort("wins")}>
-                  W{sortIndicator("wins", sortKey, sortDir)}
-                </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Podiums" onClick={() => toggleSort("podiums")}>
-                  P{sortIndicator("podiums", sortKey, sortDir)}
-                </th>
-                <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold" title="Points" onClick={() => toggleSort("points")}>
-                  PTS{sortIndicator("points", sortKey, sortDir)}
-                </th>
-                <th className="px-4 py-3 text-right font-semibold" title="Gap to leader">Gap</th>
-                <th className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">Fav</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--f1-line)]">
-              <AnimatePresence initial={false}>
-                {isDrivers
-                  ? sortedDrivers.map((d, i) => {
-                    const isFavorited = !!d.favoriteId && favDrivers.has(d.favoriteId);
-                    const isExpanded = expanded === d.driver;
-                    return (
-                      <RowGroup
-                        key={d.driver}
-                        entityId={d.driver}
-                        isMarked={marked === d.driver}
-                        isFavorited={isFavorited}
-                        isExpanded={isExpanded}
-                        colSpan={8}
-                        onRowClick={() => toggleExpanded(d.driver)}
-                        cells={
-                          <>
-                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
-                            <td className="whitespace-nowrap px-4 py-3">
-                              <div className="flex items-center gap-2.5">
-                                <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
-                                  <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
-                                </span>
-                                <span className="font-medium text-white">
-                                  {d.driverName} <span className="font-mono text-xs font-normal text-neutral-500">{d.driver}</span>
-                                </span>
-                              </div>
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-neutral-400">
-                              <div className="flex items-center gap-2">
-                                <EntityAvatar imageUrl={d.teamLogoUrl} name={d.team} size={18} shape="square" fit="contain" />
-                                {d.team}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.wins}</td>
-                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.podiums}</td>
-                            <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{d.points}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-neutral-500">{gapLabel(d.points, leaderPoints)}</td>
-                            <td className="px-4 py-3 text-center">
-                              {d.favoriteId && (
-                                <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(d.favoriteId!)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
-                              )}
-                            </td>
-                          </>
-                        }
-                        detail={
-                          isExpanded && (
-                            <DriverDetail
-                              driver={d}
-                              rivalCode={sortedDrivers[i === 0 ? 1 : i - 1]?.driver}
-                              raceSummaries={raceSummaries}
-                              onCompare={(rivalCode) => openCompare("drivers", d.driver, rivalCode)}
-                              onProgression={() => setAnalysisTab("progression")}
-                            />
-                          )
-                        }
-                      />
-                    );
-                  })
-                : sortedConstructors.map((c, i) => {
-                    const isFavorited = favTeams.has(c.favoriteId);
-                    const isExpanded = expanded === c.team;
-                    return (
-                      <RowGroup
-                        key={c.team}
-                        entityId={c.team}
-                        isMarked={marked === c.team}
-                        isFavorited={isFavorited}
-                        isExpanded={isExpanded}
-                        colSpan={7}
-                        onRowClick={() => toggleExpanded(c.team)}
-                        cells={
-                          <>
-                            <td className={`px-4 py-3 font-mono tabular-nums ${i < 3 ? "font-semibold text-white" : "text-neutral-500"}`}>{i + 1}</td>
-                            <td className="whitespace-nowrap px-4 py-3">
-                              <div className="flex items-center gap-2.5">
-                                <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">
-                                  <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />
-                                </span>
-                                <span className="font-medium text-white">{c.team}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.wins}</td>
-                            <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.podiums}</td>
-                            <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{c.points}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-neutral-500">{gapLabel(c.points, leaderPoints)}</td>
-                            <td className="px-4 py-3 text-center">
-                              <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(c.favoriteId)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
-                            </td>
-                          </>
-                        }
-                        detail={
-                          isExpanded && (
-                            <TeamDetail
-                              team={c}
-                              rivalId={sortedConstructors[i === 0 ? 1 : i - 1]?.team}
-                              raceSummaries={raceSummaries}
-                              onCompare={(rivalId) => openCompare("constructors", c.team, rivalId)}
-                              onProgression={() => setAnalysisTab("progression")}
-                            />
-                          )
-                        }
-                      />
-                    );
-                  })}
-              </AnimatePresence>
-            </tbody>
-          </table>
-          {emptyMessage && (
-            <div className="flex min-h-[140px] items-center justify-center px-6">
-              <p className="text-center text-sm text-neutral-500">{emptyMessage}</p>
+        <TabPanels className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+            <div ref={scrollBodyRef} className="min-h-0 flex-1 overflow-auto scroll-pt-12 scrollbar-subtle">
+              <table className="w-full min-w-[680px] text-sm">
+                <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">
+                      <span aria-hidden>Pos</span>
+                      <span className="sr-only">Position</span>
+                    </th>
+                    <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="select-none px-4 py-3">
+                      {isDrivers ? "Driver" : "Team"}
+                    </SortHeader>
+                    {isDrivers && (
+                      <th scope="col" className="px-4 py-3 font-semibold">
+                        Team
+                      </th>
+                    )}
+                    <SortHeader column="wins" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Wins" className="select-none px-4 py-3 text-right">
+                      W
+                    </SortHeader>
+                    <SortHeader column="podiums" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Podiums" className="select-none px-4 py-3 text-right">
+                      P
+                    </SortHeader>
+                    <SortHeader column="points" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Points" className="select-none px-4 py-3 text-right">
+                      PTS
+                    </SortHeader>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold" title="Gap to leader">
+                      <span aria-hidden>Gap</span>
+                      <span className="sr-only">Gap to leader</span>
+                    </th>
+                    <th scope="col" className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">
+                      <span aria-hidden>Fav</span>
+                      <span className="sr-only">Favorite</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--f1-line)]">
+                  <AnimatePresence initial={false}>
+                    {isDrivers
+                      ? sortedDrivers.map((d, i) => {
+                        const isFavorited = !!d.favoriteId && favDrivers.has(d.favoriteId);
+                        const isExpanded = expanded === d.driver;
+                        return (
+                          <RowGroup
+                            key={d.driver}
+                            entityId={d.driver}
+                            isMarked={marked === d.driver}
+                            isFavorited={isFavorited}
+                            isExpanded={isExpanded}
+                            colSpan={8}
+                            onRowClick={() => toggleExpanded(d.driver)}
+                            cells={
+                              <>
+                                <td className={`px-4 py-3 font-mono tabular-nums ${(champPos.get(d.driver) ?? i + 1) <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{champPos.get(d.driver) ?? i + 1}</td>
+                                <td className="whitespace-nowrap px-4 py-3">
+                                  <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(d.driver)} onClick={() => toggleExpanded(d.driver)} className={NAME_BUTTON}>
+                                    <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
+                                      <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
+                                    </span>
+                                    <span className="font-medium text-white">
+                                      {d.driverName} <span className="font-mono text-xs font-normal text-tertiary">{d.driver}</span>
+                                    </span>
+                                  </button>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-neutral-400">
+                                  <div className="flex items-center gap-2">
+                                    <EntityAvatar imageUrl={d.teamLogoUrl} name={d.team} size={18} shape="square" fit="contain" />
+                                    {d.team}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.wins}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.podiums}</td>
+                                <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{d.points}</td>
+                                <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-tertiary">{gapLabel(d.points, leaderPoints)}</td>
+                                <td className="px-4 py-3 text-center">
+                                  {d.favoriteId && (
+                                    <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(d.favoriteId!)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
+                                  )}
+                                </td>
+                              </>
+                            }
+                            detail={
+                              isExpanded && (
+                                <DriverDetail
+                                  driver={d}
+                                  rivalCode={sortedDrivers[i === 0 ? 1 : i - 1]?.driver}
+                                  raceSummaries={raceSummaries}
+                                  onCompare={(rivalCode) => openCompare("drivers", d.driver, rivalCode)}
+                                  onProgression={() => setAnalysisTab("progression")}
+                                />
+                              )
+                            }
+                          />
+                        );
+                      })
+                    : sortedConstructors.map((c, i) => {
+                        const isFavorited = favTeams.has(c.favoriteId);
+                        const isExpanded = expanded === c.team;
+                        return (
+                          <RowGroup
+                            key={c.team}
+                            entityId={c.team}
+                            isMarked={marked === c.team}
+                            isFavorited={isFavorited}
+                            isExpanded={isExpanded}
+                            colSpan={7}
+                            onRowClick={() => toggleExpanded(c.team)}
+                            cells={
+                              <>
+                                <td className={`px-4 py-3 font-mono tabular-nums ${(champPos.get(c.team) ?? i + 1) <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{champPos.get(c.team) ?? i + 1}</td>
+                                <td className="whitespace-nowrap px-4 py-3">
+                                  <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(c.team)} onClick={() => toggleExpanded(c.team)} className={NAME_BUTTON}>
+                                    <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">
+                                      <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />
+                                    </span>
+                                    <span className="font-medium text-white">{c.team}</span>
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.wins}</td>
+                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.podiums}</td>
+                                <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{c.points}</td>
+                                <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-tertiary">{gapLabel(c.points, leaderPoints)}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(c.favoriteId)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
+                                </td>
+                              </>
+                            }
+                            detail={
+                              isExpanded && (
+                                <TeamDetail
+                                  team={c}
+                                  rivalId={sortedConstructors[i === 0 ? 1 : i - 1]?.team}
+                                  raceSummaries={raceSummaries}
+                                  onCompare={(rivalId) => openCompare("constructors", c.team, rivalId)}
+                                  onProgression={() => setAnalysisTab("progression")}
+                                />
+                              )
+                            }
+                          />
+                        );
+                      })}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+              {emptyMessage && (
+                <div className="flex min-h-[140px] items-center justify-center px-6">
+                  <p className="text-center text-sm text-tertiary">{emptyMessage}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </TabPanels>
+      </Tabs>
     </div>
   );
 }
@@ -383,7 +446,11 @@ function RowGroup({
         exit="hidden"
         variants={staggerItem}
         transition={{ layout: { duration: 0.3, ease: "easeOut" }, opacity: { duration: 0.15 }, y: { duration: 0.15 } }}
-        onClick={onRowClick}
+        // A click anywhere in the row toggles it too, for the pointer; the name button is the
+        // keyboard and screen-reader way in, and its own click (or the favourite's) isn't counted twice.
+        onClick={(event) => {
+          if (!isFromNestedControl(event.target, event.currentTarget)) onRowClick();
+        }}
         data-entity-id={entityId}
         className={`group cursor-pointer border-l-2 transition-colors duration-500 hover:bg-white/[0.035] ${
           isFavorited ? "border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.045]" : "border-l-transparent"
@@ -392,13 +459,12 @@ function RowGroup({
       >
         {cells}
       </motion.tr>
-      {detail && (
-        <tr>
-          <td colSpan={colSpan} className="p-2">
-            {detail}
-          </td>
-        </tr>
-      )}
+      {/* Always in the DOM, so the name button's aria-controls points at something; hidden while collapsed. */}
+      <tr id={detailsId(entityId)} hidden={!detail}>
+        <td colSpan={colSpan} className="p-2">
+          {detail}
+        </td>
+      </tr>
     </>
   );
 }
@@ -427,12 +493,12 @@ function DriverDetail({
       <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Recent</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-tertiary">Recent</p>
           <div className="flex gap-1">
             {form.map((f) => (
               <span
                 key={f.round}
-                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/5 text-neutral-300"}`}
+                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-brand-text" : "bg-white/5 text-neutral-300"}`}
                 title={f.trackShort}
               >
                 P{f.position}
@@ -485,12 +551,12 @@ function TeamDetail({
       <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Recent</p>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-tertiary">Recent</p>
           <div className="flex gap-1">
             {form.map((f) => (
               <span
                 key={f.round}
-                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-[var(--f1-red)]" : "bg-white/5 text-neutral-300"}`}
+                className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${f.position <= 3 ? "bg-[var(--f1-red)]/20 text-brand-text" : "bg-white/5 text-neutral-300"}`}
                 title={f.trackShort}
               >
                 P{f.position}
@@ -522,7 +588,7 @@ function TeamDetail({
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-wide text-tertiary">{label}</p>
       <p className="font-mono text-sm font-semibold tabular-nums text-white">{value}</p>
     </div>
   );

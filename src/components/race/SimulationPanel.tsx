@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
+import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
+import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
@@ -28,7 +28,7 @@ function ProbabilityBars({ label, entries, barColor }: { label: string; entries:
     // `layout` - "View all" changes the row count, so this animates the height instead of the
     // list snapping open instantly.
     <motion.div layout>
-      <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">{label}</p>
+      <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">{label}</p>
       <AnimatePresence initial={false}>
         {shown.map((e, i) => (
           <motion.div
@@ -40,7 +40,7 @@ function ProbabilityBars({ label, entries, barColor }: { label: string; entries:
             transition={{ duration: 0.2, delay: i * 0.02 }}
             className="flex items-center gap-2.5 py-[3px]"
           >
-            <span className="w-4 shrink-0 text-right font-mono text-[11px] text-neutral-600">{i + 1}</span>
+            <span className="w-4 shrink-0 text-right font-mono text-[11px] text-tertiary">{i + 1}</span>
             <span className="w-12 shrink-0 truncate text-sm font-medium text-white">{e.driver}</span>
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
               <motion.div
@@ -56,7 +56,7 @@ function ProbabilityBars({ label, entries, barColor }: { label: string; entries:
         ))}
       </AnimatePresence>
       {entries.length > COMPACT_ROWS && (
-        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 text-xs text-neutral-500 transition hover:text-white">
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 text-xs text-tertiary transition hover:text-white">
           {showAll ? "Show fewer ↑" : "View all →"}
         </button>
       )}
@@ -72,7 +72,7 @@ function ExpectedFinishList({ entries }: { entries: SimulatedDriverEntry[] }) {
   const shown = showAll ? entries : entries.slice(0, COMPACT_ROWS);
   return (
     <motion.div layout>
-      <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">Expected finish</p>
+      <p className="mb-2.5 text-xs font-semibold uppercase tracking-[0.16em] text-tertiary">Expected finish</p>
       <AnimatePresence initial={false}>
         {shown.map((entry, i) => (
           <motion.div
@@ -85,7 +85,7 @@ function ExpectedFinishList({ entries }: { entries: SimulatedDriverEntry[] }) {
             className="flex items-center justify-between gap-3 border-b border-[var(--f1-line)] py-[7px]"
           >
             <span className="flex items-center gap-2.5">
-              <span className="w-4 shrink-0 text-right font-mono text-[11px] text-neutral-600">{i + 1}</span>
+              <span className="w-4 shrink-0 text-right font-mono text-[11px] text-tertiary">{i + 1}</span>
               <span className="text-sm font-medium text-white">{entry.driver}</span>
             </span>
             <span className="font-mono text-sm tabular-nums text-neutral-300">P{entry.medianPosition}</span>
@@ -93,7 +93,7 @@ function ExpectedFinishList({ entries }: { entries: SimulatedDriverEntry[] }) {
         ))}
       </AnimatePresence>
       {entries.length > COMPACT_ROWS && (
-        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 text-xs text-neutral-500 transition hover:text-white">
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 text-xs text-tertiary transition hover:text-white">
           {showAll ? "Show fewer ↑" : "View all →"}
         </button>
       )}
@@ -186,15 +186,15 @@ function DistributionRow({ entry, index, hovered, onHover, onLeave }: { entry: D
           <p className="text-sm font-semibold text-white">{entry.driver}</p>
           <div className="mt-1.5 space-y-0.5 text-xs">
             <div className="flex items-center justify-between gap-4">
-              <span className="text-neutral-500">Win probability</span>
+              <span className="text-tertiary">Win probability</span>
               <span className="font-mono text-white">{(entry.p1 * 100).toFixed(0)}%</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-neutral-500">Podium probability</span>
+              <span className="text-tertiary">Podium probability</span>
               <span className="font-mono text-white">{(entry.podium * 100).toFixed(0)}%</span>
             </div>
             <div className="flex items-center justify-between gap-4">
-              <span className="text-neutral-500">Expected finish</span>
+              <span className="text-tertiary">Expected finish</span>
               <span className="font-mono text-white">P{entry.medianPosition}</span>
             </div>
           </div>
@@ -220,25 +220,7 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
   const visibleDistEntries = filterDriverSet(distEntries, driverSet, (e) => e.driver, customIds);
   const customSelectOptions: MultiSelectOption[] = byMedian.map((d) => ({ code: d.driver, label: d.driver }));
 
-  const driverSetFilter =
-    simulation.drivers.length > 5 ? (
-      <div className="flex flex-wrap items-center gap-3">
-        <QuietTabs
-          options={[
-            { value: "top5" as const, label: "Top 5" },
-            { value: "top10" as const, label: "Top 10" },
-            { value: "all" as const, label: "All drivers" },
-            { value: "custom" as const, label: "Custom" },
-          ]}
-          value={driverSet}
-          onChange={setDriverSet}
-          className="text-xs"
-        />
-        {driverSet === "custom" && (
-          <EntityMultiSelect options={customSelectOptions} selected={customIds} onChange={setCustomIds} placeholder="Select drivers" triggerClassName="h-8 py-1 text-xs" />
-        )}
-      </div>
-    ) : undefined;
+  const driverSetFilterable = simulation.drivers.length > 5;
 
   return (
     <motion.div initial="hidden" animate="show" variants={staggerContainer}>
@@ -263,23 +245,33 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
       </motion.div>
 
       <motion.div variants={staggerItem}>
-        <RaceSubSection label="Finishing Position Distribution" description="Probability distribution across finishing outcomes." headerRight={driverSetFilter}>
-          <div onMouseLeave={() => setHovered(null)}>
-            <AnimatePresence initial={false}>
-              {visibleDistEntries.map((entry, i) => (
-                <DistributionRow key={entry.driver} entry={entry} index={i} hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)} />
-              ))}
-            </AnimatePresence>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-neutral-500">
-            {BANDS.map((band) => (
-              <span key={band.key} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-sm" style={{ background: band.color }} />
-                {band.label}
-              </span>
-            ))}
-          </div>
-        </RaceSubSection>
+        <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
+          <RaceSubSection
+            label="Finishing Position Distribution"
+            description="Probability distribution across finishing outcomes."
+            headerRight={
+              driverSetFilterable ? <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customIds} onCustomIdsChange={setCustomIds} /> : undefined
+            }
+          >
+            <DriverSetPanels filterable={driverSetFilterable}>
+              <div onMouseLeave={() => setHovered(null)}>
+                <AnimatePresence initial={false}>
+                  {visibleDistEntries.map((entry, i) => (
+                    <DistributionRow key={entry.driver} entry={entry} index={i} hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)} />
+                  ))}
+                </AnimatePresence>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-tertiary">
+                {BANDS.map((band) => (
+                  <span key={band.key} className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: band.color }} />
+                    {band.label}
+                  </span>
+                ))}
+              </div>
+            </DriverSetPanels>
+          </RaceSubSection>
+        </DriverSetTabs>
       </motion.div>
     </motion.div>
   );

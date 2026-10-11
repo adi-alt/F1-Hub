@@ -123,14 +123,24 @@ async function countActiveMembers(groupId: string, since: string): Promise<numbe
 }
 
 /**
- * Reads this member's last visit to THIS community and stamps a new one - so, like its
- * cross-community counterpart, it must run exactly once per page load, from the server component,
- * never from a client component that could re-run and collapse the window.
+ * Reads this member's last visit to THIS community. Read-only: the stamp is written when a visit
+ * ENDS (stampGroupVisit, via GroupVisitBeacon), not here. This runs on every server render, and a
+ * render is not a visit - a realtime refresh or a mutation's router.refresh() re-runs it, and
+ * stamping here collapsed "since your last visit" to "since a moment ago" in the middle of a visit.
  *
  * Degrades to the first-visit shape on any failure (including a deploy where the migration adding
  * `group_members.last_visit_at` hasn't been applied yet): this is context beside the feed and must
  * not be able to take the community page down with it.
  */
+/** Marks the end of a visit: the next visit's "since" starts here. Best-effort, like the pulse itself. */
+export async function stampGroupVisit(groupId: string, uid: string): Promise<void> {
+  try {
+    await supabaseAdmin.from("group_members").update({ last_visit_at: new Date().toISOString() }).eq("group_id", groupId).eq("user_id", uid);
+  } catch (err) {
+    console.error("stampGroupVisit failed", err);
+  }
+}
+
 export async function getGroupPulse(groupId: string, uid: string): Promise<GroupPulse> {
   try {
     const { data: membership, error: membershipError } = await queryWithRetry(() =>
@@ -139,15 +149,6 @@ export async function getGroupPulse(groupId: string, uid: string): Promise<Group
     if (membershipError) throw new Error(membershipError.message);
 
     const since = (membership?.last_visit_at as string | null) ?? null;
-
-    // Stamped regardless of what the diff below finds, so a page load always advances the window -
-    // otherwise an error in one count would make the next visit re-report the same items.
-    void supabaseAdmin
-      .from("group_members")
-      .update({ last_visit_at: new Date().toISOString() })
-      .eq("group_id", groupId)
-      .eq("user_id", uid)
-      .then(() => undefined);
 
     if (since === null) return { ...EMPTY_PULSE, hasPriorVisit: false, since: null };
 

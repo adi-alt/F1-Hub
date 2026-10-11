@@ -37,11 +37,11 @@ function PodiumCard({ entry }: { entry: PodiumEntry }) {
       <p className={isP1 ? "text-2xl font-black text-white" : "text-xl font-black text-neutral-300"}>P{entry.position}</p>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{entry.driverName}</p>
-        <p className="truncate text-xs text-neutral-500">{entry.team}</p>
+        <p className="truncate text-xs text-tertiary">{entry.team}</p>
       </div>
       <div className="shrink-0 text-right">
         {entry.gapOrTime && <p className="font-mono text-xs text-neutral-400">{entry.gapOrTime}</p>}
-        {typeof entry.points === "number" && entry.points > 0 && <p className="mt-0.5 text-[11px] text-neutral-500">{entry.points} pts</p>}
+        {typeof entry.points === "number" && entry.points > 0 && <p className="mt-0.5 text-[11px] text-tertiary">{entry.points} pts</p>}
       </div>
     </motion.div>
   );

@@ -33,7 +33,7 @@ export function PostContent({ title, content }: { title: string | null; content:
         {linkify(shown)}
       </motion.p>
       {isLong && (
-        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-[11.5px] font-medium text-neutral-500 hover:text-white">
+        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-[11.5px] font-medium text-tertiary hover:text-white">
           {expanded ? "Show less" : "Show more"}
         </button>
       )}
@@ -57,7 +57,7 @@ function linkify(text: string) {
     if (!safeHttpUrl(trimmed)) return <Fragment key={i}>{part}</Fragment>;
     return (
       <Fragment key={i}>
-        <a href={trimmed} target="_blank" rel="noopener noreferrer" className="text-[var(--f1-red)] underline-offset-2 hover:underline">
+        <a href={trimmed} target="_blank" rel="noopener noreferrer" className="text-brand-text underline-offset-2 hover:underline">
           {trimmed}
         </a>
         {trailing}

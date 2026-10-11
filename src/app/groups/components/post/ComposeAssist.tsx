@@ -69,7 +69,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
         className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-medium transition disabled:opacity-40 ${
-          open ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
+          open ? "bg-[var(--f1-red)]/[0.14] text-brand-text" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
         }`}
       >
         <span aria-hidden>✦</span>
@@ -90,7 +90,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
           >
             {suggestion === null ? (
               <>
-                <p className="px-0.5 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Rewrite this draft</p>
+                <p className="px-0.5 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-tertiary">Rewrite this draft</p>
                 <div className="grid grid-cols-2 gap-1">
                   {ACTIONS.map((a) => (
                     <button
@@ -104,11 +104,11 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
                     </button>
                   ))}
                 </div>
-                {error && <p className="mt-1.5 px-0.5 text-[11px] text-[var(--f1-red)]">{error}</p>}
+                {error && <p className="mt-1.5 px-0.5 text-[11px] text-brand-text">{error}</p>}
               </>
             ) : (
               <>
-                <p className="px-0.5 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Apex suggests</p>
+                <p className="px-0.5 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-tertiary">Apex suggests</p>
                 <p className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md bg-black/25 p-2 text-[11.5px] leading-relaxed text-neutral-200 scrollbar-hide">{suggestion}</p>
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <button
@@ -131,7 +131,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
                       setSuggestion(null);
                       setOpen(false);
                     }}
-                    className="ml-auto rounded-md px-2 py-1 text-[11.5px] text-neutral-500 transition hover:text-white"
+                    className="ml-auto rounded-md px-2 py-1 text-[11.5px] text-tertiary transition hover:text-white"
                   >
                     Discard
                   </button>

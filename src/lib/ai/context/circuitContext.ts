@@ -6,7 +6,8 @@
 
 import type { CircuitFacts } from "@/lib/circuitFacts";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
-import { computeRaceTrends, computeTopWinners, computeTrackRecords, computeWeatherHistory, joinNames } from "@/lib/circuitIntelligence";
+import { computeRaceTrends, computeTopWinners, computeTopWinningTeams, computeTrackRecords, computeWeatherHistory, joinNames } from "@/lib/circuitIntelligence";
+import type { AgeRecords } from "@/lib/circuitRecords";
 import type { RaceSummary } from "@/app/season/_service/season.pure";
 
 export type CircuitAiState = "completed" | "next" | "upcoming" | "unscheduled";
@@ -36,14 +37,39 @@ export type CircuitContext = {
   timelineYears: number;
   records: ReturnType<typeof computeTrackRecords>;
   topWinners: { driver: string; wins: number }[];
+  /** The constructors with the most wins here - the race page offers "which constructor has the
+   * best record here?" as a starter question, and the context had only drivers. */
+  topTeams: { team: string; wins: number }[];
+  /** Every season on record, newest first: "2025 Lando Norris (McLaren) from P1" - so "who won here
+   * in 2019?" and "biggest surprises" have something to answer from. */
+  winnersByYear: string[];
+  /** Winners from furthest down the grid (P4 or lower), the circuit's upsets. */
+  upsets: string[];
+  /** Youngest/oldest winner and pole-sitter, when the caller resolved them (they need birthdates,
+   * so the server computes them: computeAgeRecords). */
+  ageRecords: AgeRecords | null;
   trends: ReturnType<typeof computeRaceTrends>;
   weather: ReturnType<typeof computeWeatherHistory>;
+  /** This season's form, for a round still to come: the championship's top three and the last few winners. */
+  form: CircuitExtras["form"];
+  /** Every layout this circuit has had, oldest first ("2008–2012", ...), so a layout change can be explained. */
+  layouts: string[];
+  /** Where the lead changed hands in this season's race here, from its traced track story. */
+  leadChanges: CircuitExtras["leadChanges"];
   /** Every real name formatCircuitContext actually presents to the model, verbatim - the only
    * evidenceIds validateSharedCircuitIntelligence should accept as real. Names, not codes: unlike
    * seasonContext.ts's id space (driver codes, because that's what the Season UI highlights by),
    * nothing here is presented to the model as a code, so a code-based id space would just reject
    * every citation the model makes against text it can actually see. */
   evidenceIds: string[];
+};
+
+/** What the circuit take can say beyond the circuit's own record: this season's form, the layout history, and how
+ * this season's race here was won. All optional; a missing piece is simply left out of the context. */
+export type CircuitExtras = {
+  form?: { leaders: { name: string; team: string; points: number; wins: number }[]; recentWinners: string[] } | null;
+  layouts?: string[];
+  leadChanges?: { total: number; onTrack: number; inPits: number; lines: string[]; lastPass: { lap: number; by: string; from: string; near: string | null } | null } | null;
 };
 
 export function buildCircuitContext(
@@ -55,8 +81,17 @@ export function buildCircuitContext(
   facts: CircuitFacts | null,
   currentSeasonRace: RaceSummary | null,
   timeline: CircuitYearRecord[],
+  ageRecords: AgeRecords | null = null,
+  extras: CircuitExtras = {},
 ): CircuitContext {
-  const state: CircuitAiState = currentSeasonRace ? (currentSeasonRace.state === "completed" ? "completed" : currentSeasonRace.state === "next" ? "next" : "upcoming") : "unscheduled";
+  // A weekend under way counts as "next" even before the calendar moves its pointer: it's the race happening now.
+  const state: CircuitAiState = currentSeasonRace
+    ? currentSeasonRace.state === "completed"
+      ? "completed"
+      : currentSeasonRace.state === "next" || currentSeasonRace.weekendStatus === "live"
+        ? "next"
+        : "upcoming"
+    : "unscheduled";
 
   let currentSeasonResult: CircuitContext["currentSeasonResult"] = null;
   if (currentSeasonRace && state === "completed") {
@@ -66,7 +101,7 @@ export function buildCircuitContext(
       .sort((a, b) => b.places - a.places);
     currentSeasonResult = {
       winner: currentSeasonRace.winnerName,
-      podium: currentSeasonRace.podium.map((p) => `P${p.position} ${p.driverName}`),
+      podium: currentSeasonRace.podium.map((p) => `P${p.position} ${p.driverName} (${p.team})`),
       pole: currentSeasonRace.poleSitterName,
       fastestLap: currentSeasonRace.fastestLap?.driverName ?? null,
       dnfCount: currentSeasonRace.results.filter((r) => r.status === "dnf").length,
@@ -76,6 +111,13 @@ export function buildCircuitContext(
 
   const trackRecords = computeTrackRecords(timeline);
   const topWinners = computeTopWinners(timeline, 3);
+  const byYear = [...timeline].filter((r) => r.winnerDriver).sort((a, b) => b.year - a.year);
+  const winnersByYear = byYear.map((r) => `${r.year} ${r.winnerDriver}${r.winnerTeam ? ` (${r.winnerTeam})` : ""}${r.winnerGrid ? ` from P${r.winnerGrid}` : ""}`);
+  const upsets = byYear
+    .filter((r) => (r.winnerGrid ?? 0) >= 4)
+    .sort((a, b) => (b.winnerGrid as number) - (a.winnerGrid as number) || b.year - a.year)
+    .slice(0, 5)
+    .map((r) => `${r.winnerDriver} won from P${r.winnerGrid} in ${r.year}`);
   const evidenceIds = [...new Set(
     [
       currentSeasonRace?.winnerName,
@@ -86,6 +128,7 @@ export function buildCircuitContext(
       ...(trackRecords.mostWins?.drivers ?? []),
       ...(trackRecords.mostPoles?.drivers ?? []),
       ...topWinners.map((w) => w.driver),
+      ...(state !== "completed" && state !== "unscheduled" ? (extras.form?.leaders.map((l) => l.name) ?? []) : []),
     ].filter((v): v is string => !!v),
   )];
 
@@ -111,7 +154,14 @@ export function buildCircuitContext(
     timelineYears: timeline.length,
     records: trackRecords,
     topWinners,
+    topTeams: computeTopWinningTeams(timeline, 3),
+    winnersByYear,
+    upsets,
+    ageRecords,
     evidenceIds,
+    form: state === "next" || state === "upcoming" ? (extras.form ?? null) : null,
+    layouts: extras.layouts ?? [],
+    leadChanges: state === "completed" ? (extras.leadChanges ?? null) : null,
     trends: computeRaceTrends(timeline),
     weather: computeWeatherHistory(timeline),
   };
@@ -165,6 +215,15 @@ export function formatCircuitContext(ctx: CircuitContext): string {
     records.largestMargin ? `  largest margin: ${records.largestMargin.sec.toFixed(3)}s (${records.largestMargin.year})` : null,
   ].filter(Boolean);
 
+  const age = ctx.ageRecords;
+  const ageLines = age
+    ? [
+        age.youngestWinner ? `  youngest winner: ${age.youngestWinner.driver}, ${age.youngestWinner.age} (${age.youngestWinner.year})` : null,
+        age.oldestWinner ? `  oldest winner: ${age.oldestWinner.driver}, ${age.oldestWinner.age} (${age.oldestWinner.year})` : null,
+        age.youngestPoleSitter ? `  youngest pole-sitter: ${age.youngestPoleSitter.driver}, ${age.youngestPoleSitter.age} (${age.youngestPoleSitter.year})` : null,
+      ].filter(Boolean)
+    : [];
+
   const trendLines = [
     ctx.trends.poleToWinPct != null ? `  pole converted to win: ${ctx.trends.poleToWinPct.toFixed(0)}% of the time` : null,
     ctx.trends.avgFieldMovement != null ? `  average grid-to-finish movement: ${ctx.trends.avgFieldMovement.toFixed(1)} places` : null,
@@ -185,6 +244,13 @@ ${ctx.state === "completed" ? `THIS SEASON'S RESULT HERE\n${resultLines!.join("\
 ${ctx.state === "next" || ctx.state === "upcoming" ? `UPCOMING ROUND\n${upcomingLines?.join("\n") || "  no further detail available yet"}` : ""}
 
 HISTORY (${ctx.timelineYears} seasons on record, top 3 winners: ${ctx.topWinners.map((w) => `${w.driver} (${w.wins})`).join(", ") || "none"})
+  top constructors: ${ctx.topTeams.map((t) => `${t.team} (${t.wins})`).join(", ") || "none on record"}
 ${recordLines.length ? recordLines.join("\n") : "  no records available yet"}
-${trendLines.length ? trendLines.join("\n") : ""}`;
+${ageLines.length ? ageLines.join("\n") : ""}
+${trendLines.length ? trendLines.join("\n") : ""}
+  upsets (winners from P4 or lower): ${ctx.upsets.join("; ") || "none on record"}
+
+${ctx.form ? `THIS SEASON'S FORM (before this round)\n  championship: ${ctx.form.leaders.map((l, i) => `P${i + 1} ${l.name} (${l.team}) ${l.points} pts, ${l.wins} wins`).join("; ")}\n  last winners: ${ctx.form.recentWinners.join("; ") || "none yet"}\n` : ""}${ctx.leadChanges ? `HOW THIS SEASON'S RACE HERE WAS WON (traced from car positions)\n  lead changes: ${ctx.leadChanges.total} (${ctx.leadChanges.onTrack} on track, ${ctx.leadChanges.inPits} through the pits)\n${ctx.leadChanges.lines.map((l) => `  ${l}`).join("\n")}\n` : ""}${ctx.layouts.length > 1 ? `LAYOUT HISTORY (the track has changed ${ctx.layouts.length - 1} times; the last is the one raced today)\n  ${ctx.layouts.join(" | ")}\n` : ""}
+WINNERS BY YEAR
+${ctx.winnersByYear.length ? ctx.winnersByYear.map((line) => `  ${line}`).join("\n") : "  none on record"}`;
 }

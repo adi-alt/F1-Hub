@@ -1,4 +1,4 @@
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cacheTags";
 import { NextResponse } from "next/server";
 
 /** Lets a pipeline run signal "real data changed" the moment it actually finishes, instead of
@@ -19,9 +19,10 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as { tag?: string };
   const tag = body.tag ?? "archive-data";
-  // "max" = stale-while-revalidate: the next visitor gets last-known-good data instantly while
-  // this fetches fresh in the background, rather than being the one unlucky request that blocks
-  // on a full Firestore re-read.
-  revalidateTag(tag, "max");
+  // Expired now, not stale-while-revalidate (audit R-19): the pipeline only calls this when real data
+  // changed - results, the grid - and the next visitor should see it, not the version from before.
+  // The blocking re-read this costs one request is a Postgres query (the old reason for
+  // stale-while-revalidate was Firestore's read quota, which no longer applies).
+  expireTag(tag);
   return NextResponse.json({ ok: true, revalidated: tag });
 }

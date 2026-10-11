@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { lockDocumentScroll } from "@/lib/scrollLock";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -11,9 +12,8 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [ta
  *  - Tab is trapped inside the panel (wraps at both ends) so it can never reach the page behind it
  *  - Escape closes it, and the actual scrolling region freezes while it's open
  *
- * Scroll-locking targets `[data-app-scroll]`, not `document.body` - this app's root layout makes
- * body itself `overflow-hidden` (SmoothScroll owns the one real scrolling element inside it), so a
- * conventional `document.body.style.overflow = "hidden"` would silently do nothing here.
+ * Scroll-locking freezes the document (lib/scrollLock.ts), counted so overlapping modals release it
+ * only when the last one closes.
  *
  * `panelRef` is created and attached by the caller (to whichever element is the actual dialog
  * surface) rather than returned, since the caller already owns that ref for its own layout/portal
@@ -64,9 +64,7 @@ export function useModalFocusTrap(panelRef: RefObject<HTMLElement | null>, isOpe
     if (!isOpen) return;
     document.addEventListener("keydown", onKeyDown, true);
 
-    const scroller = lockScroll ? document.querySelector<HTMLElement>("[data-app-scroll]") : null;
-    const previousOverflow = scroller?.style.overflow ?? "";
-    if (scroller) scroller.style.overflow = "hidden";
+    const unlockScroll = lockScroll ? lockDocumentScroll() : null;
 
     // Only steals focus to the panel's first focusable element as a fallback - a caller with its
     // own more specific `autoFocus` (Discover's search input, say) already put focus somewhere
@@ -79,7 +77,7 @@ export function useModalFocusTrap(panelRef: RefObject<HTMLElement | null>, isOpe
 
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
-      if (scroller) scroller.style.overflow = previousOverflow;
+      unlockScroll?.();
       window.clearTimeout(timer);
     };
   }, [isOpen, onKeyDown, panelRef, lockScroll]);

@@ -9,11 +9,12 @@ import { computeChampionshipProgression } from "@/lib/personalization";
 import { sessionCode } from "@/lib/sessionCode";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
-import { buildBattles, buildRecords, completedRoundCount } from "./season.pure";
+import { buildBattles, buildRecords, completedRoundCount, fastestPracticeLap, seasonStatus } from "./season.pure";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
 import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, RacePodiumEntry, RacePredictionSummary, RaceSummary, RaceWeekendStatus } from "./season.pure";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Every type and pure deterministic computation (buildBattles, buildRecords, computeHeadToHead,
 // computeRecentForm, computeStreaks, computePositionChanges) lives in season.pure.ts instead of
@@ -42,7 +43,7 @@ function sessionResultFor(code: string, race: RaceDoc | undefined, winnerName: s
   // sessions genuinely have no stored classification, so they correctly return null here.
   if (/^P\d$/.test(code)) {
     const key = `FP${code.slice(1)}` as "FP1" | "FP2" | "FP3";
-    const best = race.practice?.[key]?.bestLaps?.[0];
+    const best = fastestPracticeLap(race.practice?.[key]?.bestLaps);
     if (!best) return null;
     const name = race.results?.find((r) => r.driver === best.driver)?.driverName ?? best.driver;
     return { label: "Fastest", value: `${name} \u00b7 ${formatLapTime(best.lapTimeSec)}` };
@@ -147,14 +148,14 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], 
       isSprintWeekend,
       weekendStatus: calendarWeekendStatus(entry.status) ?? derivedStatus,
       photoUrls: race?.photoUrls ?? (race?.photoUrl ? [race.photoUrl] : []),
-      // Matched on the same (locality, country) pair the archive side already keys circuit
-      // photography by - a FastF1 `location` is a city name, exactly what "locality" means there.
-      circuitPhotoUrls: (() => {
+      // Matched on the same (locality, country) pair the archive side keys circuits by - a FastF1
+      // `location` is a city name, exactly what "locality" means there.
+      circuitTrackMap: (() => {
         const locality = race?.circuit ?? entry.circuit;
         // No real circuit ever has an empty locality, so an empty string would already fail to
         // match anything - skipping the lookup outright is just making that explicit rather than
         // relying on the incidental non-match.
-        return locality ? (findArchiveCircuitByLocation(circuits, locality, race?.country ?? null)?.imageUrls ?? []) : [];
+        return locality ? (findArchiveCircuitByLocation(circuits, locality, race?.country ?? null)?.trackMap ?? null) : null;
       })(),
       forecast: entry.weatherForecast,
       raceWeather: race?.weather ?? null,
@@ -341,7 +342,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       isSprintWeekend: false,
       weekendStatus: "completed" as const,
       photoUrls: r.photoUrls ?? (r.photoUrl ? [r.photoUrl] : []),
-      circuitPhotoUrls: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.imageUrls ?? []) : [],
+      circuitTrackMap: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.trackMap ?? null) : null,
       forecast: null,
       raceWeather: null,
       podium: results
@@ -373,19 +374,11 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
   };
 }
 
-/** "ongoing" for the one live season (races/calendar's FastF1 pipeline — prediction/pole/
- * simulation data lives only here); "completed" for every other year, current or historical,
- * which archive_races covers more completely than races.ts ever does once a season is over.
- * Compares against the computed current year, not a literal — the same non-hardcoded pattern
- * ARCHIVE_LATEST_YEAR and /season/page.tsx's own redirect already use. */
-export function seasonStatus(year: number): "ongoing" | "completed" {
-  return year === new Date().getFullYear() ? "ongoing" : "completed";
-}
 
 /** The one entry point both /season and /archive/[year] call — same return shape either way, only
  * the data source differs, picked by seasonStatus, never a per-page assumption. */
 export async function getSeasonDetailData(year: number, uid: string) {
-  const status = seasonStatus(year);
+  const status = seasonStatus(year, await getCurrentSeason());
   const data = status === "ongoing" ? await getSeasonPageData(year, uid) : await getArchiveSeasonDetailData(year, uid);
   return { ...data, status };
 }

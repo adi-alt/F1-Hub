@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { favoriteToggleSchema } from "@/lib/inputLimits";
+import { ServiceError } from "@/services/errors";
 import { getUserProfile, setArchiveFavorite } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
 
@@ -26,17 +28,17 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = (await request.json()) as { type?: string; id?: string; favorited?: boolean };
-  if (
-    (body.type !== "track" && body.type !== "driver" && body.type !== "team") ||
-    typeof body.id !== "string" ||
-    typeof body.favorited !== "boolean"
-  ) {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-  }
+  // Shape and id length (SEC-25, see inputLimits.ts); the list-length cap is setArchiveFavorite's.
+  const parsed = favoriteToggleSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  const { type, id, favorited } = parsed.data;
 
-  const field =
-    body.type === "track" ? "favoriteTracks" : body.type === "team" ? "favoriteTeams" : "favoriteDrivers";
-  await setArchiveFavorite(session.uid, field, body.id, body.favorited);
+  const field = type === "track" ? "favoriteTracks" : type === "team" ? "favoriteTeams" : "favoriteDrivers";
+  try {
+    await setArchiveFavorite(session.uid, field, id, favorited);
+  } catch (err) {
+    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    throw err;
+  }
   return NextResponse.json({ ok: true });
 }

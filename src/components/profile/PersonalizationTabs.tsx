@@ -48,7 +48,7 @@ export function PersonalizationTabs({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
           {TABS.map((t) => (
@@ -75,7 +75,7 @@ export function PersonalizationTabs({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={PLACEHOLDER[tab]}
-          className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:border-white/40 focus:outline-none"
+          className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
         />
       </div>
       <AnimatePresence mode="wait">
@@ -85,7 +85,7 @@ export function PersonalizationTabs({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-4 min-h-0 flex-1 overflow-hidden"
+          className="mt-4"
         >
           <FavoriteEntityList
             type={active.type}

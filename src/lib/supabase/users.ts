@@ -1,4 +1,7 @@
-import { unstable_cache, revalidateTag } from "next/cache";
+import { unstable_cache } from "next/cache";
+import { expireTag } from "@/lib/cacheTags";
+import { LIMITS } from "@/lib/inputLimits";
+import { ServiceError } from "@/services/errors";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import type { Role } from "@/lib/rbac";
@@ -125,10 +128,9 @@ export async function createUserProfile(
   // signup flow (verifyOtpAndLogin/completeSignup both check for an existing profile before this
   // insert runs) - without this, a brand-new user's very next real getUserProfile call could
   // incorrectly keep returning the cached null indefinitely (revalidate: false never expires it on
-  // its own). "max" matches this codebase's own established revalidateTag convention (groups.ts,
-  // admin/revalidate/route.ts) - applies to unstable_cache's tag-bust mechanism, not a time-based
-  // staleness window, so this is an immediate bust for our purposes, same as those call sites.
-  revalidateTag(USER_PROFILE_TAG, "max");
+  // its own). It has to be an immediate expiry: revalidateTag(tag, "max"), used here before, is
+  // stale-while-revalidate in Next 16 and served that cached null once more (see lib/cacheTags.ts).
+  expireTag(USER_PROFILE_TAG);
 }
 
 /** Exact-match, case-insensitive via a lowercased mirror isn't worth the extra column at this
@@ -324,8 +326,20 @@ export const getUserProfile = unstable_cache(
 );
 
 export async function setUserRole(uid: string, role: Exclude<Role, "user"> | null): Promise<void> {
-  await supabaseAdmin.from("profiles").update({ role }).eq("id", uid);
-  revalidateTag(USER_PROFILE_TAG, "max");
+  if (role !== "admin") {
+    // Only an admin can grant the role back, so the platform must never be left without one
+    // (SEC-25). Two admins demoting each other at the same instant could both still pass this
+    // check - acceptable at this scale; closing it fully needs a locking database function.
+    const { data: admins, error: adminsError } = await supabaseAdmin.from("profiles").select("id").eq("role", "admin");
+    if (adminsError) throw new Error(`setUserRole(${uid}): ${adminsError.message}`);
+    const adminIds = (admins ?? []).map((a) => a.id as string);
+    if (adminIds.length === 1 && adminIds[0] === uid) {
+      throw new ServiceError("This is the only admin. Make someone else an admin first.", 409);
+    }
+  }
+  const { error } = await supabaseAdmin.from("profiles").update({ role }).eq("id", uid);
+  if (error) throw new Error(`setUserRole(${uid}): ${error.message}`);
+  expireTag(USER_PROFILE_TAG);
 }
 
 /** The only way profiles/{uid} preference fields ever change — client never writes this row
@@ -341,8 +355,9 @@ export async function updateUserPreferences(uid: string, patch: PreferencesPatch
   if (patch.notifyOnResults !== undefined) update.notify_on_results = patch.notifyOnResults;
   if (patch.firstName !== undefined) update.first_name = patch.firstName;
   if (Object.keys(update).length === 0) return;
-  await supabaseAdmin.from("profiles").update(update).eq("id", uid);
-  revalidateTag(USER_PROFILE_TAG, "max");
+  const { error } = await supabaseAdmin.from("profiles").update(update).eq("id", uid);
+  if (error) throw new Error(`updateUserPreferences(${uid}): ${error.message}`);
+  expireTag(USER_PROFILE_TAG);
 }
 
 const FAVORITE_COLUMN: Record<"favoriteDrivers" | "favoriteTeams" | "favoriteTracks", string> = {
@@ -364,11 +379,14 @@ export async function setArchiveFavorite(
   favorited: boolean,
 ): Promise<void> {
   const column = FAVORITE_COLUMN[field];
-  const { data } = await supabaseAdmin.from("profiles").select(column).eq("id", uid).maybeSingle<Record<string, string[]>>();
+  const { data, error: readError } = await supabaseAdmin.from("profiles").select(column).eq("id", uid).maybeSingle<Record<string, string[]>>();
+  if (readError) throw new Error(`setArchiveFavorite(${uid}): ${readError.message}`);
   const current = data?.[column] ?? [];
   const next = favorited ? [...new Set([...current, id])] : current.filter((v) => v !== id);
-  await supabaseAdmin.from("profiles").update({ [column]: next }).eq("id", uid);
-  revalidateTag(USER_PROFILE_TAG, "max");
+  if (next.length > LIMITS.favorites) throw new ServiceError(`You can have up to ${LIMITS.favorites} favorites of each kind.`, 400);
+  const { error } = await supabaseAdmin.from("profiles").update({ [column]: next }).eq("id", uid);
+  if (error) throw new Error(`setArchiveFavorite(${uid}): ${error.message}`);
+  expireTag(USER_PROFILE_TAG);
 }
 
 /** The one-way flag OnboardingTour.tsx checks — once set, the tutorial stops showing on every
@@ -376,14 +394,14 @@ export async function setArchiveFavorite(
  * of dismiss-once state as any other one-shot product tour. */
 export async function markOnboardingComplete(uid: string, outcome: "completed" | "skipped" = "completed"): Promise<void> {
   await supabaseAdmin.from("profiles").update({ onboarding_completed_at: new Date().toISOString(), onboarding_outcome: outcome }).eq("id", uid);
-  revalidateTag(USER_PROFILE_TAG, "max");
+  expireTag(USER_PROFILE_TAG);
 }
 
 /** Clears the stamp so the tour runs again from step 1. Only the two onboarding columns are
  * touched - replaying a tour must never reset favourites, communities or preferences. */
 export async function resetOnboarding(uid: string): Promise<void> {
   await supabaseAdmin.from("profiles").update({ onboarding_completed_at: null, onboarding_outcome: null }).eq("id", uid);
-  revalidateTag(USER_PROFILE_TAG, "max");
+  expireTag(USER_PROFILE_TAG);
 }
 
 /** Stamps "now" as this user's most recent homepage visit - called at the END of the AI
@@ -391,7 +409,7 @@ export async function resetOnboarding(uid: string): Promise<void> {
  * used to compute this same request's Since-Last-Visit diff (see sinceLastVisit.ts). Never awaited
  * before that read happens, or every visit would diff against itself.
  *
- * Deliberately does NOT call revalidateTag(USER_PROFILE_TAG) - this runs on literally every
+ * Deliberately does NOT call expireTag(USER_PROFILE_TAG) - this runs on literally every
  * homepage request (including cache hits), so busting the shared profile cache tag here would
  * force a fresh, slow getUserProfile read on the very next request every single time, defeating
  * the whole point of caching it (the exact self-invalidation shape the sinceLastVisit/

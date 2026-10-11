@@ -2,17 +2,18 @@ import Link from "next/link";
 import { seasonHref } from "@/lib/routes";
 // Not lib/supabase/archive.ts - Footer is imported directly by SmoothScroll.tsx's "use client"
 // tree, so anything it imports gets bundled for the browser too; archive.ts drags in
-// supabaseAdmin, archiveYears.ts is just the two plain year constants, safe either side.
-import { ARCHIVE_EARLIEST_YEAR, ARCHIVE_LATEST_YEAR } from "@/lib/archiveYears";
+// supabaseAdmin, archiveYears.ts is plain code with no imports, safe either side.
+import { ARCHIVE_EARLIEST_YEAR, archiveLatestYear } from "@/lib/archiveYears";
 
-const EXPLORE_LINKS = [
-  { href: seasonHref(2026), label: "2026 Season" },
+const exploreLinks = (season: number) => [
+  { href: seasonHref(season), label: `${season} Season` },
   { href: "/circuits", label: "Circuits" },
-  { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${ARCHIVE_LATEST_YEAR}` },
+  { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${archiveLatestYear(season)}` },
   { href: "/races/simulation", label: "Race simulator" },
 ];
 
-export function Footer() {
+/** `season` is the current one, from the calendar (lib/currentSeason.ts). */
+export function Footer({ season }: { season: number }) {
   return (
     <footer
       className="relative bg-[var(--f1-carbon)]"
@@ -21,8 +22,7 @@ export function Footer() {
       // as a seam over any distance because the *rate* of change never softens near either end,
       // it just changes over more pixels. This is a linear (not radial) fade on purpose - the
       // footer's edge runs the full page width at a constant color, so a radial glow would fade
-      // faster at the corners than the center and introduce the exact non-uniform look the
-      // TreasureMapSection fade above just got fixed away from.
+      // faster at the corners than the center and look uneven along the edge.
       style={{
         backgroundImage:
           "linear-gradient(to bottom, var(--background) 0%, color-mix(in srgb, var(--background) 85%, var(--f1-carbon)) 20%, color-mix(in srgb, var(--background) 40%, var(--f1-carbon)) 55%, var(--f1-carbon) 100%)",
@@ -37,7 +37,7 @@ export function Footer() {
           it extends upward, overlapping the last 10vh of whatever comes right before the footer,
           rather than living inside the footer's own (clipped) box. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-full h-[10vh] bg-gradient-to-b from-transparent to-black" />
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div className="page-wide py-10">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
             <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
@@ -51,9 +51,9 @@ export function Footer() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Explore</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-tertiary">Explore</p>
             <ul className="mt-3 space-y-2 text-sm">
-              {EXPLORE_LINKS.map((link) => (
+              {exploreLinks(season).map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-neutral-400 transition hover:text-white">
                     {link.label}
@@ -64,7 +64,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-2 border-t border-[var(--f1-line)] pt-6 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-2 border-t border-[var(--f1-line)] pt-6 text-xs text-tertiary sm:flex-row sm:items-center sm:justify-between">
           <p>&copy; {new Date().getFullYear()} F1 Hub. Not affiliated with Formula 1 or the FIA.</p>
           <p>Predictions are a model&apos;s best estimate, not a promise of what happens on Sunday.</p>
         </div>

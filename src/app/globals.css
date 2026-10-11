@@ -3,9 +3,9 @@
 :root {
   /* Zinc, not a plain near-black — Tailwind's own zinc-950/900/800, so surfaces read as a
      deliberately warm-neutral dark gray rather than an unconsidered "just make it black". */
-  --background: #09090b;
+  --background: var(--surface-0);
   --foreground: #f2f2f3;
-  --f1-red: #e10600;
+  --f1-red: var(--brand);
   --f1-red-dim: #9a0500;
   --f1-carbon: #18181b;
   --f1-carbon-2: #27272a;
@@ -29,6 +29,49 @@
      with no background and browser-default text. Those components are now written against the
      real tokens above, nothing in the app references the aliases any more, and keeping a second
      shadow naming scheme around is an invitation for new code to reach for it again. */
+  /* Design tokens - design system spec §2 (audit DS-01). New code reaches them through their
+     Tailwind utilities, mapped in the @theme blocks below: bg-surface-1, text-secondary,
+     border-subtle, bg-brand, text-danger, text-title-lg, rounded-card, shadow-overlay,
+     ease-standard, duration-fast, z-header, tabular. The older variables above keep their values
+     until each component moves onto the primitives, so nothing changes visually yet; the two that
+     already had a token's exact value (--background, --f1-red) now point at it. Arbitrary
+     [var(--...)], text-[Npx] and [#hex] classes are counted by scripts/design-lint.mjs, and CI
+     fails if any of those counts grows. */
+  color-scheme: dark;
+
+  /* Surfaces: lighter as they rise, never translucent. Borders separate; they don't make a region. */
+  --surface-0: #09090b; /* page canvas */
+  --surface-1: #16161a; /* data regions: tables, charts, prediction cards, rails */
+  --surface-2: #212126; /* raised: popovers, menus, inputs on surface-1, hover rows */
+  --surface-3: #2c2c32; /* dialogs, sheets, toasts */
+  --surface-inverse: #f4f4f5; /* rare: chart tooltips */
+  --border-subtle: #303037; /* decorative separators, table hairlines - not a control boundary */
+  --border-strong: #72727d; /* input/select boundaries, outline buttons on surfaces 0-2 (3.37:1) */
+  --border-strong-raised: #84848f; /* the same on surface-3 (3.75:1) */
+
+  /* Text: every tier passes AA on every surface (tertiary is 4.98:1 on surface-3). */
+  --text-primary: #f4f4f5;
+  --text-secondary: #a9a9b2;
+  --text-tertiary: #9a9aa4;
+  --text-disabled: #5c5c66; /* disabled only - exempt from contrast rules */
+
+  /* Brand red is for fills only (primary button, live dot, active-nav underline, brand mark).
+     Red text uses --brand-text; errors use --danger with an icon, never --brand. */
+  --brand: #e10600; /* white on it 4.97:1 */
+  --brand-hover: #c80500; /* darker on hover, which keeps white text above 6:1 */
+  --brand-text: #ff5c52;
+  --danger: #ff6b63;
+  --danger-fill: #b3261e; /* destructive primary button, white on it 6.54:1 */
+  --danger-subtle: rgb(255 107 99 / 0.1); /* alert background */
+  --success: #3fcf8e;
+  --warning: #f2b53a; /* closing soon, preliminary data, degraded */
+  --info: #6aa9ff;
+  --focus-ring: #f4f4f5; /* 2px outline + 2px offset on every focusable element */
+
+  --duration-fast: 120ms; /* hover, press */
+  --duration-base: 200ms; /* popover, tab indicator */
+  --duration-slow: 320ms; /* dialog, sheet */
+
 }
 
 @theme inline {
@@ -39,33 +82,202 @@
   --color-f1-line: var(--f1-line);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-inverse: var(--surface-inverse);
+  /* As border-subtle / border-strong / border-strong-raised. */
+  --color-subtle: var(--border-subtle);
+  --color-strong: var(--border-strong);
+  --color-strong-raised: var(--border-strong-raised);
+  /* As text-primary / text-secondary / text-tertiary / text-disabled. */
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-disabled: var(--text-disabled);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-text: var(--brand-text);
+  --color-danger: var(--danger);
+  --color-danger-fill: var(--danger-fill);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-focus-ring: var(--focus-ring);
+}
+
+/* Type scale (spec §2.4): seven steps, nothing under 12px; caption is the only uppercase tier. */
+@theme {
+  /* The landing hero's title only: one size above display-lg, so the first thing a visitor reads has the
+     weight of a broadcast graphic. Not for page h1s. */
+  --text-display-xl: 3.5rem;
+  --text-display-xl--line-height: 3.75rem;
+  --text-display-xl--font-weight: 700;
+  --text-display-xl--letter-spacing: -0.03em;
+  --text-display-lg: 2.5rem;
+  --text-display-lg--line-height: 2.75rem;
+  --text-display-lg--font-weight: 700;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-md: 1.875rem;
+  --text-display-md--line-height: 2.25rem;
+  --text-display-md--font-weight: 700;
+  --text-display-md--letter-spacing: -0.015em;
+  --text-title-lg: 1.375rem;
+  --text-title-lg--line-height: 1.75rem;
+  --text-title-lg--font-weight: 600;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.5rem;
+  --text-title-md--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--font-weight: 500;
+
+  /* The spec's radius-sm / radius-md / radius-lg (6 / 10 / 16px), under names that don't replace
+     Tailwind's own rounded-sm/md/lg - redefining those would change every existing component at
+     once. rounded-full is Tailwind's already. */
+  --radius-control: 6px; /* badges, chips, inputs, small buttons */
+  --radius-card: 10px; /* cards, popovers, buttons */
+  --radius-overlay: 16px; /* dialogs, sheets, hero media */
+
+  /* Elevation is tone (surface-0..3); this one shadow is for dialogs and popovers only. */
+  --shadow-overlay: 0 12px 32px rgb(0 0 0 / 0.5);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The page frame (spec §3). The header, the footer and every page share one 1440px frame and one
+   gutter (16px; 24px from md; 32px from xl), so the logo and all page content start on the same
+   left edge. page-content spans the frame like page-wide; page-narrow (forms, reading) caps at 672px
+   on that edge, the end padding taking up the difference. In new code use
+   <PageContainer> (components/ui/PageContainer.tsx), which applies these. */
+:root {
+  --page-gutter: 1rem;
+  --page-max-wide: 90rem;
+  --page-max-content: 75rem;
+  --page-max-narrow: 42rem;
+}
+@media (width >= 48rem) {
+  :root {
+    --page-gutter: 1.5rem;
+  }
+}
+@media (width >= 80rem) {
+  :root {
+    --page-gutter: 2rem;
+  }
+}
+@utility page-wide {
+  width: 100%;
+  max-width: var(--page-max-wide);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+/* Same frame as page-wide: content spans the header's width with equal gutters both sides. It used to cap
+   at 1200px pinned to the left edge, which left every page except the race page with a visibly wider
+   right margin than left. */
+@utility page-content {
+  width: 100%;
+  max-width: var(--page-max-wide);
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+@utility page-narrow {
+  width: 100%;
+  max-width: var(--page-max-wide);
+  margin-inline: auto;
+  padding-inline-start: var(--page-gutter);
+  padding-inline-end: max(var(--page-gutter), min(100%, var(--page-max-wide)) - var(--page-gutter) - var(--page-max-narrow));
+}
+
+/* Spacing needs no tokens: the spec's 4px scale is Tailwind's own (p-1 = 4px ... p-16 = 64px).
+   z-index and duration have no Tailwind theme namespace, so they are utilities. They replace
+   z-[90]...z-[400] and nineteen different durations. */
+@utility z-base {
+  z-index: 0;
+}
+@utility z-sticky {
+  z-index: 10;
+}
+@utility z-header {
+  z-index: 20;
+}
+@utility z-popover {
+  z-index: 30;
+}
+@utility z-dialog {
+  z-index: 40;
+}
+@utility z-toast {
+  z-index: 50;
+}
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
+}
+@utility duration-base {
+  transition-duration: var(--duration-base);
+}
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
+}
+/* Every numeric context: times, gaps, points, positions. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+/* The frosted surface for overlays - dialogs, sheets, toasts: this app's own glass, the recipe the
+   sign-in dialog and the profile menu were built on, as one utility. surface-1 at 70% stays dark
+   enough for text contrast even over a bright page behind the scrim; the blur and saturation are
+   what make it read as glass rather than a grey box. */
+@utility surface-glass {
+  background-color: color-mix(in srgb, var(--surface-1) 70%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgb(255 255 255 / 0.12);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* The randomized red-to-blue streaks themselves now live in AmbientBackground.tsx (a real random
-   position/rotation per request needs actual DOM elements, not a fixed set of CSS gradients) —
-   this file only keeps the grain layer, which doesn't need to vary.
+/* The skip link's target. It takes focus only so the next Tab starts inside the content; it isn't
+   a control, so it draws no ring around the whole page. */
+#main:focus {
+  outline: none;
+}
 
-   Fine grain over the whole viewport (feTurbulence, not a raster asset) — subtle enough at this
-   opacity/blend to sit on top of real content without ever hurting legibility or intercepting
-   clicks. */
-body::after {
+/* The document scrolls (audit R-31). The scrollbar's width stays reserved, so a modal that locks
+   scrolling (lib/scrollLock.ts) does not shift the page sideways, and anchor jumps and focus scrolls
+   clear the sticky header (4rem) with a little room to spare.
+
+   The page keeps its soft red-to-blue glow, but fixed: two diagonal light bands painted by one gradient
+   layer behind the content. It used to be four randomly placed blurred elements rebuilt on every request
+   (so no two loads, or screenshots, matched) plus a grain overlay above everything; this is the same look
+   with one static, GPU-friendly layer, no blur filter, nothing over the content, and low enough opacity that
+   text contrast is unaffected. */
+body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: -1;
   pointer-events: none;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background:
+    linear-gradient(118deg, transparent 6%, rgb(225 90 40 / 0.14) 22%, rgb(70 130 220 / 0.07) 35%, transparent 47%),
+    linear-gradient(118deg, transparent 54%, rgb(225 90 40 / 0.07) 67%, rgb(70 130 220 / 0.12) 80%, transparent 92%);
 }
 
-/* Scroll still works (native or Lenis-driven) — this only hides the visible track/thumb, for
+html {
+  scrollbar-gutter: stable;
+  scroll-padding-top: 5rem;
+}
+
+/* Scroll still works — this only hides the visible track/thumb, for
    regions (standings tables, the calendar strip) where a scrollbar is a distraction rather than a
    necessary affordance, the content itself already makes it obvious there's more to scroll to. */
 /* Declared with @utility, not as a plain `.scrollbar-hide` rule, so Tailwind's own variants apply
@@ -139,30 +351,35 @@ body::after {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* A moving-gradient shimmer, not the plain opacity `animate-pulse` the shared Skeleton component
-   uses everywhere else - opt-in via this class (not a change to Skeleton itself, which every other
-   page's loading state also depends on) for Race Analysis' own skeleton, where the request was
-   specifically "a slightly lighter moving gradient," not a flat pulse. Slow (2.2s) and low-contrast
-   (white/6% peak) on purpose - a loading state that competes for attention is the opposite of
-   "subtle." */
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
+/* One skeleton animation (design system spec §9.1): a subtle opacity pulse on a 1.6s cycle, static
+   under reduced motion - the same as the Skeleton primitive's. .skeleton-shimmer is the older
+   skeletons' class; it now draws that same pulse and fill, so every loading state on the site
+   moves the same way until the older ones are replaced by <Skeleton>. */
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
   }
 }
 .skeleton-shimmer {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 2.2s ease-in-out infinite;
+  background: color-mix(in oklab, var(--text-primary) 10%, transparent);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer {
     animation: none;
-    background-position: 0 0;
   }
+}
+
+/* A loading state waits 300ms before it shows (spec §9.1), so a fast load never flashes a skeleton.
+   Not motion - the content just appears once - so it applies under reduced motion too. */
+@keyframes skeleton-appear {
+  to {
+    opacity: 1;
+  }
+}
+@utility skeleton-delay {
+  opacity: 0;
+  animation: skeleton-appear 0s 300ms forwards;
 }
 
 /* Subtle thin scrollbar for internal panel scrolling */
@@ -184,3 +401,210 @@ body::after {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
+
+/* Frosted surfaces (the home page). Inside [data-surface="frosted"] the opaque data surfaces become glass:
+   translucent carbon, a blur of whatever is behind (the race photo, the glow), and a hairline edge, as the
+   home has always looked. Text contrast holds: the blur and the 40% carbon keep the backdrop well below
+   the text. Opaque everywhere else; reduced transparency gets the solid surfaces back. */
+[data-surface="frosted"] .bg-surface-1:not(td):not(th) {
+  background-color: rgb(22 22 26 / 0.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+[data-surface="frosted"] .bg-surface-2,
+[data-surface="frosted"] .hover\:bg-surface-2:hover,
+[data-surface="frosted"] .hover\:bg-surface-1:hover {
+  background-color: rgb(255 255 255 / 0.06);
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-surface="frosted"] .bg-surface-1:not(td):not(th) {
+    background-color: var(--surface-1);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------- motion (home) ---
+   The home's sense of being alive: sections that rise in as they scroll into view, the start lights, the
+   standings ticker, cards that tilt toward the cursor, a slow drift on the race photo. Every one switches off
+   under prefers-reduced-motion, and nothing above the fold ever starts hidden (Reveal only hides what it
+   finds below the fold on mount). */
+[data-reveal="pending"] {
+  opacity: 0;
+  transform: translateY(28px);
+}
+[data-reveal="in"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 700ms var(--ease-standard),
+    transform 700ms var(--ease-standard);
+}
+
+/* F1 start lights: five pods light left to right, then all go out together. */
+.start-light {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  transition:
+    background-color 120ms linear,
+    box-shadow 120ms linear;
+}
+.start-light[data-on="true"] {
+  background: #ff1e1e;
+  box-shadow:
+    0 0 10px 2px rgb(255 30 30 / 0.65),
+    0 0 26px 6px rgb(255 30 30 / 0.25);
+}
+
+/* The standings ticker: two copies of the list slide by one width, so the loop is seamless. */
+@keyframes ticker-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-track {
+  animation: ticker-slide 48s linear infinite;
+}
+.ticker-bleed {
+  margin-inline: calc(var(--page-gutter) * -1);
+}
+.ticker-fade {
+  background: linear-gradient(to right, var(--background), transparent);
+}
+.ticker-fade-end {
+  background: linear-gradient(to left, var(--background), transparent);
+}
+.ticker:hover .ticker-track,
+.ticker:focus-within .ticker-track {
+  animation-play-state: paused;
+}
+
+/* Tilt toward the cursor, with a glow in the team's colour (--tilt-x/--tilt-y/--glow set by useTilt). */
+.tilt {
+  transform: perspective(900px) rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg)) translateZ(0);
+  transition: transform 300ms var(--ease-standard);
+  will-change: transform;
+}
+.tilt:hover {
+  transition: transform 80ms linear;
+  box-shadow: 0 18px 40px -18px var(--glow, rgb(0 0 0 / 0.6));
+}
+
+/* The race photo drifts slowly, so the hero never feels like a still. */
+@keyframes backdrop-drift {
+  from {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.12) translate3d(-1.5%, -1%, 0);
+  }
+}
+.backdrop-drift {
+  animation: backdrop-drift 26s ease-in-out infinite alternate;
+}
+
+/* A blinking caret while Apex types. */
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.type-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: caret-blink 900ms steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal="pending"] {
+    opacity: 1;
+    transform: none;
+  }
+  .ticker-track,
+  .backdrop-drift,
+  .type-caret {
+    animation: none;
+  }
+  .tilt,
+  .tilt:hover {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* The sign-in dialog's scene (AuthDialog FormulaScene): the track draws in, the centre line streams, the car
+   runs the lap (SVG animateMotion), the glow breathes and each tagline rises in. */
+@keyframes auth-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.auth-track {
+  stroke-dasharray: 1;
+  animation: auth-draw 1.6s var(--ease-standard) both;
+}
+@keyframes auth-stream {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+.auth-lane {
+  animation: auth-stream 0.9s linear infinite;
+}
+@keyframes auth-breathe {
+  50% {
+    opacity: 0.9;
+  }
+}
+.auth-scene-glow {
+  opacity: 0.5;
+  background: radial-gradient(60% 45% at 70% 85%, rgb(225 6 0 / 0.22), transparent 70%);
+  animation: auth-breathe 4s ease-in-out infinite;
+}
+@keyframes auth-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.auth-line {
+  animation: auth-line-in 500ms var(--ease-standard) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-track,
+  .auth-lane,
+  .auth-scene-glow,
+  .auth-line {
+    animation: none;
+  }
+  .auth-car {
+    display: none;
+  }
+}
+
+/* The season's progress line sweeps in from the left when the page opens. */
+@keyframes progress-sweep {
+  from {
+    transform: scaleX(0);
+  }
+}
+.progress-sweep {
+  transform-origin: left;
+  animation: progress-sweep 1.4s var(--ease-standard) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-sweep {
+    animation: none;
+  }
+}

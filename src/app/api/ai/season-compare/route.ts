@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     const cached = await getCachedIntelligence<CachedCompare>(key, requestId);
     if (cached) return NextResponse.json(present(cached));
 
-    const guard = guardAIExecution(userId);
+    const guard = await guardAIExecution(userId, req);
     if (!guard.allowed) {
       // Built from the canonical pair then mirrored, exactly like a cached value - so the
       // rate-limited path can't become a second place where direction is handled differently.

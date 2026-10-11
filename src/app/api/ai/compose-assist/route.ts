@@ -39,8 +39,13 @@ const SYSTEM_PROMPT = [
   "If the draft is already good, return it essentially unchanged.",
 ].join(" ");
 
+/** The rewrite has to be ready by maxDuration less time to answer, so a slow provider chain still
+ * ends in this route's own error, not a killed function (audit AI-07). */
+const AI_DEADLINE_MS = (maxDuration - 6) * 1000;
+
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const deadlineAt = Date.now() + AI_DEADLINE_MS;
 
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -55,7 +60,7 @@ export async function POST(req: Request) {
 
   // The same per-user rate limiting every other AI surface in this app goes through - a composer
   // button is the easiest place in the product to hold down.
-  const guard = guardAIExecution(session.uid);
+  const guard = await guardAIExecution(session.uid, req);
   if (!guard.allowed) return NextResponse.json({ error: "Too many requests - give it a moment." }, { status: 429 });
 
   const draft = sanitizePromptInput(rawText, MAX_DRAFT_CHARS);
@@ -67,12 +72,17 @@ export async function POST(req: Request) {
         { role: "user", content: `Instruction: ${ACTIONS[action]}\n\nDraft:\n${draft}` },
       ],
       null,
-      { maxTokens: 700, temperature: 0.4 },
+      // 1500 (was 700) with low reasoning effort: gpt-oss spends part of the budget reasoning before
+      // it writes, and a rewrite can be as long as the draft (audit AI-06).
+      { maxTokens: 1500, temperature: 0.4, reasoningEffort: "low", deadlineAt },
       requestId,
     );
 
     const suggestion = (result.response.content ?? "").trim().replace(/^```[a-z]*\n?|\n?```$/g, "");
-    if (!suggestion) return NextResponse.json({ error: "Apex couldn't rewrite that." }, { status: 502 });
+    if (!suggestion) logAIError(requestId, "compose_assist_empty_response", `finish_reason=${result.response.finishReason}`);
+    // A rewrite cut off part-way would silently drop the end of the user's draft: not offered.
+    if (result.response.finishReason === "length") logAIError(requestId, "compose_assist_truncated_response", `${suggestion.length} chars`);
+    if (!suggestion || result.response.finishReason === "length") return NextResponse.json({ error: "Apex couldn't rewrite that." }, { status: 502 });
 
     return NextResponse.json({ suggestion });
   } catch (err) {

@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Trophy } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { LeaderboardRow } from "@/lib/supabase/groups";
 
 /** Rank 1-3 only - a genuine podium tone (real motorsport convention, not a random three colors),
@@ -22,9 +23,7 @@ const PODIUM_TONE: Record<number, string> = { 1: "text-[#e8c866]", 2: "text-neut
  * table lists the same kind of entity and had been the one place in Communities that didn't. */
 export function GroupLeaderboardTab({ rows, myUserId }: { rows: LeaderboardRow[]; myUserId: string }) {
   if (rows.length === 0) {
-    return (
-      <EmptyState icon={EmptyIcons.trophy} title="No scored races yet." description="Scores land here once a race a member picked finishes." />
-    );
+    return <EmptyState icon={Trophy} message="No scored races yet: scores land here once a race a member picked finishes." />;
   }
 
   return (
@@ -39,14 +38,14 @@ export function GroupLeaderboardTab({ rows, myUserId }: { rows: LeaderboardRow[]
             className={`flex items-center justify-between rounded-xl border px-4 py-3 ${isMe ? "border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.06]" : "border-[var(--f1-line)] bg-[var(--f1-carbon)]/60"}`}
           >
             <div className="flex min-w-0 items-center gap-3">
-              <span className={`w-5 shrink-0 text-right font-mono text-sm font-bold tabular-nums ${PODIUM_TONE[row.rank] ?? "text-neutral-500"}`}>{row.rank}</span>
+              <span className={`w-5 shrink-0 text-right font-mono text-sm font-bold tabular-nums ${PODIUM_TONE[row.rank] ?? "text-tertiary"}`}>{row.rank}</span>
               <EntityAvatar imageUrl={null} name={name} size={30} />
               <span className={`min-w-0 truncate font-medium ${isMe ? "text-white" : "text-neutral-200"}`}>{name}</span>
-              {isMe && <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-[var(--f1-red)]">You</span>}
+              {isMe && <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-brand-text">You</span>}
             </div>
             <div className="shrink-0 text-right">
               <p className="font-mono font-semibold text-white">{row.totalScore} pts</p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-tertiary">
                 {row.racesScored} race{row.racesScored === 1 ? "" : "s"}
               </p>
             </div>

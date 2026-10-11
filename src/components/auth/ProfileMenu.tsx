@@ -2,17 +2,19 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { Bell, LogOut, Pencil, SlidersHorizontal, Star } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useProductTour } from "@/components/onboarding/ProductTour";
-import { StarIcon, SlidersIcon, BellIcon, PencilIcon, LogOutIcon } from "@/components/icons/HomeIcons";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
+import { Icon } from "@/components/ui/Icon";
 
 const ITEMS = [
-  { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersIcon },
-  { href: "/profile/notifications", label: "Notifications", icon: BellIcon },
-  { href: "/profile/edit", label: "Edit profile", icon: PencilIcon },
+  { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersHorizontal },
+  { href: "/profile/notifications", label: "Notifications", icon: Bell },
+  { href: "/profile/edit", label: "Edit profile", icon: Pencil },
 ];
 
 // The panel's actual frosted look - a real translucent dark glass (~50% tint, not glass-surface's
@@ -36,6 +38,13 @@ export function ProfileMenu() {
   const [rect, setRect] = useState<Rect | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  // The panel is portalled to the end of <body>, so without this Tab from the button would skip it
+  // entirely (audit UI-30). The trap moves focus to the first item on open, keeps Tab inside, closes
+  // on Escape and returns focus to the button. No scroll lock: it's a menu, not a modal.
+  const close = useCallback(() => setOpen(false), []);
+  useModalFocusTrap(dropdownRef, open, close, { lockScroll: false });
 
   // Portaled to document.body below (see the dropdown itself) - the header this button lives in
   // has its own backdrop-blur, and Chromium/WebKit scope a descendant's backdrop-filter sampling
@@ -44,7 +53,7 @@ export function ProfileMenu() {
   // overlaps below the header's bottom edge - confirmed live (screenshot showed the dropdown's
   // background fully sharp, not frosted, despite computed style correctly reporting
   // backdrop-filter: blur(24px)). Portaling escapes that root entirely, the same fix
-  // SearchableSelect/ArchiveSeasonGrid already use for their own floating panels, just for a
+  // EntityMultiSelect/ArchiveSeasonGrid already use for their own floating panels, just for a
   // different underlying reason there (scroll-clipping, not backdrop-filter scoping).
   function updatePosition() {
     const el = rootRef.current;
@@ -89,26 +98,32 @@ export function ProfileMenu() {
 
   return (
     <div ref={rootRef} className="relative">
+      {/* Named by what it shows (the name and points) plus "account menu", so the accessible name
+          contains the visible label (WCAG 2.5.3) rather than replacing it. */}
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Profile menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5 text-sm text-neutral-200 transition hover:border-white/20 hover:bg-white/5"
+        aria-controls={open ? panelId : undefined}
+        className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5 text-sm text-neutral-200 transition hover:border-white/20 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         {user.photoURL ? (
           <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
         ) : (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
+          <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
             {name.charAt(0).toUpperCase()}
           </span>
         )}
-        <span className="max-w-[9rem] truncate font-medium text-white">{name}</span>
+        {/* Visually hidden below 400px so the pill fits a 320px header beside the logo and the menu button; the
+            name stays in the button's accessible name. */}
+        <span className="sr-only min-[400px]:not-sr-only min-[400px]:max-w-[9rem] min-[400px]:truncate font-medium text-white">{name}</span>
         {pointsBalance !== null && (
           <span className="flex items-center gap-1 border-l border-white/10 pl-2 text-xs font-semibold text-neutral-300">
-            <StarIcon className="h-3 w-3 text-neutral-500" />
+            <Icon icon={Star} size={16} className="text-tertiary" />
             <span className="font-mono">{pointsBalance}</span> pts
           </span>
         )}
+        <span className="sr-only">, account menu</span>
       </button>
 
       {rect &&
@@ -118,6 +133,7 @@ export function ProfileMenu() {
               <motion.div
                 key="profile-menu"
                 ref={dropdownRef}
+                id={panelId}
                 initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -142,15 +158,15 @@ export function ProfileMenu() {
                     }}
                   />
                   <div className="relative overflow-hidden rounded-xl">
-                    <nav className="p-1.5">
+                    <nav aria-label="Account" className="p-1.5">
                       {ITEMS.map((item) => (
                         <Link
                           key={item.href}
                           href={item.href}
                           onClick={() => setOpen(false)}
-                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                         >
-                          <item.icon className="h-4 w-4 shrink-0 text-neutral-500" />
+                          <Icon icon={item.icon} size={16} className="text-tertiary" />
                           {item.label}
                         </Link>
                       ))}
@@ -159,26 +175,28 @@ export function ProfileMenu() {
                       {/* Replays the product tour from step 1. Clears only the onboarding stamp -
                           communities, predictions and preferences are untouched. */}
                       <button
+                        type="button"
                         onClick={() => {
                           setOpen(false);
                           void fetch("/api/users/onboarding", { method: "DELETE" }).catch(() => {});
                           startTour();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
-                        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-neutral-500">
+                        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-tertiary">
                           ✦
                         </span>
                         Replay F1 Hub tour
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setOpen(false);
                           void signOut();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white"
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
-                        <LogOutIcon className="h-4 w-4 shrink-0 text-neutral-500" />
+                        <Icon icon={LogOut} size={16} className="text-tertiary" />
                         Log out
                       </button>
                     </div>

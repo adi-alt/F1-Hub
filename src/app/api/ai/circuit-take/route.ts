@@ -16,7 +16,7 @@ import { buildCircuitTakeCacheKey, computeDataVersion, getCachedIntelligence, se
 import { buildCircuitContext, formatCircuitContext } from "@/lib/ai/context/circuitContext";
 import { CIRCUIT_TAKE_PROMPT_VERSION } from "@/lib/ai/prompts/circuitTakePrompt";
 import { generateCircuitTakeFallback } from "@/lib/ai/fallback";
-import { getCircuitDetailData } from "@/app/circuits/services/circuits.service";
+import { getCircuitDetailData, getCircuitTakeExtras } from "@/app/circuits/services/circuits.service";
 import { raceTitle } from "@/lib/format";
 import type { AgentContext } from "@/lib/ai/types";
 import type { SharedCircuitIntelligence, IntelligenceSource } from "@/lib/ai/schemas/seasonIntelligence";
@@ -53,14 +53,15 @@ export async function POST(req: Request) {
     const country = data.currentSeasonRace?.country ?? data.archiveRaces[0]?.country ?? null;
     const displayName = data.facts?.venueName ?? raceTitle(location);
 
-    const context = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline);
+    const extras = await getCircuitTakeExtras(data, userId);
+    const context = buildCircuitContext(location, displayName, grandPrixName, country, year, data.facts, data.currentSeasonRace, data.timeline, null, extras);
     const contextHash = computeDataVersion([formatCircuitContext(context)]);
     const cacheKey = buildCircuitTakeCacheKey(location, year, context.state, contextHash, CACHE_VERSION);
 
     const cached = await getCachedIntelligence<Envelope>(cacheKey, requestId);
     if (cached) return NextResponse.json(cached);
 
-    const guard = guardAIExecution(userId);
+    const guard = await guardAIExecution(userId, req);
     if (!guard.allowed) {
       return NextResponse.json({ content: generateCircuitTakeFallback(context), source: "fallback", generatedAt: new Date().toISOString(), location } satisfies Envelope);
     }

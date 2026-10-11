@@ -21,29 +21,24 @@ import { refreshOnce } from "@/lib/refreshGuard";
  * CalendarRealtimeWatcher/MediaRealtimeWatcher/FavoritesRealtimeWatcher, and centralizes what
  * useUsersRealtimeSync used to open as its own separate channel. Renders nothing.
  *
- * Owns the app's two always-on channels (see channels.ts): GLOBAL (races/calendar/drivers/teams —
- * public, no auth needed, mounted regardless of sign-in state) and USER (per-uid `profiles`, only
+ * Owns the app's two always-on channels (see channels.ts): GLOBAL (`data_version` — public, no
+ * auth needed, mounted regardless of sign-in state) and USER (per-uid `profiles`, only
  * while signed in). Every table's actual sync strategy is documented in syncPolicy.ts, not decided
- * here — races/calendar/drivers/teams all resolve to "refresh" (their consumers are server-only
- * derived computations — standings, battles, progression — that can't safely be patched into a
- * client cache), `profiles` resolves to "invalidate" against the two query-cache resources that
- * actually exist for it (Favorites, Users).
+ * here — data_version resolves to "refresh" (its consumers are server-only derived computations —
+ * standings, battles, progression — that can't safely be patched into a client cache), `profiles`
+ * resolves to "invalidate" against the two query-cache resources that actually exist for it
+ * (Favorites, Users).
  */
 export function AppRealtimeSync() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, role, refreshPointsBalance } = useAuth();
 
-  // One handler for all 4 GLOBAL listeners — they share the same "refresh" strategy, so there's
-  // no reason for four separate router.refresh() call sites. Registering the same function
-  // reference as onResync from every call below is intentional, not redundant: RealtimeManager
-  // dedupes resync callbacks by reference (a Set), and reconnects across GLOBAL/USER already
-  // coalesce into one resync pass regardless (see RealtimeManager's debounce).
-  const refreshOnGlobalChange = () => router.refresh();
+  // The pipeline bumps `data_version` after it has busted the server cache, so a refresh here always
+  // renders the new data. Through refreshOnce so a burst (several tags bumped in one run) is one
+  // refresh, and so a reconnect's resync doesn't stack on top of an event that just refreshed.
+  const refreshOnGlobalChange = () => refreshOnce(router);
   useRealtimeSubscription(GLOBAL_CHANNEL_KEY, GLOBAL_LISTENERS, GLOBAL_LISTENERS[0], refreshOnGlobalChange, refreshOnGlobalChange);
-  useRealtimeSubscription(GLOBAL_CHANNEL_KEY, GLOBAL_LISTENERS, GLOBAL_LISTENERS[1], refreshOnGlobalChange, refreshOnGlobalChange);
-  useRealtimeSubscription(GLOBAL_CHANNEL_KEY, GLOBAL_LISTENERS, GLOBAL_LISTENERS[2], refreshOnGlobalChange, refreshOnGlobalChange);
-  useRealtimeSubscription(GLOBAL_CHANNEL_KEY, GLOBAL_LISTENERS, GLOBAL_LISTENERS[3], refreshOnGlobalChange, refreshOnGlobalChange);
 
   // USER channel — two listeners, only ever both active for an admin (see channels.ts). uid falls
   // back to "" when signed out purely so the hook always receives a string; `enabled: false` is

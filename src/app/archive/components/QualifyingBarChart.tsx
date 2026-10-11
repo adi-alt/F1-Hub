@@ -27,15 +27,15 @@ function QualifyingTooltip({ active, payload }: TooltipContentProps) {
       style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
     >
       <p className="text-sm font-semibold text-white">{d.driverName}</p>
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Qualifying position</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Qualifying position</p>
       <p className="font-mono text-sm text-white">P{d.position}</p>
       {d.time && (
         <>
-          <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Lap time</p>
+          <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Lap time</p>
           <p className="font-mono text-sm text-white">{d.time}</p>
         </>
       )}
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-neutral-500">Gap to pole</p>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Gap to pole</p>
       <p className="font-mono text-sm text-white">{d.gap === 0 ? "Pole" : `+${d.gap.toFixed(3)}s`}</p>
     </div>
   );
@@ -107,7 +107,7 @@ export function QualifyingBarChart({ qualifying, driverSet, customIds }: { quali
     [computed, driverSet, customIds],
   );
 
-  if (!computed) return <p className="text-sm text-neutral-500">No qualifying times recorded.</p>;
+  if (!computed) return <p className="text-sm text-tertiary">No qualifying times recorded.</p>;
   const { allData, closestGap } = computed;
 
   /** Bar geometry animates in once (width 0 -> real value, staggered per driver). A closure
@@ -153,10 +153,10 @@ export function QualifyingBarChart({ qualifying, driverSet, customIds }: { quali
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
+      <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-tertiary">
         <span>
           <span className="font-medium text-white">{allData[0].driverName}</span> on pole
-          {allData[0].time && <span className="text-neutral-600"> · {allData[0].time}</span>}
+          {allData[0].time && <span className="text-tertiary"> · {allData[0].time}</span>}
         </span>
         {allData[1] && (
           <span>

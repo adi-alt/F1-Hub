@@ -19,7 +19,7 @@ export function ArchiveDriverRelationships({ drivers, maxHeightPx = 320 }: { dri
     <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
       <div className="overflow-y-auto" style={{ maxHeight: maxHeightPx }}>
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md" style={HEADER_STYLE}>
+          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
             <tr>
               <th className="px-3 py-2.5 font-semibold">Driver</th>
               <th className="px-3 py-2.5 text-right font-semibold">Races</th>

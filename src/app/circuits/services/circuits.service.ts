@@ -28,10 +28,24 @@ import type { RaceDoc } from "@/lib/types/race";
 import { slugifyRaceName, archiveDriverHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
+import { chooseLayout, circuitEras, latestLayout, layoutToDrawing, seasonLabel, type CircuitDrawing, type CircuitLayout } from "@/lib/circuitLayout";
+import { getCircuitLayouts, getRaceLayout } from "@/lib/supabase/circuitLayouts";
+import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
+import { replayFor, type ReplayEntry } from "@/lib/replayManifest";
+import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitExtras } from "@/lib/ai/context/circuitContext";
 
 export type CircuitExplorerEntry = {
   race: RaceSummary;
   facts: CircuitFacts | null;
+  /** The circuit as raced this season, from the track library - null when the library has nothing for it. */
+  drawing: CircuitDrawing | null;
+  /** This round's traced track story (lead changes), for its storyline - completed rounds only. */
+  story: RaceTrackStory | null;
+  /** Whether this round has a replay (its circuit page plays it). */
+  hasReplay: boolean;
+  /** Days from now to race day (negative once past), for the storyline of a round still to come. */
+  daysToGo: number | null;
 };
 
 export type CircuitExplorerData = {
@@ -46,11 +60,27 @@ export type CircuitExplorerData = {
  * facts this app has for that physical venue. This is the ONLY thing the Circuits homepage reads -
  * it never recomputes season status on its own. */
 export async function getCircuitsExplorerData(year: number, uid: string): Promise<CircuitExplorerData> {
-  const season = await getSeasonPageData(year, uid);
-  const entries: CircuitExplorerEntry[] = season.raceSummaries.map((race) => ({
-    race,
-    facts: getCircuitFacts(race.circuit ?? ""),
-  }));
+  const [season, allCircuits] = await Promise.all([getSeasonPageData(year, uid), getAllArchiveCircuits()]);
+  const localities = new Map(allCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
+  const entries: CircuitExplorerEntry[] = await Promise.all(
+    season.raceSummaries.map(async (race) => {
+      const archiveId = race.circuit ? resolveCurrentCircuitToArchiveId(race.circuit, localities) : null;
+      const [found, story] = await Promise.all([
+        getRaceLayout({ circuitId: archiveId, circuitName: race.circuit ?? null, year, raceName: race.name }),
+        race.state === "completed" ? getRaceTrackStoryByRound(year, race.round) : Promise.resolve(null),
+      ]);
+      // A round still to come has no layout covering it yet: its circuit as last raced stands in.
+      const layout = found ?? (race.state === "completed" ? null : latestLayout(await getCircuitLayouts({ circuitId: archiveId, circuitName: race.circuit ?? null }), year));
+      return {
+        race,
+        facts: getCircuitFacts(race.circuit ?? ""),
+        drawing: layout ? layoutToDrawing(layout) : null,
+        story,
+        hasReplay: race.state === "completed" && replayFor(year, race.round) !== null,
+        daysToGo: race.raceDate ? Math.round((new Date(`${race.raceDate.slice(0, 10)}T12:00:00Z`).getTime() - Date.now()) / 86_400_000) : null,
+      };
+    }),
+  );
   const nextRound = season.raceSummaries.find((r) => r.state === "next")?.round ?? null;
   return {
     year,
@@ -152,6 +182,16 @@ export type CircuitDetailData = {
    * own lookup only if it actually needs one. */
   currentDrivers: CurrentDriver[];
   currentTeams: CurrentTeam[];
+  /** Every era of this circuit, oldest first, each as a ready drawing (drawn history plus measured layouts). */
+  eras: { layout: CircuitLayout; drawing: CircuitDrawing }[];
+  /** The traced story of `raceForSimulation` (where its lead changes happened), when it has one. */
+  trackStory: RaceTrackStory | null;
+  /** The layout `raceForSimulation` was run on, for its circuit view when it has no traced story. */
+  raceLayout: CircuitLayout | null;
+  /** The replay of this season's race here - only the current season's races have one. */
+  replay: ReplayEntry | null;
+  /** Days from now to this season's race here (negative once past), null without a date. */
+  daysToGo: number | null;
 };
 
 /** `location` is the exact string this app already routes circuits by (circuitHref's own query
@@ -179,8 +219,16 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
 
   const timeline = buildCircuitTimeline(liveRaces, archiveRaces);
   const raceForSimulation = [...liveRaces].filter((r) => r.status === "completed" && !!r.results?.length).sort((a, b) => b.year - a.year)[0] ?? null;
-  const raceLaps = raceForSimulation ? await getRaceLaps(raceForSimulation.year, raceForSimulation.round) : [];
-  const winnerMedia = await buildWinnerMedia(timeline);
+  const [raceLaps, winnerMedia, layouts, trackStory] = await Promise.all([
+    raceForSimulation ? getRaceLaps(raceForSimulation.year, raceForSimulation.round) : Promise.resolve([]),
+    buildWinnerMedia(timeline),
+    getCircuitLayouts({ circuitId: archiveId, circuitName: location }),
+    raceForSimulation ? getRaceTrackStory(raceForSimulation.id) : Promise.resolve(null),
+  ]);
+  const eras = circuitEras(layouts).map((layout) => ({ layout, drawing: layoutToDrawing(layout) }));
+  const raceLayout = raceForSimulation ? chooseLayout(layouts, raceForSimulation.year, raceForSimulation.name) : null;
+  // Replays are for the current season's races only (older seasons' are retired at the season changeover).
+  const replay = raceForSimulation && raceForSimulation.year === year ? replayFor(raceForSimulation.year, raceForSimulation.round) : null;
 
   return {
     year,
@@ -195,6 +243,11 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
     winnerMedia,
     currentDrivers,
     currentTeams,
+    eras,
+    trackStory,
+    raceLayout,
+    replay,
+    daysToGo: currentSeasonRace?.raceDate ? Math.round((new Date(`${currentSeasonRace.raceDate.slice(0, 10)}T12:00:00Z`).getTime() - Date.now()) / 86_400_000) : null,
   };
 }
 
@@ -311,4 +364,43 @@ export async function getCircuitInsightsData(location: string, year: number, uid
  * full timeline/archive payload. */
 export function circuitAvgFieldMovement(timeline: CircuitYearRecord[]): number | null {
   return computeRaceTrends(timeline).avgFieldMovement;
+}
+
+/** The circuit take's extras (see CircuitExtras): this season's form for a round still to come, the layout history,
+ * and where the lead changed hands in this season's race here. Built from what getCircuitDetailData already loaded,
+ * plus the season's standings (cached). */
+export async function getCircuitTakeExtras(data: CircuitDetailData, uid: string): Promise<CircuitExtras> {
+  const { year, currentSeasonRace, raceForSimulation, trackStory, eras } = data;
+  const layouts = eras.filter((e) => !e.layout.raceNameMatch).map((e) => seasonLabel(e.layout.seasons));
+
+  let form: CircuitExtras["form"] = null;
+  if (currentSeasonRace && currentSeasonRace.state !== "completed") {
+    const season = await getSeasonPageData(year, uid);
+    form = {
+      leaders: season.drivers.slice(0, 3).map((d) => ({ name: d.driverName, team: d.team, points: d.points, wins: d.wins })),
+      recentWinners: season.raceSummaries
+        .filter((r) => r.state === "completed" && r.winnerName)
+        .slice(-3)
+        .map((r) => `${r.name}: ${r.winnerName}`),
+    };
+  }
+
+  let leadChanges: CircuitExtras["leadChanges"] = null;
+  if (trackStory && raceForSimulation && raceForSimulation.year === year) {
+    const name = (code: string) => raceForSimulation.results?.find((r) => r.driver === code)?.driverName ?? code;
+    const changes = trackStory.leadChanges;
+    const last = [...changes].reverse().find((c) => c.kind === "pass");
+    leadChanges = {
+      lastPass: last && last.kind === "pass" ? { lap: last.lap, by: name(last.to), from: name(last.from), near: last.near } : null,
+      total: changes.length,
+      onTrack: changes.filter((c) => c.kind === "pass").length,
+      inPits: changes.filter((c) => c.kind === "pit").length,
+      lines: changes.map((c) =>
+        c.kind === "pass"
+          ? `from lap ${c.lap}, ${name(c.to)} leads (passed ${name(c.from)} on track${c.near ? `, ${c.near}` : ""})`
+          : `from lap ${c.lap}, ${name(c.to)} leads (${name(c.from)} lost the lead in the pit stops)`,
+      ),
+    };
+  }
+  return { form, layouts, leadChanges };
 }

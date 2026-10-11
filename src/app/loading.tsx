@@ -1,9 +1,13 @@
-import { PublicHomeSkeleton } from "@/components/home/PublicHome";
+import { PersonalHomeOutline } from "@/components/home/personal/PersonalSections";
 
-// The route-level fallback while page.tsx's own server data is still resolving — shown before
-// we know the visitor's auth state at all, so it uses the public shape (the safer, leaner
-// default) rather than guessing personalized geometry. HomeShell takes over with the correct
-// state-specific skeleton (or real content) the moment the server response arrives.
-export default function HomeLoading() {
-  return <PublicHomeSkeleton />;
+// The home page's loading state. Every other route has its own loading.tsx, so this is effectively the home's
+// (audit CR-26): the hero first, as both the signed-in home and the landing page open with it, then the
+// signed-in sections in their real places, on the same frame and padding as the page (HomeLayout's
+// page-content, py-10), so nothing jumps when the page arrives.
+export default function Loading() {
+  return (
+    <div className="page-content py-10">
+      <PersonalHomeOutline />
+    </div>
+  );
 }

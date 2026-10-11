@@ -99,12 +99,12 @@ export function CompareIntelligence({ season, entityType, entityA, entityB, aNam
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           <SeasonInsight eyebrow="Apex comparison" headline={insight.headline} summary={insight.summary} />
-          <div className="-mt-3 mb-5 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-1 text-[11px] text-neutral-500 sm:grid-cols-2">
+          <div className="-mt-3 mb-5 grid max-w-2xl grid-cols-1 gap-x-8 gap-y-1 text-[11px] text-tertiary sm:grid-cols-2">
             <p className="truncate">
-              <span className="text-neutral-600">{aName}:</span> {insight.keyAdvantageA}
+              <span className="text-tertiary">{aName}:</span> {insight.keyAdvantageA}
             </p>
             <p className="truncate">
-              <span className="text-neutral-600">{bName}:</span> {insight.keyAdvantageB}
+              <span className="text-tertiary">{bName}:</span> {insight.keyAdvantageB}
             </p>
           </div>
         </motion.div>

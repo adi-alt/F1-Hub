@@ -6,7 +6,6 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
-import { useNestedLenisScroll } from "@/components/motion/useLenisContainer";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
 import { buildPredictionReview, type DriverStandingRow, type RaceSummary, type RaceWeekendStatus } from "../../_service/season.pure";
 import { buildRaceInsights } from "../../_service/seasonAnalytics";
@@ -15,6 +14,7 @@ import { RaceTimeline } from "./RaceTimeline";
 import { RaceWeather } from "./RaceWeather";
 import { RacePredictionReview } from "./RacePredictionReview";
 import { RaceApexTake } from "./RaceApexTake";
+import { lockDocumentScroll } from "@/lib/scrollLock";
 
 const STATUS_LABEL: Record<RaceWeekendStatus, string> = {
   upcoming: "Upcoming",
@@ -52,7 +52,6 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
   // use - without it this region scrolls with the browser's plain (non-Lenis) wheel behaviour
   // while everything else on the page glides. Keyed by round so switching rounds re-measures
   // against the new content's real height rather than the previous round's.
-  const bodyScrollRef = useNestedLenisScroll(openRaceRound);
 
   // document.body doesn't exist during SSR, so the portal is gated on a real client commit rather
   // than a typeof window check inside render.
@@ -102,12 +101,8 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
     if (!isOpen) return;
     document.addEventListener("keydown", onKeyDown, true);
 
-    // The page behind a modal must not scroll under it. It is NOT the document body that scrolls
-    // in this app (the root layout makes body overflow-hidden and SmoothScroll owns a scrolling
-    // div inside it), so freezing body overflow here would do nothing at all.
-    const scroller = document.querySelector<HTMLElement>("[data-app-scroll]");
-    const previousOverflow = scroller?.style.overflow ?? "";
-    if (scroller) scroller.style.overflow = "hidden";
+    // The page behind a modal must not scroll under it.
+    const unlockScroll = lockDocumentScroll();
 
     // Move focus into the dialog on open, so a keyboard user isn't left behind on the page.
     const timer = window.setTimeout(() => {
@@ -116,7 +111,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
 
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
-      if (scroller) scroller.style.overflow = previousOverflow;
+      unlockScroll();
       window.clearTimeout(timer);
     };
   }, [isOpen, onKeyDown]);
@@ -158,14 +153,14 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
 
             <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-4 pt-3 sm:px-7 sm:pt-5">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">
                   Round {race.round}
                   {race.isSprintWeekend && <span className="ml-2 text-[#eab308]">Sprint weekend</span>}
                 </p>
                 <h2 id={titleId} className="mt-1 truncate text-lg font-semibold tracking-[-0.01em] text-white sm:text-2xl">
                   {race.name}
                 </h2>
-                <p className="mt-0.5 truncate text-[11px] text-neutral-500">
+                <p className="mt-0.5 truncate text-[11px] text-tertiary">
                   {[race.circuit, race.country].filter(Boolean).join(", ") || "Circuit to be confirmed"}
                   {race.raceDate && ` · ${parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`}
                 </p>
@@ -184,7 +179,7 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
               </button>
             </header>
 
-            <div ref={bodyScrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
               <RaceQuickViewBody season={season} race={race} drivers={drivers} />
             </div>
 
@@ -222,7 +217,7 @@ function RaceQuickViewBody({ season, race, drivers }: { season: number; race: Ra
         <StatusPill status={race.weekendStatus} />
       </div>
 
-      <RaceMedia photoUrls={race.photoUrls} circuitPhotoUrls={race.circuitPhotoUrls} raceName={race.name} circuit={race.circuit} />
+      <RaceMedia photoUrls={race.photoUrls} circuitTrackMap={race.circuitTrackMap} raceName={race.name} circuit={race.circuit} />
 
       {isOff ? (
         <p className="max-w-2xl text-sm leading-relaxed text-neutral-400">
@@ -243,7 +238,7 @@ function RaceQuickViewBody({ season, race, drivers }: { season: number; race: Ra
       )}
 
       <section>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Weekend timeline</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Weekend timeline</p>
         <div className="mt-4">
           <RaceTimeline sessions={race.sessions} />
         </div>
@@ -263,7 +258,7 @@ function QuickInsights({ insights }: { insights: { text: string; tone: "neutral"
   };
   return (
     <section>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Quick insights</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Quick insights</p>
       <ul className="mt-2.5 space-y-1.5">
         {insights.map((insight) => (
           <li key={insight.text} className="flex items-baseline gap-2.5 text-sm leading-relaxed text-neutral-300">
@@ -284,7 +279,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
 
   return (
     <section>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">
         {race.weekendStatus === "live" ? "Weekend progress" : "Event"}
       </p>
       <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-3">
@@ -294,7 +289,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
         {race.circuit && <Fact label="Circuit" value={race.circuit} />}
       </dl>
       {race.predicted && race.predicted.winner && (
-        <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
+        <p className="mt-3 text-[11px] leading-relaxed text-tertiary">
           {/* Explicitly framed as a projection, and only shown where no result exists to confuse
               it with. */}
           Apex&apos;s pre-race projection favours{" "}
@@ -308,7 +303,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">{label}</dt>
+      <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">{label}</dt>
       <dd className="mt-0.5 truncate text-sm text-neutral-200">{value}</dd>
     </div>
   );
@@ -323,11 +318,11 @@ function QuickResults({ race }: { race: RaceSummary }) {
 
   return (
     <section>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Result</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Result</p>
 
       {race.winnerName && (
         <div className="mt-2.5">
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--f1-red)]">Winner</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">Winner</p>
           <p className="mt-0.5 truncate text-2xl font-semibold tracking-[-0.01em] text-white">{race.winnerName}</p>
         </div>
       )}
@@ -336,7 +331,7 @@ function QuickResults({ race }: { race: RaceSummary }) {
         <ol className="mt-3 space-y-1">
           {rest.map((p) => (
             <li key={p.driver} className="flex items-baseline gap-2.5 text-sm">
-              <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-neutral-600">P{p.position}</span>
+              <span className="w-6 shrink-0 font-mono text-[11px] tabular-nums text-tertiary">P{p.position}</span>
               <span className="min-w-0 truncate text-neutral-300">{p.driverName}</span>
             </li>
           ))}
@@ -356,7 +351,7 @@ function StatusPill({ status }: { status: RaceWeekendStatus }) {
     status === "completed"
       ? "text-neutral-400 border-white/[0.12]"
       : status === "live"
-        ? "text-[var(--f1-red)] border-[var(--f1-red)]/40"
+        ? "text-brand-text border-[var(--f1-red)]/40"
         : status === "cancelled" || status === "postponed"
           ? "text-amber-400 border-amber-400/35"
           : "text-neutral-300 border-white/[0.16]";

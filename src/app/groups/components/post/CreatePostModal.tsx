@@ -132,7 +132,7 @@ export function CreatePostModal({
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2">
             <span className="text-sm font-semibold text-white">Create a post</span>
-            <span className="truncate text-xs text-neutral-500">in {communityName}</span>
+            <span className="truncate text-xs text-tertiary">in {communityName}</span>
           </div>
           <button
             onClick={onClose}
@@ -167,7 +167,7 @@ export function CreatePostModal({
               ))}
             </div>
           )}
-          {kinds.length > 1 && <p className="mt-1.5 text-[11px] text-neutral-600">{POST_KIND_HINTS[kind]}</p>}
+          {kinds.length > 1 && <p className="mt-1.5 text-[11px] text-tertiary">{POST_KIND_HINTS[kind]}</p>}
 
           <div className="mt-3 flex gap-2.5">
             <EntityAvatar imageUrl={communityAvatarUrl} name={communityName} size={32} />
@@ -179,7 +179,7 @@ export function CreatePostModal({
                   maxLength={MAX_TITLE}
                   placeholder="Title"
                   aria-label="Post title"
-                  className="mb-2 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm font-semibold text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+                  className="mb-2 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm font-semibold text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                 />
               )}
               <textarea
@@ -190,7 +190,7 @@ export function CreatePostModal({
                 maxLength={MAX_CONTENT}
                 placeholder={kind === "question" ? "What do you want to ask?" : "What do you want to talk about?"}
                 aria-label="Post content"
-                className="w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm leading-relaxed text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+                className="w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm leading-relaxed text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
               />
             </div>
           </div>
@@ -213,7 +213,7 @@ export function CreatePostModal({
           )}
 
           {error && (
-            <p role="alert" className="mt-3 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.07] px-3 py-2 text-xs text-[var(--f1-red)]">
+            <p role="alert" className="mt-3 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.07] px-3 py-2 text-xs text-brand-text">
               {error}
             </p>
           )}
@@ -251,7 +251,7 @@ export function CreatePostModal({
 
           <div className="flex items-center gap-3">
             {trimmed.length > MAX_CONTENT - 200 && (
-              <span className={`text-[11px] tabular-nums ${trimmed.length > MAX_CONTENT ? "text-[var(--f1-red)]" : "text-neutral-600"}`}>
+              <span className={`text-[11px] tabular-nums ${trimmed.length > MAX_CONTENT ? "text-brand-text" : "text-tertiary"}`}>
                 {trimmed.length}/{MAX_CONTENT}
               </span>
             )}

@@ -54,7 +54,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Paste invite link or code"
-          className="flex-1 rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-white/30 focus:outline-none"
+          className="flex-1 rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
         />
         <button
           type="submit"
@@ -63,7 +63,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
         >
           {status === "saving" ? "Joining…" : "Join"}
         </button>
-        {status === "error" && <p className="mt-2 basis-full text-xs text-[var(--f1-red)]">{error}</p>}
+        {status === "error" && <p className="mt-2 basis-full text-xs text-brand-text">{error}</p>}
       </form>
     );
   }
@@ -75,7 +75,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Paste invite link or code"
-        className="mt-3 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-neutral-500"
+        className="mt-3 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary"
       />
       <button
         type="submit"
@@ -84,7 +84,7 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
       >
         {status === "saving" ? "Joining…" : "Join"}
       </button>
-      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">{error}</p>}
+      {status === "error" && <p className="mt-2 text-xs text-brand-text">{error}</p>}
     </form>
   );
 }

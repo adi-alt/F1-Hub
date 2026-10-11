@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Typewriter } from "@/components/motion/Typewriter";
+
+import { useEffect, useState, type ReactNode } from "react";
+import { RaceSectionCard } from "./RaceSectionCard";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type Block = { headline: string; summary: string };
@@ -61,10 +64,10 @@ function useCircuitTake(location: string, year: number): State {
 function ApexLabel({ isAi }: { isAi?: boolean }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span aria-hidden className="text-[var(--f1-red)]">
+      <span aria-hidden className="text-brand-text">
         ✦
       </span>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{isAi === undefined ? "Apex on this circuit" : isAi ? "Apex AI take" : "Track summary"}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">{isAi === undefined ? "Apex on this circuit" : isAi ? "Apex AI take" : "Track summary"}</p>
     </div>
   );
 }
@@ -85,13 +88,23 @@ function ApexLabel({ isAi }: { isAi?: boolean }) {
  * genuine failure - a real outcome for a venue with little history, not something to fill with a
  * placeholder.
  */
-export function ApexTrackBriefing({ location, year }: { location: string; year: number }) {
+export function ApexTrackBriefing({ location, year, section }: { location: string; year: number; section?: { id: string; title: string } }) {
   const state = useCircuitTake(location, year);
   const [expanded, setExpanded] = useState(false);
+  // With `section`, the briefing brings its own titled section, so a race page shows the heading only when
+  // there is a briefing under it (an empty "Preview" box when the AI has nothing was worse than no section).
+  const wrap = (content: ReactNode) =>
+    section ? (
+      <RaceSectionCard id={section.id} title={section.title}>
+        {content}
+      </RaceSectionCard>
+    ) : (
+      content
+    );
 
   if (state.status === "failed") return null;
   if (state.status === "loading") {
-    return (
+    return wrap(
       <div aria-busy>
         <ApexLabel />
         <div className="mt-2 space-y-1.5">
@@ -107,13 +120,14 @@ export function ApexTrackBriefing({ location, year }: { location: string; year: 
   const more = moreRaw.filter((b): b is Block => !!b);
   if (!headline && more.length === 0) return null;
 
-  return (
+  return wrap(
     <div>
       <ApexLabel isAi={state.isAi} />
       {headline && (
         <>
           <p className="mt-2 text-[13px] font-semibold leading-snug text-white">{headline.headline}</p>
-          <p className="mt-0.5 text-sm leading-relaxed text-neutral-400">{headline.summary}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-neutral-400"><Typewriter text={headline.summary} msPerChar={12} />
+          </p>
         </>
       )}
       {more.length > 0 && (
@@ -128,7 +142,7 @@ export function ApexTrackBriefing({ location, year }: { location: string; year: 
               ))}
             </div>
           )}
-          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 text-xs font-medium text-neutral-500 transition hover:text-white">
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-2 text-xs font-medium text-tertiary transition hover:text-white">
             {expanded ? "Show less ↑" : "Show more ↓"}
           </button>
         </>

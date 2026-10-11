@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Trophy } from "lucide-react";
 // From the pure groupPredictionTypes.ts, not @/lib/supabase/groupPredictions - that module reaches
 // otp.ts's nodemailer import through groups.ts, which crashes a client bundle that imports it for
 // anything beyond an erased `import type` (predictionTypeLabels is a real runtime value) - see
@@ -10,7 +11,7 @@ import { predictionTypeLabels, type GroupPrediction, type PredictionType } from 
 import { PredictionCard } from "./PredictionCard";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { GroupRole } from "@/lib/supabase/groups";
 
 const ENTRY_PRESETS = [10, 20, 50, 100];
@@ -49,11 +50,11 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
   return (
     <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="text-xs text-neutral-500">
+        <div className="text-xs text-tertiary">
           Race
           <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this prediction" className="mt-1" />
         </div>
-        <div className="text-xs text-neutral-500">
+        <div className="text-xs text-tertiary">
           Prediction type
           <Picker
             options={TYPES.map((t) => ({ value: t, label: predictionTypeLabels[t] }))}
@@ -66,7 +67,7 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
       </div>
 
       <div className="mt-3">
-        <p className="text-xs text-neutral-500">Prediction entry</p>
+        <p className="text-xs text-tertiary">Prediction entry</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           {ENTRY_PRESETS.map((p) => (
             <button
@@ -87,12 +88,12 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
             value={custom}
             onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
             placeholder="Custom"
-            className="w-20 rounded-full border border-[var(--f1-line)] bg-black/30 px-3 py-1 text-xs text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+            className="w-20 rounded-full border border-[var(--f1-line)] bg-black/30 px-3 py-1 text-xs text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
           />
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="mt-2 text-xs text-brand-text">{error}</p>}
       <button
         onClick={() => void submit()}
         disabled={status === "saving" || !raceId}
@@ -153,9 +154,12 @@ export function GroupPredictions({
           ))}
         {predictions.length === 0 && (
           <EmptyState
-            icon={EmptyIcons.trophy}
-            title="No prediction rounds are active."
-            description={myRole === "admin" ? "Open a round and the community can start predicting." : "An admin opens rounds ahead of a race weekend."}
+            icon={Trophy}
+            message={
+              myRole === "admin"
+                ? "No prediction rounds are active: open one and the community can start predicting."
+                : "No prediction rounds are active: an admin opens them ahead of a race weekend."
+            }
             action={
               myRole === "admin" &&
               !showNew && (

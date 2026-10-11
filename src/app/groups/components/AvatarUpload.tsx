@@ -44,7 +44,7 @@ export function AvatarUpload({ groupId }: { groupId: string }) {
         className="hidden"
         onChange={(e) => void onChange(e)}
       />
-      {status === "error" && <p className="mt-2 text-xs text-[var(--f1-red)]">{error}</p>}
+      {status === "error" && <p className="mt-2 text-xs text-brand-text">{error}</p>}
     </div>
   );
 }

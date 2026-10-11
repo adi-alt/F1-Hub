@@ -1,27 +1,51 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { permissionsForRole } from "@/lib/rbac";
+import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { seasonHref } from "@/lib/routes";
 
 // The real nav's own link widths, so the loading skeleton reserves exactly the space the real
 // links will occupy - no layout shift once /api/auth/me resolves either way.
 const NAV_SKELETON_WIDTHS = ["w-12", "w-14", "w-14", "w-12"];
 
-export function Header() {
+/** A header nav link: full header height, so the active item's brand underline sits on the
+ * header's bottom edge, and aria-current="page" so the active section is announced too. */
+function NavLink({ href, section, active, tour, children }: { href: string; section: NavSection; active: NavSection | null; tour: string; children: ReactNode }) {
+  const current = section === active;
+  return (
+    <Link
+      href={href}
+      data-tour={tour}
+      aria-current={current ? "page" : undefined}
+      className={`relative flex h-16 items-center transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        current ? "text-white after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-brand" : ""
+      }`}
+    >
+      {children}
+    </Link>
+  );
+}
+
+export function Header({ season }: { season: number }) {
   const { isAuthorized, loading, role } = useAuth();
   const permissions = role ? permissionsForRole(role) : null;
   const showUsers = !!permissions?.canViewUsers;
   const showModels = !!permissions?.canAccessAdmin;
+  const activeSection = navSectionFor(usePathname());
 
+  // z-header (the token scale): above the page, below dialogs and sheets, whose scrim has to dim it.
   return (
-    <header className="relative z-50 h-16 shrink-0 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
-      <div className="relative mx-auto flex h-full max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight transition hover:opacity-80">
+    <header className="sticky top-0 z-header h-16 shrink-0 border-b border-[var(--f1-line)] bg-[var(--f1-carbon)]/90 backdrop-blur">
+      {/* The same frame and gutters as every page (page-wide), so the logo shares their left edge. */}
+      <div className="page-wide relative flex h-full items-center justify-between">
+        <Link href="/" className="flex shrink-0 items-center gap-2 whitespace-nowrap text-lg font-bold tracking-tight transition hover:opacity-80">
           <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
           F1 HUB
         </Link>
@@ -38,39 +62,39 @@ export function Header() {
         {loading ? (
           <nav aria-hidden className="hidden items-center gap-6 sm:flex">
             {NAV_SKELETON_WIDTHS.map((w, i) => (
-              <Skeleton key={i} className={`skeleton-shimmer h-3.5 ${w} rounded`} />
+              <Skeleton key={i} shape="block" className={`h-3.5 ${w}`} />
             ))}
           </nav>
         ) : (
           isAuthorized && (
-            <nav data-tour="global-nav" className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
-              <Link href={seasonHref(2026)} data-tour="nav-season" className="transition hover:text-white">
+            <nav aria-label="Main" data-tour="global-nav" className="hidden items-center gap-6 text-sm font-medium text-neutral-300 sm:flex">
+              <NavLink href={seasonHref(season)} section="season" active={activeSection} tour="nav-season">
                 Season
-              </Link>
-              <Link href="/circuits" data-tour="nav-circuits" className="transition hover:text-white">
+              </NavLink>
+              <NavLink href="/circuits" section="circuits" active={activeSection} tour="nav-circuits">
                 Circuits
-              </Link>
-              <Link href="/archive" data-tour="nav-archive" className="transition hover:text-white">
+              </NavLink>
+              <NavLink href="/archive" section="archive" active={activeSection} tour="nav-archive">
                 Archive
-              </Link>
-              <Link href="/groups" data-tour="nav-communities" className="transition hover:text-white">
+              </NavLink>
+              <NavLink href="/groups" section="communities" active={activeSection} tour="nav-communities">
                 Communities
-              </Link>
+              </NavLink>
               {showUsers && (
-                <Link href="/users" data-tour="nav-users" className="transition hover:text-white">
+                <NavLink href="/users" section="users" active={activeSection} tour="nav-users">
                   Users
-                </Link>
+                </NavLink>
               )}
               {showModels && (
-                <Link href="/models" data-tour="nav-models" className="transition hover:text-white">
+                <NavLink href="/models" section="models" active={activeSection} tour="nav-models">
                   Models
-                </Link>
+                </NavLink>
               )}
             </nav>
           )
         )}
         <div className="flex items-center gap-3">
-          <MobileNav showUsers={showUsers} showModels={showModels} showNav={isAuthorized} />
+          <MobileNav season={season} showUsers={showUsers} showModels={showModels} showNav={isAuthorized} />
           <SignInButton />
         </div>
       </div>

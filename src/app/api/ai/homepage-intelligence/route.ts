@@ -52,6 +52,7 @@ import {
 } from "@/lib/ai/cache";
 import { checkProviderCapacity } from "@/lib/ai/providerRateLimiter";
 import { checkUserRateLimit } from "@/lib/ai/guardrails";
+import { clientIp } from "@/lib/clientIp";
 import { generateDeterministicFallback, type FallbackDataContext } from "@/lib/ai/fallback";
 import { logAIError, logDeterministicFallback } from "@/lib/ai/telemetry";
 import type { HomepageContextData } from "@/lib/ai/context";
@@ -59,6 +60,7 @@ import { stripPersonalFields, type HomepageIntelligence } from "@/lib/ai/schemas
 import { HOMEPAGE_CACHE_TIER_VERSION, personalHomepageVersionParts, planHomepageGeneration } from "@/lib/ai/homepageCacheTiers";
 import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Headroom above the provider's own 90s AbortController timeout (nemotron.ts, single attempt - see
 // orchestrator.ts's own comment on why this task doesn't retry) plus our own data-fetching/
@@ -71,7 +73,7 @@ export const maxDuration = 110;
 
 type GenerationResult = { data: HomepageIntelligence; isFallback: boolean; fallbackReason?: string; cacheTier: "personal" | "global" | "global_shared" | "fresh" };
 
-export async function POST() {
+export async function POST(request: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
   try {
@@ -84,7 +86,7 @@ export async function POST() {
     // prediction fingerprint) and `getJoinedGroupIds` (one light query - the feed the personal
     // context quotes is scoped to these communities, so a membership change must change the key).
     // `listFeedPosts` itself is still deferred to the miss path (step 6).
-    const year = new Date().getFullYear();
+    const year = await getCurrentSeason(); // the same season the home page rendered with (R-22)
     const [nextRace, races, archiveCircuits, standings, userBatch] = await Promise.all([
       getNextUpcomingRace(year).catch(() => null),
       getRacesByYear(year).catch(() => []),
@@ -364,12 +366,13 @@ export async function POST() {
     // budget whether or not the provider itself happens to also be saturated right now - otherwise a
     // user could fire unlimited attempts for free during any window the provider bucket is full and
     // have them all succeed in a burst the moment it frees up.
-    if (userId) {
-      const userLimit = checkUserRateLimit(userId);
+    {
+      // Durable, and for anonymous callers too (by IP): this used to skip anyone not signed in.
+      const userLimit = await checkUserRateLimit(userId ?? `ip:${clientIp(request)}`);
       if (!userLimit.allowed) {
-        const fallback = generateDeterministicFallback(fallbackContext, "USER_RATE_LIMITED");
-        await touchHomepageVisit(userId).catch(() => {});
-        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
+        const fallback = generateDeterministicFallback(fallbackContext, userLimit.reason ?? "USER_RATE_LIMITED");
+        if (userId) await touchHomepageVisit(userId).catch(() => {});
+        return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: userLimit.reason ?? "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
       }
     }
 

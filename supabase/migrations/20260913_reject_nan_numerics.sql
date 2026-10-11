@@ -17,19 +17,29 @@
 -- what those drivers scored - it is the only value that lets the constraint below go on, and the
 -- round it affects is re-fetched from a real source as part of this fix, which overwrites it with
 -- the actual points. In the environment this was written against the row count here is already 0.
+-- Re-runnable (each constraint is dropped if present before it is added): schema.sql already carries
+-- these constraints, so building a fresh database from schema.sql plus every migration would otherwise
+-- stop here. The data fix above is idempotent as it is.
 update race_results set points = 0 where points = 'NaN'::numeric;
 
+alter table race_results drop constraint if exists race_results_points_not_nan;
 alter table race_results add constraint race_results_points_not_nan
   check (points <> 'NaN'::numeric);
+alter table race_results drop constraint if exists race_results_finish_gap_not_nan;
 alter table race_results add constraint race_results_finish_gap_not_nan
   check (finish_gap_sec is null or finish_gap_sec <> 'NaN'::numeric);
+alter table race_results drop constraint if exists race_results_fastest_lap_not_nan;
 alter table race_results add constraint race_results_fastest_lap_not_nan
   check (fastest_lap_sec is null or fastest_lap_sec <> 'NaN'::numeric);
+alter table race_inputs drop constraint if exists race_inputs_qualifying_gap_not_nan;
 alter table race_inputs add constraint race_inputs_qualifying_gap_not_nan
   check (qualifying_gap_sec is null or qualifying_gap_sec <> 'NaN'::numeric);
+alter table races drop constraint if exists races_pole_time_not_nan;
 alter table races add constraint races_pole_time_not_nan
   check (pole_time_sec is null or pole_time_sec <> 'NaN'::numeric);
+alter table archive_results drop constraint if exists archive_results_points_not_nan;
 alter table archive_results add constraint archive_results_points_not_nan
   check (points is null or points <> 'NaN'::numeric);
+alter table archive_pit_stops drop constraint if exists archive_pit_stops_duration_not_nan;
 alter table archive_pit_stops add constraint archive_pit_stops_duration_not_nan
   check (duration_sec is null or duration_sec <> 'NaN'::numeric);

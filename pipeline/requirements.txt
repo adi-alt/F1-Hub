@@ -1,8 +1,8 @@
 fastf1>=3.7
-firebase-admin>=7.5
 pandas>=2.0
 scikit-learn>=1.4
 numpy>=1.24
 scipy>=1.10
 requests>=2.31
 psycopg2-binary>=2.9
+sentry-sdk>=2.0

@@ -47,22 +47,22 @@ export function RaceHeader({
     <div>
       <Link href={backHref} className="group inline-flex items-center gap-1.5">
         <span className="text-xl font-bold tracking-tight text-white transition group-hover:text-neutral-300 sm:text-2xl">{backLabel}</span>
-        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-neutral-600 transition group-hover:translate-x-0.5 group-hover:text-neutral-400" aria-hidden>
+        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-tertiary transition group-hover:translate-x-0.5 group-hover:text-neutral-400" aria-hidden>
           <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </Link>
       <div className="mt-1.5">
-        {roundLabel && <p className="text-xs font-semibold uppercase tracking-widest text-[var(--f1-red)]">{roundLabel}</p>}
+        {roundLabel && <p className="text-xs font-semibold uppercase tracking-widest text-brand-text">{roundLabel}</p>}
         <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">{name}</h1>
         {(metaParts.length > 0 || dateLabel) && (
-          <p className="mt-1.5 text-sm text-neutral-500">
+          <p className="mt-1.5 text-sm text-tertiary">
             {metaParts.join(", ")}
             {dateLabel && (metaParts.length > 0 ? ` · ${dateLabel}` : dateLabel)}
           </p>
         )}
         {resultLabel && <p className="mt-1.5 text-sm text-neutral-300">{resultLabel}</p>}
         {externalLink && (
-          <a href={externalLink.href} target="_blank" rel="noreferrer" className="mt-1.5 inline-block text-sm font-medium text-[var(--f1-red)] hover:underline">
+          <a href={externalLink.href} target="_blank" rel="noreferrer" className="mt-1.5 inline-block text-sm font-medium text-brand-text hover:underline">
             {externalLink.label} →
           </a>
         )}

@@ -1,0 +1,64 @@
+#!/bin/bash
+# Keeps the track library current, from this machine: F1's live-timing archive refuses GitHub's runners (its
+# CloudFront blocks datacenter IPs - see run_local.sh), so this can't be a scheduled workflow.
+#
+#   1. circuit_layouts.py --seed-drawn  every historical layout as a drawing (circuit_layouts), 1950-2025: what
+#                                        any race with no traced track of its own draws
+#   2. race_track_story.py --backfill   each completed race without a story: its own traced outline and where the
+#                                        lead changed (race_track_stories)
+#   3. circuit_layouts.py --rebuild-measured
+#                                        regroups every traced season into layout versions (circuit_layouts): a
+#                                        season whose track no longer matches starts a new version - a changed or
+#                                        new circuit enters the library here
+#   4. race_replay.py --backfill        this season's race replays (public/replays/, src/data/replays.json): the
+#                                        files live in the repo, so commit them afterwards (the script says so)
+#
+# A dry run (reads production, writes no layouts or stories) unless --apply. Run after a race weekend, or any time: both
+# steps are idempotent and only do what's missing or changed.
+#
+# Usage:
+#   ./pipeline/run_track_library.sh                  # dry run: what would be stored, and any layout changes
+#   ./pipeline/run_track_library.sh --apply          # store it
+#   ./pipeline/run_track_library.sh --apply --since 2018 --limit 200   # a first, full backfill
+#
+# Run from the repository root, on main (the script reads .env.local and pipeline/.venv from there).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export DATABASE_URL="$(grep '^DATABASE_URL=' .env.local | cut -d= -f2-)"
+export CRON_SECRET="$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-)"
+
+if [ ! -d pipeline/.venv ]; then
+  echo "pipeline/.venv not found - run: python3 -m venv pipeline/.venv && pipeline/.venv/bin/pip install -r pipeline/requirements.txt"
+  exit 1
+fi
+
+apply=""
+story_args=(--backfill)
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --apply) apply=1 ;;
+    --since|--limit) story_args+=("$1" "$2"); shift ;;
+    *) echo "unknown option: $1"; exit 1 ;;
+  esac
+  shift
+done
+
+cd pipeline
+if [ -n "$apply" ]; then
+  ../pipeline/.venv/bin/python circuit_layouts.py --seed-drawn --apply
+  ../pipeline/.venv/bin/python race_track_story.py "${story_args[@]}"
+  ../pipeline/.venv/bin/python circuit_layouts.py --rebuild-measured --apply
+  ../pipeline/.venv/bin/python race_replay.py --backfill
+  cd ..
+  if [ -n "$(git status --porcelain public/replays src/data/replays.json)" ]; then
+    echo
+    echo "New race replays - commit them (on a branch) and open a PR:"
+    git status --short public/replays src/data/replays.json
+  fi
+else
+  ../pipeline/.venv/bin/python circuit_layouts.py --seed-drawn
+  ../pipeline/.venv/bin/python race_track_story.py "${story_args[@]}" --dry-run
+  ../pipeline/.venv/bin/python circuit_layouts.py --rebuild-measured
+  ../pipeline/.venv/bin/python race_replay.py --backfill --dry-run
+fi

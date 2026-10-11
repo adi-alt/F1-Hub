@@ -21,7 +21,8 @@ export function ArchiveEntityHeader({
   backHref: string;
   backLabel: string;
   name: string;
-  photoUrl: string | null;
+  /** Omit for an entity with no photo slot at all (a circuit: its track map is shown below the header). */
+  photoUrl?: string | null;
   photoShape?: "circle" | "square";
   subtitle: string;
   stats: { label: string; value: string | number }[];
@@ -29,24 +30,26 @@ export function ArchiveEntityHeader({
 }) {
   return (
     <header className="shrink-0">
-      <Link href={backHref} className="text-xs text-neutral-500 transition hover:text-neutral-300">
+      <Link href={backHref} className="text-xs text-tertiary transition hover:text-neutral-300">
         ← {backLabel}
       </Link>
       <div className="mt-2 flex items-center gap-3">
-        <EntityAvatar imageUrl={photoUrl} name={name} size={44} shape={photoShape} fit={photoShape === "square" ? "contain" : "cover"} />
+        {photoUrl !== undefined && (
+          <EntityAvatar imageUrl={photoUrl} name={name} size={44} shape={photoShape} fit={photoShape === "square" ? "contain" : "cover"} />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-2xl font-bold text-white sm:text-3xl">{name}</h1>
             {favoriteButton}
           </div>
-          <p className="text-sm text-neutral-500">{subtitle}</p>
+          <p className="text-sm text-tertiary">{subtitle}</p>
         </div>
       </div>
       {stats.length > 0 && (
         <dl className="mt-4 grid grid-cols-3 gap-x-6 gap-y-2 sm:flex sm:flex-wrap sm:gap-x-8">
           {stats.map((s) => (
             <div key={s.label} className="min-w-0">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-600">{s.label}</dt>
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{s.label}</dt>
               <dd className="mt-0.5 text-lg font-semibold tabular-nums text-white">{s.value}</dd>
             </div>
           ))}

@@ -37,7 +37,7 @@ export function SeasonSnapshot({ items, personal }: { items: SnapshotItem[]; per
 
   return (
     <section aria-label="Season snapshot" className="mb-9">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">Season snapshot</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Season snapshot</p>
       <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
 
       {/* `grid-rows-[auto_auto_auto_auto]` on each item, with the items themselves stretched, is
@@ -62,7 +62,7 @@ export function SeasonSnapshot({ items, personal }: { items: SnapshotItem[]; per
               {i > 0 && <span aria-hidden className="absolute inset-y-3 left-0 hidden w-px bg-white/[0.06] sm:block" />}
 
               <span className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{item.label}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">{item.label}</span>
                 {isFavorite && (
                   <span
                     className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]"
@@ -74,7 +74,7 @@ export function SeasonSnapshot({ items, personal }: { items: SnapshotItem[]; per
 
               <span className="block truncate text-[15px] font-semibold leading-tight text-white">{item.name}</span>
               <span className="block truncate font-mono text-xs leading-tight tabular-nums text-neutral-400">{item.value ?? "\u00a0"}</span>
-              <span className="block truncate text-[11px] leading-tight text-neutral-600 transition-colors group-hover:text-neutral-400">{item.reason}</span>
+              <span className="block truncate text-[11px] leading-tight text-tertiary transition-colors group-hover:text-neutral-400">{item.reason}</span>
             </motion.button>
           );
         })}

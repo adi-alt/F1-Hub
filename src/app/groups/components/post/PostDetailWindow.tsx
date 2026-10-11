@@ -162,7 +162,7 @@ export function PostDetailWindow({
           <div className="flex items-center justify-between gap-2">
             <p className="text-[13px] font-semibold text-white">
               {focused ? "This thread" : "Comments"}
-              {!focused && totalCount > 0 && <span className="ml-1.5 text-xs font-normal tabular-nums text-neutral-500">{totalCount}</span>}
+              {!focused && totalCount > 0 && <span className="ml-1.5 text-xs font-normal tabular-nums text-tertiary">{totalCount}</span>}
             </p>
             {!focused && totalCount > 1 && <CommentSortControl value={sort} onChange={setSort} />}
           </div>
@@ -171,7 +171,7 @@ export function PostDetailWindow({
             {loading ? (
               <CommentsSkeleton count={3} />
             ) : error ? (
-              <p className="py-2 text-xs text-neutral-500">
+              <p className="py-2 text-xs text-tertiary">
                 Couldn&apos;t load the discussion.{" "}
                 <button type="button" onClick={reload} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                   Retry
@@ -180,7 +180,7 @@ export function PostDetailWindow({
             ) : allRoots.length === 0 ? (
               <div className="py-5 text-center">
                 <p className="text-sm font-medium text-neutral-300">No comments yet</p>
-                <p className="mt-1 text-xs text-neutral-500">Be the first to reply.</p>
+                <p className="mt-1 text-xs text-tertiary">Be the first to reply.</p>
               </div>
             ) : (
               <>

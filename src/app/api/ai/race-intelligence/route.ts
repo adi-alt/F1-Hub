@@ -27,6 +27,7 @@ import {
 } from "@/lib/ai/cache";
 import { checkProviderCapacity } from "@/lib/ai/providerRateLimiter";
 import { checkUserRateLimit } from "@/lib/ai/guardrails";
+import { clientIp } from "@/lib/clientIp";
 import { generateDeterministicRaceFallback } from "@/lib/ai/fallback";
 import type { PersonalRaceInsight, SharedRaceIntelligence } from "@/lib/ai/schemas/raceIntelligence";
 import type { AgentContext } from "@/lib/ai/types";
@@ -137,10 +138,11 @@ export async function POST(request: Request) {
       // checked independent of the provider bucket below, deliberately: this stops one user from
       // repeatedly forcing personal-miss generation attempts (e.g. favorite/team churn) regardless
       // of whether the shared provider bucket happens to also be saturated right now.
-      if (userId) {
-        const userLimit = checkUserRateLimit(userId);
+      // Durable, and for anonymous callers too (by IP): this used to skip anyone not signed in.
+      {
+        const userLimit = await checkUserRateLimit(userId ?? `ip:${clientIp(request)}`);
         if (!userLimit.allowed) {
-          return NextResponse.json({ error: "Rate limited", reason: "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds }, { status: 429 });
+          return NextResponse.json({ error: "Rate limited", reason: userLimit.reason ?? "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds }, { status: 429 });
         }
       }
 

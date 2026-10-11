@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { POST_KIND_LABELS, type PostKind } from "@/lib/communities";
 import { createPost, listPosts, type PostSort } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError } from "@/services/errors";
 
 const SORTS: PostSort[] = ["new", "old", "top", "discussed"];
@@ -45,6 +46,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "postCreate", session.uid);
+  if (limited) return limited;
   const { id } = await params;
   // `kind` is re-validated against the community's own enabled modules AND the poster's real role
   // inside createPost - a kind this community doesn't offer, or an Announcement from an ordinary

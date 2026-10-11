@@ -42,11 +42,13 @@ from ergast_utils import (
     init_postgres,
     reconnect_postgres,
     prune,
+    transaction,
     trigger_revalidation,
     upsert,
 )
 import jolpica
 from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1, fetch_sprint_openf1
+from run_ledger import ledgered
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -630,7 +632,7 @@ def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None
 
     now = datetime.now(timezone.utc).isoformat()
     driver_rows = [{"code": e["driver"], "name": e["driverName"], "team": e["team"], "updated_at": now} for e in entrants]
-    upsert(cur, "drivers", driver_rows, ["code"])
+    upsert(cur, "drivers", driver_rows, ["code"], skip_unchanged=True, unchanged_ignore=("updated_at",))
 
     for e in entrants:
         if e["driver"] in known_driver_codes or not e.get("headshotUrl"):
@@ -641,7 +643,7 @@ def sync_roster(cur, entrants: list[dict], known_driver_codes: set[str]) -> None
             known_driver_codes.add(e["driver"])
 
     team_rows = {e["team"]: {"name": e["team"], "color": e.get("teamColor"), "updated_at": now} for e in entrants}
-    upsert(cur, "teams", list(team_rows.values()), ["name"])
+    upsert(cur, "teams", list(team_rows.values()), ["name"], skip_unchanged=True, unchanged_ignore=("updated_at",))
 
 
 
@@ -725,6 +727,8 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
 
     # A sprint weekend's sprint, until the official classification is stored (then never again).
     sprint, sprint_source = (None, None) if sprint_is_official(cur, race_id) else sprint_for_round(year, round_num, calendar_event, roster)
+    # Lap-by-lap car position: OpenF1 has none, Jolpica does (once it has published the laps).
+    race = with_jolpica_lap_positions(race, year, round_num, calendar_event["EventDate"])
 
     # Checked only after every source has been tried: FastF1 has nothing at all on GitHub's runners,
     # so returning before the fallbacks (as this used to) meant the OpenF1/Jolpica paths were reached
@@ -812,73 +816,78 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             if uploaded:
                 race_row["photo_url"] = uploaded[0]
                 race_row["photo_urls"] = uploaded
-    upsert(cur, "races", [race_row], ["id"])
+    # One transaction for the whole round, the `races` row included: a failure anywhere below rolls
+    # back every write for this round (nothing half-written, no race marked completed without its
+    # results), and the next tick starts again from what was there. Everything above only reads and
+    # builds rows in memory (the media upload is the one outside call, and it is idempotent).
+    with transaction(cur):
+        upsert(cur, "races", [race_row], ["id"], skip_unchanged=True, unchanged_ignore=("updated_at",))
 
-    roster = race["results"] if race else (qualifying["grid"] if qualifying else [])
-    sync_roster(cur, roster, known_driver_codes)
+        roster = race["results"] if race else (qualifying["grid"] if qualifying else [])
+        sync_roster(cur, roster, known_driver_codes)
 
-    if qualifying:
-        input_rows = [
-            {
-                "race_id": race_id,
-                "driver": g["driver"],
-                "driver_name": g["driverName"],
-                "team": g["team"],
-                "grid": g["gridPosition"],
-                "qualifying_gap_sec": g["qualifyingGapSec"],
-            }
-            for g in qualifying["grid"]
-        ]
-        upsert(cur, "race_inputs", input_rows, ["race_id", "driver"])
-        prune(cur, "race_inputs", "race_id", race_id, "driver", [r["driver"] for r in input_rows])
-    if race:
-        # status_source: per-driver provenance for the *derived* status specifically (not the
-        # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
-        # for every OpenF1-fallback row. The literal name is a holdover from v1 of
-        # openf1_fallback.py (a lap-count-percentage DNF heuristic, since replaced - see that
-        # module's docstring): status now comes directly from OpenF1's own dnf/dsq flags, not a
-        # derivation, so this is really "not-yet-reconciled-with-official" rather than
-        # "low-confidence" today. Kept as the existing enum value rather than renamed - the
-        # check constraint only allows these two strings (supabase/schema.sql), and a rename
-        # would need a migration for no behavior change. Still what lets predict_dnf.py's training
-        # data be filtered/weighted later if that ever matters.
-        status_source = "official" if results_source == "official" else "lap_distance_derived"
-        result_rows = [
-            {
-                "race_id": race_id,
-                "driver": r["driver"],
-                "driver_name": r["driverName"],
-                "team": r["team"],
-                "grid": r["gridPosition"],
-                "finish_position": r["finishPosition"],
-                "finish_gap_sec": r["finishGapSec"],
-                "status": r["status"],
-                "status_source": status_source,
-                "fastest_lap_sec": r["fastestLapSec"],
-                "points": r["points"],
-            }
-            for r in race["results"]
-        ]
-        # Every driver in this round's classification is in `result_rows`, so anything else under
-        # this race_id came from a superseded write and is not part of the result - see prune().
-        upsert(cur, "race_results", result_rows, ["race_id", "driver"])
-        prune(cur, "race_results", "race_id", race_id, "driver", [r["driver"] for r in result_rows])
-        stint_rows = [
-            {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
-            for t in race["tireStints"]
-        ]
-        upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"])
-        prune(cur, "tire_stints", "race_id", race_id, ("driver", "stint_number"), [(t["driver"], t["stint_number"]) for t in stint_rows])
-        lap_rows = [
-            {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
-            for t in race["lapTimings"]
-        ]
-        # position/time are keep_known: the OpenF1 path has no per-lap car position at all, so a
-        # preliminary refresh of a round must not erase positions FastF1 already stored for it.
-        upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"))
-        # Keyed on (lap_number, driver), not driver alone: the wrong-meeting write this guards
-        # against brought a longer race's lap numbers with it, for drivers who were in both.
-        prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
+        if qualifying:
+            input_rows = [
+                {
+                    "race_id": race_id,
+                    "driver": g["driver"],
+                    "driver_name": g["driverName"],
+                    "team": g["team"],
+                    "grid": g["gridPosition"],
+                    "qualifying_gap_sec": g["qualifyingGapSec"],
+                }
+                for g in qualifying["grid"]
+            ]
+            upsert(cur, "race_inputs", input_rows, ["race_id", "driver"], skip_unchanged=True)
+            prune(cur, "race_inputs", "race_id", race_id, "driver", [r["driver"] for r in input_rows])
+        if race:
+            # status_source: per-driver provenance for the *derived* status specifically (not the
+            # whole race) - 'official' when FastF1/Jolpica classified it directly, 'lap_distance_derived'
+            # for every OpenF1-fallback row. The literal name is a holdover from v1 of
+            # openf1_fallback.py (a lap-count-percentage DNF heuristic, since replaced - see that
+            # module's docstring): status now comes directly from OpenF1's own dnf/dsq flags, not a
+            # derivation, so this is really "not-yet-reconciled-with-official" rather than
+            # "low-confidence" today. Kept as the existing enum value rather than renamed - the
+            # check constraint only allows these two strings (supabase/schema.sql), and a rename
+            # would need a migration for no behavior change. Still what lets predict_dnf.py's training
+            # data be filtered/weighted later if that ever matters.
+            status_source = "official" if results_source == "official" else "lap_distance_derived"
+            result_rows = [
+                {
+                    "race_id": race_id,
+                    "driver": r["driver"],
+                    "driver_name": r["driverName"],
+                    "team": r["team"],
+                    "grid": r["gridPosition"],
+                    "finish_position": r["finishPosition"],
+                    "finish_gap_sec": r["finishGapSec"],
+                    "status": r["status"],
+                    "status_source": status_source,
+                    "fastest_lap_sec": r["fastestLapSec"],
+                    "points": r["points"],
+                }
+                for r in race["results"]
+            ]
+            # Every driver in this round's classification is in `result_rows`, so anything else under
+            # this race_id came from a superseded write and is not part of the result - see prune().
+            upsert(cur, "race_results", result_rows, ["race_id", "driver"], skip_unchanged=True)
+            prune(cur, "race_results", "race_id", race_id, "driver", [r["driver"] for r in result_rows])
+            stint_rows = [
+                {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
+                for t in race["tireStints"]
+            ]
+            upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"], skip_unchanged=True)
+            prune(cur, "tire_stints", "race_id", race_id, ("driver", "stint_number"), [(t["driver"], t["stint_number"]) for t in stint_rows])
+            lap_rows = [
+                {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
+                for t in race["lapTimings"]
+            ]
+            # position/time are keep_known: the OpenF1 path has no per-lap car position at all, so a
+            # preliminary refresh of a round must not erase positions FastF1 already stored for it.
+            upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"), skip_unchanged=True)
+            # Keyed on (lap_number, driver), not driver alone: the wrong-meeting write this guards
+            # against brought a longer race's lap numbers with it, for drivers who were in both.
+            prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
     if sprint:
         # Same team string as this weekend's race rows, when those are in hand, so a constructor's
@@ -931,6 +940,93 @@ def backfill_race_photos(cur):
             cur = reconnect_postgres(cur.connection).cursor()
             cur.execute("update races set photo_url = %s, photo_urls = %s where id = %s", (uploaded[0], uploaded, race_id))
         print(f"  {race_id}: {len(uploaded)} photo(s) uploaded")
+
+
+def merge_lap_positions(lap_rows: list[dict], official: list[dict]) -> tuple[list[dict], int]:
+    """Fills lap-by-lap car position from Jolpica into lap rows that have none, and adds laps only Jolpica has.
+    Returns (rows, how many positions were filled or laps added).
+
+    OpenF1 - the only race source that works from GitHub's runners - has lap times but no per-lap position
+    (see openf1_fallback._fetch_laps), so the race page's lap chart had nothing to draw on any round that
+    CI fetched. A position already stored is never replaced (FastF1's own is the same data: on Baku the two
+    agree on 974 of 976 laps, the other two being a tie), and an existing lap time is never rewritten."""
+    by_key = {(t["driver"], t["lapNumber"]): dict(t) for t in lap_rows}
+    changed = 0
+    for o in official:
+        key = (o["driver"], o["lapNumber"])
+        current = by_key.get(key)
+        if current is None:
+            seconds = o["timeSec"]
+            by_key[key] = {
+                "driver": o["driver"],
+                "lapNumber": o["lapNumber"],
+                "position": o["position"],
+                "time": format_timedelta(pd.to_timedelta(seconds, unit="s")) if seconds else None,
+            }
+            changed += 1
+        elif current.get("position") is None:
+            current["position"] = o["position"]
+            changed += 1
+    return sorted(by_key.values(), key=lambda t: (t["lapNumber"], t["driver"])), changed
+
+
+def with_jolpica_lap_positions(race: dict | None, year: int, round_num: int, event_date) -> dict | None:
+    """`race` with its lap timings' positions filled from Jolpica when it has them (see merge_lap_positions).
+    A no-op when the laps already carry positions, and when Jolpica has not published the laps yet - the
+    catch-up in backfill_lap_positions picks those up on a later run."""
+    if race is None:
+        return race
+    laps = race.get("lapTimings") or []
+    if laps and all(t.get("position") is not None for t in laps):
+        return race
+    official = jolpica.fetch_laps(year, round_num, event_date)
+    if not official:
+        return race
+    merged, changed = merge_lap_positions(laps, official)
+    print(f"    laps: {changed} lap position(s) from Jolpica")
+    return {**race, "lapTimings": merged}
+
+
+LAP_POSITION_WINDOW_DAYS = 21
+
+
+def backfill_lap_positions(cur):
+    """Catch-up for rounds already stored without lap-by-lap positions: a round fetched through OpenF1, or one
+    whose laps Jolpica had not published yet when it finished. Looks at completed races from the last
+    LAP_POSITION_WINDOW_DAYS (every season when FORCE_ALL_ROUNDS is set, for a one-off clean-up) that have a lap
+    row with no position, so once caught up it costs one query per run. A race Jolpica still has no laps for
+    costs one request per run until it does, or until it leaves the window."""
+    window = "" if os.environ.get("FORCE_ALL_ROUNDS") == "true" else f"and r.race_date::date >= current_date - {LAP_POSITION_WINDOW_DAYS} "
+    cur.execute(
+        "select r.id, r.year, r.round, r.race_date from races r "
+        "where r.status = 'completed' " + window +
+        "and exists (select 1 from race_laps l where l.race_id = r.id and l.position is null) "
+        "order by r.year, r.round"
+    )
+    rows = cur.fetchall()
+    if not rows:
+        return 0
+    print(f"{len(rows)} completed race(s) with lap rows missing a position")
+    updated = 0
+    for race_id, year, round_num, race_date in rows:
+        official = jolpica.fetch_laps(year, round_num, race_date)
+        if not official:
+            print(f"  {race_id}: Jolpica has no usable lap data yet")
+            continue
+        cur.execute("select driver, lap_number, position, time from race_laps where race_id = %s", (race_id,))
+        stored = [{"driver": d, "lapNumber": n, "position": p, "time": t} for d, n, p, t in cur.fetchall()]
+        merged, changed = merge_lap_positions(stored, official)
+        if not changed:
+            print(f"  {race_id}: nothing to fill")
+            continue
+        before = {(t["driver"], t["lapNumber"]): t for t in stored}
+        write = [t for t in merged if before.get((t["driver"], t["lapNumber"])) != t]
+        lap_rows = [{"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]} for t in write]
+        with transaction(cur):
+            upsert(cur, "race_laps", lap_rows, ["race_id", "lap_number", "driver"], keep_known_cols=("position", "time"), skip_unchanged=True)
+        print(f"  {race_id}: {changed} lap position(s) filled from Jolpica")
+        updated += 1
+    return updated
 
 
 def backfill_race_laps(cur):
@@ -1081,6 +1177,7 @@ def seasons_to_check(now: datetime) -> list[int]:
     return years
 
 
+@ledgered("fetch-races")
 def main():
     args = sys.argv[1:]
     force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
@@ -1105,7 +1202,13 @@ def main():
         if not targets:
             print(f"No race weekend within the fetch window right now for {years} - skipping "
                   "(saves ~30 FastF1 API calls this tick; see next_relevant_round's docstring).")
+            # The lap-position catch-up does not touch FastF1 and is one query when nothing is missing, so
+            # it must not wait for a race weekend: the weekend is over by the time Jolpica has the laps.
+            with conn.cursor() as cur:
+                filled = backfill_lap_positions(cur)
             conn.close()
+            if filled:
+                trigger_revalidation("races")
             return 0
 
     print(f"Processing {len(targets)} round(s): {targets}")
@@ -1127,6 +1230,7 @@ def main():
 
         backfill_race_photos(cur)
         backfill_race_laps(cur)
+        backfill_lap_positions(cur)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their

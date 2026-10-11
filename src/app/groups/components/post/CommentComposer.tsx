@@ -71,14 +71,14 @@ export function CommentComposer({
             autoFocus={autoFocus}
             rows={1}
             maxLength={1000}
-            className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm text-white placeholder:text-neutral-500 focus:border-white/20 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
           />
           <button
             ref={emojiAnchorRef}
             type="button"
             onClick={() => setShowEmoji((v) => !v)}
             aria-label="Add emoji"
-            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-white/[0.06] hover:text-white"
+            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-tertiary transition hover:bg-white/[0.06] hover:text-white"
           >
             <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
               <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
@@ -112,15 +112,15 @@ export function CommentComposer({
         autoFocus={autoFocus}
         rows={1}
         maxLength={1000}
-        className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:border-white/20 focus:outline-none"
+        className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
       />
       <div className="mt-1.5 flex items-center justify-between">
-        <button type="button" onClick={() => setShowEmoji((v) => !v)} className="rounded p-1 text-sm text-neutral-500 transition hover:bg-white/[0.06] hover:text-white" aria-label="Add emoji">
+        <button type="button" onClick={() => setShowEmoji((v) => !v)} className="rounded p-1 text-sm text-tertiary transition hover:bg-white/[0.06] hover:text-white" aria-label="Add emoji">
           🙂
         </button>
         <div className="flex items-center gap-2">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="text-xs text-neutral-500 hover:text-white">
+            <button type="button" onClick={onCancel} className="text-xs text-tertiary hover:text-white">
               Cancel
             </button>
           )}

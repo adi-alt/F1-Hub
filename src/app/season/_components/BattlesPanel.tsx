@@ -38,8 +38,8 @@ export function BattlesPanel({ battles, personal }: { battles: Battle[]; persona
     <div>
       {loading ? <SeasonInsightSkeleton label="Loading battle insight" /> : insight && <SeasonInsight eyebrow="Apex on the battles" headline={insight.headline} summary={insight.summary} />}
 
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-        Closest battles <span className="font-normal normal-case tracking-normal text-neutral-600">· ranked by championship points gap</span>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">
+        Closest battles <span className="font-normal normal-case tracking-normal text-tertiary">· ranked by championship points gap</span>
       </p>
 
       <motion.div initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-white/[0.055]">
@@ -109,9 +109,9 @@ function BattleRow({ battle, isHighlighted, isFavorite, onClick }: { battle: Bat
       </span>
 
       {/* The metric the bar above encodes, plus head-to-head as a separate, named statistic. */}
-      <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-neutral-600 sm:pl-[10.5rem]">
-        <span className={battle.gap === 0 ? "text-neutral-400" : "text-neutral-500"}>
-          {gapLabel} <span className="text-neutral-600">· {battle.metricLabel.toLowerCase()}</span>
+      <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-tertiary sm:pl-[10.5rem]">
+        <span className={battle.gap === 0 ? "text-neutral-400" : "text-tertiary"}>
+          {gapLabel} <span className="text-tertiary">· {battle.metricLabel.toLowerCase()}</span>
         </span>
         {h2h && h2h.comparableRounds > 0 && (
           <>

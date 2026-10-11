@@ -6,7 +6,7 @@ export function PoleSection({ polePrediction }: { polePrediction: PolePrediction
       <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-neutral-400">
         Predicted pole — {polePrediction.order[0]?.driver ?? "—"}
       </h3>
-      <p className="mb-3 text-xs text-neutral-500">
+      <p className="mb-3 text-xs text-tertiary">
         Prior-season form only, no same-weekend qualifying data — updates automatically as the
         season progresses, until qualifying happens for this race.
       </p>
@@ -19,7 +19,7 @@ export function PoleSection({ polePrediction }: { polePrediction: PolePrediction
             <span className="text-white">
               {entry.predictedQualiPosition}. {entry.driver}
             </span>
-            <span className="text-xs text-neutral-500">{entry.team}</span>
+            <span className="text-xs text-tertiary">{entry.team}</span>
           </li>
         ))}
       </ol>

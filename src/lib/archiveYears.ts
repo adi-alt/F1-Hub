@@ -4,4 +4,10 @@
 // the real archive year range without dragging a Supabase admin client into client JS. archive.ts
 // re-exports these two so its own existing importers see no change.
 export const ARCHIVE_EARLIEST_YEAR = 1950;
-export const ARCHIVE_LATEST_YEAR = new Date().getFullYear() - 1;
+/** The newest season in the archive: every season before the live one (`currentSeason` is
+ * getCurrentSeason(), from the calendar). Not the wall clock (audit R-22): on 1 January the finished
+ * season is still the live one, served from the live tables, so the archive doesn't list it as an
+ * empty archive season before it has been promoted there. */
+export function archiveLatestYear(currentSeason: number): number {
+  return currentSeason - 1;
+}

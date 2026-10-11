@@ -13,7 +13,7 @@ import { ArchiveDriverRelationships, type DriverRelationship } from "./component
 import type { ExplorerRow } from "./components/ArchiveRaceExplorer";
 import {
   ARCHIVE_EARLIEST_YEAR,
-  ARCHIVE_LATEST_YEAR,
+  archiveLatestYear,
   getActiveIds,
   getAllArchiveCircuitsData,
   getAllArchiveDriversData,
@@ -35,7 +35,9 @@ import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { raceHref } from "@/lib/routes";
+import { TrackMap } from "@/components/ui/TrackMap";
 import { getSession } from "@/lib/session/getSession";
+import { getCurrentSeason } from "@/lib/currentSeason";
 
 // Ergast's own three-way classification status (archiveIsClassified in circuitIntelligence.ts
 // makes the exact same real distinction, not exported from there - a one-line regex check is
@@ -79,23 +81,25 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   // attempted yet, that's the client query's job.
   const hasLoadError = circuitsRead.failed || driversRead?.failed || teamsRead?.failed;
   const { circuitIds: activeCircuitIds, teamIds: activeTeamIds, currentLeader } = await getActiveIds(circuits);
+  // The live season's card: from the calendar, not the clock (R-22).
+  const currentSeason = await getCurrentSeason();
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide py-6">
       <h1 className="flex shrink-0 items-baseline gap-3">
         <span className="text-5xl font-bold tracking-tight text-white sm:text-6xl">Archive</span>
-        <span className="text-sm font-semibold uppercase tracking-[0.25em] text-neutral-500">
-          {ARCHIVE_EARLIEST_YEAR}–{ARCHIVE_LATEST_YEAR}
+        <span className="text-sm font-semibold uppercase tracking-[0.25em] text-tertiary">
+          {ARCHIVE_EARLIEST_YEAR}–{archiveLatestYear(currentSeason)}
         </span>
       </h1>
-      <p className="mt-1 shrink-0 text-sm text-neutral-500">Results only, sourced from the Ergast/Jolpi historical database.</p>
-      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+      <p className="mt-1 shrink-0 text-sm text-tertiary">Results only, sourced from the Ergast/Jolpi historical database.</p>
+      <div className="mt-4 flex flex-col">
         {hasLoadError && <RetryBanner />}
         <ArchiveExplorer
           uid={uid}
           initialSection={section}
-          years={getArchiveYears()}
-          currentYear={new Date().getFullYear()}
+          years={getArchiveYears(archiveLatestYear(currentSeason))}
+          currentYear={currentSeason}
           circuits={circuits}
           initialDrivers={driversRead?.data}
           initialTeams={teamsRead?.data}
@@ -150,19 +154,22 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
   const topWinner = [...winCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? null;
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide py-6">
       <ArchiveApexScope entityType="circuit" entityId={circuitId} name={circuit.name ?? circuit.circuitId} />
       <ArchiveEntityHeader
         backHref="/archive?section=track"
         backLabel="Archive"
         name={circuit.name ?? circuit.circuitId}
-        photoUrl={circuit.imageUrls?.[0] ?? circuit.imageUrl ?? null}
-        photoShape="square"
         subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${races.length} race${races.length === 1 ? "" : "s"}`}
         stats={[{ label: "Races", value: races.length }, ...(topWinner ? [{ label: "Most wins", value: `${topWinner[0]} (${topWinner[1]})` }] : [])]}
         favoriteButton={<ArchiveFavoriteToggle type="track" id={circuitId} />}
       />
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      {circuit.trackMap && (
+        <div className="mt-6 max-w-md">
+          <TrackMap map={circuit.trackMap} name={circuit.name ?? circuit.circuitId} />
+        </div>
+      )}
+      <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Winner" />
       </div>
     </div>
@@ -195,12 +202,12 @@ async function renderDiagnosticIfAdmin(err: unknown) {
   const digest = (err as { digest?: string } | null)?.digest;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+    <div className="page-narrow py-10">
       <div className="rounded-2xl border border-[var(--f1-red)]/40 bg-[var(--f1-carbon)] p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--f1-red)]">Admin-only diagnostic — this page threw</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-text">Admin-only diagnostic — this page threw</p>
         <p className="mt-3 whitespace-pre-wrap text-sm text-white">{message}</p>
-        {digest && <p className="mt-2 text-xs text-neutral-500">digest: {digest}</p>}
-        {stack && <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs text-neutral-500">{stack}</pre>}
+        {digest && <p className="mt-2 text-xs text-tertiary">digest: {digest}</p>}
+        {stack && <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs text-tertiary">{stack}</pre>}
       </div>
     </div>
   );
@@ -267,7 +274,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
   const eraSegments = buildEraSegments(entries.map(({ race, result }) => ({ year: race.year, label: result.constructor, raceCount: 1 })));
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide py-6">
       <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
       <ArchiveEntityHeader
         backHref="/archive?section=driver"
@@ -286,11 +293,11 @@ async function ArchiveDriverHistoryInner(driverId: string) {
       />
       {eraSegments.length > 0 && (
         <div className="mt-4 shrink-0">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Team eras</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Team eras</p>
           <ArchiveEraTimeline segments={eraSegments} />
         </div>
       )}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilterKeys={["wins", "podiums", "points", "dnf"]} />
       </div>
     </div>
@@ -364,7 +371,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
     .sort((a, b) => b.races - a.races);
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col px-4 py-6 sm:px-6">
+    <div className="page-wide py-6">
       <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
       <ArchiveEntityHeader
         backHref="/archive?section=team"
@@ -383,11 +390,11 @@ async function ArchiveTeamHistoryInner(teamId: string) {
       />
       {relationships.length > 0 && (
         <div className="mt-4 shrink-0">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Drivers</p>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Drivers</p>
           <ArchiveDriverRelationships drivers={relationships} maxHeightPx={160} />
         </div>
       )}
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-4 flex flex-col">
         <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilterKeys={["wins", "podiums"]} />
       </div>
     </div>
@@ -406,7 +413,8 @@ export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: "Archive",
-  description: `Every F1 season from ${ARCHIVE_EARLIEST_YEAR} to ${ARCHIVE_LATEST_YEAR} — results, qualifying, and pit stops.`,
+  // No end year: this is static, and the archive's newest season follows the calendar (R-22).
+  description: `Every F1 season since ${ARCHIVE_EARLIEST_YEAR} — results, qualifying, and pit stops.`,
 };
 
 export default async function ArchivePage({
@@ -424,7 +432,7 @@ export default async function ArchivePage({
   const session = await getSession();
   if (!session.uid) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="page-wide py-10">
         <SignInGate label="the historical archive" />
       </div>
     );

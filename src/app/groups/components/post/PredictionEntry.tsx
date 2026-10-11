@@ -139,7 +139,7 @@ export function PredictionEntry({
   if (blocker) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11.5px] text-neutral-500">{blocker}</span>
+        <span className="text-[11.5px] text-tertiary">{blocker}</span>
         <Link href={`${groupHref(groupId)}?tab=predictions`} className="text-[11.5px] font-medium text-neutral-400 underline-offset-2 hover:text-white hover:underline">
           View in community
         </Link>
@@ -175,7 +175,7 @@ export function PredictionEntry({
         className="overflow-hidden"
       >
         <div className="rounded-lg border border-white/[0.08] bg-black/25 p-2.5">
-      <p className="text-[10.5px] font-medium text-neutral-500">
+      <p className="text-[10.5px] font-medium text-tertiary">
         {type === "podium" ? "Pick your podium" : type === "dnf_count" ? "How many retirements?" : "Your pick"}
       </p>
 
@@ -216,10 +216,10 @@ export function PredictionEntry({
       {type === "podium" && podium.some(Boolean) && new Set(podium.filter(Boolean)).size !== podium.filter(Boolean).length && (
         <p className="mt-1.5 text-[11px] text-amber-400">Pick three different drivers.</p>
       )}
-      {error && <p className="mt-1.5 text-[11px] text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="mt-1.5 text-[11px] text-brand-text">{error}</p>}
 
       <div className="mt-2 flex items-center gap-2">
-        {!isEditing && <span className="text-[11px] text-neutral-500">Costs {entryPoints} pts</span>}
+        {!isEditing && <span className="text-[11px] text-tertiary">Costs {entryPoints} pts</span>}
         <button
           type="button"
           onClick={() => (isEditing ? onCancelEdit?.() : setOpen(false))}

@@ -10,7 +10,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
-const BASE = "skeleton-shimmer rounded-[3px] bg-white/[0.04]";
+const BASE = "skeleton-shimmer rounded-control";
 
 /** One line of text. `width` is a percentage so a paragraph of these reads as ragged prose rather
  * than a stack of identical bars. */

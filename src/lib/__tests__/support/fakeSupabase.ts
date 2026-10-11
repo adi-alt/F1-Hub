@@ -2,7 +2,8 @@
 // authorization and error-mapping logic that lives in TypeScript can be tested against the REAL
 // service code (src/lib/supabase/*) without a network or a database.
 //
-// Scope, honestly: it models filters (eq/neq/in/is/gt/gte/lt/lte), order/limit, insert/update/upsert/
+// Scope, honestly: it models filters (eq/neq/in/is/gt/gte/lt/lte), order/limit/range, the server's
+// max-rows cap (`maxRows`, like PostgREST's db-max-rows), insert/update/upsert/
 // delete, `.single()` / `.maybeSingle()` semantics, `{ count, head }` selects, unique-key conflicts
 // (23505) and defaults. It does NOT model column projection (a select returns whole stored rows), embedded
 // resources beyond what a fixture already nests, evaluating `.or()` (it is recorded, see orCalls), or RLS - everything the SQL functions and
@@ -27,6 +28,9 @@ export class FakeSupabase {
   /** Every `.or(expr)` filter string seen. The fake does NOT evaluate these (PostgREST's filter grammar
    * is the database's business) - it records them so a test can assert on what was asked. */
   orCalls: string[] = [];
+  /** The most rows one select returns, like PostgREST's db-max-rows (1000 on this project): a
+   * request for more silently gets the first `maxRows`. Unlimited unless a test sets it. */
+  maxRows = Infinity;
 
   rows(table: string): Row[] {
     return (this.tables[table] ??= []);
@@ -56,8 +60,9 @@ class FakeQuery implements PromiseLike<Result> {
   private head = false;
   private returning = false;
   private cardinality: "many" | "maybe" | "one" = "many";
-  private ordering: { col: string; asc: boolean } | null = null;
+  private orderings: { col: string; asc: boolean }[] = [];
   private max: number | null = null;
+  private window: { from: number; to: number } | null = null;
 
   constructor(
     private db: FakeSupabase,
@@ -130,12 +135,18 @@ class FakeQuery implements PromiseLike<Result> {
     this.db.orCalls.push(expr);
     return this;
   }
+  /** Each call adds a sort key, as in PostgREST (`order=a,b`). Numbers compare as numbers. */
   order(col: string, opts?: { ascending?: boolean }) {
-    this.ordering = { col, asc: opts?.ascending ?? true };
+    this.orderings.push({ col, asc: opts?.ascending ?? true });
     return this;
   }
   limit(n: number) {
     this.max = n;
+    return this;
+  }
+  /** Rows `from` to `to`, inclusive and zero-based, of the ordered result. */
+  range(from: number, to: number) {
+    this.window = { from, to };
     return this;
   }
   maybeSingle() {
@@ -170,12 +181,21 @@ class FakeQuery implements PromiseLike<Result> {
     const table = this.db.rows(this.table);
     if (this.op === "select") {
       let rows = this.matching();
-      if (this.ordering) {
-        const { col, asc } = this.ordering;
-        rows = [...rows].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : String(a[col]) > String(b[col]) ? 1 : 0) * (asc ? 1 : -1));
+      if (this.orderings.length) {
+        rows = [...rows].sort((a, b) => {
+          for (const { col, asc } of this.orderings) {
+            const x = a[col];
+            const y = b[col];
+            const cmp = typeof x === "number" && typeof y === "number" ? x - y : String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0;
+            if (cmp !== 0) return cmp * (asc ? 1 : -1);
+          }
+          return 0;
+        });
       }
       const count = rows.length;
+      if (this.window) rows = rows.slice(this.window.from, this.window.to + 1);
       if (this.max !== null) rows = rows.slice(0, this.max);
+      rows = rows.slice(0, this.db.maxRows);
       if (this.head) return { data: null, error: null, count };
       return this.shape(rows.map((r) => ({ ...r })), this.wantsCount ? count : undefined);
     }

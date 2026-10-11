@@ -56,6 +56,8 @@ export class OpenRouterProvider implements AIProvider {
       stream: false,
     };
     if (config.topP != null) payload.top_p = config.topP;
+    // OpenRouter's normalised reasoning control; gpt-oss takes low/medium/high (audit AI-06).
+    if (config.reasoningEffort === "low" || config.reasoningEffort === "medium" || config.reasoningEffort === "high") payload.reasoning = { effort: config.reasoningEffort };
     if (tools && tools.length > 0) {
       payload.tools = tools;
       payload.tool_choice = "auto";

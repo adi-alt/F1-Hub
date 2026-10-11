@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useRef, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerItem } from "@/components/motion/variants";
-import { useRowFitPageSize } from "@/hooks/useRowFitPageSize";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { FavoriteButton } from "./FavoriteButton";
@@ -12,7 +11,10 @@ import { Pagination } from "./Pagination";
 // The exact same sticky-header treatment ChampionshipStandings.tsx uses (Season's own reference
 // table), not a re-derived version - real opacity behind the blur so rows scrolling underneath
 // don't bleed through, same translucent-dark token every sticky/floating surface in the app uses.
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-neutral-500 backdrop-blur-md border-b border-white/[0.08]";
+/** Rows per page. A fixed number now: the page scrolls like any other, so the table no longer fills the
+ * viewport and there is no height to fit rows to. */
+const PAGE_SIZE = 25;
+const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
 export type ArchiveTableColumn<T> = {
@@ -42,7 +44,7 @@ export type ArchiveTableColumn<T> = {
 /** The shared table both ArchiveDriverTable and ArchiveTeamTable are now thin wrappers around -
  * they were previously two byte-for-byte-identical implementations differing only in field names.
  * Owns search/sort/pagination (URL-backed via useUrlPage/useUrlParam, so a refresh or a shared
- * link preserves them), the same dynamic row-fit page sizing (useRowFitPageSize) the original
+ * link preserves them), the same fixed page size (PAGE_SIZE, now that the page scrolls instead of filling the viewport) the original
  * tables used, and favoriting. Wrapped in overflow-x-auto scrollbar-hide - the one real gap the
  * original tables had: zero responsive handling at all, so a table this wide simply couldn't be
  * reached on a narrow viewport before. */
@@ -82,11 +84,7 @@ export function ArchiveTable<T>({
   const sortDir: "asc" | "desc" = rawDir === "asc" ? "asc" : "desc";
   const sortColumn = columns.find((c) => c.key === sortKey);
 
-  const rootRef = useRef<HTMLDivElement>(null);
-  const theadRef = useRef<HTMLTableSectionElement>(null);
-  const firstRowRef = useRef<HTMLTableRowElement>(null);
-  const footerRef = useRef<HTMLDivElement>(null);
-  const pageSize = useRowFitPageSize(rootRef, theadRef, firstRowRef, footerRef);
+  const pageSize = PAGE_SIZE;
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -121,11 +119,11 @@ export function ArchiveTable<T>({
   }
 
   if (rows.length === 0) {
-    return <p className="text-sm text-neutral-500">{emptyMessage}</p>;
+    return <p className="text-sm text-tertiary">{emptyMessage}</p>;
   }
   if (sorted.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-tertiary">
         {favoritesOnly && !search ? `You haven't favorited any ${itemLabel}s yet.` : `No ${itemLabel}s match “${search}”.`}
         {onClearFilters && (
           <>
@@ -140,7 +138,7 @@ export function ArchiveTable<T>({
   }
 
   return (
-    <div ref={rootRef} className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex flex-col">
       <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
         {/* No min-w here - table-fixed's real minimum is already the sum of each column's own
             declared width (see ArchiveDriverTable/ArchiveTeamTable), and an extra floor on top of
@@ -161,7 +159,7 @@ export function ArchiveTable<T>({
             ))}
             <col className="w-16" />
           </colgroup>
-          <thead ref={theadRef} className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
+          <thead className={HEADER_CLASS} style={HEADER_STYLE}>
             <tr>
               {/* "#" not "S.No" - the row-index column is only 3rem wide (just enough for a 3-digit
                   number plus padding), and "S.No" at 11px bold+uppercase+tracked never actually fit
@@ -174,14 +172,30 @@ export function ArchiveTable<T>({
                 <th
                   key={col.key}
                   scope="col"
-                  aria-sort={col.sortable ? (col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
-                  onClick={col.sortable ? () => toggleSort(col.key) : undefined}
+                  // On the sorted column only, as in the APG sortable table; the other sortable
+                  // headers are still buttons.
+                  aria-sort={col.sortable && col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
                   className={`overflow-hidden truncate whitespace-nowrap px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                    col.sortable ? "cursor-pointer select-none" : ""
+                    col.sortable ? "select-none" : ""
                   } ${col.hideOnMobile ? "hidden lg:table-cell" : ""}`}
                 >
-                  {col.label}
-                  {col.sortable && col.key === sortKey && <span className="ml-1 text-[var(--f1-red)]">{sortDir === "asc" ? "↑" : "↓"}</span>}
+                  {col.sortable ? (
+                    // A button, so the sort is reachable by keyboard (a bare <th onClick> isn't).
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      className="inline-flex max-w-full items-center rounded-control uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    >
+                      <span className="truncate">{col.label}</span>
+                      {col.key === sortKey && (
+                        <span aria-hidden className="ml-1 text-brand-text">
+                          {sortDir === "asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    col.label
+                  )}
                 </th>
               ))}
               {/* "Fav" not "Favorite" - same reasoning as "#" above; title= keeps the full word
@@ -204,7 +218,6 @@ export function ArchiveTable<T>({
                   <motion.tr
                     key={id}
                     layout
-                    ref={i === 0 ? firstRowRef : undefined}
                     initial="hidden"
                     animate="show"
                     exit="hidden"
@@ -216,7 +229,7 @@ export function ArchiveTable<T>({
                     transition={{ layout: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
                     className="transition-colors hover:bg-white/[0.03]"
                   >
-                    <td className="px-4 py-2.5 text-neutral-500">{pageStart + i + 1}</td>
+                    <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
                     {columns.map((col) => (
                       <td
                         key={col.key}
@@ -237,7 +250,7 @@ export function ArchiveTable<T>({
           </tbody>
         </table>
       </div>
-      <div ref={footerRef}>
+      <div>
         <Pagination page={pageSafe} totalPages={totalPages} totalItems={sorted.length} itemLabel={itemLabel} onPageChange={setPage} />
       </div>
     </div>

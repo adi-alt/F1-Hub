@@ -7,11 +7,20 @@
 // DOES log: request ID, agent type, tool names, durations, token usage, cache hit/miss,
 // provider rolling RPM, capacity status, fallback reasons, validation success/failure.
 
+import { createHmac } from "node:crypto";
 import type { AIOperationLog } from "./types";
+
+/** A stable, non-reversible stand-in for a user id in logs (audit R-13): enough to count one user's
+ * calls and spot a loop, without a real account id sitting in a log store. HMAC-keyed with the session
+ * secret, so the hash can't be brute-forced from known ids by someone who only has the logs. */
+export function hashUserId(userId: string | null | undefined): string | null {
+  if (!userId) return null;
+  return createHmac("sha256", process.env.SESSION_SECRET ?? "unset").update(userId).digest("hex").slice(0, 12);
+}
 
 /** Log a completed AI operation. */
 export function logAIOperation(log: AIOperationLog): void {
-  console.log(JSON.stringify({ _tag: "ai_operation", ...log }));
+  console.log(JSON.stringify({ _tag: "ai_operation", ...log, userId: hashUserId(log.userId) }));
 }
 
 /** Log a provider rate limit or capacity check event. */

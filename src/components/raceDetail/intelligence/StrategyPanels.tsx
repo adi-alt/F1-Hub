@@ -30,7 +30,7 @@ export function StrategyPanels({
         const insight = insights[p.key]!;
         return (
           <div key={p.key} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{p.label}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{p.label}</p>
             <p className="mt-1 text-sm font-medium text-white">{insight.title}</p>
             <p className="mt-1 text-xs leading-relaxed text-neutral-400">{insight.explanation}</p>
           </div>

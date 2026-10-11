@@ -43,7 +43,7 @@ function ProgressionTooltip({
         {sorted.map((entry, i) => (
           <div key={String(entry.dataKey)} className="flex items-center justify-between gap-4">
             <span className="flex items-center gap-1.5 text-neutral-300">
-              <span className="w-3 shrink-0 font-mono text-[10px] text-neutral-600">P{i + 1}</span>
+              <span className="w-3 shrink-0 font-mono text-[10px] text-tertiary">P{i + 1}</span>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: entry.color }} />
               {labelFor(String(entry.dataKey))}
             </span>

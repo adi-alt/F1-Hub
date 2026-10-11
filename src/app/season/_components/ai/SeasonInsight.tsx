@@ -23,8 +23,8 @@ export function SeasonInsight({ eyebrow = "Apex", headline, summary }: { eyebrow
  * voice. */
 export function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <p className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500 ${className}`}>
-      <span aria-hidden className="text-[var(--f1-red)]">
+    <p className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary ${className}`}>
+      <span aria-hidden className="text-brand-text">
         ✦
       </span>
       {children}

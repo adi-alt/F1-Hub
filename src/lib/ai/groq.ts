@@ -58,6 +58,9 @@ export class GroqProvider implements AIProvider {
       stream: false,
     };
     if (config.topP != null) payload.top_p = config.topP;
+    // gpt-oss takes low/medium/high (default medium); low keeps more of max_tokens for the answer
+    // itself rather than the hidden reasoning pass (audit AI-06).
+    if (config.reasoningEffort === "low" || config.reasoningEffort === "medium" || config.reasoningEffort === "high") payload.reasoning_effort = config.reasoningEffort;
     if (tools && tools.length > 0) {
       payload.tools = tools;
       payload.tool_choice = "auto";

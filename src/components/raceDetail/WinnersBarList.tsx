@@ -20,7 +20,7 @@ export function WinnersBarList({ entries, unit = "win" }: { entries: { name: str
           transition={{ duration: 0.2, delay: i * 0.03 }}
           className="flex items-center gap-2.5 py-[3px]"
         >
-          <span className="w-4 shrink-0 text-right font-mono text-[11px] text-neutral-600">{i + 1}</span>
+          <span className="w-4 shrink-0 text-right font-mono text-[11px] text-tertiary">{i + 1}</span>
           {/* Full names here (a driver or a team), not a 3-letter code - a fixed w-40 rather than
               ProbabilityBars' own w-12, wide enough for "Michael Schumacher" (confirmed live at
               w-32 it still clipped to "Schumac…") - truncate stays as the graceful fallback for
@@ -36,7 +36,7 @@ export function WinnersBarList({ entries, unit = "win" }: { entries: { name: str
               style={{ background: "var(--f1-red)" }}
             />
           </div>
-          <span className="w-20 shrink-0 text-right text-xs text-neutral-500">
+          <span className="w-20 shrink-0 text-right text-xs text-tertiary">
             {e.count} {e.count === 1 ? unit : `${unit}s`}
           </span>
         </motion.div>

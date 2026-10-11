@@ -3,7 +3,9 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { ChevronRight, Compass, LayoutGrid, Plus } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Icon } from "@/components/ui/Icon";
 import { groupHref } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
@@ -40,23 +42,23 @@ export function GroupsLeftSidebar({
     // gives this a definite-height flex parent so that percentage actually resolves) and only caps
     // at the workspace height once there are enough communities to need it, at which point the
     // list inside it starts scrolling instead.
-    <div className="hidden max-h-full flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex">
+    <div className="hidden flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex lg:max-h-[calc(100dvh-6rem)]">
       <div className="shrink-0 px-1">
         <h1 className="text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
-        <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-500">Race-weekend discussion and predictions across your communities.</p>
+        <p className="mt-0.5 text-[11.5px] leading-snug text-tertiary">Race-weekend discussion and predictions across your communities.</p>
       </div>
 
       <div className="mt-3.5 flex shrink-0 items-center justify-between px-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Your communities</p>
-        {groups.length > 0 && <span className="text-[11px] tabular-nums text-neutral-600">{groups.length}</span>}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Your communities</p>
+        {groups.length > 0 && <span className="text-[11px] tabular-nums text-tertiary">{groups.length}</span>}
       </div>
 
       {groups.length === 0 ? (
         <div className="mt-3 rounded-xl border border-dashed border-white/[0.09] px-3 py-5 text-center">
-          <p className="text-xs text-neutral-500">No communities yet.</p>
-          <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--f1-red)] transition hover:brightness-125">
+          <p className="text-xs text-tertiary">No communities yet.</p>
+          <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-text transition hover:brightness-125">
             Discover communities
-            <ChevronIcon />
+            <Icon icon={ChevronRight} size={16} />
           </button>
         </div>
       ) : (
@@ -66,7 +68,7 @@ export function GroupsLeftSidebar({
         // divide-y at very low contrast: each community is a distinct destination and the hairline
         // between them is what makes the list scan as rows rather than a run-on column. Kept to
         // white/[0.05] so it separates without drawing the borders-everywhere look.
-        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-hide">
+        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-subtle">
           {/* The scope control. Same row grammar as a community - same inset, same 36px icon
               slot, same selected treatment - so the list reads as one navigation system, with a
               squared tile instead of a circular avatar to say it is a filter and not a community.
@@ -74,16 +76,16 @@ export function GroupsLeftSidebar({
           <div data-tour="community-filter" className="mb-1 border-b border-white/[0.08] pb-1">
             <NavRow
               label="All"
-              sublabel="Everything you\u2019re in"
+              sublabel={"Everything you\u2019re in"}
               active={selectedId === null}
               onClick={() => onSelect(null)}
               icon={
                 <span
                   className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition ${
-                    selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-[var(--f1-red)]" : "bg-white/[0.05] text-neutral-400"
+                    selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-brand-text" : "bg-white/[0.05] text-neutral-400"
                   }`}
                 >
-                  <AllIcon />
+                  <Icon icon={LayoutGrid} size={16} />
                 </span>
               }
             />
@@ -121,7 +123,7 @@ export function GroupsLeftSidebar({
           onClick={() => setShowCreate(true)}
           className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--f1-red)] px-3 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
         >
-          <PlusIcon />
+          <Icon icon={Plus} size={16} />
           New community
         </button>
         <button
@@ -129,7 +131,7 @@ export function GroupsLeftSidebar({
           onClick={onDiscover}
           className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-white/[0.09] bg-white/[0.02] px-3 py-2 text-[12.5px] font-medium text-neutral-200 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
         >
-          <CompassIcon />
+          <Icon icon={Compass} size={16} />
           Discover communities
         </button>
       </div>
@@ -182,7 +184,7 @@ function NavRow({
         {icon}
         <span className="min-w-0 flex-1">
           <span className={`block truncate text-[14px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
-          {sublabel && <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-neutral-500">{sublabel}</span>}
+          {sublabel && <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-tertiary">{sublabel}</span>}
         </span>
       </button>
       {badge}
@@ -191,52 +193,12 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="shrink-0 rounded p-0.5 text-neutral-600 opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded p-0.5 text-tertiary opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
         >
-          <ChevronIcon />
+          <Icon icon={ChevronRight} size={16} />
         </Link>
       )}
     </div>
-  );
-}
-
-/** A plain chevron, not "->" - every directional affordance in this section uses this instead of
- * an ASCII arrow. */
-function ChevronIcon() {
-  return (
-    <svg viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden>
-      <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden>
-      <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function CompassIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden>
-      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path d="m13 7-1.8 4.4a1 1 0 0 1-.6.6L6.5 13.5l1.8-4.4a1 1 0 0 1 .6-.6L13 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** A real globe - "All" means every followed community's feed aggregated together, and a globe is
- * the honest icon for "everything". */
-function AllIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden>
-      <rect x="2" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="9" y="2" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="2" y="9" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="9" y="9" width="5" height="5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
   );
 }
 

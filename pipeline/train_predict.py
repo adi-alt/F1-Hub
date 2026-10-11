@@ -39,6 +39,7 @@ from ml.predict_finish import chronological_backtest, predict_finish_order
 from ml.predict_pace import predict_pace_gaps
 from ml.predict_pole import MODEL_VERSION as POLE_MODEL_VERSION
 from ml.predict_pole import predict_pole_order
+from run_ledger import ledgered
 from ml.simulate_race import simulate_race
 from ml.tyre_features import (
     GLOBAL_DEGRADATION_DEFAULT,
@@ -85,9 +86,21 @@ def _quali_lookup(qualifying: dict | None) -> dict[str, dict]:
     return {"get": get}
 
 
+def has_qualifying(race_doc: dict) -> bool:
+    """Whether this weekend has a real qualifying grid. A completed round without one (its results
+    arrived through Jolpica/OpenF1 and qualifying never did) used to be trained on anyway, with every
+    driver given the same invented "last on the grid, worse than the worst gap" values from
+    `_quali_lookup`: rows that teach the models qualifying means nothing. The fallback stays for
+    *predicting* (a partial grid, one missing driver); it is not used to make training data."""
+    return bool((race_doc.get("qualifying") or {}).get("grid"))
+
+
 def to_training_rows(race_doc: dict) -> list[TrainingResultRow]:
     """One row per driver for a completed race, joining race results with that weekend's own
-    qualifying grid — results don't carry qualifyingGapSec/qualiPosition directly."""
+    qualifying grid — results don't carry qualifyingGapSec/qualiPosition directly. Nothing for a
+    round with no qualifying grid (see has_qualifying)."""
+    if not has_qualifying(race_doc):
+        return []
     quali = _quali_lookup(race_doc.get("qualifying"))
     rows = []
     for r in race_doc["race"]["results"]:
@@ -109,7 +122,10 @@ def to_training_rows(race_doc: dict) -> list[TrainingResultRow]:
 def to_dnf_rows(race_doc: dict) -> list[DnfResultRow]:
     """One row per driver, unfiltered — unlike to_pace_rows, predict_dnf.py's target literally *is*
     the dnf flag, so DNF rows are exactly what it needs, not something to exclude. Needs year,
-    unlike TrainingResultRow/PaceResultRow, since ml/predict_dnf.py's history is cross-season."""
+    unlike TrainingResultRow/PaceResultRow, since ml/predict_dnf.py's history is cross-season.
+    Still nothing for a round with no qualifying grid: its grid and gap columns would be invented."""
+    if not has_qualifying(race_doc):
+        return []
     quali = _quali_lookup(race_doc.get("qualifying"))
     year, round_num = race_doc["year"], race_doc["round"]
     rows = []
@@ -153,7 +169,11 @@ def to_pace_rows(race_doc: dict, trait_history: dict) -> list[PaceResultRow]:
     `trait_history`: (year, round, driver) -> tyre trait dict, built once across every completed
     race regardless of season (see ml/tyre_features.py) — cross-season, unlike the Elo features
     computed later from just this row's season.
+
+    Nothing for a round with no qualifying grid (see has_qualifying).
     """
+    if not has_qualifying(race_doc):
+        return []
     quali = _quali_lookup(race_doc.get("qualifying"))
     year, round_num = race_doc["year"], race_doc["round"]
     rows = []
@@ -358,9 +378,13 @@ def update_race(cur, race_id: str, fields: dict) -> None:
     rows. Only the passed columns change, mirroring the old Firestore `doc.reference.update({...})`
     partial-write semantics this module depends on throughout: prediction/polePrediction/simulation
     each freeze once written, so a later run must never touch a column it didn't just (re)compute."""
-    set_clause = ", ".join(f"{_COLUMNS[k]} = %s" for k in fields)
+    columns = [_COLUMNS[k] for k in fields]
+    set_clause = ", ".join(f"{c} = %s" for c in columns)
     values = [json.dumps(v) for v in fields.values()]
-    cur.execute(f"update races set {set_clause} where id = %s", (*values, race_id))
+    # Only when something differs: re-running over a round whose prediction is already stored (the
+    # normal case on most ticks) must not rewrite the row. jsonb equality, so key order is irrelevant.
+    changed = f"({', '.join(columns)}) is distinct from ({', '.join(['%s::jsonb'] * len(columns))})"
+    cur.execute(f"update races set {set_clause} where id = %s and {changed}", (*values, race_id, *values))
 
 
 def process_year(conn, year: int):
@@ -407,7 +431,7 @@ def process_year(conn, year: int):
                 # any run sees this race lacking it — computed *before* this round's own rows join
                 # pace_rows/dnf_rows_this_season/the calibration pool below, so it never leaks into its
                 # own inputs.
-                if data.get("simulation") is None and len(dnf_rows_other_seasons) + len(dnf_rows_this_season) >= DNF_WARMUP_ROWS:
+                if data.get("simulation") is None and has_qualifying(data) and len(dnf_rows_other_seasons) + len(dnf_rows_this_season) >= DNF_WARMUP_ROWS:
                     quali = _quali_lookup(data.get("qualifying"))
                     entrants_real = []
                     for r in data["race"]["results"]:
@@ -451,6 +475,8 @@ def process_year(conn, year: int):
                         podium_probs.append(row["podiumRaw"])
                         podium_actuals.append(1 if actual_pos <= 3 else 0)
 
+                if not has_qualifying(data):
+                    print(f"  round {round_num}: completed but has no qualifying grid - kept out of the training history")
                 training_rows.extend(to_training_rows(data))
                 pace_rows.extend(to_pace_rows(data, trait_history))
                 dnf_rows_this_season.extend(to_dnf_rows(data))
@@ -530,6 +556,7 @@ def process_year(conn, year: int):
             print(f"  round {round_num}: prediction frozen ({len(training_rows)} training rows)")
 
 
+@ledgered("train-predict")
 def main():
     year = int(sys.argv[1]) if len(sys.argv) > 1 else datetime.now().year
     conn = init_postgres()

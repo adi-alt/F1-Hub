@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 
 type Rect = { top?: number; bottom?: number; left: number; minWidth: number; maxHeight: number };
 
@@ -15,7 +16,9 @@ type Rect = { top?: number; bottom?: number; left: number; minWidth: number; max
  * without any selection model of its own - the caller renders whatever belongs inside. That's the
  * difference from Picker: Picker *is* a select, this is a place to put things.
  *
- * Escape closes, click-outside closes, and focus returns to the trigger on close.
+ * Escape closes, click-outside closes, and focus returns to the trigger on close. Focus moves into
+ * the panel when it opens and Tab stays inside it: the panel is portalled to the end of <body>, so
+ * otherwise Tab from the trigger would skip it entirely (audit UI-30).
  */
 export function Popover({
   trigger,
@@ -23,6 +26,7 @@ export function Popover({
   align = "start",
   panelClassName = "",
   ariaLabel,
+  glass = false,
 }: {
   /** Gets `open` so the caller can render its own chevron/active state. */
   trigger: (props: { open: boolean; toggle: () => void; ref: React.Ref<HTMLButtonElement> }) => React.ReactNode;
@@ -31,6 +35,8 @@ export function Popover({
   align?: "start" | "end";
   panelClassName?: string;
   ariaLabel?: string;
+  /** The app's frosted overlay surface (surface-glass) instead of the near-opaque default. */
+  glass?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -52,10 +58,13 @@ export function Popover({
     triggerRef.current?.focus();
   }, [refocusSignal]);
 
-  function close() {
+  const close = useCallback(() => {
     setOpen(false);
     setRefocusSignal((n) => n + 1);
-  }
+  }, []);
+
+  // Once the panel is actually rendered (it waits for its first measurement), so the trap finds it.
+  useModalFocusTrap(panelRef, open && rect !== null, close, { lockScroll: false });
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +102,7 @@ export function Popover({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onPointerDown);
     };
-  }, [open, align]);
+  }, [open, align, close]);
 
   return (
     <>
@@ -111,7 +120,7 @@ export function Popover({
                 exit={{ opacity: 0, y: -4, scale: 0.99 }}
                 transition={{ duration: 0.12 }}
                 style={{ position: "fixed", top: rect.top, bottom: rect.bottom, left: rect.left, minWidth: rect.minWidth, maxHeight: rect.maxHeight, zIndex: 120 }}
-                className={`flex flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl ${panelClassName}`}
+                className={`flex flex-col overflow-hidden rounded-xl shadow-2xl ${glass ? "surface-glass" : "border border-white/10 bg-zinc-900/95 backdrop-blur-xl"} ${panelClassName}`}
               >
                 {children({ close })}
               </motion.div>
@@ -153,7 +162,7 @@ export function FilterPill({
     >
       {label}
       {active && <span className="rounded-full bg-[var(--f1-red)] px-1.5 text-[10px] font-semibold text-white tabular-nums">{count}</span>}
-      <svg viewBox="0 0 20 20" className={`h-3 w-3 text-neutral-500 transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
+      <svg viewBox="0 0 20 20" className={`h-3 w-3 text-tertiary transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
         <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>

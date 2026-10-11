@@ -55,7 +55,7 @@ export function AnalysisCoverage({
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center justify-between text-left text-xs text-neutral-500 transition hover:text-neutral-300"
+        className="flex w-full items-center justify-between text-left text-xs text-tertiary transition hover:text-neutral-300"
       >
         <span>
           Behind this analysis · {available} of {items.length} race data sources available
@@ -70,7 +70,7 @@ export function AnalysisCoverage({
                 <span className={`h-1.5 w-1.5 rounded-full ${coverage[key] ? "bg-emerald-400" : "bg-white/15"}`} />
                 {label}
               </span>
-              <span className="text-neutral-600">{coverage[key] ? `${factCounts?.[key] ?? 0} fact${(factCounts?.[key] ?? 0) === 1 ? "" : "s"}` : "unavailable"}</span>
+              <span className="text-tertiary">{coverage[key] ? `${factCounts?.[key] ?? 0} fact${(factCounts?.[key] ?? 0) === 1 ? "" : "s"}` : "unavailable"}</span>
             </li>
           ))}
         </ul>

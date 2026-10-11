@@ -41,11 +41,25 @@ if (dryRun) {
   process.exit(0);
 }
 
-const env = fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-const connectionString = (env.match(/^DATABASE_URL=(.*)$/m) ?? [])[1];
+// A DATABASE_URL in the environment wins (CI, and a deliberate run against staging); otherwise
+// .env.local, which is production. The run always says which project it is talking to, so a staging
+// run can't be mistaken for a production one.
+let connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  console.error("DATABASE_URL not found in .env.local");
+  const env = fs.existsSync(new URL("../.env.local", import.meta.url)) ? fs.readFileSync(new URL("../.env.local", import.meta.url), "utf8") : "";
+  connectionString = (env.match(/^DATABASE_URL=(.*)$/m) ?? [])[1];
+}
+if (!connectionString) {
+  console.error("DATABASE_URL not set and not found in .env.local");
   process.exit(1);
+}
+{
+  const ref = new URL(connectionString).username.split(".")[1] ?? "unknown";
+  console.log(`target project: ${ref} (${process.env.DATABASE_URL ? "DATABASE_URL from the environment" : ".env.local"})`);
+  if (process.env.EXPECTED_PROJECT_REF && ref !== process.env.EXPECTED_PROJECT_REF) {
+    console.error(`refusing to run: target is project ${ref}, expected ${process.env.EXPECTED_PROJECT_REF}`);
+    process.exit(1);
+  }
 }
 
 const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false } });

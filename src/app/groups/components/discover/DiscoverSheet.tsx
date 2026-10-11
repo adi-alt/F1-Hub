@@ -151,7 +151,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-white">Discover Communities</h2>
-              <p className="mt-0.5 text-xs text-neutral-500">Find people and spaces around what interests you.</p>
+              <p className="mt-0.5 text-xs text-tertiary">Find people and spaces around what interests you.</p>
             </div>
             <button
               onClick={onClose}
@@ -165,7 +165,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="relative mt-4">
-            <svg viewBox="0 0 20 20" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" fill="none" aria-hidden>
+            <svg viewBox="0 0 20 20" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" fill="none" aria-hidden>
               <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
               <path d="m13.5 13.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
@@ -175,14 +175,14 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
               placeholder="Search communities..."
               aria-label="Search communities"
               autoFocus
-              className="w-full rounded-xl border border-[var(--f1-line)] bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-neutral-600 focus:border-white/30 focus:outline-none"
+              className="w-full rounded-xl border border-[var(--f1-line)] bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery("")}
                 aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-500 transition hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-tertiary transition hover:text-white"
               >
                 <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
                   <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -208,13 +208,13 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
                   setQuery("");
                   setTopics([]);
                 }}
-                className="shrink-0 text-xs text-neutral-500 transition hover:text-white"
+                className="shrink-0 text-xs text-tertiary transition hover:text-white"
               >
                 Clear all
               </button>
             )}
             {communities !== null && (
-              <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-neutral-600 tabular-nums">
+              <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-tertiary tabular-nums">
                 {total} {total === 1 ? "community" : "communities"}
               </span>
             )}
@@ -255,7 +255,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
                     </div>
                   )}
                   {pageError && (
-                    <p className="py-3 text-center text-xs text-neutral-500">
+                    <p className="py-3 text-center text-xs text-tertiary">
                       Couldn&apos;t load more.{" "}
                       <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                         Retry
@@ -265,12 +265,12 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
-              {!cursor && communities.length > 6 && <p className="pt-6 text-center text-xs text-neutral-600">That&apos;s every community matching this.</p>}
+              {!cursor && communities.length > 6 && <p className="pt-6 text-center text-xs text-tertiary">That&apos;s every community matching this.</p>}
             </>
           )}
 
           <div className="mt-8 border-t border-[var(--f1-line)] pt-5">
-            <p className="mb-2 text-xs text-neutral-500">Have an invite link to a private community?</p>
+            <p className="mb-2 text-xs text-tertiary">Have an invite link to a private community?</p>
             <JoinGroupForm compact />
           </div>
         </div>
@@ -306,7 +306,7 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
         <p className="text-sm font-semibold text-neutral-300">
           No community matching <span className="text-white">&ldquo;{trimmed}&rdquo;</span>
         </p>
-        <div className="mx-auto mt-3 max-w-xs text-left text-xs leading-relaxed text-neutral-500">
+        <div className="mx-auto mt-3 max-w-xs text-left text-xs leading-relaxed text-tertiary">
           <p>Try:</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5">
             <li>Different or shorter keywords</li>
@@ -342,7 +342,7 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
   return (
     <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-10 text-center">
       <p className="text-sm font-semibold text-neutral-300">No public communities yet.</p>
-      <p className="mt-1 text-xs text-neutral-500">Be the first - create one and make it public.</p>
+      <p className="mt-1 text-xs text-tertiary">Be the first - create one and make it public.</p>
     </div>
   );
 }

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { QuietTabs } from "@/app/season/_components/QuietTabs";
-import { EntityMultiSelect, type MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
+import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
+import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
 import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/RaceResultsTable";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -27,10 +27,16 @@ import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
+import type { RaceTrackStory } from "@/lib/raceTrackStory";
+import type { CircuitLayout } from "@/lib/circuitLayout";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
-import type { RaceDoc, RaceSimulation } from "@/lib/types/race";
+import type { PracticeData, RaceDoc, RaceInputEntry, RaceSimulation } from "@/lib/types/race";
+import { PracticeSummary } from "@/components/race/PracticeSummary";
+import { QualifyingGapChart } from "@/components/race/QualifyingGapChart";
+import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
+import type { RacePhoto } from "@/lib/racePhotos";
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20+ car historical field doesn't turn Results into a wall-length scroll inside its own card.
@@ -63,7 +69,8 @@ function toResultRow(r: ArchiveRaceDoc["results"][number]): RaceResultRow {
  * pit-stops/laps) doesn't render at all, rather than taking up space to say so. Qualifying,
  * Race Performance (grid -> finish) and Strategy live inside one "Race Analysis" module
  * (RaceSubSection), same grouping SeasonRaceDashboard uses for Practice/Qualifying/Strategy -
- * Archive has no practice data, so this side's Race Analysis is just the two columns. Results
+ * The archive tables have no practice, but for 2018 on the season pipeline's own `races` row does: the page
+ * passes its practice and qualifying in (`practice`, `liveQualifying`), and they show here. Results
  * always renders - final classification
  * isn't optional for a classified historical race. `simulation` comes from `races.simulation`
  * (the current-season table), fetched separately by the page and passed in here - confirmed live
@@ -77,6 +84,11 @@ export function ArchiveRaceDashboard({
   circuitTimeline,
   ageRecords,
   raceCommunities,
+  trackStory = null,
+  layout = null,
+  practice = null,
+  liveQualifying = [],
+  photos = [],
 }: {
   race: ArchiveRaceDoc;
   circuit: ArchiveCircuit | null;
@@ -88,6 +100,16 @@ export function ArchiveRaceDashboard({
   circuitTimeline: CircuitYearRecord[];
   ageRecords: AgeRecords;
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
+  // The real circuit and where the lead changed (race_track_stories); null -> the storyline's fallback route.
+  trackStory?: RaceTrackStory | null;
+  // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
+  layout?: CircuitLayout | null;
+  // From the season pipeline's `races` row (2018 on): the archive tables have no practice at all, and a few
+  // races' archive qualifying has no times (2025 Miami). Absent before 2018.
+  practice?: PracticeData | null;
+  liveQualifying?: RaceInputEntry[];
+  // Approved photos of this weekend (/admin/race-photos); empty -> no photo section.
+  photos?: RacePhoto[];
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -168,17 +190,17 @@ export function ArchiveRaceDashboard({
     return (
       <div className="grid gap-3 border-t border-white/10 px-3 py-2.5 text-sm sm:grid-cols-2">
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Qualifying</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Qualifying</p>
           {quali ? (
             <p className="text-neutral-300">
               P{quali.position} – {quali.q3 ?? quali.q2 ?? quali.q1 ?? "no time"}
             </p>
           ) : (
-            <p className="text-neutral-500">Not available for this race.</p>
+            <p className="text-tertiary">Not available for this race.</p>
           )}
         </div>
         <div>
-          <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500">Pit stops {stops.length > 0 && `(${stops.length})`}</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-tertiary">Pit stops {stops.length > 0 && `(${stops.length})`}</p>
           {stops.length > 0 ? (
             <ul className="space-y-0.5 text-neutral-300">
               {stops
@@ -190,18 +212,23 @@ export function ArchiveRaceDashboard({
                 ))}
             </ul>
           ) : (
-            <p className="text-neutral-500">None recorded.</p>
+            <p className="text-tertiary">None recorded.</p>
           )}
         </div>
       </div>
     );
   }
 
-  const hasQualifying = !!race.qualifying?.length;
+  // Archive qualifying with no times can't be charted (2025 Miami's rows have none): the season pipeline's own
+  // qualifying (gap to pole) stands in when it has gaps.
+  const archiveQualifyingTimed = !!race.qualifying?.some((q) => q.q1 || q.q2 || q.q3);
+  const liveQualifyingTimed = liveQualifying.filter((q) => q.qualifyingGapSec !== null).length >= 3;
+  const hasQualifying = archiveQualifyingTimed || liveQualifyingTimed;
+  const hasPractice = !!practice && Object.keys(practice).length > 0;
   const hasStrategy = !!race.pitStops?.length;
   const hasPositionChanges = allMovementEntries.length > 0;
   const hasLapChart = race.lapsBackfilled;
-  const hasSessionAnalysis = hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
+  const hasSessionAnalysis = hasPractice || hasQualifying || hasStrategy || hasPositionChanges || hasLapChart;
   // Real ArchiveResultEntry rows already have driverId/driverName/position - LapChart's own prop
   // type is exactly that shape (defined there, not here) so this needs no field renaming, just a
   // type-level assertion that the wider ArchiveResultEntry satisfies it.
@@ -213,25 +240,8 @@ export function ArchiveRaceDashboard({
   // Nothing left to filter down to for a field of 5 or fewer. Governs Qualifying, Strategy, Lap
   // Progression, and Race Performance together - one control for the whole section, not each
   // panel's own.
-  const driverSetFilter =
-    Math.max(hasQualifying ? race.qualifying!.length : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5 ? (
-      <div className="flex flex-wrap items-center gap-3">
-        <QuietTabs
-          options={[
-            { value: "top5" as const, label: "Top 5" },
-            { value: "top10" as const, label: "Top 10" },
-            { value: "all" as const, label: "All drivers" },
-            { value: "custom" as const, label: "Custom" },
-          ]}
-          value={driverSet}
-          onChange={setDriverSet}
-          className="text-xs"
-        />
-        {driverSet === "custom" && (
-          <EntityMultiSelect options={customSelectOptions} selected={customDriverIds} onChange={setCustomDriverIds} placeholder="Select drivers" triggerClassName="h-8 py-1 text-xs" />
-        )}
-      </div>
-    ) : undefined;
+  const driverSetFilterable =
+    Math.max(hasQualifying ? (archiveQualifyingTimed ? race.qualifying!.length : liveQualifying.length) : 0, hasStrategy ? race.pitStops!.length : 0, allMovementEntries.length) > 5;
 
   // Whatever's honestly knowable client-side, pre-generation - compoundPace/traffic/safetyCar are
   // never in this coverage object at all (archive_races has no such columns for any year), so the
@@ -253,7 +263,7 @@ export function ArchiveRaceDashboard({
           circuit ? (
             <CircuitCard circuit={circuit} weather={race.weather} />
           ) : (
-            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-neutral-500">
+            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-tertiary">
               No circuit details backfilled for this race yet.
             </div>
           )
@@ -293,50 +303,75 @@ export function ArchiveRaceDashboard({
         </motion.div>
       </RaceSectionCard>
 
+      {photos.length > 0 && (
+        <RaceSectionCard id="photos" title="Photos from the weekend" bare>
+          <RacePhotoGallery photos={photos} />
+        </RaceSectionCard>
+      )}
+
       {hasSessionAnalysis && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-          <RaceSectionCard
-            title="Race Analysis"
-            description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
-            headerRight={driverSetFilter}
-          >
-            {/* Qualifying and Strategy share a row - they're the two panels that genuinely
-                benefit from sitting side by side at a comparable width. Lap Progression needs
-                real horizontal room to read a whole field's trajectories, and Race Performance
-                reads best as one full-width comparison strip - forcing either into a second
-                column here is exactly the cramped, dead-space-heavy layout this redesign
-                replaces, so both get their own full-width row below instead. */}
-            <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
-              {hasQualifying && (
-                <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
-                  <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
-                    <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
-                  </RaceSubSection>
+          <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
+            <RaceSectionCard
+              title="Race Analysis"
+              description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
+              headerRight={
+                driverSetFilterable ? (
+                  <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customDriverIds} onCustomIdsChange={setCustomDriverIds} />
+                ) : undefined
+              }
+            >
+              <DriverSetPanels filterable={driverSetFilterable}>
+                {hasPractice && (
+                  <div id="practice" className={hasQualifying || hasStrategy ? "mb-6 border-b border-[var(--f1-line)] pb-6" : undefined}>
+                    <RaceSubSection label="Practice" description="Best lap in each session, and the conditions." first>
+                      <PracticeSummary practice={practice!} roster={liveQualifying.map((q) => ({ driver: q.driver, driverName: q.driverName, team: q.team }))} />
+                    </RaceSubSection>
+                  </div>
+                )}
+                {/* Qualifying and Strategy share a row - they're the two panels that genuinely
+                    benefit from sitting side by side at a comparable width. Lap Progression needs
+                    real horizontal room to read a whole field's trajectories, and Race Performance
+                    reads best as one full-width comparison strip - forcing either into a second
+                    column here is exactly the cramped, dead-space-heavy layout this redesign
+                    replaces, so both get their own full-width row below instead. */}
+                <div className={hasQualifying && hasStrategy ? "grid items-start gap-x-8 gap-y-6 lg:grid-cols-2" : undefined}>
+                  {hasQualifying && (
+                    <div id="qualifying" className={hasStrategy ? "min-w-0 border-b border-[var(--f1-line)] pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8" : "min-w-0"}>
+                      <RaceSubSection label="Qualifying" description="Gap to pole position across classified drivers." first>
+                        {archiveQualifyingTimed ? (
+                          <QualifyingBarChart qualifying={race.qualifying!} driverSet={driverSet} customIds={customDriverIds} />
+                        ) : (
+                          <QualifyingGapChart inputs={liveQualifying} driverSet={driverSet} customIds={customDriverIds} />
+                        )}
+                      </RaceSubSection>
+                    </div>
+                  )}
+                  {hasStrategy && (
+                    <div id="strategy" className="min-w-0">
+                      <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths across the race." first>
+                        <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} customIds={customDriverIds} />
+                      </RaceSubSection>
+                    </div>
+                  )}
                 </div>
-              )}
-              {hasStrategy && (
-                <div id="strategy" className="min-w-0">
-                  <RaceSubSection label="Strategy" description="Tyre compounds and stint lengths across the race." first>
-                    <PitStopsTimeline pitStops={race.pitStops!} results={race.results} driverSet={driverSet} customIds={customDriverIds} />
-                  </RaceSubSection>
-                </div>
-              )}
-            </div>
-            {hasLapChart && (
-              <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
-                  <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
-                </RaceSubSection>
-              </div>
-            )}
-            {hasPositionChanges && (
-              <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
-                  <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
-                </RaceSubSection>
-              </div>
-            )}
-          </RaceSectionCard>
+                {hasLapChart && (
+                  <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+                    <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
+                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} layout={layout} />
+                    </RaceSubSection>
+                  </div>
+                )}
+                {hasPositionChanges && (
+                  <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+                    <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
+                      <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
+                    </RaceSubSection>
+                  </div>
+                )}
+              </DriverSetPanels>
+            </RaceSectionCard>
+          </DriverSetTabs>
         </motion.div>
       )}
 
@@ -346,7 +381,7 @@ export function ArchiveRaceDashboard({
             id="simulation"
             title="Simulation"
             description="Monte Carlo projection based on grid position, race pace and DNF probability."
-            headerRight={<span className="text-xs text-neutral-500">Based on 10,000 simulations</span>}
+            headerRight={<span className="text-xs text-tertiary">Based on 10,000 simulations</span>}
           >
             <SimulationPanel simulation={simulation} />
           </RaceSectionCard>

@@ -6,9 +6,14 @@ on:
   push:
   pull_request:
 
+# Read-only: nothing here writes to the repository (audit SEC-18).
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -19,17 +24,33 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
-      - run: npm test
+      # Counts the class patterns the design tokens replace (text-[Npx], [var(--x)], [#hex],
+      # outline-none without focus-visible) and fails if any grows past scripts/design-lint-baseline.json.
+      - run: npm run lint:design
+      # Retried once, with a warning on the run. Node 24 has crashed intermittently inside PGlite's
+      # WebAssembly ("Check failed: jit_page_->allocations_.erase" in V8, in the database suites, about one
+      # run in a dozen); the crash is not in our code and does not reproduce locally. A real failure fails
+      # both attempts and stays red.
+      - name: Tests
+        run: |
+          npm test || {
+            echo "::warning title=Tests retried::npm test failed once and was run again (see the comment in ci.yml)"
+            npm test
+          }
 
+      # Placeholders, not the real secrets (audit SEC-18): the build only needs values that are set
+      # and parse, and nothing that runs during `npm ci` or the build - including a compromised
+      # dependency - should be able to read production credentials. Vercel builds the deployed app
+      # with its own environment.
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+          SUPABASE_SECRET_KEY: placeholder-secret-key
+          CRON_SECRET: placeholder-cron-secret
+          SESSION_SECRET: placeholder-session-secret-for-ci-builds-only-000000
+          NVIDIA_API_KEY: placeholder-nvidia-key
 
   # Separate job, not a step in `build`: these are plain-assert Python scripts (no pytest, see
   # their own docstrings) that were previously never run by anything - a real gap, since it's what
@@ -38,6 +59,7 @@ jobs:
   # doesn't need to touch the frontend to get checked, and vice versa.
   pipeline-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -56,3 +78,15 @@ jobs:
           python test_race_identity.py
           python test_official_sources.py
           python test_compute_group_scores.py
+          python test_media_scripts_dry_run.py
+          python test_pipeline_writes.py
+          python test_training_filters.py
+          python test_run_ledger.py
+          python test_data_version_signal.py
+          python test_race_track_story.py
+          python test_circuit_layouts.py
+          python test_race_replay.py
+          python test_promote_season.py
+          python test_lap_positions.py
+          python test_race_photos.py
+          python test_circuit_track_maps.py

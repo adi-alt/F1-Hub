@@ -14,26 +14,26 @@ export function ArchiveFocusedRacePanel({ row, entityColumnLabel }: { row: Explo
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50 p-4">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{row.year}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{row.year}</p>
         <p className="mt-1 text-lg font-semibold text-white">{row.raceName}</p>
-        {(row.circuitName || row.country) && <p className="mt-0.5 text-xs text-neutral-500">{[row.circuitName, row.country].filter(Boolean).join(", ")}</p>}
+        {(row.circuitName || row.country) && <p className="mt-0.5 text-xs text-tertiary">{[row.circuitName, row.country].filter(Boolean).join(", ")}</p>}
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">{entityColumnLabel}</dt>
+          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">{entityColumnLabel}</dt>
           <dd className="mt-0.5 truncate text-sm font-medium text-neutral-200">{row.entityLabel ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">Grid</dt>
+          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Grid</dt>
           <dd className="mt-0.5 font-mono text-sm text-neutral-200">{row.grid != null ? `P${row.grid}` : "—"}</dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">Finish</dt>
+          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Finish</dt>
           <dd className="mt-0.5 font-mono text-sm font-semibold text-white">{row.finishText}</dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-neutral-600">Points</dt>
+          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Points</dt>
           <dd className="mt-0.5 font-mono text-sm text-neutral-200">{row.points}</dd>
         </div>
       </dl>

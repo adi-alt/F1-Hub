@@ -28,7 +28,7 @@ export function ModelInfo() {
             gap, fit on every completed race this season.
           </p>
         </div>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-tertiary">
           All three train fresh from the completed races already stored in the database — never
           on the fly while a page renders.
         </p>

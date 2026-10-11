@@ -12,7 +12,7 @@ import { useState } from "react";
 // restrained, not a rainbow. Kept short and hand-picked rather than generated from an arbitrary hue
 // wheel, so every option is one this app's own dark theme actually reads well against.
 const FALLBACK_PALETTE = [
-  "bg-[var(--f1-red)]/20 text-[var(--f1-red)]",
+  "bg-[var(--f1-red)]/20 text-brand-text",
   "bg-sky-500/20 text-sky-400",
   "bg-emerald-500/20 text-emerald-400",
   "bg-amber-500/20 text-amber-400",

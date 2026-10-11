@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { PostKind } from "@/lib/communities";
 import { createPost } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
+import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError } from "@/services/errors";
 
 /** Group-agnostic post creation - the Groups home composer's own endpoint, where a group is
@@ -11,6 +12,8 @@ import { ServiceError } from "@/services/errors";
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "postCreate", session.uid);
+  if (limited) return limited;
 
   // `kind` is passed straight through and re-validated inside createPost against the target
   // community's own enabled modules (a community that doesn't offer Predictions rejects a

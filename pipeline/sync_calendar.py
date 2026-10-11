@@ -29,6 +29,7 @@ import fastf1
 
 from ergast_utils import fetch_completed_race_docs, init_postgres, trigger_revalidation, upsert
 from ml.circuit_stats import build_circuit_records
+from run_ledger import ledgered
 from race_identity import calendar_row_id, calendar_rows_to_retire, corrected_location, id_slug, slugify
 from weather_forecast import fetch_weather_forecast
 
@@ -165,6 +166,7 @@ def sync_year(conn, cur, year: int):
     upsert(cur, "calendar", rows, ["id"])
 
 
+@ledgered("sync-calendar")
 def main():
     # UTC, not the runner's local clock - the season boundary is a calendar-year boundary.
     years = [int(y) for y in sys.argv[1:]] or [datetime.now(timezone.utc).year]

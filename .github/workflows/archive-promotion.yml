@@ -1,0 +1,63 @@
+name: Promote finished season to the archive
+
+# Weekly through December and January (audit R-22). The job decides by data, not by date: a season is
+# promoted only when every round has an official result and the archive doesn't yet hold it completely
+# (pipeline/promote_season.py), so most runs print "Nothing to promote" and exit. Every step it runs is
+# idempotent, so an interrupted or repeated run just resumes.
+#
+# Manual run: set `year` to promote one season (still only if it is finished), or tick `dry_run` to see
+# the plan without changing anything.
+on:
+  schedule:
+    - cron: "0 6 * 12,1 1"
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Only this season (default: every finished, not-yet-archived season)"
+        required: false
+        type: string
+      dry_run:
+        description: "Print what would run, change nothing"
+        type: boolean
+        default: false
+
+concurrency:
+  group: archive-promotion
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    # The lap pass is the long one (~14 requests per race, paced for Jolpica's rate limit); a season is a few hours at most.
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pipeline/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Promote
+        working-directory: pipeline
+        run: |
+          args=()
+          if [ -n "$YEAR" ]; then args+=("$YEAR"); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=("--dry-run"); fi
+          python promote_season.py "${args[@]}"
+        env:
+          YEAR: ${{ github.event.inputs.year }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Race photos and circuit images are re-hosted into Supabase Storage by the enrich steps.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Each step busts the archive cache when it finishes.
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

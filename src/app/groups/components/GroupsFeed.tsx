@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { MessageSquare } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
-import { Tabs } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { groupHref } from "@/lib/routes";
 import type { FeedPost, FeedType, GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
@@ -30,14 +31,12 @@ function interleave(posts: PostCardData[], predictions: FeedPrediction[]): FeedI
   return items.sort((a, b) => b.at - a.at);
 }
 
-// The same segmented Tabs primitive Your F1's cockpit and the Apex Intelligence workspace already
-// use (src/components/ui/Tabs.tsx) - a real sliding-capsule pill group with full APG tab semantics,
-// not a hand-rolled row of underlined text buttons. Reusing it is the actual "use the existing F1
-// HUB tab language" fix, not a second, visually-unrelated tab control that merely looks similar.
-const TAB_ITEMS = [
-  { key: "following", label: "Following" },
-  { key: "forYou", label: "For You" },
-  { key: "latest", label: "Latest" },
+// Underline tabs: which feed the centre column shows is that column's main switch, not a small
+// in-card filter.
+const TAB_ITEMS: TabItem<FeedType>[] = [
+  { value: "following", label: "Following" },
+  { value: "forYou", label: "For You" },
+  { value: "latest", label: "Latest" },
 ];
 
 /**
@@ -244,7 +243,7 @@ export function GroupsFeed({
         <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 backdrop-blur-sm">
           <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={28} />
           <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
-            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-neutral-500">
+            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-tertiary">
               C/
             </span>
             {selectedCommunity.name}
@@ -269,30 +268,11 @@ export function GroupsFeed({
         />
       </div>
 
-      {!selectedCommunity && (
-        <div className="flex items-center justify-between gap-3">
-          <div data-tour="feed-tabs">
-            <Tabs items={TAB_ITEMS} activeKey={feedType} onChange={(key) => switchTab(key as FeedType)} layoutId="groups-feed-tabs" panelId="groups-feed-panel" />
-          </div>
-          {/* Real, not decorative - "Following" is genuinely every community you've joined
-              aggregated together (see listFeedPosts), so this is what the "All" view actually
-              means. For You/Latest widen to public communities and personal posts too, which this
-              line would misdescribe, so it only shows for Following. */}
-          {feedType === "following" && groups.length > 0 && (
-            <p className="hidden shrink-0 text-[11.5px] font-medium text-neutral-400 sm:block">
-              {groups.length} {groups.length === 1 ? "community" : "communities"}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* role="tabpanel" only applies to the aggregate mode - that's the only content the Tabs
-          strip above actually controls; a selected community's own stream isn't one of its tabs. */}
-      <div role={selectedCommunity ? undefined : "tabpanel"} id={selectedCommunity ? undefined : `groups-feed-panel-tab-${feedType}`}>
-        {selectedCommunity ? (
-          communityPosts === null ? (
+      {selectedCommunity ? (
+        <div>
+          {communityPosts === null ? (
             communityInitialError ? (
-              <p className="py-6 text-center text-xs text-neutral-500">
+              <p className="py-6 text-center text-xs text-tertiary">
                 Couldn&apos;t load this community&apos;s feed.{" "}
                 <button type="button" onClick={refreshCommunity} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                   Retry
@@ -306,7 +286,7 @@ export function GroupsFeed({
               </div>
             )
           ) : communityPosts.length === 0 ? (
-            <EmptyState icon={EmptyIcons.post} title="Nothing has been posted here yet." description="Start the first conversation." />
+            <EmptyState icon={MessageSquare} message="Nothing has been posted here yet: start the first conversation." />
           ) : (
             <div className="space-y-2.5">
               {interleave(communityPosts, communityPredictions).map((item, i) =>
@@ -317,38 +297,58 @@ export function GroupsFeed({
                 ),
               )}
             </div>
-          )
-        ) : loading ? (
-          <div className="space-y-2.5">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <PostCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : posts.length === 0 ? (
-          <EmptyState
-            icon={EmptyIcons.post}
-            title="Nothing here yet."
-            description={feedType === "following" ? "Posts from communities you've joined will show up here." : "No posts to show right now."}
-          />
-        ) : (
-          <div className="space-y-2.5">
-            {interleave(posts, predictions).map((item, i) =>
-              item.kind === "post" ? (
-                <PostCard key={item.key} post={item.post} index={i} showGroup />
-              ) : (
-                <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} />
-              ),
+          )}
+        </div>
+      ) : (
+        // Only the aggregate feed is a set of tabs; a selected community's own stream isn't one.
+        <Tabs value={feedType} onValueChange={switchTab} items={TAB_ITEMS}>
+          <div className="flex items-center justify-between gap-3">
+            <div data-tour="feed-tabs" className="min-w-0">
+              <TabList aria-label="Feed" />
+            </div>
+            {/* Real, not decorative - "Following" is genuinely every community you've joined
+                aggregated together (see listFeedPosts), so this is what the "All" view actually
+                means. For You/Latest widen to public communities and personal posts too, which this
+                line would misdescribe, so it only shows for Following. */}
+            {feedType === "following" && groups.length > 0 && (
+              <p className="hidden shrink-0 text-[11.5px] font-medium text-neutral-400 sm:block">
+                {groups.length} {groups.length === 1 ? "community" : "communities"}
+              </p>
             )}
           </div>
-        )}
-      </div>
+          <TabPanels>
+            {loading ? (
+              <div className="space-y-2.5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <PostCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : posts.length === 0 ? (
+              <EmptyState
+                icon={MessageSquare}
+                message={feedType === "following" ? "Nothing here yet: posts from communities you've joined show up here." : "No posts to show right now."}
+              />
+            ) : (
+              <div className="space-y-2.5">
+                {interleave(posts, predictions).map((item, i) =>
+                  item.kind === "post" ? (
+                    <PostCard key={item.key} post={item.post} index={i} showGroup />
+                  ) : (
+                    <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} />
+                  ),
+                )}
+              </div>
+            )}
+          </TabPanels>
+        </Tabs>
+      )}
 
       {selectedCommunity ? (
         communityCursor ? (
           <div ref={communitySentinelRef} className="py-2">
             {communityLoadingMore && <PostCardSkeleton />}
             {communityMoreError && (
-              <p className="text-center text-xs text-neutral-500">
+              <p className="text-center text-xs text-tertiary">
                 Couldn&apos;t load more.{" "}
                 <button type="button" onClick={() => void loadMoreCommunity()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                   Try again
@@ -363,7 +363,7 @@ export function GroupsFeed({
         <div ref={sentinelRef} className="py-2">
           {loadingMore && <PostCardSkeleton />}
           {error && (
-            <p className="text-center text-xs text-neutral-500">
+            <p className="text-center text-xs text-tertiary">
               Couldn&apos;t load more.{" "}
               <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
                 Try again
@@ -416,7 +416,7 @@ function EndOfFeed() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="flex items-center justify-center gap-1.5 py-5 text-[11.5px] text-neutral-600"
+      className="flex items-center justify-center gap-1.5 py-5 text-[11.5px] text-tertiary"
     >
       <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
         <path d="M3 8.5 6.2 11.5 13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

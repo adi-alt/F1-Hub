@@ -22,7 +22,7 @@ import {
   resetMemoryCache,
 } from "../cache";
 import { buildHomepageContext } from "../context";
-import { cleanJsonOutput, generateHomepageIntelligence } from "../orchestrator";
+import { cleanJsonOutput, generateHomepageIntelligence, trimTruncatedAnswer } from "../orchestrator";
 import { sanitizeActionType } from "../guardrails";
 import type { AgentContext } from "../types";
 
@@ -341,5 +341,22 @@ describe("cleanJsonOutput - robust extraction against real observed model behavi
   test("strips trailing prose after the JSON object", () => {
     const raw = '{"a":1}\n\nI hope this JSON is helpful!';
     assert.deepEqual(JSON.parse(cleanJsonOutput(raw)), { a: 1 });
+  });
+});
+
+describe("trimTruncatedAnswer (audit AI-06: a cut-off Apex answer)", () => {
+  test("ends at the last full sentence instead of mid-word", () => {
+    assert.equal(
+      trimTruncatedAnswer("Norris leads by 12 points. Piastri won the last two races. Verstappen needs Norris to fin"),
+      "Norris leads by 12 points. Piastri won the last two races.",
+    );
+  });
+
+  test("keeps an answer that already ends a sentence", () => {
+    assert.equal(trimTruncatedAnswer("Norris is on pole!"), "Norris is on pole!");
+  });
+
+  test("marks a long last sentence with an ellipsis rather than dropping most of the answer", () => {
+    assert.equal(trimTruncatedAnswer("Short. Then a very long sentence that the model was cut off in the middle of writing out"), "Short. Then a very long sentence that the model was cut off in the middle of writing out…");
   });
 });

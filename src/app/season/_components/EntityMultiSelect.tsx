@@ -26,11 +26,9 @@ type Rect = { top?: number; bottom?: number; left: number; width: number; flip: 
  * Progression's Custom mode (multi, with select all/clear all and checkboxes) and reused by
  * Compare's driver/team pickers (`multiple={false}` - single click selects and closes, no
  * checkbox row) so both controls share one visual language instead of this one looking like a
- * polished popover and Compare's looking like a plain text input with a native focus ring. Kept
- * as its own component rather than generalizing SearchableSelect.tsx (still used, unmodified in
- * spirit, by the signup flow): a purpose-built component here is less risk than threading a very
- * different interaction model through code something else already relies on. Same portal/
- * position/click-outside pattern as SearchableSelect, so it behaves consistently either way. */
+ * polished popover and Compare's looking like a plain text input with a native focus ring. The
+ * dropdown is portaled and positioned from the trigger's own rect, so no clipping ancestor can cut
+ * it off, and it closes on a click outside. */
 export function EntityMultiSelect({
   options,
   selected,
@@ -149,8 +147,9 @@ export function EntityMultiSelect({
   useLayoutEffect(() => {
     if (!open) return;
     updatePosition();
-    // capture:true so a scroll on any ancestor (not just window) still repositions this - same
-    // reasoning as SearchableSelect.tsx.
+    // capture:true so a scroll on any ancestor (not just window) still repositions this - scroll
+    // events don't bubble, but a capture-phase listener on window still sees them on their way
+    // down to the target.
     window.addEventListener("scroll", updatePosition, { capture: true, passive: true });
     window.addEventListener("resize", updatePosition);
     return () => {
@@ -218,7 +217,7 @@ export function EntityMultiSelect({
           open ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/10 text-white" : "border-white/10 bg-white/[0.02] text-neutral-300 hover:text-white"
         } ${triggerClassName}`}
       >
-        <span className={`truncate ${count === 0 ? "text-neutral-500" : ""}`}>{triggerLabel}</span>
+        <span className={`truncate ${count === 0 ? "text-tertiary" : ""}`}>{triggerLabel}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`shrink-0 transition-transform duration-150 ${open ? "rotate-180" : ""}`}>
           <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -256,11 +255,11 @@ export function EntityMultiSelect({
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Escape" && close()}
                     placeholder="Search..."
-                    className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[var(--f1-red)]/40"
+                    className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-tertiary focus:outline-none focus:ring-1 focus:ring-[var(--f1-red)]/40"
                   />
                 </div>
                 {multiple && (
-                  <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-neutral-500">
+                  <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-tertiary">
                     <button type="button" onClick={selectAll} className="transition hover:text-white">
                       Select all
                     </button>
@@ -274,11 +273,11 @@ export function EntityMultiSelect({
                 )}
                 <div className="scrollbar-hide flex-1 overflow-y-auto py-1">
                   {groups.length === 0 ? (
-                    <p className="px-3 py-4 text-center text-xs text-neutral-500">No matches</p>
+                    <p className="px-3 py-4 text-center text-xs text-tertiary">No matches</p>
                   ) : (
                     groups.map((g) => (
                       <div key={g.heading ?? "_"}>
-                        {g.heading && <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{g.heading}</p>}
+                        {g.heading && <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-tertiary">{g.heading}</p>}
                         {g.options.map((o) => {
                           const checked = selectedSet.has(o.code);
                           return (
@@ -317,7 +316,7 @@ export function EntityMultiSelect({
                                   truncated, and can only ever use the width the name leaves. */}
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate">{o.label}</span>
-                                {o.sublabel && <span className="mt-0.5 block truncate text-xs font-normal text-neutral-500">{o.sublabel}</span>}
+                                {o.sublabel && <span className="mt-0.5 block truncate text-xs font-normal text-tertiary">{o.sublabel}</span>}
                               </span>
                             </button>
                           );

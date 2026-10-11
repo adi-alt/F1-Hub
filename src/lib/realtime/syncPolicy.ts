@@ -19,6 +19,7 @@ export type SyncStrategy = "invalidate" | "refresh";
  * business logic, so a full server re-render is the correct sync mechanism here, not a shortcut.
  */
 export const SYNC_STRATEGY: Record<RealtimeTable, SyncStrategy> = {
+  data_version: "refresh",
   races: "refresh",
   calendar: "refresh",
   drivers: "refresh",

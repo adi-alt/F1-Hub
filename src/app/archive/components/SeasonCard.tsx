@@ -60,7 +60,7 @@ export function SeasonCard({
           {isLive && <span className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" aria-label="Live" />}
         </span>
         {typeof raceCount === "number" && (
-          <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-tertiary">
             {raceCount} race{raceCount === 1 ? "" : "s"}
           </span>
         )}

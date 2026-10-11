@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Users } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
-import { EmptyState, EmptyIcons } from "@/components/ui/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Picker } from "@/components/ui/Picker";
 import type { GroupMember, GroupRole } from "@/lib/supabase/groups";
 
@@ -60,7 +61,7 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
         <EntityAvatar imageUrl={null} name={member.displayName ?? member.username ?? "M"} size={32} />
         <div className="min-w-0">
           <p className="truncate text-sm text-neutral-200">{member.displayName ?? member.username ?? "Member"}</p>
-          <p className="text-xs text-neutral-500">{member.points} pts</p>
+          <p className="text-xs text-tertiary">{member.points} pts</p>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -75,7 +76,7 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
             align="end"
           />
         ) : (
-          member.role !== "member" && <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{ROLE_LABEL[member.role]}</span>
+          member.role !== "member" && <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">{ROLE_LABEL[member.role]}</span>
         )}
         {canManage && (
           <ConfirmButton
@@ -98,7 +99,7 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
           </ConfirmButton>
         )}
       </div>
-      {error && <p className="w-full text-xs text-[var(--f1-red)]">{error}</p>}
+      {error && <p className="w-full text-xs text-brand-text">{error}</p>}
     </li>
   );
 }
@@ -108,7 +109,7 @@ export function GroupMembersTab({ groupId, members, myRole, myUserId }: { groupI
   // write that makes the row) - this is defensive, not a state the product flow can actually reach,
   // but an honest empty state costs nothing and a bare blank grid would look broken if it ever did.
   if (members.length === 0) {
-    return <EmptyState icon={EmptyIcons.members} title="This community is waiting for its first members." />;
+    return <EmptyState icon={Users} message="This community is waiting for its first members." />;
   }
 
   return (

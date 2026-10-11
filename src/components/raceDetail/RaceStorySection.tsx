@@ -29,9 +29,9 @@ function CompactStatGrid({ tiles }: { tiles: StatTile[] }) {
           key={t.label}
           className={[i % 2 === 1 ? "border-l border-[var(--f1-line)] pl-5" : "pr-5", i >= 2 ? "mt-3.5 border-t border-[var(--f1-line)] pt-3.5" : ""].join(" ")}
         >
-          <p className="text-[11px] uppercase tracking-wide text-neutral-500">{t.label}</p>
+          <p className="text-[11px] uppercase tracking-wide text-tertiary">{t.label}</p>
           <p className="mt-0.5 truncate text-sm font-semibold text-white">{t.value}</p>
-          {t.sub && <p className="text-[11px] text-neutral-500">{t.sub}</p>}
+          {t.sub && <p className="text-[11px] text-tertiary">{t.sub}</p>}
         </div>
       ))}
     </motion.div>
@@ -95,30 +95,30 @@ export function RaceStorySection({
 export function RaceStorySectionSkeleton() {
   return (
     <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 sm:p-5">
-      <Skeleton className="skeleton-shimmer h-3 w-20" />
-      <Skeleton className="skeleton-shimmer mt-2 h-3 w-56" />
+      <Skeleton shape="block" className="h-3 w-20" />
+      <Skeleton shape="block" className="mt-2 h-3 w-56" />
       <div className="mt-4 grid items-start gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]">
         <div>
-          <Skeleton className="skeleton-shimmer h-3 w-28" />
+          <Skeleton shape="block" className="h-3 w-28" />
           <div className="mt-3 space-y-2.5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="skeleton-shimmer h-3.5" style={{ width: `${85 - i * 8}%` }} />
+              <Skeleton key={i} shape="block" className="h-3.5" style={{ width: `${85 - i * 8}%` }} />
             ))}
           </div>
           <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-3.5 border-t border-[var(--f1-line)] pt-3.5">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i}>
-                <Skeleton className="skeleton-shimmer h-2.5 w-20" />
-                <Skeleton className="skeleton-shimmer mt-1.5 h-3.5 w-24" />
+                <Skeleton shape="block" className="h-2.5 w-20" />
+                <Skeleton shape="block" className="mt-1.5 h-3.5 w-24" />
               </div>
             ))}
           </div>
         </div>
         <div>
-          <Skeleton className="skeleton-shimmer h-32 w-full rounded-lg" />
-          <Skeleton className="skeleton-shimmer mt-3 h-2.5 w-16" />
-          <Skeleton className="skeleton-shimmer mt-1.5 h-4 w-40" />
-          <Skeleton className="skeleton-shimmer mt-3 h-10 w-full rounded-lg" />
+          <Skeleton shape="block" className="h-32 w-full" />
+          <Skeleton shape="block" className="mt-3 h-2.5 w-16" />
+          <Skeleton shape="block" className="mt-1.5 h-4 w-40" />
+          <Skeleton shape="block" className="mt-3 h-10 w-full" />
         </div>
       </div>
     </div>

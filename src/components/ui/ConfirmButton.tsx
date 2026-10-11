@@ -60,7 +60,7 @@ export function ConfirmButton({
         type="button"
         disabled={disabled || pending}
         onClick={() => setArmed(true)}
-        className={className || "text-xs text-neutral-600 transition hover:text-[var(--f1-red)] disabled:opacity-40"}
+        className={className || "text-xs text-tertiary transition hover:text-brand-text disabled:opacity-40"}
       >
         {pending ? "Working…" : children}
       </button>
@@ -78,11 +78,11 @@ export function ConfirmButton({
           setArmed(false);
           onConfirm();
         }}
-        className="font-semibold text-[var(--f1-red)] transition hover:brightness-125 disabled:opacity-40"
+        className="font-semibold text-brand-text transition hover:brightness-125 disabled:opacity-40"
       >
         {confirmLabel}
       </button>
-      <button type="button" onClick={() => setArmed(false)} className="text-neutral-500 transition hover:text-white">
+      <button type="button" onClick={() => setArmed(false)} className="text-tertiary transition hover:text-white">
         Cancel
       </button>
     </span>
