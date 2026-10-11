@@ -27,7 +27,7 @@ export function RaceReplay({ replay, autoPlay = false }: { replay: Replay; autoP
   const [t, setT] = useState(0);
   // Starts playing when it was opened by pressing Play - unless the visitor prefers reduced motion.
   const [playing, setPlaying] = useState(() => autoPlay && !(typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
-  const [speed, setSpeed] = useState(60);
+  const [speed, setSpeed] = useState(10);
   const last = useRef<number | null>(null);
 
   const track: RaceTrackStory = useMemo(

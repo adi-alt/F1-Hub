@@ -28,11 +28,11 @@ export function CircuitRecords({ timeline, winnerMedia }: { timeline: CircuitYea
   const years = timeline.map((t) => t.year);
   return (
     <div>
-      <ul className="divide-y divide-subtle">
+      <ul className="grid grid-cols-1 gap-x-10 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((r) =>
           r.photo !== undefined ? (
             // A person: their face, the record, the count.
-            <li key={r.label} className="flex items-center gap-3 py-3 first:pt-0">
+            <li key={r.label} className="flex items-center gap-3 border-t border-subtle py-4">
               {r.photo ? (
                 <Image src={r.photo} alt="" width={36} height={36} className="size-9 shrink-0 rounded-full bg-white/[0.06] object-cover object-top" />
               ) : (
@@ -48,7 +48,7 @@ export function CircuitRecords({ timeline, winnerMedia }: { timeline: CircuitYea
             </li>
           ) : (
             // A figure: what it is, and the number on the right.
-            <li key={r.label} className="flex items-baseline justify-between gap-3 py-3 first:pt-0">
+            <li key={r.label} className="flex items-center justify-between gap-3 border-t border-subtle py-4">
               <div className="min-w-0">
                 <p className="text-body-sm text-primary">{r.label}</p>
                 {r.detail && <p className="text-caption text-secondary">{r.detail}</p>}

@@ -61,9 +61,12 @@ export function RaceStoryline({
   layout = null,
   nameFor = (code) => code,
   heading = "How the race unfolded",
+  side = false,
 }: {
   /** The block's own label; null when the surrounding section already says it. */
   heading?: string | null;
+  /** The circuit on the left and every chapter as a list beside it, for a wide column (the circuit page). */
+  side?: boolean;
   chapters: Chapter[];
   totalLaps: number;
   colorFor: (driverId: string) => string;
@@ -123,6 +126,56 @@ export function RaceStoryline({
     else if (e.key === "Escape") onSelect(null);
     else return;
     e.preventDefault();
+  }
+
+  if (side && ((track && places) || drawn)) {
+    return (
+      <section aria-label="The race as a story" className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="min-w-0">
+          {track && places ? (
+            <RaceCircuitStory track={track} chapters={chapters} places={places} active={active} colorFor={colorFor} onSelect={onSelect} />
+          ) : (
+            drawn && <DrawnCircuit layout={drawn} />
+          )}
+        </div>
+        <div className="min-w-0">
+          <ol role="listbox" aria-label="Race moments" aria-activedescendant={`chapter-${active}`} tabIndex={0} onKeyDown={onKey} className="relative space-y-1 rounded-control focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/25">
+            {chapters.map((c, i) => {
+              const Icon = ICON[c.kind];
+              const isActive = i === active;
+              const where = isActive ? whereText(c, places?.[i], nameFor, track?.lapLengthM ?? 0) : null;
+              return (
+                <li key={`${c.kind}-${c.lap}-${i}`}>
+                  <button
+                    id={`chapter-${i}`}
+                    role="option"
+                    aria-selected={isActive}
+                    tabIndex={-1}
+                    type="button"
+                    onClick={() => onSelect(i)}
+                    className={`flex w-full items-start gap-3 rounded-control px-3 py-2.5 text-left transition-colors duration-fast ${isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]"}`}
+                  >
+                    <Icon aria-hidden size={16} strokeWidth={2} className="mt-0.5 shrink-0" style={{ color: colorFor(c.driverId) }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-2">
+                        <span className="w-10 shrink-0 text-caption tabular text-tertiary">Lap {c.lap}</span>
+                        <span className={`text-body-sm ${isActive ? "font-semibold text-primary" : "text-secondary"}`}>{c.title}</span>
+                      </span>
+                      {isActive && (
+                        <span className="mt-1 block pl-12 text-body-sm text-secondary" aria-live="polite">
+                          <Typewriter text={c.story} msPerChar={12} />
+                          {where && <span className="mt-1 block text-caption text-tertiary">{where}</span>}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+    );
   }
 
   return (
