@@ -8,9 +8,12 @@ import { formatLapTime } from "@/lib/format";
 import { teamColor } from "@/lib/teamColors";
 import { nodeStatus } from "./nodeStatus";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
+import { CircuitApexTake } from "./ai/CircuitApexTake";
 import type { CircuitExplorerEntry } from "../services/circuits.service";
 
 type Filter = "all" | "raced" | "to-come" | "favourites";
+
+const BRAND = "#e10600";
 
 const dateOf = (iso: string | null) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }) : "Date TBC");
 const inDays = (d: number | null) => (d === null ? null : d <= 0 ? "This weekend" : d === 1 ? "Tomorrow" : `In ${d} days`);
@@ -76,6 +79,13 @@ export function CircuitsHome({
 
       {next && <NextUp entry={next} />}
 
+      {/* Apex's read of the next circuit: what to expect there, in words. */}
+      {next && (
+        <div className="mt-12">
+          <CircuitApexTake location={next.race.circuit ?? next.race.name} year={year} status={next.race.state} title={`Apex on ${next.race.name}`} />
+        </div>
+      )}
+
       <section aria-labelledby="calendar-heading" className="mt-12">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 id="calendar-heading" className="text-title-lg text-primary">
@@ -114,7 +124,7 @@ function NextUp({ entry }: { entry: CircuitExplorerEntry }) {
   const href = circuitHref(race.circuit ?? race.name);
   return (
     <section aria-label="Next race" className="grid grid-cols-1 items-center gap-8 rounded-card bg-surface-1 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] lg:gap-10">
-      <div className="min-w-0">{drawing ? <CircuitCanvas drawing={drawing} className="max-h-60" caption={false} /> : null}</div>
+      <div className="min-w-0">{drawing ? <CircuitCanvas drawing={drawing} className="max-h-60" caption={false} lapColor={BRAND} lapSeconds={6} /> : null}</div>
       <div className="min-w-0">
         <p className="text-caption text-brand-text">
           {race.weekendStatus === "live" ? "Live now" : "Next race"} · Round {race.round}
@@ -168,7 +178,20 @@ function CircuitCard({ entry, isNext, favourite }: { entry: CircuitExplorerEntry
         </span>
       </div>
       <div className="my-3 flex h-28 items-center justify-center">
-        {drawing ? <CircuitCanvas drawing={{ ...drawing, turns: [] }} className="max-h-28" caption={false} /> : <span className="text-caption text-tertiary">No drawing yet</span>}
+        {drawing ? (
+          <CircuitCanvas
+            drawing={{ ...drawing, turns: [] }}
+            className="max-h-28"
+            caption={false}
+            // The car is the winner's team colour once the race is run, red for the next one, and a faint white
+            // for the rest of the calendar - colour that says where the season stands.
+            lapColor={cancelled ? null : status === "completed" && winner ? teamColor(winner.team) : isNext ? BRAND : "rgb(255 255 255 / 0.5)"}
+            lapSeconds={status === "completed" || isNext ? 6 : 10}
+            lapDelay={(race.round * 1.37) % 6}
+          />
+        ) : (
+          <span className="text-caption text-tertiary">No drawing yet</span>
+        )}
       </div>
       <p className="truncate text-body font-semibold text-primary">
         {race.name}

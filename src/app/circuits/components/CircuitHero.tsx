@@ -38,6 +38,9 @@ export function CircuitHero({
   photos: string[];
   drawing: CircuitDrawing | null;
 }) {
+  // The car lapping the hero: this race's winner's team colour once it's run, the brand red before.
+  const winner = answer?.kind === "result" ? answer.race.results?.find((r) => r.finishPosition === 1) : null;
+  const lapColor = winner ? teamColor(winner.team) : "#e10600";
   const displayName = facts?.venueName ?? raceTitle(location);
   const character = facts ? describeTrackCharacter(facts, avgFieldMovement) : [];
   const stats = facts
@@ -93,7 +96,7 @@ export function CircuitHero({
             yet (audit §8), and some of it is poor or wrongly rotated, so it isn't put in a frame. */}
         {drawing && (
           <div className="min-w-0">
-            <CircuitCanvas drawing={drawing} className="max-h-[22rem]" caption={false} />
+            <CircuitCanvas drawing={drawing} className="max-h-[22rem]" caption={false} lapColor={lapColor} lapSeconds={8} />
           </div>
         )}
       </div>

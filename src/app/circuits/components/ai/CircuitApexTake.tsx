@@ -24,7 +24,7 @@ const BLOCK_ORDER: BlockKey[] = ["trackTake", "raceDifference", "trackVsSeason",
  * ever appears - never a placeholder tab for a block that came back empty. Loads independently of
  * everything else on the page, exactly like RaceApexTake, so the rest of Track Experience is
  * readable the instant the page opens rather than waiting on a model response. */
-export function CircuitApexTake({ location, year, status }: { location: string; year: number; status: string }) {
+export function CircuitApexTake({ location, year, status, title = "Apex on this circuit" }: { location: string; year: number; status: string; title?: string }) {
   const [take, setTake] = useState<SharedCircuitIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<BlockKey | null>(null);
@@ -68,7 +68,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   // Its own section, so that when Apex has nothing for this circuit the page shows nothing - never an empty box.
   if (loading) {
     return (
-      <Frame>
+      <Frame title={title}>
         <LoadingRegion label="Apex is reading this circuit">
           <InsightSkeleton lines={2} />
         </LoadingRegion>
@@ -117,7 +117,7 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   );
 
   return (
-    <Frame>
+    <Frame title={title}>
 
       {/* Segmented: small in-card tabs over one block of text, not page navigation. */}
       {availableTabs.length > 1 ? (
@@ -133,9 +133,9 @@ export function CircuitApexTake({ location, year, status }: { location: string; 
   );
 }
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, title }: { children: React.ReactNode; title: string }) {
   return (
-    <RaceSectionCard id="apex" title="Apex on this circuit">
+    <RaceSectionCard id="apex" title={title}>
       {children}
     </RaceSectionCard>
   );
