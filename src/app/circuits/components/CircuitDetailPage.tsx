@@ -5,6 +5,7 @@ import { PastWinnersList } from "./PastWinnersList";
 import { CircuitTrendChart } from "./CircuitTrendChart";
 import { CircuitEras } from "./CircuitEras";
 import { CircuitRaceStory } from "./CircuitRaceStory";
+import { ReplaySection } from "@/components/raceDetail/ReplaySection";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -78,18 +79,35 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
       {/* One column, each section full width and sized to its content: the race, Apex's read of it, the records,
           then the history. (A main column beside a rail left whichever side was shorter standing empty.) */}
       <div className="space-y-8 lg:space-y-12">
-        {raceForSimulation && (
+        {replay && raceForSimulation && (
           <RaceSectionCard
-            id={replay ? "replay" : "race-story"}
-            title={`How the ${raceForSimulation.year} race unfolded`}
-            description={replay ? "Every lead change, where it happened on the circuit, and a replay of every car." : "Every lead change, where it happened on the circuit."}
+            id="replay"
+            title={`${raceForSimulation.year} race replay`}
+            description="Every car on the real circuit, lights out to the flag. Press play, scrub the timeline, or jump to a lead change."
             headerRight={
               <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
                 Full results
               </Link>
             }
           >
-            <CircuitRaceStory laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} replay={replay} />
+            <ReplaySection entry={replay} inline />
+          </RaceSectionCard>
+        )}
+
+        {raceForSimulation && (
+          <RaceSectionCard
+            id="race-story"
+            title={`How the ${raceForSimulation.year} race unfolded`}
+            description="Every lead change, and where on the circuit it happened. Pick a moment to see it."
+            headerRight={
+              !replay ? (
+                <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
+                  Full results
+                </Link>
+              ) : undefined
+            }
+          >
+            <CircuitRaceStory laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout}  />
           </RaceSectionCard>
         )}
 

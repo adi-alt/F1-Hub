@@ -14,9 +14,10 @@ type State = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; replay: R
  * A load that fails (missing file, unreadable data) says so quietly, with a retry; a load cancelled by leaving the
  * page is no error at all.
  */
-export function ReplaySection({ entry }: { entry: ReplayEntry }) {
+export function ReplaySection({ entry, inline = false }: { entry: ReplayEntry; /** Load as soon as it scrolls into view and show the player straight away (paused), with no button first. */ inline?: boolean }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const abort = useRef<AbortController | null>(null);
+  const [holder, setHolder] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
 
@@ -35,7 +36,30 @@ export function ReplaySection({ entry }: { entry: ReplayEntry }) {
     }
   }
 
-  if (state.kind === "ready") return <RaceReplay replay={state.replay} autoPlay />;
+  // Inline: the file (~80 KB) is fetched when the player comes near the viewport, not on page load.
+  useEffect(() => {
+    if (!inline || !holder || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting) return;
+        io.disconnect();
+        void start();
+      },
+      { rootMargin: "300px 0px" },
+    );
+    io.observe(holder);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inline, holder]);
+
+  if (state.kind === "ready") return <RaceReplay replay={state.replay} autoPlay={!inline} />;
+  if (inline && state.kind !== "unavailable") {
+    return (
+      <div ref={setHolder} role="status" data-replay-state={state.kind} className="flex aspect-[16/7] w-full animate-pulse items-center justify-center rounded-control bg-white/[0.03] text-caption text-tertiary">
+        Loading the replay…
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-replay-state={state.kind}>

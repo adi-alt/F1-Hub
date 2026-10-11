@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import type { CircuitDrawing } from "@/lib/circuitLayout";
 
@@ -8,9 +8,29 @@ import type { CircuitDrawing } from "@/lib/circuitLayout";
  * A circuit from the track library, drawn in: a soft band under a crisp line that traces itself when the drawing
  * changes (a new round, a new era). A measured layout carries its verified turn numbers; a drawn layout is a
  * drawing and says so in its credit. Renders nothing without a drawing - there is no stand-in shape.
+ *
+ * `lapColor` sends a car round it: a glowing head with a fading trail, lapping in `lapSeconds`, in a colour that
+ * means something where it's used (the winner's team, or the brand red for the next race). It's pure SVG animation,
+ * so it costs no JavaScript per frame, and it's left out entirely under reduced motion.
  */
-export function CircuitCanvas({ drawing, className = "max-h-[22rem]", caption = true }: { drawing: CircuitDrawing | null; className?: string; caption?: boolean }) {
+export function CircuitCanvas({
+  drawing,
+  className = "max-h-[22rem]",
+  caption = true,
+  lapColor = null,
+  lapSeconds = 7,
+  lapDelay = 0,
+}: {
+  drawing: CircuitDrawing | null;
+  className?: string;
+  caption?: boolean;
+  lapColor?: string | null;
+  lapSeconds?: number;
+  /** Seconds into the lap to start at, so cars on a page of drawings don't all move in step. */
+  lapDelay?: number;
+}) {
   const reduceMotion = useReducedMotion();
+  const pathId = `track-${useId().replace(/:/g, "")}`;
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const vbW = drawing ? Number(drawing.viewBox.split(/\s+/)[2]) : 1;
   const vbH = drawing ? Number(drawing.viewBox.split(/\s+/)[3]) : 1;
@@ -50,6 +70,28 @@ export function CircuitCanvas({ drawing, className = "max-h-[22rem]", caption = 
           animate={{ pathLength: 1 }}
           transition={{ duration: reduceMotion ? 0 : 1.2, ease: [0.4, 0, 0.2, 1] }}
         />
+        {lapColor && !reduceMotion && (
+          <g aria-hidden>
+            {/* Invisible copy of the line, normalised to length 100, for the trail's dashes and the head's motion. */}
+            <path id={pathId} d={drawing.path} pathLength={100} fill="none" stroke="none" />
+            {[
+              { len: 22, width: 5, opacity: 0.18 },
+              { len: 12, width: 3.5, opacity: 0.45 },
+              { len: 5, width: 2.5, opacity: 0.95 },
+            ].map((t) => (
+              // Each dash ends at the same point - the car - and trails back `len` along the track. (No non-scaling
+              // stroke here: it would measure the dashes in screen pixels and ignore pathLength.)
+              <path key={t.len} d={drawing.path} pathLength={100} fill="none" stroke={lapColor} strokeOpacity={t.opacity} strokeWidth={t.width * unit} strokeLinecap="round" strokeDasharray={`${t.len} ${100 - t.len}`}>
+                <animate attributeName="stroke-dashoffset" from={t.len} to={t.len - 100} dur={`${lapSeconds}s`} begin={`-${lapDelay}s`} repeatCount="indefinite" />
+              </path>
+            ))}
+            <circle r={5 * unit} fill={lapColor} style={{ filter: `drop-shadow(0 0 ${4 * unit}px ${lapColor})` }}>
+              <animateMotion dur={`${lapSeconds}s`} begin={`-${lapDelay}s`} repeatCount="indefinite" rotate="auto">
+                <mpath href={`#${pathId}`} />
+              </animateMotion>
+            </circle>
+          </g>
+        )}
         {drawing.turns.map((t) => {
           const dx = t.x - centre[0];
           const dy = t.y - centre[1];

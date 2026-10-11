@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { formatLapTime } from "@/lib/format";
+import { teamColor } from "@/lib/teamColors";
 import { raceHref } from "@/lib/routes";
 
 export type PoleTrendPoint = {
@@ -47,10 +48,11 @@ function ClickableDot({
     <circle
       cx={cx}
       cy={cy}
-      r={4}
-      fill="rgb(255 255 255 / 0.9)"
-      stroke="transparent"
-      strokeWidth={8}
+      r={6}
+      // The pole-sitter's team colour: who held this track each year reads straight off the chart.
+      fill={payload.team ? teamColor(payload.team) : "rgb(255 255 255 / 0.9)"}
+      stroke="rgb(10 10 10)"
+      strokeWidth={2}
       className="cursor-pointer"
       role="button"
       tabIndex={0}
@@ -188,6 +190,9 @@ export function CircuitTrendChart({ data, height = 320 }: { data: PoleTrendPoint
             strokeWidth={2.5}
             fill="url(#poleEvolutionFill)"
             dot={<ClickableDot onSelect={openRace} />}
+            isAnimationActive
+            animationDuration={1200}
+            animationEasing="ease-out"
             activeDot={<ClickableDot onSelect={openRace} />}
           />
         </AreaChart>
