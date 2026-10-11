@@ -26,7 +26,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import fastf1
@@ -1179,8 +1179,102 @@ def seasons_to_check(now: datetime) -> list[int]:
     return years
 
 
+
+# ---- Amended classifications --------------------------------------------------------------------------------
+# A round becomes "official" once Jolpica publishes it, and build_and_push never fetches it again. But the stewards
+# can revise a result after that - a time penalty, a disqualification - and 2026 round 6 was: Gasly dropped from P3 to
+# P7 after we had stored the original order, which left five drivers' points wrong (Piastri's +2 among them) with
+# nothing to notice. So every tick re-reads recent official rounds and applies any change, in one transaction.
+AMENDMENT_WINDOW_DAYS = 21  # how long after a race its classification is re-checked
+
+
+def classification_changes(stored: dict[str, tuple], official: list[dict]) -> list[str]:
+    """What differs between a stored classification ({driver: (finish_position, points, status)}) and the official
+    one (jolpica rows), as readable lines - empty when they agree. Status is compared after normalize_status. Pure."""
+    changes = []
+    seen = set()
+    for o in official:
+        d = o["driver"]
+        seen.add(d)
+        if d not in stored:
+            changes.append(f"{d}: in the official classification but not stored")
+            continue
+        pos, pts, status = stored[d]
+        new = (o["finishPosition"], float(o["points"]), normalize_status(o["rawStatus"]))
+        if (pos, float(pts), status) != new:
+            changes.append(f"{d}: P{pos} {float(pts):g} pts {status} -> P{new[0]} {new[1]:g} pts {new[2]}")
+    for d in stored:
+        if d not in seen:
+            changes.append(f"{d}: stored but not in the official classification")
+    return changes
+
+
+def recheck_amended_classifications(cur, today: date | None = None, window_days: int = AMENDMENT_WINDOW_DAYS, dry_run: bool = False) -> int:
+    """Re-reads the official Grand Prix and sprint classifications of every official round from the last
+    AMENDMENT_WINDOW_DAYS and applies any change the stewards made since. Updates position, points, status, grid and
+    gap of existing rows only; a change in WHO is classified (a driver added or missing) is reported, not guessed at -
+    that needs the full round refetch. Returns how many rounds were corrected. Never raises: a Jolpica outage just
+    means no re-check this tick."""
+    today = today or datetime.now(timezone.utc).date()
+    cur.execute(
+        "select id, year, round, race_date from races where status = 'completed' and results_source = 'official' "
+        "and race_date between %s and %s order by race_date",
+        (today - timedelta(days=window_days), today),
+    )
+    rounds = list(cur.fetchall())
+    # A table that doesn't exist yet (sprint_results before its migration) is skipped, never an error.
+    cur.execute("select to_regclass('public.sprint_results') is not null")
+    sources = [("race_results", jolpica.fetch_results)] + ([("sprint_results", jolpica.fetch_sprint)] if cur.fetchone()[0] else [])
+    corrected = 0
+    for race_id, year, round_num, race_date in rounds:
+        for table, fetch in sources:
+            try:
+                official = fetch(year, round_num, race_date)
+            except Exception as exc:  # never fatal
+                print(f"    amendments: {race_id} {table} not checked ({exc})")
+                continue
+            if not official:
+                continue
+            cur.execute(f"select driver, finish_position, points, status from {table} where race_id = %s", (race_id,))
+            stored = {d: (p, pts, st) for d, p, pts, st in cur.fetchall()}
+            if not stored:
+                continue  # nothing stored yet: the normal fetch writes it, this only corrects
+            changes = classification_changes(stored, official)
+            if not changes:
+                continue
+            print(f"    amendments: {race_id} {table} changed since it was stored:\n      " + "\n      ".join(changes))
+            if any("not stored" in c or "not in the official" in c for c in changes):
+                print("    amendments: the classified drivers differ - left for a full refetch of this round (FORCE_ALL_ROUNDS)")
+                continue
+            if dry_run:
+                corrected += 1
+                continue
+            with transaction(cur):
+                for o in official:
+                    cur.execute(
+                        f"update {table} set finish_position = %s, points = %s, status = %s, grid = coalesce(%s, grid), "
+                        "finish_gap_sec = %s where race_id = %s and driver = %s",
+                        (o["finishPosition"], o["points"], normalize_status(o["rawStatus"]), o["gridPosition"], o.get("finishGapSec"), race_id, o["driver"]),
+                    )
+                cur.execute("update races set updated_at = now() where id = %s", (race_id,))
+            corrected += 1
+    return corrected
+
 @ledgered("fetch-races")
+
 def main():
+    # One-off: re-check every official round of the past year against the official classifications (the backfill
+    # for amendments made before the recurring 21-day re-check existed, e.g. 2026 round 6). --dry-run writes nothing.
+    if "--recheck-amendments" in sys.argv:
+        dry = "--dry-run" in sys.argv
+        conn = init_postgres()
+        with conn.cursor() as cur:
+            n = recheck_amended_classifications(cur, window_days=366, dry_run=dry)
+        conn.close()
+        print(f"amendments: {n} round classification(s) {'would be' if dry else 'were'} corrected")
+        if n and not dry:
+            trigger_revalidation("races")
+        return 0
     args = sys.argv[1:]
     force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
 
@@ -1208,8 +1302,9 @@ def main():
             # it must not wait for a race weekend: the weekend is over by the time Jolpica has the laps.
             with conn.cursor() as cur:
                 filled = backfill_lap_positions(cur)
+                amended = recheck_amended_classifications(cur)
             conn.close()
-            if filled:
+            if filled or amended:
                 trigger_revalidation("races")
             return 0
 
@@ -1233,6 +1328,7 @@ def main():
         backfill_race_photos(cur)
         backfill_race_laps(cur)
         backfill_lap_positions(cur)
+        recheck_amended_classifications(cur)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their
