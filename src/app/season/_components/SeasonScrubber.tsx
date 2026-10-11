@@ -18,13 +18,14 @@ function subscribeReducedMotion(onChange: () => void) {
   return () => mq.removeEventListener("change", onChange);
 }
 
-/** Who led the championship after each round, from the rounds' own results (Grand Prix points, as the standings). */
+/** Who led the championship after each round, from the rounds' own results: Grand Prix and sprint points, as the
+ * standings count them. */
 function leadersByRound(rounds: RaceSummary[]): (Leader | null)[] {
   const totals = new Map<string, { name: string; points: number }>();
   let previous: string | null = null;
   return rounds.map((r) => {
     if (r.state !== "completed") return null;
-    for (const res of r.results) {
+    for (const res of [...r.results, ...(r.sprintResults ?? [])]) {
       const t = totals.get(res.driver) ?? { name: res.driverName, points: 0 };
       t.points += res.points;
       totals.set(res.driver, t);

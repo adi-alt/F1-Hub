@@ -79,6 +79,11 @@ export type RaceSummary = {
   sessions: RaceSessionSummary[];
   poleSitter: string | null;
   results: RaceResultSummary[];
+  /** A sprint weekend's sprint classification, once classified (on the Saturday, before the Grand Prix). Its points
+   * belong to this round in every points total; positions, wins and podiums stay Grand-Prix-only. */
+  sprintResults?: RaceResultSummary[];
+  /** "openf1_preliminary" until the official sprint classification is stored. */
+  sprintSource?: "official" | "openf1_preliminary" | null;
   hasQualifying: boolean;
 
   // ── Event detail, for the race window. All of it real pipeline data; anything the pipeline
@@ -133,11 +138,20 @@ export const RECENT_FORM_WINDOW = 5;
 
 export type EntityType = "drivers" | "constructors";
 
+/** THE points a driver (or a team, summing both cars) scored in a round: the Grand Prix plus that weekend's sprint.
+ * Every points total, form line and streak on the season page goes through this - one scoring contract, so no
+ * component can quietly count the Grand Prix alone again. */
+export function roundPoints(race: RaceSummary, id: string, isConstructors = false): number {
+  const mine = (x: RaceResultSummary) => (isConstructors ? x.team === id : x.driver === id);
+  return [...race.results, ...(race.sprintResults ?? [])].filter(mine).reduce((sum, x) => sum + x.points, 0);
+}
+
 export type ResultPoint = { round: number; trackShort: string; position: number; points: number; grid: number | null; dnf: boolean };
 
 /** One entity's per-round results across every COMPLETED round. A team's result for a weekend is
  * its higher-finishing car (and the sum of both cars' points) - the one convention the standings
- * table, Compare, and the AI context all share. */
+ * table, Compare, and the AI context all share. Points include the weekend's sprint (roundPoints); position, grid
+ * and DNF are the Grand Prix's. */
 export function entityResults(raceSummaries: RaceSummary[], id: string, isConstructors: boolean): ResultPoint[] {
   const out: ResultPoint[] = [];
   for (const r of completedRaces(raceSummaries)) {
@@ -149,13 +163,13 @@ export function entityResults(raceSummaries: RaceSummary[], id: string, isConstr
         round: r.round,
         trackShort: r.trackShort,
         position: best.finishPosition,
-        points: entries.reduce((sum, x) => sum + x.points, 0),
+        points: roundPoints(r, id, true),
         grid: best.grid,
         dnf: entries.every((x) => x.status === "dnf"),
       });
     } else {
       const res = r.results.find((x) => x.driver === id);
-      if (res) out.push({ round: r.round, trackShort: r.trackShort, position: res.finishPosition, points: res.points, grid: res.grid, dnf: res.status === "dnf" });
+      if (res) out.push({ round: r.round, trackShort: r.trackShort, position: res.finishPosition, points: roundPoints(r, id), grid: res.grid, dnf: res.status === "dnf" });
     }
   }
   return out;
