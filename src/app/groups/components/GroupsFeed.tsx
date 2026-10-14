@@ -40,6 +40,13 @@ const TAB_ITEMS: TabItem<FeedType>[] = [
   { value: "latest", label: "Latest" },
 ];
 
+/** The element the feed scrolls in: its own column on a desktop (data-feed-scroll, overflow-y auto), or null for the
+ * page itself on a phone, where that column doesn't scroll. */
+function scrollRootOf(el: Element): Element | null {
+  const root = el.closest("[data-feed-scroll]");
+  return root && getComputedStyle(root).overflowY !== "visible" ? root : null;
+}
+
 /**
  * The center stream. Two real modes, not a client-side filter of one:
  *
@@ -78,6 +85,8 @@ export function GroupsFeed({
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
 }) {
   const communityId = selectedCommunity?.id ?? null;
+  // Each community's picture, for the prediction cards (a round carries its community's name, not its picture).
+  const avatarById = new Map(groups.map((g) => [g.id, g.avatarUrl]));
   const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;
 
   // The composer only exists at the very top of the stream, so someone twenty posts down had no
@@ -91,7 +100,13 @@ export function GroupsFeed({
   useEffect(() => {
     const el = tabsSentinelRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => setTabsStuck(!entry.isIntersecting && entry.boundingClientRect.top < 80), { rootMargin: "-57px 0px 0px 0px", threshold: 0 });
+    // On a desktop the feed scrolls inside its own column (data-feed-scroll); on a phone, the page under the header.
+    const root = scrollRootOf(el);
+    const observer = new IntersectionObserver(([entry]) => setTabsStuck(!entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0) + 80), {
+      root,
+      rootMargin: root ? "0px" : "-57px 0px 0px 0px",
+      threshold: 0,
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, [communityId]);
@@ -100,7 +115,8 @@ export function GroupsFeed({
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => setComposerOffscreen(!entry.isIntersecting && entry.boundingClientRect.top < 0), { threshold: 0 });
+    const root = scrollRootOf(el);
+    const observer = new IntersectionObserver(([entry]) => setComposerOffscreen(!entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0)), { root, threshold: 0 });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -160,7 +176,7 @@ export function GroupsFeed({
     if (communityId) return; // the community stream below owns the sentinel while one is selected
     const el = sentinelRef.current;
     if (!el || !cursor) return;
-    const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { rootMargin: "400px" });
+    const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { root: scrollRootOf(el), rootMargin: "400px" });
     observer.observe(el);
     return () => observer.disconnect();
   }, [cursor, loadMore, communityId]);
@@ -232,7 +248,7 @@ export function GroupsFeed({
     if (!communityId) return;
     const el = communitySentinelRef.current;
     if (!el || !communityCursor) return;
-    const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMoreCommunity(), { rootMargin: "400px" });
+    const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMoreCommunity(), { root: scrollRootOf(el), rootMargin: "400px" });
     observer.observe(el);
     return () => observer.disconnect();
   }, [communityId, communityCursor, loadMoreCommunity]);
@@ -311,7 +327,7 @@ export function GroupsFeed({
                 item.kind === "post" ? (
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
                 ) : (
-                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} />
+                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
                 ),
               )}
             </div>
@@ -323,7 +339,7 @@ export function GroupsFeed({
           {/* Pinned under the site header while the feed scrolls, the way a social feed keeps its tabs in reach. It
               only gets a background (and a hairline) once it's actually pinned, so at rest it sits on the page. */}
           <div ref={tabsSentinelRef} aria-hidden className="h-px" />
-          <div className={`sticky top-14 z-20 -mx-1 -mt-px flex items-center justify-between gap-3 px-1 transition-colors duration-fast ${tabsStuck ? "border-b border-white/10 bg-surface-0/95" : "border-b border-transparent"}`}>
+          <div className={`sticky top-14 z-20 -mx-1 -mt-px flex items-center justify-between gap-3 px-1 transition-colors duration-fast lg:top-0 ${tabsStuck ? "border-b border-white/10 bg-surface-0/85 backdrop-blur-xl" : "border-b border-transparent"}`}>
             <div data-tour="feed-tabs" className="min-w-0">
               <TabList aria-label="Feed" />
             </div>
@@ -361,7 +377,7 @@ export function GroupsFeed({
                   item.kind === "post" ? (
                     <PostCard key={item.key} post={item.post} index={i} showGroup />
                   ) : (
-                    <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} />
+                    <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
                   ),
                 )}
               </div>

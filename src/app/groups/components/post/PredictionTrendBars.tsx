@@ -9,6 +9,28 @@ import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
  * as "the community thinks X" on the strength of two people. */
 export const MIN_ENTRIES_FOR_TREND = 3;
 
+/** One round's community trend, fetched once on mount (when `enabled`): the real entries behind it, never padded. A
+ * failed fetch is just "no trend" - nothing around it depends on it. */
+export function usePredictionTrend(groupId: string, predictionId: string, enabled = true): { trend: PredictionTrend | null; failed: boolean } {
+  const [trend, setTrend] = useState<PredictionTrend | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    fetch(`/api/groups/${groupId}/predictions/${predictionId}/trend`, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`trend: ${res.status}`);
+        return res.json() as Promise<PredictionTrend>;
+      })
+      .then(setTrend)
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      });
+    return () => controller.abort();
+  }, [groupId, predictionId, enabled]);
+  return { trend, failed };
+}
+
 /**
  * What the community has actually entered for one prediction round.
  *
@@ -37,24 +59,8 @@ export function PredictionTrendBars({
   /** Drops the heading row - for a rail card that already names the round above these bars. */
   compact?: boolean;
 }) {
-  const [fetched, setFetched] = useState<PredictionTrend | null>(null);
-  const [failed, setFailed] = useState(false);
   const needsFetch = provided === undefined;
-
-  useEffect(() => {
-    if (!needsFetch) return;
-    const controller = new AbortController();
-    fetch(`/api/groups/${groupId}/predictions/${predictionId}/trend`, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`trend: ${res.status}`);
-        return res.json() as Promise<PredictionTrend>;
-      })
-      .then(setFetched)
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
-      });
-    return () => controller.abort();
-  }, [groupId, predictionId, needsFetch]);
+  const { trend: fetched, failed } = usePredictionTrend(groupId, predictionId, needsFetch);
 
   const trend = needsFetch ? fetched : provided;
   // Only the fetched path ever has a moment with nothing to show - a server-supplied `trend` is

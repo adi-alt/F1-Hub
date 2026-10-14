@@ -251,6 +251,7 @@ export function CommunityFeed({
         groupId,
         userId: "",
         authorName: "You",
+        authorAvatarUrl: null,
         authorRole: myRole,
         title: draft.title,
         content: draft.content,

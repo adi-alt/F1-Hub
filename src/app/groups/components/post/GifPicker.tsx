@@ -36,7 +36,10 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      // A press on the button that opened the panel is that button's own toggle, not an outside click.
+      if (anchorRef.current?.contains(target)) return;
+      if (rootRef.current && !rootRef.current.contains(target)) onClose();
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -47,7 +50,7 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, anchorRef]);
 
   if (typeof document === "undefined" || !style) return null;
 
@@ -59,7 +62,7 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
       exit={{ opacity: 0, y: 4, scale: 0.98 }}
       transition={{ duration: 0.12 }}
       style={style}
-      className="overflow-y-auto rounded-xl border border-white/10 bg-surface-1/70 shadow-2xl backdrop-blur-2xl p-2 scrollbar-hide"
+      className="overflow-y-auto rounded-card border border-white/10 bg-surface-2 p-2 shadow-overlay scrollbar-hide"
     >
       <input
         autoFocus
