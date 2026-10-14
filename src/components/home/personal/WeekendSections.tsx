@@ -311,29 +311,18 @@ export function YourWeekendSection({ publicData, personalData, onPredict }: Prop
 
 type Here = { appearances: number; wins: number; podiums: number } | undefined;
 
-function HereChips({ here, circuit }: { here: Here; circuit: string }) {
-  if (!here) return <p className="text-caption text-tertiary">No race at {circuit} yet.</p>;
-  const chips = [
-    `${here.appearances} start${here.appearances === 1 ? "" : "s"}`,
-    `${here.podiums} podium${here.podiums === 1 ? "" : "s"}`,
-    ...(here.wins ? [`${here.wins} win${here.wins === 1 ? "" : "s"}`] : []),
-  ];
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-caption text-tertiary">At {circuit}</span>
-      {chips.map((c) => (
-        <span key={c} className="rounded-full bg-surface-3/70 px-2 py-0.5 text-caption tabular text-secondary">
-          {c}
-        </span>
-      ))}
-    </div>
-  );
+/** "6 starts · 2 podiums · 1 win" at this circuit, as one line. */
+function hereLine(here: Here): string | null {
+  if (!here) return null;
+  const n = (count: number, one: string) => `${count} ${one}${count === 1 ? "" : "s"}`;
+  return [n(here.appearances, "start"), n(here.podiums, "podium"), ...(here.wins ? [n(here.wins, "win")] : [])].join(" · ");
 }
 
 /**
- * Your favourites, one card each, all the same height: the team colour along the top, the championship position
- * large, the points against the leader as a bar, the record at this weekend's circuit, and Apex's insight for that
- * driver or team (each card its own: lib/favoriteInsights.ts).
+ * Your favourites, one compact card each: the team colour along the top, the championship position, the points
+ * against the leader as a bar, the record at this weekend's circuit in one line, and Apex's insight for that driver
+ * or team (each card its own: lib/favoriteInsights.ts). Cards keep their own height, so one without an insight
+ * isn't stretched into an empty box.
  */
 export function YourDriversSection({ publicData, personalData }: Props) {
   const { intelligence, isLoading } = useHomepageIntelligence();
@@ -395,55 +384,54 @@ export function YourDriversSection({ publicData, personalData }: Props) {
           </Link>
         </p>
       ) : (
-        <ul className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {cards.map((c) => {
             const behind = c.points !== null && c.leader !== null ? c.leader - c.points : null;
+            const share = c.points !== null && c.leader ? c.points / c.leader : null;
+            const here = hereLine(c.here);
             return (
               <li key={c.key} className="min-w-0">
                 <div {...tiltProps(c.color)} className="tilt h-full rounded-card">
                   <Surface level={1} padding="sm" interactive href={c.href} linkLabel={c.name} className="relative flex h-full flex-col overflow-hidden">
                     <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-0.5" style={c.color ? { background: c.color } : undefined} />
-                    <span aria-hidden className="pointer-events-none absolute -right-12 -top-16 size-40 rounded-full opacity-15 blur-2xl" style={c.color ? { background: c.color } : undefined} />
-                    <div className="relative flex items-start gap-3">
-                      <EntityAvatar imageUrl={c.image} name={c.name} size={44} shape={c.logo ? "square" : "circle"} fit={c.logo ? "contain" : "cover"} />
+                    <span aria-hidden className="pointer-events-none absolute -right-10 -top-14 size-32 rounded-full opacity-15 blur-2xl" style={c.color ? { background: c.color } : undefined} />
+                    <div className="relative flex items-center gap-3">
+                      <EntityAvatar imageUrl={c.image} name={c.name} size={36} shape={c.logo ? "square" : "circle"} fit={c.logo ? "contain" : "cover"} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-body font-semibold text-primary">{c.name}</p>
+                        <p className="truncate text-body-sm font-semibold text-primary">{c.name}</p>
                         {c.subtitle && <p className="truncate text-caption text-secondary">{c.subtitle}</p>}
                       </div>
                       {c.rank !== null && (
-                        <div className="shrink-0 text-right">
-                          <p className="text-title-lg font-semibold leading-none tabular text-primary">P{c.rank}</p>
-                          <p className="mt-1 text-caption tabular text-secondary">{c.points} pts</p>
-                        </div>
+                        <p className="shrink-0 text-right">
+                          <span className="block text-title-md font-semibold leading-none tabular text-primary">P{c.rank}</span>
+                          <span className="mt-1 block text-caption tabular text-secondary">{c.points} pts</span>
+                        </p>
                       )}
                     </div>
 
-                    {c.points !== null && c.leader ? (
-                      <div className="relative mt-4">
-                        <div className="flex justify-between text-caption text-secondary">
-                          <span>{behind === 0 ? "Leads the championship" : `${behind} behind the leader`}</span>
-                          <span className="tabular">{Math.round((c.points / c.leader) * 100)}%</span>
-                        </div>
-                        <div aria-hidden className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
-                          <div className="h-full rounded-full" style={{ width: `${Math.max(2, (c.points / c.leader) * 100)}%`, background: c.color ?? "var(--color-primary)" }} />
+                    {share !== null && (
+                      <div className="relative mt-3 flex items-center gap-3">
+                        <span className="w-24 shrink-0 text-caption tabular text-secondary">{behind === 0 ? "Leads" : `${behind} behind`}</span>
+                        <div aria-hidden className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
+                          <div className="h-full rounded-full" style={{ width: `${Math.max(2, share * 100)}%`, background: c.color ?? "var(--color-primary)" }} />
                         </div>
                       </div>
-                    ) : null}
+                    )}
 
-                    <div className="relative mt-3">
-                      <HereChips here={c.here} circuit={circuit} />
-                    </div>
+                    <p className="relative mt-2 text-caption text-secondary">
+                      <span className="text-tertiary">{circuit}: </span>
+                      {here ?? "first visit"}
+                    </p>
 
                     {(c.insight || (isLoading && !intelligence)) && (
-                      <div className="relative mt-3 flex-1 border-t border-subtle pt-3">
-                        <p className="flex items-center gap-1.5 text-caption text-tertiary">
-                          <Icon icon={Sparkles} size={16} className="text-tertiary" />
-                          Apex · AI
-                        </p>
+                      <div className="relative mt-3 border-t border-subtle pt-3">
                         {c.insight ? (
-                          <p className="mt-1 line-clamp-3 text-caption text-secondary">{c.insight}</p>
+                          <p className="line-clamp-2 text-caption text-secondary">
+                            <Icon icon={Sparkles} size={16} className="mr-1 inline align-[-3px] text-tertiary" label="Apex, AI" />
+                            {c.insight}
+                          </p>
                         ) : (
-                          <div className="mt-1.5 space-y-1.5" aria-hidden>
+                          <div className="space-y-1.5" aria-hidden>
                             <Skeleton shape="text" className="w-full" />
                             <Skeleton shape="text" className="w-3/4" />
                           </div>
