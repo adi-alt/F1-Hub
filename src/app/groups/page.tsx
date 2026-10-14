@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { GroupsHomeClient } from "./components/GroupsHomeClient";
-import { getUserGroups } from "@/lib/supabase/groups";
+import { getUserGroups, discoverCommunities } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyPredictions } from "@/lib/supabase/groupPredictions";
 import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
@@ -71,7 +71,7 @@ export default async function GroupsPage() {
     );
   }
 
-  const [groups, feed, predictions, raceContext, pulse] = await Promise.all([
+  const [groups, feed, predictions, raceContext, pulse, discover] = await Promise.all([
     getUserGroups(session.uid),
     listFeedPosts(session.uid),
     listMyPredictions(session.uid),
@@ -79,20 +79,18 @@ export default async function GroupsPage() {
     // Reads the previous visit timestamp and stamps a new one - so it must run exactly once per
     // page load, here, not inside a client component that could re-run and collapse the window.
     getCommunityPulse(session.uid),
+    // A few public communities to join, for the Discover section (the same cached query the Discover sheet uses).
+    discoverCommunities({ uid: session.uid, limit: 12 }).catch(() => ({ communities: [] })),
   ]);
+  const suggestions = discover.communities.filter((c) => !c.isMember).slice(0, groups.length ? 4 : 8);
 
   // Sequential on purpose: it depends on which rounds came back above.
   const driversByRace = await getDriversByRace(predictions.map((p) => p.raceId));
 
   return (
-    // The same frame as every page. The document scrolls, the feed with it (audit R-31); at lg+ the
-    // two rails stay in view beside it (sticky, GroupsHomeClient), and only the community list inside
-    // the left rail scrolls on its own.
+    // The same frame as every page; the document scrolls (audit R-31).
     <div className="page-wide py-6">
-      {/* No separate page header above the workspace anymore - the page title and its one-line
-          description live at the top of the navigation rail itself (GroupsLeftSidebar), so the
-          three columns start at the same baseline and the feed is the first thing at eye level
-          rather than sitting a header's height below it. */}
+      {/* The page header, the weekend, your communities and the feed all live in GroupsHomeClient. */}
       <div>
         <GroupsHomeClient
           groups={groups}
@@ -103,6 +101,7 @@ export default async function GroupsPage() {
           upcomingRaces={raceContext.upcomingRaces}
           pulse={pulse}
           driversByRace={driversByRace}
+          suggestions={suggestions}
         />
       </div>
     </div>
