@@ -608,3 +608,62 @@ html {
     animation: none;
   }
 }
+
+/* Floating product windows on the signed-out home (FeatureShowcase): each drifts on its own slow wave - a gentle
+   bob with a slight sideways sway - so the cluster feels alive without anything snapping. Still under reduced motion. */
+@keyframes float-bob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  35% {
+    transform: translate3d(calc(var(--float-x, 4px) * -1), calc(var(--float-y, 12px) * -1), 0);
+  }
+  70% {
+    transform: translate3d(var(--float-x, 4px), calc(var(--float-y, 12px) * 0.4), 0);
+  }
+}
+.float-bob {
+  animation: float-bob var(--float-dur, 9s) ease-in-out var(--float-delay, 0s) infinite;
+  will-change: transform;
+}
+/* A mini chart bar rising and settling, on a loop. */
+@keyframes mini-bar {
+  0% {
+    transform: scaleY(0.15);
+  }
+  30%,
+  85% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0.15);
+  }
+}
+.mini-bar {
+  transform-origin: bottom;
+  animation: mini-bar 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
+}
+@keyframes mini-bar-x {
+  0% {
+    transform: scaleX(0.1);
+  }
+  30%,
+  85% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0.1);
+  }
+}
+.mini-bar-x {
+  transform-origin: left;
+  animation: mini-bar-x 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .float-bob,
+  .mini-bar,
+  .mini-bar-x {
+    animation: none;
+  }
+}
