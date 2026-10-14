@@ -84,43 +84,47 @@ function Outcome({ score }: { score: CategoryScore | undefined }) {
 }
 
 /** One category as a card: its name (with a tick once it's filled), what it's worth, the model's pick, then the
- * control; once the race is scored, what it earned. */
-function Category({ title, points, model, done, score, note, className = "", children }: { title: string; points: string; model: ReactNode; done: boolean; score?: CategoryScore; note?: ReactNode; className?: string; children: ReactNode }) {
+ * control; once the race is scored, what it earned. `compact` is for the row of four small cards: the points go on
+ * their own line under the name and the model line keeps two lines' height, so all four controls start on one line
+ * whatever the text above them; a note goes under the control. */
+function Category({ title, points, model, done, score, note, compact = false, children }: { title: string; points: string; model: ReactNode; done: boolean; score?: CategoryScore; note?: ReactNode; compact?: boolean; children: ReactNode }) {
   const result = score && score.earned !== null;
+  const chip = result ? <Outcome score={score} /> : <span className="rounded-full bg-surface-3 px-2 py-0.5 text-caption tabular text-secondary">{points}</span>;
   return (
-    <section aria-label={title} className={`flex min-w-0 flex-col rounded-card border border-subtle bg-surface-2/60 p-4 ${className}`}>
-      {/* The points drop under the name when the card is too narrow for both, rather than squeezing the name. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+    <section aria-label={title} className="flex min-w-0 flex-col rounded-card border border-subtle bg-surface-2/60 p-4">
+      <div className={compact ? "flex flex-col items-start gap-1.5" : "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5"}>
         <h3 className="flex items-center gap-1.5 whitespace-nowrap text-body-sm font-semibold text-primary">
           {title}
           {done && !result && <Icon icon={Check} size={16} className="text-success" label="Picked" />}
         </h3>
-        {result ? <Outcome score={score} /> : <span className="max-w-full rounded-full bg-surface-3 px-2 py-0.5 text-caption tabular text-secondary">{points}</span>}
+        {chip}
       </div>
-      <p className="mt-1 flex min-h-5 items-start gap-1.5 text-caption text-secondary">
+      <p className={`mt-2 flex items-start gap-1.5 text-caption text-secondary ${compact ? "min-h-10" : ""}`}>
         <Icon icon={Bot} size={16} className="shrink-0 text-tertiary" />
         <span className="min-w-0">{model}</span>
       </p>
-      <div className="mt-3 flex-1">{children}</div>
+      <div className="mt-3">{children}</div>
       {note && <p className="mt-2 text-caption text-tertiary">{note}</p>}
     </section>
   );
 }
 
-/** The podium as a podium: P2, P1, P3 on steps of their own height, each in its driver's team colour once picked. */
+/** The podium as a podium: the three pickers on one line (P2, P1, P3 from sm up), and under them the steps rising
+ * from one shared base, each in its driver's team colour once picked. */
 function PodiumStep({ place, code, color, modelName, children }: { place: 1 | 2 | 3; code: string; color: string | null; modelName: string | null; children: ReactNode }) {
   const height = place === 1 ? "h-16" : place === 2 ? "h-11" : "h-8";
   return (
     <div className={`flex min-w-0 flex-col ${place === 1 ? "sm:order-2" : place === 2 ? "sm:order-1" : "sm:order-3"}`}>
       {children}
-      <div
-        aria-hidden
-        className={`mt-2 hidden items-start justify-center rounded-t-control border-x border-t pt-1.5 text-body font-semibold tabular transition-[background-color,border-color] duration-base sm:flex ${height} ${code ? "border-white/15 text-primary" : "border-dashed border-subtle text-tertiary"}`}
-        style={code && color ? { background: `linear-gradient(180deg, ${color}55, ${color}14)` } : undefined}
-      >
-        {place}
+      <div aria-hidden className="mt-3 hidden h-16 items-end border-b border-white/15 sm:flex">
+        <div
+          className={`flex w-full items-start justify-center rounded-t-control border-x border-t pt-1.5 text-body font-semibold tabular transition-[background-color,border-color] duration-base ${height} ${code ? "border-white/15 text-primary" : "border-dashed border-subtle text-tertiary"}`}
+          style={code && color ? { background: `linear-gradient(180deg, ${color}55, ${color}14)` } : undefined}
+        >
+          {place}
+        </div>
       </div>
-      <p className="mt-2 truncate text-caption text-tertiary">{modelName ? `Model: ${modelName}` : "\u00a0"}</p>
+      {modelName && <p className="mt-2 truncate text-caption text-tertiary">Model: {modelName}</p>}
     </div>
   );
 }
@@ -323,7 +327,7 @@ export function PredictionSheet({
             done={done.podium}
             model={model.podium.length ? <>Model: {modelList(model.podium)}{model.winnerChance !== null ? ` · ${Math.round(model.winnerChance * 100)}% to win` : ""}</> : "The model publishes after qualifying."}
           >
-            <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+            <div className="grid gap-3 sm:grid-cols-3 sm:items-start">
               {([1, 2, 3] as const).map((place) => (
                 <PodiumStep key={place} place={place} code={form.podium[place - 1]} color={colorOf(form.podium[place - 1])} modelName={nameOf(model.podium[place - 1] ?? null)}>
                   <label className="text-caption text-secondary">
@@ -344,7 +348,7 @@ export function PredictionSheet({
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Category
-              title="Pole position" score={scoreOf("pole")}
+              title="Pole position" compact score={scoreOf("pole")}
               points={`${POINTS.pole} pts if right`}
               done={done.pole}
               model={model.pole ? <>Model: {nameOf(model.pole)}</> : "Publishes before qualifying."}
@@ -352,10 +356,10 @@ export function PredictionSheet({
             >
               <DriverPicker drivers={drivers} value={form.pole} disabled={poleLocked} ariaLabel="Pole position" onChange={(code) => setForm((f) => ({ ...f, pole: code }))} />
             </Category>
-            <Category title="Fastest lap" score={scoreOf("fastestLap")} points={`${POINTS.fastestLap} pts if right`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : "Publishes after practice."}>
+            <Category title="Fastest lap" compact score={scoreOf("fastestLap")} points={`${POINTS.fastestLap} pts if right`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : "Publishes after practice."}>
               <DriverPicker drivers={drivers} value={form.fastestLap} disabled={locked} ariaLabel="Fastest lap" onChange={(code) => setForm((f) => ({ ...f, fastestLap: code }))} />
             </Category>
-            <Category title="Safety car" score={scoreOf("safetyCar")} points={`${POINTS.safetyCar} pts if right`} done={done.safetyCar} model={<>Model: {Math.round(model.safetyCar * 100)}% chance of one</>}>
+            <Category title="Safety car" compact score={scoreOf("safetyCar")} points={`${POINTS.safetyCar} pts if right`} done={done.safetyCar} model={<>Model: {Math.round(model.safetyCar * 100)}% chance of one</>}>
               <Segmented
                 label="Safety car"
                 value={form.safetyCar}
@@ -367,7 +371,7 @@ export function PredictionSheet({
                 ]}
               />
             </Category>
-            <Category title="Winning margin" score={scoreOf("margin")} points={`${POINTS.margin} pts if right`} done={done.margin} model="No model pick: your call.">
+            <Category title="Winning margin" compact score={scoreOf("margin")} points={`${POINTS.margin} pts if right`} done={done.margin} model="No model pick: your call.">
               <Segmented label="Winning margin" value={form.margin} disabled={locked} onChange={(v) => setForm((f) => ({ ...f, margin: v }))} columns={2} options={MARGIN_BUCKETS.map((b) => ({ value: b, label: MARGIN_LABEL[b] }))} />
             </Category>
           </div>
