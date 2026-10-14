@@ -57,7 +57,10 @@ function PersonalHomeInner({
   // The prediction window opens over the home for a race that can still be picked; otherwise the buttons link
   // to the race page instead.
   const canPredict = !!race && race.status !== "completed";
-  const entrants = race?.inputs?.length ? race.inputs : publicData.currentDrivers.map((d) => ({ driver: d.code, driverName: d.name, team: d.team }));
+  const headshotOf = (code: string) => publicData.currentDrivers.find((d) => d.code === code)?.headshotUrl ?? null;
+  const entrants = race?.inputs?.length
+    ? race.inputs.map((i) => ({ ...i, headshotUrl: headshotOf(i.driver) }))
+    : publicData.currentDrivers.map((d) => ({ driver: d.code, driverName: d.name, team: d.team, headshotUrl: d.headshotUrl ?? null }));
   const onPredict = canPredict ? () => setPredicting(true) : undefined;
   return (
     <>
