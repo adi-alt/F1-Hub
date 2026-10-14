@@ -794,8 +794,10 @@
  "functions": {
   "cast_comment_vote(uuid,uuid,uuid,smallint)": "92e02bb0653704d1a08330a0dc0d1932",
   "current_user_is_admin()": "bad4060b43aae1dd7eccf02cddadf0ae",
+  "dispatch_fetch_races()": "cb926007465972f3b1b9671f97536426",
   "enforce_comment_parent_same_post()": "8bb166c739f947bac022424c1ad907d6",
   "enter_prediction(uuid,uuid,uuid,jsonb,timestamp with time zone)": "33dc17b4e2be66d89ae4a20b3eed300a",
+  "fetch_races_due(timestamp with time zone)": "f38ed2425d96bac228e3c555aee27212",
   "is_admin(uuid)": "e7e396e90e1e8a6103575eb153040457",
   "is_group_member(uuid)": "591181a8e870e090c965edc60747c343",
   "is_group_staff(uuid)": "4081087565347c2364143cae593dc3c9",
