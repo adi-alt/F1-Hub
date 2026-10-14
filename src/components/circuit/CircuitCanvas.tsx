@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import type { CircuitDrawing } from "@/lib/circuitLayout";
+import { useRichMotion } from "@/hooks/useRichMotion";
 
 /**
  * A circuit from the track library, drawn in: a soft band under a crisp line that traces itself when the drawing
@@ -11,7 +12,7 @@ import type { CircuitDrawing } from "@/lib/circuitLayout";
  *
  * `lapColor` sends a car round it: a glowing head with a fading trail, lapping in `lapSeconds`, in a colour that
  * means something where it's used (the winner's team, or the brand red for the next race). It's pure SVG animation,
- * so it costs no JavaScript per frame, and it's left out entirely under reduced motion.
+ * so it costs no JavaScript per frame. Desktop only: phones, and anyone who asked to reduce motion, see the circuit still.
  */
 export function CircuitCanvas({
   drawing,
@@ -30,6 +31,8 @@ export function CircuitCanvas({
   lapDelay?: number;
 }) {
   const reduceMotion = useReducedMotion();
+  // The lapping car is continuous motion: desktop only (see useRichMotion); phones show the circuit still.
+  const rich = useRichMotion();
   const pathId = `track-${useId().replace(/:/g, "")}`;
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const vbW = drawing ? Number(drawing.viewBox.split(/\s+/)[2]) : 1;
@@ -70,7 +73,7 @@ export function CircuitCanvas({
           animate={{ pathLength: 1 }}
           transition={{ duration: reduceMotion ? 0 : 1.2, ease: [0.4, 0, 0.2, 1] }}
         />
-        {lapColor && !reduceMotion && (
+        {lapColor && rich && (
           <g aria-hidden>
             {/* Invisible copy of the line, normalised to length 100, for the trail's dashes and the head's motion. */}
             <path id={pathId} d={drawing.path} pathLength={100} fill="none" stroke="none" />

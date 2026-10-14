@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useRichMotion } from "@/hooks/useRichMotion";
 import { Crown } from "lucide-react";
 import { archiveSeasonHref } from "@/lib/routes";
 import { teamColor } from "@/lib/teamColors";
@@ -26,7 +27,8 @@ export type SeasonPoint = {
  * every bar opens that season. Reduced motion: the bars are simply there.
  */
 export function ArchiveSeasonStory({ seasons, subject }: { seasons: SeasonPoint[]; subject: string }) {
-  const reduce = useReducedMotion();
+  // Bars grow in one after another on desktop; on a phone they are simply there (useRichMotion).
+  const reduce = !useRichMotion();
   const sorted = [...seasons].sort((a, b) => a.year - b.year);
   const [active, setActive] = useState<number | null>(null);
   if (sorted.length === 0) return null;
