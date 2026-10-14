@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { MotionConfig } from "framer-motion";
-import { AuthProvider } from "@/providers/AuthProvider";
+import { AuthProvider, type InitialAuth } from "@/providers/AuthProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppRealtimeSync } from "@/components/AppRealtimeSync";
 import { ProductTourProvider } from "@/components/onboarding/ProductTour";
@@ -15,10 +15,10 @@ import { ProductTourProvider } from "@/components/onboarding/ProductTour";
  * AppRealtimeSync is mounted once, here, for the whole app — inside both QueryProvider (it needs
  * useQueryClient) and AuthProvider (it needs useAuth) — instead of every page mounting its own
  * realtime watcher. See that component's docstring. */
-export function AppProviders({ children }: { children: ReactNode }) {
+export function AppProviders({ children, initialAuth }: { children: ReactNode; initialAuth?: InitialAuth }) {
   return (
     <QueryProvider>
-      <AuthProvider>
+      <AuthProvider initialAuth={initialAuth}>
         <AppRealtimeSync />
         <MotionConfig reducedMotion="user">
           <ProductTourProvider>{children}</ProductTourProvider>

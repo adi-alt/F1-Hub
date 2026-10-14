@@ -33,6 +33,9 @@ type AuthContextValue = {
   setOnboardingDone: (done: boolean) => void;
   isAuthorized: boolean;
   loading: boolean;
+  /** True until /api/auth/me has answered: the session itself is known from the first render (the root layout
+   * reads it), but the points balance and the tour flag only come from that request. */
+  detailsPending: boolean;
   setRole: (role: Role | null) => void;
   setDisplayName: (name: string | null) => void;
   setUser: (user: SessionUser | null) => void;
@@ -42,19 +45,26 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+/** The session as the server read it for this request (root layout): `null` for a signed-out visitor. */
+export type InitialAuth = { uid: string; email: string | null; photoURL: string | null; role: Role; displayName: string | null } | null;
+
+export function AuthProvider({ children, initialAuth }: { children: ReactNode; initialAuth?: InitialAuth }) {
   const router = useRouter();
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const [role, setRole] = useState<Role | null>(null);
-  const [displayName, setDisplayName] = useState<string | null>(null);
+  // Seeded from the server's own read of the session cookie, so the first render - the server's HTML included -
+  // already knows whether this visitor is signed in: no placeholder in the header that then turns into
+  // "Sign in / Sign up", no footer appearing late. Without a seed (undefined), it starts unknown and waits on
+  // /api/auth/me as before.
+  const [user, setUser] = useState<SessionUser | null>(initialAuth ? { uid: initialAuth.uid, email: initialAuth.email, photoURL: initialAuth.photoURL } : null);
+  const [role, setRole] = useState<Role | null>(initialAuth?.role ?? null);
+  const [displayName, setDisplayName] = useState<string | null>(initialAuth?.displayName ?? null);
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
-  const [sessionChecked, setSessionChecked] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(initialAuth !== undefined);
+  const [detailsChecked, setDetailsChecked] = useState(false);
 
-  // Hydrates from whatever server session already exists (a normal persisted cookie) on first
-  // load. The real sign-in flow (AuthDialog) sets these directly from its own response once OTP +
-  // (for new accounts) the profile step finish; this fetch is just the fallback for "I already
-  // have a valid session, who am I."
+  // Fills in what the session cookie doesn't carry (the points balance, the tour flag) and, without a seed, the
+  // session itself. The real sign-in flow (AuthDialog) sets these directly from its own response once OTP +
+  // (for new accounts) the profile step finish.
   type MeResponse = { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null; pointsBalance?: number | null; onboardingDone?: boolean };
   useEffect(() => {
     fetch("/api/auth/me")
@@ -67,13 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
           setOnboardingDone(body.onboardingDone ?? true);
         } else {
+          // The session ended between the page render and this request: follow the server.
+          setRole(null);
+          setUser(null);
+          setDisplayName(null);
           // A confirmed guest has no tour to run; resolving this to true keeps the tour from
           // waiting forever on an answer that will never come.
           setOnboardingDone(true);
         }
       })
       .catch(() => {})
-      .finally(() => setSessionChecked(true));
+      .finally(() => {
+        setSessionChecked(true);
+        setDetailsChecked(true);
+      });
   }, []);
 
   // Re-pulls just the balance - called by AppRealtimeSync whenever the signed-in user's own
@@ -118,13 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOnboardingDone,
       isAuthorized: role !== null,
       loading: !sessionChecked,
+      detailsPending: !detailsChecked,
       setRole,
       setDisplayName,
       setUser,
       refreshPointsBalance,
       signOut,
     }),
-    [user, role, displayName, pointsBalance, onboardingDone, sessionChecked, refreshPointsBalance, signOut],
+    [user, role, displayName, pointsBalance, onboardingDone, sessionChecked, detailsChecked, refreshPointsBalance, signOut],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

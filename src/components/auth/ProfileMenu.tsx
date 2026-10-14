@@ -10,6 +10,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { Icon } from "@/components/ui/Icon";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 const ITEMS = [
   { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersHorizontal },
@@ -32,7 +33,7 @@ const FROSTED_STYLE = {
 type Rect = { top: number; right: number };
 
 export function ProfileMenu() {
-  const { user, displayName, isAuthorized, signOut, pointsBalance } = useAuth();
+  const { user, displayName, isAuthorized, signOut, pointsBalance, detailsPending } = useAuth();
   const { start: startTour } = useProductTour();
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -117,6 +118,13 @@ export function ProfileMenu() {
         {/* Visually hidden below 400px so the pill fits a 320px header beside the logo and the menu button; the
             name stays in the button's accessible name. */}
         <span className="sr-only min-[400px]:not-sr-only min-[400px]:max-w-[9rem] min-[400px]:truncate font-medium text-white">{name}</span>
+        {/* The balance comes from /api/auth/me after the first paint: hold its place meanwhile, so the pill
+            doesn't grow when it lands. */}
+        {pointsBalance === null && detailsPending && (
+          <span aria-hidden className="border-l border-white/10 pl-2">
+            <Skeleton shape="block" className="h-3.5 w-10" />
+          </span>
+        )}
         {pointsBalance !== null && (
           <span className="flex items-center gap-1 border-l border-white/10 pl-2 text-xs font-semibold text-neutral-300">
             <Icon icon={Star} size={16} className="text-tertiary" />

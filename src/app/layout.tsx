@@ -11,6 +11,8 @@ import { ApexLauncher } from "@/components/apex/ApexLauncher";
 import { SectionNav } from "@/components/SectionNav";
 import { ApexScopeProvider } from "@/components/apex/ApexScopeProvider";
 import { AppProviders } from "@/providers/AppProviders";
+import type { InitialAuth } from "@/providers/AuthProvider";
+import { getSession } from "@/lib/session/getSession";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,6 +38,13 @@ export default async function RootLayout({
 }>) {
   // The season the nav and footer link to, from the calendar (lib/currentSeason.ts; audit R-22).
   const season = await getCurrentSeason();
+  // Who this request belongs to, read from the session cookie (no database call), so the header, the nav and the
+  // footer render for a signed-in or a signed-out visitor from the first paint instead of a placeholder that
+  // swaps once /api/auth/me answers. Display only: every permission is still checked where it's used.
+  const session = await getSession();
+  const initialAuth: InitialAuth = session.uid
+    ? { uid: session.uid, email: session.email ?? null, photoURL: session.photoURL ?? null, role: session.role ?? "user", displayName: session.displayName ?? null }
+    : null;
   return (
     <html
       lang="en"
@@ -54,7 +63,7 @@ export default async function RootLayout({
           Skip to content
         </a>
         <ScrollMemory />
-        <AppProviders>
+        <AppProviders initialAuth={initialAuth}>
           {/* Apex is app-wide now rather than a homepage widget. The provider holds whatever scope
               the current page registered; the launcher renders nothing at all on a page that
               registered none, so it never offers to answer questions about a page it can't see. */}
