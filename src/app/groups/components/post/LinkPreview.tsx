@@ -46,7 +46,7 @@ export function LinkPreview({ url }: { url: string }) {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-[11.5px] text-neutral-400 transition hover:border-white/[0.14] hover:text-neutral-200"
+        className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-caption text-secondary transition hover:border-white/[0.14] hover:text-neutral-200"
       >
         <Icon icon={Link} size={16} className="size-3" />
         <span className="truncate">{domain}</span>
@@ -62,19 +62,19 @@ export function LinkPreview({ url }: { url: string }) {
       href={data.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-1.5 block overflow-hidden rounded-lg border border-white/[0.07] bg-white/[0.02] transition hover:border-white/[0.14]"
+      className="mt-1.5 block overflow-hidden rounded-lg border border-white/10 bg-white/[0.02] transition hover:border-white/[0.14]"
     >
       {data.imageUrl && !imageFailed && (
         // eslint-disable-next-line @next/next/no-img-element -- arbitrary third-party host; not optimizable, and allowed to fail
-        <img src={data.imageUrl} alt="" loading="lazy" onError={() => setImageFailed(true)} className="h-28 w-full border-b border-white/[0.06] object-cover" />
+        <img src={data.imageUrl} alt="" loading="lazy" onError={() => setImageFailed(true)} className="h-28 w-full border-b border-white/10 object-cover" />
       )}
       <div className="px-2.5 py-2">
-        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-tertiary">
+        <p className="flex items-center gap-1.5 text-caption font-semibold text-tertiary">
           <Icon icon={Link} size={16} className="size-3" />
           <span className="truncate">{data.siteName ?? data.domain}</span>
         </p>
-        {data.title && <p className="mt-1 line-clamp-2 text-[12.5px] font-semibold leading-snug text-neutral-100">{data.title}</p>}
-        {data.description && <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-relaxed text-neutral-400">{data.description}</p>}
+        {data.title && <p className="mt-1 line-clamp-2 text-body-sm font-semibold leading-snug text-neutral-100">{data.title}</p>}
+        {data.description && <p className="mt-0.5 line-clamp-2 text-caption leading-relaxed text-secondary">{data.description}</p>}
       </div>
     </motion.a>
   );

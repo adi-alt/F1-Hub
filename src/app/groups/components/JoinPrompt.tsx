@@ -95,12 +95,12 @@ export function JoinPrompt({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-surface-1">
       <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} />
 
       <div className="px-6 pb-7 text-center">
         <div className="-mt-8 flex justify-center">
-          <span className="rounded-full ring-4 ring-[var(--f1-carbon)]">
+          <span className="rounded-full ring-4 ring-surface-1">
             <EntityAvatar imageUrl={group.avatarUrl} name={group.name} size={64} />
           </span>
         </div>
@@ -110,14 +110,14 @@ export function JoinPrompt({
           {meta.label} · {visibilityLabel(group.visibility)}
           {group.topic ? ` · ${group.topic}` : ""}
         </p>
-        {group.description && <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-400">{group.description}</p>}
+        {group.description && <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-secondary">{group.description}</p>}
         <p className="mt-3 text-xs text-tertiary">
           {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
         </p>
 
         <div className="mt-6">
           {deadInvite && (
-            <p role="status" className="mx-auto mb-4 max-w-sm rounded-lg border border-[var(--f1-line)] bg-black/20 px-3 py-2 text-xs leading-relaxed text-neutral-400">
+            <p role="status" className="mx-auto mb-4 max-w-sm rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs leading-relaxed text-secondary">
               {deadInvite === "expired"
                 ? "This invitation has expired."
                 : deadInvite === "revoked"
@@ -132,7 +132,7 @@ export function JoinPrompt({
             <button
               onClick={() => void join()}
               disabled={status === "working"}
-              className="rounded-full bg-[var(--f1-red)] px-6 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+              className="rounded-full bg-brand px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-60"
             >
               {status === "working" ? "Joining…" : invited ? "Accept invitation" : "Join Community"}
             </button>
@@ -151,7 +151,7 @@ export function JoinPrompt({
               <button
                 onClick={() => void request()}
                 disabled={status === "working"}
-                className="mt-3 rounded-full border border-[var(--f1-line)] px-5 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-50"
+                className="mt-3 rounded-full border border-white/10 px-5 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-50"
               >
                 Ask again
               </button>
@@ -167,18 +167,18 @@ export function JoinPrompt({
                   autoFocus
                   placeholder="Tell them why you'd like to join (optional)"
                   aria-label="Message to the admins"
-                  className="mb-3 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-left text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                  className="mb-3 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-left text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                 />
               )}
               <button
                 onClick={() => void request()}
                 disabled={status === "working"}
-                className="rounded-full bg-[var(--f1-red)] px-6 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+                className="rounded-full bg-brand px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-60"
               >
                 {status === "working" ? "Sending…" : "Request to Join"}
               </button>
               {!showMessage && (
-                <button onClick={() => setShowMessage(true)} className="mt-2 block w-full text-xs text-tertiary transition hover:text-neutral-300">
+                <button onClick={() => setShowMessage(true)} className="mt-2 block w-full text-xs text-tertiary transition hover:text-secondary">
                   Add a message
                 </button>
               )}

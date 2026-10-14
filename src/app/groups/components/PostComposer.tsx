@@ -23,17 +23,17 @@ const OTHER_MAX_BYTES = 2 * 1024 * 1024;
 // mime -> max bytes for that mime - mirrors /api/posts/media/route.ts's own map exactly (client-
 // side pre-check, not the real enforcement - that's still the server + the bucket's own cap).
 const MEDIA_MAX_BYTES: Record<string, number> = {
-  "image/png": IMAGE_MAX_BYTES,
-  "image/jpeg": IMAGE_MAX_BYTES,
-  "image/webp": IMAGE_MAX_BYTES,
-  "image/gif": IMAGE_MAX_BYTES,
-  "video/mp4": OTHER_MAX_BYTES,
-  "video/webm": OTHER_MAX_BYTES,
-  "application/pdf": OTHER_MAX_BYTES,
-  "application/msword": OTHER_MAX_BYTES,
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": OTHER_MAX_BYTES,
-  "application/vnd.ms-excel": OTHER_MAX_BYTES,
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": OTHER_MAX_BYTES,
+"image/png": IMAGE_MAX_BYTES,
+"image/jpeg": IMAGE_MAX_BYTES,
+"image/webp": IMAGE_MAX_BYTES,
+"image/gif": IMAGE_MAX_BYTES,
+"video/mp4": OTHER_MAX_BYTES,
+"video/webm": OTHER_MAX_BYTES,
+"application/pdf": OTHER_MAX_BYTES,
+"application/msword": OTHER_MAX_BYTES,
+"application/vnd.openxmlformats-officedocument.wordprocessingml.document": OTHER_MAX_BYTES,
+"application/vnd.ms-excel": OTHER_MAX_BYTES,
+"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": OTHER_MAX_BYTES,
 };
 const FILE_ACCEPT = Object.keys(MEDIA_MAX_BYTES).join(",");
 
@@ -282,14 +282,14 @@ export function PostComposer({
   }
 
   return (
-    <div className="relative rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5 backdrop-blur-sm">
+    <div className="relative rounded-xl border border-white/10 bg-surface-1/60 px-3 py-2.5 backdrop-blur-sm">
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
           onClick={mode === "prediction" ? () => setMode("discussion") : requestClose}
           aria-label={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
           title={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
-          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-tertiary transition hover:bg-white/[0.08] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-tertiary transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
             <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -299,11 +299,11 @@ export function PostComposer({
 
       {confirmDiscard && (
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[11.5px] font-medium text-amber-200/90">Discard this draft?</p>
-          <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 text-[11.5px] font-medium text-neutral-300 transition hover:text-white">
+          <p className="min-w-0 flex-1 text-caption font-medium text-amber-200/90">Discard this draft?</p>
+          <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 text-caption font-medium text-secondary transition hover:text-white">
             Keep editing
           </button>
-          <button type="button" onClick={reset} className="shrink-0 text-[11.5px] font-semibold text-brand-text transition hover:brightness-125">
+          <button type="button" onClick={reset} className="shrink-0 text-caption font-semibold text-brand-text transition hover:brightness-125">
             Discard
           </button>
         </div>
@@ -313,7 +313,7 @@ export function PostComposer({
         <div className="flex items-start gap-2.5">
           <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={34} />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">New prediction round</p>
+            <p className="text-caption font-semibold text-brand-text">New prediction round</p>
             <PredictionComposer
               communities={predictionCommunities}
               races={upcomingRaces}
@@ -336,7 +336,7 @@ export function PostComposer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Add a title (optional)"
               maxLength={300}
-              className="mb-2 w-full rounded-xl border border-white/[0.07] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-white placeholder:font-normal placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+              className="mb-2 w-full rounded-xl border border-white/10 bg-black/25 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-white placeholder:font-normal placeholder:text-tertiary focus:border-white/20 focus:outline-none"
             />
           )}
           <textarea
@@ -352,7 +352,7 @@ export function PostComposer({
             // the single row can't show, and at phone width the prompt reads as a sentence cut in
             // half. Held to one line and clipped instead; the moment it's focused it opens to three
             // rows and wraps normally again.
-            className={`w-full resize-none rounded-lg border border-white/[0.07] bg-black/25 px-3 py-2 text-[13.5px] leading-relaxed text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none ${
+            className={`w-full resize-none rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-body-sm leading-relaxed text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none ${
               isOpen ? "" : "overflow-hidden text-ellipsis whitespace-nowrap"
             }`}
           />
@@ -364,15 +364,15 @@ export function PostComposer({
         // what will appear in the feed - no second attachment design to drift out of sync.
         <div className="ml-[44px] max-w-full">
           <PostAttachment attachment={attachment} onRemove={removeMedia} />
-          {uploadingMedia && <p className="mt-1 text-[11px] text-tertiary">Uploading…</p>}
+          {uploadingMedia && <p className="mt-1 text-caption text-tertiary">Uploading…</p>}
         </div>
       )}
-      {mediaError && <p className="ml-[44px] mt-1 text-[11.5px] text-brand-text">{mediaError}</p>}
+      {mediaError && <p className="ml-[44px] mt-1 text-caption text-brand-text">{mediaError}</p>}
 
       {scheduledConfirmation && (
         <div className="ml-[44px] mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-[11.5px] text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
-          <button type="button" onClick={() => setScheduledConfirmation("")} aria-label="Dismiss" className="shrink-0 text-[11.5px] font-medium text-neutral-300 transition hover:text-white">
+          <p className="min-w-0 flex-1 text-caption text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
+          <button type="button" onClick={() => setScheduledConfirmation("")} aria-label="Dismiss" className="shrink-0 text-caption font-medium text-secondary transition hover:text-white">
             Got it
           </button>
         </div>
@@ -419,7 +419,7 @@ export function PostComposer({
           {fixedGroupId
             ? isOpen &&
               fixedCommunity && (
-                <span className="flex h-[38px] min-w-0 items-center gap-2 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-2.5 text-[13px] text-neutral-300">
+                <span className="flex h-[38px] min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-surface-1/60 px-2.5 text-body-sm text-secondary">
                   <EntityAvatar imageUrl={fixedCommunity.avatarUrl} name={fixedCommunity.name} seed={fixedCommunity.id} size={18} shape="square" />
                   <span className="min-w-0 max-w-[10rem] truncate">{fixedCommunity.name}</span>
                 </span>
@@ -437,7 +437,7 @@ export function PostComposer({
               type="button"
               onClick={() => void submit()}
               disabled={posting || uploadingMedia || !content.trim()}
-              className="bg-[var(--f1-red)] px-4 py-1.5 text-[12.5px] font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              className="bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
             </button>
@@ -473,8 +473,8 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12px] font-medium transition ${
-        active ? "bg-[var(--f1-red)]/[0.14] text-brand-text" : "text-neutral-400 hover:bg-white/[0.05] hover:text-white"
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-caption font-medium transition ${
+        active ? "bg-brand/14 text-brand-text" : "text-secondary hover:bg-white/[0.05] hover:text-white"
       }`}
     >
       <span className={compactLabel ? "" : "shrink-0"}>{icon}</span>

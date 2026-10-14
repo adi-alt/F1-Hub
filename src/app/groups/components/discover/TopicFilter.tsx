@@ -70,13 +70,13 @@ export function TopicFilter({
                 return (
                   <label
                     key={facet.topic}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-neutral-300 transition hover:bg-white/[0.05] hover:text-white"
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-secondary transition hover:bg-white/[0.05] hover:text-white"
                   >
                     <input type="checkbox" checked={checked} onChange={() => toggle(facet.topic)} className="sr-only" />
                     <span
                       aria-hidden
                       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
-                        checked ? "border-[var(--f1-red)] bg-[var(--f1-red)]" : "border-white/25"
+                        checked ? "border-brand bg-brand" : "border-white/25"
                       }`}
                     >
                       {checked && (
@@ -86,7 +86,7 @@ export function TopicFilter({
                       )}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{facet.topic}</span>
-                    <span className="shrink-0 text-[11px] text-tertiary tabular-nums">{facet.count}</span>
+                    <span className="shrink-0 text-caption text-tertiary tabular">{facet.count}</span>
                   </label>
                 );
               })
@@ -95,7 +95,7 @@ export function TopicFilter({
 
           {selected.length > 0 && (
             <div className="shrink-0 border-t border-white/10 p-2">
-              <button type="button" onClick={() => onChange([])} className="w-full rounded-lg px-2 py-1.5 text-xs text-neutral-400 transition hover:bg-white/[0.05] hover:text-white">
+              <button type="button" onClick={() => onChange([])} className="w-full rounded-lg px-2 py-1.5 text-xs text-secondary transition hover:bg-white/[0.05] hover:text-white">
                 Clear {selected.length} topic{selected.length === 1 ? "" : "s"}
               </button>
             </div>

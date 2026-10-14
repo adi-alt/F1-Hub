@@ -79,10 +79,10 @@ export function SelectionCard({
       }}
       className={`group relative flex cursor-pointer flex-col rounded-xl border p-3.5 text-left transition focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40 ${
         disabled
-          ? "cursor-not-allowed border-[var(--f1-line)] opacity-40"
+          ? "cursor-not-allowed border-white/10 opacity-40"
           : selected
-            ? "border-[var(--f1-red)] bg-[var(--f1-red)]/[0.07]"
-            : "border-[var(--f1-line)] hover:border-white/25 hover:bg-white/[0.02]"
+            ? "border-white/40 bg-surface-2"
+            : "border-white/10 hover:border-white/25 hover:bg-white/[0.02]"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -90,7 +90,7 @@ export function SelectionCard({
           <span
             aria-hidden
             className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
-              selected ? "bg-[var(--f1-red)]/15 text-brand-text" : "bg-white/[0.04] text-neutral-400 group-hover:text-neutral-200"
+              selected ? "bg-surface-3 text-primary" : "bg-surface-2 text-secondary group-hover:text-primary"
             }`}
           >
             {icon}
@@ -99,16 +99,16 @@ export function SelectionCard({
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-white">{title}</span>
           <span className="mt-0.5 block text-xs leading-snug text-tertiary">{description}</span>
-          {footnote && <span className="mt-1.5 block text-[11px] leading-snug text-tertiary">{footnote}</span>}
+          {footnote && <span className="mt-1.5 block text-caption leading-snug text-tertiary">{footnote}</span>}
         </span>
         <span
           aria-hidden
           className={`mt-1 h-3.5 w-3.5 shrink-0 rounded-full border transition ${
-            selected ? "border-[var(--f1-red)] bg-[var(--f1-red)]" : "border-white/20"
+            selected ? "border-primary bg-primary text-surface-0" : "border-white/20"
           }`}
         >
           {selected && (
-            <svg viewBox="0 0 14 14" className="h-full w-full text-white" fill="none">
+            <svg viewBox="0 0 14 14" className="h-full w-full text-surface-0" fill="none">
               <path d="M3.5 7.2 6 9.7l4.5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}

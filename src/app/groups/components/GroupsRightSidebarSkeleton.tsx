@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
  * once real data swaps in. */
 export function GroupsRightSidebarSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-surface-1/60">
       <div className="px-3 py-3">
         <Skeleton shape="block" className="h-2.5 w-24" />
         <Skeleton shape="block" className="mt-2.5 h-2.5 w-14" />
@@ -14,7 +14,7 @@ export function GroupsRightSidebarSkeleton() {
         <Skeleton shape="circle" className="mt-2 h-5 w-36" />
         <Skeleton shape="block" className="mt-2.5 h-8 w-full" />
       </div>
-      <div className="border-t border-white/[0.06] px-3 py-3">
+      <div className="border-t border-white/10 px-3 py-3">
         <Skeleton shape="block" className="h-2.5 w-28" />
         <div className="mt-1.5 space-y-1">
           {Array.from({ length: 2 }).map((_, i) => (
@@ -22,7 +22,7 @@ export function GroupsRightSidebarSkeleton() {
           ))}
         </div>
       </div>
-      <div className="border-t border-white/[0.06] px-3 py-3">
+      <div className="border-t border-white/10 px-3 py-3">
         <Skeleton shape="block" className="h-2.5 w-28" />
         <div className="mt-2 space-y-1.5">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -30,7 +30,7 @@ export function GroupsRightSidebarSkeleton() {
           ))}
         </div>
       </div>
-      <div className="border-t border-white/[0.06] p-2.5">
+      <div className="border-t border-white/10 p-2.5">
         <Skeleton shape="block" className="h-11 w-full" />
       </div>
     </div>

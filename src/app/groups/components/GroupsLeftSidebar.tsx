@@ -1,143 +1,65 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ChevronRight, Compass, LayoutGrid, Plus } from "lucide-react";
+import { ChevronRight, LayoutGrid } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { groupHref } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/supabase/groups";
-import { CreateCommunityModal } from "./create/CreateCommunityModal";
 
 /**
- * The navigation rail: one frosted surface holding the page's own identity (title + description -
- * there is no separate page header above the workspace, see page.tsx), the community list, and the
- * two community-level actions.
+ * Your communities, as a rail beside the feed. Selecting a row doesn't navigate: it switches the feed to that
+ * community's own stream in place (GroupsFeed owns the fetch), the way a mail client's folders do. "All" returns to
+ * the feed across every community. The arrow on a row opens that community's own page (predictions, members), so
+ * filtering and opening stay two separate actions.
  *
- * Selecting a row doesn't navigate away - it switches the center feed to that one community's own
- * stream in place (GroupsFeed owns the actual fetch), the way a mail client's folder list changes
- * what's shown without leaving the page. "All" is the default and returns to the cross-community
- * feed. A small arrow appears on hover for the different, real need underneath it - opening that
- * community's own full page (Predictions, Members, Manage) - so selecting-to-filter and
- * opening-the-real-page stay two distinct actions rather than one overloaded click.
+ * The page's title and the New community / Discover actions live in the page header now, not in this rail.
  */
-export function GroupsLeftSidebar({
-  groups,
-  selectedId,
-  onSelect,
-  onDiscover,
-}: {
-  groups: GroupSummary[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
-  onDiscover: () => void;
-}) {
-  const [showCreate, setShowCreate] = useState(false);
-
+export function GroupsLeftSidebar({ groups, selectedId, onSelect }: { groups: GroupSummary[]; selectedId: string | null; onSelect: (id: string | null) => void }) {
   return (
-    // Desktop only - a full vertical rail is the wrong idiom on a phone (see
-    // MobileCommunitySelector below, which GroupsHomeClient renders instead at <lg).
-    // max-h-full, never h-full: the card ends where its content ends (see GroupsHomeClient, which
-    // gives this a definite-height flex parent so that percentage actually resolves) and only caps
-    // at the workspace height once there are enough communities to need it, at which point the
-    // list inside it starts scrolling instead.
-    <div className="hidden flex-col rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-sm lg:flex lg:max-h-[calc(100dvh-6rem)]">
-      <div className="shrink-0 px-1">
-        <h1 className="text-[17px] font-bold leading-tight tracking-[-0.01em] text-white">Communities</h1>
-        <p className="mt-0.5 text-[11.5px] leading-snug text-tertiary">Race-weekend discussion and predictions across your communities.</p>
+    <nav aria-label="Your communities" className="flex max-h-[calc(100dvh-6rem)] flex-col rounded-card border border-white/10 bg-surface-1/60 p-2">
+      <div className="flex shrink-0 items-baseline justify-between px-2 pb-2 pt-1">
+        <h2 className="text-body-sm font-semibold text-primary">Your communities</h2>
+        <span className="text-caption tabular text-tertiary">{groups.length}</span>
       </div>
-
-      <div className="mt-3.5 flex shrink-0 items-center justify-between px-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Your communities</p>
-        {groups.length > 0 && <span className="text-[11px] tabular-nums text-tertiary">{groups.length}</span>}
-      </div>
-
-      {groups.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-white/[0.09] px-3 py-5 text-center">
-          <p className="text-xs text-tertiary">No communities yet.</p>
-          <button type="button" onClick={onDiscover} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-text transition hover:brightness-125">
-            Discover communities
-            <Icon icon={ChevronRight} size={16} />
-          </button>
+      <div data-tour="community-list" className="min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-subtle">
+        <div data-tour="community-filter">
+          <NavRow
+            label="All communities"
+            sublabel="The feed across all of them"
+            active={selectedId === null}
+            onClick={() => onSelect(null)}
+            icon={
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-control bg-surface-2 text-secondary">
+                <Icon icon={LayoutGrid} size={16} />
+              </span>
+            }
+          />
         </div>
-      ) : (
-        // min-h-0 + flex-1: the list is what gives way when the rail runs out of room, so the two
-        // actions below stay pinned and reachable instead of being pushed out of the card.
-        //
-        // divide-y at very low contrast: each community is a distinct destination and the hairline
-        // between them is what makes the list scan as rows rather than a run-on column. Kept to
-        // white/[0.05] so it separates without drawing the borders-everywhere look.
-        <div data-tour="community-list" className="mt-1.5 min-h-0 flex-1 divide-y divide-white/[0.05] overflow-y-auto scrollbar-subtle">
-          {/* The scope control. Same row grammar as a community - same inset, same 36px icon
-              slot, same selected treatment - so the list reads as one navigation system, with a
-              squared tile instead of a circular avatar to say it is a filter and not a community.
-              Never carries an unread badge: "All" has no membership to have unread activity in. */}
-          <div data-tour="community-filter" className="mb-1 border-b border-white/[0.08] pb-1">
+        {groups.map((g, i) => (
+          <motion.div key={g.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03, ease: [0.2, 0, 0, 1] }}>
             <NavRow
-              label="All"
-              sublabel={"Everything you\u2019re in"}
-              active={selectedId === null}
-              onClick={() => onSelect(null)}
-              icon={
-                <span
-                  className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition ${
-                    selectedId === null ? "bg-[var(--f1-red)]/[0.14] text-brand-text" : "bg-white/[0.05] text-neutral-400"
-                  }`}
-                >
-                  <Icon icon={LayoutGrid} size={16} />
-                </span>
+              label={g.name}
+              sublabel={`${g.memberCount} member${g.memberCount === 1 ? "" : "s"}`}
+              active={selectedId === g.id}
+              onClick={() => onSelect(g.id)}
+              icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />}
+              badge={
+                g.activePredictions > 0 ? (
+                  <span title={`${g.activePredictions} open prediction round${g.activePredictions === 1 ? "" : "s"}`} className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 px-1.5 text-caption font-semibold tabular text-primary">
+                    {g.activePredictions}
+                  </span>
+                ) : undefined
               }
+              openHref={groupHref(g.id)}
+              openLabel={`Open ${g.name}`}
             />
-          </div>
-          {groups.map((g, i) => {
-            const active = selectedId === g.id;
-            return (
-              <motion.div key={g.id} className="mt-px" initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03 }}>
-                <NavRow
-                  label={g.name}
-                  active={active}
-                  onClick={() => onSelect(g.id)}
-                  icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={34} />}
-                  badge={
-                    g.activePredictions > 0 ? (
-                      <span
-                        title={`${g.activePredictions} open prediction${g.activePredictions === 1 ? "" : "s"}`}
-                        className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--f1-red)] px-1.5 text-[10px] font-bold tabular-nums text-white"
-                      >
-                        {g.activePredictions}
-                      </span>
-                    ) : undefined
-                  }
-                  openHref={groupHref(g.id)}
-                  openLabel={`Open ${g.name}`}
-                />
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="mt-3 shrink-0 space-y-1.5 border-t border-white/[0.07] pt-3">
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--f1-red)] px-3 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-        >
-          <Icon icon={Plus} size={16} />
-          New community
-        </button>
-        <button
-          type="button"
-          onClick={onDiscover}
-          className="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-white/[0.09] bg-white/[0.02] px-3 py-2 text-[12.5px] font-medium text-neutral-200 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
-        >
-          <Icon icon={Compass} size={16} />
-          Discover communities
-        </button>
+          </motion.div>
+        ))}
       </div>
-
-      {showCreate && <CreateCommunityModal onClose={() => setShowCreate(false)} />}
-    </div>
+    </nav>
   );
 }
 
@@ -174,17 +96,13 @@ function NavRow({
   openLabel?: string;
 }) {
   return (
-    <div
-      className={`group relative flex items-center gap-2.5 overflow-hidden rounded-lg px-3 py-1.5 transition ${
-        active ? "bg-gradient-to-r from-[var(--f1-red)]/[0.11] via-[var(--f1-red)]/[0.04] to-transparent" : "hover:bg-white/[0.045]"
-      }`}
-    >
-      {active && <span aria-hidden className="absolute inset-y-1 left-0 w-[2px] rounded-r-full bg-[var(--f1-red)]/80" />}
-      <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]">
+    <div className={`group relative flex items-center gap-2 rounded-control px-2 py-2 transition-colors duration-fast ${active ? "bg-surface-2" : "hover:bg-surface-2/60"}`}>
+      {active && <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand" />}
+      <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {icon}
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-[14px] leading-tight ${active ? "font-semibold text-white" : "font-medium text-neutral-300 group-hover:text-white"}`}>{label}</span>
-          {sublabel && <span className="mt-0.5 block truncate text-[11.5px] leading-tight text-tertiary">{sublabel}</span>}
+          <span className={`block truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>
+          {sublabel && <span className="block truncate text-caption text-tertiary">{sublabel}</span>}
         </span>
       </button>
       {badge}
@@ -193,7 +111,7 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="shrink-0 rounded p-0.5 text-tertiary opacity-0 transition hover:text-white focus-visible:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded-control p-1 text-tertiary opacity-0 transition-opacity duration-fast hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
         >
           <Icon icon={ChevronRight} size={16} />
         </Link>
@@ -211,7 +129,7 @@ export function MobileCommunitySelector({ groups, selectedId, onSelect }: { grou
   if (groups.length === 0) return null;
   return (
     <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 scrollbar-hide lg:hidden">
-      <Chip label="All" active={selectedId === null} onClick={() => onSelect(null)} />
+      <Chip label="All communities" active={selectedId === null} onClick={() => onSelect(null)} />
       {groups.map((g) => (
         <Chip key={g.id} label={g.name} seed={g.id} avatarUrl={g.avatarUrl} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
       ))}
@@ -225,8 +143,8 @@ function Chip({ label, seed, avatarUrl, active, onClick }: { label: string; seed
       type="button"
       onClick={onClick}
       aria-current={active}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition ${
-        active ? "bg-[var(--f1-red)]/[0.16] text-white ring-1 ring-[var(--f1-red)]/30" : "bg-white/[0.04] text-neutral-400 hover:text-neutral-200"
+      className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        active ? "border-white/30 bg-surface-3 font-medium text-primary" : "border-subtle text-secondary hover:border-strong hover:text-primary"
       }`}
     >
       {avatarUrl !== undefined && <EntityAvatar imageUrl={avatarUrl} name={label} seed={seed} size={16} />}

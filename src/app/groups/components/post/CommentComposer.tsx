@@ -71,7 +71,7 @@ export function CommentComposer({
             autoFocus={autoFocus}
             rows={1}
             maxLength={1000}
-            className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 py-2.5 pl-3.5 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-white/10 bg-black/25 py-2.5 pl-3.5 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
           />
           <button
             ref={emojiAnchorRef}
@@ -92,7 +92,7 @@ export function CommentComposer({
           type="button"
           onClick={() => void submit()}
           disabled={posting || !content.trim()}
-          className="shrink-0 rounded-xl bg-[var(--f1-red)] px-5 py-2.5 text-[13px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+          className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-body-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
         >
           {posting ? "Posting…" : "Post"}
         </button>
@@ -112,7 +112,7 @@ export function CommentComposer({
         autoFocus={autoFocus}
         rows={1}
         maxLength={1000}
-        className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/25 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+        className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
       />
       <div className="mt-1.5 flex items-center justify-between">
         <button type="button" onClick={() => setShowEmoji((v) => !v)} className="rounded p-1 text-sm text-tertiary transition hover:bg-white/[0.06] hover:text-white" aria-label="Add emoji">
@@ -128,7 +128,7 @@ export function CommentComposer({
             type="button"
             onClick={() => void submit()}
             disabled={posting || !content.trim()}
-            className="rounded-full bg-[var(--f1-red)] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+            className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
           >
             {posting ? "Posting…" : "Reply"}
           </button>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Badge } from "@/components/ui/Badge";
 import { Popover } from "@/components/ui/Popover";
 import { POST_KIND_LABELS } from "@/lib/communities";
 import { PostActionBar } from "./PostActionBar";
@@ -13,7 +14,7 @@ import { PostAttachment } from "./PostAttachment";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
 
-const ROLE_LABEL: Record<string, string> = { admin: "ADMIN", moderator: "MODERATOR" };
+const ROLE_LABEL: Record<string, string> = { admin: "Admin", moderator: "Moderator" };
 
 /**
  * The one post card every surface in Groups renders - the home feed, a community's own Feed tab,
@@ -89,8 +90,8 @@ export function PostCard({
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
       className={
         variant === "compact"
-          ? "border-b border-white/[0.06] py-2.5 last:border-b-0"
-          : "rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/55 px-3.5 py-3 backdrop-blur-sm transition hover:border-white/[0.12]"
+          ? "border-b border-white/10 py-2.5 last:border-b-0"
+          : "rounded-card border border-white/10 bg-surface-1/70 p-4 transition-colors duration-fast hover:border-white/20"
       }
     >
       <div className="flex items-start gap-2">
@@ -140,7 +141,7 @@ export function PostCard({
                     close();
                     void moderate("reject");
                   }}
-                  className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-brand-text transition hover:bg-[var(--f1-red)]/10"
+                  className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-danger transition hover:bg-danger/10"
                 >
                   Remove post
                 </button>
@@ -150,13 +151,13 @@ export function PostCard({
         )}
       </div>
 
-      <div className={variant === "compact" ? "" : "mt-2"}>
+      <div className={variant === "compact" ? "" : "mt-3"}>
         <PostContent title={post.title} content={post.content} />
         {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
             rows uploaded before it existed, which have a URL and nothing else. */}
         {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
         {kindChip && (
-          <span className="mt-2 inline-block rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10.5px] font-medium text-neutral-400">{kindChip}</span>
+          <Badge tone="neutral" className="mt-3">{kindChip}</Badge>
         )}
       </div>
 

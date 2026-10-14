@@ -9,12 +9,12 @@ import { PostCardSkeleton } from "./post/PostCardSkeleton";
 export function GroupsHomeSkeleton() {
   return (
     <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[248px_minmax(0,1fr)_296px] lg:items-start lg:gap-3">
-      <div className="order-2 rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 p-3 lg:order-1">
+      <div className="order-2 rounded-xl border border-white/10 bg-surface-1/60 p-3 lg:order-1">
         <Skeleton shape="block" className="h-4 w-32" />
         <Skeleton shape="block" className="mt-1.5 h-2.5 w-full" />
         <Skeleton shape="block" className="mt-1 h-2.5 w-2/3" />
         <Skeleton shape="block" className="mt-3.5 h-2.5 w-28" />
-        <div className="mt-1.5 divide-y divide-white/[0.05]">
+        <div className="mt-1.5 divide-y divide-white/10">
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
               <Skeleton shape="circle" className="h-8 w-8 shrink-0" />
@@ -22,14 +22,14 @@ export function GroupsHomeSkeleton() {
             </div>
           ))}
         </div>
-        <div className="mt-3 space-y-1.5 border-t border-white/[0.07] pt-3">
+        <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
           <Skeleton shape="block" className="h-8 w-full" />
           <Skeleton shape="block" className="h-8 w-full" />
         </div>
       </div>
 
       <div className="order-1 space-y-2.5 lg:order-2">
-        <div className="rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-3 py-2.5">
+        <div className="rounded-xl border border-white/10 bg-surface-1/60 px-3 py-2.5">
           <div className="flex items-start gap-2.5">
             <Skeleton shape="circle" className="h-[34px] w-[34px] shrink-0" />
             <Skeleton shape="block" className="h-9 flex-1" />

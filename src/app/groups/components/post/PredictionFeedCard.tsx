@@ -33,7 +33,7 @@ const marketTitle: Record<PredictionType, string> = {
  * genuinely urgent (a deadline under 24h); nothing else competes with it for attention. */
 function MetaChip({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) {
   return (
-    <span className={`rounded bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] font-medium tabular-nums ${accent ? "text-brand-text" : "text-neutral-300"}`}>
+    <span className={`rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium tabular ${accent ? "text-warning" : "text-secondary"}`}>
       {children}
     </span>
   );
@@ -94,7 +94,7 @@ export function PredictionFeedCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className="rounded-xl border border-white/[0.06] bg-[var(--f1-carbon)]/50 px-3 py-2.5 transition hover:border-white/[0.12]"
+      className="rounded-xl border border-white/10 bg-surface-1/50 px-3 py-2.5 transition hover:border-white/[0.12]"
     >
       {/* Identity line - community, post age, and the round's own type as one small badge that
           sits right beside them, part of the same sentence rather than floated to the far corner
@@ -103,24 +103,24 @@ export function PredictionFeedCard({
         {showGroup ? (
           <Link href={groupHref(prediction.groupId)} className="flex min-w-0 items-center gap-1.5 transition hover:opacity-80">
             <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={20} />
-            <span className="min-w-0 truncate text-[12.5px] font-medium text-neutral-200">{prediction.groupName}</span>
+            <span className="min-w-0 truncate text-body-sm font-medium text-neutral-200">{prediction.groupName}</span>
           </Link>
         ) : (
-          <span className="min-w-0 truncate text-[12.5px] font-medium text-neutral-200">Prediction round</span>
+          <span className="min-w-0 truncate text-body-sm font-medium text-neutral-200">Prediction round</span>
         )}
         <span aria-hidden className="shrink-0 text-neutral-700">
           ·
         </span>
-        <span className="shrink-0 text-[11px] text-tertiary">{timeAgo(prediction.createdAt)}</span>
-        <span className="shrink-0 rounded bg-[var(--f1-red)]/[0.08] px-1.5 py-[1px] text-[10px] font-medium text-brand-text/85">
+        <span className="shrink-0 text-caption text-tertiary">{timeAgo(prediction.createdAt)}</span>
+        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium text-secondary">
           {predictionTypeLabels[prediction.type]}
         </span>
       </div>
 
       {/* The question is the one focal line; the race is context underneath it, small and
           readable but never competing with it. Neither repeats anywhere else on the card. */}
-      <p className="mt-2 text-[14.5px] font-semibold leading-tight text-white">{marketTitle[prediction.type]}</p>
-      <p className="mt-0.5 truncate text-[11.5px] text-tertiary">{prediction.raceName}</p>
+      <p className="mt-2 text-body font-semibold leading-tight text-primary">{marketTitle[prediction.type]}</p>
+      <p className="mt-0.5 truncate text-caption text-tertiary">{prediction.raceName}</p>
 
       {/* Cost, real entry count, deadline - three aligned tokens, not one long sentence.
           entryCount is a real group_prediction_entries count, never a placeholder. */}
@@ -195,13 +195,13 @@ function EnteredAnswer({
       <div className="flex items-center gap-2">
         <span className="flex items-center gap-1.5">
           <Icon icon={Check} size={16} className="size-3 text-emerald-400" />
-          <span className="text-[11px] font-medium text-neutral-300">Prediction submitted</span>
+          <span className="text-caption font-medium text-secondary">Prediction submitted</span>
         </span>
         {!closed && (
           <button
             type="button"
             onClick={onEdit}
-            className="rounded text-[11px] font-medium text-tertiary transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+            className="rounded text-caption font-medium text-tertiary transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
             Edit
           </button>
@@ -228,7 +228,7 @@ function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; d
     <div>
       {prediction.correctAnswer !== null && (
         <div>
-          <p className="text-[10.5px] font-medium text-tertiary">Result</p>
+          <p className="text-caption font-medium text-tertiary">Result</p>
           <div className="mt-1">
             <GuessSummary type={prediction.type} guess={prediction.correctAnswer} drivers={drivers} />
           </div>
@@ -236,13 +236,13 @@ function ResolvedResult({ prediction, drivers }: { prediction: FeedPrediction; d
       )}
       <div className={`flex items-center gap-2 ${prediction.correctAnswer !== null ? "mt-2" : ""}`}>
         {prediction.hasEntered ? (
-          <span className={`text-[11px] font-semibold ${scored ? "text-emerald-400" : "text-neutral-400"}`}>
+          <span className={`text-caption font-semibold ${scored ? "text-emerald-400" : "text-secondary"}`}>
             {scored ? `+${prediction.myPointsAwarded} pts` : `-${prediction.entryPoints} pts`}
           </span>
         ) : (
-          <span className="text-[11px] text-tertiary">You didn&apos;t enter this round.</span>
+          <span className="text-caption text-tertiary">You didn&apos;t enter this round.</span>
         )}
-        <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="text-[11px] font-medium text-tertiary transition hover:text-white">
+        <Link href={`${groupHref(prediction.groupId)}?tab=predictions`} className="text-caption font-medium text-tertiary transition hover:text-white">
           View results
         </Link>
       </div>
@@ -260,7 +260,7 @@ function GuessSummary({ type, guess, drivers }: { type: PredictionType; guess: P
   if (type === "dnf_count") {
     const n = Number(guess);
     return (
-      <p className="text-[12.5px] font-medium text-neutral-200">
+      <p className="text-body-sm font-medium text-neutral-200">
         {n} {n === 1 ? "retirement" : "retirements"}
       </p>
     );
@@ -273,9 +273,9 @@ function GuessSummary({ type, guess, drivers }: { type: PredictionType; guess: P
         const driver = drivers.find((d) => d.code === code);
         return (
           <div key={`${code}-${i}`} className="flex items-center gap-1.5">
-            {positionLabels && <span className="w-5 shrink-0 font-mono text-[10px] font-semibold text-tertiary">{positionLabels[i]}</span>}
+            {positionLabels && <span className="w-5 shrink-0 font-mono text-caption font-semibold text-tertiary">{positionLabels[i]}</span>}
             <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} seed={code} size={18} />
-            <span className="min-w-0 truncate text-[12.5px] font-medium text-neutral-200">{driver?.name ?? code}</span>
+            <span className="min-w-0 truncate text-body-sm font-medium text-neutral-200">{driver?.name ?? code}</span>
           </div>
         );
       })}

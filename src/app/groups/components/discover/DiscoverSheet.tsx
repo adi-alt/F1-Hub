@@ -175,7 +175,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
               placeholder="Search communities..."
               aria-label="Search communities"
               autoFocus
-              className="w-full rounded-xl border border-[var(--f1-line)] bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+              className="w-full rounded-xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
             />
             {query && (
               <button
@@ -214,7 +214,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
               </button>
             )}
             {communities !== null && (
-              <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-tertiary tabular-nums">
+              <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-tertiary tabular">
                 {total} {total === 1 ? "community" : "communities"}
               </span>
             )}
@@ -257,7 +257,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
                   {pageError && (
                     <p className="py-3 text-center text-xs text-tertiary">
                       Couldn&apos;t load more.{" "}
-                      <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                      <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
                         Retry
                       </button>
                     </p>
@@ -269,7 +269,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
             </>
           )}
 
-          <div className="mt-8 border-t border-[var(--f1-line)] pt-5">
+          <div className="mt-8 border-t border-white/10 pt-5">
             <p className="mb-2 text-xs text-tertiary">Have an invite link to a private community?</p>
             <JoinGroupForm compact />
           </div>
@@ -282,12 +282,12 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
 
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-10 text-center">
-      <p className="text-sm font-semibold text-neutral-300">Something went wrong loading communities.</p>
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
+      <p className="text-sm font-semibold text-secondary">Something went wrong loading communities.</p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-3 rounded-full border border-[var(--f1-line)] px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
+        className="mt-3 rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
       >
         Retry
       </button>
@@ -302,8 +302,8 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
   // never one generic "no results".
   if (trimmed) {
     return (
-      <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-10 text-center">
-        <p className="text-sm font-semibold text-neutral-300">
+      <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
+        <p className="text-sm font-semibold text-secondary">
           No community matching <span className="text-white">&ldquo;{trimmed}&rdquo;</span>
         </p>
         <div className="mx-auto mt-3 max-w-xs text-left text-xs leading-relaxed text-tertiary">
@@ -316,7 +316,7 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
           </ul>
         </div>
         {topics.length > 0 && (
-          <button type="button" onClick={onClearTopics} className="mt-4 text-xs text-neutral-400 underline-offset-2 transition hover:text-white hover:underline">
+          <button type="button" onClick={onClearTopics} className="mt-4 text-xs text-secondary underline-offset-2 transition hover:text-white hover:underline">
             Clear topic filters
           </button>
         )}
@@ -326,12 +326,12 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
 
   if (topics.length > 0) {
     return (
-      <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-10 text-center">
-        <p className="text-sm font-semibold text-neutral-300">No public communities in {topics.length === 1 ? topics[0] : "those topics"} yet.</p>
+      <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
+        <p className="text-sm font-semibold text-secondary">No public communities in {topics.length === 1 ? topics[0] : "those topics"} yet.</p>
         <button
           type="button"
           onClick={onClearTopics}
-          className="mt-3 rounded-full border border-[var(--f1-line)] px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
+          className="mt-3 rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
         >
           Show all topics
         </button>
@@ -340,8 +340,8 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
   }
 
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-black/20 p-10 text-center">
-      <p className="text-sm font-semibold text-neutral-300">No public communities yet.</p>
+    <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
+      <p className="text-sm font-semibold text-secondary">No public communities yet.</p>
       <p className="mt-1 text-xs text-tertiary">Be the first - create one and make it public.</p>
     </div>
   );

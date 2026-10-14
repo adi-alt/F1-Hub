@@ -159,7 +159,7 @@ export function CreatePostModal({
                   aria-checked={kind === k}
                   onClick={() => setKind(k)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-                    kind === k ? "border-[var(--f1-red)] bg-[var(--f1-red)]/10 text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/25 hover:text-neutral-200"
+                    kind === k ? "border-brand bg-brand/10 text-white" : "border-white/10 text-secondary hover:border-white/25 hover:text-neutral-200"
                   }`}
                 >
                   {POST_KIND_LABELS[k]}
@@ -167,7 +167,7 @@ export function CreatePostModal({
               ))}
             </div>
           )}
-          {kinds.length > 1 && <p className="mt-1.5 text-[11px] text-tertiary">{POST_KIND_HINTS[kind]}</p>}
+          {kinds.length > 1 && <p className="mt-1.5 text-caption text-tertiary">{POST_KIND_HINTS[kind]}</p>}
 
           <div className="mt-3 flex gap-2.5">
             <EntityAvatar imageUrl={communityAvatarUrl} name={communityName} size={32} />
@@ -179,7 +179,7 @@ export function CreatePostModal({
                   maxLength={MAX_TITLE}
                   placeholder="Title"
                   aria-label="Post title"
-                  className="mb-2 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm font-semibold text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                  className="mb-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm font-semibold text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                 />
               )}
               <textarea
@@ -190,13 +190,13 @@ export function CreatePostModal({
                 maxLength={MAX_CONTENT}
                 placeholder={kind === "question" ? "What do you want to ask?" : "What do you want to talk about?"}
                 aria-label="Post content"
-                className="w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm leading-relaxed text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                className="w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm leading-relaxed text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
               />
             </div>
           </div>
 
           {mediaUrl && (
-            <div className="relative mt-3 overflow-hidden rounded-lg border border-[var(--f1-line)]">
+            <div className="relative mt-3 overflow-hidden rounded-lg border border-white/10">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={mediaUrl} alt="" className="max-h-56 w-full object-cover" />
               <button
@@ -213,18 +213,18 @@ export function CreatePostModal({
           )}
 
           {error && (
-            <p role="alert" className="mt-3 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.07] px-3 py-2 text-xs text-brand-text">
+            <p role="alert" className="mt-3 rounded-lg border border-brand/30 bg-brand/7 px-3 py-2 text-xs text-brand-text">
               {error}
             </p>
           )}
 
-          {moderationNotice && <p className="mt-3 text-[11px] text-amber-400/80">This community reviews posts before they appear.</p>}
+          {moderationNotice && <p className="mt-3 text-caption text-amber-400/80">This community reviews posts before they appear.</p>}
         </div>
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-5 py-3">
           <div className="flex items-center gap-1">
             {!showTitle && (
-              <button type="button" onClick={() => setShowTitle(true)} className="rounded-lg px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/5 hover:text-white">
+              <button type="button" onClick={() => setShowTitle(true)} className="rounded-lg px-2 py-1 text-xs text-secondary transition hover:bg-white/5 hover:text-white">
                 Add title
               </button>
             )}
@@ -232,7 +232,7 @@ export function CreatePostModal({
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="rounded-lg px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+              className="rounded-lg px-2 py-1 text-xs text-secondary transition hover:bg-white/5 hover:text-white disabled:opacity-50"
             >
               {uploading ? "Uploading…" : mediaUrl ? "Replace image" : "Add image"}
             </button>
@@ -251,7 +251,7 @@ export function CreatePostModal({
 
           <div className="flex items-center gap-3">
             {trimmed.length > MAX_CONTENT - 200 && (
-              <span className={`text-[11px] tabular-nums ${trimmed.length > MAX_CONTENT ? "text-brand-text" : "text-tertiary"}`}>
+              <span className={`text-caption tabular ${trimmed.length > MAX_CONTENT ? "text-brand-text" : "text-tertiary"}`}>
                 {trimmed.length}/{MAX_CONTENT}
               </span>
             )}
@@ -259,7 +259,7 @@ export function CreatePostModal({
               type="button"
               onClick={() => void submit()}
               disabled={!canSubmit}
-              className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+              className="rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
             >
               {submitting ? "Posting…" : "Post"}
             </button>

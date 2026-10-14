@@ -88,7 +88,7 @@ export function ImageDropzone({
         onDrop={onDrop}
         className={`relative overflow-hidden border border-dashed bg-black/20 transition ${surfaceClassName} ${
           rounded ? "rounded-full" : "rounded-lg"
-        } ${dragging ? "border-[var(--f1-red)] bg-[var(--f1-red)]/5" : "border-[var(--f1-line)]"}`}
+        } ${dragging ? "border-brand bg-brand/5" : "border-white/10"}`}
       >
         <button
           type="button"
@@ -102,15 +102,15 @@ export function ImageDropzone({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={preview} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] leading-tight text-tertiary">
+            <span className="flex h-full w-full items-center justify-center px-2 text-center text-caption leading-tight text-tertiary">
               {dragging ? "Drop to upload" : label}
             </span>
           )}
         </button>
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[11px]">
-        <button type="button" onClick={() => inputRef.current?.click()} className="font-medium text-neutral-300 transition hover:text-white">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 text-caption">
+        <button type="button" onClick={() => inputRef.current?.click()} className="font-medium text-secondary transition hover:text-white">
           {preview ? "Replace" : "Upload"}
         </button>
         {preview && (
@@ -120,14 +120,14 @@ export function ImageDropzone({
               setError("");
               onClear();
             }}
-            className="text-tertiary transition hover:text-neutral-300"
+            className="text-tertiary transition hover:text-secondary"
           >
             Remove
           </button>
         )}
         <span className="text-tertiary">{hint}</span>
       </div>
-      {error && <p className="mt-1 text-[11px] text-brand-text">{error}</p>}
+      {error && <p className="mt-1 text-caption text-brand-text">{error}</p>}
 
       <input
         ref={inputRef}

@@ -139,8 +139,8 @@ export function PredictionEntry({
   if (blocker) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11.5px] text-tertiary">{blocker}</span>
-        <Link href={`${groupHref(groupId)}?tab=predictions`} className="text-[11.5px] font-medium text-neutral-400 underline-offset-2 hover:text-white hover:underline">
+        <span className="text-caption text-tertiary">{blocker}</span>
+        <Link href={`${groupHref(groupId)}?tab=predictions`} className="text-caption font-medium text-secondary underline-offset-2 hover:text-white hover:underline">
           View in community
         </Link>
       </div>
@@ -154,7 +154,7 @@ export function PredictionEntry({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-7 items-center gap-1.5 rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+        className="flex h-7 items-center gap-1.5 rounded-lg bg-brand px-3 text-caption font-semibold text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         Make your prediction
       </button>
@@ -174,8 +174,8 @@ export function PredictionEntry({
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="overflow-hidden"
       >
-        <div className="rounded-lg border border-white/[0.08] bg-black/25 p-2.5">
-      <p className="text-[10.5px] font-medium text-tertiary">
+        <div className="rounded-lg border border-white/10 bg-black/25 p-2.5">
+      <p className="text-caption font-medium text-tertiary">
         {type === "podium" ? "Pick your podium" : type === "dnf_count" ? "How many retirements?" : "Your pick"}
       </p>
 
@@ -206,7 +206,7 @@ export function PredictionEntry({
             value={dnf}
             onChange={(e) => setDnf(e.target.value)}
             aria-label="Number of retirements"
-            className="h-8 w-24 rounded-md border border-white/[0.08] bg-black/30 px-2 text-[13px] tabular-nums text-white focus:border-white/25 focus:outline-none"
+            className="h-8 w-24 rounded-md border border-white/10 bg-black/30 px-2 text-body-sm tabular text-white focus:border-white/25 focus:outline-none"
           />
         ) : (
           <DriverPicker drivers={drivers} value={single} onChange={setSingle} ariaLabel="Your pick" />
@@ -214,16 +214,16 @@ export function PredictionEntry({
       </div>
 
       {type === "podium" && podium.some(Boolean) && new Set(podium.filter(Boolean)).size !== podium.filter(Boolean).length && (
-        <p className="mt-1.5 text-[11px] text-amber-400">Pick three different drivers.</p>
+        <p className="mt-1.5 text-caption text-amber-400">Pick three different drivers.</p>
       )}
-      {error && <p className="mt-1.5 text-[11px] text-brand-text">{error}</p>}
+      {error && <p className="mt-1.5 text-caption text-brand-text">{error}</p>}
 
       <div className="mt-2 flex items-center gap-2">
-        {!isEditing && <span className="text-[11px] text-tertiary">Costs {entryPoints} pts</span>}
+        {!isEditing && <span className="text-caption text-tertiary">Costs {entryPoints} pts</span>}
         <button
           type="button"
           onClick={() => (isEditing ? onCancelEdit?.() : setOpen(false))}
-          className="ml-auto text-[11.5px] font-medium text-neutral-400 transition hover:text-white"
+          className="ml-auto text-caption font-medium text-secondary transition hover:text-white"
         >
           Cancel
         </button>
@@ -231,7 +231,7 @@ export function PredictionEntry({
           type="button"
           onClick={() => void submit()}
           disabled={guess === null || saving}
-          className="flex h-7 items-center rounded-lg bg-[var(--f1-red)] px-3 text-[12px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+          className="flex h-7 items-center rounded-lg bg-brand px-3 text-caption font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
         >
           {saving ? (isEditing ? "Saving…" : "Entering…") : isEditing ? "Save pick" : "Confirm entry"}
         </button>

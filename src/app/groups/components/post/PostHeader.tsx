@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Badge } from "@/components/ui/Badge";
 import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { groupHref } from "@/lib/routes";
@@ -13,13 +14,13 @@ import type { PostCardData } from "./types";
  * A post in a community has two facts worth stating - where it lives and who wrote it - but only
  * ONE of them owns the post's identity, and that's the one that gets the avatar:
  *
- *   [community pfp]  C/ Ferrari Tifosi Hub
- *                    U/ Aditya Verma · 2h ago · ADMIN
+ *   [community pfp]  Ferrari Tifosi Hub
+ *                    Aditya Verma · 2h ago · Admin
  *
  * A personal post has no community, so it gets the author's avatar and the author line alone -
  * nothing is invented to sit above it:
  *
- *   [user pfp]  U/ Sneha Iyer · 8h ago
+ *   [user pfp]  Sneha Iyer · 8h ago
  *
  * The earlier version of this stacked TWO avatars, which made the header taller than the post it
  * introduced. One avatar plus a quiet second line carries the same information in roughly half the
@@ -50,29 +51,26 @@ export function PostHeader({
   const inCommunity = showGroup && !!post.groupId;
 
   const author = (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] leading-tight text-tertiary">
-      <span className="min-w-0 truncate font-medium text-neutral-300">
-        <span aria-hidden className="mr-1 font-mono text-[10.5px] font-normal text-tertiary">
-          U/
-        </span>
+    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-caption leading-tight text-tertiary">
+      <span className="min-w-0 truncate font-medium text-secondary">
         {post.authorName}
       </span>
-      <span aria-hidden className="text-neutral-700">
+      <span aria-hidden className="text-tertiary">
         ·
       </span>
       <span className="shrink-0 whitespace-nowrap">{timeAgo(post.createdAt)}</span>
-      {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-tertiary">{roleLabel}</span>}
-      {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
+      {roleLabel && <Badge tone="neutral">{roleLabel}</Badge>}
+      {pending && <Badge tone="warning">Pending approval</Badge>}
     </span>
   );
 
   // The avatar always belongs to whichever identity leads the post, never to the other one.
   const avatar = inCommunity ? (
     <Link href={groupHref(post.groupId as string)} className="shrink-0">
-      <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={34} />
+      <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId ?? undefined} size={36} />
     </Link>
   ) : (
-    <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={34} />
+    <EntityAvatar imageUrl={authorAvatarUrl} name={post.authorName} seed={post.userId} size={36} />
   );
 
   return (
@@ -81,28 +79,22 @@ export function PostHeader({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {inCommunity ? (
           <>
-            <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-[13px] font-semibold leading-tight text-white transition hover:text-neutral-300">
-              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-tertiary">
-                C/
-              </span>
+            <Link href={groupHref(post.groupId as string)} className="min-w-0 truncate text-body-sm font-semibold leading-tight text-primary transition-colors duration-fast hover:text-secondary">
               {post.groupName}
             </Link>
             {author}
           </>
         ) : (
-          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[13px] leading-tight">
-            <span className="min-w-0 truncate font-semibold text-white">
-              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-tertiary">
-                U/
-              </span>
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-body-sm leading-tight">
+            <span className="min-w-0 truncate font-semibold text-primary">
               {post.authorName}
             </span>
-            <span aria-hidden className="text-neutral-700">
+            <span aria-hidden className="text-tertiary">
               ·
             </span>
-            <span className="shrink-0 whitespace-nowrap text-[11.5px] text-tertiary">{timeAgo(post.createdAt)}</span>
-            {roleLabel && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-tertiary">{roleLabel}</span>}
-            {pending && <span className="shrink-0 text-[9.5px] font-semibold uppercase tracking-wide text-amber-400">Pending approval</span>}
+            <span className="shrink-0 whitespace-nowrap text-caption text-tertiary">{timeAgo(post.createdAt)}</span>
+            {roleLabel && <Badge tone="neutral">{roleLabel}</Badge>}
+            {pending && <Badge tone="warning">Pending approval</Badge>}
           </span>
         )}
       </div>

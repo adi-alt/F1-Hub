@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
  * placeholder doesn't move anything. */
 export function PostCardSkeleton() {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/55 px-3.5 py-3">
+    <div className="rounded-xl border border-white/10 bg-surface-1/55 px-3.5 py-3">
       <div className="flex items-center gap-2.5">
         <Skeleton shape="circle" className="h-[34px] w-[34px] shrink-0" />
         <div className="flex-1 space-y-1">

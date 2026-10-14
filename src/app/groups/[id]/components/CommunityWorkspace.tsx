@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { canDo, MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
@@ -142,9 +144,9 @@ export function CommunityWorkspace({
     sublabel: tab === "manage" ? "Manage" : MODULE_LABELS[tab as CommunityModule],
     communityId: group.id,
     suggestions: [
-      "Summarise what people are discussing here.",
+"Summarise what people are discussing here.",
       ...(modules.includes("predictions") ? ["Which prediction rounds are still open?"] : []),
-      "What kind of community is this?",
+"What kind of community is this?",
     ],
     context: {
       page: "community",
@@ -190,13 +192,13 @@ export function CommunityWorkspace({
           <CommunityHeader group={group} memberCount={memberCount} pendingRequests={pendingRequests} onOpenManage={() => select("manage")} />
 
           <Tabs value={tab} onValueChange={select} items={tabItems}>
-            <div className="mt-6">
+            <div className="mt-8">
               {/* The strip scrolls sideways on a narrow screen rather than wrapping to two rows. */}
               <TabList aria-label="Community sections" />
 
               {/* Each panel mounts fresh when its tab is chosen, so this fades the new one in. */}
               <TabPanels className="mt-5">
-                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}>
                   {tab === "feed" && (
                     <CommunityFeed
                       groupId={group.id}
@@ -261,17 +263,11 @@ export function CommunityWorkspace({
           never collide. Only on the Feed tab, and only for someone this community actually lets
           post: a button that opens a composer the server would refuse is worse than no button. */}
       {tab === "feed" && canPost && (
-        <button
-          type="button"
-          onClick={() => setComposerOpen(true)}
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 rounded-full bg-[var(--f1-red)] px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-black/40 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] sm:px-5"
-        >
-          <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden>
-            <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-          </svg>
-          <span className="hidden sm:inline">Create post</span>
-          <span className="sr-only sm:hidden">Create post</span>
-        </button>
+        <span className="fixed bottom-5 right-5 z-30 rounded-card shadow-overlay">
+          <Button variant="primary" size="lg" iconStart={Plus} onClick={() => setComposerOpen(true)}>
+            Create post
+          </Button>
+        </span>
       )}
     </>
   );

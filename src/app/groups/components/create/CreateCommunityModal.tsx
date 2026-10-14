@@ -225,7 +225,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
         <header className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{STEP_TITLES[step].eyebrow}</p>
+              <p className="text-caption font-semibold text-tertiary">{STEP_TITLES[step].eyebrow}</p>
               <h2 className="mt-0.5 text-lg font-bold text-white">{STEP_TITLES[step].title}</h2>
             </div>
             <button
@@ -242,7 +242,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
           {/* Real progress, not decoration - one segment per step, filled up to where you are. */}
           <div className="mt-3 flex gap-1" aria-hidden>
             {STEPS.map((s, i) => (
-              <span key={s} className={`h-0.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-[var(--f1-red)]" : "bg-white/10"}`} />
+              <span key={s} className={`h-0.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-brand" : "bg-white/10"}`} />
             ))}
           </div>
         </header>
@@ -269,7 +269,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
               {step === "identity" && (
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="community-name" className="block text-xs font-medium text-neutral-400">
+                    <label htmlFor="community-name" className="block text-xs font-medium text-secondary">
                       Community name
                     </label>
                     <input
@@ -282,16 +282,16 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       aria-invalid={!!nameError}
                       aria-describedby={nameError ? "community-name-error" : undefined}
                       className={`mt-1 w-full rounded-lg border bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:outline-none ${
-                        nameError ? "border-[var(--f1-red)]/60" : "border-[var(--f1-line)] focus:border-white/30"
+                        nameError ? "border-brand/60" : "border-white/10 focus:border-white/30"
                       }`}
                     />
-                    <div className="mt-1 flex items-start justify-between gap-3 text-[11px]">
+                    <div className="mt-1 flex items-start justify-between gap-3 text-caption">
                       <span id="community-name-error" className={nameError ? "text-brand-text" : "text-tertiary"}>
                         {nameError ?? "This is how people will find you."}
                       </span>
                       {/* Shown only once it's actually relevant, not a permanent 0/40 counter. */}
                       {trimmedName.length > MAX_NAME - 10 && (
-                        <span className="shrink-0 tabular-nums text-tertiary">
+                        <span className="shrink-0 tabular text-tertiary">
                           {trimmedName.length}/{MAX_NAME}
                         </span>
                       )}
@@ -299,7 +299,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                   </div>
 
                   <div>
-                    <label htmlFor="community-description" className="block text-xs font-medium text-neutral-400">
+                    <label htmlFor="community-description" className="block text-xs font-medium text-secondary">
                       Description <span className="text-tertiary">(optional)</span>
                     </label>
                     <textarea
@@ -309,12 +309,12 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       maxLength={MAX_DESCRIPTION}
                       rows={3}
                       placeholder="What is this community about?"
-                      className="mt-1 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                      className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <span className="block text-xs font-medium text-neutral-400">
+                    <span className="block text-xs font-medium text-secondary">
                       Topic <span className="text-tertiary">(optional)</span>
                     </span>
                     <Picker
@@ -328,7 +328,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       clearable
                       className="mt-1"
                     />
-                    <p className="mt-1 text-[11px] text-tertiary">Not in the list? Type your own.</p>
+                    <p className="mt-1 text-caption text-tertiary">Not in the list? Type your own.</p>
                   </div>
                 </div>
               )}
@@ -336,7 +336,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
               {step === "visual" && (
                 <div className="space-y-5">
                   <div>
-                    <p className="mb-1.5 text-xs font-medium text-neutral-400">Banner</p>
+                    <p className="mb-1.5 text-xs font-medium text-secondary">Banner</p>
                     <ImageDropzone
                       file={bannerFile}
                       onPick={setBannerFile}
@@ -348,7 +348,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div>
-                    <p className="mb-1.5 text-xs font-medium text-neutral-400">Avatar</p>
+                    <p className="mb-1.5 text-xs font-medium text-secondary">Avatar</p>
                     <div className="flex items-start gap-4">
                       <ImageDropzone
                         file={avatarFile}
@@ -360,7 +360,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         surfaceClassName="h-20 w-20"
                         rounded
                       />
-                      <p className="pt-1 text-[11px] leading-relaxed text-tertiary">
+                      <p className="pt-1 text-caption leading-relaxed text-tertiary">
                         Both are optional. Without them your community gets a generated banner and avatar derived from its name, which looks
                         deliberate rather than empty.
                       </p>
@@ -400,12 +400,12 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                     {enabledModules
                       .filter((m) => !availableToggles.includes(m))
                       .map((m) => (
-                        <div key={m} className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-2.5">
+                        <div key={m} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
                           <span>
-                            <span className="block text-sm text-neutral-300">{MODULE_LABELS[m]}</span>
-                            <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
+                            <span className="block text-sm text-secondary">{MODULE_LABELS[m]}</span>
+                            <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
                           </span>
-                          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Always on</span>
+                          <span className="shrink-0 text-caption font-semibold text-tertiary">Always on</span>
                         </div>
                       ))}
 
@@ -419,14 +419,14 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                           aria-checked={on}
                           onClick={() => setFeatures((prev) => ({ ...prev, [m]: !on }))}
                           className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
-                            on ? "border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05]" : "border-[var(--f1-line)] hover:border-white/20"
+                            on ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
                           }`}
                         >
                           <span className="min-w-0">
                             <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
-                            <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
+                            <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
                           </span>
-                          <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-[var(--f1-red)]" : "bg-white/10"}`} aria-hidden>
+                          <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-white/10"}`} aria-hidden>
                             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
                           </span>
                         </button>
@@ -434,7 +434,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                     })}
                   </div>
                   {!meta.f1 && (
-                    <p className="text-[11px] leading-relaxed text-tertiary">
+                    <p className="text-caption leading-relaxed text-tertiary">
                       Race predictions and leaderboards are F1-specific, so they aren&apos;t offered here. Switch the type to an F1 Community or
                       Prediction League if you want them.
                     </p>
@@ -444,7 +444,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
 
               {step === "review" && (
                 <div className="space-y-4">
-                  <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+                  <div className="overflow-hidden rounded-xl border border-white/10">
                     {bannerPreview ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={bannerPreview} alt="" className="aspect-[16/5] w-full object-cover" />
@@ -467,10 +467,10 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         {meta.label} · {VISIBILITY_OPTIONS.find((v) => v.value === visibility)?.label}
                         {topic ? ` · ${topic}` : ""}
                       </p>
-                      {description.trim() && <p className="mt-2 text-xs leading-relaxed text-neutral-400">{description.trim()}</p>}
-                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[var(--f1-line)] pt-3">
+                      {description.trim() && <p className="mt-2 text-xs leading-relaxed text-secondary">{description.trim()}</p>}
+                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
                         {enabledModules.map((m) => (
-                          <span key={m} className="rounded-full border border-[var(--f1-line)] px-2 py-0.5 text-[10px] text-neutral-400">
+                          <span key={m} className="rounded-full border border-white/10 px-2 py-0.5 text-caption text-secondary">
                             {MODULE_LABELS[m]}
                           </span>
                         ))}
@@ -478,7 +478,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
                   <div>
-                    <label htmlFor="community-invite" className="block text-xs font-medium text-neutral-400">
+                    <label htmlFor="community-invite" className="block text-xs font-medium text-secondary">
                       Invite people <span className="text-tertiary">(optional)</span>
                     </label>
                     <div className="mt-1 flex gap-2">
@@ -494,21 +494,21 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         }}
                         type="email"
                         placeholder="person@email.com"
-                        className="flex-1 rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                        className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
                       />
                       <button
                         type="button"
                         onClick={addEmail}
-                        className="shrink-0 rounded-lg border border-[var(--f1-line)] px-3 py-2 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
+                        className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
                       >
                         Add
                       </button>
                     </div>
-                    {emailError && <p className="mt-1 text-[11px] text-brand-text">{emailError}</p>}
+                    {emailError && <p className="mt-1 text-caption text-brand-text">{emailError}</p>}
                     {emails.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {emails.map((email) => (
-                          <span key={email} className="flex items-center gap-1.5 rounded-full border border-[var(--f1-line)] bg-black/20 px-2.5 py-1 text-[11px] text-neutral-300">
+                          <span key={email} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-caption text-secondary">
                             {email}
                             <button type="button" onClick={() => setEmails((prev) => prev.filter((e) => e !== email))} aria-label={`Remove ${email}`} className="text-tertiary hover:text-white">
                               ×
@@ -518,14 +518,14 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] text-tertiary">You&apos;ll be the admin. Everything here can be changed later from Manage.</p>
+                  <p className="text-caption text-tertiary">You&apos;ll be the admin. Everything here can be changed later from Manage.</p>
                 </div>
               )}
             </motion.div>
           </AnimatePresence>
 
           {error && (
-            <p role="alert" className="mt-4 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.07] px-3 py-2 text-xs text-brand-text">
+            <p role="alert" className="mt-4 rounded-lg border border-brand/30 bg-brand/7 px-3 py-2 text-xs text-brand-text">
               {error}
             </p>
           )}
@@ -536,7 +536,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={() => (stepIndex === 0 ? onClose() : go(-1))}
             disabled={submitting}
-            className="text-sm text-neutral-400 transition hover:text-white disabled:opacity-40"
+            className="text-sm text-secondary transition hover:text-white disabled:opacity-40"
           >
             {stepIndex === 0 ? "Cancel" : "Back"}
           </button>
@@ -546,7 +546,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={() => void submit()}
               disabled={submitting}
-              className="rounded-full bg-[var(--f1-red)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+              className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
             >
               {submitting ? "Creating…" : "Create Community"}
             </button>
@@ -555,7 +555,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={() => go(1)}
               disabled={!canAdvance}
-              className="rounded-full bg-[var(--f1-red)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+              className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
             >
               Next
             </button>

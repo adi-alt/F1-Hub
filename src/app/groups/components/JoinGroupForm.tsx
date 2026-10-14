@@ -54,12 +54,12 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Paste invite link or code"
-          className="flex-1 rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+          className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
         />
         <button
           type="submit"
           disabled={status === "saving"}
-          className="shrink-0 rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
+          className="shrink-0 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
         >
           {status === "saving" ? "Joining…" : "Join"}
         </button>
@@ -69,18 +69,18 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-5">
+    <form onSubmit={(e) => void submit(e)} className="rounded-xl border border-white/10 bg-surface-1 p-5">
       <p className="text-sm font-semibold text-white">Join a community</p>
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Paste invite link or code"
-        className="mt-3 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary"
+        className="mt-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary"
       />
       <button
         type="submit"
         disabled={status === "saving"}
-        className="mt-3 rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
+        className="mt-3 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
       >
         {status === "saving" ? "Joining…" : "Join"}
       </button>

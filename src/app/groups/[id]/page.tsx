@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
 import { GroupVisitBeacon } from "./components/GroupVisitBeacon";
@@ -181,14 +182,12 @@ export default async function CommunityPage({
       <GroupRealtimeWatcher groupId={id} />
       <GroupVisitBeacon groupId={id} />
 
-      <Link href="/groups" className="inline-flex items-center gap-1.5 text-sm text-tertiary transition hover:text-neutral-300">
-        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
-          <path d="M9.5 3.5 5 8l4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Back to communities
+      <Link href="/groups" className="inline-flex items-center gap-1 rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+        <ChevronLeft aria-hidden size={16} />
+        Communities
       </Link>
 
-      <div className="mt-3">
+      <div className="mt-4">
         <CommunityWorkspace
           group={group}
           myUserId={uid}
