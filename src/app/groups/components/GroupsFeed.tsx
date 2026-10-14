@@ -90,7 +90,7 @@ export function GroupsFeed({
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => setComposerOffscreen(!entry.isIntersecting && entry.boundingClientRect.top < 0), { threshold: 0 });
+    const observer = new IntersectionObserver(([entry]) => setComposerOffscreen(!entry.isIntersecting), { threshold: 0 });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
