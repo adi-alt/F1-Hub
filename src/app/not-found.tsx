@@ -39,7 +39,7 @@ export default async function NotFound() {
             <Button variant="primary" size="md" asChild>
               <Link href="/">Back to the home page</Link>
             </Button>
-            <Button variant="ghost" size="md" asChild>
+            <Button variant="secondary" size="md" asChild>
               <Link href={seasonHref(season)}>See the {season} season</Link>
             </Button>
           </div>

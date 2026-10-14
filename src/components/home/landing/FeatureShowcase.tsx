@@ -103,7 +103,7 @@ export function FeatureShowcase({ landing }: { landing: LandingData }) {
           <Button variant="primary" size="md" onClick={openAuth}>
             Create a free account
           </Button>
-          <Button variant="ghost" size="md" onClick={openAuth}>
+          <Button variant="secondary" size="md" onClick={openAuth}>
             Sign in
           </Button>
         </div>

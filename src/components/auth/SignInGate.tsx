@@ -80,7 +80,7 @@ export function SignInGate({ label = "this" }: { label?: string }) {
             <Button variant="primary" size="md" onClick={open}>
               Create a free account
             </Button>
-            <Button variant="ghost" size="md" onClick={open}>
+            <Button variant="secondary" size="md" onClick={open}>
               I have an account · Sign in
             </Button>
           </div>
