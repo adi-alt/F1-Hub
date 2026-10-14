@@ -13,6 +13,7 @@ import { ApexScopeProvider } from "@/components/apex/ApexScopeProvider";
 import { AppProviders } from "@/providers/AppProviders";
 import type { InitialAuth } from "@/providers/AuthProvider";
 import { getSession } from "@/lib/session/getSession";
+import { getHeaderSessions } from "@/lib/supabase/headerSessions";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -42,6 +43,8 @@ export default async function RootLayout({
   // footer render for a signed-in or a signed-out visitor from the first paint instead of a placeholder that
   // swaps once /api/auth/me answers. Display only: every permission is still checked where it's used.
   const session = await getSession();
+  // The header's race-weekend status: the next few sessions from the cached calendar.
+  const sessions = await getHeaderSessions(season);
   const initialAuth: InitialAuth = session.uid
     ? { uid: session.uid, email: session.email ?? null, photoURL: session.photoURL ?? null, role: session.role ?? "user", displayName: session.displayName ?? null }
     : null;
@@ -68,7 +71,7 @@ export default async function RootLayout({
               the current page registered; the launcher renders nothing at all on a page that
               registered none, so it never offers to answer questions about a page it can't see. */}
           <ApexScopeProvider>
-            <Header season={season} />
+            <Header season={season} sessions={sessions} />
             <PageFrame season={season}>{children}</PageFrame>
             <ApexLauncher />
             <SectionNav />

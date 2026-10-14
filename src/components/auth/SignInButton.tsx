@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ProfileMenu } from "./ProfileMenu";
 
@@ -35,18 +36,12 @@ export function SignInButton() {
   // two buttons to actually diverge on.
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={open}
-        className="rounded-lg px-4 py-2 text-sm font-semibold text-neutral-300 transition hover:text-white"
-      >
+      <Button variant="secondary" size="sm" onClick={open}>
         Sign in
-      </button>
-      <button
-        onClick={open}
-        className="rounded-lg bg-[var(--f1-red)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 active:brightness-95"
-      >
+      </Button>
+      <Button variant="primary" size="sm" onClick={open}>
         Sign up
-      </button>
+      </Button>
     </div>
   );
 }

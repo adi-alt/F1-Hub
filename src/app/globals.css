@@ -691,6 +691,24 @@ html {
   }
 }
 
+/* The header mark's launch (components/brand/ApexMark.tsx): the racing line draws out behind the car. */
+@keyframes apex-bar {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes apex-car {
+  from {
+    transform: translateX(-29.5px);
+  }
+  to {
+    transform: none;
+  }
+}
+
 /* Rich motion: desktop with a mouse, and no system request to reduce motion (src/hooks/useRichMotion.ts uses the same
    query). Phones and tablets keep the settled frame. */
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
@@ -713,5 +731,14 @@ html {
   }
   .era-sweep {
     animation: era-sweep 3.6s ease-in-out infinite;
+  }
+  .apex-launch .apex-bar,
+  .group:hover .apex-bar {
+    stroke-dasharray: 1;
+    animation: apex-bar 0.7s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+  .apex-launch .apex-car,
+  .group:hover .apex-car {
+    animation: apex-car 0.7s cubic-bezier(0.2, 0, 0, 1) both;
   }
 }

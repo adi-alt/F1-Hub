@@ -19,12 +19,10 @@ export function MobileNav({
   season,
   showUsers = false,
   showModels = false,
-  showNav = false,
 }: {
   season: number;
   showUsers?: boolean;
   showModels?: boolean;
-  showNav?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const links = [
@@ -34,19 +32,17 @@ export function MobileNav({
   ];
   const activeSection = navSectionFor(usePathname());
 
-  if (!showNav) return null;
-
   return (
-    <div className="sm:hidden">
+    <div className="md:hidden">
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex size-9 items-center justify-center rounded-full border border-[var(--f1-line)] text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        className="flex size-8 items-center justify-center rounded-control border border-strong bg-surface-2 text-primary transition-colors duration-fast hover:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
-        <Menu aria-hidden size={20} strokeWidth={1.75} />
+        <Menu aria-hidden size={18} strokeWidth={1.75} />
       </button>
 
       {/* A bottom sheet (spec §4.8) rather than the old drop-down, which had no focus trap and no
