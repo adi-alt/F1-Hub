@@ -18,7 +18,7 @@ import { archiveSeasonHref } from "@/lib/routes";
  * not size: the in-progress season gets a small pulsing dot, links to /season instead of
  * /archive?year=, and its third line is "In progress" (never a name asserted as final) until
  * `leaderName` actually has this year's real, still-changing leader. Translucent zinc (border +
- * bg-[var(--f1-carbon)]/60), not `.glass-surface` - with ~76 of these on screen at once, a real
+ * bg-surface-1), not `.glass-surface` - with ~76 of these on screen at once, a real
  * backdrop-blur per card is real, unnecessary compositing cost, and this is also the same flat
  * translucent surface ArchiveTable and the "by track" grid both use, so every browse surface in
  * Archive reads as one consistent family instead of the cards looking heavier/glassier than
@@ -53,18 +53,18 @@ export function SeasonCard({
         onMouseLeave={() => onHoverEnd(year)}
         onFocus={(e) => onHoverStart(e, year)}
         onBlur={() => onHoverEnd(year)}
-        className="flex h-20 flex-col items-center justify-center gap-0.5 rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 px-3 text-center transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+        className="flex h-20 flex-col items-center justify-center gap-0.5 rounded-xl border border-subtle bg-surface-1 px-3 text-center transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
       >
-        <span className="flex items-center gap-1.5 font-semibold text-white">
+        <span className="flex items-center gap-1.5 font-semibold text-primary">
           {year}
           {isLive && <span className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" aria-label="Live" />}
         </span>
         {typeof raceCount === "number" && (
-          <span className="text-[10px] font-medium uppercase tracking-wide text-tertiary">
+          <span className="text-caption font-medium text-tertiary">
             {raceCount} race{raceCount === 1 ? "" : "s"}
           </span>
         )}
-        {(leaderName || isLive) && <span className="w-full truncate text-[10px] text-neutral-400">{leaderName ?? "In progress"}</span>}
+        {(leaderName || isLive) && <span className="w-full truncate text-caption text-secondary">{leaderName ?? "In progress"}</span>}
       </Link>
     </motion.div>
   );

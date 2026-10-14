@@ -50,7 +50,7 @@ export function Pagination({
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
           aria-label="Previous page"
-          className="rounded-md border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] disabled:pointer-events-none disabled:opacity-30"
+          className="rounded-md border border-subtle px-3 py-1 transition hover:border-white/30 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] disabled:pointer-events-none disabled:opacity-30"
         >
           ← Prev
         </button>
@@ -67,7 +67,7 @@ export function Pagination({
                 onClick={() => onPageChange(p)}
                 aria-current={p === page ? "page" : undefined}
                 className={`min-w-[1.75rem] rounded-md px-2 py-1 text-center transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
-                  p === page ? "bg-[var(--f1-red)] text-white" : "text-neutral-400 hover:text-white"
+                  p === page ? "bg-[var(--f1-red)] text-primary" : "text-secondary hover:text-primary"
                 }`}
               >
                 {p}
@@ -79,7 +79,7 @@ export function Pagination({
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
           aria-label="Next page"
-          className="rounded-md border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] disabled:pointer-events-none disabled:opacity-30"
+          className="rounded-md border border-subtle px-3 py-1 transition hover:border-white/30 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] disabled:pointer-events-none disabled:opacity-30"
         >
           Next →
         </button>

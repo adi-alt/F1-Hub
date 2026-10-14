@@ -62,7 +62,7 @@ export function ArchiveCircuitGrid({
         {onClearFilters && (
           <>
             {" "}
-            <button type="button" onClick={onClearFilters} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+            <button type="button" onClick={onClearFilters} className="text-secondary underline-offset-2 transition hover:text-primary hover:underline">
               Clear filters
             </button>
           </>
@@ -84,11 +84,11 @@ export function ArchiveCircuitGrid({
           <motion.div layout key={c.circuitId} variants={staggerItem} whileHover={{ y: -4 }} whileTap={{ scale: 0.98 }}>
             <Link
               href={archiveCircuitHref(c.circuitId)}
-              // bg-[var(--f1-carbon)]/60, not the flat opaque fill this had before - the same
+              // bg-surface-1, not the flat opaque fill this had before - the same
               // translucent zinc surface ArchiveTable's own wrapper uses, so "by track" reads as
               // the same visual family as "by year" (SeasonCard) and the tables, not a flatter,
               // heavier block sitting next to them.
-              className="block overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              className="block overflow-hidden rounded-2xl border border-subtle bg-surface-1 transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
             >
               <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
                 {/* The track map on its light panel, inset so the card's edge stays visible around it. */}
@@ -101,7 +101,7 @@ export function ArchiveCircuitGrid({
               </div>
               <div className="px-3.5 py-3">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="truncate font-semibold text-white" title={c.name ?? c.circuitId}>
+                  <p className="truncate font-semibold text-primary" title={c.name ?? c.circuitId}>
                     {c.name ?? c.circuitId}
                   </p>
                   <StatusBadge active={isActive} />

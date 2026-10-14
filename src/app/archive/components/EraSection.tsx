@@ -39,10 +39,10 @@ export function EraSection({
   return (
     <section className="mt-7 first:mt-0">
       <div className="mb-2.5 flex items-baseline gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-300">{era.name}</h2>
-        <span className="text-[10px] text-tertiary">{era.startYear}–{era.endYear ?? "present"}</span>
+        <h2 className="text-xs font-semibold text-secondary">{era.name}</h2>
+        <span className="text-caption text-tertiary">{era.startYear}–{era.endYear ?? "present"}</span>
       </div>
-      <p className="mb-3 max-w-2xl truncate text-[11px] text-tertiary">{era.description}</p>
+      <p className="mb-3 max-w-2xl truncate text-caption text-tertiary">{era.description}</p>
       <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
         {years.map((year) => (
           <SeasonCard

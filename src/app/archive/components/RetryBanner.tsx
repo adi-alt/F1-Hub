@@ -10,12 +10,12 @@ import { useRouter } from "next/navigation";
 export function RetryBanner() {
   const router = useRouter();
   return (
-    <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/10 px-4 py-2.5 text-sm text-neutral-300">
+    <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/10 px-4 py-2.5 text-sm text-secondary">
       <span>Some historical data couldn&apos;t be loaded.</span>
       <button
         type="button"
         onClick={() => router.refresh()}
-        className="shrink-0 rounded-md border border-white/15 px-3 py-1 text-xs font-medium text-white transition hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+        className="shrink-0 rounded-md border border-white/15 px-3 py-1 text-xs font-medium text-primary transition hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
       >
         Try again
       </button>

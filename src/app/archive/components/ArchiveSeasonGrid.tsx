@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerContainer } from "@/components/motion/variants";
-import { groupYearsByEra, isVerifiedChampionYear } from "@/lib/eras";
+import { constructorChampionOverride, groupYearsByEra, isVerifiedChampionYear } from "@/lib/eras";
 import type { ArchiveYearStats, CurrentLeader } from "@/lib/supabase/archive";
 import { SeasonCard } from "./SeasonCard";
 import { EraSection } from "./EraSection";
@@ -81,7 +81,7 @@ export function ArchiveSeasonGrid({
           and description: those aren't shown anywhere else once the page is down to one era. */}
       {groups.length === 1 ? (
         <>
-          <p className="mb-3 max-w-2xl text-[11px] text-tertiary">
+          <p className="mb-3 max-w-2xl text-caption text-tertiary">
             <span className="text-tertiary">
               {groups[0].era.startYear}–{groups[0].era.endYear ?? "present"}.
             </span>{" "}
@@ -141,57 +141,57 @@ export function ArchiveSeasonGrid({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: hover.flipBelow ? -4 : 4, scale: 0.98 }}
                   transition={{ duration: 0.12, ease: "easeOut" }}
-                  className="rounded-lg border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-3 backdrop-blur-md"
+                  className="rounded-lg border border-subtle bg-surface-1 p-3 backdrop-blur-md"
                 >
-                  <p className="text-sm font-semibold text-white">{hover.year}</p>
+                  <p className="text-sm font-semibold text-primary">{hover.year}</p>
                   {hoverIsLive ? (
                     currentLeader.driver || currentLeader.team ? (
                       <>
-                        <p className="mt-0.5 text-[11px] text-tertiary">Season in progress</p>
+                        <p className="mt-0.5 text-caption text-tertiary">Season in progress</p>
                         <div className="mt-2.5 space-y-2">
                           {currentLeader.driver && (
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Current Drivers&rsquo; Leader</p>
-                              <p className="truncate text-sm text-white">{currentLeader.driver.name}</p>
+                              <p className="text-caption font-semibold text-tertiary">Current Drivers&rsquo; Leader</p>
+                              <p className="truncate text-sm text-primary">{currentLeader.driver.name}</p>
                             </div>
                           )}
                           {currentLeader.team && (
                             <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Current Constructors&rsquo; Leader</p>
-                              <p className="truncate text-sm text-white">{currentLeader.team.name}</p>
+                              <p className="text-caption font-semibold text-tertiary">Current Constructors&rsquo; Leader</p>
+                              <p className="truncate text-sm text-primary">{currentLeader.team.name}</p>
                             </div>
                           )}
                         </div>
                       </>
                     ) : (
-                      <p className="mt-0.5 text-[11px] text-tertiary">Season in progress. No standings yet.</p>
+                      <p className="mt-0.5 text-caption text-tertiary">Season in progress. No standings yet.</p>
                     )
                   ) : hoverStats?.driverLeader || hoverStats?.teamLeader ? (
                     <>
-                      <p className="mt-0.5 text-[11px] text-tertiary">
+                      <p className="mt-0.5 text-caption text-tertiary">
                         {hoverStats.raceCount} race{hoverStats.raceCount === 1 ? "" : "s"} · Season complete
                       </p>
                       <div className="mt-2.5 space-y-2">
                         {hoverStats.driverLeader && (
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
+                            <p className="text-caption font-semibold text-tertiary">
                               {isVerifiedChampionYear(hover.year) ? "Drivers’ Champion" : "Most Points (Driver)"}
                             </p>
-                            <p className="truncate text-sm text-white">{hoverStats.driverLeader.name}</p>
+                            <p className="truncate text-sm text-primary">{hoverStats.driverLeader.name}</p>
                           </div>
                         )}
                         {hoverStats.teamLeader && (
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
+                            <p className="text-caption font-semibold text-tertiary">
                               {isVerifiedChampionYear(hover.year) ? "Constructors’ Champion" : "Most Points (Team)"}
                             </p>
-                            <p className="truncate text-sm text-white">{hoverStats.teamLeader.name}</p>
+                            <p className="truncate text-sm text-primary">{constructorChampionOverride(hover.year) ?? hoverStats.teamLeader.name}</p>
                           </div>
                         )}
                       </div>
                     </>
                   ) : (
-                    <p className="mt-0.5 text-[11px] text-tertiary">No results recorded.</p>
+                    <p className="mt-0.5 text-caption text-tertiary">No results recorded.</p>
                   )}
                 </motion.div>
               </div>

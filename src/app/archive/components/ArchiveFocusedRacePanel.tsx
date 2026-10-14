@@ -12,35 +12,35 @@ import type { ExplorerRow } from "./ArchiveRaceExplorer";
  */
 export function ArchiveFocusedRacePanel({ row, entityColumnLabel }: { row: ExplorerRow; entityColumnLabel: string }) {
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50 p-4">
+    <div className="flex flex-col gap-4 rounded-lg border border-subtle bg-surface-1 p-4">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">{row.year}</p>
-        <p className="mt-1 text-lg font-semibold text-white">{row.raceName}</p>
+        <p className="text-caption text-secondary">{row.year}</p>
+        <p className="mt-1 text-lg font-semibold text-primary">{row.raceName}</p>
         {(row.circuitName || row.country) && <p className="mt-0.5 text-xs text-tertiary">{[row.circuitName, row.country].filter(Boolean).join(", ")}</p>}
       </div>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">{entityColumnLabel}</dt>
-          <dd className="mt-0.5 truncate text-sm font-medium text-neutral-200">{row.entityLabel ?? "—"}</dd>
+          <dt className="text-caption text-secondary">{entityColumnLabel}</dt>
+          <dd className="mt-0.5 truncate text-sm font-medium text-primary">{row.entityLabel ?? "—"}</dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Grid</dt>
-          <dd className="mt-0.5 font-mono text-sm text-neutral-200">{row.grid != null ? `P${row.grid}` : "—"}</dd>
+          <dt className="text-caption text-secondary">Grid</dt>
+          <dd className="mt-0.5 text-sm text-primary">{row.grid != null ? `P${row.grid}` : "—"}</dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Finish</dt>
-          <dd className="mt-0.5 font-mono text-sm font-semibold text-white">{row.finishText}</dd>
+          <dt className="text-caption text-secondary">Finish</dt>
+          <dd className="mt-0.5 text-sm font-semibold text-primary">{row.finishText}</dd>
         </div>
         <div>
-          <dt className="text-[10px] uppercase tracking-[0.12em] text-tertiary">Points</dt>
-          <dd className="mt-0.5 font-mono text-sm text-neutral-200">{row.points}</dd>
+          <dt className="text-caption text-secondary">Points</dt>
+          <dd className="mt-0.5 text-sm text-primary">{row.points}</dd>
         </div>
       </dl>
 
       <Link
         href={raceHref(row.year, row.round, row.raceName)}
-        className="mt-1 inline-flex w-fit items-center gap-1 rounded-lg bg-[var(--f1-red)] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:brightness-110"
+        className="mt-1 inline-flex w-fit items-center gap-1 rounded-lg bg-[var(--f1-red)] px-3 py-1.5 text-caption font-semibold text-primary transition hover:brightness-110"
       >
         View race →
       </Link>

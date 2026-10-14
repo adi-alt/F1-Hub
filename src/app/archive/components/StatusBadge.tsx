@@ -4,8 +4,8 @@
 export function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
-      className={`inline-block shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-        active ? "border-[var(--f1-red)]/40 text-brand-text" : "border-white/10 text-tertiary"
+      className={`inline-block shrink-0 rounded border px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide ${
+        active ? "border-[var(--f1-red)]/40 text-brand-text" : "border-subtle text-tertiary"
       }`}
     >
       {active ? "Active" : "Historical"}

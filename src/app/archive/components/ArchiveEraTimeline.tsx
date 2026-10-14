@@ -24,7 +24,7 @@ export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
 
   return (
     <div>
-      <div className="flex h-8 w-full overflow-hidden rounded-md border border-white/[0.07]">
+      <div className="flex h-8 w-full overflow-hidden rounded-md border border-subtle">
         {segments.map((s, i) => {
           const span = s.to - s.from + 1;
           const widthPct = (span / totalYears) * 100;
@@ -38,7 +38,7 @@ export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
               onFocus={() => setActive(i)}
               onBlur={() => setActive(null)}
               style={{ width: `${widthPct}%`, background: color }}
-              className="relative flex min-w-[2px] items-center justify-center border-r border-black/30 text-[10px] font-semibold text-white last:border-r-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
+              className="relative flex min-w-[2px] items-center justify-center border-r border-black/30 text-caption font-semibold text-primary last:border-r-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
               aria-label={`${s.label}, ${s.from === s.to ? s.from : `${s.from} to ${s.to}`}, ${s.raceCount} race${s.raceCount === 1 ? "" : "s"}`}
             >
               {widthPct > 10 && <span className="truncate px-1">{s.label}</span>}
@@ -46,10 +46,10 @@ export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
           );
         })}
       </div>
-      <div className="mt-2 min-h-[18px] text-xs text-neutral-400">
+      <div className="mt-2 min-h-[18px] text-xs text-secondary">
         {active !== null ? (
           <span>
-            <span className="font-medium text-white">{segments[active].label}</span> · {segments[active].from === segments[active].to ? segments[active].from : `${segments[active].from}–${segments[active].to}`} ·{" "}
+            <span className="font-medium text-primary">{segments[active].label}</span> · {segments[active].from === segments[active].to ? segments[active].from : `${segments[active].from}–${segments[active].to}`} ·{" "}
             {segments[active].raceCount} race{segments[active].raceCount === 1 ? "" : "s"}
           </span>
         ) : (

@@ -119,6 +119,15 @@ export function groupYearsByEra(years: number[]): { era: Era; years: number[] }[
 // components (see that file's own comment on why - a pure function with zero database dependency
 // has no business pulling in supabaseAdmin's initialization).
 export const FULL_SEASON_SCORING_START_YEAR = 1991;
+
+// Where the points sum is NOT the title even after 1991: a team excluded from the championship. 2007: McLaren scored
+// the most constructors' points but was excluded (the FIA's ruling in the spying case); Ferrari is the champion.
+const CONSTRUCTOR_CHAMPION_OVERRIDES: Record<number, string> = { 2007: "Ferrari" };
+
+/** The constructors' champion of `year` when it differs from the points leader, else null. */
+export function constructorChampionOverride(year: number): string | null {
+  return CONSTRUCTOR_CHAMPION_OVERRIDES[year] ?? null;
+}
 export function isVerifiedChampionYear(year: number): boolean {
   return year >= FULL_SEASON_SCORING_START_YEAR;
 }
