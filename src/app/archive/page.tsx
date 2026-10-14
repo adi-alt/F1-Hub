@@ -260,7 +260,8 @@ async function ArchiveDriverHistoryInner(driverId: string) {
         grid: result.grid,
         finishText: finishText(result.positionText),
         finishRank: isClassified(result.status) ? result.position : null,
-        points: result.points,
+        // The weekend's points: the Grand Prix plus that weekend's sprint, as the championship counts them.
+        points: result.points + (race.sprintResults ?? []).filter((s) => s.driverId === driverId).reduce((sum, s) => sum + s.points, 0),
       }),
     )
     .sort((a, b) => b.year - a.year || b.round - a.round);
@@ -350,14 +351,15 @@ async function ArchiveTeamHistoryInner(teamId: string) {
         grid: best.result.grid,
         finishText: finishText(best.result.positionText),
         finishRank: isClassified(best.result.status) ? best.result.position : null,
-        points: raceEntries.reduce((sum, e) => sum + e.result.points, 0),
+        // Both cars' Grand Prix points plus the team's sprint points that weekend.
+        points: raceEntries.reduce((sum, e) => sum + e.result.points, 0) + (race.sprintResults ?? []).filter((s) => s.teamId === teamId).reduce((sum, s) => sum + s.points, 0),
       };
     })
     .sort((a, b) => b.year - a.year || b.round - a.round);
 
   const wins = rows.filter((r) => r.finishRank === 1).length;
   const podiums = rows.filter((r) => r.finishRank !== null && r.finishRank <= 3).length;
-  const totalPoints = allEntries.reduce((sum, e) => sum + e.result.points, 0);
+  const totalPoints = rows.reduce((sum, r) => sum + r.points, 0);
 
   const byDriver = new Map<string, { name: string; races: Set<string>; wins: number }>();
   for (const e of allEntries) {

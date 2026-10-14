@@ -1,4 +1,4 @@
-import { findArchiveCircuitByLocation, getAllArchiveCircuits, getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds, getArchiveSeason } from "@/lib/supabase/archive";
+import { archiveScoringResults, findArchiveCircuitByLocation, getAllArchiveCircuits, getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds, getArchiveSeason } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getRacesByYear } from "@/lib/supabase/races";
@@ -254,7 +254,7 @@ function computeArchiveProgression(races: ArchiveRaceDoc[], driverIds: string[])
   const running: Record<string, number> = {};
   for (const id of driverIds) running[id] = 0;
   return sorted.map((race) => {
-    for (const r of race.results) if (r.driverId in running) running[r.driverId] += r.points;
+    for (const r of archiveScoringResults(race)) if (r.driverId in running) running[r.driverId] += r.points;
     return { round: race.round, raceName: race.raceName, trackShort: trackShortForm(race.circuitName ?? race.raceName), ...running };
   });
 }
@@ -313,6 +313,15 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       constructorMap.set(r.constructor, constructor);
     }
   }
+  // Sprint points count in both championships; wins and podiums are the Grand Prix's only.
+  for (const race of races) {
+    for (const r of race.sprintResults ?? []) {
+      const driver = driverMap.get(r.driverId);
+      if (driver) driver.points += r.points;
+      const constructor = constructorMap.get(r.constructor);
+      if (constructor) constructor.points += r.points;
+    }
+  }
   const drivers = [...driverMap.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
   const constructors = [...constructorMap.values()].sort((a, b) => b.points - a.points || b.wins - a.wins);
   const logoByTeamName = new Map(constructors.map((c) => [c.team, c.logoUrl]));
@@ -320,6 +329,15 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
 
   const raceSummaries: RaceSummary[] = races.map((r) => {
     const results = r.results.map((res) => ({
+      driver: res.driverId,
+      driverName: res.driverName,
+      team: res.constructor,
+      finishPosition: res.position,
+      points: res.points,
+      grid: res.grid,
+      status: archiveFinishStatus(res.status),
+    }));
+    const sprintResults = (r.sprintResults ?? []).map((res) => ({
       driver: res.driverId,
       driverName: res.driverName,
       team: res.constructor,
@@ -341,6 +359,8 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
         : [],
       poleSitter,
       results,
+      sprintResults,
+      sprintSource: sprintResults.length ? ("official" as const) : null,
       hasQualifying: !!r.qualifying?.length,
       // Archive rounds are complete by construction, so forecast/session-weather/pre-race
       // prediction genuinely don't exist for them (those belong to the live FastF1 pipeline) - but

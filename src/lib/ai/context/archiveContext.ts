@@ -10,6 +10,7 @@
 // it came from," none of that machinery needed to change for archive races to get real coverage -
 // only this builder and the route's source dispatch (see route.ts).
 
+import { archiveScoringResults } from "@/lib/supabase/archive";
 import { computeMoments, type Moment } from "@/lib/raceMoments";
 import { parseTimeToSeconds } from "@/lib/parseTimeToSeconds";
 import { getFavoriteDriverCard, getFavoriteTeamCard, getTrackHistory, type FavoriteDriverCard, type FavoriteTeamCard } from "@/lib/personalization";
@@ -28,7 +29,7 @@ function accumulateStandings(races: ArchiveRaceDoc[], throughRound: number): { d
   const teamPoints = new Map<string, number>();
   for (const race of races) {
     if (race.round > throughRound) continue;
-    for (const r of race.results) {
+    for (const r of archiveScoringResults(race)) {
       const d = driverPoints.get(r.driverId) ?? { name: r.driverName, points: 0 };
       d.points += r.points;
       d.name = r.driverName;
