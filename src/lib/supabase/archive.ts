@@ -127,6 +127,9 @@ export type ArchiveRaceDoc = {
   photoUrl?: string | null; // legacy single photo, superseded by photoUrls below
   photoUrls?: string[] | null; // real photos — see pipeline/enrich_archive.py's backfill_race_photos()
   qualifying?: ArchiveQualifyingEntry[];
+  /** The sprint classification on a sprint weekend (2021 onwards), archive_sprint_results. Its points count towards
+   * both championships (archiveScoringResults); wins and podiums stay Grand Prix only. */
+  sprintResults?: ArchiveResultEntry[];
   pitStops?: ArchivePitStopEntry[];
   lapsBackfilled?: boolean;
   circuitId?: string | null;
@@ -164,6 +167,21 @@ type ArchiveRaceRow = {
     driver_code: string | null;
     fastest_lap: ArchiveFastestLap | null;
   }[];
+  archive_sprint_results?: {
+    driver_id: string;
+    position: number | null;
+    position_text: string | null;
+    grid: number | null;
+    laps: number | null;
+    status: string | null;
+    points: number | null;
+    driver_name: string;
+    constructor: string | null;
+    team_id: string | null;
+    time: string | null;
+    driver_code: string | null;
+    fastest_lap: ArchiveFastestLap | null;
+  }[];
   archive_qualifying?: {
     driver_id: string;
     position: number;
@@ -177,6 +195,47 @@ type ArchiveRaceRow = {
 };
 
 const ARCHIVE_RACE_SELECT = "*, archive_results(*), archive_qualifying(*), archive_pit_stops(*)";
+
+type ArchiveSprintRow = NonNullable<ArchiveRaceRow["archive_sprint_results"]>[number] & { archive_race_id: string };
+
+function toArchiveSprintEntry(r: ArchiveSprintRow): ArchiveResultEntry {
+  return {
+    position: r.position ?? 0,
+    positionText: r.position_text ?? "",
+    grid: r.grid,
+    laps: r.laps,
+    status: r.status ?? "",
+    points: Number(r.points ?? 0),
+    driverId: r.driver_id,
+    driverName: r.driver_name,
+    constructor: r.constructor ?? "",
+    teamId: r.team_id,
+    time: r.time,
+    driverCode: r.driver_code,
+    fastestLap: null,
+  };
+}
+
+/** Adds each race's sprint (archive_sprint_results) - read on its own rather than embedded in ARCHIVE_RACE_SELECT, so
+ * a race page never fails over it: before the table exists, or if the read fails, races just come back without
+ * sprints. Only seasons with sprints (2021 on) are asked about. */
+async function withSprints(docs: ArchiveRaceDoc[]): Promise<ArchiveRaceDoc[]> {
+  const ids = docs.filter((d) => d.year >= 2021).map((d) => d.id);
+  if (ids.length === 0) return docs;
+  const byRace = new Map<string, ArchiveSprintRow[]>();
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_sprint_results").select("*").in("archive_race_id", ids.slice(i, i + 150)));
+    if (error) {
+      console.warn(`archive sprints not read: ${error.message}`);
+      return docs;
+    }
+    for (const row of (data ?? []) as ArchiveSprintRow[]) byRace.set(row.archive_race_id, [...(byRace.get(row.archive_race_id) ?? []), row]);
+  }
+  return docs.map((d) => {
+    const rows = byRace.get(d.id);
+    return rows?.length ? { ...d, sprintResults: rows.map(toArchiveSprintEntry) } : d;
+  });
+}
 
 function toArchiveRaceDoc(row: ArchiveRaceRow): ArchiveRaceDoc {
   return {
@@ -243,7 +302,7 @@ export const getArchiveSeason = unstable_cache(
       supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("year", year).order("round"),
     );
     if (error) throw new Error(`getArchiveSeason(${year}): ${error.message}`);
-    return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
+    return withSprints(((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc));
   },
   ["get-archive-season"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
@@ -255,7 +314,7 @@ export const getArchiveRace = unstable_cache(
       supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("year", year).eq("round", round).maybeSingle(),
     );
     if (error) throw new Error(`getArchiveRace(${year}, ${round}): ${error.message}`);
-    return data ? toArchiveRaceDoc(data as ArchiveRaceRow) : null;
+    return data ? (await withSprints([toArchiveRaceDoc(data as ArchiveRaceRow)]))[0] : null;
   },
   ["get-archive-race"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
@@ -294,6 +353,12 @@ export type ArchiveYearStats = {
 
 type ResultLeaderRow = { driver_id: string; driver_name: string; constructor: string | null; points: number | null; position: number | null; archive_races: { year: number } | null };
 
+/** The results a race's championship points come from: the Grand Prix and, on a sprint weekend, the sprint. THE
+ * place archive points are summed from - never for wins or podiums, which are Grand Prix only. */
+export function archiveScoringResults(race: Pick<ArchiveRaceDoc, "results" | "sprintResults">): ArchiveResultEntry[] {
+  return [...race.results, ...(race.sprintResults ?? [])];
+}
+
 /** Per-season race count (exact, off archive_races) and the points-sum leader for both driver and
  * constructor (see eras.ts's isVerifiedChampionYear for how a caller should label this - the
  * number itself is always a real sum, never fabricated). One full scan of archive_results (25,701
@@ -308,7 +373,7 @@ export const getArchiveYearStats = unstable_cache(
     // fetchAllRows on both - this project's 1000-row-per-request cap applies to any unfiltered
     // request, and archive_races alone already exceeds it (confirmed live). See
     // getArchiveCircuitStats's identical comment for the same bug this works around.
-    const [racesResult, resultsResult] = await Promise.all([
+    const [racesResult, resultsResult, sprintResult] = await Promise.all([
       fetchAllRows<{ year: number }>((from, to) => supabaseAdmin.from("archive_races").select("year", { count: "exact" }).range(from, to)),
       // archive_races(year) is a to-one embed but the untyped client infers an array without
       // generated schema types - same through-unknown cast every embed of this shape needs.
@@ -319,8 +384,17 @@ export const getArchiveYearStats = unstable_cache(
             .select("driver_id, driver_name, constructor, points, position, archive_races(year)", { count: "exact" })
             .range(from, to) as unknown as QueryPage<ResultLeaderRow>,
       ),
+      // Sprint points count in the season totals; `position: null` so a sprint win never counts as a win.
+      fetchAllRows<ResultLeaderRow>(
+        (from, to) =>
+          supabaseAdmin
+            .from("archive_sprint_results")
+            .select("driver_id, driver_name, constructor, points, archive_races(year)", { count: "exact" })
+            .range(from, to) as unknown as QueryPage<ResultLeaderRow>,
+      ),
     ]);
     if (racesResult.error) throw new Error(`getArchiveYearStats (races): ${racesResult.error.message}`);
+    if (sprintResult.error) console.warn(`getArchiveYearStats (sprints, counted as none): ${sprintResult.error.message}`);
     if (resultsResult.error) throw new Error(`getArchiveYearStats (results): ${resultsResult.error.message}`);
 
     const raceCountByYear = new Map<number, number>();
@@ -333,7 +407,7 @@ export const getArchiveYearStats = unstable_cache(
     const driverNameById = new Map<string, string>();
     const teamTallyByYear = new Map<number, Map<string, Tally>>(); // year -> constructor -> tally
 
-    for (const row of resultsResult.data) {
+    for (const row of [...resultsResult.data, ...(sprintResult.error ? [] : sprintResult.data).map((r) => ({ ...r, position: null }))]) {
       const year = row.archive_races?.year;
       if (year == null) continue;
       const points = row.points ?? 0;
@@ -533,7 +607,7 @@ export const getArchiveRacesByCircuitId = unstable_cache(
       supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("circuit_id", circuitId).order("year"),
     );
     if (error) throw new Error(`getArchiveRacesByCircuitId(${circuitId}): ${error.message}`);
-    return ((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc);
+    return withSprints(((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc));
   },
   ["get-archive-races-by-circuit"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
@@ -673,7 +747,7 @@ async function fetchArchiveRacesByIds(raceIds: string[]): Promise<ArchiveRaceDoc
   if (failed?.error) throw new Error(`fetchArchiveRacesByIds: ${failed.error.message}`);
 
   const rows = pages.flatMap((p) => (p.data ?? []) as ArchiveRaceRow[]);
-  return rows.map(toArchiveRaceDoc).sort((a, b) => a.year - b.year || a.round - b.round);
+  return (await withSprints(rows.map(toArchiveRaceDoc))).sort((a, b) => a.year - b.year || a.round - b.round);
 }
 
 /** A driver's career — every race archive_results has this driver_id in, oldest first. A real
