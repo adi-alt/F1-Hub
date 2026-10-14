@@ -14,6 +14,7 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { useSignupOptions } from "@/queries/useSignupOptions";
 import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
 import type { Role } from "@/lib/rbac";
+import { ApexMark } from "@/components/brand/ApexMark";
 
 type Step = "method" | "otp" | "profile";
 type OAuthProvider = "google" | "github" | "discord" | "gitlab";
@@ -69,9 +70,9 @@ function FormulaScene() {
         </g>
       </svg>
       <div className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
-          <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
-          F1 HUB
+        <div className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-white">
+          <ApexMark size={20} />
+          Apex F1 Hub
         </div>
         <StartLights className="scale-75" />
       </div>

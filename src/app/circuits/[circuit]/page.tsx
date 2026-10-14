@@ -5,6 +5,7 @@ import { getCircuitDetailData, resolveCircuitSlug } from "../services/circuits.s
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
 type Props = {
   params: Promise<{ circuit: string }>;
@@ -12,10 +13,13 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { circuit } = await params;
-  return {
-    title: `Circuit: ${circuit}`,
-    description: `Track intelligence, race history, and records for ${circuit}.`,
-  };
+  // The slug is the circuit's own name, slugified ("suzuka" -> "Suzuka", "las-vegas" -> "Las Vegas").
+  const name = decodeURIComponent(circuit).split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return pageMetadata({
+    title: name,
+    description: `${name} on the Formula 1 calendar: the track from real timing data, how it changed, past winners and records.`,
+    path: `/circuits/${circuit}`,
+  });
 }
 
 export default async function CircuitRoute({ params }: Props) {

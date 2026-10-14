@@ -13,6 +13,10 @@ import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { RefreshAlert } from "@/components/ui/RefreshAlert";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import type { Metadata } from "next";
+
+// The title, description and share card are the root layout's own (the site's); only the canonical is the page's.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // Reading the session cookie makes this route inherently dynamic (no route-level `revalidate`
 // possible), but the underlying Postgres reads are still cached via `unstable_cache` in

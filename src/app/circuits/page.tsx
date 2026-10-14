@@ -7,6 +7,7 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { slugifyRaceName } from "@/lib/routes";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
 async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   const [data, profile] = await Promise.all([
@@ -22,10 +23,11 @@ async function CircuitsIndex({ year, uid }: { year: number; uid: string }) {
   );
 }
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Circuits",
-  description: "Every circuit on the current F1 calendar — track intelligence, race history, and records.",
-};
+  description: "Every circuit on the Formula 1 calendar: the track drawn from real timing data, how its layout changed, past winners and records.",
+  path: "/circuits",
+});
 
 // Dynamic Legacy Route Canonicalization: 
 // The circuits section previously used ?circuit= routing. We dynamically redirect to canonical 

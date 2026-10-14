@@ -3,6 +3,10 @@ import { NotificationsForm } from "@/components/profile/NotificationsForm";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getUserProfile } from "@/lib/supabase/users";
 import { getSession } from "@/lib/session/getSession";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({ title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in.", path: "/profile/notifications", index: false });
 
 export default async function NotificationsPage() {
   const session = await getSession();

@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { getSiteAdmin } from "@/lib/siteAdmin";
 import { getReview, listReviewRaces } from "@/lib/supabase/racePhotos";
 import { RacePhotoReview } from "./RacePhotoReview";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Race photos", robots: { index: false, follow: false } };
+export const metadata: Metadata = pageMetadata({ title: "Race photos", description: "Approve race photos.", path: "/admin/race-photos", index: false });
 
 /**
  * Where a site admin approves race photos (pipeline/race_photos.py finds the candidates; nothing reaches a race

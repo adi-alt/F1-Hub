@@ -26,6 +26,7 @@ import { archiveSeasonHref, slugifyRaceName } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
  * Archive year) - "the race detail page must be identical regardless of where the user came
@@ -38,15 +39,24 @@ import { getCurrentSeason } from "@/lib/currentSeason";
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ year?: string; race?: string }> }): Promise<Metadata> {
   const { year: yearParam, race: raceParam } = await searchParams;
   const year = Number(yearParam);
-  if (!yearParam || !raceParam || Number.isNaN(year)) return { title: "Race" };
+  const fallback = pageMetadata({ title: "Race", description: "A Formula 1 race weekend: results, qualifying, the race replay and the model's simulation.", path: "/race" });
+  if (!yearParam || !raceParam || Number.isNaN(year)) return fallback;
+  const path = `/race?year=${year}&race=${raceParam}`;
 
   if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     const match = (await getRacesByYear(year)).find((r) => slugifyRaceName(r.name) === raceParam);
-    return match ? { title: `${match.name} ${year}` } : { title: "Race" };
+    if (!match) return fallback;
+    const description =
+      match.status === "completed"
+        ? `${match.name} ${year}: the result, qualifying, a replay of every car on the circuit and how the model called it.`
+        : `${match.name} ${year}: the weekend's schedule, the model's simulation of who's likely to win, and your prediction.`;
+    return pageMetadata({ title: `${match.name} ${year}`, description, path });
   }
   const match = (await getArchiveSeasonData(year)).find((r) => slugifyRaceName(r.raceName) === raceParam);
-  return match ? { title: `${match.raceName} ${year}` } : { title: "Race" };
+  if (!match) return fallback;
+  return pageMetadata({ title: `${match.raceName} ${year}`, description: `The ${year} ${match.raceName}: the official result, qualifying, pit stops and lap times.`, path });
 }
+
 
 export default async function RacePage({ searchParams }: { searchParams: Promise<{ year?: string; race?: string }> }) {
   const session = await getSession();

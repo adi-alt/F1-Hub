@@ -9,11 +9,13 @@ import { getSession } from "@/lib/session/getSession";
 import { archiveSeasonHref } from "@/lib/routes";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Season",
-  description: "Standings, results, and predictions for the current F1 season, round by round.",
-};
+  description: "The current Formula 1 season, round by round: drivers' and constructors' standings with sprint points, form and the title fight.",
+  path: "/season",
+});
 
 export default async function SeasonPage({
   searchParams,

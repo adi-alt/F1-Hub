@@ -76,7 +76,7 @@ export function RaceIntelligenceSection({
 
   const shared = data?.shared;
   const isAi = shared?.generationMode === "ai";
-  const heading = data ? (isAi ? "F1 HUB Race Intelligence" : "F1 HUB Race Summary") : "F1 HUB Race Intelligence";
+  const heading = data ? (isAi ? "Apex F1 Hub Race Intelligence" : "Apex F1 Hub Race Summary") : "Apex F1 Hub Race Intelligence";
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>

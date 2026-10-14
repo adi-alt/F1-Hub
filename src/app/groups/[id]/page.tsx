@@ -25,6 +25,7 @@ import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
 /** How many open rounds the context rail shows before it stops being a rail. The rest are one
  * click away in the Predictions tab it links to. */
@@ -43,7 +44,11 @@ function statsFallback(memberCount: number): GroupStats {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const preview = await getGroupPreview(id).catch(() => null);
-  return { title: preview ? preview.name : "Community" };
+  if (!preview) return pageMetadata({ title: "Community", description: "A prediction league and F1 community on Apex F1 Hub.", path: `/groups/${id}` });
+  // A private community's own description stays private: only its name goes on the card (an invite link needs it).
+  const about = preview.visibility === "public" && preview.description ? preview.description : "A prediction league and F1 community on Apex F1 Hub.";
+  const members = `${preview.memberCount} member${preview.memberCount === 1 ? "" : "s"}`;
+  return pageMetadata({ title: preview.name, description: `${about} ${members}.`, path: `/groups/${id}` });
 }
 
 export default async function CommunityPage({

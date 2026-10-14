@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -14,6 +14,7 @@ import { AppProviders } from "@/providers/AppProviders";
 import type { InitialAuth } from "@/providers/AuthProvider";
 import { getSession } from "@/lib/session/getSession";
 import { getHeaderSessions } from "@/lib/supabase/headerSessions";
+import { SHARE_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,11 +27,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const HOME_TITLE = `${SITE_NAME}: live F1 results, predictions and every race since 1950`;
+
 export const metadata: Metadata = {
+  metadataBase: SITE_URL,
+  applicationName: SITE_NAME,
   // No year in it: it is cached and shared, and a hard-coded season goes stale on 1 January.
-  title: { template: "%s | F1 Hub", default: "F1 Hub: Race Predictions" },
-  description: "Race results, track history, and ML-driven predictions for the current F1 season.",
+  title: { template: `%s | ${SITE_NAME}`, default: HOME_TITLE },
+  description: SITE_DESCRIPTION,
+  // The home page's card, and every page's that doesn't set its own (each page does, through lib/seo.ts).
+  openGraph: { type: "website", siteName: SITE_NAME, title: HOME_TITLE, description: SITE_DESCRIPTION, url: "/", locale: "en_GB", images: [SHARE_IMAGE] },
+  twitter: { card: "summary_large_image", title: HOME_TITLE, description: SITE_DESCRIPTION, images: [SHARE_IMAGE] },
 };
+
+// The app's colour for the browser's own UI (the address bar on a phone).
+export const viewport: Viewport = { themeColor: "#0b0b0d" };
 
 export default async function RootLayout({
   children,

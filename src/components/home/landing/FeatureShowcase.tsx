@@ -72,7 +72,7 @@ export function FeatureShowcase({ landing }: { landing: LandingData }) {
   return (
     <section aria-labelledby="showcase-heading" className="isolate grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
       <div className="min-w-0">
-        <p className="text-body-sm text-secondary">What is F1 Hub?</p>
+        <p className="text-body-sm text-secondary">What is Apex F1 Hub?</p>
         <h2 id="showcase-heading" className="mt-1 text-display-md font-semibold text-primary">
           Everything about the Formula 1 season, in one place.
         </h2>

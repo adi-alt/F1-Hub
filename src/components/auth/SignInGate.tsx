@@ -24,10 +24,10 @@ function gateFor(label: string): Gate {
     return { title: "Predict with your friends", lead: "Make your picks before each Grand Prix and see who reads the sport best.", points: ["Pick the winner, the podium and more", "Private communities with their own leaderboard", "Score against everyone else - and our model"], preview: "predict", window: "Predict" };
   if (l.includes("season") || l.includes("standing"))
     return { title: "The championship, round by round", lead: "Standings with sprint points, form and how the title fight moved.", points: ["Drivers' and constructors' standings", "Form, streaks and head-to-heads", "Apex's take on the season so far"], preview: "apex", window: "Apex" };
-  return { title: `Sign in to see ${label}`, lead: "F1 Hub is free: results, predictions, an AI analyst and every race since 1950.", points: ["Live results and timing for every session", "Predictions you can play with friends", "Every race since 1950"], preview: "apex", window: "Apex" };
+  return { title: `Sign in to see ${label}`, lead: "Apex F1 Hub is free: results, predictions, an AI analyst and every race since 1950.", points: ["Live results and timing for every session", "Predictions you can play with friends", "Every race since 1950"], preview: "apex", window: "Apex" };
 }
 
-/** The rest of the site, for the "Also on F1 Hub" row - the gate's own section left out. */
+/** The rest of the site, for the "Also on Apex F1 Hub" row - the gate's own section left out. */
 const ALSO: { key: Preview | "season"; href: string; icon: typeof Flag; title: string; text: string }[] = [
   { key: "predict", href: "/groups", icon: Trophy, title: "Predict", text: "Picks for every Grand Prix, with friends" },
   { key: "replay", href: "/season", icon: Flag, title: "Races", text: "Replays, qualifying and the simulation" },
@@ -107,7 +107,7 @@ export function SignInGate({ label = "this" }: { label?: string }) {
 
       <section aria-labelledby="also-heading" className="mt-14 border-t border-subtle pt-8">
         <h2 id="also-heading" className="text-body font-semibold text-primary">
-          Also on F1 Hub
+          Also on Apex F1 Hub
         </h2>
         <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {also.map((a) => (

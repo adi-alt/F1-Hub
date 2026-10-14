@@ -6,11 +6,14 @@ import { NotAuthorized } from "@/components/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Models",
-  description: "Benchmark runs and pipeline operations for F1 Hub's prediction models.",
-};
+  description: "Benchmark runs and pipeline operations for Apex F1 Hub's prediction models.",
+  path: "/models",
+  index: false,
+});
 
 export default async function ModelsPage() {
   const session = await getSession();

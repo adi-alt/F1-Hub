@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The Apex mark for small sizes: the same A and racing line, heavier, so it still reads at 16px. -->
+  <rect width="32" height="32" rx="7" fill="#0b0b0d" />
+  <g fill="none" stroke="#f2f2f3" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 24.5 L12.5 8 L20 24.5" />
+    <path d="M8.3 18.5 L22.5 18.5" />
+  </g>
+  <circle cx="25.6" cy="18.5" r="3.4" fill="#e10600" />
+</svg>

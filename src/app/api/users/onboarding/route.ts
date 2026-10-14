@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, outcome });
 }
 
-/** "Replay F1 Hub tour" - clears the stamp only, never any other profile data. */
+/** "Replay Apex F1 Hub tour" - clears the stamp only, never any other profile data. */
 export async function DELETE() {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });

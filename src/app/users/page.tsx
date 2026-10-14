@@ -5,11 +5,14 @@ import { NotAuthorized } from "@/components/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Users",
-  description: "Manage F1 Hub user accounts and roles.",
-};
+  description: "Manage Apex F1 Hub accounts and roles.",
+  path: "/users",
+  index: false,
+});
 
 export default async function UsersPage() {
   const session = await getSession();
@@ -38,8 +41,8 @@ export default async function UsersPage() {
         <h1 className="text-3xl font-bold text-white">Users</h1>
         <p className="mt-1.5 text-sm text-tertiary">
           {permissions.canManageRoles
-            ? "Every account on F1 Hub, and who holds which role."
-            : "Every account on F1 Hub. Only admins can change roles."}
+            ? "Every account on Apex F1 Hub, and who holds which role."
+            : "Every account on Apex F1 Hub. Only admins can change roles."}
         </p>
       </div>
       <div className="mt-8">

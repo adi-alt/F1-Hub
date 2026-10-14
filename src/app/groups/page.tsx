@@ -9,6 +9,7 @@ import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
 /** The rounds a prediction can still be opened on: this season's own races that haven't finished,
  * in calendar order. Exactly what createPrediction will accept (it rejects a completed race
@@ -54,10 +55,11 @@ async function getDriversByRace(raceIds: string[]): Promise<Record<string, { cod
  * rather than failing this whole page (an empty predictions/next-race list already reads fine as
  * "nothing right now" - Promise.all only needs to not fully reject, and none of these four throws
  * for "no data", only for a real query error, so any real failure still surfaces normally). */
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Communities",
-  description: "Find people and spaces around the things you care about - F1 and everything else.",
-};
+  description: "Prediction leagues and F1 communities: pick the podium every Grand Prix with friends and see who reads the sport best.",
+  path: "/groups",
+});
 
 export default async function GroupsPage() {
   const session = await getSession();

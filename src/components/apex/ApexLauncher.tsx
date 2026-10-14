@@ -216,7 +216,7 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-caption font-semibold uppercase tracking-wide text-tertiary">Apex is looking at</p>
-          <p className="mt-0.5 truncate text-body-sm font-semibold text-primary">{reach === "page" ? scope.label : "Everything on F1 HUB"}</p>
+          <p className="mt-0.5 truncate text-body-sm font-semibold text-primary">{reach === "page" ? scope.label : "Everything on Apex F1 Hub"}</p>
           {reach === "page" && scope.sublabel && <p className="truncate text-caption text-tertiary">{scope.sublabel}</p>}
         </div>
         <Button variant="ghost" size="sm" iconOnly iconStart={X} aria-label="Close Apex" onClick={onClose} className="-mr-1.5 -mt-1" />
@@ -229,7 +229,7 @@ function ScopeHeader({ scope, reach, onReach, onClose }: { scope: ApexScope; rea
           {(
             [
               { value: "page" as const, label: "This page" },
-              { value: "everything" as const, label: "All of F1 HUB" },
+              { value: "everything" as const, label: "All of Apex F1 Hub" },
             ]
           ).map((option) => (
             <button
