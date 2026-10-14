@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { CircuitHero, type HeroAnswer } from "./CircuitHero";
 import { CircuitRecords } from "./CircuitRecords";
 import { PastWinnersList } from "./PastWinnersList";
 import { CircuitTrendChart } from "./CircuitTrendChart";
 import { CircuitEras } from "./CircuitEras";
-import { CircuitRaceStory } from "./CircuitRaceStory";
-import { ReplaySection } from "@/components/raceDetail/ReplaySection";
+import { CircuitRaceTabs } from "./CircuitRaceTabs";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
@@ -79,51 +77,42 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
       {/* One column, each section full width and sized to its content: the race, Apex's read of it, the records,
           then the history. (A main column beside a rail left whichever side was shorter standing empty.) */}
       <div className="space-y-8 lg:space-y-12">
-        {replay && raceForSimulation && (
-          <RaceSectionCard
-            id="replay"
-            title={`${raceForSimulation.year} race replay`}
-            description="Every car on the real circuit, lights out to the flag. Press play, scrub the timeline, or jump to a lead change."
-            headerRight={
-              <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
-                Full results
-              </Link>
-            }
-          >
-            <ReplaySection entry={replay} inline />
-          </RaceSectionCard>
+        {/* The race (replay and story, as tabs) beside the track through time; then Apex beside the records. */}
+        {(raceForSimulation || eras.length > 0) && (
+          <div className={`grid grid-cols-1 items-start gap-8 lg:gap-10 ${raceForSimulation && eras.length > 0 ? "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" : ""}`}>
+            {raceForSimulation && (
+              <CircuitRaceTabs
+                year={raceForSimulation.year}
+                title={`${raceForSimulation.year} ${raceForSimulation.name}`}
+                resultsHref={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)}
+                replay={replay}
+                laps={raceLaps}
+                results={raceForSimulation.results ?? []}
+                trackStory={trackStory}
+                layout={raceLayout}
+              />
+            )}
+            {eras.length > 0 && (
+              <section id="eras" aria-labelledby="eras-heading" className="min-w-0 scroll-mt-24 rounded-card bg-surface-1 p-5">
+                <h2 id="eras-heading" className="text-title-lg text-primary">
+                  The track through time
+                </h2>
+                <p className="mb-4 text-body-sm text-secondary">Every layout it has had, from the first on record.</p>
+                <CircuitEras eras={eras} winners={winners} currentYear={year} />
+              </section>
+            )}
+          </div>
         )}
 
-        {raceForSimulation && (
-          <RaceSectionCard
-            id="race-story"
-            title={`How the ${raceForSimulation.year} race unfolded`}
-            description="Every lead change, and where on the circuit it happened. Pick a moment to see it."
-            headerRight={
-              !replay ? (
-                <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="text-body-sm font-medium text-secondary underline-offset-4 hover:text-primary hover:underline">
-                  Full results
-                </Link>
-              ) : undefined
-            }
-          >
-            <CircuitRaceStory laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout}  />
-          </RaceSectionCard>
-        )}
-
-        <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
-
-        {timeline.length > 0 && (
-          <RaceSectionCard id="records" title="Records">
-            <CircuitRecords timeline={timeline} winnerMedia={winnerMedia} />
-          </RaceSectionCard>
-        )}
-
-        {eras.length > 0 && (
-          <RaceSectionCard id="eras" title="The track through time" description="Every layout this circuit has had, from the earliest on record to the one raced today.">
-            <CircuitEras eras={eras} winners={winners} currentYear={year} />
-          </RaceSectionCard>
-        )}
+        {/* Apex beside the records; the records take the row when Apex has nothing to say. */}
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-10 lg:[&:has(>*:only-child)]:grid-cols-1">
+          <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
+          {timeline.length > 0 && (
+            <RaceSectionCard id="records" title="Records">
+              <CircuitRecords timeline={timeline} winnerMedia={winnerMedia} />
+            </RaceSectionCard>
+          )}
+        </div>
 
         {(timeline.length > 0 || trend.length >= 2) && (
           <div className={`grid grid-cols-1 items-stretch gap-8 lg:gap-10 ${timeline.length > 0 && trend.length >= 2 ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]" : ""}`}>

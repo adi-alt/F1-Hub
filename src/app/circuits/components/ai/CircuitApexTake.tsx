@@ -24,7 +24,7 @@ const BLOCK_ORDER: BlockKey[] = ["trackTake", "raceDifference", "trackVsSeason",
  * ever appears - never a placeholder tab for a block that came back empty. Loads independently of
  * everything else on the page, exactly like RaceApexTake, so the rest of Track Experience is
  * readable the instant the page opens rather than waiting on a model response. */
-export function CircuitApexTake({ location, year, status, title = "Apex on this circuit" }: { location: string; year: number; status: string; title?: string }) {
+export function CircuitApexTake({ location, year, status, title = "Apex on this circuit", bare = false }: { location: string; year: number; status: string; title?: string; /** No section of its own: for a tab inside another component. */ bare?: boolean }) {
   const [take, setTake] = useState<SharedCircuitIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<BlockKey | null>(null);
@@ -68,14 +68,14 @@ export function CircuitApexTake({ location, year, status, title = "Apex on this 
   // Its own section, so that when Apex has nothing for this circuit the page shows nothing - never an empty box.
   if (loading) {
     return (
-      <Frame title={title}>
+      <Frame title={title} bare={bare}>
         <LoadingRegion label="Apex is reading this circuit">
           <InsightSkeleton lines={2} />
         </LoadingRegion>
       </Frame>
     );
   }
-  if (!take) return null;
+  if (!take) return bare ? <p className="text-body-sm text-secondary">Apex has nothing to add about this circuit yet.</p> : null;
 
   const availableTabs = BLOCK_ORDER.filter((k) => !!take[k]);
   if (availableTabs.length === 0) return null;
@@ -87,7 +87,7 @@ export function CircuitApexTake({ location, year, status, title = "Apex on this 
   const content = (
     <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16, ease: "easeOut" }}>
       {/* Headline beside the read, so a full-width section is filled rather than half empty. */}
-      <div className="grid gap-x-10 gap-y-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <div className="grid gap-x-10 gap-y-2 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
       <p className="text-title-md font-semibold text-primary">{block.headline}</p>
       <div>
       <p className="text-body-sm text-secondary">{block.summary}</p>
@@ -117,7 +117,7 @@ export function CircuitApexTake({ location, year, status, title = "Apex on this 
   );
 
   return (
-    <Frame title={title}>
+    <Frame title={title} bare={bare}>
 
       {/* Segmented: small in-card tabs over one block of text, not page navigation. */}
       {availableTabs.length > 1 ? (
@@ -133,10 +133,12 @@ export function CircuitApexTake({ location, year, status, title = "Apex on this 
   );
 }
 
-function Frame({ children, title }: { children: React.ReactNode; title: string }) {
+function Frame({ children, title, bare }: { children: React.ReactNode; title: string; bare: boolean }) {
+  // @container: the read lays out by the width it's given (a full row, half a row, or a tab), not the screen's.
+  if (bare) return <div className="@container">{children}</div>;
   return (
     <RaceSectionCard id="apex" title={title}>
-      {children}
+      <div className="@container">{children}</div>
     </RaceSectionCard>
   );
 }

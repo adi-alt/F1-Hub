@@ -9,6 +9,7 @@ import { teamColor } from "@/lib/teamColors";
 import { nodeStatus } from "./nodeStatus";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
+import { TabList, Tabs } from "@/components/ui/Tabs";
 import type { CircuitExplorerEntry } from "../services/circuits.service";
 
 type Filter = "all" | "raced" | "to-come" | "favourites";
@@ -77,14 +78,7 @@ export function CircuitsHome({
         </p>
       </header>
 
-      {next && <NextUp entry={next} />}
-
-      {/* Apex's read of the next circuit: what to expect there, in words. */}
-      {next && (
-        <div className="mt-12">
-          <CircuitApexTake location={next.race.circuit ?? next.race.name} year={year} status={next.race.state} title={`Apex on ${next.race.name}`} />
-        </div>
-      )}
+      {next && <NextUp entry={next} year={year} />}
 
       <section aria-labelledby="calendar-heading" className="mt-12">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -118,42 +112,61 @@ export function CircuitsHome({
   );
 }
 
-/** The next race, first: its circuit drawn, when it is, the forecast, and the figures that matter. */
-function NextUp({ entry }: { entry: CircuitExplorerEntry }) {
+/** The next race, first: its circuit drawn (always), and beside it a tab for the weekend - when, the forecast and the
+ * figures that matter - or Apex's read of the circuit. One card instead of a banner plus a separate Apex section. */
+function NextUp({ entry, year }: { entry: CircuitExplorerEntry; year: number }) {
   const { race, facts, drawing, daysToGo } = entry;
   const href = circuitHref(race.circuit ?? race.name);
+  const [tab, setTab] = useState<"weekend" | "apex">("weekend");
   return (
-    <section aria-label="Next race" className="grid grid-cols-1 items-center gap-8 rounded-card bg-surface-1 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] lg:gap-10">
-      <div className="min-w-0">{drawing ? <CircuitCanvas drawing={drawing} className="max-h-60" caption={false} lapColor={BRAND} lapSeconds={6} /> : null}</div>
+    <section aria-label="Next race" className="grid grid-cols-1 items-center gap-8 rounded-card bg-surface-1 p-5 sm:p-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)] lg:gap-10">
+      <div className="min-w-0">{drawing ? <CircuitCanvas drawing={drawing} className="max-h-64" caption={false} lapColor={BRAND} lapSeconds={6} /> : null}</div>
       <div className="min-w-0">
-        <p className="text-caption text-brand-text">
-          {race.weekendStatus === "live" ? "Live now" : "Next race"} · Round {race.round}
-        </p>
-        <h2 className="mt-1 text-display-md font-semibold text-primary">{race.name}</h2>
-        <p className="mt-1 text-body text-secondary">{[facts?.venueName ?? race.circuit, race.country].filter(Boolean).join(", ")}</p>
-        <p className="mt-5 text-title-lg font-semibold text-primary">
-          {dateOf(race.raceDate)} · <span className="text-secondary">{inDays(daysToGo) ?? "Date TBC"}</span>
-        </p>
-        {race.forecast && (
-          <p className="mt-1 text-body-sm text-secondary">
-            {Math.round(race.forecast.airTempC)}°C, {Math.round(race.forecast.rainProbability * 100)}% chance of rain
-          </p>
-        )}
-        <Link
-          href={href}
-          className="mt-6 inline-flex items-center gap-1 rounded-control bg-brand px-4 py-2 text-body-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
-          Open the circuit →
-        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-caption text-brand-text">
+              {race.weekendStatus === "live" ? "Live now" : "Next race"} · Round {race.round}
+            </p>
+            <h2 className="mt-1 text-display-md font-semibold text-primary">{race.name}</h2>
+            <p className="mt-1 text-body text-secondary">{[facts?.venueName ?? race.circuit, race.country].filter(Boolean).join(", ")}</p>
+          </div>
+          <Tabs variant="segmented" value={tab} onValueChange={(v) => setTab(v as "weekend" | "apex")} items={[{ value: "weekend", label: "The weekend" }, { value: "apex", label: "Apex's take" }]}>
+            <TabList aria-label="About the next race" />
+          </Tabs>
+        </div>
+        <div className="mt-6 min-h-40">
+          {tab === "weekend" ? (
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+              <div>
+                <p className="text-title-lg font-semibold text-primary">
+                  {dateOf(race.raceDate)} · <span className="text-secondary">{inDays(daysToGo) ?? "Date TBC"}</span>
+                </p>
+                {race.forecast && (
+                  <p className="mt-1 text-body-sm text-secondary">
+                    {Math.round(race.forecast.airTempC)}°C, {Math.round(race.forecast.rainProbability * 100)}% chance of rain
+                  </p>
+                )}
+                <Link
+                  href={href}
+                  className="mt-6 inline-flex items-center gap-1 rounded-control bg-brand px-4 py-2 text-body-sm font-semibold text-white transition-colors hover:bg-brand/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                >
+                  Open the circuit →
+                </Link>
+              </div>
+              {facts && (
+                <dl className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-5 md:border-l md:border-subtle md:pl-8">
+                  <Fact label="Length · turns" value={`${facts.lengthKm.toFixed(3)} km · ${facts.turns}`} />
+                  <Fact label="Type" value={facts.trackType === "street" ? `Street${facts.nightRace ? ", at night" : ""}` : facts.trackType === "hybrid" ? "Hybrid" : "Permanent"} />
+                  {facts.lapRecord && <Fact label={`Lap record · ${facts.lapRecord.driverName}, ${facts.lapRecord.year}`} value={formatLapTime(facts.lapRecord.timeSec)} />}
+                  <Fact label="First Grand Prix" value={String(facts.firstGrandPrix)} />
+                </dl>
+              )}
+            </div>
+          ) : (
+            <CircuitApexTake location={race.circuit ?? race.name} year={year} status={race.state} bare />
+          )}
+        </div>
       </div>
-      {facts && (
-        <dl className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-1 lg:border-l lg:border-subtle lg:pl-10">
-          <Fact label="Length · turns" value={`${facts.lengthKm.toFixed(3)} km · ${facts.turns}`} />
-          <Fact label="Type" value={facts.trackType === "street" ? `Street${facts.nightRace ? ", at night" : ""}` : facts.trackType === "hybrid" ? "Hybrid" : "Permanent"} />
-          {facts.lapRecord && <Fact label={`Lap record · ${facts.lapRecord.driverName}, ${facts.lapRecord.year}`} value={formatLapTime(facts.lapRecord.timeSec)} />}
-          <Fact label="First Grand Prix" value={String(facts.firstGrandPrix)} />
-        </dl>
-      )}
     </section>
   );
 }

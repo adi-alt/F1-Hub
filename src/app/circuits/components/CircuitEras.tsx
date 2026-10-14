@@ -35,8 +35,8 @@ export function CircuitEras({ eras, winners, currentYear }: { eras: EraEntry[]; 
   };
 
   return (
-    <div>
-      <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-12">
+    <div className="@container">
+      <div className="grid items-center gap-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @3xl:gap-12">
         <CircuitCanvas drawing={era.drawing} className="max-h-[20rem]" lapColor="rgb(255 255 255 / 0.75)" lapSeconds={9} />
         <div className="min-w-0">
           <p className="text-caption text-tertiary">
