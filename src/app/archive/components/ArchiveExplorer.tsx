@@ -148,7 +148,7 @@ export function ArchiveExplorer({
             onChange={(e) => setSearch(e.target.value)}
             placeholder={PLACEHOLDER[facet]}
             aria-label={PLACEHOLDER[facet]}
-            className="h-9 w-full max-w-xs rounded-lg border border-[var(--f1-line)] bg-black/20 px-4 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
+            className="h-9 w-full max-w-xs rounded-lg border border-subtle bg-black/20 px-4 text-sm text-primary placeholder:text-tertiary focus:border-white/40 focus:outline-none"
           />
         </div>
 
@@ -197,7 +197,7 @@ export function ArchiveExplorer({
                         setSearch("");
                         setEra("all");
                       }}
-                      className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline"
+                      className="text-secondary underline-offset-2 transition hover:text-primary hover:underline"
                     >
                       Clear search
                     </button>
@@ -237,7 +237,7 @@ export function ArchiveExplorer({
               (driversQuery.isError ? (
                 <p className="text-sm text-tertiary">
                   Couldn&apos;t load drivers.{" "}
-                  <button type="button" onClick={() => driversQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+                  <button type="button" onClick={() => driversQuery.refetch()} className="text-secondary underline-offset-2 transition hover:text-primary hover:underline">
                     Try again
                   </button>
                 </p>
@@ -263,7 +263,7 @@ export function ArchiveExplorer({
               (teamsQuery.isError ? (
                 <p className="text-sm text-tertiary">
                   Couldn&apos;t load teams.{" "}
-                  <button type="button" onClick={() => teamsQuery.refetch()} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+                  <button type="button" onClick={() => teamsQuery.refetch()} className="text-secondary underline-offset-2 transition hover:text-primary hover:underline">
                     Try again
                   </button>
                 </p>

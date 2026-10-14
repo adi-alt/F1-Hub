@@ -10,7 +10,7 @@ const ERA_OPTIONS: MultiSelectOption[] = [{ code: "all", label: "All eras" }, ..
 // rather than see-through (confirmed live: without it, whatever sits underneath shows through
 // sharp, not blurred). Same backdrop-blur-md ArchiveTable's own sticky header already uses for
 // the identical "floats over other content" reason.
-const DROPDOWN_SURFACE = "border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 backdrop-blur-md";
+const DROPDOWN_SURFACE = "border border-subtle bg-surface-1 backdrop-blur-md";
 
 /** Same compact single-select popover Compare's driver/team pickers use
  * (season/_components/EntityMultiSelect, multiple={false}) instead of a row of always-visible
@@ -44,7 +44,7 @@ function FilterPill({ active, onClick, children }: { active: boolean; onClick: (
       onClick={onClick}
       aria-pressed={active}
       className={`flex h-9 items-center rounded-md border px-3 text-xs font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${
-        active ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/15 text-white" : "border-white/10 text-neutral-400 hover:text-white"
+        active ? "border-[var(--f1-red)]/50 bg-[var(--f1-red)]/15 text-primary" : "border-subtle text-secondary hover:text-primary"
       }`}
     >
       {children}
@@ -124,7 +124,7 @@ export function TrackFilters({
             onCountryChange("");
             onFavoritesOnlyChange(false);
           }}
-          className="text-xs text-tertiary underline-offset-2 transition hover:text-white hover:underline"
+          className="text-xs text-tertiary underline-offset-2 transition hover:text-primary hover:underline"
         >
           Clear filters
         </button>

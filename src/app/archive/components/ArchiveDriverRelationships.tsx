@@ -16,27 +16,27 @@ export type DriverRelationship = { driverId: string; name: string; photoUrl: str
 export function ArchiveDriverRelationships({ drivers, maxHeightPx = 320 }: { drivers: DriverRelationship[]; maxHeightPx?: number }) {
   if (drivers.length === 0) return null;
   return (
-    <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+    <div className="overflow-hidden rounded-lg border border-subtle bg-surface-1">
       <div className="overflow-y-auto" style={{ maxHeight: maxHeightPx }}>
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 z-10 border-b border-white/[0.08] text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
+          <thead className="sticky top-0 z-10 border-b border-subtle text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md" style={HEADER_STYLE}>
             <tr>
               <th className="px-3 py-2.5 font-semibold">Driver</th>
               <th className="px-3 py-2.5 text-right font-semibold">Races</th>
               <th className="px-3 py-2.5 text-right font-semibold">Wins</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--f1-line)]">
+          <tbody className="divide-y divide-subtle">
             {drivers.map((d) => (
               <tr key={d.driverId} className="transition-colors hover:bg-white/[0.02]">
                 <td className="whitespace-nowrap px-3 py-2">
-                  <Link href={archiveDriverHref(d.driverId)} className="flex min-w-0 items-center gap-2 transition hover:text-white">
+                  <Link href={archiveDriverHref(d.driverId)} className="flex min-w-0 items-center gap-2 transition hover:text-primary">
                     <EntityAvatar imageUrl={d.photoUrl} name={d.name} size={24} fit="cover" />
-                    <span className="truncate font-medium text-neutral-200">{d.name}</span>
+                    <span className="truncate font-medium text-primary">{d.name}</span>
                   </Link>
                 </td>
-                <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-neutral-400">{d.races}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs tabular-nums text-white">{d.wins}</td>
+                <td className="px-3 py-2 text-right text-xs tabular text-secondary">{d.races}</td>
+                <td className="px-3 py-2 text-right text-xs tabular text-primary">{d.wins}</td>
               </tr>
             ))}
           </tbody>

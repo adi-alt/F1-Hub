@@ -11,7 +11,7 @@ export function ArchiveCircuitGridSkeleton({ count = 12 }: { count?: number }) {
   return (
     <motion.div initial="hidden" animate="show" variants={staggerContainer} className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {Array.from({ length: count }).map((_, i) => (
-        <motion.div key={i} variants={staggerItem} className="overflow-hidden rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
+        <motion.div key={i} variants={staggerItem} className="overflow-hidden rounded-2xl border border-subtle bg-surface-1">
           <Skeleton shape="block" className="h-32 w-full" />
           <div className="px-3.5 py-3">
             <Skeleton shape="block" className="h-4 w-2/3" />

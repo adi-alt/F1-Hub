@@ -18,7 +18,7 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       // No logo - Archive is the restrained, statistical/reference counterpart to Season's richer
       // identity-driven cards; the team's own name is the entire identity element here.
       render: (t) => (
-        <Link href={archiveTeamHref(t.teamId)} title={t.name} className="truncate font-medium text-white hover:text-brand-text">
+        <Link href={archiveTeamHref(t.teamId)} title={t.name} className="truncate font-medium text-primary hover:text-brand-text">
           {t.name}
         </Link>
       ),
@@ -40,14 +40,14 @@ function buildColumns(activeTeamIds: Set<string>): ArchiveTableColumn<ArchiveTea
       defaultDir: "desc",
       widthClassName: "w-16",
       sortValue: (t) => t.raceCount,
-      render: (t) => <span className="text-neutral-400">{t.raceCount}</span>,
+      render: (t) => <span className="text-secondary">{t.raceCount}</span>,
     },
     {
       key: "years",
       label: "Years",
       align: "right",
       widthClassName: "w-24",
-      render: (t) => <span className="whitespace-nowrap text-neutral-400">{t.firstYear === t.lastYear ? t.firstYear : `${t.firstYear}–${t.lastYear}`}</span>,
+      render: (t) => <span className="whitespace-nowrap text-secondary">{t.firstYear === t.lastYear ? t.firstYear : `${t.firstYear}–${t.lastYear}`}</span>,
     },
     {
       key: "drivers",
@@ -88,6 +88,7 @@ export function ArchiveTeamTable({
       rows={teams}
       columns={buildColumns(activeTeamIds)}
       getId={(t) => t.teamId}
+      rowHref={(t) => archiveTeamHref(t.teamId)}
       getSearchText={(t) => t.name}
       search={search}
       defaultSortKey="races"

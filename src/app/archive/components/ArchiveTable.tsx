@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type MouseEvent, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerItem } from "@/components/motion/variants";
 import { useUrlPage } from "@/hooks/useUrlPage";
@@ -14,7 +15,7 @@ import { Pagination } from "./Pagination";
 /** Rows per page. A fixed number now: the page scrolls like any other, so the table no longer fills the
  * viewport and there is no height to fit rows to. */
 const PAGE_SIZE = 25;
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-subtle";
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
 export type ArchiveTableColumn<T> = {
@@ -61,7 +62,11 @@ export function ArchiveTable<T>({
   itemLabel,
   emptyMessage,
   onClearFilters,
+  rowHref,
 }: {
+  /** The page a row opens: the whole row is the target, not just its name (clicks on the row's own buttons and links
+   * - the favourite toggle - still do their own thing). */
+  rowHref?: (row: T) => string;
   rows: T[];
   columns: ArchiveTableColumn<T>[];
   getId: (row: T) => string;
@@ -76,6 +81,7 @@ export function ArchiveTable<T>({
   /** Resets search + favorites-only, offered as a button in the "no matches" empty state. */
   onClearFilters?: () => void;
 }) {
+  const router = useRouter();
   const [page, setPage] = useUrlPage();
   const defaultCol = columns.find((c) => c.key === defaultSortKey);
   const [sortParam, setSortParam] = useUrlParam("sort", `${defaultSortKey}:${defaultCol?.defaultDir ?? "desc"}`);
@@ -128,7 +134,7 @@ export function ArchiveTable<T>({
         {onClearFilters && (
           <>
             {" "}
-            <button type="button" onClick={onClearFilters} className="text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+            <button type="button" onClick={onClearFilters} className="text-secondary underline-offset-2 transition hover:text-primary hover:underline">
               Clear search
             </button>
           </>
@@ -139,7 +145,7 @@ export function ArchiveTable<T>({
 
   return (
     <div className="flex flex-col">
-      <div className="scrollbar-hide overflow-x-auto rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
+      <div className="scrollbar-hide overflow-x-auto rounded-xl border border-subtle bg-surface-1">
         {/* No min-w here - table-fixed's real minimum is already the sum of each column's own
             declared width (see ArchiveDriverTable/ArchiveTeamTable), and an extra floor on top of
             that was one more way to force horizontal scroll at a viewport narrower than the floor
@@ -210,7 +216,7 @@ export function ArchiveTable<T>({
               the same row stays visible but its rank changes (a sort), while rows that actually
               leave/enter the visible page still get a real exit/enter transition - one mechanism
               instead of a full stagger-replay on every kind of change. */}
-          <tbody className="divide-y divide-[var(--f1-line)]">
+          <tbody className="divide-y divide-subtle">
             <AnimatePresence initial={false}>
               {pageItems.map((row, i) => {
                 const id = getId(row);
@@ -227,7 +233,15 @@ export function ArchiveTable<T>({
                     // hover but "floppy" for table rows snapping into a new sort order. A tween
                     // reads as a controlled slide instead.
                     transition={{ layout: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
-                    className="transition-colors hover:bg-white/[0.03]"
+                    onClick={
+                      rowHref
+                        ? (e: MouseEvent<HTMLTableRowElement>) => {
+                            if ((e.target as HTMLElement).closest("a, button")) return;
+                            router.push(rowHref(row));
+                          }
+                        : undefined
+                    }
+                    className={`transition-colors duration-fast hover:bg-white/[0.04] ${rowHref ? "cursor-pointer" : ""}`}
                   >
                     <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
                     {columns.map((col) => (

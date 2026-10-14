@@ -19,7 +19,7 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="surface-inset overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60"
+      className="surface-inset overflow-hidden rounded-xl border border-subtle bg-surface-1"
     >
       {circuit.trackMap && (
         <div className="p-3.5 pb-0">
@@ -31,8 +31,8 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
       <div className="p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-tertiary">Circuit</p>
-            <p className="font-semibold text-white">{circuit.name}</p>
+            <p className="text-xs text-tertiary">Circuit</p>
+            <p className="font-semibold text-primary">{circuit.name}</p>
           </div>
           {circuit.wikipediaUrl && (
             <a href={circuit.wikipediaUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-brand-text hover:underline">
@@ -42,24 +42,24 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
         </div>
 
         {conditions && weather && (
-          <div className="mt-2.5 flex items-center gap-3 border-t border-[var(--f1-line)] pt-2.5">
+          <div className="mt-2.5 flex items-center gap-3 border-t border-subtle pt-2.5">
             <span className="text-2xl" aria-hidden>
               {conditions.emoji}
             </span>
             <div className="text-sm">
-              <p className="text-neutral-200">{conditions.label}</p>
+              <p className="text-primary">{conditions.label}</p>
               <p className="text-tertiary">
                 {Math.round(weather.tempMinC)}°–{Math.round(weather.tempMaxC)}°C
                 {weather.precipitationMm > 0 ? ` · ${weather.precipitationMm.toFixed(1)}mm precip.` : ""}
               </p>
-              <p className="mt-0.5 text-[11px] text-tertiary">Estimated from historical weather reanalysis, not a station reading.</p>
+              <p className="mt-0.5 text-caption text-tertiary">Estimated from historical weather reanalysis, not a station reading.</p>
             </div>
           </div>
         )}
 
         <Link
           href={archiveCircuitHref(circuit.circuitId)}
-          className="mt-2.5 flex items-center justify-center gap-1 rounded-lg border border-[var(--f1-line)] bg-white/[0.03] px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+          className="mt-2.5 flex items-center justify-center gap-1 rounded-lg border border-subtle bg-white/[0.03] px-3 py-2 text-xs font-medium text-secondary transition hover:border-white/20 hover:bg-white/[0.06] hover:text-primary"
         >
           Track History →
         </Link>

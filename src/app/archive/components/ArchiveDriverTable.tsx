@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import { archiveDriverHref } from "@/lib/routes";
 import { ArchiveTable, type ArchiveTableColumn } from "./ArchiveTable";
 import type { ArchiveDriver } from "@/lib/supabase/archive";
@@ -14,14 +15,14 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     sortable: true,
     defaultDir: "asc",
     sortValue: (d) => d.name,
-    // No photo - Archive is the restrained, statistical/reference counterpart to Season's richer
-    // identity-driven cards (see SeasonCard's own comment); the driver's own name is the entire
-    // identity element here. ArchiveDriver.photoUrl still exists in the data layer, unused by
-    // this table on purpose, not deleted - Season still uses the same field.
+    // The face with the name, as everywhere else on the site; the whole row opens the driver (rowHref).
     render: (d) => (
-      <Link href={archiveDriverHref(d.driverId)} title={d.name} className="truncate font-medium text-white hover:text-brand-text">
-        {d.name}
-      </Link>
+      <span className="flex min-w-0 items-center gap-3">
+        <EntityAvatar imageUrl={d.photoUrl ?? null} name={d.name} size={28} />
+        <Link href={archiveDriverHref(d.driverId)} title={d.name} className="truncate font-medium text-primary underline-offset-4 hover:underline">
+          {d.name}
+        </Link>
+      </span>
     ),
   },
   {
@@ -30,20 +31,20 @@ const COLUMNS: ArchiveTableColumn<ArchiveDriver>[] = [
     align: "right",
     sortable: true,
     defaultDir: "desc",
-    widthClassName: "w-16",
+    widthClassName: "w-24",
     sortValue: (d) => d.raceCount,
-    render: (d) => <span className="text-neutral-400">{d.raceCount}</span>,
+    render: (d) => <span className="tabular text-secondary">{d.raceCount}</span>,
   },
   {
     key: "years",
     label: "Years",
     align: "right",
-    widthClassName: "w-24",
-    render: (d) => <span className="whitespace-nowrap text-neutral-400">{d.firstYear === d.lastYear ? d.firstYear : `${d.firstYear}–${d.lastYear}`}</span>,
+    widthClassName: "w-32",
+    render: (d) => <span className="whitespace-nowrap tabular text-secondary">{d.firstYear === d.lastYear ? d.firstYear : `${d.firstYear}–${d.lastYear}`}</span>,
   },
   {
     key: "constructors",
-    label: "Constructor(s)",
+    label: "Teams",
     hideOnMobile: true,
     widthClassName: "w-56",
     render: (d) => (
@@ -77,6 +78,7 @@ export function ArchiveDriverTable({
       rows={drivers}
       columns={COLUMNS}
       getId={(d) => d.driverId}
+      rowHref={(d) => archiveDriverHref(d.driverId)}
       getSearchText={(d) => d.name}
       search={search}
       defaultSortKey="races"
