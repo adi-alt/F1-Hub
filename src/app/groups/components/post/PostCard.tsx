@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { POST_KIND_LABELS } from "@/lib/communities";
 import { PostActionBar } from "./PostActionBar";
 import { PostContent } from "./PostContent";
 import { PostDetailWindow } from "./PostDetailWindow";
-import { PostHeader } from "./PostHeader";
+import { PostAvatar, PostByline } from "./PostHeader";
 import { PostMedia } from "./PostMedia";
 import { PostAttachment } from "./PostAttachment";
 import type { PostCardData } from "./types";
@@ -79,6 +81,63 @@ export function PostCard({
     onModerated?.(action);
   }
 
+  // The whole card opens the discussion, as on any social feed - except a click that was really meant for something
+  // inside it (a link, a button, the vote control, a video, a menu) or that ends a text selection.
+  function openFromCard(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest("a, button, input, textarea, select, video, audio, [role='menu'], [role='dialog'], [data-no-open]")) return;
+    if (typeof window !== "undefined" && window.getSelection()?.toString()) return;
+    setDetailOpen(true);
+  }
+
+  const menu =
+    canModerate && post.groupId ? (
+      <Popover
+        align="end"
+        ariaLabel="Post actions"
+        panelClassName="w-44"
+        trigger={({ open, toggle, ref }) => (
+          <button
+            ref={ref}
+            type="button"
+            onClick={toggle}
+            aria-expanded={open}
+            aria-label="Post actions"
+            className={`-mr-1.5 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${open ? "bg-surface-3 text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"}`}
+          >
+            <Icon icon={MoreHorizontal} size={16} />
+          </button>
+        )}
+      >
+        {({ close }) => (
+          <div className="p-1">
+            {status === "pending" && (
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  void moderate("approve");
+                }}
+                className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-success transition-colors duration-fast hover:bg-success/10"
+              >
+                Approve post
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                close();
+                void moderate("reject");
+              }}
+              className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-danger transition-colors duration-fast hover:bg-danger/10"
+            >
+              Remove post
+            </button>
+          </div>
+        )}
+      </Popover>
+    ) : null;
+
   return (
     <motion.article
       /* Only the first card is a tour target - the tour needs one real post to point at, and
@@ -87,89 +146,48 @@ export function PostCard({
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
+      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03, ease: [0.2, 0, 0, 1] }}
+      onClick={variant === "compact" ? undefined : openFromCard}
       className={
         variant === "compact"
-          ? "border-b border-white/10 py-2.5 last:border-b-0"
-          : "rounded-card border border-white/10 bg-surface-1/70 p-4 transition-colors duration-fast hover:border-white/20"
+          ? "border-b border-white/10 py-3 last:border-b-0"
+          : "cursor-pointer rounded-card border border-white/[0.08] bg-surface-1/70 p-4 transition-colors duration-fast hover:border-white/15 hover:bg-surface-1 sm:p-5"
       }
     >
-      <div className="flex items-start gap-2">
-        <PostHeader post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
-        {/* The overflow menu only exists where it has something real to hold - moderation actions
-            for someone who can actually moderate. For everyone else there is no menu at all rather
-            than a "..." that opens an empty panel. */}
-        {canModerate && post.groupId && (
-          <Popover
-            align="end"
-            ariaLabel="Post actions"
-            panelClassName="w-44"
-            trigger={({ open, toggle, ref }) => (
-              <button
-                ref={ref}
-                type="button"
-                onClick={toggle}
-                aria-expanded={open}
-                aria-label="Post actions"
-                className={`-mr-1 -mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition ${open ? "bg-white/[0.08] text-white" : "text-tertiary hover:bg-white/[0.06] hover:text-white"}`}
-              >
-                <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden>
-                  <circle cx="4" cy="10" r="1.5" />
-                  <circle cx="10" cy="10" r="1.5" />
-                  <circle cx="16" cy="10" r="1.5" />
-                </svg>
-              </button>
-            )}
-          >
-            {({ close }) => (
-              <div className="p-1">
-                {status === "pending" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      close();
-                      void moderate("approve");
-                    }}
-                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-emerald-400 transition hover:bg-emerald-400/10"
-                  >
-                    Approve post
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    close();
-                    void moderate("reject");
-                  }}
-                  className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-danger transition hover:bg-danger/10"
-                >
-                  Remove post
-                </button>
-              </div>
-            )}
-          </Popover>
-        )}
-      </div>
+      {/* The avatar in a column of its own and the post indented beside it, the way a social feed reads. */}
+      <div className="flex gap-3">
+        <PostAvatar post={post} showGroup={showGroup} size={variant === "compact" ? 32 : 40} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 pt-0.5">
+              <PostByline post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
+            </div>
+            {menu}
+          </div>
 
-      <div className={variant === "compact" ? "" : "mt-3"}>
-        <PostContent title={post.title} content={post.content} />
-        {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
-            rows uploaded before it existed, which have a URL and nothing else. */}
-        {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
-        {kindChip && (
-          <Badge tone="neutral" className="mt-3">{kindChip}</Badge>
-        )}
-      </div>
+          <div className="mt-2">
+            <PostContent title={post.title} content={post.content} />
+            {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
+                rows uploaded before it existed, which have a URL and nothing else. */}
+            {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
+            {kindChip && (
+              <Badge tone="neutral" className="mt-3">
+                {kindChip}
+              </Badge>
+            )}
+          </div>
 
-      <PostActionBar
-        score={score}
-        myVote={myVote}
-        onVote={vote}
-        commentCount={commentCount}
-        onOpenComments={() => setDetailOpen(true)}
-        onShare={post.groupId ? () => void share() : undefined}
-        shareLabel={shareLabel}
-      />
+          <PostActionBar
+            score={score}
+            myVote={myVote}
+            onVote={vote}
+            commentCount={commentCount}
+            onOpenComments={() => setDetailOpen(true)}
+            onShare={post.groupId ? () => void share() : undefined}
+            shareLabel={shareLabel}
+          />
+        </div>
+      </div>
 
       {detailOpen && (
         <PostDetailWindow

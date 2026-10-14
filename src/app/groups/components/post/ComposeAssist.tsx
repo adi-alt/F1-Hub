@@ -68,12 +68,12 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-caption font-medium transition disabled:opacity-40 ${
-          open ? "bg-brand/14 text-brand-text" : "text-secondary hover:bg-white/[0.05] hover:text-white"
+        className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-body-sm font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
+          open ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
         }`}
       >
-        <span aria-hidden>✦</span>
-        Apex
+        <span aria-hidden className="text-brand-text">✦</span>
+        <span className="hidden sm:inline">Apex</span>
       </button>
 
       {typeof document !== "undefined" &&

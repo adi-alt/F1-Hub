@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
 import { Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -13,11 +14,13 @@ import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
-import { CommunityFilter } from "./CommunityFilter";
-import { CommunityPulse, type NextRace } from "./home/CommunityPulse";
-import { CommunityCard } from "./CommunityCard";
-import { CommunityTiles } from "./home/CommunityTiles";
-import { ThisWeekend } from "./home/ThisWeekend";
+import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
+import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { countryFlag } from "@/lib/countryFlag";
+import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
+import { predictionStateAt } from "@/lib/groupPredictionTypes";
+import { groupHref, raceHref } from "@/lib/routes";
 import type { RaceOption } from "./post/PredictionComposer";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
@@ -48,7 +51,7 @@ export function GroupsHomeClient({
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
-  /** Public communities the viewer isn't in, for the Discover section. */
+  /** Public communities the viewer isn't in, for the rail's "Communities to join". */
   suggestions?: PublicGroupSummary[];
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
@@ -115,9 +118,11 @@ export function GroupsHomeClient({
 
   return (
     <div>
+      {/* The page header, like every other section's: the name, what it's for, and the two community-level
+          actions (they used to sit at the bottom of the left rail). */}
       <PageHeader
         title="Communities"
-        meta="Your leagues and the people you follow the sport with: this weekend's prediction rounds, the conversation, and where you stand."
+        meta="Race-weekend discussion and prediction rounds, across every community you're in."
         actions={
           <>
             <Button variant="secondary" size="md" iconStart={Compass} onClick={() => setShowDiscover(true)}>
@@ -131,41 +136,34 @@ export function GroupsHomeClient({
       />
 
       {groups.length === 0 ? (
-        <div className="mt-10 space-y-12">
+        // Nothing joined yet: no composer to post into nowhere and no empty feed, but the way in, beside the
+        // race weekend.
+        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
           <GetStarted onDiscover={() => setShowDiscover(true)} onCreate={() => setShowCreate(true)} />
-          <ThisWeekend race={nextRace} predictions={predictions} groups={groups} />
-          <Suggestions communities={suggestions} onDiscover={() => setShowDiscover(true)} title="Communities to join" />
+          <aside aria-label="Race weekend and activity" className="xl:sticky xl:top-20">
+            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} />
+          </aside>
         </div>
       ) : (
-        <div className="mt-10 space-y-12">
-          <ThisWeekend race={nextRace} predictions={predictions} groups={groups} />
-          <CommunityTiles groups={groups} onCreate={() => setShowCreate(true)} />
+        // Your communities, the conversation, and race context. The rail of communities is sticky beside the
+        // feed from lg; the context rail joins from xl (below that it follows the feed).
+        <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start xl:grid-cols-[260px_minmax(0,1fr)_340px]">
+          <aside aria-label="Your communities" className="hidden lg:sticky lg:top-20 lg:block">
+            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
+          </aside>
 
-          {/* The conversation: the feed across your communities (or one of them, picked in the chips), with the
-              community pulse beside it from xl. */}
-          <section aria-labelledby="conversation">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 id="conversation" className="text-title-lg text-primary">
-                The conversation
-              </h2>
-              <p className="text-body-sm text-secondary">{selectedCommunity ? `In ${selectedCommunity.name}` : "Across all your communities"}</p>
+          {/* A div, not a second <main>: the root layout already has the page's one main landmark. */}
+          <div className="min-w-0">
+            <div className="space-y-3">
+              <WeekendStrip race={nextRace} predictions={predictions} />
+              <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+              <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
             </div>
-            <div className="mt-4">
-              <CommunityFilter groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-              <div className="min-w-0">
-                <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
-              </div>
-              <aside aria-label="Community pulse" className="xl:sticky xl:top-20">
-                <div className="rounded-card border border-white/10 bg-surface-1/70 p-4">
-                  <CommunityPulse groups={groups} pulse={pulse} />
-                </div>
-              </aside>
-            </div>
-          </section>
+          </div>
 
-          {suggestions.length > 0 && <Suggestions communities={suggestions} onDiscover={() => setShowDiscover(true)} title="More communities" />}
+          <aside aria-label="Race weekend and activity" className="lg:col-start-2 xl:sticky xl:top-20 xl:col-start-3 xl:row-start-1">
+            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} />
+          </aside>
         </div>
       )}
 
@@ -175,30 +173,38 @@ export function GroupsHomeClient({
   );
 }
 
-/** Public communities to join, as the same cards Discover uses, with the way into the full directory. */
-function Suggestions({ communities, onDiscover, title }: { communities: PublicGroupSummary[]; onDiscover: () => void; title: string }) {
+/** Below xl the race-weekend rail sits after an endless feed, where nobody reaches it: this keeps the one thing that
+ * can't wait (the race and what's open to predict) above the feed instead. */
+function WeekendStrip({ race, predictions }: { race: NextRace; predictions: FeedPrediction[] }) {
+  const now = useMinuteClock();
+  const open = predictions.filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open");
+  if (!race && open.length === 0) return null;
+  const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
+  const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
+  const flag = countryFlag(race?.country);
   return (
-    <section aria-labelledby="suggestions">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 id="suggestions" className="text-title-lg text-primary">
-          {title}
-        </h2>
-        <Button variant="ghost" size="sm" iconStart={Compass} onClick={onDiscover}>
-          Browse all
-        </Button>
-      </div>
-      {communities.length > 0 ? (
-        <ul className="-mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 scrollbar-hide sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
-          {communities.map((c, i) => (
-            <li key={c.id} className="w-[80%] min-w-0 shrink-0 snap-start sm:w-auto">
-              <CommunityCard community={c} index={i} />
-            </li>
-          ))}
-        </ul>
+    <div className="flex items-center gap-3 rounded-card border border-white/[0.08] bg-surface-1/70 p-3 xl:hidden">
+      {race ? (
+        <Link href={raceHref(race.year, race.round, race.name)} className="min-w-0 flex-1 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          <span className="block truncate text-body-sm font-semibold text-primary">
+            {flag && <span aria-hidden>{flag} </span>}
+            {race.name}
+          </span>
+          <span suppressHydrationWarning className="block text-caption tabular text-secondary">
+            {countdown ? `Lights out in ${countdown}` : race.raceDate ? "Race weekend underway" : `Round ${race.round}`}
+          </span>
+        </Link>
       ) : (
-        <p className="mt-4 text-body-sm text-secondary">No public communities to suggest right now. Start your own and invite friends.</p>
+        <span className="min-w-0 flex-1 text-body-sm text-secondary">This weekend</span>
       )}
-    </section>
+      {open.length > 0 && (
+        <Button variant="secondary" size="sm" iconStart={Trophy} asChild>
+          <Link href={`${groupHref(open[0].groupId)}?tab=predictions`}>
+            {open.length} open round{open.length === 1 ? "" : "s"}
+          </Link>
+        </Button>
+      )}
+    </div>
   );
 }
 

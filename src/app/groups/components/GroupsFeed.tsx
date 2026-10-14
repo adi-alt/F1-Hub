@@ -85,6 +85,16 @@ export function GroupsFeed({
   // on screen and, when it isn't, offers a real way back to it - the same composer, focused, not a
   // second one duplicated at the bottom.
   const composerRef = useRef<HTMLDivElement>(null);
+  // Whether the feed tabs are pinned under the header: true once the line just above them has scrolled under it.
+  const tabsSentinelRef = useRef<HTMLDivElement>(null);
+  const [tabsStuck, setTabsStuck] = useState(false);
+  useEffect(() => {
+    const el = tabsSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => setTabsStuck(!entry.isIntersecting && entry.boundingClientRect.top < 80), { rootMargin: "-57px 0px 0px 0px", threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [communityId]);
   const [composerOffscreen, setComposerOffscreen] = useState(false);
 
   useEffect(() => {
@@ -285,7 +295,16 @@ export function GroupsFeed({
               </div>
             )
           ) : communityPosts.length === 0 ? (
-            <EmptyState icon={MessageSquare} message="Nothing has been posted here yet: start the first conversation." />
+            <EmptyState
+              boxed
+              icon={MessageSquare}
+              message="Nothing has been posted here yet. Start the first conversation."
+              action={
+                <Button variant="secondary" size="md" iconStart={Plus} onClick={jumpToComposer}>
+                  Write a post
+                </Button>
+              }
+            />
           ) : (
             <div className="space-y-3">
               {interleave(communityPosts, communityPredictions).map((item, i) =>
@@ -301,7 +320,10 @@ export function GroupsFeed({
       ) : (
         // Only the aggregate feed is a set of tabs; a selected community's own stream isn't one.
         <Tabs value={feedType} onValueChange={switchTab} items={TAB_ITEMS}>
-          <div className="flex items-center justify-between gap-3">
+          {/* Pinned under the site header while the feed scrolls, the way a social feed keeps its tabs in reach. It
+              only gets a background (and a hairline) once it's actually pinned, so at rest it sits on the page. */}
+          <div ref={tabsSentinelRef} aria-hidden className="h-px" />
+          <div className={`sticky top-14 z-20 -mx-1 -mt-px flex items-center justify-between gap-3 px-1 transition-colors duration-fast ${tabsStuck ? "border-b border-white/10 bg-surface-0/95" : "border-b border-transparent"}`}>
             <div data-tour="feed-tabs" className="min-w-0">
               <TabList aria-label="Feed" />
             </div>
@@ -324,8 +346,14 @@ export function GroupsFeed({
               </div>
             ) : posts.length === 0 ? (
               <EmptyState
+                boxed
                 icon={MessageSquare}
-                message={feedType === "following" ? "Nothing here yet: posts from communities you've joined show up here." : "No posts to show right now."}
+                message={feedType === "following" ? "It's quiet in your communities. Start the conversation: the race weekend is a good place to begin." : "No posts to show right now."}
+                action={
+                  <Button variant="secondary" size="md" iconStart={Plus} onClick={jumpToComposer}>
+                    Write a post
+                  </Button>
+                }
               />
             ) : (
               <div className="space-y-3">

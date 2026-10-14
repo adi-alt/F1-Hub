@@ -17,9 +17,12 @@ import type { VoteValue } from "@/lib/supabase/groupPosts";
  * Still no Save or Report: Save needs a bookmarks table and Report needs a moderation destination
  * beyond what group moderation already covers. Each would be a button that opens nothing.
  */
-/** A quiet action: no border until it's pointed at, one height for the whole row. */
-const ACTION =
-  "flex h-8 items-center gap-1.5 rounded-control px-2.5 text-caption font-medium text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+/** A quiet action that lights up in its own colour when pointed at, like a social feed's (comments blue, share
+ * green); one height for the whole row. */
+const ACTION_BASE =
+  "flex h-8 items-center gap-1.5 rounded-full px-3 text-body-sm font-medium text-secondary transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+const COMMENT = `${ACTION_BASE} hover:bg-info/12 hover:text-info`;
+const SHARE = `${ACTION_BASE} hover:bg-success/12 hover:text-success`;
 
 export function PostActionBar({
   score,
@@ -46,16 +49,16 @@ export function PostActionBar({
   return (
     // h-7 controls (28px) rather than the 36px these were: still a comfortable target, but a row of
     // them no longer costs a third of the card's height.
-    <div className="mt-3 flex items-center gap-1">
-      <div className="flex h-8 items-center rounded-control bg-surface-2/60 px-1">
+    <div className="mt-3 flex items-center gap-1.5">
+      <div className="flex h-8 items-center rounded-full bg-surface-2/70 px-0.5">
         <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
       </div>
-      <button type="button" onClick={onOpenComments} aria-label={`Open discussion, ${commentCount} comment${commentCount === 1 ? "" : "s"}`} className={ACTION}>
+      <button type="button" onClick={onOpenComments} aria-label={`Open discussion, ${commentCount} comment${commentCount === 1 ? "" : "s"}`} className={COMMENT}>
         <Icon icon={MessageSquare} size={16} />
-        <span className="tabular">{commentCount}</span>
+        <span className="tabular">{commentCount === 0 ? "Reply" : commentCount}</span>
       </button>
       {onShare && (
-        <button type="button" onClick={onShare} className={ACTION}>
+        <button type="button" onClick={onShare} className={SHARE}>
           <Icon icon={Share2} size={16} />
           {shareLabel ?? "Share"}
         </button>

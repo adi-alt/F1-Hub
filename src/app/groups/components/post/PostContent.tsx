@@ -20,20 +20,19 @@ export function PostContent({ title, content }: { title: string | null; content:
   const previewUrl = firstUrlIn(content);
 
   return (
-    // Title 15px / body 14px: the body is still the strongest block of text in the card, but a
-    // three-line post no longer occupies a screenful. Hierarchy comes from weight and the quieter
-    // 11px metadata above it, not from making the body large.
+    // Title 18px / body 16px, the reading sizes of a social feed: the text is what a post is for, so it's the
+    // largest and brightest thing in the card, with the byline above it quieter.
     <div>
-      {title && <p className="text-body font-semibold leading-snug text-white">{title}</p>}
+      {title && <p className="text-title-md text-primary">{title}</p>}
       {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
           otherwise set the card's minimum width and push the whole column sideways. */}
       {/* layout: expanding a long post changes the card's height, and animating it keeps the rest
           of the feed from snapping upward under the reader. */}
-      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body-sm leading-[1.55] text-secondary ${title ? "mt-0.5" : ""}`}>
+      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body text-primary/90 ${title ? "mt-1" : ""}`}>
         {linkify(shown)}
       </motion.p>
       {isLong && (
-        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-caption font-medium text-tertiary hover:text-white">
+        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 rounded-control text-body-sm font-medium text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           {expanded ? "Show less" : "Show more"}
         </button>
       )}

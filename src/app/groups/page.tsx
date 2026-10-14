@@ -79,18 +79,23 @@ export default async function GroupsPage() {
     // Reads the previous visit timestamp and stamps a new one - so it must run exactly once per
     // page load, here, not inside a client component that could re-run and collapse the window.
     getCommunityPulse(session.uid),
-    // A few public communities to join, for the Discover section (the same cached query the Discover sheet uses).
+    // A few public communities to suggest (the same cached query the Discover sheet uses).
     discoverCommunities({ uid: session.uid, limit: 12 }).catch(() => ({ communities: [] })),
   ]);
-  const suggestions = discover.communities.filter((c) => !c.isMember).slice(0, groups.length ? 4 : 8);
+  const suggestions = discover.communities.filter((c) => !c.isMember).slice(0, 3);
 
   // Sequential on purpose: it depends on which rounds came back above.
   const driversByRace = await getDriversByRace(predictions.map((p) => p.raceId));
 
   return (
-    // The same frame as every page; the document scrolls (audit R-31).
+    // The same frame as every page. The document scrolls, the feed with it (audit R-31); at lg+ the
+    // two rails stay in view beside it (sticky, GroupsHomeClient), and only the community list inside
+    // the left rail scrolls on its own.
     <div className="page-wide py-6">
-      {/* The page header, the weekend, your communities and the feed all live in GroupsHomeClient. */}
+      {/* No separate page header above the workspace anymore - the page title and its one-line
+          description live at the top of the navigation rail itself (GroupsLeftSidebar), so the
+          three columns start at the same baseline and the feed is the first thing at eye level
+          rather than sitting a header's height below it. */}
       <div>
         <GroupsHomeClient
           groups={groups}
