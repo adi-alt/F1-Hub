@@ -628,36 +628,69 @@ html {
 }
 
 /* A mini chart bar rising and settling, on a loop. */
+/* Starts and ends at full height, so the first frame matches the server-rendered bar - nothing drops on load. */
 @keyframes mini-bar {
-  0% {
-    transform: scaleY(0.15);
-  }
-  30%,
-  85% {
+  0%,
+  60% {
     transform: scaleY(1);
   }
+  78% {
+    transform: scaleY(0.2);
+  }
   100% {
-    transform: scaleY(0.15);
+    transform: scaleY(1);
   }
 }
 .mini-bar {
   transform-origin: bottom;
 }
 @keyframes mini-bar-x {
-  0% {
-    transform: scaleX(0.1);
-  }
-  30%,
-  85% {
+  0%,
+  60% {
     transform: scaleX(1);
   }
+  78% {
+    transform: scaleX(0.15);
+  }
   100% {
-    transform: scaleX(0.1);
+    transform: scaleX(1);
   }
 }
 .mini-bar-x {
   transform-origin: left;
 }
+/* Both versions of a moving miniature are in the page from the first byte; CSS shows one. Nothing swaps after the
+   JavaScript loads, so nothing flickers. */
+.rich-only {
+  display: none;
+}
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .rich-only {
+    display: revert;
+  }
+  .calm-only {
+    display: none;
+  }
+}
+
+/* A line drawing itself (the archive card's career arc), and team colours sweeping through the eras. */
+@keyframes line-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes era-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 /* Rich motion: desktop with a mouse, and no system request to reduce motion (src/hooks/useRichMotion.ts uses the same
    query). Phones and tablets keep the settled frame. */
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
@@ -670,5 +703,15 @@ html {
   }
   .mini-bar-x {
     animation: mini-bar-x 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
+  }
+  .line-draw {
+    stroke-dasharray: 100;
+    animation: line-draw 2.4s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+  .group:hover .line-draw {
+    animation: line-draw 1.4s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+  .era-sweep {
+    animation: era-sweep 3.6s ease-in-out infinite;
   }
 }
