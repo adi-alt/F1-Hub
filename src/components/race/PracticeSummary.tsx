@@ -100,7 +100,7 @@ export function PracticeSummary({ practice, roster = [] }: { practice: PracticeD
   const rosterMap = new Map(roster.map((r) => [r.driver, r]));
 
   return (
-    <div className="grid items-stretch gap-3 sm:grid-cols-3">
+    <div className={`grid items-stretch gap-3 ${sessions.length > 1 ? "sm:grid-cols-3" : ""}`}>
       {sessions.map((key, sessionIndex) => {
         const session = practice[key]!;
         const topLaps = [...session.bestLaps].sort((a, b) => a.lapTimeSec - b.lapTimeSec).slice(0, TOP_N);

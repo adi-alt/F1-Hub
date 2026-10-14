@@ -44,7 +44,7 @@ test("the progression's last round equals the standings (sprints counted once, i
 
 test("roundPoints and entityResults: a round's points are the Grand Prix plus the sprint, positions stay the Grand Prix's", () => {
   const summary = (r: RaceDoc): RaceSummary =>
-    ({ round: r.round, trackShort: "X", state: "completed", results: r.results!.map(({ fastestLapSec: _f, finishGapSec: _g, ...x }) => x), sprintResults: r.sprintResults?.map(({ finishGapSec: _g, ...x }) => x) }) as unknown as RaceSummary;
+    ({ round: r.round, trackShort: "X", state: "completed", results: r.results, sprintResults: r.sprintResults }) as unknown as RaceSummary; // extra fields are ignored
   const summaries = races.map(summary);
   const china = summaries.find((s) => s.round === 2)!;
   const rusGp = china.results.find((x) => x.driver === "RUS")!.points;

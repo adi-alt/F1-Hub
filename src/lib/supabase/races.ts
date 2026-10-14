@@ -441,3 +441,49 @@ export async function getDriverHeadshotsByCode(codes: string[]): Promise<Map<str
   }
   return headshotByCode;
 }
+
+/** One driver's qualifying, stage by stage (qualifying_results): Grand Prix qualifying ("Q") or sprint qualifying
+ * ("SQ"). `stages[i]` is the best valid lap of stage i+1, null when not reached or no valid lap. */
+export type QualifyingStageRow = {
+  session: "Q" | "SQ";
+  driver: string;
+  driverName: string;
+  team: string;
+  position: number | null;
+  stages: [number | null, number | null, number | null];
+  stageReached: 1 | 2 | 3;
+  status: "classified" | "no_time" | "dns" | "dsq";
+  /** "official": the FIA classification; "openf1": F1's timing feed (sprint qualifying only ever has this). */
+  source: "official" | "openf1";
+};
+
+/** A race's stage-by-stage qualifying, both sessions. Read on the race page only (not part of RACE_SELECT, so the
+ * season pages don't carry it). Empty - never an error - when there's none, including before the table exists. */
+export const getQualifyingStages = unstable_cache(
+  async (raceId: string): Promise<QualifyingStageRow[]> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("qualifying_results")
+        .select("session, driver, driver_name, team, position, stage1_sec, stage2_sec, stage3_sec, stage_reached, status, source")
+        .eq("race_id", raceId),
+    );
+    if (error) {
+      console.warn(`getQualifyingStages(${raceId}): ${error.message}`);
+      return [];
+    }
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return (data ?? []).map((r) => ({
+      session: r.session as "Q" | "SQ",
+      driver: r.driver,
+      driverName: r.driver_name,
+      team: r.team,
+      position: r.position,
+      stages: [num(r.stage1_sec), num(r.stage2_sec), num(r.stage3_sec)],
+      stageReached: r.stage_reached as 1 | 2 | 3,
+      status: r.status as QualifyingStageRow["status"],
+      source: r.source as QualifyingStageRow["source"],
+    }));
+  },
+  ["get-qualifying-stages"],
+  { tags: ["races"] },
+);
