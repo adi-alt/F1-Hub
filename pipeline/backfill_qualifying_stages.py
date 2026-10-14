@@ -17,7 +17,7 @@ from __future__ import annotations
 import sys
 
 from ergast_utils import init_postgres, prune, transaction, upsert
-from fetch_races import SPRINT_FORMATS
+from fetch_races import SPRINT_FORMATS, normalize_team_name
 from qualifying_sessions import qualifying_result_rows, stages_for_round
 
 ROUNDS_SQL = """
@@ -56,7 +56,7 @@ def main() -> int:
         print(f"  round {round_num} {race_id}: {summary or 'nothing available'}")
         if dry_run or not sessions:
             continue
-        written = [row for s, rows, src in sessions for row in qualifying_result_rows(race_id, s, rows, src)]
+        written = [row for s, rows, src in sessions for row in qualifying_result_rows(race_id, s, rows, src, team_of=normalize_team_name)]
         with transaction(cur):
             upsert(cur, "qualifying_results", written, ["race_id", "session", "driver"])
             prune(cur, "qualifying_results", "race_id", race_id, ("session", "driver"), [(r["session"], r["driver"]) for r in written])

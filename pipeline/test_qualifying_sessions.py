@@ -52,4 +52,9 @@ assert qs.stages_for_round(2026, 17, "Singapore", date(2026, 10, 11), True, {"Q"
 got = qs.stages_for_round(2026, 17, "Singapore", date(2026, 10, 11), True, {})
 assert [(s, src) for s, _r, src in got] == [("Q", "official"), ("SQ", "openf1")], got
 assert qs.stages_for_round(2026, 17, "Singapore", date(2026, 10, 11), False, {"Q": "official"}) == [], "no SQ on a standard weekend"
+import fetch_races
+named = qs.qualifying_result_rows("2026_r17", "Q", rows, "official", team_of=fetch_races.normalize_team_name)
+teams = {r["team"] for r in named}
+# The same names the 2026 race_results rows use (read from production), e.g. "Racing Bulls" for Jolpica's "RB F1 Team".
+assert teams == {"Alpine", "Aston Martin", "Audi", "Cadillac", "Ferrari", "Haas F1 Team", "McLaren", "Mercedes", "Racing Bulls", "Red Bull Racing", "Williams"}, teams
 print("qualifying_sessions: all checks passed")
