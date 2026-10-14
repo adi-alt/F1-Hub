@@ -9,12 +9,15 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
-import type { GroupSummary } from "@/lib/supabase/groups";
+import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
-import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
-import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
+import { CommunityFilter } from "./CommunityFilter";
+import { CommunityPulse, type NextRace } from "./home/CommunityPulse";
+import { CommunityCard } from "./CommunityCard";
+import { CommunityTiles } from "./home/CommunityTiles";
+import { ThisWeekend } from "./home/ThisWeekend";
 import type { RaceOption } from "./post/PredictionComposer";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
@@ -34,6 +37,7 @@ export function GroupsHomeClient({
   upcomingRaces,
   pulse,
   driversByRace,
+  suggestions = [],
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -44,6 +48,8 @@ export function GroupsHomeClient({
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
+  /** Public communities the viewer isn't in, for the Discover section. */
+  suggestions?: PublicGroupSummary[];
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -109,11 +115,9 @@ export function GroupsHomeClient({
 
   return (
     <div>
-      {/* The page header, like every other section's: the name, what it's for, and the two community-level
-          actions (they used to sit at the bottom of the left rail). */}
       <PageHeader
         title="Communities"
-        meta="Race-weekend discussion and prediction rounds, across every community you're in."
+        meta="Your leagues and the people you follow the sport with: this weekend's prediction rounds, the conversation, and where you stand."
         actions={
           <>
             <Button variant="secondary" size="md" iconStart={Compass} onClick={() => setShowDiscover(true)}>
@@ -127,39 +131,74 @@ export function GroupsHomeClient({
       />
 
       {groups.length === 0 ? (
-        // Nothing joined yet: no composer to post into nowhere and no empty feed, but the way in, beside the
-        // race weekend.
-        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+        <div className="mt-10 space-y-12">
           <GetStarted onDiscover={() => setShowDiscover(true)} onCreate={() => setShowCreate(true)} />
-          <aside aria-label="Race weekend and activity" className="xl:sticky xl:top-20">
-            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} />
-          </aside>
+          <ThisWeekend race={nextRace} predictions={predictions} groups={groups} />
+          <Suggestions communities={suggestions} onDiscover={() => setShowDiscover(true)} title="Communities to join" />
         </div>
       ) : (
-        // Your communities, the conversation, and race context. The rail of communities is sticky beside the
-        // feed from lg; the context rail joins from xl (below that it follows the feed).
-        <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start xl:grid-cols-[240px_minmax(0,1fr)_320px]">
-          <aside aria-label="Your communities" className="hidden lg:sticky lg:top-20 lg:block">
-            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-          </aside>
+        <div className="mt-10 space-y-12">
+          <ThisWeekend race={nextRace} predictions={predictions} groups={groups} />
+          <CommunityTiles groups={groups} onCreate={() => setShowCreate(true)} />
 
-          {/* A div, not a second <main>: the root layout already has the page's one main landmark. */}
-          <div className="min-w-0">
-            <div className="space-y-3">
-              <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-              <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
+          {/* The conversation: the feed across your communities (or one of them, picked in the chips), with the
+              community pulse beside it from xl. */}
+          <section aria-labelledby="conversation">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 id="conversation" className="text-title-lg text-primary">
+                The conversation
+              </h2>
+              <p className="text-body-sm text-secondary">{selectedCommunity ? `In ${selectedCommunity.name}` : "Across all your communities"}</p>
             </div>
-          </div>
+            <div className="mt-4">
+              <CommunityFilter groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+              <div className="min-w-0">
+                <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
+              </div>
+              <aside aria-label="Community pulse" className="xl:sticky xl:top-20">
+                <div className="rounded-card border border-white/10 bg-surface-1/70 p-4">
+                  <CommunityPulse groups={groups} pulse={pulse} />
+                </div>
+              </aside>
+            </div>
+          </section>
 
-          <aside aria-label="Race weekend and activity" className="lg:col-start-2 xl:sticky xl:top-20 xl:col-start-3 xl:row-start-1">
-            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} />
-          </aside>
+          {suggestions.length > 0 && <Suggestions communities={suggestions} onDiscover={() => setShowDiscover(true)} title="More communities" />}
         </div>
       )}
 
       <AnimatePresence>{showDiscover && <DiscoverSheet onClose={() => setShowDiscover(false)} />}</AnimatePresence>
       {showCreate && <CreateCommunityModal onClose={() => setShowCreate(false)} />}
     </div>
+  );
+}
+
+/** Public communities to join, as the same cards Discover uses, with the way into the full directory. */
+function Suggestions({ communities, onDiscover, title }: { communities: PublicGroupSummary[]; onDiscover: () => void; title: string }) {
+  return (
+    <section aria-labelledby="suggestions">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h2 id="suggestions" className="text-title-lg text-primary">
+          {title}
+        </h2>
+        <Button variant="ghost" size="sm" iconStart={Compass} onClick={onDiscover}>
+          Browse all
+        </Button>
+      </div>
+      {communities.length > 0 ? (
+        <ul className="-mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 scrollbar-hide sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
+          {communities.map((c, i) => (
+            <li key={c.id} className="w-[80%] min-w-0 shrink-0 snap-start sm:w-auto">
+              <CommunityCard community={c} index={i} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-4 text-body-sm text-secondary">No public communities to suggest right now. Start your own and invite friends.</p>
+      )}
+    </section>
   );
 }
 
