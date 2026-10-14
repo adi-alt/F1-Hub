@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
 import { Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -9,12 +10,17 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
-import type { GroupSummary } from "@/lib/supabase/groups";
+import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { countryFlag } from "@/lib/countryFlag";
+import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
+import { predictionStateAt } from "@/lib/groupPredictionTypes";
+import { groupHref, raceHref } from "@/lib/routes";
 import type { RaceOption } from "./post/PredictionComposer";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
@@ -34,6 +40,7 @@ export function GroupsHomeClient({
   upcomingRaces,
   pulse,
   driversByRace,
+  suggestions = [],
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -44,6 +51,8 @@ export function GroupsHomeClient({
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
+  /** Public communities the viewer isn't in, for the rail's "Communities to join". */
+  suggestions?: PublicGroupSummary[];
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -132,33 +141,69 @@ export function GroupsHomeClient({
         <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
           <GetStarted onDiscover={() => setShowDiscover(true)} onCreate={() => setShowCreate(true)} />
           <aside aria-label="Race weekend and activity" className="xl:sticky xl:top-20">
-            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} />
+            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} />
           </aside>
         </div>
       ) : (
         // Your communities, the conversation, and race context. The rail of communities is sticky beside the
         // feed from lg; the context rail joins from xl (below that it follows the feed).
-        <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start xl:grid-cols-[240px_minmax(0,1fr)_320px]">
+        <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start xl:grid-cols-[260px_minmax(0,1fr)_340px]">
           <aside aria-label="Your communities" className="hidden lg:sticky lg:top-20 lg:block">
-            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
           </aside>
 
           {/* A div, not a second <main>: the root layout already has the page's one main landmark. */}
           <div className="min-w-0">
             <div className="space-y-3">
+              <WeekendStrip race={nextRace} predictions={predictions} />
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
               <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
             </div>
           </div>
 
           <aside aria-label="Race weekend and activity" className="lg:col-start-2 xl:sticky xl:top-20 xl:col-start-3 xl:row-start-1">
-            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} />
+            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} />
           </aside>
         </div>
       )}
 
       <AnimatePresence>{showDiscover && <DiscoverSheet onClose={() => setShowDiscover(false)} />}</AnimatePresence>
       {showCreate && <CreateCommunityModal onClose={() => setShowCreate(false)} />}
+    </div>
+  );
+}
+
+/** Below xl the race-weekend rail sits after an endless feed, where nobody reaches it: this keeps the one thing that
+ * can't wait (the race and what's open to predict) above the feed instead. */
+function WeekendStrip({ race, predictions }: { race: NextRace; predictions: FeedPrediction[] }) {
+  const now = useMinuteClock();
+  const open = predictions.filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open");
+  if (!race && open.length === 0) return null;
+  const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
+  const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
+  const flag = countryFlag(race?.country);
+  return (
+    <div className="flex items-center gap-3 rounded-card border border-white/[0.08] bg-surface-1/70 p-3 xl:hidden">
+      {race ? (
+        <Link href={raceHref(race.year, race.round, race.name)} className="min-w-0 flex-1 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          <span className="block truncate text-body-sm font-semibold text-primary">
+            {flag && <span aria-hidden>{flag} </span>}
+            {race.name}
+          </span>
+          <span suppressHydrationWarning className="block text-caption tabular text-secondary">
+            {countdown ? `Lights out in ${countdown}` : race.raceDate ? "Race weekend underway" : `Round ${race.round}`}
+          </span>
+        </Link>
+      ) : (
+        <span className="min-w-0 flex-1 text-body-sm text-secondary">This weekend</span>
+      )}
+      {open.length > 0 && (
+        <Button variant="secondary" size="sm" iconStart={Trophy} asChild>
+          <Link href={`${groupHref(open[0].groupId)}?tab=predictions`}>
+            {open.length} open round{open.length === 1 ? "" : "s"}
+          </Link>
+        </Button>
+      )}
     </div>
   );
 }

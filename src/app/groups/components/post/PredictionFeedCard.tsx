@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, Trophy } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { predictionStateAt, predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
@@ -33,7 +34,7 @@ const marketTitle: Record<PredictionType, string> = {
  * genuinely urgent (a deadline under 24h); nothing else competes with it for attention. */
 function MetaChip({ children, accent = false }: { children: React.ReactNode; accent?: boolean }) {
   return (
-    <span className={`rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium tabular ${accent ? "text-warning" : "text-secondary"}`}>
+    <span className={`rounded-full bg-surface-2 px-2.5 py-1 text-caption font-medium tabular ${accent ? "text-warning" : "text-secondary"}`}>
       {children}
     </span>
   );
@@ -93,80 +94,88 @@ export function PredictionFeedCard({
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
-      className="rounded-xl border border-white/10 bg-surface-1/50 px-3 py-2.5 transition hover:border-white/[0.12]"
+      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03, ease: [0.2, 0, 0, 1] }}
+      className="rounded-card border border-white/[0.08] bg-surface-1/70 p-4 transition-colors duration-fast hover:border-white/15 sm:p-5"
     >
-      {/* Identity line - community, post age, and the round's own type as one small badge that
-          sits right beside them, part of the same sentence rather than floated to the far corner
-          on its own. */}
-      <div className="flex min-w-0 items-center gap-1.5">
+      {/* The same shape as a post: the community's avatar in its own column, the round indented beside it, so a
+          round reads as something the community posted. */}
+      <div className="flex gap-3">
         {showGroup ? (
-          <Link href={groupHref(prediction.groupId)} className="flex min-w-0 items-center gap-1.5 transition hover:opacity-80">
-            <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={20} />
-            <span className="min-w-0 truncate text-body-sm font-medium text-neutral-200">{prediction.groupName}</span>
+          <Link href={groupHref(prediction.groupId)} aria-label={prediction.groupName} className="shrink-0 rounded-full transition-opacity duration-fast hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+            <EntityAvatar imageUrl={null} name={prediction.groupName} seed={prediction.groupId} size={40} />
           </Link>
         ) : (
-          <span className="min-w-0 truncate text-body-sm font-medium text-neutral-200">Prediction round</span>
+          <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-secondary">
+            <Icon icon={Trophy} size={20} />
+          </span>
         )}
-        <span aria-hidden className="shrink-0 text-neutral-700">
-          ·
-        </span>
-        <span className="shrink-0 text-caption text-tertiary">{timeAgo(prediction.createdAt)}</span>
-        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium text-secondary">
-          {predictionTypeLabels[prediction.type]}
-        </span>
-      </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 pt-0.5 text-body-sm leading-5">
+            {showGroup ? (
+              <Link href={groupHref(prediction.groupId)} className="min-w-0 truncate font-semibold text-primary underline-offset-2 hover:underline">
+                {prediction.groupName}
+              </Link>
+            ) : (
+              <span className="font-semibold text-primary">Prediction round</span>
+            )}
+            <span aria-hidden className="text-tertiary">
+              ·
+            </span>
+            <span suppressHydrationWarning className="shrink-0 text-tertiary">
+              {timeAgo(prediction.createdAt)}
+            </span>
+            <Badge tone="neutral" icon={Trophy}>
+              {predictionTypeLabels[prediction.type]}
+            </Badge>
+          </div>
 
-      {/* The question is the one focal line; the race is context underneath it, small and
-          readable but never competing with it. Neither repeats anywhere else on the card. */}
-      <p className="mt-2 text-body font-semibold leading-tight text-primary">{marketTitle[prediction.type]}</p>
-      <p className="mt-0.5 truncate text-caption text-tertiary">{prediction.raceName}</p>
+          {/* The question is the one focal line; the race is context under it. */}
+          <p className="mt-2 text-title-md text-primary">{marketTitle[prediction.type]}</p>
+          <p className="mt-0.5 truncate text-body-sm text-secondary">{prediction.raceName}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <MetaChip>{prediction.entryPoints} pts to enter</MetaChip>
+            <MetaChip>{prediction.entryCount === 0 ? "No entries yet" : `${prediction.entryCount} ${prediction.entryCount === 1 ? "entry" : "entries"}`}</MetaChip>
+            {countdown ? <MetaChip accent={urgent}>Closes in {countdown}</MetaChip> : closed && !resolved ? <MetaChip>Closed</MetaChip> : null}
+          </div>
+          {!resolved && <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />}
 
-      {/* Cost, real entry count, deadline - three aligned tokens, not one long sentence.
-          entryCount is a real group_prediction_entries count, never a placeholder. */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <MetaChip>{prediction.entryPoints} pts</MetaChip>
-        <MetaChip>{prediction.entryCount === 0 ? "No entries" : `${prediction.entryCount} ${prediction.entryCount === 1 ? "entry" : "entries"}`}</MetaChip>
-        {countdown ? <MetaChip accent={urgent}>{countdown} left</MetaChip> : closed && !resolved ? <MetaChip>Closed</MetaChip> : null}
-      </div>
-
-      {!resolved && <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} />}
-
-      <div className="mt-2.5">
-        {resolved ? (
-          <ResolvedResult prediction={prediction} drivers={drivers} />
-        ) : editing ? (
-          <PredictionEntry
-            groupId={prediction.groupId}
-            predictionId={prediction.id}
-            type={prediction.type}
-            entryPoints={prediction.entryPoints}
-            drivers={drivers}
-            closed={closed}
-            closedMessage={closedMessage}
-            onClosed={() => setServerClosed(true)}
-            initialGuess={entered?.guess ?? null}
-            onEntered={(guess, label) => {
-              setEntered({ guess, label });
-              setEditing(false);
-            }}
-            onCancelEdit={() => setEditing(false)}
-          />
-        ) : entered ? (
-          <EnteredAnswer type={prediction.type} guess={entered.guess} drivers={drivers} closed={closed} onEdit={() => setEditing(true)} />
-        ) : (
-          <PredictionEntry
-            groupId={prediction.groupId}
-            predictionId={prediction.id}
-            type={prediction.type}
-            entryPoints={prediction.entryPoints}
-            drivers={drivers}
-            closed={closed}
-            closedMessage={closedMessage}
-            onClosed={() => setServerClosed(true)}
-            onEntered={(guess, label) => setEntered({ guess, label })}
-          />
-        )}
+          <div className="mt-3">
+            {resolved ? (
+              <ResolvedResult prediction={prediction} drivers={drivers} />
+            ) : editing ? (
+              <PredictionEntry
+                groupId={prediction.groupId}
+                predictionId={prediction.id}
+                type={prediction.type}
+                entryPoints={prediction.entryPoints}
+                drivers={drivers}
+                closed={closed}
+                closedMessage={closedMessage}
+                onClosed={() => setServerClosed(true)}
+                initialGuess={entered?.guess ?? null}
+                onEntered={(guess, label) => {
+                  setEntered({ guess, label });
+                  setEditing(false);
+                }}
+                onCancelEdit={() => setEditing(false)}
+              />
+            ) : entered ? (
+              <EnteredAnswer type={prediction.type} guess={entered.guess} drivers={drivers} closed={closed} onEdit={() => setEditing(true)} />
+            ) : (
+              <PredictionEntry
+                groupId={prediction.groupId}
+                predictionId={prediction.id}
+                type={prediction.type}
+                entryPoints={prediction.entryPoints}
+                drivers={drivers}
+                closed={closed}
+                closedMessage={closedMessage}
+                onClosed={() => setServerClosed(true)}
+                onEntered={(guess, label) => setEntered({ guess, label })}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </motion.article>
   );
@@ -194,8 +203,8 @@ function EnteredAnswer({
     <div>
       <div className="flex items-center gap-2">
         <span className="flex items-center gap-1.5">
-          <Icon icon={Check} size={16} className="size-3 text-emerald-400" />
-          <span className="text-caption font-medium text-secondary">Prediction submitted</span>
+          <Icon icon={Check} size={16} className="text-success" />
+          <span className="text-body-sm font-medium text-success">Your pick is in</span>
         </span>
         {!closed && (
           <button

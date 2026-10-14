@@ -282,7 +282,7 @@ export function PostComposer({
   }
 
   return (
-    <div className="relative rounded-xl border border-white/10 bg-surface-1/60 px-3 py-2.5 backdrop-blur-sm">
+    <div className="relative rounded-card border border-white/[0.08] bg-surface-1/70 p-4">
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
@@ -311,7 +311,7 @@ export function PostComposer({
 
       {mode === "prediction" ? (
         <div className="flex items-start gap-2.5">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={34} />
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
           <div className="min-w-0 flex-1">
             <p className="text-caption font-semibold text-brand-text">New prediction round</p>
             <PredictionComposer
@@ -327,7 +327,7 @@ export function PostComposer({
       ) : (
         <>
       <div className="flex items-start gap-2.5">
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={34} />
+        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
 
         <div className="min-w-0 flex-1">
           {isOpen && (
@@ -336,7 +336,7 @@ export function PostComposer({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Add a title (optional)"
               maxLength={300}
-              className="mb-2 w-full rounded-xl border border-white/10 bg-black/25 py-2.5 pl-3.5 pr-10 text-sm font-semibold text-white placeholder:font-normal placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+              className="mb-2 w-full rounded-control border border-white/15 bg-surface-2/60 py-2.5 pl-3.5 pr-10 text-title-md text-primary placeholder:text-body placeholder:font-normal placeholder:text-tertiary focus:border-white/30 focus:outline-none"
             />
           )}
           <textarea
@@ -344,7 +344,7 @@ export function PostComposer({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onFocus={() => setFocused(true)}
-            placeholder={placeholder ?? "Share your thoughts with the community..."}
+            placeholder={placeholder ?? (displayName ? `What's on your mind, ${displayName.split(" ")[0]}?` : "What's on your mind?")}
             rows={isOpen ? 3 : 1}
             maxLength={2000}
             // Collapsed, this is one row tall and shows nothing but the placeholder - which now
@@ -352,8 +352,8 @@ export function PostComposer({
             // the single row can't show, and at phone width the prompt reads as a sentence cut in
             // half. Held to one line and clipped instead; the moment it's focused it opens to three
             // rows and wraps normally again.
-            className={`w-full resize-none rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-body-sm leading-relaxed text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none ${
-              isOpen ? "" : "overflow-hidden text-ellipsis whitespace-nowrap"
+            className={`w-full resize-none border text-body text-primary placeholder:text-tertiary transition-[border-color,background-color,border-radius] duration-fast focus:outline-none ${
+              isOpen ? "rounded-control border-white/15 bg-surface-2/60 px-3.5 py-2.5 focus:border-white/30" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap rounded-full border-transparent bg-surface-2 px-4 py-2 hover:bg-surface-3"
             }`}
           />
         </div>
@@ -362,15 +362,15 @@ export function PostComposer({
       {attachment && (
         // The SAME component the published post renders, so what is previewed here is literally
         // what will appear in the feed - no second attachment design to drift out of sync.
-        <div className="ml-[44px] max-w-full">
+        <div className="ml-[52px] max-w-full">
           <PostAttachment attachment={attachment} onRemove={removeMedia} />
           {uploadingMedia && <p className="mt-1 text-caption text-tertiary">Uploading…</p>}
         </div>
       )}
-      {mediaError && <p className="ml-[44px] mt-1 text-caption text-brand-text">{mediaError}</p>}
+      {mediaError && <p className="ml-[52px] mt-1 text-caption text-danger">{mediaError}</p>}
 
       {scheduledConfirmation && (
-        <div className="ml-[44px] mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
+        <div className="ml-[52px] mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
           <p className="min-w-0 flex-1 text-caption text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
           <button type="button" onClick={() => setScheduledConfirmation("")} aria-label="Dismiss" className="shrink-0 text-caption font-medium text-secondary transition hover:text-white">
             Got it
@@ -378,18 +378,14 @@ export function PostComposer({
         </div>
       )}
 
-      <div ref={toolbarRef} className="relative mt-2 flex flex-wrap items-center gap-x-0.5 gap-y-1.5">
-        <ToolButton onClick={() => fileInputRef.current?.click()} icon={<Icon icon={Image} size={16} />} label="Add media" />
-        <Divider />
-        <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<Icon icon={ImagePlay} size={16} />} label="GIF" compactLabel />
-        <Divider />
-        <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<Icon icon={FaceSlightlySmiling} size={16} />} label="Emoji" />
-        <Divider />
+      <div ref={toolbarRef} className="relative mt-3 flex flex-wrap items-center gap-1 sm:pl-[52px]">
+        <ToolButton onClick={() => fileInputRef.current?.click()} icon={<Icon icon={Image} size={16} className="text-success" />} label="Photo" />
+        <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<Icon icon={ImagePlay} size={16} className="text-info" />} label="GIF" compactLabel />
+        <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<Icon icon={FaceSlightlySmiling} size={16} className="text-warning" />} label="Emoji" />
         <ComposeAssist draft={content} onReplace={setContent} />
         {canPredict && (
           <>
-            <Divider />
-            <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={<Icon icon={Compass} size={16} />} label="Prediction" />
+            <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={<Icon icon={Compass} size={16} className="text-brand-text" />} label="Prediction" />
           </>
         )}
         {/* A different thing from the chip above it: that tags THIS post as prediction talk, this
@@ -397,8 +393,7 @@ export function PostComposer({
             genuinely holds the permission, and the server re-checks it regardless. */}
         {canOpenPrediction && (
           <>
-            <Divider />
-            <ToolButton onClick={() => setMode("prediction")} icon={<Icon icon={Crosshair} size={16} />} label="New round" />
+            <ToolButton onClick={() => setMode("prediction")} icon={<Icon icon={Crosshair} size={16} className="text-brand-text" />} label="New round" />
           </>
         )}
 
@@ -432,16 +427,16 @@ export function PostComposer({
           {/* Scheduling lives INSIDE the post control, not as a separate toolbar button - it isn't
               a thing you attach to a post, it's a choice about how this post gets published. The
               caret only appears when there's a real alternative to offer. */}
-          <div className="flex shrink-0 items-stretch overflow-hidden rounded-xl">
+          <div className="flex shrink-0 items-stretch overflow-hidden rounded-control">
             <button
               type="button"
               onClick={() => void submit()}
               disabled={posting || uploadingMedia || !content.trim()}
-              className="bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              className="h-9 bg-brand px-5 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
             </button>
-            <SchedulePost value={scheduledAt} onChange={setScheduledAt} />
+            {(content.trim() || scheduledAt) && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
           </div>
         </div>
 
@@ -473,16 +468,12 @@ function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: (
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-caption font-medium transition ${
-        active ? "bg-brand/14 text-brand-text" : "text-secondary hover:bg-white/[0.05] hover:text-white"
+      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-body-sm font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        active ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
       }`}
     >
       <span className={compactLabel ? "" : "shrink-0"}>{icon}</span>
-      {label}
+      <span className={compactLabel ? "" : "hidden sm:inline"}>{label}</span>
     </button>
   );
-}
-
-function Divider() {
-  return <span aria-hidden className="h-4 w-px shrink-0 bg-white/[0.08]" />;
 }

@@ -3,9 +3,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ChevronRight, LayoutGrid } from "lucide-react";
+import { ChevronRight, Compass, Home, Plus, Trophy } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
+import { compactCount } from "@/lib/format";
 import { groupHref } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/supabase/groups";
 
@@ -17,23 +18,45 @@ import type { GroupSummary } from "@/lib/supabase/groups";
  *
  * The page's title and the New community / Discover actions live in the page header now, not in this rail.
  */
-export function GroupsLeftSidebar({ groups, selectedId, onSelect }: { groups: GroupSummary[]; selectedId: string | null; onSelect: (id: string | null) => void }) {
+export function GroupsLeftSidebar({
+  groups,
+  selectedId,
+  onSelect,
+  onCreate,
+  onDiscover,
+}: {
+  groups: GroupSummary[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onCreate: () => void;
+  onDiscover: () => void;
+}) {
   return (
-    <nav aria-label="Your communities" className="flex max-h-[calc(100dvh-6rem)] flex-col rounded-card border border-white/10 bg-surface-1/60 p-2">
-      <div className="flex shrink-0 items-baseline justify-between px-2 pb-2 pt-1">
-        <h2 className="text-body-sm font-semibold text-primary">Your communities</h2>
-        <span className="text-caption tabular text-tertiary">{groups.length}</span>
+    <nav aria-label="Your communities" className="flex max-h-[calc(100dvh-6rem)] flex-col rounded-card border border-white/[0.08] bg-surface-1/70 p-2">
+      <div className="flex shrink-0 items-center justify-between gap-2 py-1 pl-2 pr-1">
+        <h2 className="text-body-sm font-semibold text-primary">
+          Your communities <span className="font-normal tabular text-tertiary">{groups.length}</span>
+        </h2>
+        <button
+          type="button"
+          onClick={onCreate}
+          aria-label="Start a community"
+          title="Start a community"
+          className="flex size-8 items-center justify-center rounded-full text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          <Icon icon={Plus} size={16} />
+        </button>
       </div>
-      <div data-tour="community-list" className="min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-subtle">
+      <div data-tour="community-list" className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-subtle">
         <div data-tour="community-filter">
           <NavRow
             label="All communities"
-            sublabel="The feed across all of them"
+            sublabel="Everything you follow"
             active={selectedId === null}
             onClick={() => onSelect(null)}
             icon={
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-control bg-surface-2 text-secondary">
-                <Icon icon={LayoutGrid} size={16} />
+              <span className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${selectedId === null ? "bg-brand/15 text-brand-text" : "bg-surface-2 text-secondary"}`}>
+                <Icon icon={Home} size={16} />
               </span>
             }
           />
@@ -42,13 +65,20 @@ export function GroupsLeftSidebar({ groups, selectedId, onSelect }: { groups: Gr
           <motion.div key={g.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03, ease: [0.2, 0, 0, 1] }}>
             <NavRow
               label={g.name}
-              sublabel={`${g.memberCount} member${g.memberCount === 1 ? "" : "s"}`}
+              sublabel={`${compactCount(g.memberCount)} member${g.memberCount === 1 ? "" : "s"}`}
               active={selectedId === g.id}
               onClick={() => onSelect(g.id)}
-              icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />}
+              icon={
+                // A small green dot where people have been posting this week, like a social app's "new activity".
+                <span className="relative shrink-0">
+                  <EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />
+                  {g.weeklyPosts > 0 && <span title="Active this week" className="absolute bottom-0 right-0 size-2.5 rounded-full bg-success ring-2 ring-surface-1" />}
+                </span>
+              }
               badge={
                 g.activePredictions > 0 ? (
-                  <span title={`${g.activePredictions} open prediction round${g.activePredictions === 1 ? "" : "s"}`} className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-surface-3 px-1.5 text-caption font-semibold tabular text-primary">
+                  <span title={`${g.activePredictions} open prediction round${g.activePredictions === 1 ? "" : "s"}`} className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-2 text-caption font-semibold tabular text-primary">
+                    <Icon icon={Trophy} size={16} className="size-3.5 text-warning" />
                     {g.activePredictions}
                   </span>
                 ) : undefined
@@ -58,6 +88,18 @@ export function GroupsLeftSidebar({ groups, selectedId, onSelect }: { groups: Gr
             />
           </motion.div>
         ))}
+      </div>
+      <div className="mt-1 shrink-0 border-t border-white/[0.08] pt-1">
+        <button
+          type="button"
+          onClick={onDiscover}
+          className="flex w-full items-center gap-2.5 rounded-control px-2 py-2 text-left text-body-sm font-medium text-secondary transition-colors duration-fast hover:bg-surface-2/60 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-secondary">
+            <Icon icon={Compass} size={16} />
+          </span>
+          Discover communities
+        </button>
       </div>
     </nav>
   );
@@ -111,7 +153,7 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="shrink-0 rounded-control p-1 text-tertiary opacity-0 transition-opacity duration-fast hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
+          className="sr-only shrink-0 rounded-control p-1 text-tertiary hover:text-primary focus-visible:not-sr-only group-hover:not-sr-only"
         >
           <Icon icon={ChevronRight} size={16} />
         </Link>

@@ -2,14 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { EntityAvatar } from "@/components/EntityAvatar";
+import { compactCount } from "@/lib/format";
 import { motion } from "framer-motion";
-import { Calendar, Check, ChevronRight, Clock, MessageSquare, Reply, Sparkles, TrendingUp } from "lucide-react";
+import { Calendar, Check, Clock, MessageSquare, Reply, Sparkles, TrendingUp } from "lucide-react";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
 import { predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
-import type { GroupSummary } from "@/lib/supabase/groups";
+import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
 import { groupHref, raceHref } from "@/lib/routes";
 import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
@@ -40,27 +44,86 @@ export function GroupsRightSidebar({
   predictions,
   nextRace,
   pulse,
+  suggestions = [],
+  onDiscover,
 }: {
   groups: GroupSummary[];
   predictions: FeedPrediction[];
   nextRace: NextRace;
   pulse: CommunityPulseData;
+  /** Public communities the viewer isn't in, for "Communities to join". */
+  suggestions?: PublicGroupSummary[];
+  onDiscover?: () => void;
 }) {
   return (
-    // One surface with internal rules, not five floating cards: the rail reads as a single column
-    // of race context whose sections are separated by hairlines, the same way the rest of F1 HUB
-    // groups related blocks. Explore sits last because it leaves the page - everything above it is
-    // about what's already happening.
-    <div data-tour="race-weekend" className="surface-glass flex flex-col overflow-hidden rounded-card border border-white/10 xl:max-h-[calc(100dvh-6rem)]">
-      <div className="min-h-0 overflow-y-auto scrollbar-hide">
+    // Separate widget cards down the side of the feed, the way a social app's side panel reads: the race weekend,
+    // what's open to predict, what's happening, and who to join. Sticky beside the feed, scrolling on its own when
+    // it's taller than the window.
+    <div data-tour="race-weekend" className="flex flex-col gap-3 xl:max-h-[calc(100dvh-6rem)] xl:overflow-y-auto xl:scrollbar-hide">
+      <div className={WIDGET}>
         <RaceWeekend race={nextRace} />
-        <div className="border-t border-white/10 p-4">
-          <ActivePredictions predictions={predictions} />
-        </div>
-        <div className="border-t border-white/10 p-4">
-          <CommunityPulse groups={groups} pulse={pulse} />
-        </div>
       </div>
+      <div className={`${WIDGET} p-4`}>
+        <ActivePredictions predictions={predictions} />
+      </div>
+      <div className={`${WIDGET} p-4`}>
+        <CommunityPulse groups={groups} pulse={pulse} />
+      </div>
+      {suggestions.length > 0 && (
+        <div className={`${WIDGET} p-4`}>
+          <SuggestedCommunities communities={suggestions} onDiscover={onDiscover} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WIDGET = "shrink-0 overflow-hidden rounded-card border border-white/[0.08] bg-surface-1/70";
+
+/** "Who to follow", for communities: a few public ones you're not in, each a tap from joining. Joining goes through
+ * the same endpoint as Discover's cards, then opens the community. */
+function SuggestedCommunities({ communities, onDiscover }: { communities: PublicGroupSummary[]; onDiscover?: () => void }) {
+  const router = useRouter();
+  const [joining, setJoining] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function join(id: string) {
+    setJoining(id);
+    setError(null);
+    const res = await fetch(`/api/groups/${id}/join`, { method: "POST" }).catch(() => null);
+    if (!res?.ok) {
+      setError(id);
+      setJoining(null);
+      return;
+    }
+    router.push(groupHref(id));
+  }
+  return (
+    <div>
+      <h3 className="text-body-sm font-semibold text-primary">Communities to join</h3>
+      <ul className="mt-3 space-y-3">
+        {communities.map((c) => (
+          <li key={c.id} className="flex items-center gap-3">
+            <Link href={groupHref(c.id)} className="flex min-w-0 flex-1 items-center gap-3 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+              <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.id} size={36} />
+              <span className="min-w-0">
+                <span className="block truncate text-body-sm font-semibold text-primary hover:underline">{c.name}</span>
+                <span className="block truncate text-caption text-secondary">
+                  {compactCount(c.memberCount)} members{c.activePredictions ? ` · ${c.activePredictions} open round${c.activePredictions === 1 ? "" : "s"}` : ""}
+                </span>
+                {error === c.id && <span className="block text-caption text-danger">Couldn&apos;t join. Try again.</span>}
+              </span>
+            </Link>
+            <Button variant="secondary" size="sm" loading={joining === c.id} onClick={() => void join(c.id)}>
+              Join
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {onDiscover && (
+        <button type="button" onClick={onDiscover} className="mt-3 rounded-control text-body-sm font-medium text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          Show more
+        </button>
+      )}
     </div>
   );
 }
@@ -353,9 +416,6 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
                     </span>
                   ) : null}
 
-                  <span className="ml-auto shrink-0 text-tertiary transition-colors duration-fast group-hover:text-primary">
-                    <Icon icon={ChevronRight} size={16} className="size-3" />
-                  </span>
                 </div>
 
                 {/* What the community has actually entered, so the rail answers "which way is this

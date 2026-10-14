@@ -74,7 +74,7 @@ export function CommunityCard({
 
           <div className="flex flex-1 flex-col px-4 pb-4">
             <div className="-mt-6 flex items-end justify-between gap-2">
-              <span className="rounded-full ring-4 ring-surface-1">
+              <span className="relative z-10 rounded-full ring-4 ring-surface-1">
                 <EntityAvatar imageUrl={community.avatarUrl} name={community.name} size={44} />
               </span>
               {community.isMember && (
