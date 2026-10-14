@@ -12,10 +12,10 @@ export type SessionState = "upcoming" | "live" | "awaiting" | "completed";
 
 export type WeekendSession = { key: SessionKey; label: string; startsAt: string | null; state: SessionState };
 
-const LABELS: Record<SessionKey, string> = { FP1: "Practice 1", FP2: "Practice 2", FP3: "Practice 3", SQ: "Sprint Qualifying", S: "Sprint", Q: "Qualifying", R: "Grand Prix" };
+export const SESSION_LABELS: Record<SessionKey, string> = { FP1: "Practice 1", FP2: "Practice 2", FP3: "Practice 3", SQ: "Sprint Qualifying", S: "Sprint", Q: "Qualifying", R: "Grand Prix" };
 
 /** Roughly how long each session runs - only to tell "live" from "over, results awaited" before any data arrives. */
-const RUNS_MINUTES: Record<SessionKey, number> = { FP1: 60, FP2: 60, FP3: 60, SQ: 45, S: 45, Q: 60, R: 150 };
+export const SESSION_RUN_MINUTES: Record<SessionKey, number> = { FP1: 60, FP2: 60, FP3: 60, SQ: 45, S: 45, Q: 60, R: 150 };
 
 /** The calendar's session label -> a session key, or null for one this page doesn't show. */
 export function sessionKeyOf(label: string): SessionKey | null {
@@ -41,14 +41,14 @@ export function buildWeekendSessions(calendar: { label: string; date: string }[]
       ? "completed"
       : Number.isNaN(start) || nowMs < start
         ? "upcoming"
-        : nowMs < start + RUNS_MINUTES[key] * 60_000
+        : nowMs < start + SESSION_RUN_MINUTES[key] * 60_000
           ? "live"
           : "awaiting";
-    out.push({ key, label: LABELS[key], startsAt: s.date || null, state });
+    out.push({ key, label: SESSION_LABELS[key], startsAt: s.date || null, state });
   }
   // A session with data but missing from the calendar (an old round) still gets a tab, in weekend order.
   for (const key of ["FP1", "FP2", "FP3", "SQ", "S", "Q", "R"] as SessionKey[]) {
-    if (hasData[key] && !out.some((o) => o.key === key)) out.push({ key, label: LABELS[key], startsAt: null, state: "completed" });
+    if (hasData[key] && !out.some((o) => o.key === key)) out.push({ key, label: SESSION_LABELS[key], startsAt: null, state: "completed" });
   }
   const order: SessionKey[] = ["FP1", "FP2", "FP3", "SQ", "S", "Q", "R"];
   return out.sort((a, b) => (a.startsAt && b.startsAt ? Date.parse(a.startsAt) - Date.parse(b.startsAt) : order.indexOf(a.key) - order.indexOf(b.key)));
