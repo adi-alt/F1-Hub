@@ -184,10 +184,12 @@ export function CircuitTrendChart({ data, height = 320 }: { data: PoleTrendPoint
           />
           <Tooltip content={<PoleTooltip />} cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }} />
           <Area
-            type="linear"
+            type="monotone"
             dataKey="poleTimeSec"
             stroke="rgb(255 255 255 / 0.8)"
             strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
             fill="url(#poleEvolutionFill)"
             dot={<ClickableDot onSelect={openRace} />}
             isAnimationActive
