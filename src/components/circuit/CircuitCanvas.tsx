@@ -71,7 +71,7 @@ export function CircuitCanvas({
           vectorEffect="non-scaling-stroke"
           initial={reduceMotion ? false : { pathLength: 0 }}
           animate={{ pathLength: 1 }}
-          transition={{ duration: reduceMotion ? 0 : 1.2, ease: [0.4, 0, 0.2, 1] }}
+          transition={{ duration: reduceMotion ? 0 : 1.2, ease: [0.2, 0, 0, 1] }}
         />
         {lapColor && rich && (
           <g aria-hidden>

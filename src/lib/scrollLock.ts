@@ -1,8 +1,8 @@
 /**
  * Freezes the page's scroll while a blocking modal is open, and gives it back afterwards.
  *
- * The document scrolls (audit R-31), so this locks `<html>`. `html { scrollbar-gutter: stable }`
- * (globals.css) keeps the scrollbar's width reserved, so locking does not shift the layout sideways.
+ * The document scrolls (audit R-31), so this locks `<html>`. Its scrollbar is hidden (globals.css), so there is
+ * no width to lose when locking and the layout doesn't shift sideways.
  * Counted, so two modals open at once (a dialog opened from a sheet) release it only when the last
  * one closes, and each caller can simply call the returned function on cleanup.
  */

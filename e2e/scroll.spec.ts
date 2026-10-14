@@ -80,13 +80,14 @@ test.describe("a modal freezes the page behind it and gives it back", () => {
     await page.goto("/");
     await settle(page);
     await page.evaluate(() => window.scrollTo(0, 300));
+    const widthBefore = await page.evaluate(() => document.documentElement.clientWidth);
     const opener = page.getByRole("button", { name: /^sign in$/i }).first();
     await opener.click();
     const dialog = page.getByRole("dialog", { name: "Sign in or sign up" });
     await expect(dialog).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe("hidden");
-    // the scrollbar's width stays reserved, so locking does not shift the layout
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollbarGutter)).toContain("stable");
+    // the page's scrollbar is hidden (globals.css), so locking has no width to take away: no sideways shift
+    expect(await page.evaluate(() => document.documentElement.clientWidth)).toBe(widthBefore);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe("");

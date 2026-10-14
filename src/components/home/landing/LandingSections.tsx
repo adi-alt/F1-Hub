@@ -15,6 +15,8 @@ import type { LandingData, LandingSeason } from "@/lib/homeData";
 import { raceHref, seasonHref } from "@/lib/routes";
 import { teamColor } from "@/lib/teamColors";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
+import { smoothAreaPath, smoothOpenPath, type XY } from "@/lib/smoothPath";
+import { useLineReveal } from "@/hooks/useLineReveal";
 
 const TEXT_LINK =
   "inline-flex items-center gap-1 rounded-control text-body-sm font-medium text-secondary underline-offset-4 transition-colors duration-fast hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
@@ -144,9 +146,14 @@ export function LandingArchiveSection() {
   );
 }
 
+const CAREER: XY[] = [[0, 74], [18, 66], [36, 58], [54, 40], [72, 30], [90, 14], [108, 10], [126, 18], [144, 30], [162, 42], [180, 52], [200, 60]];
+const CAREER_LINE = smoothOpenPath(CAREER);
+const CAREER_AREA = smoothAreaPath(CAREER, 80);
+
 const ERA_COLORS = ["Ferrari", "McLaren", "Williams", "Red Bull Racing", "Mercedes", "Lotus F1", "Benetton", "Renault"];
 
 function ArchiveCardPicture({ kind }: { kind: (typeof ARCHIVE_ENTRIES)[number]["section"] }) {
+  const revealRef = useLineReveal<SVGSVGElement>();
   if (kind === "year") {
     const heights = [26, 38, 34, 50, 44, 64, 56, 74, 52, 68, 86, 62, 78];
     return (
@@ -175,11 +182,19 @@ function ArchiveCardPicture({ kind }: { kind: (typeof ARCHIVE_ENTRIES)[number]["
     );
   }
   if (kind === "driver") {
-    // A career's points, season by season: rising, a peak, a long tail.
+    // A career's points, season by season: rising, a peak, a long tail, drawn as one smooth curve that reveals itself
+    // left to right on a desktop (globals.css .line-reveal).
     return (
-      <svg viewBox="0 0 200 80" preserveAspectRatio="none" className="h-full w-full">
-        <path d="M0 74 L18 66 L36 58 L54 40 L72 30 L90 14 L108 10 L126 18 L144 30 L162 42 L180 52 L200 60" pathLength={100} fill="none" stroke="#e10600" strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="line-draw" />
-        <path d="M0 74 L18 66 L36 58 L54 40 L72 30 L90 14 L108 10 L126 18 L144 30 L162 42 L180 52 L200 60 L200 80 L0 80 Z" fill="rgb(225 6 0 / 0.1)" />
+      <svg ref={revealRef} viewBox="0 0 200 80" preserveAspectRatio="none" className="h-full w-full">
+        <defs>
+          <clipPath id="archive-card-career">
+            <rect className="line-reveal" x={0} y={0} width={200} height={80} />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#archive-card-career)">
+          <path d={CAREER_AREA} fill="rgb(225 6 0 / 0.1)" />
+          <path d={CAREER_LINE} fill="none" stroke="#e10600" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        </g>
       </svg>
     );
   }

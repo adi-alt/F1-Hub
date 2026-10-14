@@ -24,7 +24,7 @@ export function DrawnCircuit({ layout }: { layout: DrawnLayout }) {
           initial={reduceMotion ? false : { pathLength: 0 }}
           whileInView={{ pathLength: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: reduceMotion ? 0 : 1.6, ease: [0.4, 0, 0.2, 1] }}
+          transition={{ duration: reduceMotion ? 0 : 1.6, ease: [0.2, 0, 0, 1] }}
         />
       </svg>
       {layout.attribution && <figcaption className="mt-1 text-center text-caption text-tertiary">Drawing: {layout.attribution}</figcaption>}

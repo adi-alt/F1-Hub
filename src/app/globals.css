@@ -252,9 +252,12 @@ body {
   outline: none;
 }
 
-/* The document scrolls (audit R-31). The scrollbar's width stays reserved, so a modal that locks
-   scrolling (lib/scrollLock.ts) does not shift the page sideways, and anchor jumps and focus scrolls
-   clear the sticky header (4rem) with a little room to spare.
+/* The document scrolls (audit R-31): wheel, trackpad, keyboard, touch, find-in-page and Back all work. Its
+   scrollbar is hidden (a product decision, 2026-10-14): every long page has the section indicators on the right
+   (SectionNav), which say where you are better than a bare thumb. With no scrollbar there is no width to reserve,
+   so a modal that locks scrolling (lib/scrollLock.ts) can't shift the page sideways either. Anchor jumps and focus
+   scrolls clear the sticky header with a little room to spare. Horizontal scrollers inside a page (wide tables)
+   keep theirs: it's the only cue that there are more columns.
 
    The page keeps its soft red-to-blue glow, but fixed: two diagonal light bands painted by one gradient
    layer behind the content. It used to be four randomly placed blurred elements rebuilt on every request
@@ -273,8 +276,11 @@ body::before {
 }
 
 html {
-  scrollbar-gutter: stable;
   scroll-padding-top: 5rem;
+  scrollbar-width: none; /* Firefox */
+}
+html::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 /* Scroll still works — this only hides the visible track/thumb, for
@@ -673,13 +679,24 @@ html {
   }
 }
 
-/* A line drawing itself (the archive card's career arc), and team colours sweeping through the eras. */
-@keyframes line-draw {
+/* A line drawing itself, left to right (the sparklines, the archive card's career arc): a clip rect that grows, so
+   it reaches the end whatever the line's real length or stroke scaling (a pathLength dash doesn't, under
+   non-scaling-stroke). Two identical keyframes so a hover can replay it: a new animation-name restarts it. And team
+   colours sweeping through the eras. */
+@keyframes line-reveal {
   from {
-    stroke-dashoffset: 100;
+    transform: scaleX(0);
   }
   to {
-    stroke-dashoffset: 0;
+    transform: scaleX(1);
+  }
+}
+@keyframes line-reveal-again {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
 @keyframes era-sweep {
@@ -722,12 +739,18 @@ html {
   .mini-bar-x {
     animation: mini-bar-x 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
   }
-  .line-draw {
-    stroke-dasharray: 100;
-    animation: line-draw 2.4s cubic-bezier(0.2, 0, 0, 1) both;
+  .line-reveal {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: line-reveal 1.6s cubic-bezier(0.2, 0, 0, 1) both;
   }
-  .group:hover .line-draw {
-    animation: line-draw 1.4s cubic-bezier(0.2, 0, 0, 1) both;
+  .group:hover .line-reveal {
+    animation: line-reveal-again 1.2s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+  /* Below the fold at load: held until it's scrolled into view (hooks/useLineReveal.ts). */
+  [data-reveal="wait"] .line-reveal {
+    animation: none;
+    transform: scaleX(0);
   }
   .era-sweep {
     animation: era-sweep 3.6s ease-in-out infinite;

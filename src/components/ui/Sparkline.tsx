@@ -1,6 +1,8 @@
 "use client";
 
 import { useId } from "react";
+import { smoothAreaPath, smoothOpenPath } from "@/lib/smoothPath";
+import { useLineReveal } from "@/hooks/useLineReveal";
 
 export type SparkPoint = { round: number; points: number; cumulative: number };
 
@@ -66,6 +68,8 @@ export function Sparkline({
   height?: number;
 }) {
   const gradientId = useId();
+  const clipId = useId();
+  const revealRef = useLineReveal<SVGSVGElement>();
 
   // Under two points there is no line to draw, and a single dot would imply a trend that hasn't
   // been measured. The row still renders, just without a chart.
@@ -84,11 +88,12 @@ export function Sparkline({
   const coords = values.map((v, i) => {
     const x = pad + (i / (values.length - 1)) * innerW;
     const y = pad + innerH - ((v - min) / span) * innerH;
-    return [x, y] as const;
+    return [x, y] as [number, number];
   });
 
-  const line = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const area = `${line} L${coords[coords.length - 1][0].toFixed(1)},${height - pad} L${coords[0][0].toFixed(1)},${height - pad} Z`;
+  // Smooth without overshoot (lib/smoothPath.ts): a cumulative line never dips between two rounds.
+  const line = smoothOpenPath(coords);
+  const area = smoothAreaPath(coords, height - pad);
 
   const tone = TREND[sparklineTrend(values)];
   const [lastX, lastY] = coords[coords.length - 1];
@@ -97,17 +102,23 @@ export function Sparkline({
 
   return (
     <span className="relative inline-flex shrink-0 items-center" style={{ width, height }}>
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} points trend. ${roundsText}.`}>
+      <svg ref={revealRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} points trend. ${roundsText}.`}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={tone.fill} />
             <stop offset="100%" stopColor="transparent" />
           </linearGradient>
+          {/* Draws the line in from the left on a desktop (globals.css .line-reveal); elsewhere it's simply there. */}
+          <clipPath id={clipId}>
+            <rect className="line-reveal" x={0} y={0} width={width} height={height} />
+          </clipPath>
         </defs>
-        <path d={area} fill={`url(#${gradientId})`} />
-        <path d={line} fill="none" stroke={tone.stroke} strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
-        {/* The head of the line, so the current value reads without a label. */}
-        <circle cx={lastX} cy={lastY} r="1.7" fill={tone.stroke} />
+        <g clipPath={`url(#${clipId})`}>
+          <path d={area} fill={`url(#${gradientId})`} />
+          <path d={line} fill="none" stroke={tone.stroke} strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
+          {/* The head of the line, so the current value reads without a label. */}
+          <circle cx={lastX} cy={lastY} r="1.7" fill={tone.stroke} />
+        </g>
       </svg>
     </span>
   );

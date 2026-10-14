@@ -129,11 +129,14 @@ export default function ChampionshipTrajectory({
           return (
             <Area
               key={code}
-              type="natural"
+              // Monotone, not natural: a natural spline overshoots, drawing a dip in a points total that never fell.
+              type="monotone"
               dataKey={code}
               name={code}
               stroke={color}
               strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               strokeOpacity={dimmed ? 0.28 : 1}
               fillOpacity={dimmed ? 0.4 : 1}
               strokeDasharray={dashed ? "5 4" : undefined}
