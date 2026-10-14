@@ -10,8 +10,10 @@ it("is the page's h1, since every caller renders it in place of the whole page (
   assert.equal((html.match(/<h1/g) ?? []).length, 1);
   assert.match(html, /<h1[^>]*>The championship, round by round<\/h1>/);
   assert.match(html, /Sign in to see season standings/);
-  assert.match(html, /<button type="button"[^>]*>Create a free account<\/button>/);
-  assert.match(html, /<button type="button"[^>]*>I have an account · Sign in<\/button>/);
+  // The design system's Button wraps its label in a span.
+  assert.match(html, /<button[^>]*>(?:<[^>]+>)*Create a free account(?:<\/[^>]+>)*<\/button>/);
+  assert.match(html, /<button[^>]*>(?:<[^>]+>)*I have an account · Sign in(?:<\/[^>]+>)*<\/button>/);
+  assert.match(html, /Also on F1 Hub/);
 });
 
 it("says what's behind each gate, and falls back to a general line for anything else", () => {

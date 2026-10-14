@@ -6,7 +6,7 @@ import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 // the save button.
 export default function NotificationsLoading() {
   return (
-    <PageContainer width="narrow" className="py-10">
+    <PageContainer width="narrow" className="skeleton-delay py-10">
       <Link href="/" className="text-sm text-tertiary hover:text-neutral-300">
         ← Home
       </Link>
