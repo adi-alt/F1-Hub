@@ -97,7 +97,7 @@ export function PostDetailWindow({
         </div>
 
         {/* The post, pinned above the scrolling discussion so it never leaves the screen. */}
-        <div className="shrink-0 border-b border-white/[0.07] px-4 pb-3.5 pt-3 sm:px-4 sm:pt-3.5">
+        <div className="shrink-0 border-b border-white/10 px-4 pb-3.5 pt-3 sm:px-4 sm:pt-3.5">
           <div className="flex items-start gap-2">
             {/* showGroup is always true here - the window is effectively the post's own page,
                 where "which community" is always relevant, not something a surrounding page has
@@ -107,7 +107,7 @@ export function PostDetailWindow({
               type="button"
               onClick={onClose}
               aria-label="Close discussion"
-              className="-mr-1 -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              className="-mr-1 -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" aria-hidden>
                 <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -118,14 +118,14 @@ export function PostDetailWindow({
           <div className="mt-2.5 flex items-start gap-3">
             <div className="min-w-0 flex-1">
               {post.title && <p className="text-sm font-semibold text-white">{post.title}</p>}
-              <p className={`whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-neutral-300 ${post.title ? "mt-1" : ""}`}>{post.content}</p>
+              <p className={`whitespace-pre-wrap break-words text-body-sm leading-relaxed text-secondary ${post.title ? "mt-1" : ""}`}>{post.content}</p>
             </div>
             {/* A thumbnail, not the full-bleed image: the discussion is what this panel is for,
                 and the media is context for it. Non-image media (video/documents) has no useful
                 still to show at this size, so it isn't faked with a generic tile. */}
             {thumbSrc && (
               // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize
-              <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-lg border border-white/[0.08] object-cover" />
+              <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-lg border border-white/10 object-cover" />
             )}
           </div>
 
@@ -136,9 +136,9 @@ export function PostDetailWindow({
               href={post.attachment.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 flex max-w-full items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-neutral-300 transition hover:border-white/[0.16] hover:text-white"
+              className="mt-2 flex max-w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-caption text-secondary transition hover:border-white/[0.16] hover:text-white"
             >
-              <span aria-hidden className="shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-neutral-300">
+              <span aria-hidden className="shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 text-caption font-bold tracking-wide text-secondary">
                 {attachmentBadge(attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url), post.attachment.name)}
               </span>
               <span className="truncate">{displayName(post.attachment.name, attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url))}</span>
@@ -146,23 +146,23 @@ export function PostDetailWindow({
           )}
 
           <div className="mt-2.5 flex items-center gap-2">
-            <div className="rounded-full border border-white/[0.08] bg-white/[0.03] px-1 py-0.5">
+            <div className="rounded-full border border-white/10 bg-white/[0.03] px-1 py-0.5">
               <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
             </div>
-            <span className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-neutral-400">
+            <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-secondary">
               <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
                 <path d="M3 4.5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-3.5 3v-3H3a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
               </svg>
-              <span className="tabular-nums">{totalCount}</span>
+              <span className="tabular">{totalCount}</span>
             </span>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5 scrollbar-subtle">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[13px] font-semibold text-white">
+            <p className="text-body-sm font-semibold text-white">
               {focused ? "This thread" : "Comments"}
-              {!focused && totalCount > 0 && <span className="ml-1.5 text-xs font-normal tabular-nums text-tertiary">{totalCount}</span>}
+              {!focused && totalCount > 0 && <span className="ml-1.5 text-xs font-normal tabular text-tertiary">{totalCount}</span>}
             </p>
             {!focused && totalCount > 1 && <CommentSortControl value={sort} onChange={setSort} />}
           </div>
@@ -173,13 +173,13 @@ export function PostDetailWindow({
             ) : error ? (
               <p className="py-2 text-xs text-tertiary">
                 Couldn&apos;t load the discussion.{" "}
-                <button type="button" onClick={reload} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                <button type="button" onClick={reload} className="text-secondary underline-offset-2 hover:text-white hover:underline">
                   Retry
                 </button>
               </p>
             ) : allRoots.length === 0 ? (
               <div className="py-5 text-center">
-                <p className="text-sm font-medium text-neutral-300">No comments yet</p>
+                <p className="text-sm font-medium text-secondary">No comments yet</p>
                 <p className="mt-1 text-xs text-tertiary">Be the first to reply.</p>
               </div>
             ) : (
@@ -191,7 +191,7 @@ export function PostDetailWindow({
                   <button
                     type="button"
                     onClick={() => setVisibleThreads((n) => n + THREADS_PER_PAGE)}
-                    className="mt-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs font-medium text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+                    className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-xs font-medium text-secondary transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
                   >
                     Load more comments
                   </button>

@@ -16,19 +16,19 @@ export function VoteControl({ score, myVote, onVote, compact = false }: { score:
         aria-label="Upvote"
         aria-pressed={myVote === 1}
         onClick={() => onVote(1)}
-        className={`relative flex h-6 w-6 items-center justify-center rounded transition before:absolute before:-inset-1 before:content-[''] hover:bg-white/[0.06] ${myVote === 1 ? "text-brand-text" : "text-tertiary hover:text-neutral-300"}`}
+        className={`relative flex h-6 w-6 items-center justify-center rounded transition before:absolute before:-inset-1 before:content-[''] hover:bg-surface-3 ${myVote === 1 ? "text-brand-text" : "text-tertiary hover:text-secondary"}`}
       >
         <svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor" aria-hidden>
           <path d="M10 4l6 7h-4v5H8v-5H4z" />
         </svg>
       </button>
-      <span className="min-w-[1.1rem] text-center text-[11px] font-semibold tabular-nums text-neutral-300">{score}</span>
+      <span className="min-w-[1.1rem] text-center text-caption font-semibold tabular text-primary">{score}</span>
       <button
         type="button"
         aria-label="Downvote"
         aria-pressed={myVote === -1}
         onClick={() => onVote(-1)}
-        className={`relative flex h-6 w-6 items-center justify-center rounded transition before:absolute before:-inset-1 before:content-[''] hover:bg-white/[0.06] ${myVote === -1 ? "text-sky-400" : "text-tertiary hover:text-neutral-300"}`}
+        className={`relative flex h-6 w-6 items-center justify-center rounded transition before:absolute before:-inset-1 before:content-[''] hover:bg-surface-3 ${myVote === -1 ? "text-sky-400" : "text-tertiary hover:text-secondary"}`}
       >
         <svg viewBox="0 0 20 20" width="12" height="12" fill="currentColor" aria-hidden>
           <path d="M10 16l-6-7h4V4h4v5h4z" />

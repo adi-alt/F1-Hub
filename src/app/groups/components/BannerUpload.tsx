@@ -50,12 +50,12 @@ export function BannerUpload({ groupId, hasBanner }: { groupId: string; hasBanne
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={status === "uploading" || status === "removing"}
-          className="rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
+          className="rounded-full border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
         >
           {status === "uploading" ? "Uploading…" : hasBanner ? "Replace banner" : "Upload banner"}
         </button>
         {hasBanner && (
-          <button type="button" onClick={() => void remove()} disabled={status === "uploading" || status === "removing"} className="text-tertiary hover:text-neutral-300 disabled:opacity-60">
+          <button type="button" onClick={() => void remove()} disabled={status === "uploading" || status === "removing"} className="text-tertiary hover:text-secondary disabled:opacity-60">
             {status === "removing" ? "Removing…" : "Remove"}
           </button>
         )}

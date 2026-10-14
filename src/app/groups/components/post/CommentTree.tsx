@@ -83,14 +83,14 @@ function CommentNode({
   if (comment.failed) {
     return (
       <div className={indent(depth)}>
-        <div className="rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05] px-3 py-2">
-          <p className="text-[11px] font-semibold text-brand-text">Couldn&apos;t post this reply.</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">{comment.content}</p>
+        <div className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2">
+          <p className="text-caption font-semibold text-brand-text">Couldn&apos;t post this reply.</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{comment.content}</p>
           <div className="mt-1.5 flex items-center gap-3">
             <button type="button" onClick={() => void onReply(comment.content, comment.parentCommentId)} className="text-xs font-semibold text-white underline-offset-2 hover:underline">
               Retry
             </button>
-            <button type="button" onClick={() => onDiscard(comment.id)} className="text-xs text-tertiary transition hover:text-neutral-300">
+            <button type="button" onClick={() => onDiscard(comment.id)} className="text-xs text-tertiary transition hover:text-secondary">
               Discard
             </button>
           </div>
@@ -106,14 +106,14 @@ function CommentNode({
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-1.5 text-xs">
             <span className="font-semibold text-neutral-200">
-              <span aria-hidden className="mr-1 font-mono text-[11px] font-normal text-tertiary">
+              <span aria-hidden className="mr-1 font-mono text-caption font-normal text-tertiary">
                 U/
               </span>
               {comment.authorName}
             </span>
             <span className="text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
           </p>
-          <p className="mt-1 whitespace-pre-wrap break-words text-[13.5px] leading-relaxed text-neutral-300">{comment.content}</p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-body-sm leading-relaxed text-secondary">{comment.content}</p>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <VoteControl score={score} myVote={myVote} onVote={vote} compact />
@@ -156,7 +156,7 @@ function CommentNode({
         <button
           type="button"
           onClick={() => onOpenConversation(comment.id)}
-          className="ml-[38px] mt-1.5 text-xs font-medium text-neutral-400 underline-offset-2 transition hover:text-white hover:underline"
+          className="ml-[38px] mt-1.5 text-xs font-medium text-secondary underline-offset-2 transition hover:text-white hover:underline"
         >
           View conversation ({hiddenCount} more)
         </button>
@@ -187,7 +187,7 @@ function CommentNode({
 /** Replies sit under their parent's avatar column, with a hairline rule marking the thread - enough
  * to read as nested without marching right until the text is one word wide. */
 function indent(depth: number): string {
-  return depth > 0 ? "ml-[38px] border-l border-white/[0.07] pl-3" : "";
+  return depth > 0 ? "ml-[38px] border-l border-white/10 pl-3" : "";
 }
 
 export function CommentSortControl({ value, onChange }: { value: "top" | "newest"; onChange: (sort: "top" | "newest") => void }) {
@@ -199,8 +199,8 @@ export function CommentSortControl({ value, onChange }: { value: "top" | "newest
           type="button"
           aria-pressed={value === option}
           onClick={() => onChange(option)}
-          className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition ${
-            value === option ? "bg-white/[0.08] text-white" : "text-tertiary hover:text-neutral-300"
+          className={`rounded-full px-2 py-0.5 text-caption font-medium transition ${
+            value === option ? "bg-white/[0.08] text-white" : "text-tertiary hover:text-secondary"
           }`}
         >
           {option === "top" ? "Top" : "Newest"}

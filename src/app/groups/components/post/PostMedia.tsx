@@ -24,7 +24,7 @@ export function PostMedia({ url }: { url: string }) {
 
   if (kind === "video") {
     return (
-      <video controls preload="metadata" className="mt-2 max-h-[420px] w-full rounded-lg border border-[var(--f1-line)] bg-black">
+      <video controls preload="metadata" className="mt-2 max-h-[420px] w-full rounded-lg border border-white/10 bg-black">
         <source src={url} />
       </video>
     );
@@ -38,7 +38,7 @@ export function PostMedia({ url }: { url: string }) {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="mt-2 flex items-center gap-2.5 rounded-lg border border-[var(--f1-line)] bg-black/20 p-2.5 text-sm text-neutral-300 transition hover:border-white/20 hover:text-white"
+        className="mt-2 flex items-center gap-2.5 rounded-lg border border-white/10 bg-black/20 p-2.5 text-sm text-secondary transition hover:border-white/20 hover:text-white"
       >
         <span className="text-xl" aria-hidden>
           {DOC_ICON[ext] ?? "📎"}
@@ -50,7 +50,7 @@ export function PostMedia({ url }: { url: string }) {
   }
 
   if (failed) {
-    return <div className="mt-2 flex h-40 w-full items-center justify-center rounded-lg border border-[var(--f1-line)] bg-white/[0.02] text-xs text-tertiary">Image unavailable</div>;
+    return <div className="mt-2 flex h-40 w-full items-center justify-center rounded-lg border border-white/10 bg-white/[0.02] text-xs text-tertiary">Image unavailable</div>;
   }
 
   return (
@@ -62,7 +62,7 @@ export function PostMedia({ url }: { url: string }) {
         onClick={() => setOpen(true)}
         disabled={!loaded}
         aria-label="Open the attached image full size"
-        className="relative mt-2 block min-h-[10rem] w-full overflow-hidden rounded-lg border border-[var(--f1-line)] bg-black/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        className="relative mt-2 block min-h-[10rem] w-full overflow-hidden rounded-lg border border-white/10 bg-black/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         {/* No stored width/height for an arbitrary upload, so this can't reserve its EXACT final
             box - but a real minimum height (above) plus this shimmer means the space is never

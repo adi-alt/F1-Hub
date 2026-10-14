@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare, Plus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
@@ -238,22 +239,20 @@ export function GroupsFeed({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       {selectedCommunity && (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 backdrop-blur-sm">
-          <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={28} />
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
-            <span aria-hidden className="mr-1 font-mono text-xs font-normal text-tertiary">
-              C/
-            </span>
-            {selectedCommunity.name}
-          </p>
-          <Link href={groupHref(selectedCommunity.id)} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-neutral-400 transition hover:text-white">
-            Open community
-            <svg viewBox="0 0 12 12" width="9" height="9" fill="none" aria-hidden>
-              <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
+        <div className="flex items-center gap-3 rounded-card border border-white/10 bg-surface-1/60 px-4 py-3">
+          <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={32} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-body-sm font-semibold text-primary">{selectedCommunity.name}</p>
+            <p className="truncate text-caption text-secondary">
+              {selectedCommunity.memberCount} member{selectedCommunity.memberCount === 1 ? "" : "s"}
+              {selectedCommunity.activePredictions ? ` · ${selectedCommunity.activePredictions} open round${selectedCommunity.activePredictions === 1 ? "" : "s"}` : ""}
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" iconEnd={ChevronRight} asChild>
+            <Link href={groupHref(selectedCommunity.id)}>Open</Link>
+          </Button>
         </div>
       )}
 
@@ -272,14 +271,14 @@ export function GroupsFeed({
         <div>
           {communityPosts === null ? (
             communityInitialError ? (
-              <p className="py-6 text-center text-xs text-tertiary">
+              <p className="py-6 text-center text-caption text-secondary">
                 Couldn&apos;t load this community&apos;s feed.{" "}
-                <button type="button" onClick={refreshCommunity} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                <button type="button" onClick={refreshCommunity} className="text-secondary underline-offset-2 hover:text-white hover:underline">
                   Retry
                 </button>
               </p>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <PostCardSkeleton key={i} />
                 ))}
@@ -288,7 +287,7 @@ export function GroupsFeed({
           ) : communityPosts.length === 0 ? (
             <EmptyState icon={MessageSquare} message="Nothing has been posted here yet: start the first conversation." />
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {interleave(communityPosts, communityPredictions).map((item, i) =>
                 item.kind === "post" ? (
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
@@ -311,14 +310,14 @@ export function GroupsFeed({
                 means. For You/Latest widen to public communities and personal posts too, which this
                 line would misdescribe, so it only shows for Following. */}
             {feedType === "following" && groups.length > 0 && (
-              <p className="hidden shrink-0 text-[11.5px] font-medium text-neutral-400 sm:block">
+              <p className="hidden shrink-0 text-caption text-secondary sm:block">
                 {groups.length} {groups.length === 1 ? "community" : "communities"}
               </p>
             )}
           </div>
           <TabPanels>
             {loading ? (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <PostCardSkeleton key={i} />
                 ))}
@@ -329,7 +328,7 @@ export function GroupsFeed({
                 message={feedType === "following" ? "Nothing here yet: posts from communities you've joined show up here." : "No posts to show right now."}
               />
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {interleave(posts, predictions).map((item, i) =>
                   item.kind === "post" ? (
                     <PostCard key={item.key} post={item.post} index={i} showGroup />
@@ -348,9 +347,9 @@ export function GroupsFeed({
           <div ref={communitySentinelRef} className="py-2">
             {communityLoadingMore && <PostCardSkeleton />}
             {communityMoreError && (
-              <p className="text-center text-xs text-tertiary">
+              <p className="text-center text-caption text-secondary">
                 Couldn&apos;t load more.{" "}
-                <button type="button" onClick={() => void loadMoreCommunity()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                <button type="button" onClick={() => void loadMoreCommunity()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
                   Try again
                 </button>
               </p>
@@ -365,7 +364,7 @@ export function GroupsFeed({
           {error && (
             <p className="text-center text-xs text-tertiary">
               Couldn&apos;t load more.{" "}
-              <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+              <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
                 Try again
               </button>
             </p>
@@ -381,16 +380,11 @@ export function GroupsFeed({
           bottom-left. Only rendered while the composer is genuinely off screen. */}
       {composerOffscreen && (
         <div className="pointer-events-none sticky bottom-4 z-20 flex justify-center">
-          <button
-            type="button"
-            onClick={jumpToComposer}
-            className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.12] bg-zinc-900/90 px-4 py-2 text-[13px] font-semibold text-white shadow-lg backdrop-blur-md transition hover:border-white/25 hover:bg-zinc-800/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-          >
-            <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden>
-              <path d="M7 2.5v9M2.5 7h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            New post
-          </button>
+          <span className="pointer-events-auto rounded-card shadow-overlay">
+            <Button variant="secondary" size="md" iconStart={Plus} onClick={jumpToComposer}>
+              New post
+            </Button>
+          </span>
         </div>
       )}
     </div>
@@ -416,7 +410,7 @@ function EndOfFeed() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.25 }}
-      className="flex items-center justify-center gap-1.5 py-5 text-[11.5px] text-tertiary"
+      className="flex items-center justify-center gap-1.5 py-5 text-caption text-tertiary"
     >
       <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
         <path d="M3 8.5 6.2 11.5 13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />

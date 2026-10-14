@@ -60,7 +60,7 @@ export function RaceWeekendTake({ location, year }: { location: string; year: nu
 
   if (loading) {
     return (
-      <div className="mt-2.5 border-t border-white/[0.08] pt-2.5" aria-busy>
+      <div className="mt-2.5 border-t border-white/10 pt-2.5" aria-busy>
         <ApexLabel />
         <div className="mt-2 space-y-1.5">
           <span className="skeleton-shimmer block h-2.5 w-4/5 rounded bg-white/[0.06]" />
@@ -75,10 +75,10 @@ export function RaceWeekendTake({ location, year }: { location: string; year: nu
   if (!block) return null;
 
   return (
-    <div className="mt-3.5 border-t border-white/[0.08] pt-3">
+    <div className="mt-3.5 border-t border-white/10 pt-3">
       <ApexLabel />
-      <p className="mt-1 text-[12px] font-semibold leading-snug text-white">{block.headline}</p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-neutral-400">{block.summary}</p>
+      <p className="mt-1 text-caption font-semibold leading-snug text-white">{block.headline}</p>
+      <p className="mt-0.5 text-caption leading-relaxed text-secondary">{block.summary}</p>
     </div>
   );
 }
@@ -86,10 +86,10 @@ export function RaceWeekendTake({ location, year }: { location: string; year: nu
 function ApexLabel() {
   return (
     <div className="flex items-center gap-1.5">
-      <span aria-hidden className="text-brand-text">
+      <span aria-hidden className="text-tertiary">
         ✦
       </span>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">Apex on this circuit</p>
+      <p className="text-caption font-semibold text-secondary">Apex on this circuit</p>
     </div>
   );
 }

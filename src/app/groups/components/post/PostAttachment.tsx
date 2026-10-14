@@ -47,7 +47,7 @@ export function PostAttachment({ attachment, onRemove }: { attachment: Attachmen
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.18 }}
-          className="relative mt-2 overflow-hidden rounded-lg border border-white/[0.07] bg-black/20"
+          className="relative mt-2 overflow-hidden rounded-lg border border-white/10 bg-black/20"
         >
           <button type="button" onClick={() => setLightbox(true)} aria-label={`View ${name} full size`} className="block w-full">
             {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary Storage URL, not a known-domain asset next/image can optimize */}
@@ -62,7 +62,7 @@ export function PostAttachment({ attachment, onRemove }: { attachment: Attachmen
 
   if (kind === "video" && !mediaFailed) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 overflow-hidden rounded-lg border border-white/[0.07] bg-black">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 overflow-hidden rounded-lg border border-white/10 bg-black">
         {/* preload="metadata" and no autoplay: a feed must not start playing at someone, and must
             not pull whole videos down to render a card. */}
         <video src={attachment.url} controls preload="metadata" poster={attachment.thumbUrl ?? undefined} onError={() => setMediaFailed(true)} className="max-h-[420px] w-full" />
@@ -74,10 +74,10 @@ export function PostAttachment({ attachment, onRemove }: { attachment: Attachmen
 
   if (kind === "audio" && !mediaFailed) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 rounded-lg border border-white/[0.07] bg-black/20 p-2.5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 rounded-lg border border-white/10 bg-black/20 p-2.5">
         <audio src={attachment.url} controls preload="metadata" onError={() => setMediaFailed(true)} className="h-9 w-full" />
-        <p className="mt-1.5 truncate text-[13px] font-medium text-neutral-200">{name}</p>
-        <p className="text-[11.5px] text-tertiary">{meta}</p>
+        <p className="mt-1.5 truncate text-body-sm font-medium text-neutral-200">{name}</p>
+        <p className="text-caption text-tertiary">{meta}</p>
         {onRemove && <RemoveButton onRemove={onRemove} />}
       </motion.div>
     );
@@ -87,9 +87,9 @@ export function PostAttachment({ attachment, onRemove }: { attachment: Attachmen
   // the preview area; otherwise the card is just the typed row, which is still a real answer to
   // "what is this" rather than a broken image slot.
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 overflow-hidden rounded-lg border border-white/[0.07] bg-white/[0.02]">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }} className="relative mt-2 overflow-hidden rounded-lg border border-white/10 bg-white/[0.02]">
       {attachment.thumbUrl && !mediaFailed && (
-        <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="block border-b border-white/[0.06] bg-black/30">
+        <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="block border-b border-white/10 bg-black/30">
           {/* eslint-disable-next-line @next/next/no-img-element -- generated preview on arbitrary Storage URL */}
           <img src={attachment.thumbUrl} alt={`First page of ${name}`} loading="lazy" onError={() => setMediaFailed(true)} className="max-h-[260px] w-full object-contain" />
         </a>
@@ -106,14 +106,14 @@ function MetaRow({ badge, name, meta, url, downloadName, kind }: { badge: string
     // side. Nesting them would be invalid markup, and the browser's own unnesting is what turns a
     // download button into a second copy of the open link.
     <div className="flex items-center gap-2.5 px-2.5 py-2 transition hover:bg-white/[0.03]">
-      <span aria-hidden className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[9px] font-bold tracking-wide ${TONE[kind ?? "file"]}`}>
+      <span aria-hidden className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-caption font-bold tracking-wide ${TONE[kind ?? "file"]}`}>
         {badge}
       </span>
-      <a href={url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {/* Two lines then ellipsis: a real filename is often long, and truncating it to one line
             hides the part that identifies it. line-clamp keeps it bounded either way. */}
-        <span className="line-clamp-2 break-all text-[13.5px] font-medium leading-snug text-neutral-100">{name}</span>
-        <span className="mt-0.5 block text-[11.5px] text-tertiary">{meta}</span>
+        <span className="line-clamp-2 break-all text-body-sm font-medium leading-snug text-neutral-100">{name}</span>
+        <span className="mt-0.5 block text-caption text-tertiary">{meta}</span>
       </a>
       {/* download carries the ORIGINAL name, so the saved file is never the storage UUID. */}
       <a
@@ -130,17 +130,17 @@ function MetaRow({ badge, name, meta, url, downloadName, kind }: { badge: string
 }
 
 const TONE: Record<AttachmentKind, string> = {
-  pdf: "bg-[var(--f1-red)]/[0.14] text-brand-text",
+  pdf: "bg-brand/14 text-brand-text",
   sheet: "bg-emerald-500/[0.14] text-emerald-400",
   doc: "bg-sky-500/[0.14] text-sky-400",
   slides: "bg-amber-500/[0.14] text-amber-400",
-  text: "bg-white/[0.06] text-neutral-300",
+  text: "bg-white/[0.06] text-secondary",
   code: "bg-violet-500/[0.14] text-violet-400",
-  archive: "bg-white/[0.06] text-neutral-300",
-  image: "bg-white/[0.06] text-neutral-300",
-  video: "bg-white/[0.06] text-neutral-300",
-  audio: "bg-white/[0.06] text-neutral-300",
-  file: "bg-white/[0.06] text-neutral-300",
+  archive: "bg-white/[0.06] text-secondary",
+  image: "bg-white/[0.06] text-secondary",
+  video: "bg-white/[0.06] text-secondary",
+  audio: "bg-white/[0.06] text-secondary",
+  file: "bg-white/[0.06] text-secondary",
 };
 
 function RemoveButton({ onRemove }: { onRemove: () => void }) {

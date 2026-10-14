@@ -67,20 +67,20 @@ export function CommunityRightRail({
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">{children}</section>;
+  return <section className="overflow-hidden rounded-2xl border border-white/10 bg-surface-1/60 backdrop-blur-sm">{children}</section>;
 }
 
 function CardHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 px-4 pt-3.5">
-      <h2 className="text-[13px] font-semibold text-white">{title}</h2>
+      <h2 className="text-body-sm font-semibold text-primary">{title}</h2>
       {action}
     </div>
   );
 }
 
 function ViewAllLink({ href, onClick }: { href?: string; onClick?: () => void }) {
-  const className = "shrink-0 text-[11px] font-medium text-tertiary transition hover:text-white";
+  const className = "shrink-0 rounded-control text-caption font-medium text-tertiary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   if (href) {
     return (
       <Link href={href} className={className}>
@@ -114,28 +114,29 @@ function UpcomingRaceCard({ race }: { race: NextRaceSummary }) {
 
   return (
     <Card>
-      <CardHeader title="Upcoming Race" action={<ViewAllLink href={race ? seasonHref(race.year) : "/season"} />} />
+      <CardHeader title="Next race" action={<ViewAllLink href={race ? seasonHref(race.year) : "/season"} />} />
 
       {!race ? (
         <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No upcoming race is scheduled yet.</p>
       ) : (
         <div className="px-3 pb-3.5 pt-2.5">
-          <Link href={raceHref(race.year, race.round, race.name)} className="group block">
-            <div className="relative aspect-[16/7] w-full overflow-hidden rounded-xl bg-white/[0.04]">
+          {race.photoUrl && <Link href={raceHref(race.year, race.round, race.name)} className="group block">
+            <div className="relative aspect-[16/7] w-full overflow-hidden rounded-control bg-surface-2">
               {/* `priority` because Next measured this as the page's Largest Contentful Paint - the rail sits
                   above the fold and this is the only real photo on it, so lazy-loading it is what
                   makes the page's headline paint wait on a second round trip. */}
               {race.photoUrl && <Image src={race.photoUrl} alt="" fill priority sizes="320px" className="object-cover transition duration-500 group-hover:scale-[1.03]" />}
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/35" />
-              <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
+              <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-caption font-semibold text-white backdrop-blur-sm">
                 Round {race.round}
               </span>
             </div>
-          </Link>
+          </Link>}
 
-          <div className="mt-2.5 flex items-start gap-2.5">
+          <div className={`${race.photoUrl ? "mt-2.5" : ""} flex items-start gap-2.5`}>
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 text-[13px] font-bold leading-tight text-white">
+              {!race.photoUrl && <p className="text-caption text-secondary">Round {race.round}</p>}
+              <p className="flex items-center gap-1.5 text-body-sm font-semibold leading-tight text-primary">
                 {flag && (
                   <span aria-hidden className="shrink-0">
                     {flag}
@@ -143,21 +144,21 @@ function UpcomingRaceCard({ race }: { race: NextRaceSummary }) {
                 )}
                 <span className="min-w-0 truncate">{race.name}</span>
               </p>
-              {race.circuit && <p className="mt-0.5 truncate text-[11px] text-tertiary">{race.circuit}</p>}
+              {race.circuit && <p className="mt-0.5 truncate text-caption text-tertiary">{race.circuit}</p>}
               {race.raceDate && (
-                <p className="mt-0.5 text-[11px] text-tertiary">
+                <p className="mt-0.5 text-caption text-tertiary">
                   {parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                 </p>
               )}
               {/* A calendar round the pipeline hasn't dated yet is a real state - it says so rather
                   than inventing a date or quietly showing nothing where a date belongs. */}
-              {!race.raceDate && <p className="mt-0.5 text-[11px] text-tertiary">Date to be confirmed</p>}
+              {!race.raceDate && <p className="mt-0.5 text-caption text-tertiary">Date to be confirmed</p>}
             </div>
 
             {(countdown || underway) && (
-              <div className="shrink-0 rounded-lg border border-[var(--f1-red)]/25 bg-[var(--f1-red)]/[0.1] px-2 py-1 text-center">
-                <p className="text-[13px] font-bold leading-none tabular-nums text-brand-text">{countdown ?? "Live"}</p>
-                <p className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-brand-text/80">{underway ? "Underway" : "Race weekend"}</p>
+              <div className="shrink-0 rounded-control border border-white/15 bg-surface-2 px-2 py-1 text-center">
+                <p className="text-body-sm font-semibold leading-none tabular text-primary">{countdown ?? "Live"}</p>
+                <p className="mt-0.5 text-caption text-secondary">{underway ? "Underway" : "to lights out"}</p>
               </div>
             )}
           </div>
@@ -175,7 +176,7 @@ function CommunityStatsCard({ groupId, stats, onOpenTab }: { groupId: string; st
 
   return (
     <Card>
-      <CardHeader title="Community Stats" action={<ViewAllLink onClick={() => onOpenTab("members")} />} />
+      <CardHeader title="Community stats" action={<ViewAllLink onClick={() => onOpenTab("members")} />} />
       <div className="flex items-start gap-3 px-4 pb-4 pt-3">
         <Stat icon={<Icon icon={Users} size={16} />} value={compactCount(stats.members)} label="Members" />
         {/* Omitted entirely, not zeroed, when presence hasn't connected - see useCommunityPresence. */}
@@ -189,11 +190,11 @@ function CommunityStatsCard({ groupId, stats, onOpenTab }: { groupId: string; st
 function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
   return (
     <div className="min-w-0 flex-1">
-      <p className="flex items-center gap-1.5 text-[15px] font-bold leading-none text-white">
+      <p className="flex items-center gap-1.5 text-body font-bold leading-none text-white">
         <span className="shrink-0 text-tertiary">{icon}</span>
-        <span className="truncate tabular-nums">{value}</span>
+        <span className="truncate tabular">{value}</span>
       </p>
-      <p className="mt-1 truncate text-[11px] text-tertiary">{label}</p>
+      <p className="mt-1 truncate text-caption text-tertiary">{label}</p>
     </div>
   );
 }
@@ -205,7 +206,7 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
 
   return (
     <Card>
-      <CardHeader title="Active Predictions" action={<ViewAllLink onClick={() => onOpenTab("predictions")} />} />
+      <CardHeader title="Open prediction rounds" action={<ViewAllLink onClick={() => onOpenTab("predictions")} />} />
 
       {predictions.length === 0 ? (
         <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No open rounds right now. New ones appear as a race weekend approaches.</p>
@@ -225,13 +226,13 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
               <div key={prediction.id}>
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold leading-tight text-white">{prediction.raceName}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-tertiary">{predictionTypeLabels[prediction.type]}</p>
+                    <p className="truncate text-body-sm font-semibold leading-tight text-white">{prediction.raceName}</p>
+                    <p className="mt-0.5 truncate text-caption text-tertiary">{predictionTypeLabels[prediction.type]}</p>
                   </div>
-                  <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-neutral-200">{prediction.entryPoints} pts</span>
+                  <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-caption font-semibold tabular text-neutral-200">{prediction.entryPoints} pts</span>
                 </div>
 
-                <p className={`mt-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-brand-text" : "text-tertiary"}`}>
+                <p className={`mt-1 text-caption tabular ${urgent ? "font-medium text-warning" : "text-tertiary"}`}>
                   {countdown ? `Closes in ${countdown}` : awaitingResult ? "Awaiting result" : "Open"}
                   {prediction.myEntry && <span className="ml-1.5 font-medium normal-case text-emerald-400/90">· Entered</span>}
                 </p>
@@ -244,7 +245,7 @@ function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPr
           <button
             type="button"
             onClick={() => onOpenTab("predictions")}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2.5 text-[13px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2.5 text-body-sm font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
           >
             <Icon icon={ChartNoAxesColumn} size={16} />
             {/* "Enter" only where entering is actually still possible - a round waiting on a result
@@ -286,21 +287,21 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
     <Card>
       <div className="px-4 pb-4 pt-3.5">
         <div className="flex items-center gap-1.5">
-          <span aria-hidden className="text-brand-text">
+          <span aria-hidden className="text-tertiary">
             ✦
           </span>
-          <h2 className="text-[13px] font-semibold text-white">Community Pulse</h2>
+          <h2 className="text-body-sm font-semibold text-primary">Community pulse</h2>
         </div>
 
         {pulse.hasPriorVisit ? (
           <>
-            <p className="mt-1.5 text-[11px] text-tertiary">Since you were last here</p>
+            <p className="mt-1.5 text-caption text-tertiary">Since you were last here</p>
             {lines.length === 0 ? (
               <p className="mt-2 text-xs leading-relaxed text-tertiary">Nothing new since your last visit.</p>
             ) : (
               <ul className="mt-2 space-y-1.5">
                 {lines.map((line) => (
-                  <li key={line.text} className="flex items-center gap-2 text-xs text-neutral-300">
+                  <li key={line.text} className="flex items-center gap-2 text-xs text-secondary">
                     <span aria-hidden className="shrink-0 text-tertiary">
                       {line.icon}
                     </span>
@@ -314,9 +315,9 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
           // A first visit has nothing to diff against, so it gets the standing picture instead of
           // "no changes since your last visit" - a claim about a visit that never happened.
           <>
-            <p className="mt-1.5 text-[11px] text-tertiary">This week here</p>
+            <p className="mt-1.5 text-caption text-tertiary">This week here</p>
             <ul className="mt-2 space-y-1.5">
-              <li className="flex items-center gap-2 text-xs text-neutral-300">
+              <li className="flex items-center gap-2 text-xs text-secondary">
                 <span aria-hidden className="shrink-0 text-tertiary">
                   <Icon icon={MessageSquare} size={16} />
                 </span>
@@ -324,7 +325,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
                   {stats.weeklyPosts} {stats.weeklyPosts === 1 ? "discussion" : "discussions"}
                 </span>
               </li>
-              <li className="flex items-center gap-2 text-xs text-neutral-300">
+              <li className="flex items-center gap-2 text-xs text-secondary">
                 <span aria-hidden className="shrink-0 text-tertiary">
                   <Icon icon={Users} size={16} />
                 </span>
@@ -339,7 +340,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
         <WeeklyTrendLine stats={stats} />
 
         {expanded && (
-          <dl className="mt-3 space-y-1.5 border-t border-white/[0.06] pt-3">
+          <dl className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
             <RecapRow label="Posts this week" value={String(stats.weeklyPosts)} />
             <RecapRow label="Posts the week before" value={String(stats.previousWeeklyPosts)} />
             <RecapRow label="Members active this week" value={String(stats.activeMembers)} />
@@ -353,7 +354,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-[12px] font-medium text-neutral-300 transition hover:border-white/20 hover:text-white"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-caption font-medium text-secondary transition hover:border-white/20 hover:text-white"
           >
             {expanded ? "Hide recap" : "View full recap"}
             <span aria-hidden className={expanded ? "rotate-90 transition-transform" : "transition-transform"}>
@@ -364,7 +365,7 @@ function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; st
             <button
               type="button"
               onClick={() => onOpenTab("feed")}
-              className="shrink-0 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-[12px] font-medium text-neutral-300 transition hover:border-white/20 hover:text-white"
+              className="shrink-0 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-caption font-medium text-secondary transition hover:border-white/20 hover:text-white"
             >
               Feed
             </button>
@@ -384,7 +385,7 @@ function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
 
   if (previousWeeklyPosts === 0) {
     return (
-      <p className="mt-2.5 border-t border-white/[0.06] pt-2.5 text-xs text-neutral-400">
+      <p className="mt-2.5 border-t border-white/10 pt-2.5 text-xs text-secondary">
         {weeklyPosts} {weeklyPosts === 1 ? "post" : "posts"} this week, after a quiet one
       </p>
     );
@@ -393,17 +394,17 @@ function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
   const delta = Math.round(((weeklyPosts - previousWeeklyPosts) / previousWeeklyPosts) * 100);
   const flat = delta === 0;
   return (
-    <p className="mt-2.5 flex items-center gap-1.5 border-t border-white/[0.06] pt-2.5 text-xs text-neutral-400">
+    <p className="mt-2.5 flex items-center gap-1.5 border-t border-white/10 pt-2.5 text-xs text-secondary">
       <span aria-hidden className="text-tertiary">
         <Icon icon={Activity} size={16} />
       </span>
       <span className="min-w-0">
         Activity{" "}
         {flat ? (
-          <span className="text-neutral-300">level with last week</span>
+          <span className="text-secondary">level with last week</span>
         ) : (
           <>
-            <span className={delta > 0 ? "font-semibold text-emerald-400" : "font-semibold text-neutral-300"}>
+            <span className={delta > 0 ? "font-semibold text-emerald-400" : "font-semibold text-secondary"}>
               {delta > 0 ? "↑" : "↓"} {Math.abs(delta)}%
             </span>{" "}
             this week
@@ -417,8 +418,8 @@ function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
 function RecapRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="min-w-0 truncate text-[11px] text-tertiary">{label}</dt>
-      <dd className="shrink-0 text-[11px] font-semibold tabular-nums text-neutral-300">{value}</dd>
+      <dt className="min-w-0 truncate text-caption text-tertiary">{label}</dt>
+      <dd className="shrink-0 text-caption font-semibold tabular text-secondary">{value}</dd>
     </div>
   );
 }

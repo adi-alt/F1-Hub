@@ -59,7 +59,7 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
       exit={{ opacity: 0, y: 4, scale: 0.98 }}
       transition={{ duration: 0.12 }}
       style={style}
-      className="overflow-y-auto rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/70 shadow-2xl backdrop-blur-2xl p-2 scrollbar-hide"
+      className="overflow-y-auto rounded-xl border border-white/10 bg-surface-1/70 shadow-2xl backdrop-blur-2xl p-2 scrollbar-hide"
     >
       <input
         autoFocus

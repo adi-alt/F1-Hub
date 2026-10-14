@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Picker } from "@/components/ui/Picker";
 import type { GroupMember, GroupRole } from "@/lib/supabase/groups";
 
-const ROLE_LABEL: Record<GroupRole, string> = { admin: "ADMIN", moderator: "MODERATOR", member: "MEMBER" };
+const ROLE_LABEL: Record<GroupRole, string> = { admin: "Admin", moderator: "Moderator", member: "Member" };
 
 // Descriptions matter here: "what does promoting someone to moderator actually let them do" was
 // invisible in the native <select> this replaced.
@@ -56,7 +56,7 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
   }
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3 py-2.5">
+    <li className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2.5">
       <div className="flex min-w-0 items-center gap-2.5">
         <EntityAvatar imageUrl={null} name={member.displayName ?? member.username ?? "M"} size={32} />
         <div className="min-w-0">
@@ -76,7 +76,7 @@ function MemberRow({ groupId, member, myRole, myUserId }: { groupId: string; mem
             align="end"
           />
         ) : (
-          member.role !== "member" && <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">{ROLE_LABEL[member.role]}</span>
+          member.role !== "member" && <span className="text-caption font-semibold text-tertiary">{ROLE_LABEL[member.role]}</span>
         )}
         {canManage && (
           <ConfirmButton

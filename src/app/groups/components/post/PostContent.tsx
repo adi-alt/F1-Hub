@@ -24,16 +24,16 @@ export function PostContent({ title, content }: { title: string | null; content:
     // three-line post no longer occupies a screenful. Hierarchy comes from weight and the quieter
     // 11px metadata above it, not from making the body large.
     <div>
-      {title && <p className="text-[15px] font-semibold leading-snug text-white">{title}</p>}
+      {title && <p className="text-body font-semibold leading-snug text-white">{title}</p>}
       {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
           otherwise set the card's minimum width and push the whole column sideways. */}
       {/* layout: expanding a long post changes the card's height, and animating it keeps the rest
           of the feed from snapping upward under the reader. */}
-      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[14px] leading-[1.55] text-neutral-300 ${title ? "mt-0.5" : ""}`}>
+      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body-sm leading-[1.55] text-secondary ${title ? "mt-0.5" : ""}`}>
         {linkify(shown)}
       </motion.p>
       {isLong && (
-        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-[11.5px] font-medium text-tertiary hover:text-white">
+        <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 text-caption font-medium text-tertiary hover:text-white">
           {expanded ? "Show less" : "Show more"}
         </button>
       )}

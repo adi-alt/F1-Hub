@@ -33,7 +33,7 @@ export function AvatarUpload({ groupId }: { groupId: string }) {
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={status === "uploading"}
-        className="rounded-full border border-[var(--f1-line)] px-4 py-2 text-sm text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
+        className="rounded-full border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
       >
         {status === "uploading" ? "Uploading…" : "Change community avatar"}
       </button>

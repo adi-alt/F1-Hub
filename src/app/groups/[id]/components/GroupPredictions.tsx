@@ -13,6 +13,8 @@ import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { GroupRole } from "@/lib/supabase/groups";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 const ENTRY_PRESETS = [10, 20, 50, 100];
 const TYPES: PredictionType[] = ["winner", "podium", "fastest_lap", "pole", "dnf_count"];
@@ -48,7 +50,7 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
   }
 
   return (
-    <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">
+    <div className="rounded-xl border border-white/10 bg-surface-1/60 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="text-xs text-tertiary">
           Race
@@ -78,7 +80,7 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
                 setCustom("");
               }}
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                !custom && entryPoints === p ? "border-[var(--f1-red)] bg-[var(--f1-red)]/10 text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/30"
+                !custom && entryPoints === p ? "border-white/40 bg-surface-3 text-primary" : "border-white/10 text-secondary hover:border-white/30"
               }`}
             >
               {p} points
@@ -88,16 +90,16 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
             value={custom}
             onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
             placeholder="Custom"
-            className="w-20 rounded-full border border-[var(--f1-line)] bg-black/30 px-3 py-1 text-xs text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+            className="w-20 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
           />
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-brand-text">{error}</p>}
+      {error && <p className="mt-2 text-caption text-danger">{error}</p>}
       <button
         onClick={() => void submit()}
         disabled={status === "saving" || !raceId}
-        className="mt-3 rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+        className="mt-3 h-10 rounded-control bg-brand px-4 text-body-sm font-medium text-white transition-colors duration-fast hover:bg-brand-hover disabled:opacity-40"
       >
         {status === "saving" ? "Creating…" : "Create prediction"}
       </button>
@@ -141,9 +143,9 @@ export function GroupPredictions({
               }}
             />
           ) : (
-            <button onClick={() => setShowNew(true)} className="rounded-full border border-[var(--f1-line)] px-4 py-2 text-xs font-semibold text-neutral-200 transition hover:border-white/30">
-              + New Prediction
-            </button>
+            <Button variant="secondary" size="md" iconStart={Plus} onClick={() => setShowNew(true)}>
+              New prediction round
+            </Button>
           )}
         </div>
       )}
@@ -165,7 +167,7 @@ export function GroupPredictions({
               !showNew && (
                 <button
                   onClick={() => setShowNew(true)}
-                  className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+                  className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover"
                 >
                   Create a prediction round
                 </button>

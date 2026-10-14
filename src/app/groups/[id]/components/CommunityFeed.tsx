@@ -291,7 +291,7 @@ export function CommunityFeed({
           onPosted={refresh}
         />
       ) : (
-        <p className="rounded-2xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 px-4 py-3 text-xs text-tertiary">
+        <p className="rounded-2xl border border-white/10 bg-surface-1/60 px-4 py-3 text-xs text-tertiary">
           {/* The real reason, from the community's own permission map - not a disabled box with no
               explanation. */}
           Posting in this community is limited to {permissionLevel(permissions, "post") === "admins" ? "admins" : "moderators and admins"}.
@@ -299,7 +299,7 @@ export function CommunityFeed({
       )}
 
       {moderationEnabled && myRole === "member" && (
-        <p className="mt-2 px-1 text-[11px] text-tertiary">Posts here are reviewed by a moderator before they appear to everyone.</p>
+        <p className="mt-2 px-1 text-caption text-tertiary">Posts here are reviewed by a moderator before they appear to everyone.</p>
       )}
 
       <div className="mt-4">
@@ -312,7 +312,7 @@ export function CommunityFeed({
         ) : reloadError ? (
           <p className="py-6 text-center text-xs text-tertiary">
             Couldn&apos;t load these posts.{" "}
-            <button type="button" onClick={() => setQuery({ ...query })} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+            <button type="button" onClick={() => setQuery({ ...query })} className="text-secondary underline-offset-2 hover:text-white hover:underline">
               Retry
             </button>
           </p>
@@ -324,7 +324,7 @@ export function CommunityFeed({
               ) : (
                 <div key={post.id} className={post.pending ? "opacity-60" : ""}>
                   <PostCard post={post} index={i} showGroup={false} canModerate={canModerate} onModerated={refresh} />
-                  {post.pending && <p className="mt-1 pl-1 text-[11px] text-tertiary">Sending…</p>}
+                  {post.pending && <p className="mt-1 pl-1 text-caption text-tertiary">Sending…</p>}
                 </div>
               ),
             )}
@@ -341,7 +341,7 @@ export function CommunityFeed({
                     <button
                       type="button"
                       onClick={() => setQuery({ ...DEFAULT_FEED_QUERY })}
-                      className="rounded-full border border-[var(--f1-line)] px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 hover:text-white"
+                      className="rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 hover:text-white"
                     >
                       Clear filters
                     </button>
@@ -356,7 +356,7 @@ export function CommunityFeed({
                       <button
                         type="button"
                         onClick={() => onComposerOpenChange(true)}
-                        className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+                        className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover"
                       >
                         Start Discussion
                       </button>
@@ -374,7 +374,7 @@ export function CommunityFeed({
           {pageError && (
             <p className="py-2 text-center text-xs text-tertiary">
               Couldn&apos;t load more discussions.{" "}
-              <button type="button" onClick={() => void loadMore()} className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+              <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
                 Retry
               </button>
             </p>
@@ -445,9 +445,9 @@ function PermalinkPost({ postId }: { postId: string }) {
 
   if (error) {
     return (
-      <div className="fixed bottom-5 right-5 z-[100] max-w-xs rounded-xl border border-[var(--f1-red)]/40 bg-zinc-900/95 p-3 shadow-lg backdrop-blur-md">
+      <div className="fixed bottom-5 right-5 z-[100] max-w-xs rounded-xl border border-brand/40 bg-zinc-900/95 p-3 shadow-lg backdrop-blur-md">
         <p className="text-xs text-brand-text">{error}</p>
-        <button type="button" onClick={close} className="mt-1.5 text-[11px] font-medium text-neutral-400 transition hover:text-white">
+        <button type="button" onClick={close} className="mt-1.5 text-caption font-medium text-secondary transition hover:text-white">
           Dismiss
         </button>
       </div>
@@ -484,15 +484,15 @@ function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => vo
  * writing survives the failure. */
 function FailedPost({ post, onRetry, onDiscard }: { post: OptimisticPost; onRetry: () => void; onDiscard: () => void }) {
   return (
-    <div className="rounded-lg border border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05] p-3.5">
+    <div className="rounded-lg border border-brand/40 bg-brand/5 p-3.5">
       <p className="text-xs font-semibold text-brand-text">Couldn&apos;t post this.</p>
       {post.title && <p className="mt-1.5 text-sm font-semibold text-neutral-200">{post.title}</p>}
-      <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-300">{post.content}</p>
+      <p className="mt-1 whitespace-pre-wrap text-sm text-secondary">{post.content}</p>
       <div className="mt-2.5 flex items-center gap-3">
         <button type="button" onClick={onRetry} className="text-xs font-semibold text-white underline-offset-2 hover:underline">
           Retry
         </button>
-        <button type="button" onClick={onDiscard} className="text-xs text-tertiary transition hover:text-neutral-300">
+        <button type="button" onClick={onDiscard} className="text-xs text-tertiary transition hover:text-secondary">
           Discard
         </button>
       </div>

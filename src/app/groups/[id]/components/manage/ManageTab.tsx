@@ -63,9 +63,9 @@ export function ManageTab({ group }: { group: GroupDetail }) {
               className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${
                 section === s.value
                   ? s.value === "danger"
-                    ? "bg-[var(--f1-red)]/10 text-brand-text"
+                    ? "bg-brand/10 text-brand-text"
                     : "bg-white/[0.06] text-white"
-                  : "text-tertiary hover:bg-white/[0.03] hover:text-neutral-300"
+                  : "text-tertiary hover:bg-white/[0.03] hover:text-secondary"
               }`}
             >
               {s.label}
@@ -123,7 +123,7 @@ function SaveRow({ status, error, onSave, disabled }: { status: string; error: s
         type="button"
         onClick={onSave}
         disabled={status === "saving" || disabled}
-        className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+        className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
       >
         {status === "saving" ? "Saving…" : "Save changes"}
       </button>
@@ -176,44 +176,44 @@ function GeneralSection({ group }: { group: GroupDetail }) {
   return (
     <Section title="General" description="Name, description and how this community is found.">
       <div className="space-y-4">
-        <label className="block text-xs text-neutral-400">
+        <label className="block text-xs text-secondary">
           Name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={40}
-            className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
           />
         </label>
 
-        <label className="block text-xs text-neutral-400">
+        <label className="block text-xs text-secondary">
           Description
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={280}
             rows={3}
-            className="mt-1 w-full resize-none rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
           />
         </label>
 
-        <label className="block text-xs text-neutral-400">
+        <label className="block text-xs text-secondary">
           Tagline
           <input
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
             maxLength={MAX_TAGLINE_CHARS}
             placeholder="A short line shown over the cover image"
-            className="mt-1 w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
           />
           {/* Stated rather than silently truncated - it sits over an image at any width, which is
               why it's capped at all. */}
-          <span className="mt-1 block text-[11px] text-tertiary">
+          <span className="mt-1 block text-caption text-tertiary">
             {tagline.length}/{MAX_TAGLINE_CHARS} · appears over the cover, not under the name
           </span>
         </label>
 
-        <div className="text-xs text-neutral-400">
+        <div className="text-xs text-secondary">
           Topic
           <Picker
             options={COMMUNITY_TOPICS.map((t) => ({ value: t, label: t }))}
@@ -227,7 +227,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           />
         </div>
 
-        <div className="text-xs text-neutral-400">
+        <div className="text-xs text-secondary">
           Community type
           <Picker
             options={COMMUNITY_TYPES.map((t) => ({ value: t.value, label: t.label, description: t.tagline }))}
@@ -239,11 +239,11 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           {/* Changing the type changes which modules are available at all, so it's worth saying so
               before they save rather than after tabs appear or vanish. */}
           {communityType !== group.communityType && (
-            <p className="mt-1.5 text-[11px] text-amber-400/80">Changing the type changes which features this community can use. Nothing is deleted.</p>
+            <p className="mt-1.5 text-caption text-amber-400/80">Changing the type changes which features this community can use. Nothing is deleted.</p>
           )}
         </div>
 
-        <div className="text-xs text-neutral-400">
+        <div className="text-xs text-secondary">
           Visibility
           <Picker
             options={VISIBILITY_OPTIONS.map((v) => ({ value: v.value, label: v.label, description: v.description }))}
@@ -268,7 +268,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
 function AppearanceSection({ group }: { group: GroupDetail }) {
   return (
     <Section title="Appearance" description="Banner and avatar. Both are optional - a generated look is used when they're unset.">
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
+      <div className="overflow-hidden rounded-xl border border-white/10">
         <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} />
       </div>
       <div className="mt-3 space-y-4">
@@ -292,12 +292,12 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
         {enabled
           .filter((m) => !toggles.includes(m))
           .map((m) => (
-            <div key={m} className="flex items-center justify-between rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-2.5">
+            <div key={m} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
               <span>
-                <span className="block text-sm text-neutral-300">{MODULE_LABELS[m]}</span>
-                <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
+                <span className="block text-sm text-secondary">{MODULE_LABELS[m]}</span>
+                <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Always on</span>
+              <span className="text-caption font-semibold text-tertiary">Always on</span>
             </div>
           ))}
 
@@ -311,14 +311,14 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
               aria-checked={on}
               onClick={() => setFeatures((prev) => ({ ...prev, [m]: !on }))}
               className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
-                on ? "border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05]" : "border-[var(--f1-line)] hover:border-white/20"
+                on ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
               }`}
             >
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
-                <span className="block text-[11px] text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
+                <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
-              <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-[var(--f1-red)]" : "bg-white/10"}`} aria-hidden>
+              <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-white/10"}`} aria-hidden>
                 <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
               </span>
             </button>
@@ -342,10 +342,10 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
     <Section title="Permissions" description="Who can do what. Every one of these is enforced on the server, not just hidden in the UI.">
       <div className="space-y-3">
         {PERMISSION_ACTIONS.map((action) => (
-          <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-3">
+          <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
             <span className="min-w-0">
               <span className="block text-sm text-neutral-200">{action.label}</span>
-              <span className="block text-[11px] text-tertiary">{action.description}</span>
+              <span className="block text-caption text-tertiary">{action.description}</span>
             </span>
             <Picker
               options={PERMISSION_LEVELS}
@@ -377,21 +377,21 @@ function ModerationSection({ group }: { group: GroupDetail }) {
         aria-checked={moderationEnabled}
         onClick={() => setModerationEnabled((v) => !v)}
         className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-3 text-left transition ${
-          moderationEnabled ? "border-[var(--f1-red)]/40 bg-[var(--f1-red)]/[0.05]" : "border-[var(--f1-line)] hover:border-white/20"
+          moderationEnabled ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
         }`}
       >
         <span>
           <span className="block text-sm font-medium text-white">Require post approval</span>
-          <span className="block text-[11px] text-tertiary">
+          <span className="block text-caption text-tertiary">
             Member posts wait for an admin or moderator. Admins and moderators bypass their own queue.
           </span>
         </span>
-        <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${moderationEnabled ? "bg-[var(--f1-red)]" : "bg-white/10"}`} aria-hidden>
+        <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${moderationEnabled ? "bg-brand" : "bg-white/10"}`} aria-hidden>
           <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${moderationEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
         </span>
       </button>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-tertiary">
+      <p className="mt-3 text-caption leading-relaxed text-tertiary">
         Pending posts appear inline in the Feed with Approve and Remove, so there&apos;s no separate queue to remember to check. Blocked-word lists and
         a report inbox aren&apos;t built yet and aren&apos;t shown here rather than being shown as switches that do nothing.
       </p>
@@ -439,24 +439,24 @@ function JoinRequestsSection({ group }: { group: GroupDetail }) {
           ))}
         </div>
       ) : requests.length === 0 ? (
-        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-tertiary">
+        <p className="rounded-lg border border-white/10 bg-black/20 p-6 text-center text-sm text-tertiary">
           {group.visibility === "public" ? "This community is public, so people join directly - there's nothing to approve." : "No one is waiting to join."}
         </p>
       ) : (
         <ul className="space-y-2">
           {requests.map((request) => (
-            <li key={request.userId} className="rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-3">
+            <li key={request.userId} className="rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0">
                   <span className="block truncate text-sm text-neutral-200">{request.displayName ?? request.username ?? "Member"}</span>
-                  <span className="block text-[11px] text-tertiary">Asked {new Date(request.createdAt).toLocaleDateString()}</span>
+                  <span className="block text-caption text-tertiary">Asked {new Date(request.createdAt).toLocaleDateString()}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
                     disabled={busy === request.userId}
                     onClick={() => void decide(request.userId, "approve")}
-                    className="rounded-full bg-[var(--f1-red)] px-3 py-1 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+                    className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
                   >
                     Approve
                   </button>
@@ -465,7 +465,7 @@ function JoinRequestsSection({ group }: { group: GroupDetail }) {
                   </ConfirmButton>
                 </span>
               </div>
-              {request.message && <p className="mt-2 border-t border-[var(--f1-line)] pt-2 text-xs leading-relaxed text-neutral-400">{request.message}</p>}
+              {request.message && <p className="mt-2 border-t border-white/10 pt-2 text-xs leading-relaxed text-secondary">{request.message}</p>}
             </li>
           ))}
         </ul>
@@ -559,28 +559,28 @@ function InvitesSection({ group }: { group: GroupDetail }) {
   return (
     <Section title="Invitations" description="Signed links that let someone into a private or hidden community without waiting for approval. Each one expires, has a use limit, and can be cancelled at any time.">
       {isPublic ? (
-        <p className="rounded-lg border border-[var(--f1-line)] bg-black/20 p-6 text-center text-sm text-tertiary">This community is public, so anyone can join it directly - there&apos;s nothing to invite people past.</p>
+        <p className="rounded-lg border border-white/10 bg-black/20 p-6 text-center text-sm text-tertiary">This community is public, so anyone can join it directly - there&apos;s nothing to invite people past.</p>
       ) : (
         <>
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 p-3.5">
-            <label className="text-xs text-neutral-400">
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-black/20 p-3.5">
+            <label className="text-xs text-secondary">
               Expires after
               <select
                 value={days}
                 onChange={(e) => setDays(Number(e.target.value))}
-                className="mt-1 block rounded-lg border border-[var(--f1-line)] bg-black/30 px-2.5 py-1.5 text-sm text-white"
+                className="mt-1 block rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-sm text-white"
               >
                 <option value={1}>1 day</option>
                 <option value={7}>7 days</option>
                 <option value={30}>30 days</option>
               </select>
             </label>
-            <label className="text-xs text-neutral-400">
+            <label className="text-xs text-secondary">
               Can be used
               <select
                 value={maxUses}
                 onChange={(e) => setMaxUses(Number(e.target.value))}
-                className="mt-1 block rounded-lg border border-[var(--f1-line)] bg-black/30 px-2.5 py-1.5 text-sm text-white"
+                className="mt-1 block rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-sm text-white"
               >
                 {[1, 5, 10, 25, 100].map((n) => (
                   <option key={n} value={n}>
@@ -593,7 +593,7 @@ function InvitesSection({ group }: { group: GroupDetail }) {
               type="button"
               disabled={busy === "create"}
               onClick={() => void create()}
-              className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+              className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
             >
               {busy === "create" ? "Creating…" : copied === "new" ? "Link copied" : "Create invitation link"}
             </button>
@@ -607,8 +607,8 @@ function InvitesSection({ group }: { group: GroupDetail }) {
             ) : (
               <ul className="space-y-2">
                 {invites.map((invite) => (
-                  <li key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-3">
-                    <span className="min-w-0 text-xs text-neutral-400">
+                  <li key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
+                    <span className="min-w-0 text-xs text-secondary">
                       <span className="block text-sm text-neutral-200">
                         Used {invite.useCount} of {invite.maxUses}
                       </span>
@@ -616,7 +616,7 @@ function InvitesSection({ group }: { group: GroupDetail }) {
                     </span>
                     <span className="flex shrink-0 items-center gap-3">
                       {invite.token ? (
-                        <button type="button" onClick={() => { if (invite.token) void copy(invite.token, invite.id); }} className="text-xs font-medium text-neutral-300 transition hover:text-white">
+                        <button type="button" onClick={() => { if (invite.token) void copy(invite.token, invite.id); }} className="text-xs font-medium text-secondary transition hover:text-white">
                           {copied === invite.id ? "Copied" : "Copy link"}
                         </button>
                       ) : null}
@@ -648,7 +648,7 @@ function InvitesSection({ group }: { group: GroupDetail }) {
         ) : (
           <ul className="space-y-2">
             {bans.map((ban) => (
-              <li key={ban.userId} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--f1-line)] bg-black/20 px-3.5 py-2.5">
+              <li key={ban.userId} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
                 <span className="min-w-0 truncate text-sm text-neutral-200">{ban.displayName ?? ban.username ?? "Member"}</span>
                 <ConfirmButton onConfirm={() => void unban(ban.userId)} question="Lift this ban?" confirmLabel="Unban" pending={busy === ban.userId}>
                   Unban
@@ -683,7 +683,7 @@ function DangerSection({ group }: { group: GroupDetail }) {
 
   return (
     <Section title="Danger zone" description="These can't be undone.">
-      <div className="rounded-lg border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.04] px-4 py-3.5">
+      <div className="rounded-lg border border-brand/30 bg-brand/4 px-4 py-3.5">
         <p className="text-sm font-medium text-neutral-200">Delete this community</p>
         <p className="mt-0.5 text-xs leading-relaxed text-tertiary">
           Every post, comment, prediction and score is permanently removed for all {group.members.length} member
@@ -695,7 +695,7 @@ function DangerSection({ group }: { group: GroupDetail }) {
             question={`Permanently delete "${group.name}"?`}
             confirmLabel="Delete forever"
             pending={deleting}
-            className="rounded-full border border-[var(--f1-red)]/50 px-3.5 py-1.5 text-xs font-semibold text-brand-text transition hover:bg-[var(--f1-red)]/10 disabled:opacity-40"
+            className="rounded-full border border-brand/50 px-3.5 py-1.5 text-xs font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-40"
           >
             Delete community
           </ConfirmButton>

@@ -166,17 +166,17 @@ export function FeedControls({
               aria-expanded={open}
               aria-label="Sort and filter"
               className={`relative flex h-8 w-8 items-center justify-center rounded-full border transition ${
-                open ? "border-white/25 bg-white/[0.08] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/25 hover:text-white"
+                open ? "border-white/25 bg-white/[0.08] text-white" : "border-white/10 text-secondary hover:border-white/25 hover:text-white"
               }`}
             >
               <Icon icon={ListFilter} size={16} />
-              {isFiltered(value) && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--f1-red)]" />}
+              {isFiltered(value) && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />}
             </button>
           )}
         >
           {() => (
             <div className="p-1">
-              <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Sort</p>
+              <p className="px-2.5 pb-1 pt-1.5 text-caption font-semibold text-tertiary">Sort</p>
               {(Object.keys(SORT_LABELS) as PostSort[]).map((s) => (
                 <MenuOption key={s} selected={value.sort === s} onClick={() => set({ sort: s })}>
                   {SORT_LABELS[s]}
@@ -185,11 +185,11 @@ export function FeedControls({
               {/* Stated, not hidden: the two ranked sorts genuinely rank a bounded recent window
                   (see listPosts), and implying they ranked every post ever would be a lie. */}
               {(value.sort === "top" || value.sort === "discussed") && (
-                <p className="px-2.5 pb-1 pt-1 text-[10.5px] leading-snug text-tertiary">Ranked across this community&apos;s recent posts.</p>
+                <p className="px-2.5 pb-1 pt-1 text-caption leading-snug text-tertiary">Ranked across this community&apos;s recent posts.</p>
               )}
 
               <div className="my-1 border-t border-white/10" />
-              <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Filter</p>
+              <p className="px-2.5 pb-1 pt-1 text-caption font-semibold text-tertiary">Filter</p>
               <MenuToggle checked={value.mediaOnly} onClick={() => set({ mediaOnly: !value.mediaOnly })}>
                 With photo or video
               </MenuToggle>
@@ -197,13 +197,13 @@ export function FeedControls({
                 Only my posts
               </MenuToggle>
               {/* Only a moderator sees this, because only a moderator has a queue: for anyone else
-                  "pending" can only ever mean their own unapproved posts, which isn't a queue. */}
+"pending" can only ever mean their own unapproved posts, which isn't a queue. */}
               {canModerate && moderationEnabled && (
                 <MenuToggle checked={value.pendingOnly} onClick={() => set({ pendingOnly: !value.pendingOnly })}>
                   <span className="flex items-center gap-1.5">
                     Awaiting approval
                     {pendingCount !== undefined && pendingCount > 0 && (
-                      <span className="rounded-full bg-amber-400/15 px-1.5 text-[10px] font-semibold text-amber-400">{pendingCount}</span>
+                      <span className="rounded-full bg-amber-400/15 px-1.5 text-caption font-semibold text-amber-400">{pendingCount}</span>
                     )}
                   </span>
                 </MenuToggle>
@@ -215,7 +215,7 @@ export function FeedControls({
                   <button
                     type="button"
                     onClick={() => onChange({ ...DEFAULT_FEED_QUERY })}
-                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-neutral-300 transition hover:bg-white/[0.06] hover:text-white"
+                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-secondary transition hover:bg-white/[0.06] hover:text-white"
                   >
                     Reset to latest
                   </button>
@@ -245,7 +245,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       aria-pressed={active}
       className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition ${
-        active ? "bg-[var(--f1-red)] text-white" : "border border-[var(--f1-line)] text-neutral-400 hover:border-white/25 hover:text-white"
+        active ? "border border-white/30 bg-surface-3 text-primary" : "border border-white/10 text-secondary hover:border-white/25 hover:text-primary"
       }`}
     >
       {children}
@@ -259,7 +259,7 @@ function IconButton({ label, onClick, icon }: { label: string; onClick: () => vo
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--f1-line)] text-neutral-400 transition hover:border-white/25 hover:text-white"
+      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-secondary transition hover:border-white/25 hover:text-white"
     >
       {icon}
     </button>
@@ -273,13 +273,13 @@ function MenuOption({ selected, onClick, children }: { selected: boolean; onClic
       onClick={onClick}
       aria-checked={selected}
       role="menuitemradio"
-      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition hover:bg-white/[0.06] ${
-        selected ? "text-white" : "text-neutral-400"
+      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-body-sm transition hover:bg-white/[0.06] ${
+        selected ? "text-white" : "text-secondary"
       }`}
     >
       {children}
       {selected && (
-        <span aria-hidden className="shrink-0 text-brand-text">
+        <span aria-hidden className="shrink-0 text-tertiary">
           <Icon icon={Check} size={16} />
         </span>
       )}
@@ -294,14 +294,14 @@ function MenuToggle({ checked, onClick, children }: { checked: boolean; onClick:
       onClick={onClick}
       aria-checked={checked}
       role="menuitemcheckbox"
-      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition hover:bg-white/[0.06] ${
-        checked ? "text-white" : "text-neutral-400"
+      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-body-sm transition hover:bg-white/[0.06] ${
+        checked ? "text-white" : "text-secondary"
       }`}
     >
       {children}
       <span
         aria-hidden
-        className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border ${checked ? "border-[var(--f1-red)] bg-[var(--f1-red)] text-white" : "border-white/20"}`}
+        className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border ${checked ? "border-brand bg-brand text-white" : "border-white/20"}`}
       >
         {checked && <Icon icon={Check} size={16} className="size-3" />}
       </span>

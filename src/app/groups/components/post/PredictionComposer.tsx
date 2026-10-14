@@ -65,13 +65,13 @@ export function PredictionComposer({
   }
 
   if (races.length === 0) {
-    return <p className="mt-2 text-[11.5px] text-tertiary">There are no upcoming rounds left this season to open a prediction on.</p>;
+    return <p className="mt-2 text-caption text-tertiary">There are no upcoming rounds left this season to open a prediction on.</p>;
   }
 
   return (
     <div className="mt-2">
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
+        <label className="block text-caption font-semibold text-tertiary">
           Community
           <div className="mt-1">
             <Picker
@@ -82,13 +82,13 @@ export function PredictionComposer({
             />
           </div>
         </label>
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
+        <label className="block text-caption font-semibold text-tertiary">
           Race
           <div className="mt-1">
             <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this prediction" />
           </div>
         </label>
-        <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
+        <label className="block text-caption font-semibold text-tertiary">
           Prediction type
           <div className="mt-1">
             <Picker
@@ -99,7 +99,7 @@ export function PredictionComposer({
             />
           </div>
         </label>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">
+        <div className="text-caption font-semibold text-tertiary">
           Entry cost
           <div className="mt-1 flex flex-wrap items-center gap-1" role="group" aria-label="Entry cost in points">
             {ENTRY_PRESETS.map((n) => (
@@ -108,8 +108,8 @@ export function PredictionComposer({
                 type="button"
                 onClick={() => setEntryPoints(n)}
                 aria-pressed={entryPoints === n}
-                className={`rounded-md px-2 py-1 text-[11.5px] font-semibold tabular-nums transition ${
-                  entryPoints === n ? "bg-[var(--f1-red)]/[0.16] text-brand-text" : "bg-white/[0.04] text-neutral-400 hover:text-white"
+                className={`rounded-md px-2 py-1 text-caption font-semibold tabular transition ${
+                  entryPoints === n ? "bg-brand/16 text-brand-text" : "bg-white/[0.04] text-secondary hover:text-white"
                 }`}
               >
                 {n}
@@ -122,17 +122,17 @@ export function PredictionComposer({
               value={entryPoints}
               onChange={(e) => setEntryPoints(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
               aria-label="Custom entry cost"
-              className="h-7 w-16 rounded-md border border-white/[0.07] bg-black/25 px-2 text-[11.5px] font-semibold tabular-nums text-white focus:border-white/20 focus:outline-none"
+              className="h-7 w-16 rounded-md border border-white/10 bg-black/25 px-2 text-caption font-semibold tabular text-white focus:border-white/20 focus:outline-none"
             />
           </div>
         </div>
       </div>
 
-      {error && <p className="mt-2 text-[11px] text-brand-text">{error}</p>}
+      {error && <p className="mt-2 text-caption text-brand-text">{error}</p>}
 
       <div className="mt-2.5 flex items-center gap-2">
         {community && (
-          <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-tertiary">
+          <span className="flex min-w-0 items-center gap-1.5 text-caption text-tertiary">
             <EntityAvatar imageUrl={community.avatarUrl} name={community.name} seed={community.id} size={16} shape="square" />
             <span className="truncate">Opens in {community.name}</span>
           </span>
@@ -141,7 +141,7 @@ export function PredictionComposer({
           type="button"
           onClick={() => void submit()}
           disabled={!canSubmit}
-          className="ml-auto rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-[12px] font-semibold text-white transition hover:brightness-110 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+          className="ml-auto rounded-lg bg-brand px-4 py-1.5 text-caption font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           {saving ? "Opening…" : "Open prediction"}
         </button>

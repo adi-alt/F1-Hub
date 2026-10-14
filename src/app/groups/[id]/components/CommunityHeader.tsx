@@ -4,6 +4,8 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Share2 } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
@@ -80,14 +82,14 @@ export function CommunityHeader({
 
   return (
     <header>
-      <div className="relative overflow-hidden rounded-2xl border border-[var(--f1-line)]">
+      <div className="relative overflow-hidden rounded-card border border-white/10">
         <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} variant="header" />
 
         {/* The tagline sits ON the cover, which is the whole reason it's a separate field from the
             description below the name. Right-aligned and capped so it can never grow into the
             avatar's corner, and simply absent when a community hasn't set one. */}
         {group.tagline && (
-          <p className="pointer-events-none absolute inset-y-0 right-4 hidden max-w-[min(55%,26rem)] items-center text-right text-[15px] font-medium leading-snug text-white/95 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:flex sm:text-lg">
+          <p className="pointer-events-none absolute inset-y-0 right-4 hidden max-w-[min(55%,26rem)] items-center text-right text-body font-medium leading-snug text-white/95 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:flex sm:text-lg">
             <span className="line-clamp-2">{group.tagline}</span>
           </p>
         )}
@@ -102,19 +104,14 @@ export function CommunityHeader({
               positioned element paints over a later non-positioned sibling. Without this the
               avatar - which deliberately overlaps the cover by -mt-8 - is drawn UNDERNEATH it and
               its top half disappears. */}
-          <span className="relative z-10 rounded-full ring-4 ring-[var(--background)]">
+          <span className="relative z-10 rounded-full ring-4 ring-surface-0">
             <EntityAvatar imageUrl={group.avatarUrl} name={group.name} seed={group.id} size={64} />
           </span>
 
           <div className="mb-1 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void share()}
-              className="flex items-center gap-1.5 rounded-full border border-[var(--f1-line)] px-3 py-1.5 text-xs font-medium text-neutral-300 transition hover:border-white/30 hover:text-white"
-            >
-              <Icon icon={Share2} size={16} />
+            <Button variant="secondary" size="sm" iconStart={Share2} onClick={() => void share()}>
               {copied ? "Link copied" : "Share"}
-            </button>
+            </Button>
 
             <Popover
               align="end"
@@ -126,7 +123,7 @@ export function CommunityHeader({
                   type="button"
                   onClick={toggle}
                   aria-expanded={open}
-                  className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/[0.1]"
+                  className="flex h-8 items-center gap-1.5 rounded-control border border-strong bg-surface-2 px-3 text-body-sm font-medium text-primary transition-colors duration-fast hover:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
                   Joined
                   <svg viewBox="0 0 20 20" className={`h-3 w-3 transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
@@ -138,7 +135,7 @@ export function CommunityHeader({
               {({ close }) => (
                 <div className="p-1">
                   <div className="px-2.5 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-tertiary">Your role</p>
+                    <p className="text-caption text-tertiary">Your role</p>
                     <p className="mt-0.5 text-sm capitalize text-neutral-200">{group.myRole}</p>
                   </div>
                   <div className="my-1 border-t border-white/10" />
@@ -146,11 +143,11 @@ export function CommunityHeader({
                     type="button"
                     disabled={leaving}
                     onClick={() => void leave(close)}
-                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-brand-text transition hover:bg-[var(--f1-red)]/10 disabled:opacity-50"
+                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-danger transition hover:bg-danger/10 disabled:opacity-50"
                   >
                     {leaving ? "Leaving…" : "Leave community"}
                   </button>
-                  {leaveError && <p className="px-2.5 pb-1.5 pt-0.5 text-[11px] leading-snug text-brand-text">{leaveError}</p>}
+                  {leaveError && <p className="px-2.5 pb-1.5 pt-0.5 text-caption leading-snug text-brand-text">{leaveError}</p>}
                 </div>
               )}
             </Popover>
@@ -160,23 +157,18 @@ export function CommunityHeader({
         </div>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h1 className="text-2xl font-bold leading-tight text-white">{group.name}</h1>
+          <h1 className="text-display-md text-primary">{group.name}</h1>
           {pendingRequests !== undefined && pendingRequests > 0 && (
-            <span className="rounded-full bg-[var(--f1-red)]/15 px-2 py-0.5 text-[11px] font-semibold text-brand-text">
-              {pendingRequests} request{pendingRequests === 1 ? "" : "s"}
-            </span>
+            <Badge tone="warning">{`${pendingRequests} request${pendingRequests === 1 ? "" : "s"} to join`}</Badge>
           )}
         </div>
 
-        {group.description && <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-neutral-400">{group.description}</p>}
+        {group.description && <p className="mt-2 max-w-2xl text-body-sm text-secondary">{group.description}</p>}
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-400">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-caption text-secondary">
           <Pill>{meta.label}</Pill>
           {group.topic && (
-            <Pill>
-              <span aria-hidden className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--f1-red)] align-middle" />
-              {group.topic}
-            </Pill>
+            <Pill>{group.topic}</Pill>
           )}
           {group.tags.map((tag) => (
             <Pill key={tag}>#{tag}</Pill>
@@ -184,7 +176,7 @@ export function CommunityHeader({
           <Pill>{visibilityLabel(group.visibility)}</Pill>
         </div>
 
-        <p className="mt-2.5 text-xs text-tertiary">
+        <p className="mt-3 text-caption text-tertiary">
           {compactCount(memberCount)} member{memberCount === 1 ? "" : "s"} · Created{" "}
           {new Date(group.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
         </p>
@@ -194,7 +186,7 @@ export function CommunityHeader({
 }
 
 function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full border border-[var(--f1-line)] px-2.5 py-0.5 leading-5">{children}</span>;
+  return <span className="rounded-full border border-subtle px-2.5 py-0.5 leading-5 text-secondary">{children}</span>;
 }
 
 /**
@@ -245,7 +237,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
 
   return (
     <div className="absolute bottom-2.5 right-2.5 flex flex-col items-end gap-1.5">
-      {error && <p className="max-w-[16rem] rounded-md bg-black/80 px-2 py-1 text-right text-[11px] leading-snug text-brand-text">{error}</p>}
+      {error && <p className="max-w-[16rem] rounded-md bg-black/80 px-2 py-1 text-right text-caption leading-snug text-brand-text">{error}</p>}
 
       {hasBanner ? (
         <Popover
@@ -259,7 +251,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
               onClick={toggle}
               aria-expanded={open}
               disabled={busy}
-              className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-caption font-medium text-white backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-60"
             >
               <Icon icon={Camera} size={16} />
               {busy ? "Working…" : "Change cover"}
@@ -281,7 +273,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
               <button
                 type="button"
                 onClick={() => void remove(close)}
-                className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-brand-text transition hover:bg-[var(--f1-red)]/10"
+                className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-danger transition hover:bg-danger/10"
               >
                 Remove cover
               </button>
@@ -293,7 +285,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1.5 text-caption font-medium text-white backdrop-blur-sm transition hover:bg-black/80 disabled:opacity-60"
         >
           <Icon icon={Camera} size={16} />
           {busy ? "Uploading…" : "Add cover"}
@@ -341,7 +333,7 @@ function AdminMenu({ group, onOpenManage, pendingRequests }: { group: GroupDetai
             aria-expanded={open}
             aria-label="Community options"
             className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border transition ${
-              open ? "border-white/25 bg-white/[0.1] text-white" : "border-[var(--f1-line)] text-neutral-400 hover:border-white/30 hover:text-white"
+              open ? "border-white/25 bg-white/[0.1] text-white" : "border-white/10 text-secondary hover:border-white/30 hover:text-white"
             }`}
           >
             <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden>
@@ -374,10 +366,10 @@ function AdminMenu({ group, onOpenManage, pendingRequests }: { group: GroupDetai
             >
               Manage community
               {pendingRequests !== undefined && pendingRequests > 0 && (
-                <span className="shrink-0 rounded-full bg-[var(--f1-red)]/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand-text">{pendingRequests}</span>
+                <span className="shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-caption font-semibold text-brand-text">{pendingRequests}</span>
               )}
             </button>
-            {error && <p className="px-2.5 pb-1.5 pt-0.5 text-[11px] leading-snug text-brand-text">{error}</p>}
+            {error && <p className="px-2.5 pb-1.5 pt-0.5 text-caption leading-snug text-brand-text">{error}</p>}
           </div>
         )}
       </Popover>

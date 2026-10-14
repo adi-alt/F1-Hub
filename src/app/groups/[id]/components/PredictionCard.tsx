@@ -157,11 +157,11 @@ export function PredictionCard({
   const guessComplete = prediction.type === "podium" ? Array.isArray(guess) && (guess as string[]).every(Boolean) : guess !== "" && guess !== undefined && guess !== null;
 
   return (
-    <article className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
-      <header className="border-b border-[var(--f1-line)] px-4 py-3">
+    <article className="overflow-hidden rounded-xl border border-white/10 bg-surface-1/60">
+      <header className="border-b border-white/10 px-4 py-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-bold uppercase tracking-wide text-white">{prediction.raceName}</h3>
+            <h3 className="truncate text-sm font-bold text-white">{prediction.raceName}</h3>
             <p className="mt-0.5 text-xs text-tertiary">
               {predictionTypeLabels[prediction.type]} · {prediction.entryPoints} points to enter
             </p>
@@ -171,13 +171,13 @@ export function PredictionCard({
 
         {/* The one deadline, from the server: entries stop at the start of qualifying. */}
         {state === "open" && (
-          <p className="mt-2 text-xs text-neutral-400">
+          <p className="mt-2 text-xs text-secondary">
             {countdown ? (
               <>
-                Closes in <span className="font-semibold tabular-nums text-white">{countdown}</span>
+                Closes in <span className="font-semibold tabular text-white">{countdown}</span>
               </>
             ) : (
-              "Closing now"
+"Closing now"
             )}
             {prediction.lockAt && (
               <span suppressHydrationWarning className="text-tertiary">
@@ -192,7 +192,7 @@ export function PredictionCard({
             {prediction.lockAt ? (
               <span suppressHydrationWarning>Closed at the start of qualifying, {formatDeadline(prediction.lockAt, tz)}</span>
             ) : (
-              "Deadline not available yet"
+"Deadline not available yet"
             )}
           </p>
         )}
@@ -246,7 +246,7 @@ export function PredictionCard({
             <Row label="Your prediction" value={formatGuess(prediction.type, myEntry.guess, drivers)} avatar={<GuessAvatars type={prediction.type} guess={myEntry.guess} drivers={drivers} />} />
             <Row label="Potential payout" value={payoutPreview(prediction.type, myEntry.pointsWagered)} highlight />
             {!blocker && (
-              <button type="button" onClick={() => setEditing(true)} className="mt-1 text-xs font-medium text-neutral-300 underline-offset-2 transition hover:text-white hover:underline">
+              <button type="button" onClick={() => setEditing(true)} className="mt-1 text-xs font-medium text-secondary underline-offset-2 transition hover:text-white hover:underline">
                 Change prediction
               </button>
             )}
@@ -262,7 +262,7 @@ export function PredictionCard({
                 type="button"
                 onClick={() => void submit()}
                 disabled={status === "saving" || !guessComplete}
-                className="rounded-full bg-[var(--f1-red)] px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+                className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
               >
                 {status === "saving" ? "Submitting…" : myEntry ? "Update prediction" : "Submit prediction"}
               </button>
@@ -294,13 +294,13 @@ export function PredictionCard({
         {/* Resolving pays points out, so it stays admin-only regardless of the community's
             create-predictions permission. */}
         {isAdmin && state !== "resolved" && (
-          <div className="mt-3 border-t border-[var(--f1-line)] pt-3">
+          <div className="mt-3 border-t border-white/10 pt-3">
             <ConfirmButton
               onConfirm={() => void resolve()}
               question="Resolve and pay out?"
               confirmLabel="Resolve"
               pending={status === "saving"}
-              className="text-xs font-medium text-neutral-400 transition hover:text-white disabled:opacity-40"
+              className="text-xs font-medium text-secondary transition hover:text-white disabled:opacity-40"
             >
               Resolve this round
             </ConfirmButton>
@@ -314,11 +314,11 @@ export function PredictionCard({
 function StatusBadge({ state }: { state: PredictionState }) {
   const map: Record<string, { label: string; className: string }> = {
     open: { label: "Open", className: "bg-emerald-400/10 text-emerald-400" },
-    locked: { label: "Locked", className: "bg-white/[0.06] text-neutral-400" },
-    resolved: { label: "Resolved", className: "bg-[var(--f1-red)]/10 text-brand-text" },
+    locked: { label: "Locked", className: "bg-white/[0.06] text-secondary" },
+    resolved: { label: "Resolved", className: "bg-brand/10 text-brand-text" },
   };
   const badge = map[state] ?? map.open;
-  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}>{badge.label}</span>;
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold ${badge.className}`}>{badge.label}</span>;
 }
 
 function Row({ label, value, highlight, avatar }: { label: string; value: string; highlight?: boolean; avatar?: React.ReactNode }) {
@@ -381,7 +381,7 @@ function GuessInput({ type, drivers, value, onChange }: { type: PredictionType; 
     return (
       <div className="grid grid-cols-3 gap-2">
         {(["P1", "P2", "P3"] as const).map((label, i) => (
-          <div key={label} className="text-[10px] text-tertiary">
+          <div key={label} className="text-caption text-tertiary">
             {label}
             <DriverPicker
               drivers={drivers}
@@ -411,7 +411,7 @@ function GuessInput({ type, drivers, value, onChange }: { type: PredictionType; 
         onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
         placeholder="How many cars won't finish?"
         aria-label="Number of DNFs"
-        className="w-full rounded-lg border border-[var(--f1-line)] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
       />
     );
   }

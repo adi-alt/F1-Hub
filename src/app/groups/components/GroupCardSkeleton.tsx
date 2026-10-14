@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
  * in. */
 export function GroupCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60">
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-surface-1/60">
       <Skeleton shape="block" className="aspect-[4/1] w-full" />
       <div className="px-4 pb-4">
         <div className="-mt-6 flex items-end justify-between">

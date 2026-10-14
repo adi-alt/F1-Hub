@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar, Check, ChevronRight, Clock, Compass, MessageSquare, Reply, TrendingUp } from "lucide-react";
+import { Calendar, Check, ChevronRight, Clock, MessageSquare, Reply, Sparkles, TrendingUp } from "lucide-react";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
@@ -14,6 +14,7 @@ import { groupHref, raceHref } from "@/lib/routes";
 import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { RaceWeekendTake } from "./RaceWeekendTake";
 import { PredictionTrendBars } from "./post/PredictionTrendBars";
@@ -39,48 +40,25 @@ export function GroupsRightSidebar({
   predictions,
   nextRace,
   pulse,
-  onDiscover,
 }: {
   groups: GroupSummary[];
   predictions: FeedPrediction[];
   nextRace: NextRace;
   pulse: CommunityPulseData;
-  onDiscover: () => void;
 }) {
   return (
     // One surface with internal rules, not five floating cards: the rail reads as a single column
     // of race context whose sections are separated by hairlines, the same way the rest of F1 HUB
     // groups related blocks. Explore sits last because it leaves the page - everything above it is
     // about what's already happening.
-    <div data-tour="race-weekend" className="flex flex-col overflow-hidden lg:max-h-[calc(100dvh-6rem)] rounded-xl border border-white/[0.07] bg-[var(--f1-carbon)]/60 backdrop-blur-sm">
+    <div data-tour="race-weekend" className="surface-glass flex flex-col overflow-hidden rounded-card border border-white/10 xl:max-h-[calc(100dvh-6rem)]">
       <div className="min-h-0 overflow-y-auto scrollbar-hide">
         <RaceWeekend race={nextRace} />
-
-        <div className="border-t border-white/[0.06] px-3 py-3">
+        <div className="border-t border-white/10 p-4">
           <ActivePredictions predictions={predictions} />
         </div>
-
-        <div className="border-t border-white/[0.06] px-3 py-3">
+        <div className="border-t border-white/10 p-4">
           <CommunityPulse groups={groups} pulse={pulse} />
-        </div>
-
-        <div className="border-t border-white/[0.06] p-2.5">
-          <button
-            type="button"
-            onClick={onDiscover}
-            className="group flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
-          >
-            <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/15 text-brand-text">
-              <Icon icon={Compass} size={16} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Explore communities</span>
-              <span className="mt-px block truncate text-[10.5px] text-tertiary">Find new communities to join</span>
-            </span>
-            <span className="shrink-0 text-tertiary transition group-hover:text-white">
-              <Icon icon={ChevronRight} size={16} />
-            </span>
-          </button>
         </div>
       </div>
     </div>
@@ -125,22 +103,20 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
 
   return (
     <div>
-      <div className="flex items-center gap-1.5">
-        <span aria-hidden className="text-brand-text">
-          ✦
-        </span>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Community pulse</p>
-      </div>
-      <p className="mt-1 text-[10.5px] text-tertiary">{pulse.hasPriorVisit ? "Since you were last here" : "Across your communities"}</p>
+      <h3 className="flex items-center gap-1.5 text-body-sm font-semibold text-primary">
+        <Icon icon={Sparkles} size={16} className="text-tertiary" />
+        Community pulse
+      </h3>
+      <p className="mt-0.5 text-caption text-tertiary">{pulse.hasPriorVisit ? "Since you were last here" : "Across your communities"}</p>
 
       {rows.length === 0 && !trending && !pulse.mostDiscussed && !pulse.predictionPulse ? (
-        <p className="mt-2 text-[11.5px] leading-relaxed text-tertiary">
+        <p className="mt-3 text-caption text-secondary">
           {pulse.hasPriorVisit ? "You're caught up. No major changes since your last visit." : "No activity across your communities yet."}
         </p>
       ) : (
         <>
           {rows.length > 0 && (
-            <ul className="mt-2 space-y-1.5">
+            <ul className="mt-3 space-y-2">
               {/* Staggered, not all at once: the rows are a short list of counts, and letting
                   them arrive in order is what makes the widget read as being filled in rather
                   than as having always been there. 40ms apart - enough to see, not enough to
@@ -150,27 +126,27 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
                   key={r.key}
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: i * 0.04 }}
+                  transition={{ duration: 0.28, ease: [0.2, 0, 0, 1], delay: i * 0.04 }}
                   className="flex items-center gap-2"
                 >
-                  <span aria-hidden className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md ${TONE[r.tone]}`}>
+                  <span aria-hidden className={`flex size-6 shrink-0 items-center justify-center rounded-control ${TONE[r.tone]}`}>
                     {r.icon}
                   </span>
-                  <span className="text-[13px] font-semibold tabular-nums leading-none text-white">{r.count}</span>
-                  <span className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-400">{r.label}</span>
+                  <span className="text-body-sm font-semibold tabular text-primary">{r.count}</span>
+                  <span className="min-w-0 flex-1 truncate text-caption text-secondary">{r.label}</span>
                 </motion.li>
               ))}
               {trending && (
                 <motion.li
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: rows.length * 0.04 }}
+                  transition={{ duration: 0.28, ease: [0.2, 0, 0, 1], delay: rows.length * 0.04 }}
                   className="flex items-center gap-2"
                 >
-                  <span aria-hidden className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-[var(--f1-red)]/[0.14] text-brand-text">
+                  <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-control bg-surface-3 text-secondary">
                     <Icon icon={TrendingUp} size={16} className="size-3" />
                   </span>
-                  <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-[11.5px] leading-tight text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+                  <Link href={groupHref(trending.id)} className="min-w-0 flex-1 truncate text-caption text-secondary underline-offset-2 hover:text-primary hover:underline">
                     {trending.name} is trending
                   </Link>
                 </motion.li>
@@ -181,11 +157,11 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
           {/* Named, not counted: the widget points at one real conversation to go and read. The
               link opens that post's own discussion on its community page. */}
           {pulse.mostDiscussed && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 1) * 0.04 }}>
-            <Link href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
-              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-tertiary">Most discussed</p>
-              <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-neutral-300">{pulse.mostDiscussed.excerpt}</p>
-              <p className="mt-0.5 text-[10.5px] tabular-nums text-tertiary">
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.2, 0, 0, 1], delay: (rows.length + 1) * 0.04 }}>
+            <Link href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`} className="mt-3 block border-t border-white/10 pt-3 transition-opacity duration-fast hover:opacity-80">
+              <p className="text-caption text-tertiary">Most discussed</p>
+              <p className="mt-0.5 line-clamp-2 text-body-sm text-primary">{pulse.mostDiscussed.excerpt}</p>
+              <p className="mt-0.5 text-caption tabular text-tertiary">
                 {pulse.mostDiscussed.comments} {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
               </p>
             </Link>
@@ -195,25 +171,25 @@ function CommunityPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Comm
           {/* A real split from real entries - the leading pick and its actual share, only once
               enough people have entered for that to mean anything. */}
           {pulse.predictionPulse && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 2) * 0.04 }}>
-            <Link href={`${groupHref(pulse.predictionPulse.groupId)}?tab=predictions`} className="mt-2.5 block border-t border-white/[0.06] pt-2 transition hover:opacity-80">
-              <p className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-tertiary">Prediction activity</p>
-              <p className="mt-0.5 text-[11.5px] leading-snug text-neutral-300">
-                <span className="font-semibold text-white">{pulse.predictionPulse.pct}%</span> backing {pulse.predictionPulse.leader}
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.2, 0, 0, 1], delay: (rows.length + 2) * 0.04 }}>
+            <Link href={`${groupHref(pulse.predictionPulse.groupId)}?tab=predictions`} className="mt-3 block border-t border-white/10 pt-3 transition-opacity duration-fast hover:opacity-80">
+              <p className="text-caption text-tertiary">Prediction activity</p>
+              <p className="mt-0.5 text-body-sm text-secondary">
+                <span className="font-semibold text-primary">{pulse.predictionPulse.pct}%</span> backing {pulse.predictionPulse.leader}
               </p>
               {/* The share, drawn - the same bar language the prediction cards in the feed use,
                   so "62% backing Norris" is something you can see the size of rather than only
                   read. It grows from zero on arrival, which is the motion this widget was
                   missing entirely. */}
-              <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/[0.06]" role="presentation">
+              <span className="mt-2 block h-1 overflow-hidden rounded-full bg-surface-3" role="presentation">
                 <motion.span
                   initial={{ width: 0 }}
                   animate={{ width: `${pulse.predictionPulse.pct}%` }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: (rows.length + 2) * 0.04 + 0.1 }}
-                  className="block h-full rounded-full bg-[var(--f1-red)]"
+                  transition={{ duration: 0.5, ease: [0.2, 0, 0, 1], delay: (rows.length + 2) * 0.04 + 0.1 }}
+                  className="block h-full rounded-full bg-primary/80"
                 />
               </span>
-              <p className="mt-1 truncate text-[10.5px] text-tertiary">
+              <p className="mt-1 truncate text-caption text-tertiary">
                 {pulse.predictionPulse.raceName} · {pulse.predictionPulse.total} entries
               </p>
             </Link>
@@ -254,49 +230,45 @@ function RaceWeekend({ race }: { race: NextRace }) {
           <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover opacity-90" />
           {/* Vertical ramp: transparent at the top so the image reads, solid carbon by the bottom
               where the round/name/date sit. */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-[var(--f1-carbon)]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-surface-1" />
           {/* Left-weighted wash: every line of type in this widget starts at the left edge, so
               that column gets its own guaranteed floor regardless of what the photo is doing. */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[var(--f1-carbon)]/90 via-[var(--f1-carbon)]/35 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-surface-1/90 via-surface-1/35 to-transparent" />
         </div>
       )}
 
-      <div className="relative px-3 pb-3 pt-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/90">Race weekend</p>
+      <div className="relative p-4">
+        <h3 className="text-body-sm font-semibold text-primary">Race weekend</h3>
 
         {!race ? (
-          <p className="mt-2 text-xs leading-relaxed text-tertiary">No upcoming race is scheduled yet.</p>
+          <p className="mt-2 text-caption text-secondary">No upcoming race is scheduled yet.</p>
         ) : (
           <>
-            <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Round {race.round}</p>
-            <h2 className="mt-0.5 flex items-start gap-1.5 text-[15px] font-bold leading-tight tracking-[-0.01em] text-white">
+            <p className="mt-3 text-caption text-secondary">Round {race.round}</p>
+            <p className="mt-0.5 flex items-start gap-1.5 text-title-md font-semibold text-primary">
               {flag && (
                 <span aria-hidden className="shrink-0 text-base leading-tight">
                   {flag}
                 </span>
               )}
               <span className="min-w-0">{race.name}</span>
-            </h2>
+            </p>
             {race.raceDate && (
-              <p className="mt-0.5 text-[11.5px] text-neutral-400">
+              <p className="mt-0.5 text-caption text-secondary">
                 {new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
               </p>
             )}
 
             {countdown && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--f1-red)]/30 bg-[var(--f1-red)]/[0.12] px-2.5 py-0.5 text-[11px] font-semibold text-brand-text">
-                <Icon icon={Clock} size={16} className="size-3" />
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-surface-2/80 px-2.5 py-0.5 text-caption font-medium tabular text-primary">
+                <Icon icon={Clock} size={16} className="size-3 text-tertiary" />
                 Lights out in {countdown}
               </p>
             )}
 
-            <Link
-              href={raceHref(race.year, race.round, race.name)}
-              className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-3 py-1.5 text-[12.5px] font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-            >
-              <Icon icon={Calendar} size={16} />
-              View race
-            </Link>
+            <Button variant="secondary" size="sm" iconStart={Calendar} asChild className="mt-3 w-full">
+              <Link href={raceHref(race.year, race.round, race.name)}>View race</Link>
+            </Button>
 
             {race.circuit && <RaceWeekendTake location={race.circuit} year={race.year} />}
           </>
@@ -329,14 +301,14 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
   return (
     <div>
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Active predictions</p>
-        {predictions.length > 0 && <span className="text-[11px] tabular-nums text-tertiary">{predictions.length}</span>}
+        <h3 className="text-body-sm font-semibold text-primary">Open prediction rounds</h3>
+        {predictions.length > 0 && <span className="text-caption tabular text-tertiary">{predictions.length}</span>}
       </div>
 
       {predictions.length === 0 ? (
-        <p className="mt-2 text-xs leading-relaxed text-tertiary">No active predictions. New rounds open as a race weekend approaches.</p>
+        <p className="mt-2 text-caption text-secondary">None open right now. New rounds open as a race weekend approaches.</p>
       ) : (
-        <div className="mt-1.5 space-y-1">
+        <div className="mt-3 space-y-2">
           {predictions.map((p) => {
             const lockMs = p.lockAt ? Date.parse(p.lockAt) : null;
             // Only open rounds reach here (filtered above), so there is no "awaiting result" case.
@@ -349,39 +321,39 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
               <Link
                 key={p.id}
                 href={`${groupHref(p.groupId)}?tab=predictions`}
-                className="group block rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-1.5 transition hover:border-white/[0.14] hover:bg-white/[0.06]"
+                className="group block rounded-control bg-surface-2/60 p-3 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 <div className="flex items-start gap-2">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold leading-tight text-white">{p.raceName}</span>
-                    <span className="mt-0.5 block truncate text-[11px] leading-tight text-tertiary">
+                    <span className="block truncate text-body-sm font-semibold text-primary">{p.raceName}</span>
+                    <span className="mt-0.5 block truncate text-caption text-secondary">
                       {predictionTypeLabels[p.type]} · {p.groupName}
                     </span>
                   </span>
-                  <span className="shrink-0 whitespace-nowrap rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-neutral-200">{p.entryPoints} pts</span>
+                  <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-3 px-2 py-0.5 text-caption font-medium tabular text-primary">{p.entryPoints} pts</span>
                 </div>
 
-                <div className="mt-1.5 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                   {p.hasEntered ? (
-                    <span className="flex min-w-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-400/90">
+                    <span className="flex min-w-0 items-center gap-1 text-caption font-medium text-success">
                       <Icon icon={Check} size={16} className="size-3" />
                       <span className="shrink-0">Entered</span>
                       {/* The pick itself, resolved to a real driver name server-side - "Entered"
                           alone doesn't tell you what you actually put money on. */}
-                      {p.myGuessLabel && <span className="min-w-0 truncate font-medium normal-case tracking-normal text-neutral-400">· {p.myGuessLabel}</span>}
+                      {p.myGuessLabel && <span className="min-w-0 truncate font-normal text-secondary">· {p.myGuessLabel}</span>}
                     </span>
                   ) : (
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Not entered</span>
+                    <span className="shrink-0 text-caption text-secondary">Not entered</span>
                   )}
 
                   {countdown ? (
-                    <span className={`flex min-w-0 items-center gap-1 text-[11px] tabular-nums ${urgent ? "font-semibold text-brand-text" : "text-tertiary"}`}>
+                    <span className={`flex min-w-0 items-center gap-1 text-caption tabular ${urgent ? "font-medium text-warning" : "text-tertiary"}`}>
                       <Icon icon={Clock} size={16} className="size-3" />
                       <span className="truncate">Closes in {countdown}</span>
                     </span>
                   ) : null}
 
-                  <span className="ml-auto shrink-0 text-neutral-700 transition group-hover:text-neutral-300">
+                  <span className="ml-auto shrink-0 text-tertiary transition-colors duration-fast group-hover:text-primary">
                     <Icon icon={ChevronRight} size={16} className="size-3" />
                   </span>
                 </div>

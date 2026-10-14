@@ -61,9 +61,9 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
   if (value) {
     const when = new Date(value);
     return (
-      <span className="flex h-[30px] items-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2 text-[11.5px] text-neutral-200">
+      <span className="flex h-[30px] items-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2 text-caption text-neutral-200">
         <Icon icon={Clock} size={16} />
-        <span className="whitespace-nowrap tabular-nums">{when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+        <span className="whitespace-nowrap tabular">{when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
         <button type="button" onClick={() => onChange("")} title="Cancel scheduling" aria-label="Cancel scheduling" className="ml-0.5 text-tertiary transition hover:text-white">
           <Icon icon={X} size={16} />
         </button>
@@ -80,7 +80,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
         aria-expanded={open}
         aria-label="Schedule this post"
         title="Schedule this post"
-        className="flex items-center border-l border-black/25 bg-[var(--f1-red)] px-2 text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+        className="flex items-center border-l border-black/25 bg-brand px-2 text-white transition hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         <svg viewBox="0 0 10 10" width="9" height="9" fill="none" aria-hidden className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`}>
           <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -100,7 +100,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                 /* A real frosted surface: the app's own carbon at 70% with a heavy backdrop blur,
                    not the near-opaque tooltip token, which read as flat zinc because at 0.92 alpha
                    almost nothing shows through to blur. */
-                className="overflow-y-auto rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/70 shadow-2xl backdrop-blur-2xl scrollbar-hide"
+                className="overflow-y-auto rounded-xl border border-white/10 bg-surface-1/70 shadow-2xl backdrop-blur-2xl scrollbar-hide"
               >
                 <div className="relative p-3.5">
                   <button
@@ -113,7 +113,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                     <Icon icon={X} size={16} />
                   </button>
 
-                  <h3 className="mb-3 flex items-center gap-2 pr-6 text-[13px] font-semibold text-white">
+                  <h3 className="mb-3 flex items-center gap-2 pr-6 text-body-sm font-semibold text-white">
                     <Icon icon={Clock} size={16} />
                     Schedule post
                   </h3>
@@ -124,16 +124,16 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                       type="button"
                       onClick={() => setViewMonth(addMonths(viewMonth, -1))}
                       aria-label="Previous month"
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-secondary transition hover:bg-white/[0.07] hover:text-white"
                     >
                       <Icon icon={ChevronLeft} size={16} />
                     </button>
-                    <span className="text-[12px] font-semibold text-white">{viewMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+                    <span className="text-caption font-semibold text-white">{viewMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
                     <button
                       type="button"
                       onClick={() => setViewMonth(addMonths(viewMonth, 1))}
                       aria-label="Next month"
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition hover:bg-white/[0.07] hover:text-white"
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-secondary transition hover:bg-white/[0.07] hover:text-white"
                     >
                       <Icon icon={ChevronRight} size={16} />
                     </button>
@@ -141,7 +141,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
 
                   <div className="grid grid-cols-7 gap-0.5 text-center">
                     {WEEKDAYS.map((d, i) => (
-                      <span key={i} className="py-1 text-[9.5px] font-semibold uppercase tracking-wider text-tertiary">
+                      <span key={i} className="py-1 text-caption font-semiboldr text-tertiary">
                         {d}
                       </span>
                     ))}
@@ -158,12 +158,12 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                             setError("");
                           }}
                           aria-pressed={isSameDay(cell, day)}
-                          className={`flex h-7 items-center justify-center rounded-md text-[11.5px] tabular-nums transition ${
+                          className={`flex h-7 items-center justify-center rounded-md text-caption tabular transition ${
                             isSameDay(cell, day)
-                              ? "bg-[var(--f1-red)] font-semibold text-white"
+                              ? "bg-brand font-semibold text-white"
                               : isBeforeToday(cell)
                                 ? "cursor-not-allowed text-neutral-700"
-                                : `text-neutral-300 hover:bg-white/[0.08] hover:text-white ${isSameDay(cell, new Date()) ? "ring-1 ring-inset ring-white/20" : ""}`
+                                : `text-secondary hover:bg-white/[0.08] hover:text-white ${isSameDay(cell, new Date()) ? "ring-1 ring-inset ring-white/20" : ""}`
                           }`}
                         >
                           {cell.getDate()}
@@ -174,7 +174,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
 
                   {/* Time - the app's own Picker rather than <input type="time">, so no OS widget */}
                   <div className="mt-3 flex items-center gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Time</span>
+                    <span className="text-caption font-semibold text-tertiary">Time</span>
                     <div className="ml-auto flex items-center gap-1">
                       <div className="w-[68px]">
                         <Picker options={HOURS} value={hour} onChange={setHour} ariaLabel="Hour" />
@@ -189,30 +189,30 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                   </div>
 
                   <div className="mt-3 space-y-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tertiary">Quick options</p>
+                    <p className="text-caption font-semibold text-tertiary">Quick options</p>
                     {quickOptions.map((option) => (
                       <button
                         key={option.label}
                         type="button"
                         onClick={() => commit(option.date)}
-                        className="w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-left text-[12px] text-neutral-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                        className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left text-caption text-secondary transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
                       >
                         <span className="block font-medium">{option.label}</span>
-                        <span className="mt-0.5 block text-[10.5px] text-tertiary">
+                        <span className="mt-0.5 block text-caption text-tertiary">
                           {option.date.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </button>
                     ))}
                   </div>
 
-                  {error && <p className="mt-2 text-[11.5px] text-brand-text">{error}</p>}
+                  {error && <p className="mt-2 text-caption text-brand-text">{error}</p>}
 
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-[10.5px] text-tertiary">{localZone()}</span>
+                    <span className="min-w-0 truncate text-caption text-tertiary">{localZone()}</span>
                     <button
                       type="button"
                       onClick={schedule}
-                      className="shrink-0 rounded-lg bg-[var(--f1-red)] px-4 py-1.5 text-[12.5px] font-semibold text-white transition hover:brightness-110"
+                      className="shrink-0 rounded-lg bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition hover:bg-brand-hover"
                     >
                       Schedule
                     </button>

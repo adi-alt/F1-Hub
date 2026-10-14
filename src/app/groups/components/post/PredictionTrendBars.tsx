@@ -101,7 +101,7 @@ export function PredictionTrendBars({
  * PostCardSkeleton follows for the card around this one. */
 function TrendSkeleton({ compact }: { compact: boolean }) {
   return (
-    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
+    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/10 bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
           <Skeleton shape="block" className="h-2.5 w-32" />
@@ -123,11 +123,11 @@ function TrendSkeleton({ compact }: { compact: boolean }) {
 
 function TrendBody({ trend, isPodium, compact }: { trend: PredictionTrend; isPodium: boolean; compact: boolean }) {
   return (
-    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/[0.06] bg-black/20 p-3"}>
+    <div className={compact ? "mt-2.5" : "mt-3 rounded-xl border border-white/10 bg-black/20 p-3"}>
       {!compact && (
         <div className="flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">Community trend{isPodium ? " · winner pick" : ""}</p>
-          <span className="text-[11px] tabular-nums text-tertiary">
+          <p className="text-caption font-semibold text-tertiary">Community trend{isPodium ? " · winner pick" : ""}</p>
+          <span className="text-caption tabular text-tertiary">
             {trend.total} {trend.total === 1 ? "entry" : "entries"}
           </span>
         </div>
@@ -135,7 +135,7 @@ function TrendBody({ trend, isPodium, compact }: { trend: PredictionTrend; isPod
       <ul className={compact ? "space-y-1.5" : "mt-2 space-y-1.5"}>
         {trend.options.map((o, i) => (
           <li key={o.key} className="flex items-center gap-2.5">
-            <span className="min-w-0 flex-1 truncate text-xs text-neutral-300">{o.label}</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-secondary">{o.label}</span>
             <span className={`h-1.5 ${compact ? "w-20" : "w-24"} shrink-0 overflow-hidden rounded-full bg-white/[0.06]`} role="presentation">
               {/* The leader is the only bar that gets the accent - four equally red bars would say
                   nothing about which way the community is actually leaning. */}
@@ -143,10 +143,10 @@ function TrendBody({ trend, isPodium, compact }: { trend: PredictionTrend; isPod
                 initial={{ width: 0 }}
                 animate={{ width: `${o.pct}%` }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }}
-                className={`block h-full rounded-full ${i === 0 ? "bg-[var(--f1-red)]" : "bg-white/25"}`}
+                className={`block h-full rounded-full ${i === 0 ? "bg-primary/80" : "bg-white/25"}`}
               />
             </span>
-            <span className="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-neutral-300">{o.pct}%</span>
+            <span className="w-9 shrink-0 text-right text-xs font-semibold tabular text-secondary">{o.pct}%</span>
           </li>
         ))}
       </ul>
