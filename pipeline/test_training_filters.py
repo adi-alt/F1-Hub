@@ -36,3 +36,21 @@ assert has_qualifying(partial)
 assert {r.driver for r in to_training_rows(partial)} == {"HAM", "NOR"}
 
 print("training filters: all checks passed")
+
+
+# ---- no future tyre data in a prediction (traits_before) ----------------------------------------------------
+from ml.tyre_features import TyreRaceRow, current_tyre_traits
+from train_predict import traits_before
+
+_rows = [
+    TyreRaceRow(2025, 24, "VER", "Red Bull Racing", 0.10, 0.02),
+    TyreRaceRow(2026, 1, "VER", "Red Bull Racing", 0.20, 0.03),
+    TyreRaceRow(2026, 5, "VER", "Red Bull Racing", 0.90, 0.30),  # a later round: must not reach round 3
+]
+d3, _t3, _g3 = traits_before(_rows, 2026, 3)
+d3_expected, _te, _ge = current_tyre_traits(_rows[:2])
+assert d3 == d3_expected, "round 3 sees 2025 and 2026 round 1 only"
+assert d3 != current_tyre_traits(_rows)[0], "and so differs from using every completed race"
+# The next race of the live season (every completed race is earlier): exactly what the old code computed.
+assert traits_before(_rows, 2026, 6) == current_tyre_traits(_rows), "live predictions are unchanged"
+print("traits_before: all checks passed")
