@@ -276,3 +276,76 @@ try:
 finally:
     fetch_races.fetch_practice, fetch_races.fetch_practice_openf1 = saved
 print("practice_for_round: all checks passed")
+
+# --- Sprint results (audit R-17): the official and the preliminary classification -------------
+ZANDVOORT = datetime.date(2026, 8, 23)
+sprint_official = jolpica.parse_sprint(load("jolpica_2026_12_sprint.json"), 2026, 12, ZANDVOORT)
+assert len(sprint_official) == 22 and sum(r["points"] for r in sprint_official) == 36
+assert [r["driver"] for r in sprint_official[:3]] == ["RUS", "LEC", "NOR"]
+assert jolpica.parse_sprint(load("jolpica_2026_12_sprint.json"), 2026, 12, datetime.date(2026, 8, 30)) is None, "pinned to the weekend's date"
+assert jolpica.parse_sprint(load("jolpica_2026_15_results.json"), 2026, 15, BAKU) is None, "a race payload has no sprint"
+sprint_prelim = openf1_fallback.parse_sprint(load("openf1_2026_12_sprint_session_result.json"), load("openf1_2026_12_sprint_drivers.json"))
+by_driver = lambda rows: {r["driver"]: (r["finishPosition"], r["points"]) for r in rows}
+assert by_driver(sprint_prelim) == by_driver(sprint_official), "OpenF1's preliminary sprint matches the official classification"
+hulkenberg = next(r for r in sprint_prelim if r["driver"] == "HUL")
+assert hulkenberg["status"] == "lapped" and hulkenberg["finishPosition"] == 22, "no position in OpenF1, 22nd officially"
+assert openf1_fallback.parse_sprint(load("openf1_2026_12_sprint_session_result.json")[:5], load("openf1_2026_12_sprint_drivers.json")) is None
+print("sprint classifications: all checks passed")
+
+# --- The OpenF1 sprint for a sprint weekend: its own meeting, and only once the sprint is over --
+nl_sessions = load("openf1_2026_netherlands_sessions.json")
+sprint_calls = []
+
+
+def fake_sprint_get(path, **params):
+    sprint_calls.append((path, params))
+    if path == "sessions":
+        return nl_sessions
+    return load("openf1_2026_12_sprint_session_result.json" if path == "session_result" else "openf1_2026_12_sprint_drivers.json")
+
+
+saved = openf1_fallback._get, openf1_fallback.datetime
+openf1_fallback._get = fake_sprint_get
+try:
+    openf1_fallback.datetime = clock(datetime.datetime(2026, 8, 22, 10, 30, tzinfo=utc))  # mid-sprint
+    assert openf1_fallback.fetch_sprint_openf1(2026, 12, "Netherlands", ZANDVOORT) is None
+    assert not any(path == "session_result" for path, _ in sprint_calls), "nothing requested before the sprint has ended"
+    openf1_fallback.datetime = clock(datetime.datetime(2026, 8, 22, 12, 0, tzinfo=utc))
+    sprint_key = next(s["session_key"] for s in nl_sessions if s["session_name"] == "Sprint")
+    assert len(openf1_fallback.fetch_sprint_openf1(2026, 12, "Netherlands", ZANDVOORT)) == 22
+    assert ("session_result", {"session_key": sprint_key}) in sprint_calls
+finally:
+    openf1_fallback._get, openf1_fallback.datetime = saved
+print("openf1 sprint for a sprint weekend: all checks passed")
+
+# --- sprint_for_round: FastF1, else Jolpica (official), else OpenF1 (preliminary) ---------------
+saved = fetch_races.fetch_sprint, jolpica.fetch_sprint, fetch_races.fetch_sprint_openf1
+asked = []
+sprint_weekend = {"EventFormat": "sprint_qualifying", "Country": "Netherlands", "EventDate": ZANDVOORT}
+roster_nl = {"RUS": {"name": "George Russell", "team": "Mercedes"}}
+try:
+    fetch_races.fetch_sprint = lambda y, r: asked.append("fastf1") or None
+    jolpica.fetch_sprint = lambda y, r, d: asked.append("jolpica") or None
+    fetch_races.fetch_sprint_openf1 = lambda y, r, c, d: asked.append("openf1") or None
+    assert fetch_races.sprint_for_round(2026, 15, {"EventFormat": "conventional", "Country": "Azerbaijan", "EventDate": BAKU}, {}) == (None, None)
+    assert asked == [], "a weekend without a sprint asks nobody"
+    assert fetch_races.sprint_for_round(2026, 12, sprint_weekend, roster_nl) == (None, None)
+    assert asked == ["fastf1", "jolpica", "openf1"]
+
+    fetch_races.fetch_sprint_openf1 = lambda y, r, c, d: openf1_fallback.parse_sprint(load("openf1_2026_12_sprint_session_result.json"), load("openf1_2026_12_sprint_drivers.json"))
+    rows, source = fetch_races.sprint_for_round(2026, 12, sprint_weekend, roster_nl)
+    assert source == "openf1_preliminary" and len(rows) == 22
+    assert next(r for r in rows if r["driver"] == "RUS")["driverName"] == "George Russell", "the app's own driver names"
+
+    jolpica.fetch_sprint = lambda y, r, d: sprint_official
+    rows, source = fetch_races.sprint_for_round(2026, 12, sprint_weekend, roster_nl)
+    assert source == "official" and rows[0]["driver"] == "RUS" and rows[0]["status"] == "finished"
+    assert all(r["team"] and r["team"] not in fetch_races.TEAM_NAME_ALIASES for r in rows), "Jolpica's constructor names normalised"
+
+    fetch_races.fetch_sprint = lambda y, r: [{"driver": "RUS", "driverName": "George Russell", "team": "Mercedes", "gridPosition": 1, "finishPosition": 1, "status": "finished", "points": 8.0, "finishGapSec": 0}]
+    assert fetch_races.sprint_for_round(2026, 12, sprint_weekend, roster_nl)[1] == "official"
+finally:
+    fetch_races.fetch_sprint, jolpica.fetch_sprint, fetch_races.fetch_sprint_openf1 = saved
+assert all(fetch_races.is_sprint_weekend({"EventFormat": f}) for f in ("sprint", "sprint_shootout", "sprint_qualifying"))
+assert not fetch_races.is_sprint_weekend({"EventFormat": "conventional"}) and not fetch_races.is_sprint_weekend({})
+print("sprint_for_round: all checks passed")

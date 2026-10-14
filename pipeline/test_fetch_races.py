@@ -118,6 +118,8 @@ class FakeCursor:
 
     def fetchall(self):
         return self._rows
+    def fetchone(self):
+        return self._rows[0]
 
 
 def _iso(dt):
@@ -230,3 +232,102 @@ assert fp1["bestLaps"][0]["deltaToBestSec"] == 0 and fp1["bestLaps"][-1] == {"dr
 assert fp1["weather"] == {"airTempC": 21.0, "trackTempC": 31.0, "humidityPct": 51.0, "rainfall": False}
 
 print("fetch_practice order: all checks passed")
+
+# --- fetch_sprint (FastF1): a classified sprint, and nothing from live timing alone ------------
+class FakeSprintSession:
+    def __init__(self, status):
+        self.results = pd.DataFrame(
+            {
+                "Position": [1.0, 2.0, float("nan")],
+                "Abbreviation": ["RUS", "LEC", "HUL"],
+                "FullName": ["George Russell", "Charles Leclerc", "Nico Hulkenberg"],
+                "TeamName": ["Mercedes", "Ferrari", "Audi"],
+                "GridPosition": [1.0, 3.0, 20.0],
+                "Status": status,
+                "Points": [8.0, 7.0, 0.0],
+                "Time": pd.to_timedelta([1800.0, 2.5, None], unit="s"),
+            }
+        )
+
+    def load(self, **kwargs):
+        pass
+
+
+real_get_session = fetch_races.fastf1.get_session
+try:
+    fetch_races.fastf1.get_session = lambda year, round_num, label: FakeSprintSession(["Finished", "Finished", "Retired"])
+    sprint = fetch_races.fetch_sprint(2026, 12)
+    fetch_races.fastf1.get_session = lambda year, round_num, label: FakeSprintSession(["", "", ""])
+    live_timing_only = fetch_races.fetch_sprint(2026, 12)
+finally:
+    fetch_races.fastf1.get_session = real_get_session
+assert [r["driver"] for r in sprint] == ["RUS", "LEC"], sprint  # HUL has no classified position
+assert sprint[0]["finishGapSec"] == 0 and sprint[1]["finishGapSec"] == 2.5 and sprint[0]["points"] == 8.0
+assert live_timing_only is None, "live timing alone is not a classification"
+
+print("fetch_sprint: all checks passed")
+
+
+# ---- amended classifications (2026 round 6: Gasly P3 -> P7 after the result was stored) -------------------------
+import fetch_races as _fr
+from datetime import date as _date
+
+_off = lambda d, pos, pts, st="Finished", grid=None: {"driver": d, "finishPosition": pos, "points": pts, "rawStatus": st, "gridPosition": grid, "finishGapSec": None}
+stored_r6 = {"GAS": (3, 15.0, "finished"), "HAD": (4, 12.0, "finished"), "PIA": (5, 10.0, "finished"), "LAW": (6, 8.0, "finished"), "LIN": (7, 6.0, "finished"), "VER": (1, 25.0, "finished")}
+official_r6 = [_off("VER", 1, 25), _off("HAD", 3, 15), _off("PIA", 4, 12), _off("LAW", 5, 10), _off("LIN", 6, 8), _off("GAS", 7, 6)]
+ch = _fr.classification_changes(stored_r6, official_r6)
+assert len(ch) == 5 and "GAS: P3 15 pts finished -> P7 6 pts finished" in ch and "PIA: P5 10 pts finished -> P4 12 pts finished" in ch, ch
+assert _fr.classification_changes({"VER": (1, 25.0, "finished")}, [_off("VER", 1, 25)]) == [], "no change, nothing reported"
+assert _fr.classification_changes({"VER": (1, 25, "finished")}, [_off("VER", 1, 25.0)]) == [], "25 and 25.0 are the same points"
+assert any("not stored" in c for c in _fr.classification_changes({}, [_off("VER", 1, 25)]))
+assert any("not in the official" in c for c in _fr.classification_changes({"VER": (1, 25.0, "finished")}, []))
+dsq = _fr.classification_changes({"NOR": (2, 18.0, "finished")}, [_off("NOR", 20, 0, "Disqualified")])
+assert dsq and "-> P20 0 pts" in dsq[0], dsq
+
+
+class _Cur:
+    """Just enough of a cursor for recheck_amended_classifications: the races query, the stored rows, the updates."""
+    def __init__(self, races, stored):
+        self.races, self.stored, self.updates, self._rows, self.sql = races, stored, [], [], []
+    def execute(self, q, params=None):
+        self.sql.append(q)
+        if q.startswith("select id, year, round"):
+            self._rows = self.races
+        elif q.startswith("select to_regclass"):
+            self._rows = [(True,)]
+        elif q.startswith("select driver, finish_position"):
+            table = q.split(" from ")[1].split()[0]
+            self._rows = self.stored.get(table, [])
+        elif q.startswith("update race_results") or q.startswith("update sprint_results"):
+            self.updates.append((q.split()[1], params))
+    def fetchall(self):
+        return self._rows
+    def fetchone(self):
+        return self._rows[0]
+
+
+_saved = (_fr.jolpica.fetch_results, _fr.jolpica.fetch_sprint)
+try:
+    _fr.jolpica.fetch_results = lambda y, r, d: official_r6
+    _fr.jolpica.fetch_sprint = lambda y, r, d: None
+    cur = _Cur([("2026_r6", 2026, 6, _date(2026, 10, 1))], {"race_results": [(d, *v) for d, v in stored_r6.items()]})
+    assert _fr.recheck_amended_classifications(cur, today=_date(2026, 10, 11)) == 1
+    upd = {p[-1]: p for t, p in cur.updates if t == "race_results"}
+    assert upd["GAS"][:3] == (7, 6, "finished") and upd["PIA"][:3] == (4, 12, "finished"), upd
+    assert "begin" in cur.sql and "commit" in cur.sql, "applied in one transaction"
+    # Already right: nothing written.
+    cur2 = _Cur([("2026_r6", 2026, 6, _date(2026, 10, 1))], {"race_results": [("VER", 1, 25.0, "finished")]})
+    _fr.jolpica.fetch_results = lambda y, r, d: [_off("VER", 1, 25)]
+    assert _fr.recheck_amended_classifications(cur2, today=_date(2026, 10, 11)) == 0 and cur2.updates == []
+    # Who is classified differs: reported, not guessed at.
+    cur3 = _Cur([("2026_r6", 2026, 6, _date(2026, 10, 1))], {"race_results": [("VER", 1, 25.0, "finished")]})
+    _fr.jolpica.fetch_results = lambda y, r, d: [_off("VER", 1, 25), _off("NEW", 2, 18)]
+    assert _fr.recheck_amended_classifications(cur3, today=_date(2026, 10, 11)) == 0 and cur3.updates == []
+    # A Jolpica outage is not fatal.
+    def _boom(*a):
+        raise RuntimeError("down")
+    _fr.jolpica.fetch_results = _boom
+    assert _fr.recheck_amended_classifications(_Cur([("2026_r6", 2026, 6, _date(2026, 10, 1))], {}), today=_date(2026, 10, 11)) == 0
+finally:
+    _fr.jolpica.fetch_results, _fr.jolpica.fetch_sprint = _saved
+print("amended classifications: all checks passed")

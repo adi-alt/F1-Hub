@@ -26,7 +26,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import fastf1
@@ -47,8 +47,9 @@ from ergast_utils import (
     upsert,
 )
 import jolpica
-from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1
+from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1, fetch_sprint_openf1
 from run_ledger import ledgered
+from qualifying_sessions import qualifying_result_rows, stages_for_round
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -404,6 +405,112 @@ def fetch_race(year: int, round_num: int):
         return None
 
 
+def fetch_sprint(year: int, round_num: int) -> list[dict] | None:
+    """The sprint classification from FastF1 (fetch_race()'s result shape, without the fastest
+    lap), or None when there is no classified sprint yet - which on GitHub's runners is always, and
+    sprint_for_round() then asks Jolpica and OpenF1 instead."""
+    try:
+        session = fastf1.get_session(year, round_num, "Sprint")
+        session.load(laps=False, weather=False, telemetry=False, messages=False)
+        if session.results is None or session.results.empty or not has_official_classification(session.results):
+            return None
+        rows = []
+        for row in session.results.sort_values("Position").itertuples():
+            if pd.isna(row.Position):
+                continue
+            rows.append(
+                {
+                    "driver": row.Abbreviation,
+                    "driverName": row.FullName,
+                    "team": row.TeamName,
+                    "gridPosition": int(row.GridPosition) if pd.notna(row.GridPosition) else None,
+                    "finishPosition": int(row.Position),
+                    "status": normalize_status(row.Status),
+                    "points": points_for(row),
+                    "finishGapSec": 0 if row.Position == 1 else (round(row.Time.total_seconds(), 3) if pd.notna(row.Time) else None),
+                }
+            )
+        return rows or None
+    except Exception as exc:
+        print(f"    sprint: not available ({exc})")
+        return None
+
+
+# FastF1's EventFormat for a weekend with a sprint (2021 "sprint", 2023 "sprint_shootout", since
+# 2024 "sprint_qualifying").
+SPRINT_FORMATS = ("sprint", "sprint_shootout", "sprint_qualifying")
+
+
+def is_sprint_weekend(calendar_event) -> bool:
+    return str(calendar_event.get("EventFormat") or "").lower() in SPRINT_FORMATS
+
+
+def official_sprint_rows(official: list[dict], roster: dict[str, dict]) -> list[dict]:
+    """Jolpica's sprint classification in the stored row shape, with the app's own driver names and
+    this session's team (normalised), as with_official_classification() does for the race."""
+    return [
+        {
+            "driver": o["driver"],
+            "driverName": roster.get(o["driver"], {}).get("name") or o["driverName"],
+            "team": normalize_team_name(o["constructor"]) if o["constructor"] else roster.get(o["driver"], {}).get("team"),
+            "gridPosition": o["gridPosition"],
+            "finishPosition": o["finishPosition"],
+            "status": normalize_status(o["rawStatus"]),
+            "points": o["points"],
+            "finishGapSec": o["finishGapSec"],
+        }
+        for o in official
+    ]
+
+
+def sprint_for_round(year: int, round_num: int, calendar_event, roster: dict[str, dict]) -> tuple[list[dict] | None, str | None]:
+    """(rows, source) for this weekend's sprint (audit R-17 - the standings used to leave sprints
+    out). FastF1 where it works (a local run); else Jolpica's official classification once it is
+    published, with the Grand Prix on the Monday; else OpenF1's preliminary one, right after the
+    session. (None, None) on a weekend without a sprint, or before the sprint has run."""
+    if not is_sprint_weekend(calendar_event):
+        return None, None
+    rows = fetch_sprint(year, round_num)
+    if rows:
+        return rows, "official"
+    official = jolpica.fetch_sprint(year, round_num, calendar_event["EventDate"])
+    if official:
+        print(f"    sprint: official classification from Jolpica ({len(official)} cars)")
+        return official_sprint_rows(official, roster), "official"
+    rows = fetch_sprint_openf1(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"])
+    if not rows:
+        return None, None
+    for r in rows:
+        r["driverName"] = roster.get(r["driver"], {}).get("name") or r["driverName"]
+        r["team"] = normalize_team_name(r["team"]) if r["team"] else roster.get(r["driver"], {}).get("team")
+    return rows, "openf1_preliminary"
+
+
+def sprint_is_official(cur, race_id: str) -> bool:
+    """Whether this round's stored sprint is already the official one - then there's nothing left to
+    fetch for it."""
+    cur.execute("select count(*) > 0 and bool_and(source = 'official') from sprint_results where race_id = %s", (race_id,))
+    return bool(cur.fetchone()[0])
+
+
+def sprint_result_rows(race_id: str, sprint: list[dict], source: str) -> list[dict]:
+    return [
+        {
+            "race_id": race_id,
+            "driver": r["driver"],
+            "driver_name": r["driverName"],
+            "team": r["team"],
+            "grid": r["gridPosition"],
+            "finish_position": r["finishPosition"],
+            "finish_gap_sec": r["finishGapSec"],
+            "status": r["status"],
+            "points": r["points"],
+            "source": source,
+        }
+        for r in sprint
+    ]
+
+
 def get_existing_race(cur, race_id: str) -> dict | None:
     cur.execute("select status, practice, photo_urls, results_source, data_completeness from races where id = %s", (race_id,))
     row = cur.fetchone()
@@ -619,13 +726,27 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             race = with_official_classification(race, official, roster)
             results_source = "official"
 
+    # A sprint weekend's sprint, until the official classification is stored (then never again).
+    sprint, sprint_source = (None, None) if sprint_is_official(cur, race_id) else sprint_for_round(year, round_num, calendar_event, roster)
+    # Full qualifying, stage by stage (Q1-Q3, and SQ1-SQ3 on a sprint weekend) - see qualifying_sessions.py.
+    # Read before the transaction like every other source; skipped while the table doesn't exist yet.
+    cur.execute("select to_regclass('public.qualifying_results') is not null")
+    stage_sessions, stored_q = [], []
+    if cur.fetchone()[0]:
+        cur.execute("select session, driver, source from qualifying_results where race_id = %s", (race_id,))
+        stored_q = cur.fetchall()
+        stored_sources = {}
+        for session, _driver, source in stored_q:
+            # One non-official row is enough to keep looking for the official classification.
+            stored_sources[session] = source if stored_sources.get(session, source) == source else "openf1"
+        stage_sessions = stages_for_round(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"], is_sprint_weekend(calendar_event), stored_sources)
     # Lap-by-lap car position: OpenF1 has none, Jolpica does (once it has published the laps).
     race = with_jolpica_lap_positions(race, year, round_num, calendar_event["EventDate"])
 
     # Checked only after every source has been tried: FastF1 has nothing at all on GitHub's runners,
     # so returning before the fallbacks (as this used to) meant the OpenF1/Jolpica paths were reached
     # only on runs where FastF1 happened to return qualifying.
-    if not practice and not qualifying and not race:
+    if not practice and not qualifying and not race and not sprint:
         # Nothing has happened for this round yet — `calendar` (sync_calendar.py) is what covers
         # "what's coming up"; pushing an empty placeholder here is exactly the clutter this
         # table is meant to avoid.
@@ -781,11 +902,35 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             # against brought a longer race's lap numbers with it, for drivers who were in both.
             prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
+        if stage_sessions:
+            written = [row for session, rows, source in stage_sessions for row in qualifying_result_rows(race_id, session, rows, source, team_of=normalize_team_name, roster=load_roster(cur))]
+            upsert(cur, "qualifying_results", written, ["race_id", "session", "driver"])
+            # prune() is scoped by race, so a session not rewritten this tick (Grand Prix qualifying while sprint
+            # qualifying arrives) must be in the keep list too, or its stored rows would be deleted.
+            sessions_written = {r["session"] for r in written}
+            keep = [(r["session"], r["driver"]) for r in written] + [(sess, d) for sess, d, _src in stored_q if sess not in sessions_written]
+            prune(cur, "qualifying_results", "race_id", race_id, ("session", "driver"), keep)
+
+        if sprint:
+            # Inside the round's transaction, like every other write: a failure rolls the sprint back
+            # with the rest. Same team string as this weekend's race rows, when those are in hand, so a
+            # constructor's sprint and race points always add up under one name.
+            team_by_driver = {r["driver"]: r["team"] for r in race["results"]} if race else {}
+            for r in sprint:
+                r["team"] = team_by_driver.get(r["driver"], r["team"])
+            # After the races row it references. The whole classification is in `sprint_rows`, so
+            # anything else under this race_id is from a superseded write - see prune().
+            sprint_rows = sprint_result_rows(race_id, sprint, sprint_source)
+            upsert(cur, "sprint_results", sprint_rows, ["race_id", "driver"])
+            prune(cur, "sprint_results", "race_id", race_id, "driver", [r["driver"] for r in sprint_rows])
+
+
     quali_rows = len(qualifying["grid"]) if qualifying else 0
     race_rows_n = len(race["results"]) if race else 0
     print(
         f"    pushed: status={race_row['status']}, practice={sorted(merged_practice.keys())}, "
         f"qualifying.grid={quali_rows} rows, race.results={race_rows_n} rows"
+        + (f", sprint={len(sprint)} rows ({sprint_source})" if sprint else "")
     )
 
 
@@ -1056,8 +1201,102 @@ def seasons_to_check(now: datetime) -> list[int]:
     return years
 
 
+
+# ---- Amended classifications --------------------------------------------------------------------------------
+# A round becomes "official" once Jolpica publishes it, and build_and_push never fetches it again. But the stewards
+# can revise a result after that - a time penalty, a disqualification - and 2026 round 6 was: Gasly dropped from P3 to
+# P7 after we had stored the original order, which left five drivers' points wrong (Piastri's +2 among them) with
+# nothing to notice. So every tick re-reads recent official rounds and applies any change, in one transaction.
+AMENDMENT_WINDOW_DAYS = 21  # how long after a race its classification is re-checked
+
+
+def classification_changes(stored: dict[str, tuple], official: list[dict]) -> list[str]:
+    """What differs between a stored classification ({driver: (finish_position, points, status)}) and the official
+    one (jolpica rows), as readable lines - empty when they agree. Status is compared after normalize_status. Pure."""
+    changes = []
+    seen = set()
+    for o in official:
+        d = o["driver"]
+        seen.add(d)
+        if d not in stored:
+            changes.append(f"{d}: in the official classification but not stored")
+            continue
+        pos, pts, status = stored[d]
+        new = (o["finishPosition"], float(o["points"]), normalize_status(o["rawStatus"]))
+        if (pos, float(pts), status) != new:
+            changes.append(f"{d}: P{pos} {float(pts):g} pts {status} -> P{new[0]} {new[1]:g} pts {new[2]}")
+    for d in stored:
+        if d not in seen:
+            changes.append(f"{d}: stored but not in the official classification")
+    return changes
+
+
+def recheck_amended_classifications(cur, today: date | None = None, window_days: int = AMENDMENT_WINDOW_DAYS, dry_run: bool = False) -> int:
+    """Re-reads the official Grand Prix and sprint classifications of every official round from the last
+    AMENDMENT_WINDOW_DAYS and applies any change the stewards made since. Updates position, points, status, grid and
+    gap of existing rows only; a change in WHO is classified (a driver added or missing) is reported, not guessed at -
+    that needs the full round refetch. Returns how many rounds were corrected. Never raises: a Jolpica outage just
+    means no re-check this tick."""
+    today = today or datetime.now(timezone.utc).date()
+    cur.execute(
+        "select id, year, round, race_date from races where status = 'completed' and results_source = 'official' "
+        "and race_date between %s and %s order by race_date",
+        (today - timedelta(days=window_days), today),
+    )
+    rounds = list(cur.fetchall())
+    # A table that doesn't exist yet (sprint_results before its migration) is skipped, never an error.
+    cur.execute("select to_regclass('public.sprint_results') is not null")
+    sources = [("race_results", jolpica.fetch_results)] + ([("sprint_results", jolpica.fetch_sprint)] if cur.fetchone()[0] else [])
+    corrected = 0
+    for race_id, year, round_num, race_date in rounds:
+        for table, fetch in sources:
+            try:
+                official = fetch(year, round_num, race_date)
+            except Exception as exc:  # never fatal
+                print(f"    amendments: {race_id} {table} not checked ({exc})")
+                continue
+            if not official:
+                continue
+            cur.execute(f"select driver, finish_position, points, status from {table} where race_id = %s", (race_id,))
+            stored = {d: (p, pts, st) for d, p, pts, st in cur.fetchall()}
+            if not stored:
+                continue  # nothing stored yet: the normal fetch writes it, this only corrects
+            changes = classification_changes(stored, official)
+            if not changes:
+                continue
+            print(f"    amendments: {race_id} {table} changed since it was stored:\n      " + "\n      ".join(changes))
+            if any("not stored" in c or "not in the official" in c for c in changes):
+                print("    amendments: the classified drivers differ - left for a full refetch of this round (FORCE_ALL_ROUNDS)")
+                continue
+            if dry_run:
+                corrected += 1
+                continue
+            with transaction(cur):
+                for o in official:
+                    cur.execute(
+                        f"update {table} set finish_position = %s, points = %s, status = %s, grid = coalesce(%s, grid), "
+                        "finish_gap_sec = %s where race_id = %s and driver = %s",
+                        (o["finishPosition"], o["points"], normalize_status(o["rawStatus"]), o["gridPosition"], o.get("finishGapSec"), race_id, o["driver"]),
+                    )
+                cur.execute("update races set updated_at = now() where id = %s", (race_id,))
+            corrected += 1
+    return corrected
+
 @ledgered("fetch-races")
+
 def main():
+    # One-off: re-check every official round of the past year against the official classifications (the backfill
+    # for amendments made before the recurring 21-day re-check existed, e.g. 2026 round 6). --dry-run writes nothing.
+    if "--recheck-amendments" in sys.argv:
+        dry = "--dry-run" in sys.argv
+        conn = init_postgres()
+        with conn.cursor() as cur:
+            n = recheck_amended_classifications(cur, window_days=366, dry_run=dry)
+        conn.close()
+        print(f"amendments: {n} round classification(s) {'would be' if dry else 'were'} corrected")
+        if n and not dry:
+            trigger_revalidation("races")
+        return 0
     args = sys.argv[1:]
     force_all = os.environ.get("FORCE_ALL_ROUNDS", "").lower() == "true"
 
@@ -1085,8 +1324,9 @@ def main():
             # it must not wait for a race weekend: the weekend is over by the time Jolpica has the laps.
             with conn.cursor() as cur:
                 filled = backfill_lap_positions(cur)
+                amended = recheck_amended_classifications(cur)
             conn.close()
-            if filled:
+            if filled or amended:
                 trigger_revalidation("races")
             return 0
 
@@ -1110,6 +1350,7 @@ def main():
         backfill_race_photos(cur)
         backfill_race_laps(cur)
         backfill_lap_positions(cur)
+        recheck_amended_classifications(cur)
     conn.close()
     # Busts the `races`-tagged unstable_cache entries (see src/lib/supabase/races.ts) so anyone
     # with the race page or home page open right now sees this run's data the moment their

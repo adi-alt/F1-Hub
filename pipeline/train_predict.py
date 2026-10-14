@@ -387,6 +387,12 @@ def update_race(cur, race_id: str, fields: dict) -> None:
     cur.execute(f"update races set {set_clause} where id = %s and {changed}", (*values, race_id, *values))
 
 
+def traits_before(rows: list[TyreRaceRow], year: int, round_num: int):
+    """Driver/team tyre traits from the races strictly before (year, round_num) - what was knowable when that round's
+    prediction was made."""
+    return current_tyre_traits([r for r in rows if (r.year, r.round) < (year, round_num)])
+
+
 def process_year(conn, year: int):
     with conn.cursor() as cur:
         docs = load_race_docs(cur, "year = %s", (year,))
@@ -401,7 +407,6 @@ def process_year(conn, year: int):
         for completed_doc in all_completed_docs:
             all_tyre_rows.extend(to_tyre_rows(completed_doc))
         trait_history = build_tyre_trait_history(all_tyre_rows)
-        driver_tyre_traits, team_tyre_traits, tyre_global = current_tyre_traits(all_tyre_rows)
 
         # DNF history and the simulation calibration pool are NOT leakage-safe the same easy way —
         # unlike tyre traits, there's no chronological builder doing the filtering internally, so this
@@ -519,6 +524,10 @@ def process_year(conn, year: int):
                 print(f"  round {round_num}: no same-season history yet, skipping finish prediction")
                 continue
 
+            # Tyre traits from races strictly before this one. current_tyre_traits(all_tyre_rows) - every completed
+            # race in the database - was right only for the next race of the live season; rebuilding an earlier
+            # round's prediction would have fed it tyre data from the rounds after it.
+            driver_tyre_traits, team_tyre_traits, tyre_global = traits_before(all_tyre_rows, year, round_num)
             inputs = [
                 {
                     "driver": q["driver"],

@@ -14,7 +14,8 @@ import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
-import { getCurrentEntrants, getRace, getRacesByCircuit, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
+import { getCurrentEntrants, getQualifyingStages, getRace, getRacesByCircuit, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
+import { defaultSession, weekendSessionsFor } from "@/lib/weekendSessions";
 import { computeHighlights } from "@/lib/highlights";
 import { buildCircuitTimeline } from "@/lib/circuitIntelligence";
 import { computeAgeRecords } from "@/lib/circuitRecords";
@@ -83,13 +84,16 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // an exact locality+country match against the archive's circuit list is the only real way to
     // find this venue's actual image/Wikipedia link. Null (no image shown), never a guess, for a
     // venue the archive hasn't reached yet.
-    const [circuits, calendarEntry] = await Promise.all([
+    const [circuits, calendarEntry, qualifyingStages] = await Promise.all([
       getAllArchiveCircuitsData(),
       // The real per-session schedule (see RaceWeekendPanel) - `races` itself has no session dates
       // beyond whichever have already run, `calendar` is sync_calendar.py's own domain and always
       // has the full weekend's real datetimes, win or lose.
       getCalendarEntry(year, roundMatch.round),
+      getQualifyingStages(race.id),
     ]);
+    // The weekend's sessions as the calendar lists them, each "completed" only once its results are stored.
+    const weekendSessions = weekendSessionsFor(calendarEntry?.sessions ?? [], race, qualifyingStages);
     const matchedCircuit = findArchiveCircuitByLocation(circuits, race.circuit, race.country);
     const raceSessionDate = calendarEntry?.sessions.find((s) => /race/i.test(s.label) && !/sprint/i.test(s.label))?.date ?? calendarEntry?.raceDate ?? null;
 
@@ -167,6 +171,9 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             photos={photos}
             trackStory={trackStory}
             layout={layout}
+            weekendSessions={weekendSessions}
+            initialSession={defaultSession(weekendSessions)}
+            qualifyingStages={qualifyingStages}
           />
         </div>
       </div>

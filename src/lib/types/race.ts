@@ -12,6 +12,9 @@ export type RaceResultEntry = {
   points: number;
 };
 
+/** One car in a sprint classification (sprint_results): a race result without the fastest lap. */
+export type SprintResultEntry = Omit<RaceResultEntry, "fastestLapSec">;
+
 export type RaceInputEntry = {
   driver: string;
   driverName: string;
@@ -159,6 +162,11 @@ export type RaceDoc = {
   status: RaceStatus;
   updatedAt: string;
   results?: RaceResultEntry[];
+  /** A sprint weekend's sprint classification (audit R-17). Its points count towards both
+   * championships; wins and podiums stay Grand-Prix-only, as F1 counts them. Absent otherwise. */
+  sprintResults?: SprintResultEntry[];
+  /** "openf1_preliminary" until the official sprint classification is stored. */
+  sprintSource?: "official" | "openf1_preliminary";
   poleSitter?: string;
   poleTimeSec?: number;
   inputs?: RaceInputEntry[];

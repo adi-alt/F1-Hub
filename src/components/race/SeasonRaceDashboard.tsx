@@ -4,6 +4,9 @@ import { useState } from "react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
+import { WeekendSessions } from "@/components/race/WeekendSessions";
+import type { QualifyingStageRow } from "@/lib/supabase/races";
+import type { SessionKey, WeekendSession } from "@/lib/weekendSessions";
 import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
@@ -53,7 +56,14 @@ export function SeasonRaceDashboard({
   photos = [],
   trackStory = null,
   layout = null,
+  weekendSessions = [],
+  initialSession = null,
+  qualifyingStages = [],
 }: {
+  /** The weekend's sessions (buildWeekendSessions) and the one to open on. */
+  weekendSessions?: WeekendSession[];
+  initialSession?: SessionKey | null;
+  qualifyingStages?: QualifyingStageRow[];
   race: RaceDoc;
   // The real session schedule (see RaceWeekendPanel) - null for a venue/year `calendar` genuinely
   // has no row for, real or absent, never fabricated.
@@ -120,8 +130,10 @@ export function SeasonRaceDashboard({
     safetyCar: race.safetyCarPeriods !== undefined && race.safetyCarPeriods !== null,
     traffic: !!race.trafficStats?.length,
   };
-  const hasPractice = !!race.practice;
-  const hasQualifying = !!race.inputs?.length;
+  // Practice and qualifying are shown in the Sessions section when it exists, not repeated in the analysis.
+  const sessionsShown = weekendSessions.length > 0;
+  const hasPractice = !!race.practice && !sessionsShown;
+  const hasQualifying = !!race.inputs?.length && !sessionsShown;
   const hasStrategy = !!race.tireStints?.length;
   const hasPositionChanges = allMovementEntries.length > 0;
   // No `lapsBackfilled`-style flag on RaceDoc (see races.ts's getRaceLaps comment) - gated on the
@@ -214,6 +226,12 @@ export function SeasonRaceDashboard({
     </DriverSetTabs>
   );
 
+  const sessionsSection = sessionsShown && (
+    <RaceSectionCard id="sessions" title="Sessions" description="Every session of the weekend: practice, qualifying stage by stage, and the sprint on a sprint weekend.">
+      <WeekendSessions race={race} sessions={weekendSessions} initial={initialSession} stages={qualifyingStages} />
+    </RaceSectionCard>
+  );
+
   const communities = raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />;
   const history = <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />;
 
@@ -235,6 +253,8 @@ export function SeasonRaceDashboard({
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
               />
             </section>
+
+            {sessionsSection}
 
             {photos.length > 0 && (
               <RaceSectionCard id="photos" title="Photos from the weekend" bare>
@@ -261,6 +281,8 @@ export function SeasonRaceDashboard({
                 <RaceReadiness calendarEntry={calendarEntry} race={race} />
               </RaceSectionCard>
             )}
+
+            {sessionsSection}
 
       <section aria-label="About this race">
               <RaceRail

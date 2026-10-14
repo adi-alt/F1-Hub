@@ -27,6 +27,17 @@ export function computeStandings(races: RaceDoc[]): SeasonStandings {
   const constructors = new Map<string, ConstructorStanding>();
 
   for (const race of races) {
+    // Sprint points count towards both championships as soon as the sprint is classified - on the
+    // Saturday, before the Grand Prix. Wins and podiums are Grand Prix only, as F1 counts them
+    // (audit R-17: sprints used to be missing from these totals entirely).
+    for (const sprint of race.sprintResults ?? []) {
+      const driver = drivers.get(sprint.driver) ?? { driver: sprint.driver, driverName: sprint.driverName, team: sprint.team, points: 0, wins: 0, podiums: 0 };
+      driver.points += sprint.points;
+      drivers.set(sprint.driver, driver);
+      const constructor = constructors.get(sprint.team) ?? { team: sprint.team, points: 0, wins: 0, podiums: 0 };
+      constructor.points += sprint.points;
+      constructors.set(sprint.team, constructor);
+    }
     if (race.status !== "completed") continue;
     for (const result of race.results ?? []) {
       const driver = drivers.get(result.driver) ?? {

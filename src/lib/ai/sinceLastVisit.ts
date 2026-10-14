@@ -31,6 +31,12 @@ function standingsAsOf(races: RaceDoc[], cutoffIso: string): SeasonStandings {
   for (const race of races) {
     if (race.status !== "completed" || !race.updatedAt) continue;
     if (new Date(race.updatedAt).getTime() > cutoff) continue;
+    for (const s of race.sprintResults ?? []) {
+      const d = driverMap.get(s.driver) ?? { driver: s.driver, driverName: s.driverName, team: s.team, points: 0, wins: 0, podiums: 0 };
+      d.points += s.points;
+      driverMap.set(s.driver, d);
+      teamMap.set(s.team, (teamMap.get(s.team) ?? 0) + s.points);
+    }
     for (const r of race.results ?? []) {
       const d = driverMap.get(r.driver) ?? { driver: r.driver, driverName: r.driverName, team: r.team, points: 0, wins: 0, podiums: 0 };
       d.points += r.points;

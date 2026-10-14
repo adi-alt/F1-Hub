@@ -40,6 +40,8 @@ export const REBUILDABLE = [
   "race_laps",
   "tire_stints",
   "sprint_results",
+  // Stage-by-stage qualifying, from Jolpica and OpenF1; rebuilt by pipeline/backfill_qualifying_stages.py.
+  "qualifying_results",
   "archive_circuits",
   "archive_drivers",
   "archive_teams",

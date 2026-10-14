@@ -4,19 +4,7 @@ import { fetchAllRows, queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getArchiveDriverIdsByCode, getArchiveDriverPhotosByIds } from "@/lib/supabase/archive";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { oneRowPerRound } from "@/lib/supabase/calendar";
-import type {
-  PolePrediction,
-  PracticeData,
-  RaceDoc,
-  RaceInputEntry,
-  RacePrediction,
-  RaceResultEntry,
-  RaceSimulation,
-  SessionWeather,
-  TireCompoundPace,
-  TireStint,
-  TrafficStat,
-} from "@/lib/types/race";
+import type { PolePrediction, PracticeData, RaceDoc, RaceInputEntry, RacePrediction, RaceResultEntry, RaceSimulation, SessionWeather, TireCompoundPace, TireStint, TrafficStat, SprintResultEntry } from "@/lib/types/race";
 
 // Data only changes when the pipeline runs (GitHub Actions, every few hours), and the pipeline
 // itself calls trigger_revalidation("races") the moment it finishes writing (see
@@ -74,6 +62,18 @@ type RaceRow = {
     qualifying_gap_sec: number | null;
   }[];
   tire_stints: { driver: string; stint_number: number; compound: string; lap_count: number }[];
+  // Optional in the type because a test fake may leave it out; PostgREST always embeds the array.
+  sprint_results?: {
+    driver: string;
+    driver_name: string;
+    team: string;
+    grid: number | null;
+    finish_position: number;
+    finish_gap_sec: number | null;
+    status: RaceResultEntry["status"];
+    points: number;
+    source: "official" | "openf1_preliminary";
+  }[];
   // Real, already-selected via RACE_SELECT's own `*` - see RaceDoc's own comment for why these
   // were never reaching the app at all until now.
   results_source: string | null;
@@ -83,7 +83,7 @@ type RaceRow = {
 // One nested query (PostgREST embeds via the tables' own foreign keys) instead of four - this
 // replaces both the Firestore doc's own translation step (toRaceDoc) and the three separate reads
 // race_results/race_inputs/tire_stints would otherwise need.
-const RACE_SELECT = "*, race_results(*), race_inputs(*), tire_stints(*)";
+const RACE_SELECT = "*, race_results(*), race_inputs(*), tire_stints(*), sprint_results(*)";
 
 function toRaceDoc(row: RaceRow): RaceDoc {
   const inputs: RaceInputEntry[] | undefined = row.race_inputs.length
@@ -110,6 +110,20 @@ function toRaceDoc(row: RaceRow): RaceDoc {
       }))
     : undefined;
 
+  const sprintRows = row.sprint_results ?? [];
+  const sprintResults: SprintResultEntry[] | undefined = sprintRows.length
+    ? sprintRows.map((r) => ({
+        driver: r.driver,
+        driverName: r.driver_name,
+        team: r.team,
+        grid: r.grid,
+        finishPosition: r.finish_position,
+        finishGapSec: r.finish_gap_sec,
+        status: r.status,
+        points: r.points,
+      }))
+    : undefined;
+
   const tireStints: TireStint[] | undefined = row.tire_stints.length
     ? row.tire_stints.map((t) => ({
         driver: t.driver,
@@ -129,6 +143,8 @@ function toRaceDoc(row: RaceRow): RaceDoc {
     status: row.status,
     updatedAt: row.updated_at,
     results,
+    sprintResults,
+    sprintSource: sprintRows.length ? (sprintRows.some((r) => r.source === "openf1_preliminary") ? "openf1_preliminary" : "official") : undefined,
     poleSitter: row.pole_sitter ?? undefined,
     poleTimeSec: row.pole_time_sec ?? undefined,
     inputs,
@@ -425,3 +441,49 @@ export async function getDriverHeadshotsByCode(codes: string[]): Promise<Map<str
   }
   return headshotByCode;
 }
+
+/** One driver's qualifying, stage by stage (qualifying_results): Grand Prix qualifying ("Q") or sprint qualifying
+ * ("SQ"). `stages[i]` is the best valid lap of stage i+1, null when not reached or no valid lap. */
+export type QualifyingStageRow = {
+  session: "Q" | "SQ";
+  driver: string;
+  driverName: string;
+  team: string;
+  position: number | null;
+  stages: [number | null, number | null, number | null];
+  stageReached: 1 | 2 | 3;
+  status: "classified" | "no_time" | "dns" | "dsq";
+  /** "official": the FIA classification; "openf1": F1's timing feed (sprint qualifying only ever has this). */
+  source: "official" | "openf1";
+};
+
+/** A race's stage-by-stage qualifying, both sessions. Read on the race page only (not part of RACE_SELECT, so the
+ * season pages don't carry it). Empty - never an error - when there's none, including before the table exists. */
+export const getQualifyingStages = unstable_cache(
+  async (raceId: string): Promise<QualifyingStageRow[]> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("qualifying_results")
+        .select("session, driver, driver_name, team, position, stage1_sec, stage2_sec, stage3_sec, stage_reached, status, source")
+        .eq("race_id", raceId),
+    );
+    if (error) {
+      console.warn(`getQualifyingStages(${raceId}): ${error.message}`);
+      return [];
+    }
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return (data ?? []).map((r) => ({
+      session: r.session as "Q" | "SQ",
+      driver: r.driver,
+      driverName: r.driver_name,
+      team: r.team,
+      position: r.position,
+      stages: [num(r.stage1_sec), num(r.stage2_sec), num(r.stage3_sec)],
+      stageReached: r.stage_reached as 1 | 2 | 3,
+      status: r.status as QualifyingStageRow["status"],
+      source: r.source as QualifyingStageRow["source"],
+    }));
+  },
+  ["get-qualifying-stages"],
+  { tags: ["races"] },
+);
