@@ -42,6 +42,10 @@ export interface HomepageIntelligence {
   };
   favoriteDriverInsight: string | null;
   favoriteTeamInsight: string | null;
+  /** One short insight for EACH favourite driver and team, keyed by the name exactly as PERSONAL_CONTEXT gave it,
+   * so the home page puts each on its own card. Empty for a guest. (The two singular fields above are the older
+   * shape, still read for cached responses.) */
+  favoriteInsights: Array<{ name: string; insight: string }>;
   seasonNarrative: string;
   communityPulse: {
     topics: string[];
@@ -97,6 +101,7 @@ export function stripPersonalFields(data: HomepageIntelligence): HomepageIntelli
     personalRaceBrief: null,
     favoriteDriverInsight: null,
     favoriteTeamInsight: null,
+    favoriteInsights: [],
     predictionCoach: null,
     predictionChallenge: null,
     personalOutlook: null,
@@ -179,6 +184,11 @@ export function validateHomepageIntelligence(
   // Validate favoriteTeamInsight (nullable)
   if (obj.favoriteTeamInsight != null && typeof obj.favoriteTeamInsight !== "string") {
     errors.push("favoriteTeamInsight must be a string or null");
+  }
+
+  // Validate favoriteInsights (optional: an older response has none)
+  if (obj.favoriteInsights != null && !Array.isArray(obj.favoriteInsights)) {
+    errors.push("favoriteInsights must be an array");
   }
 
   // Validate seasonNarrative
@@ -314,6 +324,13 @@ export function validateHomepageIntelligence(
       typeof obj.favoriteDriverInsight === "string" ? obj.favoriteDriverInsight : null,
     favoriteTeamInsight:
       typeof obj.favoriteTeamInsight === "string" ? obj.favoriteTeamInsight : null,
+    favoriteInsights: Array.isArray(obj.favoriteInsights)
+      ? (obj.favoriteInsights as unknown[])
+          .filter((e): e is { name: string; insight: string } => !!e && typeof e === "object" && typeof (e as Record<string, unknown>).name === "string" && typeof (e as Record<string, unknown>).insight === "string")
+          .map((e) => ({ name: e.name.trim(), insight: e.insight.trim() }))
+          .filter((e) => e.name && e.insight)
+          .slice(0, 12)
+      : [],
     seasonNarrative: String(obj.seasonNarrative),
     communityPulse:
       obj.communityPulse && typeof obj.communityPulse === "object"

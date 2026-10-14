@@ -42,6 +42,9 @@ export interface FallbackDataContext {
     rank?: number;
     points?: number;
   } | null;
+  /** Every favourite, for one factual line each (favoriteInsights). */
+  favoriteDrivers?: Array<{ name: string; rank?: number; points?: number; circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null } | null }>;
+  favoriteTeams?: Array<{ name: string; rank?: number; points?: number; circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null } | null }>;
   /** Is this weekend's circuit one of the user's favorite circuits - see homepage route.ts's new
    * `isFavoriteCircuit` resolution. */
   favoriteCircuit?: { name: string } | null;
@@ -145,6 +148,20 @@ export function generateDeterministicFallback(
     favoriteTeamInsight = `${ctx.favoriteTeam.name} (${rankStr}) brings updated package configurations targeting aerodynamic balance at ${circuitName}.`;
   }
 
+  // 6b. One factual line per favourite, from the same facts the model gets: the standing, then the record here.
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  const factLine = (f: { name: string; rank?: number; points?: number; circuit?: { appearances: number; wins: number; podiums: number; bestFinish: number | null } | null }, standings: string) => {
+    const standing = f.rank ? `${f.name} arrives P${f.rank} in the ${standings}${f.points !== undefined ? ` on ${f.points} points` : ""}` : `${f.name} arrives at ${circuitName}`;
+    const c = f.circuit;
+    if (!c || c.appearances === 0) return `${standing}, with no previous race here to go on.`;
+    const record = c.wins ? `${plural(c.wins, "win")} and ${plural(c.podiums, "podium")}` : c.podiums ? plural(c.podiums, "podium") : "no podium yet";
+    return `${standing}; ${record} from ${plural(c.appearances, "start")} here${c.bestFinish ? `, best P${c.bestFinish}` : ""}.`;
+  };
+  const favoriteInsights = [
+    ...(ctx.favoriteDrivers ?? []).map((f) => ({ name: f.name, insight: factLine(f, "championship") })),
+    ...(ctx.favoriteTeams ?? []).map((f) => ({ name: f.name, insight: factLine(f, "constructors' standings") })),
+  ];
+
   // 7. Season Narrative
   const seasonNarrative = p2Driver && pointsGap > 0
     ? `The season title contest remains taut: ${driverLeader} holds a ${pointsGap}-point margin over ${p2Driver}, with every qualifying session and fastest lap point carrying championship weight.`
@@ -234,6 +251,7 @@ export function generateDeterministicFallback(
       biggestUncertainty,
       favoriteDriverInsight,
       favoriteTeamInsight,
+      favoriteInsights,
       seasonNarrative,
       communityPulse,
       predictionCoach,

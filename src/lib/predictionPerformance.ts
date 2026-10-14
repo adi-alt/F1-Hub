@@ -9,6 +9,7 @@
 // correct/incorrect check, not its point value or leaderboard aggregation.
 
 import type { RaceDoc, UserPick } from "@/lib/types/race";
+import { scorePick } from "./pickScoring";
 
 export type RecentPredictionResult = "winner" | "partial" | "miss";
 
@@ -20,6 +21,9 @@ export type PredictionPerformance = {
    * "how far off" is meaningless for a car that didn't finish). Null with nothing to average. */
   avgPositionError: number | null;
   recent: { raceId: string; raceName: string; round: number; result: RecentPredictionResult }[];
+  /** Race-pick points this season, every category scored as compute_group_scores.py does (lib/pickScoring.ts),
+   * over `races` scored races. */
+  points: { earned: number; races: number };
 };
 
 export type PredictionFingerprint = {
@@ -160,10 +164,18 @@ export function computePredictionPerformance(picks: UserPick[], races: RaceDoc[]
   let slotsTotal = 0;
   const errorSamples: number[] = [];
   const recent: PredictionPerformance["recent"] = [];
+  let pointsEarned = 0;
+  let pointsRaces = 0;
 
   for (const pick of picks) {
     const race = raceById.get(pick.raceId);
     if (!race || race.status !== "completed" || !race.results?.length) continue;
+
+    const score = scorePick(pick, race);
+    if (score.scored) {
+      pointsEarned += score.earned;
+      pointsRaces += 1;
+    }
 
     const actualBySlot = new Map(race.results.filter((r) => r.finishPosition <= 3).map((r) => [r.finishPosition, r.driver]));
     const actualByDriver = new Map(race.results.map((r) => [r.driver, r]));
@@ -198,6 +210,7 @@ export function computePredictionPerformance(picks: UserPick[], races: RaceDoc[]
     winner: { correct: winnerCorrect, total: winnerTotal },
     podiumSlots: { correct: slotsCorrect, total: slotsTotal },
     avgPositionError: errorSamples.length > 0 ? errorSamples.reduce((sum, e) => sum + e, 0) / errorSamples.length : null,
+    points: { earned: pointsEarned, races: pointsRaces },
     recent,
   };
 }

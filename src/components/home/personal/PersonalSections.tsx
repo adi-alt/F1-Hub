@@ -9,12 +9,9 @@ import { ComingUp } from "./ComingUp";
 import { FavouritesHere, TrackIntelligenceCard } from "./TrackIntelligenceCard";
 import { CountUp } from "@/components/motion/CountUp";
 import { Typewriter } from "@/components/motion/Typewriter";
-import { tiltProps } from "@/components/motion/useTilt";
-import { teamColor } from "@/lib/teamColors";
 import { Button } from "@/components/ui/Button";
 import { DriverIdentity } from "@/components/ui/DriverIdentity";
 import { Icon } from "@/components/ui/Icon";
-import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Section } from "@/components/ui/Section";
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Surface } from "@/components/ui/Surface";
@@ -32,9 +29,6 @@ type Props = { publicData: PublicHomeData; personalData: PersonalHomeData };
 function useNameOf(publicData: PublicHomeData) {
   const race = publicData.nextRace;
   return (code: string) => race?.inputs?.find((i) => i.driver === code)?.driverName ?? publicData.currentDrivers.find((d) => d.code === code)?.name ?? code;
-}
-function teamOf(publicData: PublicHomeData, code: string) {
-  return publicData.nextRace?.inputs?.find((i) => i.driver === code)?.team ?? publicData.currentDrivers.find((d) => d.code === code)?.team;
 }
 
 const shortName = (race: RaceDoc) => race.name.replace(/ Grand Prix$/, "");
@@ -187,211 +181,10 @@ export function ApexBriefingSection() {
   );
 }
 
-// ------------------------------------------------------------------------------------------ 3. your weekend
+// ------------------------------------------------------------------------------- 3-4. weekend and favourites
 
-function Podium({ codes, publicData }: { codes: readonly string[]; publicData: PublicHomeData }) {
-  const nameOf = useNameOf(publicData);
-  return (
-    <ol className="mt-3 space-y-2">
-      {codes.slice(0, 3).map((code, i) => (
-        <li key={`${code}-${i}`} className="flex items-center gap-3">
-          <span className="w-5 text-body-sm tabular text-secondary">P{i + 1}</span>
-          <DriverIdentity code={code} name={nameOf(code)} team={teamOf(publicData, code) ?? ""} nameVisibility="always" className="min-w-0" />
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/**
- * "Your weekend" (critique §2.2): your pick, the model's and your record as three columns of one panel, and
- * Apex's read on your pick once you have made one.
- */
-export function YourWeekendSection({ publicData, personalData, onPredict }: Props & { onPredict?: () => void }) {
-  const nameOf = useNameOf(publicData);
-  const { intelligence } = useHomepageIntelligence();
-  const race = publicData.nextRace;
-  const pick = personalData.myPick;
-  const perf = personalData.predictionPerformance;
-  const model = race?.simulation?.drivers?.length ? [...race.simulation.drivers].sort((a, b) => b.p1 - a.p1) : null;
-  const modelOrder = model?.map((d) => d.driver) ?? race?.prediction?.finishOrder?.slice().sort((a, b) => a.predictedPosition - b.predictedPosition).map((o) => o.driver) ?? [];
-  const challenge = intelligence?.predictionChallenge;
-  const COL = "min-w-0 py-5 first:pt-0 last:pb-0 md:px-6 md:py-0 md:first:pl-0 md:last:pr-0";
-
-  return (
-    <Section id="your-weekend" level={2} title="Your weekend" description={race ? `${race.name}, round ${race.round}.` : undefined}>
-      <Surface level={1} padding="md">
-        <div className="grid grid-cols-1 divide-y divide-subtle md:grid-cols-3 md:divide-x md:divide-y-0">
-          <div className={COL}>
-            <h3 className="text-body-sm font-semibold text-primary">Your pick</h3>
-            {pick ? (
-              <Podium codes={pick.predictedPodium} publicData={publicData} />
-            ) : (
-              <>
-                <p className="mt-2 text-body-sm text-secondary">Not in yet. It locks at lights out.</p>
-                {race && race.status !== "completed" &&
-                  (onPredict ? (
-                    <button type="button" onClick={onPredict} className={`${TEXT_LINK} mt-2`}>
-                      Make your predictions <Icon icon={ArrowRight} size={16} />
-                    </button>
-                  ) : (
-                    <Link href={`${raceHref(race.year, race.round, race.name)}#pick`} className={`${TEXT_LINK} mt-2`}>
-                      Make your predictions <Icon icon={ArrowRight} size={16} />
-                    </Link>
-                  ))}
-              </>
-            )}
-          </div>
-          <div className={COL}>
-            <h3 className="text-body-sm font-semibold text-primary">The model</h3>
-            {modelOrder.length > 0 ? (
-              <>
-                <Podium codes={modelOrder} publicData={publicData} />
-                <ProvenanceLine
-                  className="mt-3"
-                  source={`Apex model ${race?.simulation?.modelVersion ?? race?.prediction?.modelVersion ?? ""}`.trim()}
-                  status={model ? `${Math.round(model[0].p1 * 100)}% to win` : "predicted order"}
-                />
-              </>
-            ) : (
-              <p className="mt-2 text-body-sm text-secondary">Publishes after qualifying, frozen before the start.</p>
-            )}
-          </div>
-          <div className={COL}>
-            <h3 className="text-body-sm font-semibold text-primary">Your record</h3>
-            {perf.winner.total > 0 ? (
-              <dl className="mt-2 grid grid-cols-3 gap-3">
-                {[
-                  ["Winners", `${perf.winner.correct}/${perf.winner.total}`],
-                  ["Podium places", `${perf.podiumSlots.correct}/${perf.podiumSlots.total}`],
-                  ["Avg error", perf.avgPositionError === null ? "–" : perf.avgPositionError.toFixed(1)],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-caption text-secondary">{label}</dt>
-                    <dd className="mt-0.5 text-title-md tabular text-primary">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="mt-2 text-body-sm text-secondary">Starts with your first pick.</p>
-            )}
-            {personalData.latestPrediction?.status === "resolved" && (
-              <p className="mt-3 text-caption text-secondary">
-                Last time, {personalData.latestPrediction.raceName.replace(/ Grand Prix$/, "")}: you picked {nameOf(personalData.latestPrediction.predictedWinner)}
-                {personalData.latestPrediction.actualWinner ? `, ${nameOf(personalData.latestPrediction.actualWinner)} won.` : "."}
-              </p>
-            )}
-          </div>
-        </div>
-        {pick && challenge && challenge.status !== "NO_PICK" && (
-          <div className="mt-5 border-t border-subtle pt-5">
-            <AiLabel>{`Apex on your pick · ${challenge.status === "AGREE" ? "agrees" : "disagrees"} · AI summary`}</AiLabel>
-            <p className="mt-1.5 text-body-sm text-secondary">{challenge.explanation}</p>
-          </div>
-        )}
-      </Surface>
-    </Section>
-  );
-}
-
-// ----------------------------------------------------------------------------------- 4. your drivers/teams
-
-/**
- * Your favourites, one compact card each: where they stand in the championship and how they have done at this
- * circuit, with Apex's read on your main driver. Replaces the radar strip and the Your F1 tabs.
- */
-export function YourDriversSection({ publicData, personalData }: Props) {
-  const { intelligence } = useHomepageIntelligence();
-  const recap = publicData.seasonRecap;
-  const leader = recap.driverLeader?.points ?? null;
-  const history = publicData.trackHistory;
-  const circuit = publicData.nextRace?.circuit ?? "this circuit";
-  const headshot = (code: string | null) => publicData.currentDrivers.find((d) => d.code === code)?.headshotUrl ?? null;
-  const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
-  const record = (s: { appearances: number; wins: number; podiums: number } | undefined) =>
-    s
-      ? s.wins
-        ? `${n(s.wins, "win")}, ${n(s.podiums, "podium")} in ${n(s.appearances, "start")}`
-        : s.podiums
-          ? `${n(s.podiums, "podium")} in ${n(s.appearances, "start")}`
-          : `${n(s.appearances, "start")}, no podium yet`
-      : null;
-
-  const drivers = personalData.favoriteDrivers.map((d, i) => {
-    const rank = recap.favoriteDriverRanks.find((r) => r.id === d.driverId || r.code === d.code);
-    const stats = history?.favoriteDriverCircuitStatsList.find((s) => s.driverId === d.driverId);
-    return {
-      key: `d-${d.driverId}`,
-      team: d.team || publicData.currentDrivers.find((x) => x.code === d.code)?.team || null,
-      name: d.name,
-      href: d.href,
-      image: d.headshotUrl ?? headshot(d.code),
-      logo: false,
-      standing: rank ? `P${rank.rank} · ${rank.points} pts${leader !== null ? (leader - rank.points === 0 ? " · leads" : ` · ${leader - rank.points} behind`) : ""}` : d.isActiveThisSeason ? "Not classified yet" : `Raced ${d.firstYear}–${d.lastYear}`,
-      here: record(stats),
-      insight: i === 0 ? intelligence?.favoriteDriverInsight ?? null : null,
-    };
-  });
-  const teams = personalData.favoriteTeams.map((t, i) => {
-    const rank = recap.favoriteTeamRanks.find((r) => r.id === t.teamId);
-    const stats = history?.favoriteTeamCircuitStatsList.find((s) => s.teamId === t.teamId);
-    return {
-      key: `t-${t.teamId}`,
-      team: t.currentName ?? t.name,
-      name: t.name,
-      href: t.href,
-      image: t.logoUrl,
-      logo: true,
-      standing: rank ? `P${rank.rank} in the constructors · ${rank.points} pts` : "Not on the grid this season",
-      here: record(stats),
-      insight: i === 0 ? intelligence?.favoriteTeamInsight ?? null : null,
-    };
-  });
-  const cards = [...drivers, ...teams];
-
-  return (
-    <Section id="your-favourites" level={2} title="Your drivers and teams" description={cards.length ? `Their season, and their record at ${circuit}.` : undefined}>
-      {cards.length === 0 ? (
-        <p className="text-body-sm text-secondary">
-          Choose favourite drivers and teams to follow them here.{" "}
-          <Link href="/profile?section=personalisation" className={TEXT_LINK}>
-            Choose favourites
-          </Link>
-        </p>
-      ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((c) => (
-            <li key={c.key} className="min-w-0">
-              <div {...tiltProps(c.team ? teamColor(c.team) : null)} className="tilt h-full rounded-card">
-              <Surface level={1} padding="sm" interactive href={c.href} linkLabel={c.name} className="h-full">
-                <div className="flex items-center gap-3">
-                  <EntityAvatar imageUrl={c.image} name={c.name} size={40} shape={c.logo ? "square" : "circle"} fit={c.logo ? "contain" : "cover"} />
-                  <div className="min-w-0">
-                    <p className="truncate text-body-sm font-semibold text-primary">{c.name}</p>
-                    <p className="text-caption tabular text-secondary">{c.standing}</p>
-                  </div>
-                </div>
-                {c.here && (
-                  <p className="mt-3 text-caption text-secondary">
-                    <span className="text-tertiary">At {circuit}: </span>
-                    {c.here}
-                  </p>
-                )}
-                {c.insight && (
-                  <p className="mt-2 line-clamp-3 text-caption text-secondary">
-                    <Icon icon={Sparkles} size={16} className="mr-1 inline align-[-3px] text-brand-text" label="AI summary" />
-                    {c.insight}
-                  </p>
-                )}
-              </Surface>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Section>
-  );
-}
+// Their own file: the weekend timeline, the three windows and the favourite cards.
+export { YourDriversSection, YourWeekendSection } from "./WeekendSections";
 
 // ------------------------------------------------------------------------------------ 5. since last visit
 
@@ -578,7 +371,12 @@ export function YourWeekendSkeleton() {
   return (
     <div>
       <SectionHeadSkeleton />
-      <Skeleton shape="block" className="mt-4 h-36" />
+      <Skeleton shape="block" className="mt-4 h-20" />
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} shape="block" className="h-52" />
+        ))}
+      </div>
     </div>
   );
 }
@@ -589,7 +387,7 @@ export function FavouritesSkeleton() {
       <SectionHeadSkeleton />
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} shape="block" className="h-28" />
+          <Skeleton key={i} shape="block" className="h-48" />
         ))}
       </div>
     </div>

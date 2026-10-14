@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot } from "lucide-react";
+import { Bot, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { DriverPicker } from "@/components/ui/F1Pickers";
@@ -11,8 +11,10 @@ import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatLocalDateTime, parseUtcDateTime } from "@/lib/countdown";
 import { MARGIN_BUCKETS, type MarginBucket, type RaceDoc, type UserPick } from "@/lib/types/race";
+import { teamColor } from "@/lib/teamColors";
+import { CATEGORY_MAX, MAX_PICK_POINTS, scorePick, type CategoryScore, type PickCategory } from "@/lib/pickScoring";
 
-export type Entrant = { driver: string; driverName: string; team: string };
+export type Entrant = { driver: string; driverName: string; team: string; headshotUrl?: string | null };
 type Session = { label: string; date: string };
 
 /** The rate the race simulation samples safety cars at (pipeline/ml/simulate_race.py GLOBAL_SC_RATE): no
@@ -65,27 +67,67 @@ function sessionTime(sessions: Session[], label: string): number | null {
   return s ? parseUtcDateTime(s.date).getTime() : null;
 }
 
-/** One category: its name and points on one line, the model's pick under it, then the control. */
-function Category({ title, points, model, locked, children }: { title: string; points: string; model: ReactNode; locked?: string | null; children: ReactNode }) {
+// Each category's points, as compute_group_scores.py scores them (lib/pickScoring.ts).
+const POINTS = CATEGORY_MAX;
+const MAX_POINTS = MAX_PICK_POINTS;
+
+/** After the race: what this category scored, as a badge in the card's corner. */
+function Outcome({ score }: { score: CategoryScore | undefined }) {
+  if (!score || score.outcome === "unpicked" || score.outcome === "pending") return null;
+  const tone = score.outcome === "exact" ? "bg-success/15 text-success" : score.outcome === "partial" ? "bg-warning/15 text-warning" : "bg-surface-3 text-secondary";
   return (
-    <section className="border-t border-subtle py-5 first:border-t-0 first:pt-0" aria-label={title}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="text-body font-semibold text-primary">{title}</h3>
-        <span className="text-caption tabular text-secondary">{points}</span>
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-medium tabular ${tone}`}>
+      +{score.earned}
+      {score.detail ? ` · ${score.detail}` : score.outcome === "exact" ? " · right" : " · missed"}
+    </span>
+  );
+}
+
+/** One category as a card: its name (with a tick once it's filled), what it's worth, the model's pick, then the
+ * control; once the race is scored, what it earned. */
+function Category({ title, points, model, done, score, note, className = "", children }: { title: string; points: string; model: ReactNode; done: boolean; score?: CategoryScore; note?: ReactNode; className?: string; children: ReactNode }) {
+  const result = score && score.earned !== null;
+  return (
+    <section aria-label={title} className={`flex min-w-0 flex-col rounded-card border border-subtle bg-surface-2/60 p-4 ${className}`}>
+      {/* The points drop under the name when the card is too narrow for both, rather than squeezing the name. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <h3 className="flex items-center gap-1.5 whitespace-nowrap text-body-sm font-semibold text-primary">
+          {title}
+          {done && !result && <Icon icon={Check} size={16} className="text-success" label="Picked" />}
+        </h3>
+        {result ? <Outcome score={score} /> : <span className="max-w-full rounded-full bg-surface-3 px-2 py-0.5 text-caption tabular text-secondary">{points}</span>}
       </div>
-      <p className="mt-1 flex items-center gap-1.5 text-caption text-secondary">
+      <p className="mt-1 flex min-h-5 items-start gap-1.5 text-caption text-secondary">
         <Icon icon={Bot} size={16} className="shrink-0 text-tertiary" />
-        {model}
+        <span className="min-w-0">{model}</span>
       </p>
-      {locked && <p className="mt-1 text-caption text-warning">{locked}</p>}
-      <div className="mt-3">{children}</div>
+      <div className="mt-3 flex-1">{children}</div>
+      {note && <p className="mt-2 text-caption text-tertiary">{note}</p>}
     </section>
   );
 }
 
-function Segmented<T extends string | boolean>({ options, value, onChange, disabled, label }: { options: { value: T; label: string }[]; value: T | null; onChange: (v: T | null) => void; disabled?: boolean; label: string }) {
+/** The podium as a podium: P2, P1, P3 on steps of their own height, each in its driver's team colour once picked. */
+function PodiumStep({ place, code, color, modelName, children }: { place: 1 | 2 | 3; code: string; color: string | null; modelName: string | null; children: ReactNode }) {
+  const height = place === 1 ? "h-16" : place === 2 ? "h-11" : "h-8";
   return (
-    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+    <div className={`flex min-w-0 flex-col ${place === 1 ? "sm:order-2" : place === 2 ? "sm:order-1" : "sm:order-3"}`}>
+      {children}
+      <div
+        aria-hidden
+        className={`mt-2 hidden items-start justify-center rounded-t-control border-x border-t pt-1.5 text-body font-semibold tabular transition-[background-color,border-color] duration-base sm:flex ${height} ${code ? "border-white/15 text-primary" : "border-dashed border-subtle text-tertiary"}`}
+        style={code && color ? { background: `linear-gradient(180deg, ${color}55, ${color}14)` } : undefined}
+      >
+        {place}
+      </div>
+      <p className="mt-2 truncate text-caption text-tertiary">{modelName ? `Model: ${modelName}` : "\u00a0"}</p>
+    </div>
+  );
+}
+
+function Segmented<T extends string | boolean>({ options, value, onChange, disabled, label, columns }: { options: { value: T; label: string }[]; value: T | null; onChange: (v: T | null) => void; disabled?: boolean; label: string; columns?: 2 }) {
+  return (
+    <div role="radiogroup" aria-label={label} className={`grid gap-1 rounded-control bg-surface-3/60 p-1 ${columns === 2 ? "grid-cols-2" : "auto-cols-fr grid-flow-col"}`}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -96,7 +138,7 @@ function Segmented<T extends string | boolean>({ options, value, onChange, disab
             aria-checked={on}
             disabled={disabled}
             onClick={() => onChange(on ? null : o.value)}
-            className={`h-10 rounded-control border px-4 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50 ${on ? "border-primary bg-surface-3 text-primary" : "border-subtle text-secondary hover:border-strong hover:text-primary"}`}
+            className={`h-9 whitespace-nowrap rounded-control px-2 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${on ? "bg-surface-1 text-primary shadow-[0_1px_0_rgb(255_255_255/0.06)_inset] ring-1 ring-white/15" : "text-secondary hover:text-primary"}`}
           >
             {o.label}
           </button>
@@ -160,8 +202,8 @@ export function PredictionSheet({
   const poleLocked = locked || (qualiAt !== null && now >= qualiAt);
   const model = modelPicks(race);
   const nameOf = (code: string | null) => (code ? entrants.find((e) => e.driver === code)?.driverName ?? code : null);
-  const drivers = entrants.map((e) => ({ code: e.driver, name: e.driverName, team: e.team }));
-  const modelList = (codes: string[]) => (codes.length ? codes.map((c) => nameOf(c)).join(", ") : null);
+  const drivers = entrants.map((e) => ({ code: e.driver, name: e.driverName, team: e.team, color: teamColor(e.team), headshotUrl: e.headshotUrl ?? null }));
+  const modelList = (codes: string[]) => codes.map((c) => nameOf(c)).join(", ");
 
   function setTop5(i: number, code: string) {
     setForm((f) => {
@@ -200,21 +242,59 @@ export function PredictionSheet({
 
   const raceClose = raceAt ? formatLocalDateTime(new Date(raceAt).toISOString(), tz) : null;
   const qualiClose = qualiAt ? formatLocalDateTime(new Date(qualiAt).toISOString(), tz) : null;
+  const colorOf = (code: string) => (code ? teamColor(entrants.find((e) => e.driver === code)?.team ?? "") : null);
+
+  // What's filled in, for the ticks and the summary in the footer.
+  const done = {
+    podium: form.podium.every(Boolean),
+    pole: !!form.pole,
+    fastestLap: !!form.fastestLap,
+    top5: form.top5.every(Boolean),
+    safetyCar: form.safetyCar !== null,
+    margin: form.margin !== null,
+  };
+  const filled = Object.values(done).filter(Boolean).length;
+  const score = scorePick(
+    { predictedPodium: form.podium, predictedPole: form.pole || null, predictedFastestLap: form.fastestLap || null, predictedTop5: form.top5.every(Boolean) ? form.top5 : null, predictedSafetyCar: form.safetyCar, predictedMargin: form.margin },
+    race,
+  );
+  const inPlay = score.possible;
+  const scoreOf = (c: PickCategory) => score.categories.find((x) => x.category === c);
+
+  // One line on where the window stands: not open yet, open until lights out, or closed.
+  const windowLine = notOpen && opensAt
+    ? <>Opens <span suppressHydrationWarning>{formatLocalDateTime(new Date(opensAt).toISOString(), tz)}</span>, 24 hours before the first session. Until then, here&apos;s what the model thinks.</>
+    : locked
+      ? "Predictions are closed for this race."
+      : <>The podium is required; everything else is optional.{raceClose && <> Locks at lights out, <span suppressHydrationWarning>{raceClose}</span>.</>}</>;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      size="lg"
+      size="xl"
       title={`Your predictions: ${race.name}`}
-      description={notOpen && opensAt ? `Predictions open ${formatLocalDateTime(new Date(opensAt).toISOString(), tz)}, 24 hours before the first session. Here is what the model thinks so far.` : locked ? "Predictions are closed for this race." : `The podium is required; everything else is optional.${raceClose ? ` Locks at lights out, ${raceClose}.` : ""}`}
+      description={windowLine}
       footer={
-        <div className="flex w-full flex-wrap items-center justify-between gap-3">
-          <p role="status" className={`min-w-0 text-body-sm ${message?.tone === "error" ? "text-danger" : "text-success"}`}>
-            {message?.text}
-          </p>
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-subtle pt-4">
+          <div className="min-w-0">
+            {score.scored ? (
+              <p className="text-body-sm text-primary">
+                You scored <span className="tabular font-semibold">{score.earned}</span> point{score.earned === 1 ? "" : "s"}
+                <span className="text-secondary"> of the {inPlay} your picks could earn ({MAX_POINTS} for a perfect weekend)</span>
+              </p>
+            ) : (
+              <p className="text-body-sm text-primary">
+                <span className="tabular font-semibold">{filled}</span> of 6 picked
+                <span className="text-secondary"> · if they&apos;re all right: <span className="tabular font-semibold text-primary">{inPlay}</span> of {MAX_POINTS} points</span>
+              </p>
+            )}
+            <p role="status" className={`min-h-5 text-caption ${message?.tone === "error" ? "text-danger" : "text-success"}`}>
+              {message?.text}
+            </p>
+          </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="md" onClick={onClose}>
+            <Button variant="secondary" size="md" onClick={onClose}>
               Close
             </Button>
             {!locked && (
@@ -227,79 +307,80 @@ export function PredictionSheet({
       }
     >
       {!loaded ? (
-        <div className="space-y-4" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} shape="block" className="h-20" />
-          ))}
+        <div className="space-y-3" aria-busy="true">
+          <Skeleton shape="block" className="h-48" />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} shape="block" className="h-32" />
+            ))}
+          </div>
         </div>
       ) : (
-        <div>
+        <div className="space-y-3 pb-1">
           <Category
-            title="Podium"
-            points="3 per exact place · 1 on the podium"
-            model={modelList(model.podium) ? <>Model: {modelList(model.podium)}{model.winnerChance !== null ? ` · ${Math.round(model.winnerChance * 100)}% to win` : ""}</> : "The model publishes after qualifying."}
+            title="Podium" score={scoreOf("podium")}
+            points={`Up to ${POINTS.podium} pts · 3 per exact place, 1 if on the podium`}
+            done={done.podium}
+            model={model.podium.length ? <>Model: {modelList(model.podium)}{model.winnerChance !== null ? ` · ${Math.round(model.winnerChance * 100)}% to win` : ""}</> : "The model publishes after qualifying."}
           >
-            <div className="grid gap-3 sm:grid-cols-3">
-              {(["P1", "P2", "P3"] as const).map((slot, i) => (
-                <label key={slot} className="text-caption text-secondary">
-                  {slot}
-                  <DriverPicker
-                    drivers={drivers}
-                    value={form.podium[i]}
-                    disabled={locked}
-                    ariaLabel={`Podium ${slot}`}
-                    className="mt-1"
-                    onChange={(code) => setForm((f) => ({ ...f, podium: f.podium.map((c, j) => (j === i ? code : c)) as Form["podium"] }))}
-                  />
-                </label>
+            <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
+              {([1, 2, 3] as const).map((place) => (
+                <PodiumStep key={place} place={place} code={form.podium[place - 1]} color={colorOf(form.podium[place - 1])} modelName={nameOf(model.podium[place - 1] ?? null)}>
+                  <label className="text-caption text-secondary">
+                    P{place}
+                    <DriverPicker
+                      drivers={drivers}
+                      value={form.podium[place - 1]}
+                      disabled={locked}
+                      ariaLabel={`Podium P${place}`}
+                      className="mt-1"
+                      onChange={(code) => setForm((f) => ({ ...f, podium: f.podium.map((c, j) => (j === place - 1 ? code : c)) as Form["podium"] }))}
+                    />
+                  </label>
+                </PodiumStep>
               ))}
             </div>
           </Category>
 
-          <Category
-            title="Pole position"
-            points="3 if right"
-            model={model.pole ? <>Model: {nameOf(model.pole)} on pole</> : "The pole model publishes before qualifying."}
-            locked={poleLocked && !locked ? "Qualifying has started, so your pole pick is locked." : !poleLocked && qualiClose ? null : null}
-          >
-            <DriverPicker drivers={drivers} value={form.pole} disabled={poleLocked} ariaLabel="Pole position" onChange={(code) => setForm((f) => ({ ...f, pole: code }))} />
-            {!poleLocked && qualiClose && <p className="mt-1.5 text-caption text-tertiary">Locks when qualifying starts, {qualiClose}.</p>}
-          </Category>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Category
+              title="Pole position" score={scoreOf("pole")}
+              points={`${POINTS.pole} pts if right`}
+              done={done.pole}
+              model={model.pole ? <>Model: {nameOf(model.pole)}</> : "Publishes before qualifying."}
+              note={poleLocked && !locked ? "Qualifying has started: locked." : !poleLocked && qualiClose ? <>Locks at qualifying, <span suppressHydrationWarning>{qualiClose}</span>.</> : null}
+            >
+              <DriverPicker drivers={drivers} value={form.pole} disabled={poleLocked} ariaLabel="Pole position" onChange={(code) => setForm((f) => ({ ...f, pole: code }))} />
+            </Category>
+            <Category title="Fastest lap" score={scoreOf("fastestLap")} points={`${POINTS.fastestLap} pts if right`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : "Publishes after practice."}>
+              <DriverPicker drivers={drivers} value={form.fastestLap} disabled={locked} ariaLabel="Fastest lap" onChange={(code) => setForm((f) => ({ ...f, fastestLap: code }))} />
+            </Category>
+            <Category title="Safety car" score={scoreOf("safetyCar")} points={`${POINTS.safetyCar} pts if right`} done={done.safetyCar} model={<>Model: {Math.round(model.safetyCar * 100)}% chance of one</>}>
+              <Segmented
+                label="Safety car"
+                value={form.safetyCar}
+                disabled={locked}
+                onChange={(v) => setForm((f) => ({ ...f, safetyCar: v }))}
+                options={[
+                  { value: true, label: "Yes" },
+                  { value: false, label: "No" },
+                ]}
+              />
+            </Category>
+            <Category title="Winning margin" score={scoreOf("margin")} points={`${POINTS.margin} pts if right`} done={done.margin} model="No model pick: your call.">
+              <Segmented label="Winning margin" value={form.margin} disabled={locked} onChange={(v) => setForm((f) => ({ ...f, margin: v }))} columns={2} options={MARGIN_BUCKETS.map((b) => ({ value: b, label: MARGIN_LABEL[b] }))} />
+            </Category>
+          </div>
 
-          <Category title="Fastest lap" points="2 if right" model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)} has the best race pace</> : "The pace model publishes after practice."}>
-            <DriverPicker drivers={drivers} value={form.fastestLap} disabled={locked} ariaLabel="Fastest lap" onChange={(code) => setForm((f) => ({ ...f, fastestLap: code }))} />
-          </Category>
-
-          <Category title="Top five" points="1 per driver in the top five, any order" model={modelList(model.top5) ? <>Model: {modelList(model.top5)}</> : "The model publishes after qualifying."}>
-            <div className="grid gap-3 sm:grid-cols-5">
+          <Category title="Top five" score={scoreOf("top5")} points={`Up to ${POINTS.top5} pts · 1 per driver, any order`} done={done.top5} model={model.top5.length ? <>Model: {modelList(model.top5)}</> : "The model publishes after qualifying."}>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
               {form.top5.map((code, i) => (
                 <DriverPicker key={i} drivers={drivers} value={code} disabled={locked} placeholder={`#${i + 1}`} ariaLabel={`Top five, driver ${i + 1}`} onChange={(c) => setTop5(i, c)} />
               ))}
             </div>
           </Category>
 
-          <Category title="Safety car" points="2 if right" model={<>Model: {Math.round(model.safetyCar * 100)}% chance of at least one</>}>
-            <Segmented
-              label="Safety car"
-              value={form.safetyCar}
-              disabled={locked}
-              onChange={(v) => setForm((f) => ({ ...f, safetyCar: v }))}
-              options={[
-                { value: true, label: "Yes, at least one" },
-                { value: false, label: "No safety car" },
-              ]}
-            />
-          </Category>
 
-          <Category title="Winning margin" points="2 if right" model="No model pick: the models predict pace, not gaps. Your call.">
-            <Segmented
-              label="Winning margin"
-              value={form.margin}
-              disabled={locked}
-              onChange={(v) => setForm((f) => ({ ...f, margin: v }))}
-              options={MARGIN_BUCKETS.map((b) => ({ value: b, label: MARGIN_LABEL[b] }))}
-            />
-          </Category>
         </div>
       )}
     </Dialog>

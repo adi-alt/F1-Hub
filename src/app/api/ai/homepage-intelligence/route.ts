@@ -283,8 +283,8 @@ export async function POST(request: Request) {
         Promise.all(teamIds.map((id) => getFavoriteTeamCard(id).catch(() => null))),
         resolvedCircuitId
           ? getTrackHistory(resolvedCircuitId, {
-              favoriteDriverId: driverIds[0],
-              favoriteTeamId: teamIds[0],
+              favoriteDriverIds: driverIds,
+              favoriteTeamIds: teamIds,
             }).catch(() => null)
           : Promise.resolve(null),
         listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
@@ -319,6 +319,28 @@ export async function POST(request: Request) {
         })
       : null;
 
+    // Every favourite with its standing and its own record at this circuit: the model writes one insight for each
+    // (favoriteInsights), and the deterministic fallback does the same from these facts.
+    const favoriteDriverFacts = favoriteDriverCards.map((card) => {
+      const here = trackHistory?.favoriteDriverCircuitStatsList?.find((s) => s.driverId === card.driverId) ?? null;
+      return {
+        name: card.name,
+        teamName: card.team || undefined,
+        rank: standings ? standings.drivers.findIndex((d) => d.driver === card.code) + 1 || undefined : undefined,
+        points: standings?.drivers.find((d) => d.driver === card.code)?.points,
+        circuit: here ? { appearances: here.appearances, wins: here.wins, podiums: here.podiums, bestFinish: here.bestFinish, avgFinish: here.avgFinish } : null,
+      };
+    });
+    const favoriteTeamFacts = favoriteTeamCards.map((card) => {
+      const here = trackHistory?.favoriteTeamCircuitStatsList?.find((s) => s.teamId === card.teamId) ?? null;
+      return {
+        name: card.name,
+        rank: standings ? standings.teams.findIndex((t) => t.team === card.currentName) + 1 || undefined : undefined,
+        points: standings?.teams.find((t) => t.team === card.currentName)?.points,
+        circuit: here ? { appearances: here.appearances, wins: here.wins, podiums: here.podiums, bestFinish: here.bestFinish } : null,
+      };
+    });
+
     // 6b. Build the fallback context - used whether we generate fresh or fail (never on a cache hit,
     // which already returned above).
     const fallbackContext: FallbackDataContext = {
@@ -348,6 +370,8 @@ export async function POST(request: Request) {
             points: standings?.teams.find((t) => t.team === primaryTeamCard!.currentName)?.points,
           }
         : null,
+      favoriteDrivers: favoriteDriverFacts,
+      favoriteTeams: favoriteTeamFacts,
       favoriteCircuit: isFavoriteCircuit && nextRace ? { name: nextRace.circuit } : null,
       model: rfTopName ? { topPredictedDriver: rfTopName } : null,
       simulation: simTopName ? { topSimulatedDriver: simTopName, p1Probability: simTop?.p1 } : null,
@@ -407,31 +431,9 @@ export async function POST(request: Request) {
       // drivers/teams (see homepagePrompt.ts's new prioritization rule) rather than only ever
       // knowing about one. Circuit-specific stats stay attached to the primary entry only (index 0)
       // since getTrackHistory itself only ever resolves stats for one driver/team id at a time.
-      favoriteDrivers: favoriteDriverCards.map((card, i) => ({
-        name: card.name,
-        teamName: card.team || undefined,
-        rank: standings ? standings.drivers.findIndex((d) => d.driver === card.code) + 1 || undefined : undefined,
-        points: standings?.drivers.find((d) => d.driver === card.code)?.points,
-        circuit:
-          i === 0 && trackHistory?.favoriteDriverCircuitStats
-            ? {
-                appearances: trackHistory.favoriteDriverCircuitStats.appearances,
-                wins: trackHistory.favoriteDriverCircuitStats.wins,
-                podiums: trackHistory.favoriteDriverCircuitStats.podiums,
-                bestFinish: trackHistory.favoriteDriverCircuitStats.bestFinish,
-                avgFinish: trackHistory.favoriteDriverCircuitStats.avgFinish,
-              }
-            : null,
-      })),
-      favoriteTeams: favoriteTeamCards.map((card, i) => ({
-        name: card.name,
-        rank: standings ? standings.teams.findIndex((t) => t.team === card.currentName) + 1 || undefined : undefined,
-        points: standings?.teams.find((t) => t.team === card.currentName)?.points,
-        circuit:
-          i === 0 && trackHistory?.favoriteTeamCircuitStats
-            ? { appearances: trackHistory.favoriteTeamCircuitStats.appearances, wins: trackHistory.favoriteTeamCircuitStats.wins, podiums: trackHistory.favoriteTeamCircuitStats.podiums, bestFinish: trackHistory.favoriteTeamCircuitStats.bestFinish }
-            : null,
-      })),
+      // ALL favorites, each with its own record at this circuit (see favoriteDriverFacts above).
+      favoriteDrivers: favoriteDriverFacts,
+      favoriteTeams: favoriteTeamFacts,
       favoriteCircuit: isFavoriteCircuit && nextRace ? { isFavorite: true, name: nextRace.circuit } : null,
       userPrediction: userPick ? { predictedWinner: userPick.predictedWinner || undefined, submitted: !!userPick.submittedAt } : null,
       predictionFingerprint: fingerprint && fingerprint.totalPredictions > 0 ? fingerprint : null,
