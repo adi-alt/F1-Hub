@@ -69,11 +69,12 @@ function SessionStatus({ sessions }: { sessions: HeaderSession[] }) {
 /**
  * The site header, laid out like a menu bar: the name and the sections on the left as plain text, the Apex mark in
  * the middle, and the race weekend's status and the account on the right. Below xl the mark takes the name's place
- * on the left. Everyone sees the sections - a signed-out visitor's link opens that section's sign-in page, which
- * says what's there (audit UX-S7); Users and Models only for the roles that can open them.
+ * on the left. The sections are for signed-in visitors only, on purpose: a guest sees the name, the race weekend's
+ * status and the way in (Sign in / Sign up), and nothing that only leads to a sign-in page. Users and Models only for
+ * the roles that can open them.
  */
 export function Header({ season, sessions = [] }: { season: number; sessions?: HeaderSession[] }) {
-  const { loading, role } = useAuth();
+  const { loading, isAuthorized, role } = useAuth();
   const permissions = role ? permissionsForRole(role) : null;
   const showUsers = !!permissions?.canViewUsers;
   const showModels = !!permissions?.canAccessAdmin;
@@ -93,15 +94,15 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
           <span className="hidden text-body-sm font-semibold tracking-tight xl:inline">F1 Hub</span>
         </Link>
 
-        {/* While auth is still resolving (only without a server seed - see AuthProvider) the links that depend on the
-            role aren't known yet, so same-shaped bars hold their place. */}
+        {/* While auth is still resolving (only without a server seed - see AuthProvider) it isn't known yet whether the
+            links show at all, so same-shaped bars hold their place. */}
         {loading ? (
           <nav aria-hidden className="hidden items-center gap-5 md:flex">
             {NAV_SKELETON_WIDTHS.map((w, i) => (
               <Skeleton key={i} shape="block" className={`h-3.5 ${w}`} />
             ))}
           </nav>
-        ) : (
+        ) : isAuthorized ? (
           <nav aria-label="Main" data-tour="global-nav" className="hidden items-center gap-5 text-body-sm text-secondary md:flex">
             <NavLink href={seasonHref(season)} section="season" active={activeSection} tour="nav-season">
               Season
@@ -126,7 +127,7 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
               </NavLink>
             )}
           </nav>
-        )}
+        ) : null}
 
         {/* The mark, centred on the bar from xl, where there's room on both sides of it. A second way home, so it's
             left out of the tab order and the accessibility tree; the name's link carries it. */}
@@ -142,7 +143,7 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
         <div className="ml-auto flex items-center gap-4">
           <SessionStatus sessions={sessions} />
           <SignInButton />
-          <MobileNav season={season} showUsers={showUsers} showModels={showModels} />
+          {isAuthorized && <MobileNav season={season} showUsers={showUsers} showModels={showModels} />}
         </div>
       </div>
     </header>
