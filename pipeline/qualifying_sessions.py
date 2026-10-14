@@ -137,15 +137,17 @@ def stages_for_round(year: int, round_num: int, country: str, race_date, sprint_
     return out
 
 
-def qualifying_result_rows(race_id: str, session: str, rows: list[dict], source: str, team_of=lambda name: name) -> list[dict]:
+def qualifying_result_rows(race_id: str, session: str, rows: list[dict], source: str, team_of=lambda name: name, roster: dict | None = None) -> list[dict]:
     """Rows for the table. `team_of` maps a source's team name to the app's (fetch_races.normalize_team_name), so
-    "RB F1 Team" is stored as the same "Racing Bulls" every other race table uses."""
+    "RB F1 Team" is stored as the same "Racing Bulls" every other race table uses; a driver in `roster` (code ->
+    {name}) keeps the app's own name rather than OpenF1's "Max VERSTAPPEN"."""
+    roster = roster or {}
     return [
         {
             "race_id": race_id,
             "session": session,
             "driver": r["driver"],
-            "driver_name": r["driverName"] or r["driver"],
+            "driver_name": roster.get(r["driver"], {}).get("name") or r["driverName"] or r["driver"],
             "team": team_of(r["team"]) if r["team"] else "",
             "position": r["position"],
             "stage1_sec": r["stages"][0],

@@ -903,7 +903,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
 
         if stage_sessions:
-            written = [row for session, rows, source in stage_sessions for row in qualifying_result_rows(race_id, session, rows, source, team_of=normalize_team_name)]
+            written = [row for session, rows, source in stage_sessions for row in qualifying_result_rows(race_id, session, rows, source, team_of=normalize_team_name, roster=load_roster(cur))]
             upsert(cur, "qualifying_results", written, ["race_id", "session", "driver"])
             # prune() is scoped by race, so a session not rewritten this tick (Grand Prix qualifying while sprint
             # qualifying arrives) must be in the keep list too, or its stored rows would be deleted.

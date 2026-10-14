@@ -57,4 +57,7 @@ named = qs.qualifying_result_rows("2026_r17", "Q", rows, "official", team_of=fet
 teams = {r["team"] for r in named}
 # The same names the 2026 race_results rows use (read from production), e.g. "Racing Bulls" for Jolpica's "RB F1 Team".
 assert teams == {"Alpine", "Aston Martin", "Audi", "Cadillac", "Ferrari", "Haas F1 Team", "McLaren", "Mercedes", "Racing Bulls", "Red Bull Racing", "Williams"}, teams
+sq_named = qs.qualifying_result_rows("2026_r17", "SQ", sq, "openf1", roster={"VER": {"name": "Max Verstappen"}})
+assert sq_named[0]["driver_name"] == "Max Verstappen", "the app's name, not OpenF1's capitalised one"
+assert next(r for r in sq_named if r["driver"] == "RUS")["driver_name"] == "George RUSSELL", "unknown to the roster: the source's name, as given"
 print("qualifying_sessions: all checks passed")
