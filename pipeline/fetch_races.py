@@ -49,6 +49,7 @@ from ergast_utils import (
 import jolpica
 from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1, fetch_sprint_openf1
 from run_ledger import ledgered
+from qualifying_sessions import qualifying_result_rows, stages_for_round
 from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -727,6 +728,18 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
 
     # A sprint weekend's sprint, until the official classification is stored (then never again).
     sprint, sprint_source = (None, None) if sprint_is_official(cur, race_id) else sprint_for_round(year, round_num, calendar_event, roster)
+    # Full qualifying, stage by stage (Q1-Q3, and SQ1-SQ3 on a sprint weekend) - see qualifying_sessions.py.
+    # Read before the transaction like every other source; skipped while the table doesn't exist yet.
+    cur.execute("select to_regclass('public.qualifying_results') is not null")
+    stage_sessions, stored_q = [], []
+    if cur.fetchone()[0]:
+        cur.execute("select session, driver, source from qualifying_results where race_id = %s", (race_id,))
+        stored_q = cur.fetchall()
+        stored_sources = {}
+        for session, _driver, source in stored_q:
+            # One non-official row is enough to keep looking for the official classification.
+            stored_sources[session] = source if stored_sources.get(session, source) == source else "openf1"
+        stage_sessions = stages_for_round(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"], is_sprint_weekend(calendar_event), stored_sources)
     # Lap-by-lap car position: OpenF1 has none, Jolpica does (once it has published the laps).
     race = with_jolpica_lap_positions(race, year, round_num, calendar_event["EventDate"])
 
@@ -888,6 +901,15 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             # Keyed on (lap_number, driver), not driver alone: the wrong-meeting write this guards
             # against brought a longer race's lap numbers with it, for drivers who were in both.
             prune(cur, "race_laps", "race_id", race_id, ("lap_number", "driver"), [(r["lap_number"], r["driver"]) for r in lap_rows])
+
+        if stage_sessions:
+            written = [row for session, rows, source in stage_sessions for row in qualifying_result_rows(race_id, session, rows, source)]
+            upsert(cur, "qualifying_results", written, ["race_id", "session", "driver"])
+            # prune() is scoped by race, so a session not rewritten this tick (Grand Prix qualifying while sprint
+            # qualifying arrives) must be in the keep list too, or its stored rows would be deleted.
+            sessions_written = {r["session"] for r in written}
+            keep = [(r["session"], r["driver"]) for r in written] + [(sess, d) for sess, d, _src in stored_q if sess not in sessions_written]
+            prune(cur, "qualifying_results", "race_id", race_id, ("session", "driver"), keep)
 
         if sprint:
             # Inside the round's transaction, like every other write: a failure rolls the sprint back
