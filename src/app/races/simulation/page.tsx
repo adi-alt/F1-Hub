@@ -4,6 +4,10 @@ import { getNextUpcomingRace, getRace } from "@/lib/supabase/races";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({ title: "Race simulator", description: "10,000 simulated races before the start: who's likely to win the next Grand Prix, and why.", path: "/races/simulation" });
 
 /** Redirect shim - the race simulator (10,000 simulated races from the grid, race pace and retirement odds) lives on
  * each race's own page now, not a separate route. With a year and round, that race; without (the footer's "Race

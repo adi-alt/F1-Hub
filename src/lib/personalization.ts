@@ -672,7 +672,7 @@ export type PredictionInsight = {
 
 /** Grounds "why did I pick this driver" in real data instead of an invented confidence score: their
  * archive-wide history at this exact circuit, their current championship standing, and how the
- * pick compares against the F1 Hub Model's own top choice and the championship leader - the two
+ * pick compares against the Apex F1 Hub model's own top choice and the championship leader - the two
  * real, defensible axes a "bold vs safe" read can come from. Circuit stats are simply omitted (not
  * zeroed) when the archive doesn't resolve a circuit or this driver's never raced there. */
 export async function buildPredictionInsight(
@@ -697,10 +697,10 @@ export async function buildPredictionInsight(
   let sentimentDetail: string;
   if (matchesModel && matchesLeader) {
     sentiment = "Model-backed favorite";
-    sentimentDetail = `${driverName} leads the championship and is also the F1 Hub Model's own top pick here, a low-risk call.`;
+    sentimentDetail = `${driverName} leads the championship and is also the Apex F1 Hub model's own top pick here, a low-risk call.`;
   } else if (matchesModel) {
     sentiment = "Model agrees";
-    sentimentDetail = `The F1 Hub Model also has ${driverName} on top for this race.`;
+    sentimentDetail = `The Apex F1 Hub model also has ${driverName} on top for this race.`;
   } else if (matchesLeader) {
     sentiment = "Backing the leader";
     sentimentDetail = `${driverName} leads the championship, though the model favors someone else here.`;

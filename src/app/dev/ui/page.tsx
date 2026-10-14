@@ -18,8 +18,9 @@ import { AiSummary } from "@/components/ui/AiSummary";
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Surface } from "@/components/ui/Surface";
 import { ChipDemo, FieldDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "UI primitives", robots: { index: false, follow: false } };
+export const metadata: Metadata = pageMetadata({ title: "UI primitives", description: "The design system's primitives.", path: "/dev/ui", index: false });
 
 /** Served locally and on Vercel preview deployments, never on the production deployment. UI_PREVIEW=1 opens it
  * in a production build too: the browser tests set it (e2e.yml) to snapshot and axe-check every primitive. It is

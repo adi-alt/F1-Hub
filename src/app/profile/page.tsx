@@ -11,6 +11,7 @@ import { getUserProfile } from "@/lib/supabase/users";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
 
@@ -142,10 +143,12 @@ async function mergeCurrentSeason(
 // Only "personalisation" is implemented as a section here — notifications/edit-profile stay at
 // their own /profile/notifications and /profile/edit routes for now. Defaults to it when no
 // section is given at all, since it's the only thing this route currently renders.
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Profile",
-  description: "Your favorite drivers, teams, and tracks — and how they're doing this season.",
-};
+  description: "Your favourite drivers, teams and tracks, and how they're doing this season.",
+  path: "/profile",
+  index: false,
+});
 
 export default async function ProfilePage({
   searchParams,

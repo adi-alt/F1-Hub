@@ -35,7 +35,7 @@ import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { ArchiveSeasonStory, type SeasonPoint } from "./components/ArchiveSeasonStory";
 import { constructorChampionOverride, isVerifiedChampionYear } from "@/lib/eras";
 import { teamColor } from "@/lib/teamColors";
-import { archiveDriverHref, archiveTeamHref } from "@/lib/routes";
+import { archiveCircuitHref, archiveDriverHref, archiveSeasonHref, archiveTeamHref } from "@/lib/routes";
 import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
@@ -43,6 +43,8 @@ import { raceHref } from "@/lib/routes";
 import { TrackMap } from "@/components/ui/TrackMap";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { pageMetadata } from "@/lib/seo";
+import { getArchiveCircuit, getArchiveDriver, getArchiveTeam } from "@/lib/supabase/archive";
 
 // Ergast's own three-way classification status (archiveIsClassified in circuitIntelligence.ts
 // makes the exact same real distinction, not exported from there - a one-line regex check is
@@ -526,11 +528,36 @@ async function ArchiveTeamHistoryInner(teamId: string) {
 // season-compare/season-intelligence AI routes, which already run this long routinely.
 export const maxDuration = 60;
 
-export const metadata: Metadata = {
-  title: "Archive",
-  // No end year: this is static, and the archive's newest season follows the calendar (R-22).
-  description: `Every F1 season since ${ARCHIVE_EARLIEST_YEAR} — results, qualifying, and pit stops.`,
-};
+/** The share card follows the view: a season, a driver's career, a team's history or a circuit's races. Names come
+ * from the archive's own cached lookups; anything unknown (or a failed read) falls back to the archive's card. */
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ year?: string; circuit?: string; driver?: string; team?: string }> }): Promise<Metadata> {
+  const { year, circuit, driver, team } = await searchParams;
+  try {
+    if (driver) {
+      const d = await getArchiveDriver(driver);
+      if (d) return pageMetadata({ title: `${d.name}: career`, description: `${d.name}'s Formula 1 career, season by season: results, wins, podiums and titles.`, path: archiveDriverHref(driver) });
+    }
+    if (team) {
+      const t = await getArchiveTeam(team);
+      if (t) return pageMetadata({ title: `${t.name}: history`, description: `${t.name} in Formula 1, ${t.firstYear}–${t.lastYear}: every season, its drivers and its results.`, path: archiveTeamHref(team) });
+    }
+    if (circuit) {
+      const c = await getArchiveCircuit(circuit);
+      if (c?.name) return pageMetadata({ title: `${c.name}: every race`, description: `Every Formula 1 race at ${c.name}: winners, records and how the track changed.`, path: archiveCircuitHref(circuit) });
+    }
+    if (year && /^\d{4}$/.test(year)) {
+      return pageMetadata({ title: `${year} season`, description: `The ${year} Formula 1 season, race by race: results, qualifying and how the championship was won.`, path: archiveSeasonHref(Number(year)) });
+    }
+  } catch (err) {
+    console.error("archive generateMetadata: lookup failed:", err);
+  }
+  return pageMetadata({
+    title: "Archive",
+    // No end year: the archive's newest season follows the calendar (R-22).
+    description: `Every Formula 1 season since ${ARCHIVE_EARLIEST_YEAR}: results, qualifying, pit stops and the championship, round by round.`,
+    path: "/archive",
+  });
+}
 
 export default async function ArchivePage({
   searchParams,

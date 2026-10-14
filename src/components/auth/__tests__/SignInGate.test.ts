@@ -13,7 +13,7 @@ it("is the page's h1, since every caller renders it in place of the whole page (
   // The design system's Button wraps its label in a span.
   assert.match(html, /<button[^>]*>(?:<[^>]+>)*Create a free account(?:<\/[^>]+>)*<\/button>/);
   assert.match(html, /<button[^>]*>(?:<[^>]+>)*I have an account · Sign in(?:<\/[^>]+>)*<\/button>/);
-  assert.match(html, /Also on F1 Hub/);
+  assert.match(html, /Also on Apex F1 Hub/);
 });
 
 it("says what's behind each gate, and falls back to a general line for anything else", () => {

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { motion } from "framer-motion";
 import { Timer } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
@@ -20,20 +21,26 @@ import { raceHref, seasonHref } from "@/lib/routes";
 // links will occupy - no layout shift once /api/auth/me resolves either way.
 const NAV_SKELETON_WIDTHS = ["w-12", "w-14", "w-14", "w-20"];
 
-/** A header nav link: full header height, so the active item's brand underline sits on the
- * header's bottom edge, and aria-current="page" so the active section is announced too. */
-function NavLink({ href, section, active, tour, children }: { href: string; section: NavSection; active: NavSection | null; tour: string; children: ReactNode }) {
+/** A header nav link: full header height, so the active item's brand underline sits on the header's bottom edge, and
+ * aria-current="page" so the active section is announced too. The underline is one shared element (layoutId) that
+ * slides from the section you're leaving to the one you picked; it moves on the click itself (`marked`), not when the
+ * next page has finished loading. With reduced motion it simply moves (MotionConfig reducedMotion="user"). */
+function NavLink({ href, section, active, marked, onPick, tour, children }: { href: string; section: NavSection; active: NavSection | null; marked: NavSection | null; onPick: (s: NavSection) => void; tour: string; children: ReactNode }) {
   const current = section === active;
   return (
     <Link
       href={href}
       data-tour={tour}
       aria-current={current ? "page" : undefined}
-      className={`relative flex h-14 items-center transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-        current ? "text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-brand" : ""
+      onClick={() => onPick(section)}
+      className={`relative flex h-14 items-center transition-colors duration-base hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        section === marked ? "text-primary" : ""
       }`}
     >
       {children}
+      {section === marked && (
+        <motion.span aria-hidden layoutId="header-nav-underline" className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-brand" transition={{ type: "spring", stiffness: 520, damping: 42, mass: 0.8 }} />
+      )}
     </Link>
   );
 }
@@ -78,7 +85,14 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
   const permissions = role ? permissionsForRole(role) : null;
   const showUsers = !!permissions?.canViewUsers;
   const showModels = !!permissions?.canAccessAdmin;
-  const activeSection = navSectionFor(usePathname());
+  const pathname = usePathname();
+  const activeSection = navSectionFor(pathname);
+  // The section just clicked, until the route catches up with it: the underline goes there at once. Cleared on the
+  // next route change (React's "adjust state when a prop changes" pattern), after which the route decides again.
+  const [picked, setPicked] = useState<{ section: NavSection; from: string } | null>(null);
+  if (picked && picked.from !== pathname) setPicked(null);
+  const marked = picked?.section ?? activeSection;
+  const pick = (section: NavSection) => setPicked({ section, from: pathname });
 
   // z-header (the token scale): above the page, below dialogs and sheets, whose scrim has to dim it.
   return (
@@ -87,11 +101,11 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
       <div className="page-wide relative flex h-full items-center gap-6">
         <Link
           href="/"
-          aria-label="F1 Hub, home"
+          aria-label="Apex F1 Hub, home"
           className="group flex shrink-0 items-center rounded-control text-primary transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           <ApexMark size={22} className="xl:hidden" />
-          <span className="hidden text-body-sm font-semibold tracking-tight xl:inline">F1 Hub</span>
+          <span className="hidden text-body-sm font-semibold tracking-tight xl:inline">Apex F1 Hub</span>
         </Link>
 
         {/* While auth is still resolving (only without a server seed - see AuthProvider) it isn't known yet whether the
@@ -104,25 +118,25 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
           </nav>
         ) : isAuthorized ? (
           <nav aria-label="Main" data-tour="global-nav" className="hidden items-center gap-5 text-body-sm text-secondary md:flex">
-            <NavLink href={seasonHref(season)} section="season" active={activeSection} tour="nav-season">
+            <NavLink href={seasonHref(season)} section="season" active={activeSection} marked={marked} onPick={pick} tour="nav-season">
               Season
             </NavLink>
-            <NavLink href="/circuits" section="circuits" active={activeSection} tour="nav-circuits">
+            <NavLink href="/circuits" section="circuits" active={activeSection} marked={marked} onPick={pick} tour="nav-circuits">
               Circuits
             </NavLink>
-            <NavLink href="/archive" section="archive" active={activeSection} tour="nav-archive">
+            <NavLink href="/archive" section="archive" active={activeSection} marked={marked} onPick={pick} tour="nav-archive">
               Archive
             </NavLink>
-            <NavLink href="/groups" section="communities" active={activeSection} tour="nav-communities">
+            <NavLink href="/groups" section="communities" active={activeSection} marked={marked} onPick={pick} tour="nav-communities">
               Communities
             </NavLink>
             {showUsers && (
-              <NavLink href="/users" section="users" active={activeSection} tour="nav-users">
+              <NavLink href="/users" section="users" active={activeSection} marked={marked} onPick={pick} tour="nav-users">
                 Users
               </NavLink>
             )}
             {showModels && (
-              <NavLink href="/models" section="models" active={activeSection} tour="nav-models">
+              <NavLink href="/models" section="models" active={activeSection} marked={marked} onPick={pick} tour="nav-models">
                 Models
               </NavLink>
             )}

@@ -194,7 +194,7 @@ export function ProfileMenu() {
                         <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-tertiary">
                           ✦
                         </span>
-                        Replay F1 Hub tour
+                        Replay Apex F1 Hub tour
                       </button>
                       <button
                         type="button"

@@ -20,7 +20,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
     <html lang="en">
       <body style={{ background: "#0a0a0c", color: "#f2f2f3", fontFamily: "system-ui, sans-serif" }}>
         <div style={{ maxWidth: "36rem", margin: "4rem auto", padding: "0 1rem", textAlign: "center" }}>
-          <p style={{ fontSize: "1.125rem", fontWeight: 600, color: "#fff" }}>F1 Hub hit an unexpected error</p>
+          <p style={{ fontSize: "1.125rem", fontWeight: 600, color: "#fff" }}>Apex F1 Hub hit an unexpected error</p>
           <p style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "#a3a3a3" }}>
             The whole page failed to load, not just one section. Try reloading.
           </p>

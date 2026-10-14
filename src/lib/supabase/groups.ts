@@ -1054,7 +1054,7 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   if (invalid) throw new ServiceError(`"${invalid}" isn't a valid email address.`, 400);
 
   const { data: group } = await supabaseAdmin.from("groups").select("name, visibility").eq("id", groupId).maybeSingle();
-  const groupName = (group?.name as string | undefined) ?? "an F1 Hub group";
+  const groupName = (group?.name as string | undefined) ?? "an Apex F1 Hub group";
   const needsToken = (group?.visibility as string | undefined) !== "public";
   const inviterName = (await profilesById([uid])).get(uid)?.display_name ?? "A member";
   // APP_BASE_URL when configured, else the origin of the request (see trustedOrigin).
@@ -1076,9 +1076,9 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
       await transporter.sendMail({
         from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
         to,
-        subject: `${subjectInviter} invited you to join ${subjectGroup} on F1 Hub`,
-        text: `${inviterName} invited you to join "${groupName}" on F1 Hub - a prediction league and F1 community. Join here: ${link}`,
-        html: `<p>${safeInviter} invited you to join <strong>${safeGroup}</strong> on F1 Hub - a prediction league and F1 community.</p><p><a href="${escapeHtml(link)}">Join ${safeGroup}</a></p>`,
+        subject: `${subjectInviter} invited you to join ${subjectGroup} on Apex F1 Hub`,
+        text: `${inviterName} invited you to join "${groupName}" on Apex F1 Hub - a prediction league and F1 community. Join here: ${link}`,
+        html: `<p>${safeInviter} invited you to join <strong>${safeGroup}</strong> on Apex F1 Hub - a prediction league and F1 community.</p><p><a href="${escapeHtml(link)}">Join ${safeGroup}</a></p>`,
       });
     }),
   );

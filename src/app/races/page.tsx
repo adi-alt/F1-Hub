@@ -3,6 +3,10 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { getRace } from "@/lib/supabase/races";
 import { raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({ title: "Race", description: "A Formula 1 race weekend: results, qualifying, the race replay and the model's simulation.", path: "/race" });
 
 /** Redirect shim - every race now opens on its own route (/season/<year>/race/<slug>), replacing
  * this query-param page. Kept so an old bookmark/shared link (?year=&round=[&section=]) still

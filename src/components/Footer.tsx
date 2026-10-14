@@ -4,6 +4,7 @@ import { seasonHref } from "@/lib/routes";
 // tree, so anything it imports gets bundled for the browser too; archive.ts drags in
 // supabaseAdmin, archiveYears.ts is plain code with no imports, safe either side.
 import { ARCHIVE_EARLIEST_YEAR, archiveLatestYear } from "@/lib/archiveYears";
+import { ApexMark } from "@/components/brand/ApexMark";
 
 const exploreLinks = (season: number) => [
   { href: seasonHref(season), label: `${season} Season` },
@@ -40,9 +41,9 @@ export function Footer({ season }: { season: number }) {
       <div className="page-wide py-10">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="max-w-sm">
-            <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-white">
-              <span className="inline-block h-5 w-1.5 rounded-full bg-[var(--f1-red)]" />
-              F1 HUB
+            <Link href="/" className="group flex items-center gap-2.5 text-lg font-bold tracking-tight text-white">
+              <ApexMark size={20} />
+              Apex F1 Hub
             </Link>
             <p className="mt-3 text-sm leading-relaxed text-neutral-400">
               Predictions, a race simulator, and a full historical archive back to 1950. Built for
@@ -65,7 +66,7 @@ export function Footer({ season }: { season: number }) {
         </div>
 
         <div className="mt-10 flex flex-col gap-2 border-t border-[var(--f1-line)] pt-6 text-xs text-tertiary sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} F1 Hub. Not affiliated with Formula 1 or the FIA.</p>
+          <p>&copy; {new Date().getFullYear()} Apex F1 Hub. Not affiliated with Formula 1 or the FIA.</p>
           <p>Predictions are a model&apos;s best estimate, not a promise of what happens on Sunday.</p>
         </div>
       </div>

@@ -25,7 +25,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: "welcome",
     target: "global-nav",
     scope: "global",
-    title: "Welcome to F1 Hub",
+    title: "Welcome to Apex F1 Hub",
     body: "Everything lives behind this nav: the season, the circuits, the archive, your communities and Apex. Here's a quick look at each.",
   },
   {

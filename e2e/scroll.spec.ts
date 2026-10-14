@@ -53,7 +53,7 @@ test.describe("native document scroll", () => {
     // The logo link is in the header at every width (the main nav is hidden on a phone). It is a client-side
     // navigation, which is the case Back restoration has to handle. Clicked by coordinates: Playwright's own
     // click scrolls a sticky element "into view", which would move the page before the click lands.
-    const logo = await page.locator("header").getByRole("link", { name: /F1 HUB/ }).boundingBox();
+    const logo = await page.locator("header").getByRole("link", { name: /Apex F1 Hub/ }).boundingBox();
     if (!logo) throw new Error("the logo link has no box");
     await page.mouse.click(logo.x + logo.width / 2, logo.y + logo.height / 2);
     await expect(page).toHaveURL(/localhost:\d+\/$/);

@@ -10,7 +10,7 @@ import { TOUR_STEPS, type TourStep } from "./tourSteps";
 type TourContextValue = { start: () => void };
 const TourContext = createContext<TourContextValue>({ start: () => {} });
 
-/** "Replay F1 Hub tour" calls this. Safe to call from anywhere under the provider. */
+/** "Replay Apex F1 Hub tour" calls this. Safe to call from anywhere under the provider. */
 export function useProductTour(): TourContextValue {
   return useContext(TourContext);
 }
@@ -201,7 +201,7 @@ function IntroCard({ onStart, onSkip, reduceMotion }: { onStart: () => void; onS
         transition={{ duration: reduceMotion ? 0 : 0.2 }}
         className="w-full max-w-sm rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/85 p-5 shadow-2xl backdrop-blur-2xl"
       >
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">Welcome to F1 Hub</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">Welcome to Apex F1 Hub</p>
         <h2 id="tour-intro-title" className="mt-1.5 text-[18px] font-bold leading-snug text-white">
           Let&apos;s take a quick tour
         </h2>

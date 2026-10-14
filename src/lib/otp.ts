@@ -67,7 +67,7 @@ function buildOtpEmailHtml(code: string, email: string): string {
         <td style="padding:32px 32px 0 32px;">
           <table cellpadding="0" cellspacing="0"><tr>
             <td style="width:6px;height:20px;background-color:#e10600;border-radius:3px;"></td>
-            <td style="padding-left:10px;font-size:18px;font-weight:700;color:#f2f2f3;letter-spacing:0.5px;">F1 HUB</td>
+            <td style="padding-left:10px;font-size:18px;font-weight:700;color:#f2f2f3;letter-spacing:0.5px;">Apex F1 Hub</td>
           </tr></table>
         </td>
       </tr>
@@ -78,7 +78,7 @@ function buildOtpEmailHtml(code: string, email: string): string {
       </tr>
       <tr>
         <td style="padding:0 32px 26px 32px;font-size:14px;line-height:1.6;color:#9a9aa2;">
-          Someone (hopefully you) is signing in to F1 Hub as <span style="color:#f2f2f3;">${escapeHtml(email)}</span>. Enter this code to continue &mdash; it expires in 10 minutes.
+          Someone (hopefully you) is signing in to Apex F1 Hub as <span style="color:#f2f2f3;">${escapeHtml(email)}</span>. Enter this code to continue &mdash; it expires in 10 minutes.
         </td>
       </tr>
       <tr>
@@ -94,7 +94,7 @@ function buildOtpEmailHtml(code: string, email: string): string {
         <td style="padding:0 32px 28px 32px;">
           <table cellpadding="0" cellspacing="0" width="100%" style="background-color:rgba(225,6,0,0.08);border:1px solid rgba(225,6,0,0.35);border-radius:8px;">
             <tr><td style="padding:12px 14px;font-size:12px;line-height:1.5;color:#f2b8b5;">
-              &#9888; Never share this code with anyone &mdash; not even someone claiming to be F1 Hub support. We will never ask you for it.
+              &#9888; Never share this code with anyone &mdash; not even someone claiming to be Apex F1 Hub support. We will never ask you for it.
             </td></tr>
           </table>
         </td>
@@ -106,7 +106,7 @@ function buildOtpEmailHtml(code: string, email: string): string {
       </tr>
       <tr>
         <td style="padding:0 32px 28px 32px;font-size:11px;color:#45454c;">
-          &copy; ${year} F1 Hub. All rights reserved.
+          &copy; ${year} Apex F1 Hub. All rights reserved.
         </td>
       </tr>
     </table>
@@ -174,8 +174,8 @@ export async function deliverOtp(email: string, code: string): Promise<void> {
     const info = await getTransporter().sendMail({
       from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
       to: email,
-      subject: `${code} is your F1 Hub verification code`,
-      text: `Your F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,
+      subject: `${code} is your Apex F1 Hub verification code`,
+      text: `Your Apex F1 Hub verification code is ${code}. It expires in 10 minutes. Never share it with anyone.`,
       html: buildOtpEmailHtml(code, email),
     });
     // Counts, not addresses: info.accepted/rejected ARE the recipient address, and the SMTP

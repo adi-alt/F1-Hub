@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 
 /**
- * The F1 Hub mark, "Apex": an A drawn in thick round strokes, its crossbar running out past the leg as a racing line
+ * The Apex F1 Hub mark, "Apex": an A drawn in thick round strokes, its crossbar running out past the leg as a racing line
  * with the car (the one red element) at its end. On a desktop with motion, the car pulls back and launches along the
  * line when the mark is hovered and each time the page changes, a small sign that the site is moving with you
  * (globals.css: .apex-launch, only inside the rich-motion media query). The first render is the resting mark, the
