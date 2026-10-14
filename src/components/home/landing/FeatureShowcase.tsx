@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent, type ReactNode } from "react";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
-import { useReducedMotion } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "framer-motion";
+import { useRichMotion } from "@/hooks/useRichMotion";
 import { Archive, Bot, Flag, MapPin, Trophy, Users } from "lucide-react";
 import { MiniWindow } from "./MiniWindow";
 import { teamColor } from "@/lib/teamColors";
@@ -10,10 +11,10 @@ import type { LandingData } from "@/lib/homeData";
 
 type Feature = "predict" | "replay" | "apex" | "season" | "circuits" | "archive";
 
-/** One tick every `ms`, for the miniatures' little loops (a pick being made, points ticking up). Stops under reduced
- * motion, leaving each miniature on its settled frame. */
+/** One tick every `ms`, for the miniatures' little loops (a pick being made, points ticking up). Desktop only (rich
+ * motion); on a phone, or with reduced motion, each miniature stays on its settled frame. */
 function useTick(ms: number): number {
-  const reduce = useReducedMotion();
+  const reduce = !useRichMotion();
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (reduce) return;
@@ -42,6 +43,19 @@ const FEATURES: { key: Feature; icon: typeof Flag; title: string; text: string }
 export function FeatureShowcase({ landing }: { landing: LandingData }) {
   const [active, setActive] = useState<Feature | null>(null);
   const openAuth = useAuthDialogStore((s) => s.open);
+  const rich = useRichMotion();
+  // The pointer over the stage, -1..1 each way, eased by a spring; the stage tilts and each window shifts by its depth.
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  const sx = useSpring(px, { stiffness: 80, damping: 18, mass: 0.6 });
+  const sy = useSpring(py, { stiffness: 80, damping: 18, mass: 0.6 });
+  const rotateY = useTransform(sx, (v) => v * 5);
+  const rotateX = useTransform(sy, (v) => v * -4);
+  const onMove = (e: PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    px.set(((e.clientX - r.left) / r.width) * 2 - 1);
+    py.set(((e.clientY - r.top) / r.height) * 2 - 1);
+  };
   const top = landing.season?.ticker?.slice(0, 5) ?? landing.season?.top5 ?? [];
   const raceName = landing.nextRace?.name ?? "the next Grand Prix";
 
@@ -85,28 +99,67 @@ export function FeatureShowcase({ landing }: { landing: LandingData }) {
         </div>
       </div>
 
-      {/* The floating windows. Absolutely placed on a stage from lg; a two-column grid below that. */}
-      <div aria-hidden className="relative grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:block lg:h-[620px]">
-        <MiniWindow title={`Predict · ${raceName}`} active={active === "predict"} className="lg:absolute lg:left-0 lg:top-4 lg:z-20 lg:w-64" float={{ x: 3, y: 10, dur: 8, delay: 0 }}>
-          <PredictMini drivers={top.slice(0, 3)} />
-        </MiniWindow>
-        <MiniWindow title="Race replay" active={active === "replay"} className="lg:absolute lg:right-2 lg:top-0 lg:z-10 lg:w-80" float={{ x: 5, y: 14, dur: 10, delay: 2 }}>
-          <ReplayMini drivers={top.slice(0, 4)} />
-        </MiniWindow>
-        <MiniWindow title="Apex" active={active === "apex"} className="lg:absolute lg:left-24 lg:top-[248px] lg:z-30 lg:w-72" float={{ x: 4, y: 12, dur: 9, delay: 4 }}>
-          <ApexMini leader={top[0]?.driverName ?? null} />
-        </MiniWindow>
-        <MiniWindow title={`${landing.year} championship`} active={active === "season"} className="lg:absolute lg:right-0 lg:top-[268px] lg:z-20 lg:w-64" float={{ x: 3, y: 16, dur: 11, delay: 1 }}>
-          <SeasonMini drivers={top} />
-        </MiniWindow>
-        <MiniWindow title="Circuits" active={active === "circuits"} className="lg:absolute lg:bottom-6 lg:left-0 lg:z-10 lg:w-56" float={{ x: 4, y: 11, dur: 9.5, delay: 3 }}>
-          <CircuitMini />
-        </MiniWindow>
-        <MiniWindow title="Archive · since 1950" active={active === "archive"} className="lg:absolute lg:bottom-0 lg:left-[46%] lg:z-20 lg:w-60" float={{ x: 5, y: 13, dur: 10.5, delay: 5 }}>
-          <ArchiveMini />
-        </MiniWindow>
-      </div>
+      {/* The floating windows. On desktop: absolutely placed on a stage that tilts with the pointer, each window its
+          own layer. On a phone or tablet: a calm two-column grid. */}
+      <motion.div
+        aria-hidden
+        onPointerMove={rich ? onMove : undefined}
+        onPointerLeave={rich ? () => { px.set(0); py.set(0); } : undefined}
+        style={rich ? { rotateX, rotateY, transformPerspective: 1400 } : undefined}
+        className="relative grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:block lg:h-[620px]"
+      >
+        <Layer px={sx} py={sy} depth={0.9} order={0} rich={rich} className="lg:absolute lg:left-0 lg:top-4 lg:z-20 lg:w-64">
+          <MiniWindow title={`Predict · ${raceName}`} active={active === "predict"} float={{ x: 3, y: 10, dur: 8, delay: 0 }}>
+            <PredictMini drivers={top.slice(0, 3)} />
+          </MiniWindow>
+        </Layer>
+        <Layer px={sx} py={sy} depth={0.5} order={1} rich={rich} className="lg:absolute lg:right-2 lg:top-0 lg:z-10 lg:w-80">
+          <MiniWindow title="Race replay" active={active === "replay"} float={{ x: 5, y: 14, dur: 10, delay: 2 }}>
+            <ReplayMini drivers={top.slice(0, 4)} />
+          </MiniWindow>
+        </Layer>
+        <Layer px={sx} py={sy} depth={1.2} order={2} rich={rich} className="lg:absolute lg:left-24 lg:top-[248px] lg:z-30 lg:w-72">
+          <MiniWindow title="Apex" active={active === "apex"} float={{ x: 4, y: 12, dur: 9, delay: 4 }}>
+            <ApexMini leader={top[0]?.driverName ?? null} />
+          </MiniWindow>
+        </Layer>
+        <Layer px={sx} py={sy} depth={0.8} order={3} rich={rich} className="lg:absolute lg:right-0 lg:top-[268px] lg:z-20 lg:w-64">
+          <MiniWindow title={`${landing.year} championship`} active={active === "season"} float={{ x: 3, y: 16, dur: 11, delay: 1 }}>
+            <SeasonMini drivers={top} />
+          </MiniWindow>
+        </Layer>
+        <Layer px={sx} py={sy} depth={0.4} order={4} rich={rich} className="lg:absolute lg:bottom-6 lg:left-0 lg:z-10 lg:w-56">
+          <MiniWindow title="Circuits" active={active === "circuits"} float={{ x: 4, y: 11, dur: 9.5, delay: 3 }}>
+            <CircuitMini />
+          </MiniWindow>
+        </Layer>
+        <Layer px={sx} py={sy} depth={1} order={5} rich={rich} className="lg:absolute lg:bottom-0 lg:left-[46%] lg:z-20 lg:w-60">
+          <MiniWindow title="Archive · since 1950" active={active === "archive"} float={{ x: 5, y: 13, dur: 10.5, delay: 5 }}>
+            <ArchiveMini />
+          </MiniWindow>
+        </Layer>
+      </motion.div>
     </section>
+  );
+}
+
+/** A window on the desktop stage: flies in (staggered by `order`) when the stage comes into view, then drifts with the
+ * pointer - nearer windows (`depth` higher) move more, so the cluster reads as layers in space. Phones: a plain block. */
+function Layer({ px, py, depth, order, rich, className, children }: { px: MotionValue<number>; py: MotionValue<number>; depth: number; order: number; rich: boolean; className: string; children: ReactNode }) {
+  const x = useTransform(px, (v) => v * depth * 26);
+  const y = useTransform(py, (v) => v * depth * 18);
+  if (!rich) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      className={className}
+      style={{ x, y }}
+      initial={{ opacity: 0, y: 46, scale: 0.9, filter: "blur(6px)" }}
+      whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.75, delay: 0.12 * order, ease: [0.2, 0, 0, 1] }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -145,7 +198,7 @@ const MINI_TRACK = "M20 70 C20 30 60 18 100 22 C140 26 170 18 186 40 C200 60 180
 
 /** Cars lapping a circuit, as the race replay draws them, beside a running order. */
 export function ReplayMini({ drivers, anonymous = false }: { drivers: { driver: string; team: string }[]; anonymous?: boolean }) {
-  const reduce = useReducedMotion();
+  const reduce = !useRichMotion();
   const cars = (drivers.length ? drivers : [{ driver: "VER", team: "Red Bull Racing" }]).slice(0, 4);
   return (
     <div className={`grid items-center gap-3 ${anonymous ? "grid-cols-1" : "grid-cols-[1.4fr_1fr]"}`}>
@@ -196,7 +249,7 @@ export function ApexMini({ leader }: { leader: string | null }) {
 }
 
 function TypeOut({ text }: { text: string }) {
-  const reduce = useReducedMotion();
+  const reduce = !useRichMotion();
   const [n, setN] = useState(reduce ? text.length : 0);
   useEffect(() => {
     if (reduce) return;
@@ -231,7 +284,7 @@ export function SeasonMini({ drivers }: { drivers: { driver: string; team: strin
 
 /** A circuit with a car lapping it, as the circuit pages draw them. */
 export function CircuitMini() {
-  const reduce = useReducedMotion();
+  const reduce = !useRichMotion();
   const path = "M30 20 L120 20 C140 20 150 32 146 50 L138 84 C134 100 120 104 106 96 L80 80 C70 74 58 76 52 88 L46 100 C40 112 24 110 22 96 L18 40 C17 28 22 20 30 20 Z";
   return (
     <svg viewBox="0 0 166 124" className="w-full">

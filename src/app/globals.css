@@ -503,8 +503,11 @@ html {
     transform: scale(1.12) translate3d(-1.5%, -1%, 0);
   }
 }
-.backdrop-drift {
-  animation: backdrop-drift 26s ease-in-out infinite alternate;
+/* Desktop only (the same rich-motion query as the floating windows below); on a phone the photo holds still. */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .backdrop-drift {
+    animation: backdrop-drift 26s ease-in-out infinite alternate;
+  }
 }
 
 /* A blinking caret while Apex types. */
@@ -623,10 +626,7 @@ html {
     transform: translate3d(var(--float-x, 4px), calc(var(--float-y, 12px) * 0.4), 0);
   }
 }
-.float-bob {
-  animation: float-bob var(--float-dur, 9s) ease-in-out var(--float-delay, 0s) infinite;
-  will-change: transform;
-}
+
 /* A mini chart bar rising and settling, on a loop. */
 @keyframes mini-bar {
   0% {
@@ -642,7 +642,6 @@ html {
 }
 .mini-bar {
   transform-origin: bottom;
-  animation: mini-bar 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
 }
 @keyframes mini-bar-x {
   0% {
@@ -658,12 +657,18 @@ html {
 }
 .mini-bar-x {
   transform-origin: left;
-  animation: mini-bar-x 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  .float-bob,
-  .mini-bar,
+/* Rich motion: desktop with a mouse, and no system request to reduce motion (src/hooks/useRichMotion.ts uses the same
+   query). Phones and tablets keep the settled frame. */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .float-bob {
+    animation: float-bob var(--float-dur, 9s) ease-in-out var(--float-delay, 0s) infinite;
+    will-change: transform;
+  }
+  .mini-bar {
+    animation: mini-bar 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
+  }
   .mini-bar-x {
-    animation: none;
+    animation: mini-bar-x 6s cubic-bezier(0.2, 0, 0, 1) var(--bar-delay, 0s) infinite;
   }
 }
