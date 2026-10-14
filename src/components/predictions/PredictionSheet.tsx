@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, Check } from "lucide-react";
+import { Bot, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { DriverPicker } from "@/components/ui/F1Pickers";
+import { Picker } from "@/components/ui/Picker";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
@@ -22,6 +23,12 @@ type Session = { label: string; date: string };
 const MODEL_SAFETY_CAR_RATE = 0.734;
 
 const MARGIN_LABEL: Record<MarginBucket, string> = { under_2: "Under 2s", "2_5": "2–5s", "5_10": "5–10s", over_10: "Over 10s" };
+const MARGIN_DESCRIPTION: Record<MarginBucket, string> = {
+  under_2: "P2 within 2 seconds of the winner",
+  "2_5": "P2 2 to 5 seconds behind",
+  "5_10": "P2 5 to 10 seconds behind",
+  over_10: "P2 more than 10 seconds behind",
+};
 
 type Form = {
   podium: [string, string, string];
@@ -84,15 +91,23 @@ function Outcome({ score }: { score: CategoryScore | undefined }) {
 }
 
 /** One category as a card: its name (with a tick once it's filled), what it's worth, the model's pick, then the
- * control; once the race is scored, what it earned. `compact` is for the row of four small cards: the points go on
- * their own line under the name and the model line keeps two lines' height, so all four controls start on one line
+ * control; once the race is scored, what it earned. `compact` is for the row of four small cards: the points sit in
+ * the corner as a short "+3 pts" ("if right" for screen readers and on hover) and the model line keeps two lines'
+ * height, so all four controls start on one line
  * whatever the text above them; a note goes under the control. */
 function Category({ title, points, model, done, score, note, compact = false, children }: { title: string; points: string; model: ReactNode; done: boolean; score?: CategoryScore; note?: ReactNode; compact?: boolean; children: ReactNode }) {
   const result = score && score.earned !== null;
-  const chip = result ? <Outcome score={score} /> : <span className="rounded-full bg-surface-3 px-2 py-0.5 text-caption tabular text-secondary">{points}</span>;
+  const chip = result ? (
+    <Outcome score={score} />
+  ) : (
+    <span title={compact ? `${points.replace(/^\+/, "")} if right` : undefined} className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-caption tabular text-secondary">
+      {points}
+      {compact && <span className="sr-only"> if right</span>}
+    </span>
+  );
   return (
     <section aria-label={title} className="flex min-w-0 flex-col rounded-card border border-subtle bg-surface-2/60 p-4">
-      <div className={compact ? "flex flex-col items-start gap-1.5" : "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5"}>
+      <div className={compact ? "flex items-center justify-between gap-2" : "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5"}>
         <h3 className="flex items-center gap-1.5 whitespace-nowrap text-body-sm font-semibold text-primary">
           {title}
           {done && !result && <Icon icon={Check} size={16} className="text-success" label="Picked" />}
@@ -129,25 +144,35 @@ function PodiumStep({ place, code, color, modelName, children }: { place: 1 | 2 
   );
 }
 
-function Segmented<T extends string | boolean>({ options, value, onChange, disabled, label, columns }: { options: { value: T; label: string }[]; value: T | null; onChange: (v: T | null) => void; disabled?: boolean; label: string; columns?: 2 }) {
+/** Yes or no as two separate buttons, each with its own mark, and a selected state that can't be mistaken: yes in
+ * the success tone, no in a strong neutral. Clicking the chosen one again clears it. */
+function YesNo({ value, onChange, disabled, label }: { value: boolean | null; onChange: (v: boolean | null) => void; disabled?: boolean; label: string }) {
+  const option = (v: boolean) => {
+    const on = value === v;
+    const look = on
+      ? v
+        ? "border-success/70 bg-success/15 text-primary"
+        : "border-white/50 bg-surface-3 text-primary"
+      : "border-subtle text-secondary hover:border-strong hover:text-primary";
+    return (
+      <button
+        key={String(v)}
+        type="button"
+        role="radio"
+        aria-checked={on}
+        disabled={disabled}
+        onClick={() => onChange(on ? null : v)}
+        className={`flex h-10 items-center justify-center gap-1.5 rounded-control border text-body-sm font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${look}`}
+      >
+        <Icon icon={v ? Check : X} size={16} className={on && v ? "text-success" : undefined} />
+        {v ? "Yes" : "No"}
+      </button>
+    );
+  };
   return (
-    <div role="radiogroup" aria-label={label} className={`grid gap-1 rounded-control bg-surface-3/60 p-1 ${columns === 2 ? "grid-cols-2" : "auto-cols-fr grid-flow-col"}`}>
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <button
-            key={String(o.value)}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            disabled={disabled}
-            onClick={() => onChange(on ? null : o.value)}
-            className={`h-9 whitespace-nowrap rounded-control px-2 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-50 ${on ? "bg-surface-1 text-primary shadow-[0_1px_0_rgb(255_255_255/0.06)_inset] ring-1 ring-white/15" : "text-secondary hover:text-primary"}`}
-          >
-            {o.label}
-          </button>
-        );
-      })}
+    <div role="radiogroup" aria-label={label} className="grid grid-cols-2 gap-2">
+      {option(true)}
+      {option(false)}
     </div>
   );
 }
@@ -266,8 +291,15 @@ export function PredictionSheet({
   const scoreOf = (c: PickCategory) => score.categories.find((x) => x.category === c);
 
   // One line on where the window stands: not open yet, open until lights out, or closed.
+  // Only claim a model view that exists: before qualifying the race models haven't published anything.
+  const hasModel = model.podium.length > 0 || !!model.pole || !!model.fastestLap || model.top5.length > 0;
   const windowLine = notOpen && opensAt
-    ? <>Opens <span suppressHydrationWarning>{formatLocalDateTime(new Date(opensAt).toISOString(), tz)}</span>, 24 hours before the first session. Until then, here&apos;s what the model thinks.</>
+    ? (
+        <>
+          Opens <span suppressHydrationWarning>{formatLocalDateTime(new Date(opensAt).toISOString(), tz)}</span>, 24 hours before the first session.{" "}
+          {hasModel ? "Until then, here's what the models think so far." : "The models publish as the weekend runs: the pace model after practice, pole before qualifying, the race after it."}
+        </>
+      )
     : locked
       ? "Predictions are closed for this race."
       : <>The podium is required; everything else is optional.{raceClose && <> Locks at lights out, <span suppressHydrationWarning>{raceClose}</span>.</>}</>;
@@ -349,30 +381,29 @@ export function PredictionSheet({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Category
               title="Pole position" compact score={scoreOf("pole")}
-              points={`${POINTS.pole} pts if right`}
+              points={`+${POINTS.pole} pts`}
               done={done.pole}
               model={model.pole ? <>Model: {nameOf(model.pole)}</> : "Publishes before qualifying."}
               note={poleLocked && !locked ? "Qualifying has started: locked." : !poleLocked && qualiClose ? <>Locks at qualifying, <span suppressHydrationWarning>{qualiClose}</span>.</> : null}
             >
               <DriverPicker drivers={drivers} value={form.pole} disabled={poleLocked} ariaLabel="Pole position" onChange={(code) => setForm((f) => ({ ...f, pole: code }))} />
             </Category>
-            <Category title="Fastest lap" compact score={scoreOf("fastestLap")} points={`${POINTS.fastestLap} pts if right`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : "Publishes after practice."}>
+            <Category title="Fastest lap" compact score={scoreOf("fastestLap")} points={`+${POINTS.fastestLap} pts`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : "Publishes after practice."}>
               <DriverPicker drivers={drivers} value={form.fastestLap} disabled={locked} ariaLabel="Fastest lap" onChange={(code) => setForm((f) => ({ ...f, fastestLap: code }))} />
             </Category>
-            <Category title="Safety car" compact score={scoreOf("safetyCar")} points={`${POINTS.safetyCar} pts if right`} done={done.safetyCar} model={<>Model: {Math.round(model.safetyCar * 100)}% chance of one</>}>
-              <Segmented
-                label="Safety car"
-                value={form.safetyCar}
-                disabled={locked}
-                onChange={(v) => setForm((f) => ({ ...f, safetyCar: v }))}
-                options={[
-                  { value: true, label: "Yes" },
-                  { value: false, label: "No" },
-                ]}
-              />
+            <Category title="Safety car" compact score={scoreOf("safetyCar")} points={`+${POINTS.safetyCar} pts`} done={done.safetyCar} model={<>History: {Math.round(model.safetyCar * 100)}% of races have one</>}>
+              <YesNo label="Safety car" value={form.safetyCar} disabled={locked} onChange={(v) => setForm((f) => ({ ...f, safetyCar: v }))} />
             </Category>
-            <Category title="Winning margin" compact score={scoreOf("margin")} points={`${POINTS.margin} pts if right`} done={done.margin} model="No model pick: your call.">
-              <Segmented label="Winning margin" value={form.margin} disabled={locked} onChange={(v) => setForm((f) => ({ ...f, margin: v }))} columns={2} options={MARGIN_BUCKETS.map((b) => ({ value: b, label: MARGIN_LABEL[b] }))} />
+            <Category title="Winning margin" compact score={scoreOf("margin")} points={`+${POINTS.margin} pts`} done={done.margin} model="No model pick: your call.">
+              <Picker
+                ariaLabel="Winning margin"
+                placeholder="Select a gap"
+                value={form.margin ?? ""}
+                disabled={locked}
+                clearable
+                onChange={(v) => setForm((f) => ({ ...f, margin: (v || null) as MarginBucket | null }))}
+                options={MARGIN_BUCKETS.map((b) => ({ value: b, label: MARGIN_LABEL[b], description: MARGIN_DESCRIPTION[b] }))}
+              />
             </Category>
           </div>
 
