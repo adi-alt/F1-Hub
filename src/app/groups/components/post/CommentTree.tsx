@@ -70,11 +70,10 @@ function CommentNode({
   const { user } = useAuth();
   const [replying, setReplying] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  // Same rule as a post's own author avatar: session.photoURL is the only real per-user photo this
-  // app has, and it's only knowable for the viewer themselves. Everyone else gets EntityAvatar's
-  // deterministic initials, because no photo for them exists anywhere to show.
+  // The commenter's profile photo (profiles.avatar_url); for the viewer's own fresh comment, their session photo.
+  // Initials only where there's no photo at all.
   const isMe = !!user && !!comment.userId && user.uid === comment.userId;
-  const avatarUrl = isMe ? (user.photoURL ?? null) : null;
+  const avatarUrl = comment.authorAvatarUrl ?? (isMe ? (user.photoURL ?? null) : null);
 
   const children = childrenOf.get(comment.id) ?? [];
   const atDepthLimit = depth >= MAX_VISIBLE_DEPTH;

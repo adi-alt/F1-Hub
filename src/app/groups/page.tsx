@@ -88,14 +88,9 @@ export default async function GroupsPage() {
   const driversByRace = await getDriversByRace(predictions.map((p) => p.raceId));
 
   return (
-    // The same frame as every page. The document scrolls, the feed with it (audit R-31); at lg+ the
-    // two rails stay in view beside it (sticky, GroupsHomeClient), and only the community list inside
-    // the left rail scrolls on its own.
-    <div className="page-wide py-6">
-      {/* No separate page header above the workspace anymore - the page title and its one-line
-          description live at the top of the navigation rail itself (GroupsLeftSidebar), so the
-          three columns start at the same baseline and the feed is the first thing at eye level
-          rather than sitting a header's height below it. */}
+    // The same frame as every page, without its vertical padding: GroupsHomeClient is an app shell that fills the
+    // window under the header from lg, with only the feed scrolling.
+    <div className="page-wide">
       <div>
         <GroupsHomeClient
           groups={groups}

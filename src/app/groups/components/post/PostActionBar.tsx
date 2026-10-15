@@ -49,7 +49,7 @@ export function PostActionBar({
   return (
     // h-7 controls (28px) rather than the 36px these were: still a comfortable target, but a row of
     // them no longer costs a third of the card's height.
-    <div className="mt-3 flex items-center gap-1.5">
+    <div className="-ml-1.5 mt-2 flex items-center gap-1">
       <div className="flex h-8 items-center rounded-full bg-surface-2/70 px-0.5">
         <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
       </div>

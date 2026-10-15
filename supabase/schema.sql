@@ -532,6 +532,10 @@ alter publication supabase_realtime add table group_members;
 -- forward via the same column default.
 alter table profiles add column points_balance integer not null default 100 check (points_balance >= 0);
 
+-- The member's profile photo (the sign-in provider's picture), shown on posts, comments and member lists; kept current at
+-- each sign-in (lib/session/createSession.ts). See 20261020_profile_avatar.sql.
+alter table profiles add column avatar_url text;
+
 -- A real audit trail for every balance change (the initial grant, a prediction entry, a payout, a
 -- refund) - not what actually prevents a negative balance (the atomic guarded UPDATE the service
 -- layer uses for that - see lib/supabase/points.ts - is what does), but "the backend should always

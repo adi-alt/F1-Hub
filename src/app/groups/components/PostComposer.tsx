@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay } from "lucide-react";
+import { Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
@@ -125,10 +125,10 @@ export function PostComposer({
   const canOpenPrediction = upcomingRaces.length > 0 && predictionCommunities.length > 0;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  // What the Emoji and GIF panels anchor to. They're portaled out of this component entirely (the
-  // centre column's scroll container would otherwise clip them), so they need a real element to
-  // measure against rather than an offsetParent.
-  const toolbarRef = useRef<HTMLDivElement>(null);
+  // What the Emoji and GIF panels anchor to: each its own button. They're portaled out of this component (the
+  // centre column's scroll container would otherwise clip them), so they measure a real element.
+  const gifRef = useRef<HTMLButtonElement>(null);
+  const emojiRef = useRef<HTMLButtonElement>(null);
 
   const targetGroupId = fixedGroupId ?? groupId;
   const targetGroup = targetGroupId ? groups.find((g) => g.id === targetGroupId) : undefined;
@@ -282,38 +282,38 @@ export function PostComposer({
   }
 
   return (
-    <div className="relative rounded-card border border-white/[0.08] bg-surface-1/70 p-4">
+    // One surface whether it is idle or being written in: the same card, avatar and field, so opening it adds rows
+    // rather than swapping in a different design. Fields are borderless; the card itself takes the focus border.
+    <div className="relative rounded-card border border-white/[0.08] bg-surface-1/70 transition-colors duration-fast focus-within:border-white/20">
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
           onClick={mode === "prediction" ? () => setMode("discussion") : requestClose}
           aria-label={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
           title={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
-          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full text-tertiary transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className="absolute right-2.5 top-2.5 z-10 flex size-7 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
-          <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" aria-hidden>
-            <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
+          <Icon icon={X} size={16} />
         </button>
       )}
 
       {confirmDiscard && (
-        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-caption font-medium text-amber-200/90">Discard this draft?</p>
-          <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 text-caption font-medium text-secondary transition hover:text-white">
+        <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-control border border-warning/25 bg-warning/[0.07] px-3 py-2">
+          <p className="min-w-0 flex-1 text-caption font-medium text-primary">Discard this draft?</p>
+          <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 rounded-control text-caption font-medium text-secondary transition-colors duration-fast hover:text-primary">
             Keep editing
           </button>
-          <button type="button" onClick={reset} className="shrink-0 text-caption font-semibold text-brand-text transition hover:brightness-125">
+          <button type="button" onClick={reset} className="shrink-0 rounded-control text-caption font-semibold text-danger transition-colors duration-fast hover:brightness-125">
             Discard
           </button>
         </div>
       )}
 
       {mode === "prediction" ? (
-        <div className="flex items-start gap-2.5">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
+        <div className="flex items-start gap-3 p-4">
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
           <div className="min-w-0 flex-1">
-            <p className="text-caption font-semibold text-brand-text">New prediction round</p>
+            <p className="pr-8 text-body-sm font-semibold text-primary">New prediction round</p>
             <PredictionComposer
               communities={predictionCommunities}
               races={upcomingRaces}
@@ -326,154 +326,166 @@ export function PostComposer({
         </div>
       ) : (
         <>
-      <div className="flex items-start gap-2.5">
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
+          <div className="flex items-start gap-3 px-4 pt-3.5">
+            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
+            <div className="min-w-0 flex-1 pr-8">
+              {isOpen && (
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Title (optional)"
+                  maxLength={300}
+                  aria-label="Post title"
+                  className="block w-full bg-transparent pt-1.5 text-body font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
+                />
+              )}
+              <textarea
+                ref={bodyRef}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onFocus={() => setFocused(true)}
+                placeholder={placeholder ?? (displayName ? `What's on your mind, ${displayName.split(" ")[0]}?` : "What's on your mind?")}
+                aria-label="Post"
+                rows={isOpen ? 3 : 1}
+                maxLength={2000}
+                // Idle it is one line and clips a long placeholder rather than wrapping it into a second line the row
+                // can't show; focused it opens to three rows and wraps normally.
+                className={`block w-full resize-none bg-transparent text-body-sm leading-6 text-primary placeholder:text-tertiary focus:outline-none ${
+                  isOpen ? "mt-1 min-h-[4.5rem]" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-1.5"
+                }`}
+              />
+            </div>
+          </div>
 
-        <div className="min-w-0 flex-1">
-          {isOpen && (
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Add a title (optional)"
-              maxLength={300}
-              className="mb-2 w-full rounded-control border border-white/15 bg-surface-2/60 py-2.5 pl-3.5 pr-10 text-title-md text-primary placeholder:text-body placeholder:font-normal placeholder:text-tertiary focus:border-white/30 focus:outline-none"
-            />
-          )}
-          <textarea
-            ref={bodyRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onFocus={() => setFocused(true)}
-            placeholder={placeholder ?? (displayName ? `What's on your mind, ${displayName.split(" ")[0]}?` : "What's on your mind?")}
-            rows={isOpen ? 3 : 1}
-            maxLength={2000}
-            // Collapsed, this is one row tall and shows nothing but the placeholder - which now
-            // carries a community name and so runs long. Left to wrap it spills onto a second line
-            // the single row can't show, and at phone width the prompt reads as a sentence cut in
-            // half. Held to one line and clipped instead; the moment it's focused it opens to three
-            // rows and wraps normally again.
-            className={`w-full resize-none border text-body text-primary placeholder:text-tertiary transition-[border-color,background-color,border-radius] duration-fast focus:outline-none ${
-              isOpen ? "rounded-control border-white/15 bg-surface-2/60 px-3.5 py-2.5 focus:border-white/30" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap rounded-full border-transparent bg-surface-2 px-4 py-2 hover:bg-surface-3"
-            }`}
-          />
-        </div>
-      </div>
-
-      {attachment && (
-        // The SAME component the published post renders, so what is previewed here is literally
-        // what will appear in the feed - no second attachment design to drift out of sync.
-        <div className="ml-[52px] max-w-full">
-          <PostAttachment attachment={attachment} onRemove={removeMedia} />
-          {uploadingMedia && <p className="mt-1 text-caption text-tertiary">Uploading…</p>}
-        </div>
-      )}
-      {mediaError && <p className="ml-[52px] mt-1 text-caption text-danger">{mediaError}</p>}
-
-      {scheduledConfirmation && (
-        <div className="ml-[52px] mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.07] px-2.5 py-1.5">
-          <p className="min-w-0 flex-1 text-caption text-emerald-200/90">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
-          <button type="button" onClick={() => setScheduledConfirmation("")} aria-label="Dismiss" className="shrink-0 text-caption font-medium text-secondary transition hover:text-white">
-            Got it
-          </button>
-        </div>
-      )}
-
-      <div ref={toolbarRef} className="relative mt-3 flex flex-wrap items-center gap-1 sm:pl-[52px]">
-        <ToolButton onClick={() => fileInputRef.current?.click()} icon={<Icon icon={Image} size={16} className="text-success" />} label="Photo" />
-        <ToolButton onClick={() => setShowGif((v) => !v)} active={showGif} icon={<Icon icon={ImagePlay} size={16} className="text-info" />} label="GIF" compactLabel />
-        <ToolButton onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={<Icon icon={FaceSlightlySmiling} size={16} className="text-warning" />} label="Emoji" />
-        <ComposeAssist draft={content} onReplace={setContent} />
-        {canPredict && (
-          <>
-            <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={<Icon icon={Compass} size={16} className="text-brand-text" />} label="Prediction" />
-          </>
-        )}
-        {/* A different thing from the chip above it: that tags THIS post as prediction talk, this
-            opens a real prediction round the community can enter. Only shown where the viewer
-            genuinely holds the permission, and the server re-checks it regardless. */}
-        {canOpenPrediction && (
-          <>
-            <ToolButton onClick={() => setMode("prediction")} icon={<Icon icon={Crosshair} size={16} className="text-brand-text" />} label="New round" />
-          </>
-        )}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={FILE_ACCEPT}
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void pickMedia(file);
-          }}
-        />
-
-        <div className="ml-auto flex items-center gap-2">
-          {notice && <span className="text-xs text-brand-text">{notice}</span>}
-          {fixedGroupId
-            ? isOpen &&
-              fixedCommunity && (
-                <span className="flex h-[38px] min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-surface-1/60 px-2.5 text-body-sm text-secondary">
-                  <EntityAvatar imageUrl={fixedCommunity.avatarUrl} name={fixedCommunity.name} seed={fixedCommunity.id} size={18} shape="square" />
-                  <span className="min-w-0 max-w-[10rem] truncate">{fixedCommunity.name}</span>
-                </span>
-              )
-            : isOpen && (
-                <div className="w-44">
-                  <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
+          {(attachment || mediaError || scheduledConfirmation) && (
+            <div className="space-y-2 pl-16 pr-4 pt-2">
+              {attachment && (
+                // The SAME component the published post renders, so what is previewed here is literally what will
+                // appear in the feed.
+                <div className="max-w-full">
+                  <PostAttachment attachment={attachment} onRemove={removeMedia} />
+                  {uploadingMedia && <p className="mt-1 text-caption text-tertiary">Uploading…</p>}
                 </div>
               )}
-          {/* Scheduling lives INSIDE the post control, not as a separate toolbar button - it isn't
-              a thing you attach to a post, it's a choice about how this post gets published. The
-              caret only appears when there's a real alternative to offer. */}
-          <div className="flex shrink-0 items-stretch overflow-hidden rounded-control">
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={posting || uploadingMedia || !content.trim()}
-              className="h-9 bg-brand px-5 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
-            </button>
-            {(content.trim() || scheduledAt) && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
-          </div>
-        </div>
-
-        <AnimatePresence>
-          {showEmoji && <EmojiPicker anchorRef={toolbarRef} onSelect={insertAtCursor} onClose={() => setShowEmoji(false)} />}
-          {showGif && (
-            <GifPicker
-              anchorRef={toolbarRef}
-              onSelect={(url) => {
-                setMediaUrl(url);
-                setMediaPreview(url);
-                setAttachment({ url, name: fileNameFromUrl(url), mime: "image/gif", size: null, thumbUrl: null, pages: null });
-                setShowGif(false);
-              }}
-              onClose={() => setShowGif(false)}
-            />
+              {mediaError && <p className="text-caption text-danger">{mediaError}</p>}
+              {scheduledConfirmation && (
+                <div className="flex flex-wrap items-center gap-2 rounded-control border border-success/25 bg-success/[0.07] px-3 py-2">
+                  <p className="min-w-0 flex-1 text-caption text-primary">Scheduled for {scheduledConfirmation}. It won&apos;t appear in the feed until then.</p>
+                  <button type="button" onClick={() => setScheduledConfirmation("")} className="shrink-0 rounded-control text-caption font-medium text-secondary transition-colors duration-fast hover:text-primary">
+                    Got it
+                  </button>
+                </div>
+              )}
+            </div>
           )}
-        </AnimatePresence>
-      </div>
+
+          {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-white/[0.06] px-3 py-2 sm:pl-[3.75rem]">
+            <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photo" />
+            <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
+            <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
+            <ComposeAssist draft={content} onReplace={setContent} />
+            {canPredict && <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={Compass} label="Prediction" />}
+            {/* A different thing from the tag above: that marks THIS post as prediction talk, this opens a real
+                round the community can enter. Only where the viewer holds the permission; the server re-checks. */}
+            {canOpenPrediction && <ToolButton onClick={() => setMode("prediction")} icon={Crosshair} label="New round" />}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={FILE_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void pickMedia(file);
+              }}
+            />
+
+            <div className="ml-auto flex items-center gap-2">
+              {notice && <span className="text-caption text-danger">{notice}</span>}
+              {fixedGroupId
+                ? isOpen &&
+                  fixedCommunity && (
+                    <span className="flex h-8 min-w-0 items-center gap-2 rounded-full bg-surface-2 px-2.5 text-caption text-secondary">
+                      <EntityAvatar imageUrl={fixedCommunity.avatarUrl} name={fixedCommunity.name} seed={fixedCommunity.id} size={16} shape="square" />
+                      <span className="min-w-0 max-w-[10rem] truncate">{fixedCommunity.name}</span>
+                    </span>
+                  )
+                : isOpen && (
+                    <div className="w-44">
+                      <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
+                    </div>
+                  )}
+              {/* Scheduling lives inside the post control: it's a choice about how this post is published, not
+                  something attached to it. The caret only appears when there's a real alternative to offer. */}
+              <div className="flex shrink-0 items-stretch overflow-hidden rounded-full">
+                <button
+                  type="button"
+                  onClick={() => void submit()}
+                  disabled={posting || uploadingMedia || !content.trim()}
+                  className="h-8 bg-brand px-4 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                >
+                  {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
+                </button>
+                {(content.trim() || scheduledAt) && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
+              </div>
+            </div>
+          </div>
+
+          {/* Each panel opens from the button that asked for it (popovers.md: point at the element that revealed
+              it), portaled out of the scrolling feed so nothing clips it. */}
+          <AnimatePresence>
+            {showEmoji && <EmojiPicker anchorRef={emojiRef} onSelect={insertAtCursor} onClose={() => setShowEmoji(false)} />}
+            {showGif && (
+              <GifPicker
+                anchorRef={gifRef}
+                onSelect={(url) => {
+                  setMediaUrl(url);
+                  setMediaPreview(url);
+                  setAttachment({ url, name: fileNameFromUrl(url), mime: "image/gif", size: null, thumbUrl: null, pages: null });
+                  setShowGif(false);
+                }}
+                onClose={() => setShowGif(false)}
+              />
+            )}
+          </AnimatePresence>
         </>
       )}
     </div>
   );
 }
 
-function ToolButton({ onClick, icon, label, active, compactLabel }: { onClick: () => void; icon: React.ReactNode; label: string; active?: boolean; compactLabel?: boolean }) {
+/** A toolbar tool: monochrome icon and label (the label drops on phones), one height for the row. */
+function ToolButton({
+  ref,
+  onClick,
+  icon,
+  label,
+  active,
+}: {
+  ref?: React.Ref<HTMLButtonElement>;
+  onClick: () => void;
+  icon: LucideIcon;
+  label: string;
+  active?: boolean;
+}) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-body-sm font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+      aria-label={label}
+      title={label}
+      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-caption font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
         active ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
       }`}
     >
-      <span className={compactLabel ? "" : "shrink-0"}>{icon}</span>
-      <span className={compactLabel ? "" : "hidden sm:inline"}>{label}</span>
+      <Icon icon={icon} size={16} />
+      <span aria-hidden className="hidden sm:inline">
+        {label}
+      </span>
     </button>
   );
 }

@@ -18,6 +18,8 @@ export type PostCardData = {
   groupAvatarUrl?: string | null;
   userId: string;
   authorName: string;
+  /** The author's profile photo, when they have one (profiles.avatar_url). */
+  authorAvatarUrl?: string | null;
   authorRole?: GroupRole;
   title: string | null;
   content: string;

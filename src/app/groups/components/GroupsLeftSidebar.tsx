@@ -1,22 +1,27 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ChevronRight, Compass, Home, Plus, Trophy } from "lucide-react";
+import { ChevronRight, Compass, Home, MoreHorizontal, Plus, Trophy } from "lucide-react";
+import { Dialog } from "@/components/ui/Dialog";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
-import { compactCount } from "@/lib/format";
 import { groupHref } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/supabase/groups";
+import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
+import { CommunityPulseCard } from "./CommunityPulseCard";
+
+/** Row height plus the gap between rows: the list is sized in whole rows. */
+const ROW_PX = 40 + 2;
 
 /**
- * Your communities, as a rail beside the feed. Selecting a row doesn't navigate: it switches the feed to that
- * community's own stream in place (GroupsFeed owns the fetch), the way a mail client's folders do. "All" returns to
- * the feed across every community. The arrow on a row opens that community's own page (predictions, members), so
- * filtering and opening stay two separate actions.
+ * Your communities, as the left rail. Selecting a row doesn't navigate: it switches the feed to that community's
+ * own stream in place (GroupsFeed owns the fetch), the way a mail client's folders do. The arrow on a hovered row
+ * opens the community's own page, so filtering and opening stay two separate actions.
  *
- * The page's title and the New community / Discover actions live in the page header now, not in this rail.
+ * The rail never scrolls and never clips (only the feed scrolls): it shows as many whole rows as the window has
+ * room for, and the rest sit behind "See all", a dialog with the full list. The selected community is always
+ * one of the visible rows. Pulse sits under the list when the window is tall enough for both.
  */
 export function GroupsLeftSidebar({
   groups,
@@ -24,103 +29,181 @@ export function GroupsLeftSidebar({
   onSelect,
   onCreate,
   onDiscover,
+  pulse,
 }: {
   groups: GroupSummary[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCreate: () => void;
   onDiscover: () => void;
+  pulse: CommunityPulseData;
 }) {
+  const columnRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const pulseRef = useRef<HTMLDivElement>(null);
+  const [capacity, setCapacity] = useState(Number.POSITIVE_INFINITY);
+  const [showAll, setShowAll] = useState(false);
+
+  // Whole rows that fit: the column's height, less Pulse, less the card's own chrome (header, Discover row).
+  useLayoutEffect(() => {
+    const column = columnRef.current;
+    if (!column) return;
+    const measure = () => {
+      const card = cardRef.current;
+      const list = listRef.current;
+      if (!card || !list || column.clientHeight === 0) return;
+      const chrome = card.offsetHeight - list.offsetHeight;
+      const pulseEl = pulseRef.current;
+      const pulseH = pulseEl && pulseEl.offsetHeight > 0 ? pulseEl.offsetHeight + 12 : 0;
+      setCapacity(Math.max(3, Math.floor((column.clientHeight - pulseH - chrome + 2) / ROW_PX)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(column);
+    if (pulseRef.current) ro.observe(pulseRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // "All communities" is the first row; the communities follow. When they don't all fit, the last visible slot
+  // becomes "See all", and a selected community past the cut takes the slot before it.
+  const total = groups.length + 1;
+  const overflow = total > capacity;
+  let shown = overflow ? groups.slice(0, Math.max(0, capacity - 2)) : groups;
+  if (overflow && selectedId && !shown.some((g) => g.id === selectedId)) {
+    const selected = groups.find((g) => g.id === selectedId);
+    if (selected) shown = [...shown.slice(0, -1), selected];
+  }
+
   return (
-    <nav aria-label="Your communities" className="flex max-h-[calc(100dvh-6rem)] flex-col rounded-card border border-white/[0.08] bg-surface-1/70 p-2">
-      <div className="flex shrink-0 items-center justify-between gap-2 py-1 pl-2 pr-1">
-        <h2 className="text-body-sm font-semibold text-primary">
-          Your communities <span className="font-normal tabular text-tertiary">{groups.length}</span>
-        </h2>
-        <button
-          type="button"
-          onClick={onCreate}
-          aria-label="Start a community"
-          title="Start a community"
-          className="flex size-8 items-center justify-center rounded-full text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
-          <Icon icon={Plus} size={16} />
-        </button>
-      </div>
-      <div data-tour="community-list" className="mt-1 min-h-0 flex-1 space-y-0.5 overflow-y-auto scrollbar-subtle">
-        <div data-tour="community-filter">
-          <NavRow
-            label="All communities"
-            sublabel="Everything you follow"
-            active={selectedId === null}
-            onClick={() => onSelect(null)}
-            icon={
-              <span className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${selectedId === null ? "bg-brand/15 text-brand-text" : "bg-surface-2 text-secondary"}`}>
-                <Icon icon={Home} size={16} />
-              </span>
-            }
-          />
+    <div ref={columnRef} className="flex h-full min-h-0 flex-col gap-3">
+      <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col rounded-card border border-white/[0.08] bg-surface-1/70 p-2">
+        <div className="flex h-8 shrink-0 items-center justify-between gap-2 pl-2">
+          <h3 className="text-body-sm font-semibold text-primary">
+            Communities <span className="font-normal tabular text-tertiary">{groups.length}</span>
+          </h3>
+          <button
+            type="button"
+            onClick={onCreate}
+            aria-label="Start a community"
+            title="Start a community"
+            className="flex size-7 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            <Icon icon={Plus} size={16} />
+          </button>
         </div>
-        {groups.map((g, i) => (
-          <motion.div key={g.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2, delay: Math.min(i, 8) * 0.03, ease: [0.2, 0, 0, 1] }}>
-            <NavRow
-              label={g.name}
-              sublabel={`${compactCount(g.memberCount)} member${g.memberCount === 1 ? "" : "s"}`}
+
+        <div ref={listRef} data-tour="community-list" className="mt-1 min-h-0 space-y-0.5 overflow-hidden">
+          <div data-tour="community-filter">
+            <AllRow active={selectedId === null} onClick={() => onSelect(null)} />
+          </div>
+          {shown.map((g) => (
+            <CommunityRow key={g.id} group={g} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
+          ))}
+          {overflow && (
+            <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-surface-2/60 hover:text-primary`}>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2">
+                <Icon icon={MoreHorizontal} size={16} />
+              </span>
+              <span className="text-body-sm font-medium">
+                See all <span className="tabular text-tertiary">{groups.length}</span>
+              </span>
+            </button>
+          )}
+        </div>
+
+        <div className="mt-1 shrink-0 border-t border-white/[0.06] pt-1">
+          <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-surface-2/60 hover:text-primary`}>
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2">
+              <Icon icon={Compass} size={16} />
+            </span>
+            <span className="text-body-sm font-medium">Discover</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Only when the window is tall enough to give the list room as well. */}
+      <div ref={pulseRef} className="hidden shrink-0 [@media(min-height:760px)]:block">
+        <CommunityPulseCard groups={groups} pulse={pulse} />
+      </div>
+
+      <Dialog open={showAll} onClose={() => setShowAll(false)} title="Your communities" size="sm">
+        <div className="space-y-0.5">
+          <AllRow
+            active={selectedId === null}
+            onClick={() => {
+              onSelect(null);
+              setShowAll(false);
+            }}
+          />
+          {groups.map((g) => (
+            <CommunityRow
+              key={g.id}
+              group={g}
               active={selectedId === g.id}
-              onClick={() => onSelect(g.id)}
-              icon={
-                // A small green dot where people have been posting this week, like a social app's "new activity".
-                <span className="relative shrink-0">
-                  <EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={36} />
-                  {g.weeklyPosts > 0 && <span title="Active this week" className="absolute bottom-0 right-0 size-2.5 rounded-full bg-success ring-2 ring-surface-1" />}
-                </span>
-              }
-              badge={
-                g.activePredictions > 0 ? (
-                  <span title={`${g.activePredictions} open prediction round${g.activePredictions === 1 ? "" : "s"}`} className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-2 text-caption font-semibold tabular text-primary">
-                    <Icon icon={Trophy} size={16} className="size-3.5 text-warning" />
-                    {g.activePredictions}
-                  </span>
-                ) : undefined
-              }
-              openHref={groupHref(g.id)}
-              openLabel={`Open ${g.name}`}
+              onClick={() => {
+                onSelect(g.id);
+                setShowAll(false);
+              }}
             />
-          </motion.div>
-        ))}
-      </div>
-      <div className="mt-1 shrink-0 border-t border-white/[0.08] pt-1">
-        <button
-          type="button"
-          onClick={onDiscover}
-          className="flex w-full items-center gap-2.5 rounded-control px-2 py-2 text-left text-body-sm font-medium text-secondary transition-colors duration-fast hover:bg-surface-2/60 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-secondary">
-            <Icon icon={Compass} size={16} />
+          ))}
+        </div>
+      </Dialog>
+    </div>
+  );
+}
+
+const ROW =
+  "flex h-10 w-full items-center gap-2.5 rounded-control px-1.5 text-left transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+function AllRow({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <NavRow
+      label="All communities"
+      active={active}
+      onClick={onClick}
+      icon={
+        <span className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${active ? "bg-brand/15 text-brand-text" : "bg-surface-2 text-secondary"}`}>
+          <Icon icon={Home} size={16} />
+        </span>
+      }
+    />
+  );
+}
+
+function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; active: boolean; onClick: () => void }) {
+  return (
+    <NavRow
+      label={g.name}
+      active={active}
+      onClick={onClick}
+      icon={
+        // A small green dot where people have posted this week, like a social app's "new activity".
+        <span className="relative shrink-0">
+          <EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={28} />
+          {g.weeklyPosts > 0 && <span title="Active this week" className="absolute -bottom-px -right-px size-2 rounded-full bg-success ring-2 ring-surface-1" />}
+        </span>
+      }
+      badge={
+        g.activePredictions > 0 ? (
+          <span title={`${g.activePredictions} open prediction round${g.activePredictions === 1 ? "" : "s"}`} className="flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-surface-2 px-1.5 text-caption font-semibold tabular text-primary">
+            <Icon icon={Trophy} size={16} className="size-3 text-warning" />
+            {g.activePredictions}
           </span>
-          Discover communities
-        </button>
-      </div>
-    </nav>
+        ) : undefined
+      }
+      openHref={groupHref(g.id)}
+      openLabel={`Open ${g.name}`}
+    />
   );
 }
 
 /**
- * One navigation row - the single row grammar this rail has, used by both the All filter and every
- * community, which is what makes the list read as one system rather than a widget above a list.
- *
- * The selected state is ONE accent, not three. It previously stacked a red border, a red gradient
- * wash AND a red edge bar on top of a red-filled icon tile, which made the selected row read as an
- * important card rather than as the current filter - the accents compounded instead of combining.
- * Now: a faint red wash that fades out to the right, anchored by a thin edge bar at its left so
- * the tint looks attached to something rather than floating, and brighter label text. No border,
- * no glow.
- *
- * Idle rows carry no surface at all, so nothing competes with the feed.
+ * One navigation row, the single row grammar of the rail. The selected state is one accent: a raised surface
+ * with a thin brand edge and brighter text. Idle rows carry no surface, so nothing competes with the feed.
  */
 function NavRow({
   label,
-  sublabel,
   active,
   onClick,
   icon,
@@ -129,7 +212,6 @@ function NavRow({
   openLabel,
 }: {
   label: string;
-  sublabel?: string;
   active: boolean;
   onClick: () => void;
   icon: ReactNode;
@@ -138,14 +220,11 @@ function NavRow({
   openLabel?: string;
 }) {
   return (
-    <div className={`group relative flex items-center gap-2 rounded-control px-2 py-2 transition-colors duration-fast ${active ? "bg-surface-2" : "hover:bg-surface-2/60"}`}>
-      {active && <span aria-hidden className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand" />}
-      <button type="button" onClick={onClick} aria-current={active} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-surface-2" : "hover:bg-surface-2/60"}`}>
+      {active && <span aria-hidden className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-brand" />}
+      <button type="button" onClick={onClick} aria-current={active} className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-control pl-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {icon}
-        <span className="min-w-0 flex-1">
-          <span className={`block truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>
-          {sublabel && <span className="block truncate text-caption text-tertiary">{sublabel}</span>}
-        </span>
+        <span className={`min-w-0 flex-1 truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>
       </button>
       {badge}
       {openHref && (

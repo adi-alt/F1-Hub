@@ -312,6 +312,7 @@
   "points_transactions.prediction_id": "uuid null=YES default=",
   "points_transactions.reason": "text null=NO default=",
   "points_transactions.user_id": "uuid null=NO default=",
+  "profiles.avatar_url": "text null=YES default=",
   "profiles.created_at": "timestamp with time zone null=NO default=now()",
   "profiles.display_name": "text null=YES default=",
   "profiles.email": "text null=YES default=",

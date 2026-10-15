@@ -28,6 +28,8 @@ export type GroupPost = {
   groupId: string;
   userId: string;
   authorName: string;
+  /** The author's profile photo (profiles.avatar_url), null without one. */
+  authorAvatarUrl: string | null;
   authorRole: GroupRole;
   title: string | null;
   content: string;
@@ -46,6 +48,7 @@ export type PostComment = {
   parentCommentId: string | null;
   userId: string;
   authorName: string;
+  authorAvatarUrl: string | null;
   content: string;
   createdAt: string;
   score: number;
@@ -60,6 +63,7 @@ export type FeedPost = {
   groupAvatarUrl: string | null;
   userId: string;
   authorName: string;
+  authorAvatarUrl: string | null;
   title: string | null;
   content: string;
   mediaUrl: string | null;
@@ -92,12 +96,23 @@ const MAX_POST_CHARS = 2000;
 const MAX_TITLE_CHARS = 300;
 const MAX_COMMENT_CHARS = 1000;
 
-type ProfileLite = { id: string; display_name: string | null; username: string | null };
+type ProfileLite = { id: string; display_name: string | null; username: string | null; avatar_url?: string | null };
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
-  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds));
+  const [{ data, error }, photos] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds)),
+    profilePhotos(userIds),
+  ]);
   if (error) throw new Error(`profilesById: ${error.message}`);
-  return new Map((data ?? []).map((p) => [p.id as string, p as ProfileLite]));
+  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar_url: photos.get(p.id as string) ?? null }]));
+}
+
+/** Profile photos (20261020_profile_avatar.sql), read on their own so a database without that column yet - or any
+ * failure here - costs only the photos (initials show instead), never the posts. */
+async function profilePhotos(userIds: string[]): Promise<Map<string, string>> {
+  const { data, error } = await supabaseAdmin.from("profiles").select("id, avatar_url").in("id", userIds);
+  if (error) return new Map();
+  return new Map((data ?? []).filter((p) => typeof p.avatar_url === "string" && /^https:\/\//.test(p.avatar_url)).map((p) => [p.id as string, p.avatar_url as string]));
 }
 function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
@@ -332,6 +347,8 @@ export async function listPosts(
     groupId: p.group_id as string,
     userId: p.user_id as string,
     authorName: nameFor(profileById.get(p.user_id as string), p.user_id as string),
+
+    authorAvatarUrl: profileById.get(p.user_id as string)?.avatar_url ?? null,
     authorRole: roleByAuthor.get(p.user_id as string) ?? "member",
     title: (p.title as string | null) ?? null,
     content: p.content as string,
@@ -396,6 +413,8 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     groupId: (groupId ?? "") as string,
     userId: post.user_id as string,
     authorName: nameFor(profileById.get(post.user_id as string), post.user_id as string),
+
+    authorAvatarUrl: profileById.get(post.user_id as string)?.avatar_url ?? null,
     authorRole,
     title: (post.title as string | null) ?? null,
     content: post.content as string,
@@ -554,6 +573,8 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       groupAvatarUrl: (group?.avatar_url as string | null | undefined) ?? null,
       userId: p.user_id as string,
       authorName: nameFor(profileById.get(p.user_id as string), p.user_id as string),
+
+      authorAvatarUrl: profileById.get(p.user_id as string)?.avatar_url ?? null,
       title: (p.title as string | null) ?? null,
       content: p.content as string,
       mediaUrl: allowedMediaUrl(p.media_url),
@@ -625,6 +646,8 @@ export async function listComments(groupId: string | null, postId: string, uid: 
     parentCommentId: (c.parent_comment_id as string | null) ?? null,
     userId: c.user_id as string,
     authorName: nameFor(profileById.get(c.user_id as string), c.user_id as string),
+
+    authorAvatarUrl: profileById.get(c.user_id as string)?.avatar_url ?? null,
     content: c.content as string,
     createdAt: c.created_at as string,
     score: scoreByTarget.get(c.id as string) ?? 0,

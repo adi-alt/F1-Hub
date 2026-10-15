@@ -53,7 +53,7 @@ export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "po
       </Link>
     );
   }
-  return <EntityAvatar imageUrl={isMe ? (user.photoURL ?? null) : null} name={post.authorName} seed={post.userId} size={size} />;
+  return <EntityAvatar imageUrl={post.authorAvatarUrl ?? (isMe ? (user.photoURL ?? null) : null)} name={post.authorName} seed={post.userId} size={size} />;
 }
 
 /** One line of who and when: the community (bold, a link) and the author, or the author alone inside a community,
@@ -73,7 +73,10 @@ export function PostByline({ post, showGroup, roleLabel, pending }: HeaderProps)
             {post.groupName}
           </Link>
           {dot}
-          <span className="min-w-0 truncate text-secondary">{post.authorName}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-secondary">
+            {post.authorAvatarUrl && <EntityAvatar imageUrl={post.authorAvatarUrl} name={post.authorName} seed={post.userId} size={16} />}
+            <span className="truncate">{post.authorName}</span>
+          </span>
         </>
       ) : (
         <span className="min-w-0 truncate font-semibold text-primary">{post.authorName}</span>

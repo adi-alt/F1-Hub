@@ -151,12 +151,12 @@ export function PostCard({
       className={
         variant === "compact"
           ? "border-b border-white/10 py-3 last:border-b-0"
-          : "cursor-pointer rounded-card border border-white/[0.08] bg-surface-1/70 p-4 transition-colors duration-fast hover:border-white/15 hover:bg-surface-1 sm:p-5"
+          : "cursor-pointer rounded-card border border-white/[0.08] bg-surface-1/70 px-4 py-3.5 transition-colors duration-fast hover:border-white/15 hover:bg-surface-1"
       }
     >
       {/* The avatar in a column of its own and the post indented beside it, the way a social feed reads. */}
       <div className="flex gap-3">
-        <PostAvatar post={post} showGroup={showGroup} size={variant === "compact" ? 32 : 40} />
+        <PostAvatar post={post} showGroup={showGroup} size={variant === "compact" ? 32 : 36} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 pt-0.5">
@@ -165,7 +165,7 @@ export function PostCard({
             {menu}
           </div>
 
-          <div className="mt-2">
+          <div className="mt-1.5">
             <PostContent title={post.title} content={post.content} />
             {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
                 rows uploaded before it existed, which have a URL and nothing else. */}

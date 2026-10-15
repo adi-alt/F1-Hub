@@ -68,7 +68,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-body-sm font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
+        className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-caption font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
           open ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
         }`}
       >
@@ -86,7 +86,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
             style={style}
-            className="overflow-y-auto rounded-xl border border-white/10 bg-surface-1/70 shadow-2xl backdrop-blur-2xl p-2 scrollbar-hide"
+            className="overflow-y-auto rounded-card border border-white/10 bg-surface-2 p-2 shadow-overlay scrollbar-hide"
           >
             {suggestion === null ? (
               <>

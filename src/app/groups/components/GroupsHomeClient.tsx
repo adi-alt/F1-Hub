@@ -6,7 +6,6 @@ import { AnimatePresence } from "framer-motion";
 import { Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
@@ -24,13 +23,13 @@ import { groupHref, raceHref } from "@/lib/routes";
 import type { RaceOption } from "./post/PredictionComposer";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
-/** The Communities home: a page header with the two community-level actions (Discover, New community), then your
- * communities as a rail, the feed across them (or one community's own stream, picked in the rail), and the race
- * weekend beside it from xl. Someone in no community yet gets the way in instead of an empty feed.
+/** The Communities home, an app shell: your communities on the left (with Pulse under them), the feed in the
+ * middle, the race weekend on the right from xl. From lg only the feed scrolls; the rails fit the window and never
+ * scroll or clip (scroll-views.md: no nested scroll views on the same axis). Someone in no community yet gets the
+ * way in instead of an empty feed.
  *
- * Below lg it is one column: the feed (with a chip strip to pick a community), then the race weekend. From lg the
- * rail of communities is sticky beside the feed; from xl the context rail joins on the right. The document scrolls
- * the feed (audit R-31). */
+ * Below lg it is one column in normal page scroll: a strip with the race and open rounds, a chip row to pick a
+ * community, the feed, then the race-weekend widgets. */
 export function GroupsHomeClient({
   groups,
   initialPosts,
@@ -63,15 +62,18 @@ export function GroupsHomeClient({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
 
-  // Picking another community swaps the feed, so bring its top into view: the page scrolls now, and the
-  // rail you picked it from is sticky, so you may be many posts down. Not on first render.
+  // Picking another community swaps the feed, so bring its top into view: the feed column on a desktop, the page
+  // on a phone. Not on first render.
+  const feedRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    window.scrollTo({ top: 0 });
+    const feed = feedRef.current;
+    if (feed && getComputedStyle(feed).overflowY !== "visible") feed.scrollTo({ top: 0 });
+    else window.scrollTo({ top: 0 });
   }, [selectedId]);
 
   // Two real scopes, not one that quietly ignores half its own state:
@@ -116,53 +118,41 @@ export function GroupsHomeClient({
         },
   );
 
+  const rightRail = <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} />;
+
   return (
-    <div>
-      {/* The page header, like every other section's: the name, what it's for, and the two community-level
-          actions (they used to sit at the bottom of the left rail). */}
-      <PageHeader
-        title="Communities"
-        meta="Race-weekend discussion and prediction rounds, across every community you're in."
-        actions={
-          <>
-            <Button variant="secondary" size="md" iconStart={Compass} onClick={() => setShowDiscover(true)}>
-              Discover
-            </Button>
-            <Button variant="primary" size="md" iconStart={Plus} onClick={() => setShowCreate(true)}>
-              New community
-            </Button>
-          </>
-        }
-      />
+    <div className={groups.length > 0 ? "py-4 lg:h-[calc(100dvh-3.5rem)]" : "py-6"}>
+      {/* The page's name for screen readers and the outline; on screen the rails and the feed say what this is. */}
+      <h1 className="sr-only">Communities</h1>
 
       {groups.length === 0 ? (
-        // Nothing joined yet: no composer to post into nowhere and no empty feed, but the way in, beside the
-        // race weekend.
-        <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+        // Nothing joined yet: no composer to post into nowhere and no empty feed, but the way in, beside the race
+        // weekend.
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
           <GetStarted onDiscover={() => setShowDiscover(true)} onCreate={() => setShowCreate(true)} />
-          <aside aria-label="Race weekend and activity" className="xl:sticky xl:top-20">
-            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} />
+          <aside aria-label="Race weekend" className="min-w-0">
+            {rightRail}
           </aside>
         </div>
       ) : (
-        // Your communities, the conversation, and race context. The rail of communities is sticky beside the
-        // feed from lg; the context rail joins from xl (below that it follows the feed).
-        <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start xl:grid-cols-[260px_minmax(0,1fr)_340px]">
-          <aside aria-label="Your communities" className="hidden lg:sticky lg:top-20 lg:block">
-            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
+        <div className="flex flex-col gap-6 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5 xl:grid-cols-[248px_minmax(0,1fr)_320px]">
+          <aside aria-label="Your communities" className="hidden min-h-0 lg:block">
+            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} pulse={pulse} />
           </aside>
 
-          {/* A div, not a second <main>: the root layout already has the page's one main landmark. */}
-          <div className="min-w-0">
-            <div className="space-y-3">
+          {/* The one scrolling column from lg. A div, not a second <main>: the root layout has the page's one main. */}
+          <div ref={feedRef} data-feed-scroll className="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-hide">
+            <div className="space-y-3 lg:pb-8">
               <WeekendStrip race={nextRace} predictions={predictions} />
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
               <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
             </div>
           </div>
 
-          <aside aria-label="Race weekend and activity" className="lg:col-start-2 xl:sticky xl:top-20 xl:col-start-3 xl:row-start-1">
-            <GroupsRightSidebar groups={groups} predictions={predictions} nextRace={nextRace} pulse={pulse} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} />
+          {/* From xl a fixed-height column; at lg there's no room for it (the strip above the feed carries the race);
+              below lg it follows the feed. */}
+          <aside aria-label="Race weekend" className="min-w-0 lg:hidden xl:block xl:min-h-0">
+            {rightRail}
           </aside>
         </div>
       )}
@@ -183,7 +173,7 @@ function WeekendStrip({ race, predictions }: { race: NextRace; predictions: Feed
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
   const flag = countryFlag(race?.country);
   return (
-    <div className="flex items-center gap-3 rounded-card border border-white/[0.08] bg-surface-1/70 p-3 xl:hidden">
+    <div className="flex items-center gap-3 rounded-card border border-white/[0.08] bg-surface-1/70 px-4 py-2.5 xl:hidden">
       {race ? (
         <Link href={raceHref(race.year, race.round, race.name)} className="min-w-0 flex-1 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           <span className="block truncate text-body-sm font-semibold text-primary">
