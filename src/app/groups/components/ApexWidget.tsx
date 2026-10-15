@@ -60,9 +60,9 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
 
       {loading ? (
         <div aria-busy className="mt-3 space-y-2">
-          <span className="block h-3.5 w-3/4 animate-pulse rounded bg-surface-2" />
-          <span className="block h-3 w-full animate-pulse rounded bg-surface-2" />
-          <span className="block h-3 w-5/6 animate-pulse rounded bg-surface-2" />
+          <span className="block h-3.5 w-3/4 animate-pulse rounded bg-white/[0.08]" />
+          <span className="block h-3 w-full animate-pulse rounded bg-white/[0.08]" />
+          <span className="block h-3 w-5/6 animate-pulse rounded bg-white/[0.08]" />
         </div>
       ) : take ? (
         <div className="mt-2">
@@ -78,7 +78,7 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
               <button
                 type="button"
                 onClick={() => askApex(q)}
-                className="group flex w-full items-center gap-2 rounded-control bg-surface-2 px-3 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-surface-3 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="group flex w-full items-center gap-2 rounded-control bg-white/[0.05] px-3 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 <span className="min-w-0 flex-1 truncate">{q}</span>
                 <Icon icon={ArrowUpRight} size={16} className="shrink-0 text-tertiary group-hover:text-primary" />

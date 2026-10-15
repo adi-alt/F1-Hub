@@ -54,7 +54,7 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
           {pulse.mostDiscussed && (
             <Link
               href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`}
-              className="mt-3 block rounded-control px-2 py-2 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              className="mt-3 block rounded-control px-2 py-2 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               <span className="block text-caption text-secondary">
                 Most discussed · <span className="tabular">{pulse.mostDiscussed.comments}</span> {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}

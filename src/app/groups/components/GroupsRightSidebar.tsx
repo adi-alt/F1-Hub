@@ -71,9 +71,9 @@ export function GroupsRightSidebar({
 /** Where the rail is a fixed-height column beside the feed (GroupsHomeClient's app shell). */
 const FIXED_HEIGHT = "(min-width: 1280px)";
 
-/** A rail widget: one tone-separated surface, no border (design spec §4.3), so the rails read as a set of widgets
- * beside the feed while the feed itself stays an unboxed list. */
-const WIDGET = "rounded-card bg-surface-1";
+/** A rail widget: a frosted pane (surface-frost) over the page's ambient light, so the rails read as a set of
+ * widgets beside the feed while the feed itself stays an unboxed list. */
+const WIDGET = "rounded-card surface-frost";
 
 /** "Who to follow", for communities: a few public ones you're not in, each a tap from joining. Joining goes through
  * the same endpoint as Discover's cards, then opens the community. */
@@ -229,7 +229,7 @@ function RoundRow({ prediction: p, now }: { prediction: FeedPrediction; now: num
   return (
     <Link
       href={`${groupHref(p.groupId)}?tab=predictions`}
-      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-body-sm font-medium text-primary">{predictionTypeLabels[p.type]}</span>

@@ -138,9 +138,9 @@ export function PredictionFeedCard({
   const closingSoon = !closed && lockMs !== null && lockMs - now < 3 * 3600 * 1000;
 
   return (
-    // One container, no inner borders (design spec §4.11 / critique §4.2): the round is the one boxed item in a feed
-    // of unboxed posts, which is what marks it out as something to act on.
-    <article className="rounded-card bg-surface-1 p-4 sm:p-5">
+    // One frosted pane, no inner borders (critique §4.2): the round is the one boxed item in a feed of unboxed
+    // posts, which is what marks it out as something to act on.
+    <article className="rounded-card p-4 surface-frost sm:p-5">
       {/* Context: where the round is running, for which race, and when it was opened. */}
       <p className="flex min-w-0 items-center gap-1.5 text-body-sm text-secondary">
         {showGroup && (
@@ -309,14 +309,14 @@ function tileClass(state: TileState, interactive: boolean) {
     "relative flex h-12 min-w-0 items-center gap-2 overflow-hidden rounded-control px-3 text-left transition-[background-color,box-shadow] duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   switch (state) {
     case "selected":
-      return `${base} bg-surface-3 ring-1 ring-inset ring-white/60`;
+      return `${base} bg-white/[0.12] ring-1 ring-inset ring-white/60`;
     case "entered":
     case "correct":
       return `${base} bg-success/10 ring-1 ring-inset ring-success/50`;
     case "wrong":
-      return `${base} bg-surface-2 opacity-60`;
+      return `${base} bg-white/[0.04] opacity-60`;
     default:
-      return `${base} bg-surface-2 ${interactive ? "hover:bg-surface-3" : ""}`;
+      return `${base} bg-white/[0.05] ${interactive ? "hover:bg-white/[0.09]" : ""}`;
   }
 }
 

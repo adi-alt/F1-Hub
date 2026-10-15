@@ -274,7 +274,7 @@ export function GroupsFeed({
   return (
     <div className="space-y-3">
       {selectedCommunity && (
-        <div className="flex items-center gap-3 rounded-card border border-white/10 bg-surface-1/60 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-card px-4 py-3 surface-frost">
           <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={32} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body-sm font-semibold text-primary">{selectedCommunity.name}</p>
@@ -348,7 +348,7 @@ export function GroupsFeed({
           {/* Pinned under the site header while the feed scrolls, the way a social feed keeps its tabs in reach. It
               only gets a background (and a hairline) once it's actually pinned, so at rest it sits on the page. */}
           <div ref={tabsSentinelRef} aria-hidden className="h-px" />
-          <div className={`sticky top-14 z-20 -mx-1 -mt-px flex items-center justify-between gap-3 px-1 transition-colors duration-fast lg:top-0 ${tabsStuck ? "border-b border-white/10 bg-surface-0/85 backdrop-blur-xl" : "border-b border-transparent"}`}>
+          <div className={`sticky top-14 z-20 -mx-1 -mt-px flex items-center justify-between gap-3 px-1 transition-colors duration-fast lg:top-0 ${tabsStuck ? "border-b border-white/10 bg-surface-0/80 backdrop-blur-2xl backdrop-saturate-150" : "border-b border-transparent"}`}>
             <div data-tour="feed-tabs" className="min-w-0">
               <TabList aria-label="Feed" />
             </div>
