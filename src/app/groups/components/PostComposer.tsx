@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, X, type LucideIcon } from "lucide-react";
+import { Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
@@ -104,6 +104,8 @@ export function PostComposer({
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [posting, setPosting] = useState(false);
+  // "Posted" on the button for a moment after a post goes out, so the send is confirmed where it was made.
+  const [justPosted, setJustPosted] = useState(false);
   const [notice, setNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [mode, setMode] = useState<"discussion" | "prediction">("discussion");
@@ -275,6 +277,8 @@ export function PostComposer({
       }
       onPosted();
       reset();
+      setJustPosted(true);
+      setTimeout(() => setJustPosted(false), 2000);
     } else {
       setNotice(body?.error ?? "Could not post - try again.");
     }
@@ -282,16 +286,17 @@ export function PostComposer({
   }
 
   return (
-    // The first row of the feed list, not a box: your photo, a borderless prompt, and the tools under it, the way a
-    // social feed's composer reads. Idle and open are the same row; opening adds the title line and grows the field.
-    <div className="relative border-b border-white/[0.06] pb-3 pt-1">
+    // One unit: your photo, a borderless field and the tools under it on a single frosted pane, so they read as one
+    // interaction. Focus anywhere inside lights the pane's edge. Idle and open are the same pane; opening adds the
+    // title line and grows the field.
+    <div className="relative rounded-card px-4 py-3 surface-frost transition-shadow duration-fast focus-within:ring-1 focus-within:ring-white/25">
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
           onClick={mode === "prediction" ? () => setMode("discussion") : requestClose}
           aria-label={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
           title={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
-          className="absolute right-0 top-1 z-10 flex size-8 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className="absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           <Icon icon={X} size={16} />
         </button>
@@ -310,8 +315,8 @@ export function PostComposer({
       )}
 
       {mode === "prediction" ? (
-        <div className="flex items-start gap-3 py-2">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
+        <div className="flex items-start gap-3">
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
           <div className="min-w-0 flex-1">
             <p className="pr-8 text-body-sm font-semibold text-primary">New prediction round</p>
             <PredictionComposer
@@ -327,7 +332,7 @@ export function PostComposer({
       ) : (
         <>
           <div className="flex items-start gap-3">
-            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
+            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
             <div className="min-w-0 flex-1 pr-8">
               {isOpen && (
                 <input
@@ -336,7 +341,7 @@ export function PostComposer({
                   placeholder="Title (optional)"
                   maxLength={300}
                   aria-label="Post title"
-                  className="block w-full bg-transparent pt-2 text-body font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
+                  className="block w-full bg-transparent pt-1.5 text-body font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
                 />
               )}
               <textarea
@@ -350,15 +355,15 @@ export function PostComposer({
                 maxLength={2000}
                 // Idle it is one line and clips a long placeholder rather than wrapping it into a second line the row
                 // can't show; focused it opens to three rows and wraps normally.
-                className={`block w-full resize-none bg-transparent text-title-md font-normal text-primary placeholder:text-tertiary focus:outline-none ${
-                  isOpen ? "mt-1 min-h-[4.5rem] text-body" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-2"
+                className={`block w-full resize-none bg-transparent text-body text-primary placeholder:text-tertiary focus:outline-none ${
+                  isOpen ? "mt-1 min-h-[4.5rem]" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-1.5"
                 }`}
               />
             </div>
           </div>
 
           {(attachment || mediaError || scheduledConfirmation) && (
-            <div className="space-y-2 pl-[3.25rem] pt-2">
+            <div className="space-y-2 pl-12 pt-2">
               {attachment && (
                 // The SAME component the published post renders, so what is previewed here is literally what will
                 // appear in the feed.
@@ -380,7 +385,7 @@ export function PostComposer({
           )}
 
           {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
-          <div className="mt-1 flex flex-wrap items-center gap-0.5 pl-[2.75rem]">
+          <div className="mt-2 flex flex-wrap items-center gap-0.5 pl-10">
             <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photo" />
             <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
             <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
@@ -403,7 +408,7 @@ export function PostComposer({
             />
 
             <div className="ml-auto flex items-center gap-2">
-              {notice && <span className="text-caption text-danger">{notice}</span>}
+              {notice && <span role="alert" className="text-caption text-danger">{notice}</span>}
               {fixedGroupId
                 ? isOpen &&
                   fixedCommunity && (
@@ -424,9 +429,14 @@ export function PostComposer({
                   type="button"
                   onClick={() => void submit()}
                   disabled={posting || uploadingMedia || !content.trim()}
-                  className="h-8 bg-brand px-4 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  aria-busy={posting}
+                  title={!content.trim() && !posting ? "Write something to post" : undefined}
+                  className={`flex h-8 items-center gap-1.5 px-4 text-body-sm font-semibold transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${
+                    justPosted ? "bg-success/15 text-success" : "bg-brand text-white hover:bg-brand-hover disabled:bg-white/[0.08] disabled:text-tertiary"
+                  }`}
                 >
-                  {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : scheduledAt ? "Schedule" : "Post"}
+                  {justPosted && <Icon icon={Check} size={16} />}
+                  {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : justPosted ? "Posted" : scheduledAt ? "Schedule" : "Post"}
                 </button>
                 {(content.trim() || scheduledAt) && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
               </div>
@@ -456,7 +466,7 @@ export function PostComposer({
   );
 }
 
-/** A toolbar tool: an icon-only 36px ghost button, named by its tooltip and accessible label. */
+/** A toolbar tool: an icon-only 32px ghost button (quieter than Post), named by its tooltip and accessible label. */
 function ToolButton({
   ref,
   onClick,
@@ -478,8 +488,8 @@ function ToolButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-        active ? "bg-surface-2 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        active ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
       }`}
     >
       <Icon icon={icon} size={20} />

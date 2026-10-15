@@ -79,7 +79,7 @@ export function GroupsLeftSidebar({
     <div ref={columnRef} className="flex h-full min-h-0 flex-col gap-3">
       <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col rounded-card p-2 surface-frost">
         <div className="flex h-9 shrink-0 items-center justify-between gap-2 pl-2">
-          <h3 className="text-body font-semibold text-primary">Communities</h3>
+          <h3 className="text-body-sm font-semibold text-primary">Communities</h3>
           <button
             type="button"
             onClick={onCreate}
@@ -185,8 +185,8 @@ function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; acti
 }
 
 /**
- * One navigation row, the single row grammar of the rail. Selected is a quiet neutral tone and brighter, heavier
- * text (red is kept for actions); idle rows carry no surface, so nothing competes with the feed.
+ * One navigation row, the single row grammar of the rail. Selected is a raised tone, a thin brand edge and heavier
+ * text, so the current feed is recognisable at a glance; idle rows carry no surface, so nothing competes with it.
  */
 function NavRow({
   label,
@@ -207,6 +207,7 @@ function NavRow({
 }) {
   return (
     <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-white/[0.09]" : "hover:bg-white/[0.05]"}`}>
+      {active && <span aria-hidden className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-brand" />}
       <button type="button" onClick={onClick} aria-current={active} className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-control pl-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {icon}
         <span className={`min-w-0 flex-1 truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>

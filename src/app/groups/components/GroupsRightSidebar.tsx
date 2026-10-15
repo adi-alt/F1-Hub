@@ -94,7 +94,7 @@ function SuggestedCommunities({ communities, onDiscover }: { communities: Public
   }
   return (
     <div>
-      <h3 className="text-body font-semibold text-primary">Communities to join</h3>
+      <h3 className="text-body-sm font-semibold text-primary">Communities to join</h3>
       <ul className="mt-2">
         {communities.map((c) => (
           <li key={c.id} className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-b-0">
@@ -135,7 +135,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
   if (!race) {
     return (
       <div className="p-4">
-        <h3 className="text-body font-semibold text-primary">Race weekend</h3>
+        <h3 className="text-body-sm font-semibold text-primary">Race weekend</h3>
         <p className="mt-1 text-body-sm text-secondary">No upcoming race is scheduled yet.</p>
       </div>
     );
@@ -143,20 +143,20 @@ function RaceWeekend({ race }: { race: NextRace }) {
   return (
     <Link href={raceHref(race.year, race.round, race.name)} className="group block rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring">
       {race.photoUrl && (
-        <div className="relative h-28 overflow-hidden">
+        <div className="relative aspect-[16/7] overflow-hidden">
           <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover transition-transform duration-slow ease-standard group-hover:scale-[1.03] motion-reduce:transition-none" />
         </div>
       )}
       <div className="p-4">
-        <p className="text-body-sm text-secondary">
+        <p className="text-caption text-secondary">
           Round {race.round}
           {race.country ? ` · ${race.country}` : ""}
         </p>
-        <p className="mt-0.5 text-title-lg text-primary underline-offset-4 group-hover:underline">{race.name}</p>
+        <p className="mt-0.5 text-title-md text-primary underline-offset-4 group-hover:underline">{race.name}</p>
         <div className="mt-3 flex items-end justify-between gap-3">
           <div>
             <p className="text-caption text-secondary">{countdown ? "Lights out in" : "Race weekend"}</p>
-            <p suppressHydrationWarning className="text-title-lg tabular text-primary">
+            <p suppressHydrationWarning className="text-title-lg font-semibold tabular text-primary">
               {countdown ?? "Underway"}
             </p>
           </div>
@@ -188,7 +188,7 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-body font-semibold text-primary">Open rounds</h3>
+        <h3 className="text-body-sm font-semibold text-primary">Open rounds</h3>
         {open.length > RAIL_ROUNDS && (
           <button type="button" onClick={() => setShowAll(true)} className="rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             See all <span className="tabular">{open.length}</span>
@@ -252,7 +252,8 @@ function RoundRow({ prediction: p, now }: { prediction: FeedPrediction; now: num
           )}
         </span>
       </span>
-      <span className="shrink-0 text-body-sm tabular text-secondary">{p.entryPoints} pts</span>
+      {/* Entered rounds step their figure back: the rows still to act on lead. */}
+      <span className={`shrink-0 text-body-sm tabular ${p.hasEntered ? "text-tertiary" : "font-medium text-primary"}`}>{p.entryPoints} pts</span>
     </Link>
   );
 }

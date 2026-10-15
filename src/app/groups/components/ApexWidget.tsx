@@ -9,6 +9,20 @@ import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntellige
 
 type Take = NonNullable<SharedCircuitIntelligence["trackTake"]>;
 
+/** Past roughly three lines of the rail's width, the summary clamps and offers Show more. */
+const CLAMP_CHARS = 130;
+
+/** Complete short labels for the page's Apex questions, so a button never ends mid-word; the full question is what
+ * gets asked (and what the button's accessible name says). Anything unlisted shows in full, wrapping to two lines. */
+const SHORT_LABEL: Record<string, string> = {
+  "What's happening across my communities?": "What's new in my communities?",
+  "Which predictions close soonest?": "Which rounds close soonest?",
+  "Which of my communities is most active?": "Which community is most active?",
+  "What is this community discussing most?": "What's this community discussing?",
+  "Summarise the recent posts here.": "Summarise recent posts",
+  "Are there any open predictions in this community?": "Any open rounds here?",
+};
+
 /**
  * Apex on this page: its read on the circuit the next round is at, then questions to ask it about your
  * communities, each opening the Apex chat already asked.
@@ -43,6 +57,7 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
     return () => controller.abort();
   }, [location, year, key]);
 
+  const [expanded, setExpanded] = useState(false);
   const loading = !!key && result?.key !== key;
   const take = result?.key === key ? result.take : null;
   const questions = (scope?.suggestions ?? []).slice(0, 3);
@@ -51,7 +66,7 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
   return (
     <section aria-labelledby="apex-widget">
       <div className="flex items-center justify-between gap-2">
-        <h3 id="apex-widget" className="flex items-center gap-1.5 text-body font-semibold text-primary">
+        <h3 id="apex-widget" className="flex items-center gap-1.5 text-body-sm font-semibold text-primary">
           <Icon icon={Sparkles} size={16} className="text-secondary" />
           Apex
         </h3>
@@ -67,7 +82,21 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
       ) : take ? (
         <div className="mt-2">
           <p className="text-body-sm font-medium text-primary">{take.headline}</p>
-          <p className="mt-1 line-clamp-3 text-body-sm text-secondary">{take.summary}</p>
+          <p id="apex-take" className={`mt-1 text-body-sm text-secondary ${expanded ? "" : "line-clamp-3"}`}>
+            {take.summary}
+          </p>
+          {/* An explicit toggle rather than a mid-word ellipsis left as the only ending. */}
+          {take.summary.length > CLAMP_CHARS && (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls="apex-take"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-1 rounded-control text-caption font-medium text-secondary underline-offset-4 transition-colors duration-fast hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -78,10 +107,11 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
               <button
                 type="button"
                 onClick={() => askApex(q)}
-                className="group flex w-full items-center gap-2 rounded-control bg-white/[0.05] px-3 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                aria-label={`Ask Apex: ${q}`}
+                className="group flex w-full items-start gap-2 rounded-control bg-white/[0.05] px-3 py-2 text-left text-body-sm text-primary/90 transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
-                <span className="min-w-0 flex-1 truncate">{q}</span>
-                <Icon icon={ArrowUpRight} size={16} className="shrink-0 text-tertiary group-hover:text-primary" />
+                <span className="min-w-0 flex-1 line-clamp-2">{SHORT_LABEL[q] ?? q}</span>
+                <Icon icon={ArrowUpRight} size={16} className="mt-0.5 shrink-0 text-tertiary group-hover:text-primary" />
               </button>
             </li>
           ))}

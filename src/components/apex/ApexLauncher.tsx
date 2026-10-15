@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Info, X } from "lucide-react";
+import { Info, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { fieldControlClass } from "@/components/ui/Field";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
@@ -140,11 +140,9 @@ export function ApexLauncher() {
       {/* The wrapper is what's fixed: Button carries its own `relative` (for its loading spinner),
           which would win over a `fixed` passed in its className. */}
       <div className="fixed bottom-4 left-4 z-popover sm:bottom-5 sm:left-5">
-        <Button variant="secondary" size="md" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Ask Apex" data-tour="apex-launcher" className="shadow-overlay">
-          <span aria-hidden className="text-brand-text">
-            ✦
-          </span>
-          Apex
+        <Button variant="secondary" size="md" iconStart={Sparkles} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Ask Apex" data-tour="apex-launcher" className="rounded-full! shadow-overlay">
+          {/* Icon-only on a phone, where the pill would sit over the content it floats above. */}
+          <span className="hidden sm:inline">Ask Apex</span>
         </Button>
       </div>
 

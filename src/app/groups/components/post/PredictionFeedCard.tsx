@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, Lock, Sparkles, X } from "lucide-react";
+import { Check, Clock, Lock, Sparkles, X } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
 import { DriverPicker } from "@/components/ui/F1Pickers";
-import { DriverIdentity } from "@/components/ui/DriverIdentity";
+import { ensureVisible } from "@/lib/colorContrast";
+import { teamColor } from "@/lib/teamColors";
 import { Icon } from "@/components/ui/Icon";
 import { predictionStateAt, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction, PredictionTrend } from "@/lib/supabase/groupPredictions";
@@ -140,7 +141,7 @@ export function PredictionFeedCard({
   return (
     // One frosted pane, no inner borders (critique §4.2): the round is the one boxed item in a feed of unboxed
     // posts, which is what marks it out as something to act on.
-    <article className="rounded-card p-4 surface-frost sm:p-5">
+    <article className="@container rounded-card p-4 surface-frost sm:p-5">
       {/* Context: where the round is running, for which race, and when it was opened. */}
       <p className="flex min-w-0 items-center gap-1.5 text-body-sm text-secondary">
         {showGroup && (
@@ -160,31 +161,35 @@ export function PredictionFeedCard({
       {/* The question names the type, so there's no separate type badge. */}
       <h3 className="mt-3 text-title-md text-primary">{QUESTION[prediction.type]}</h3>
 
-      {/* State and stakes, one line. Open isn't badged; only the last three hours turn the countdown amber. */}
-      <p className="mt-1 text-body-sm text-secondary">
+      {/* State and stakes on one line, the figures in the primary tone so the eye finds them: when it closes, what
+          it costs, what it pays. Open isn't badged; only the last three hours turn the deadline amber. */}
+      <p className="mt-1.5 flex flex-wrap items-center gap-y-1 text-body-sm text-secondary">
         {resolved ? (
-          <span className="inline-flex items-center gap-1">
-            <Icon icon={Check} size={16} className="size-3.5" />
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon={Check} size={16} className="text-tertiary" />
             Settled on the official result
           </span>
         ) : countdown ? (
-          <span suppressHydrationWarning className={`tabular ${closingSoon ? "font-medium text-warning" : ""}`}>
-            Closes in {countdown}
+          <span suppressHydrationWarning className={`inline-flex items-center gap-1.5 tabular ${closingSoon ? "text-warning" : ""}`}>
+            <Icon icon={Clock} size={16} className={closingSoon ? "" : "text-tertiary"} />
+            Closes in <span className={`font-medium ${closingSoon ? "" : "text-primary"}`}>{countdown}</span>
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1">
-            <Icon icon={Lock} size={16} className="size-3.5" />
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon={Lock} size={16} className="text-tertiary" />
             Closed at qualifying
           </span>
         )}
         <Dot />
-        <span className="tabular">{prediction.entryPoints} pts to enter</span>
+        <span className="tabular">
+          Entry <span className="font-medium text-primary">{prediction.entryPoints} pts</span>
+        </span>
         {!resolved && (
           <>
             <Dot />
             <span className="tabular">
-              {isPodium ? "up to " : "a right pick wins "}
-              <span className="font-medium text-primary">{winPoints}</span>
+              {isPodium ? "Pays up to " : "Pays "}
+              <span className="font-medium text-primary">{winPoints} pts</span>
             </span>
           </>
         )}
@@ -214,32 +219,6 @@ export function PredictionFeedCard({
         )}
       </div>
 
-      {/* Apex: the model's own pick where one exists before qualifying (the pole model; the race simulation only
-          runs after it, when the round has closed), and a way to ask about the round either way. Labelled as AI and
-          quieter than the market itself. */}
-      {!resolved && (
-        <div className="mt-4 flex items-center gap-2 text-body-sm text-secondary">
-          <Icon icon={Sparkles} size={16} className="shrink-0 text-tertiary" />
-          <p className="min-w-0 flex-1 truncate">
-            {modelPicks?.length ? (
-              <>
-                Model&apos;s pole pick <span className="font-medium text-primary">{lastName(modelPicks[0])}</span>
-                {modelPicks.length > 1 && <>, then {modelPicks.slice(1).map(lastName).join(" and ")}</>}
-              </>
-            ) : (
-              "Want a second opinion?"
-            )}
-          </p>
-          <button
-            type="button"
-            onClick={() => askApex(APEX_QUESTION[prediction.type](prediction.raceName), "everything")}
-            className="shrink-0 rounded-control px-1 font-medium text-primary underline-offset-4 transition-colors duration-fast hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          >
-            Ask Apex
-          </button>
-        </div>
-      )}
-
       {/* Your row: where you stand on the left, the one action on the right. */}
       <div className="mt-4 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">
         <p className="min-w-0 flex-1 text-body-sm text-secondary">
@@ -264,7 +243,19 @@ export function PredictionFeedCard({
             prediction.lockAt === null ? DEADLINE_UNKNOWN_MESSAGE : CLOSED_MESSAGE
           ) : (
             <span className="tabular">
-              {prediction.entryCount} {prediction.entryCount === 1 ? "entry" : "entries"} so far
+              {pending !== null && changed && (
+                <>
+                  Selected{" "}
+                  <span className="font-medium text-primary">{typeof pending === "string" ? lastName(pending) : Array.isArray(pending) ? pending.map(lastName).join(" · ") : `${pending}`}</span>
+                  <Dot />
+                </>
+              )}
+              {prediction.entryCount} {prediction.entryCount === 1 ? "entry" : "entries"}
+              {shownTrend && !isPodium && (
+                <span className="hidden @md:inline">
+                  <Dot />% = this community&apos;s picks
+                </span>
+              )}
             </span>
           )}
         </p>
@@ -286,7 +277,32 @@ export function PredictionFeedCard({
           </Button>
         )}
       </div>
-      {(blocker || error) && <p className="mt-2 text-body-sm text-warning">{blocker ?? error}</p>}
+      {(blocker || error) && <p role="alert" className="mt-2 text-body-sm text-warning">{blocker ?? error}</p>}
+      {/* Apex, after the task and quieter than it: the model's own pick where one exists before qualifying (the pole
+          model; the race simulation only runs after it, when the round has closed), and a way to ask about the round.
+          Marked as AI by its icon and name. */}
+      {!resolved && (
+        <div className="mt-3 flex items-center gap-1.5 text-caption text-tertiary">
+          <Icon icon={Sparkles} size={16} className="size-3.5 shrink-0" />
+          <p className="min-w-0 flex-1 truncate">
+            {modelPicks?.length ? (
+              <>
+                Apex model&apos;s pole pick <span className="font-medium text-secondary">{lastName(modelPicks[0])}</span>
+                {modelPicks.length > 1 && <>, then {modelPicks.slice(1).map(lastName).join(" and ")}</>}
+              </>
+            ) : (
+              "Not sure? Apex can talk you through this race."
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => askApex(APEX_QUESTION[prediction.type](prediction.raceName), "everything")}
+            className="-my-1.5 shrink-0 rounded-control px-1.5 py-1.5 font-medium text-secondary underline-offset-4 transition-colors duration-fast hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            Ask Apex
+          </button>
+        </div>
+      )}
     </article>
   );
 }
@@ -306,7 +322,7 @@ type TileState = "idle" | "selected" | "entered" | "correct" | "wrong";
  * for the one Enter button); your entered or the right answer is the success ring; a wrong pick dims. */
 function tileClass(state: TileState, interactive: boolean) {
   const base =
-    "relative flex h-12 min-w-0 items-center gap-2 overflow-hidden rounded-control px-3 text-left transition-[background-color,box-shadow] duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+    "relative flex h-12 min-w-0 items-center gap-2 overflow-hidden rounded-control px-3 text-left transition-[background-color,box-shadow,opacity] duration-fast disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   switch (state) {
     case "selected":
       return `${base} bg-white/[0.12] ring-1 ring-inset ring-white/60`;
@@ -316,8 +332,27 @@ function tileClass(state: TileState, interactive: boolean) {
     case "wrong":
       return `${base} bg-white/[0.04] opacity-60`;
     default:
-      return `${base} bg-white/[0.05] ${interactive ? "hover:bg-white/[0.09]" : ""}`;
+      // Not choosable right now (entered and not changing, or closed): the other options step back.
+      return `${base} bg-white/[0.05] ${interactive ? "hover:bg-white/[0.09]" : "opacity-60"}`;
   }
+}
+
+/** A driver inside a tile, on one line at any width: team bar, headshot, code, and the surname where the card is
+ * wide enough (a container query, so it follows the card, not the window). Truncates rather than wraps, so every
+ * tile keeps the same height. */
+function TileDriver({ code, driver }: { code: string; driver?: DriverOption }) {
+  const bar = driver?.team ? ensureVisible(teamColor(driver.team)) : "transparent";
+  const surname = driver?.name.split(" ").slice(-1)[0];
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <span aria-hidden className="h-6 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: bar }} />
+      <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} size={24} />
+      <span className="min-w-0 truncate text-body-sm">
+        <span className="font-semibold text-primary">{code}</span>
+        {surname && <span className="ml-1.5 hidden text-secondary @sm:inline">{surname}</span>}
+      </span>
+    </span>
+  );
 }
 
 /** The community's share of an option, as a hairline along the tile's foot: the size of the crowd at a glance. */
@@ -354,7 +389,9 @@ function OptionTiles({
     ) : state === "wrong" ? (
       <Icon icon={X} size={16} className="shrink-0 text-tertiary" />
     ) : share.has(key) ? (
-      <span className="shrink-0 text-body-sm font-medium tabular text-secondary">{share.get(key)}%</span>
+      <span title={`${share.get(key)}% of this community's picks`} className="shrink-0 text-body-sm font-medium tabular text-secondary">
+        {share.get(key)}%
+      </span>
     ) : null;
 
   if (type === "dnf_count") {
@@ -379,13 +416,13 @@ function OptionTiles({
   drivers.forEach((d) => codes.length < TILES && add(d.code));
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-3">
         {codes.map((code) => {
           const d = drivers.find((x) => x.code === code);
           const state = stateFor(code, selected, entered, correct);
           return (
             <button key={code} type="button" disabled={!picking} aria-pressed={state === "selected" || state === "entered"} aria-label={d?.name ?? code} onClick={() => onSelect(code)} className={tileClass(state, picking)}>
-              <DriverIdentity code={code} name={d?.name.split(" ").slice(-1)[0]} team={d?.team} headshotUrl={d?.headshotUrl ?? null} className="min-w-0 flex-1 text-body-sm" />
+              <TileDriver code={code} driver={d} />
               {marker(state, code)}
               {share.has(code) && <ShareLine pct={share.get(code) ?? 0} />}
             </button>
@@ -393,11 +430,10 @@ function OptionTiles({
         })}
       </div>
       {picking && drivers.length > codes.length && (
-        <div className="mt-2 sm:max-w-[calc((100%-1rem)/3)]">
+        <div className="mt-2 @2xl:max-w-[calc((100%-1rem)/3)] @md:max-w-[calc((100%-0.5rem)/2)]">
           <DriverPicker drivers={drivers.filter((d) => !codes.includes(d.code))} value="" onChange={(code) => code && onSelect(code)} placeholder="Another driver…" ariaLabel="Pick another driver" />
         </div>
       )}
-      {trend && <p className="mt-2 text-caption text-tertiary">Share of this community&apos;s {trend.total} picks</p>}
     </div>
   );
 }
@@ -431,7 +467,7 @@ function PodiumMarket({
     const filled = podium.filter(Boolean);
     return (
       <div>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 @2xl:grid-cols-3">
           {places.map((place, i) => (
             <div key={place} className="flex items-center gap-2">
               <span className="w-6 shrink-0 text-body-sm font-semibold tabular text-tertiary">{place}</span>
@@ -455,7 +491,7 @@ function PodiumMarket({
   }
   const shown = entered ?? podium;
   return (
-    <ol className="grid gap-2 sm:grid-cols-3">
+    <ol className="grid gap-2 @2xl:grid-cols-3">
       {places.map((place, i) => {
         const code = shown[i];
         const right = correct ? correct[i] === code : null;
@@ -464,7 +500,7 @@ function PodiumMarket({
           <li key={place} className={tileClass(right === null ? "idle" : right ? "correct" : "wrong", false)}>
             <span className="w-6 shrink-0 text-body-sm font-semibold tabular text-tertiary">{place}</span>
             {code ? (
-              <DriverIdentity code={code} name={d?.name.split(" ").slice(-1)[0]} team={d?.team} headshotUrl={d?.headshotUrl ?? null} className="min-w-0 flex-1 text-body-sm" />
+              <TileDriver code={code} driver={d} />
             ) : (
               <span className="text-body-sm text-tertiary">Not picked</span>
             )}
