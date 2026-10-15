@@ -104,8 +104,9 @@ export function PostComposer({
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [posting, setPosting] = useState(false);
-  // "Posted" on the button for a moment after a post goes out, so the send is confirmed where it was made.
-  const [justPosted, setJustPosted] = useState(false);
+  // "Posted" (or "Scheduled") on the button for a moment after a post goes out, so the send is confirmed where it
+  // was made.
+  const [justPosted, setJustPosted] = useState<"Posted" | "Scheduled" | null>(null);
   const [notice, setNotice] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [mode, setMode] = useState<"discussion" | "prediction">("discussion");
@@ -277,8 +278,8 @@ export function PostComposer({
       }
       onPosted();
       reset();
-      setJustPosted(true);
-      setTimeout(() => setJustPosted(false), 2000);
+      setJustPosted(body?.status === "scheduled" ? "Scheduled" : "Posted");
+      setTimeout(() => setJustPosted(null), 2000);
     } else {
       setNotice(body?.error ?? "Could not post - try again.");
     }
@@ -436,7 +437,7 @@ export function PostComposer({
                   }`}
                 >
                   {justPosted && <Icon icon={Check} size={16} />}
-                  {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : justPosted ? "Posted" : scheduledAt ? "Schedule" : "Post"}
+                  {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : (justPosted ?? (scheduledAt ? "Schedule" : "Post"))}
                 </button>
                 {(content.trim() || scheduledAt) && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
               </div>

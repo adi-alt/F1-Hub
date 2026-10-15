@@ -246,15 +246,17 @@ export function PredictionFeedCard({
               {pending !== null && changed && (
                 <>
                   Selected{" "}
-                  <span className="font-medium text-primary">{typeof pending === "string" ? lastName(pending) : Array.isArray(pending) ? pending.map(lastName).join(" · ") : `${pending}`}</span>
+                  <span className="font-medium text-primary">
+                    {typeof pending === "string" ? lastName(pending) : Array.isArray(pending) ? pending.map(lastName).join(" · ") : `${pending} ${pending === 1 ? "retirement" : "retirements"}`}
+                  </span>
                   <Dot />
                 </>
               )}
               {prediction.entryCount} {prediction.entryCount === 1 ? "entry" : "entries"}
               {shownTrend && !isPodium && (
-                <span className="hidden @md:inline">
+                <>
                   <Dot />% = this community&apos;s picks
-                </span>
+                </>
               )}
             </span>
           )}
@@ -320,7 +322,7 @@ type TileState = "idle" | "selected" | "entered" | "correct" | "wrong";
 
 /** An outcome button, as on a market: a flat tile, no border at rest. Selection is a neutral white ring (red is kept
  * for the one Enter button); your entered or the right answer is the success ring; a wrong pick dims. */
-function tileClass(state: TileState, interactive: boolean) {
+function tileClass(state: TileState, interactive: boolean, dimWhenLocked = true) {
   const base =
     "relative flex h-12 min-w-0 items-center gap-2 overflow-hidden rounded-control px-3 text-left transition-[background-color,box-shadow,opacity] duration-fast disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   switch (state) {
@@ -333,7 +335,7 @@ function tileClass(state: TileState, interactive: boolean) {
       return `${base} bg-white/[0.04] opacity-60`;
     default:
       // Not choosable right now (entered and not changing, or closed): the other options step back.
-      return `${base} bg-white/[0.05] ${interactive ? "hover:bg-white/[0.09]" : "opacity-60"}`;
+      return `${base} bg-white/[0.05] ${interactive ? "hover:bg-white/[0.09]" : dimWhenLocked ? "opacity-75" : ""}`;
   }
 }
 
@@ -497,7 +499,8 @@ function PodiumMarket({
         const right = correct ? correct[i] === code : null;
         const d = drivers.find((x) => x.code === code);
         return (
-          <li key={place} className={tileClass(right === null ? "idle" : right ? "correct" : "wrong", false)}>
+          // Your podium, read-only: shown at full strength (these are your picks, not options you can't take).
+          <li key={place} className={tileClass(right === null ? "idle" : right ? "correct" : "wrong", false, false)}>
             <span className="w-6 shrink-0 text-body-sm font-semibold tabular text-tertiary">{place}</span>
             {code ? (
               <TileDriver code={code} driver={d} />

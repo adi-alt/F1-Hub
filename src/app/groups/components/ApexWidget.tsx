@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { askApex } from "@/components/apex/askApex";
@@ -8,9 +8,6 @@ import { useApexScope } from "@/components/apex/ApexScopeProvider";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type Take = NonNullable<SharedCircuitIntelligence["trackTake"]>;
-
-/** Past roughly three lines of the rail's width, the summary clamps and offers Show more. */
-const CLAMP_CHARS = 130;
 
 /** Complete short labels for the page's Apex questions, so a button never ends mid-word; the full question is what
  * gets asked (and what the button's accessible name says). Anything unlisted shows in full, wrapping to two lines. */
@@ -58,6 +55,17 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
   }, [location, year, key]);
 
   const [expanded, setExpanded] = useState(false);
+  // Whether the clamped summary actually hides text, measured (not guessed from its length), so Show more only
+  // appears when there is more. Re-measured when the rail resizes; kept while expanded so Show less stays.
+  const summaryRef = useRef<HTMLParagraphElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const el = summaryRef.current;
+    if (!el || expanded) return;
+    const ro = new ResizeObserver(() => setOverflows(el.scrollHeight > el.clientHeight + 1));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expanded, result]);
   const loading = !!key && result?.key !== key;
   const take = result?.key === key ? result.take : null;
   const questions = (scope?.suggestions ?? []).slice(0, 3);
@@ -82,11 +90,11 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
       ) : take ? (
         <div className="mt-2">
           <p className="text-body-sm font-medium text-primary">{take.headline}</p>
-          <p id="apex-take" className={`mt-1 text-body-sm text-secondary ${expanded ? "" : "line-clamp-3"}`}>
+          <p ref={summaryRef} id="apex-take" className={`mt-1 text-body-sm text-secondary ${expanded ? "" : "line-clamp-3"}`}>
             {take.summary}
           </p>
           {/* An explicit toggle rather than a mid-word ellipsis left as the only ending. */}
-          {take.summary.length > CLAMP_CHARS && (
+          {(overflows || expanded) && (
             <button
               type="button"
               aria-expanded={expanded}

@@ -141,8 +141,9 @@ export function ApexLauncher() {
           which would win over a `fixed` passed in its className. */}
       <div className="fixed bottom-4 left-4 z-popover sm:bottom-5 sm:left-5">
         <Button variant="secondary" size="md" iconStart={Sparkles} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Ask Apex" data-tour="apex-launcher" className="rounded-full! shadow-overlay">
-          {/* Icon-only on a phone, where the pill would sit over the content it floats above. */}
-          <span className="hidden sm:inline">Ask Apex</span>
+          {/* Icon-only on a phone, and a one-word label above that: it floats over the page, so its footprint stays as
+              small as the old launcher's (the accessible name says "Ask Apex"). */}
+          <span className="hidden sm:inline">Apex</span>
         </Button>
       </div>
 
