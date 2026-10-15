@@ -36,7 +36,7 @@ async function getRaceContext() {
  * a navigation dressed up as an action. getRaceRoster is what keeps that roster real even for a
  * race the pipeline hasn't reached yet - see its own comment.
  */
-async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]>> {
+async function getDriversByRace(raceIds: string[]): Promise<{ byRace: Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]>; poleModelByRace: Record<string, string[]> }> {
   const unique = [...new Set(raceIds)];
   const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
   const rosters = await Promise.all(races.map((race) => (race ? getRaceRoster(race) : [])));
@@ -44,10 +44,15 @@ async function getDriversByRace(raceIds: string[]): Promise<Record<string, { cod
   // previous-year fallback roster pulled in) - see getDriverHeadshotsByCode's own comment.
   const headshotByCode = await getDriverHeadshotsByCode(rosters.flat().map((r) => r.driver));
   const byRace: Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]> = {};
+  // The pole model's top three, where the pipeline has run it: it uses prior form only, so unlike the race
+  // simulation it exists while a round is still open (before qualifying).
+  const poleModelByRace: Record<string, string[]> = {};
   unique.forEach((raceId, i) => {
     byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null, team: r.team }));
+    const order = races[i]?.polePrediction?.order;
+    if (order?.length) poleModelByRace[raceId] = [...order].sort((a, b) => a.predictedQualiPosition - b.predictedQualiPosition).slice(0, 3).map((d) => d.driver);
   });
-  return byRace;
+  return { byRace, poleModelByRace };
 }
 
 /** Groups home - feed-first (see GroupsHomeClient's own comment for the full reasoning). Every
@@ -85,7 +90,7 @@ export default async function GroupsPage() {
   const suggestions = discover.communities.filter((c) => !c.isMember).slice(0, 3);
 
   // Sequential on purpose: it depends on which rounds came back above.
-  const driversByRace = await getDriversByRace(predictions.map((p) => p.raceId));
+  const { byRace: driversByRace, poleModelByRace } = await getDriversByRace(predictions.map((p) => p.raceId));
 
   return (
     // The same frame as every page, without its vertical padding: GroupsHomeClient is an app shell that fills the
@@ -101,6 +106,7 @@ export default async function GroupsPage() {
           upcomingRaces={raceContext.upcomingRaces}
           pulse={pulse}
           driversByRace={driversByRace}
+          poleModelByRace={poleModelByRace}
           suggestions={suggestions}
         />
       </div>

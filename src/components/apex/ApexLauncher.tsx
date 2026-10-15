@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { fieldControlClass } from "@/components/ui/Field";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { useAuth } from "@/providers/AuthProvider";
+import { APEX_ASK_EVENT } from "./askApex";
 import { useApexScope, type ApexScope } from "./ApexScopeProvider";
 
 /** `notice`: not something Apex said - "at capacity", "couldn't reach Apex". Shown as a notice,
@@ -70,13 +71,32 @@ export function ApexLauncher() {
     inputRef.current?.focus();
   }, [open]);
 
+  // Opened from elsewhere on the page with a question (askApex): open and ask it. `ask` reads the current render's
+  // scope and transcript, so the listener calls it through a ref kept current after every render.
+  // A question about F1 in general (a race, a driver) asks with the reach widened to everything, the same as
+  // switching the scope toggle, so it isn't answered from this page's facts alone.
+  const askRef = useRef<((question: string, reach?: Reach) => void) | null>(null);
+  useEffect(() => {
+    askRef.current = (question, reachFor) => void ask(question, reachFor);
+  });
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const { question, reach: reachFor } = (e as CustomEvent<{ question?: string; reach?: Reach }>).detail ?? {};
+      setOpen(true);
+      if (reachFor) setReach(reachFor);
+      if (question) askRef.current?.(question, reachFor);
+    };
+    window.addEventListener(APEX_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(APEX_ASK_EVENT, onAsk);
+  }, []);
+
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
   if (!isAuthorized || !scope) return null;
 
-  async function ask(question: string) {
+  async function ask(question: string, reachFor: Reach = reach) {
     const trimmed = question.trim();
     if (!trimmed || sending || !scope) return;
 
@@ -95,8 +115,8 @@ export function ApexLauncher() {
           .map(({ role, content }) => ({ role, content })),
         // Widening deliberately drops the page's own snapshot rather than adding to it: "Entire F1
         // HUB" means general F1 knowledge, not this page's facts plus someone else's.
-        context: reach === "page" ? scope.context : { page: "home", snapshot: {} },
-        scope: { key: scope.key, label: scope.label, communityId: scope.communityId ?? null, reach },
+        context: reachFor === "page" ? scope.context : { page: "home", snapshot: {} },
+        scope: { key: scope.key, label: scope.label, communityId: scope.communityId ?? null, reach: reachFor },
       }),
     }).catch(() => null);
 

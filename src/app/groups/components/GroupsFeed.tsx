@@ -74,6 +74,7 @@ export function GroupsFeed({
   predictions,
   upcomingRaces,
   driversByRace,
+  poleModelByRace = {},
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -87,6 +88,8 @@ export function GroupsFeed({
   upcomingRaces: RaceOption[];
   /** Driver roster per race id, so a round can be entered from the feed itself. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
+  /** The pole model's top three per race, where it has run. */
+  poleModelByRace?: Record<string, string[]>;
 }) {
   const communityId = selectedCommunity?.id ?? null;
   // Each community's picture, for the prediction cards (a round carries its community's name, not its picture).
@@ -332,7 +335,7 @@ export function GroupsFeed({
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
                 ) : (
                   <div key={item.key} className="py-4">
-                    <PredictionFeedCard prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                    <PredictionFeedCard prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
                   </div>
                 ),
               )}
@@ -384,7 +387,7 @@ export function GroupsFeed({
                     <PostCard key={item.key} post={item.post} index={i} showGroup />
                   ) : (
                     <div key={item.key} className="py-4">
-                      <PredictionFeedCard prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                      <PredictionFeedCard prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
                     </div>
                   ),
                 )}

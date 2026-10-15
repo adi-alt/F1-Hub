@@ -20,12 +20,13 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Dialog } from "@/components/ui/Dialog";
 import { FitStack } from "./FitStack";
+import { ApexWidget } from "./ApexWidget";
 
 export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; circuit: string | null; photoUrl: string | null } | null;
 
 /**
- * The race-weekend rail, beside the feed from xl: the next race, the rounds open to predict, and communities to
- * join, as separate compact widgets in that priority order. It never scrolls (only the feed does) and never cuts a
+ * The race-weekend rail, beside the feed from xl: the next race, Apex's read and questions, the rounds open to
+ * predict, and communities to join, as separate widgets in that priority order. It never scrolls (only the feed does) and never cuts a
  * widget in half: on a short window the lowest-priority widget is dropped whole (FitStack). Below lg it follows
  * the feed as a plain stack.
  *
@@ -48,15 +49,18 @@ export function GroupsRightSidebar({
   onDiscover?: () => void;
 }) {
   return (
-    <FitStack when={fixedHeight ? FIXED_HEIGHT : "not all"} className={fixedHeight ? "xl:h-full xl:overflow-hidden" : ""} gap={0}>
-      <div data-tour="race-weekend">
+    <FitStack when={fixedHeight ? FIXED_HEIGHT : "not all"} className={fixedHeight ? "xl:h-full xl:overflow-hidden" : ""} gap={12}>
+      <div data-tour="race-weekend" className={`${WIDGET} overflow-hidden`}>
         <RaceWeekend race={nextRace} />
       </div>
-      <div className={SECTION}>
+      <div className={`${WIDGET} p-4`}>
+        <ApexWidget location={nextRace?.circuit ?? null} year={nextRace?.year ?? null} />
+      </div>
+      <div className={`${WIDGET} p-4`}>
         <ActivePredictions predictions={predictions} />
       </div>
       {suggestions.length > 0 && (
-        <div className={SECTION}>
+        <div className={`${WIDGET} p-4`}>
           <SuggestedCommunities communities={suggestions} onDiscover={onDiscover} />
         </div>
       )}
@@ -67,9 +71,9 @@ export function GroupsRightSidebar({
 /** Where the rail is a fixed-height column beside the feed (GroupsHomeClient's app shell). */
 const FIXED_HEIGHT = "(min-width: 1280px)";
 
-/** Rail sections sit on the page, not in boxes (design spec §1: hierarchy through type and space), parted by a
- * hairline, like the home page's lists. */
-const SECTION = "mt-5 border-t border-white/[0.06] pt-5";
+/** A rail widget: one tone-separated surface, no border (design spec §4.3), so the rails read as a set of widgets
+ * beside the feed while the feed itself stays an unboxed list. */
+const WIDGET = "rounded-card bg-surface-1";
 
 /** "Who to follow", for communities: a few public ones you're not in, each a tap from joining. Joining goes through
  * the same endpoint as Discover's cards, then opens the community. */
@@ -130,34 +134,36 @@ function RaceWeekend({ race }: { race: NextRace }) {
 
   if (!race) {
     return (
-      <div>
+      <div className="p-4">
         <h3 className="text-body font-semibold text-primary">Race weekend</h3>
         <p className="mt-1 text-body-sm text-secondary">No upcoming race is scheduled yet.</p>
       </div>
     );
   }
   return (
-    <Link href={raceHref(race.year, race.round, race.name)} className="group block rounded-card focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring">
+    <Link href={raceHref(race.year, race.round, race.name)} className="group block rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring">
       {race.photoUrl && (
-        <div className="relative mb-4 h-28 overflow-hidden rounded-card">
+        <div className="relative h-28 overflow-hidden">
           <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover transition-transform duration-slow ease-standard group-hover:scale-[1.03] motion-reduce:transition-none" />
         </div>
       )}
-      <p className="text-body-sm text-secondary">
-        Round {race.round}
-        {race.country ? ` · ${race.country}` : ""}
-      </p>
-      <p className="mt-0.5 text-title-lg text-primary underline-offset-4 group-hover:underline">{race.name}</p>
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-caption text-secondary">{countdown ? "Lights out in" : "Race weekend"}</p>
-          <p suppressHydrationWarning className="text-title-lg tabular text-primary">
-            {countdown ?? "Underway"}
-          </p>
+      <div className="p-4">
+        <p className="text-body-sm text-secondary">
+          Round {race.round}
+          {race.country ? ` · ${race.country}` : ""}
+        </p>
+        <p className="mt-0.5 text-title-lg text-primary underline-offset-4 group-hover:underline">{race.name}</p>
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-caption text-secondary">{countdown ? "Lights out in" : "Race weekend"}</p>
+            <p suppressHydrationWarning className="text-title-lg tabular text-primary">
+              {countdown ?? "Underway"}
+            </p>
+          </div>
+          {race.raceDate && (
+            <p className="pb-1 text-body-sm text-secondary">{new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</p>
+          )}
         </div>
-        {race.raceDate && (
-          <p className="pb-1 text-body-sm text-secondary">{new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</p>
-        )}
       </div>
     </Link>
   );
@@ -223,7 +229,7 @@ function RoundRow({ prediction: p, now }: { prediction: FeedPrediction; now: num
   return (
     <Link
       href={`${groupHref(p.groupId)}?tab=predictions`}
-      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-body-sm font-medium text-primary">{predictionTypeLabels[p.type]}</span>
