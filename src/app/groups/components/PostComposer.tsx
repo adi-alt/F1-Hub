@@ -282,23 +282,23 @@ export function PostComposer({
   }
 
   return (
-    // One surface whether it is idle or being written in: the same card, avatar and field, so opening it adds rows
-    // rather than swapping in a different design. Fields are borderless; the card itself takes the focus border.
-    <div className="relative rounded-card border border-white/[0.08] bg-surface-1/70 transition-colors duration-fast focus-within:border-white/20">
+    // The first row of the feed list, not a box: your photo, a borderless prompt, and the tools under it, the way a
+    // social feed's composer reads. Idle and open are the same row; opening adds the title line and grows the field.
+    <div className="relative border-b border-white/[0.06] pb-3 pt-1">
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
           onClick={mode === "prediction" ? () => setMode("discussion") : requestClose}
           aria-label={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
           title={mode === "prediction" ? "Cancel prediction round" : "Close composer"}
-          className="absolute right-2.5 top-2.5 z-10 flex size-7 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className="absolute right-0 top-1 z-10 flex size-8 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           <Icon icon={X} size={16} />
         </button>
       )}
 
       {confirmDiscard && (
-        <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-control border border-warning/25 bg-warning/[0.07] px-3 py-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-control bg-warning/[0.08] px-3 py-2">
           <p className="min-w-0 flex-1 text-caption font-medium text-primary">Discard this draft?</p>
           <button type="button" onClick={() => setConfirmDiscard(false)} className="shrink-0 rounded-control text-caption font-medium text-secondary transition-colors duration-fast hover:text-primary">
             Keep editing
@@ -310,8 +310,8 @@ export function PostComposer({
       )}
 
       {mode === "prediction" ? (
-        <div className="flex items-start gap-3 p-4">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
+        <div className="flex items-start gap-3 py-2">
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
           <div className="min-w-0 flex-1">
             <p className="pr-8 text-body-sm font-semibold text-primary">New prediction round</p>
             <PredictionComposer
@@ -326,8 +326,8 @@ export function PostComposer({
         </div>
       ) : (
         <>
-          <div className="flex items-start gap-3 px-4 pt-3.5">
-            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
+          <div className="flex items-start gap-3">
+            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={40} />
             <div className="min-w-0 flex-1 pr-8">
               {isOpen && (
                 <input
@@ -336,7 +336,7 @@ export function PostComposer({
                   placeholder="Title (optional)"
                   maxLength={300}
                   aria-label="Post title"
-                  className="block w-full bg-transparent pt-1.5 text-body font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
+                  className="block w-full bg-transparent pt-2 text-body font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
                 />
               )}
               <textarea
@@ -350,15 +350,15 @@ export function PostComposer({
                 maxLength={2000}
                 // Idle it is one line and clips a long placeholder rather than wrapping it into a second line the row
                 // can't show; focused it opens to three rows and wraps normally.
-                className={`block w-full resize-none bg-transparent text-body-sm leading-6 text-primary placeholder:text-tertiary focus:outline-none ${
-                  isOpen ? "mt-1 min-h-[4.5rem]" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-1.5"
+                className={`block w-full resize-none bg-transparent text-title-md font-normal text-primary placeholder:text-tertiary focus:outline-none ${
+                  isOpen ? "mt-1 min-h-[4.5rem] text-body" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-2"
                 }`}
               />
             </div>
           </div>
 
           {(attachment || mediaError || scheduledConfirmation) && (
-            <div className="space-y-2 pl-16 pr-4 pt-2">
+            <div className="space-y-2 pl-[3.25rem] pt-2">
               {attachment && (
                 // The SAME component the published post renders, so what is previewed here is literally what will
                 // appear in the feed.
@@ -380,7 +380,7 @@ export function PostComposer({
           )}
 
           {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
-          <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-white/[0.06] px-3 py-2 sm:pl-[3.75rem]">
+          <div className="mt-1 flex flex-wrap items-center gap-0.5 pl-[2.75rem]">
             <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photo" />
             <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
             <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
@@ -456,7 +456,7 @@ export function PostComposer({
   );
 }
 
-/** A toolbar tool: monochrome icon and label (the label drops on phones), one height for the row. */
+/** A toolbar tool: an icon-only 36px ghost button, named by its tooltip and accessible label. */
 function ToolButton({
   ref,
   onClick,
@@ -478,14 +478,11 @@ function ToolButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-caption font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-        active ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
+      className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        active ? "bg-surface-2 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
       }`}
     >
-      <Icon icon={icon} size={16} />
-      <span aria-hidden className="hidden sm:inline">
-        {label}
-      </span>
+      <Icon icon={icon} size={20} />
     </button>
   );
 }

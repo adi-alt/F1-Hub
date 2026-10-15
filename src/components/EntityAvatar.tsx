@@ -3,24 +3,10 @@
 import Image from "next/image";
 import { useState } from "react";
 
-// A small, fixed, deterministic palette for the initials fallback below - every identity used to
-// fall back to the same flat red circle regardless of who or what it was, which is fine for one
-// avatar on a page but reads as visibly wrong the moment several appear together (a feed's worth of
-// different people and communities, all rendered in the one identical color). Each entry is one
-// hue at the exact same opacity/weight formula the red version always used, so the *treatment*
-// stays consistent (a tinted circle + matching text, nothing louder) while the *hue* varies -
-// restrained, not a rainbow. Kept short and hand-picked rather than generated from an arbitrary hue
-// wheel, so every option is one this app's own dark theme actually reads well against.
-const FALLBACK_PALETTE = [
-  "bg-[var(--f1-red)]/20 text-brand-text",
-  "bg-sky-500/20 text-sky-400",
-  "bg-emerald-500/20 text-emerald-400",
-  "bg-amber-500/20 text-amber-400",
-  "bg-violet-500/20 text-violet-400",
-  "bg-teal-500/20 text-teal-400",
-  "bg-orange-500/20 text-orange-400",
-  "bg-indigo-500/20 text-indigo-400",
-] as const;
+// The initials fallback is one neutral tone (design spec §1: nothing is coloured for decoration; colour is spent
+// on meaning). A palette of tinted circles read as a toy next to real photos and team colours; a quiet disc with
+// the initials reads as "no photo yet" and lets the real faces around it carry the colour.
+const FALLBACK_TONE = "bg-surface-3 text-secondary ring-1 ring-inset ring-white/[0.06]";
 
 /** The one host next.config.ts's `remotePatterns` actually allow-lists, derived from the same
  * public env var that file derives it from. Anything else Next's image optimizer refuses outright,
@@ -59,22 +45,10 @@ function canOptimize(url: string): boolean {
   }
 }
 
-function hashSeed(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-/** First letter of every meaningful word, so a multi-word identity reads as its own real acronym
- * rather than a truncated two-letter stub of it: "Ferrari Tifosi Hub" -> "FTH", "Red Bull Racing
- * Fans" -> "RBRF", "Aditya Verma" -> "AV", "Apex" -> "A". Purely-punctuation words ("&", "-") are
- * skipped - they carry no letter worth standing for. Capped at 4 because that is where a circle
- * this size stops being legible, and because every name long enough to exceed it (a five-word
- * community title) is already better served by its own uploaded avatar. */
-const MAX_INITIALS = 4;
+/** The first letters of the first two meaningful words: "Ferrari Tifosi Hub" -> "FT", "Aditya Verma" -> "AV",
+ * "Apex" -> "A". Purely-punctuation words ("&", "-") are skipped. Two, because past that the letters stop reading
+ * as a monogram and start reading as an abbreviation squeezed into a circle. */
+const MAX_INITIALS = 2;
 
 function initialsOf(name: string): string {
   const letters = name
@@ -107,7 +81,6 @@ export function EntityAvatar({
   size = 40,
   shape = "circle",
   fit = "cover",
-  seed,
 }: {
   imageUrl: string | null;
   name: string;
@@ -116,12 +89,8 @@ export function EntityAvatar({
   /** "contain" for team logos - they're rarely square, and cropping one to fill a circle loses
    * the shape that makes it recognizable. "cover" (default) suits headshots/avatars, which are. */
   fit?: "cover" | "contain";
-  /** What the fallback color is hashed from - pass a real, stable id (a user or group's own uuid)
-   * wherever one is available, so two different people who happen to share a first name don't get
-   * mistaken for the same color-coded identity. Falls back to `name` itself when no id is passed
-   * (every call site that predates this prop), which is still deterministic and still varied - the
-   * fix this addresses is "every fallback avatar in the app was the identical flat red circle",
-   * not "some fallbacks lacked an id to hash". */
+  /** A stable id for the identity. The fallback no longer varies by it (one neutral tone); accepted so callers
+   * don't have to change. */
   seed?: string;
 }) {
   const [failed, setFailed] = useState(false);
@@ -152,7 +121,7 @@ export function EntityAvatar({
       </span>
     );
   }
-  const tone = FALLBACK_PALETTE[hashSeed(seed ?? (name || "?")) % FALLBACK_PALETTE.length];
+  const tone = FALLBACK_TONE;
   const initials = initialsOf(name);
   return (
     <span

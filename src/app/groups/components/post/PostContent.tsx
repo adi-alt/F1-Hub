@@ -20,15 +20,14 @@ export function PostContent({ title, content }: { title: string | null; content:
   const previewUrl = firstUrlIn(content);
 
   return (
-    // Title 16px semibold / body 14px on a 24px line: a feed's reading sizes, dense enough that a screen holds
-    // several posts, with the line height keeping the body comfortable.
+    // Title 16px semibold, body 16px on a 24px line (critique §5.1): the text is what a post is for.
     <div>
       {title && <p className="text-body font-semibold text-primary">{title}</p>}
       {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
           otherwise set the card's minimum width and push the whole column sideways. */}
       {/* layout: expanding a long post changes the card's height, and animating it keeps the rest
           of the feed from snapping upward under the reader. */}
-      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body-sm leading-6 text-primary/90 ${title ? "mt-0.5" : ""}`}>
+      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body text-primary/90 ${title ? "mt-0.5" : ""}`}>
         {linkify(shown)}
       </motion.p>
       {isLong && (

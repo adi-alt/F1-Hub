@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Check, Clock, Trophy, X } from "lucide-react";
+import { Check, Lock, X } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
 import { DriverPicker } from "@/components/ui/F1Pickers";
+import { DriverIdentity } from "@/components/ui/DriverIdentity";
 import { Icon } from "@/components/ui/Icon";
-import { predictionStateAt, predictionTypeLabels, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
+import { predictionStateAt, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction, PredictionTrend } from "@/lib/supabase/groupPredictions";
 import { groupHref } from "@/lib/routes";
 import { formatCountdown } from "@/lib/countdown";
@@ -46,12 +46,12 @@ const sameGuess = (a: PredictionGuess | null | undefined, b: PredictionGuess | n
  */
 export function PredictionFeedCard({
   prediction,
-  index = 0,
   showGroup,
   drivers = [],
   groupAvatarUrl = null,
 }: {
   prediction: FeedPrediction;
+  /** Position in the feed (kept for callers; the feed no longer staggers entrances). */
   index?: number;
   showGroup: boolean;
   /** Real roster for THIS round's race. Empty is a real state, and the card says so. */
@@ -75,7 +75,6 @@ export function PredictionFeedCard({
   const closed = serverClosed || state !== "open";
   const resolved = state === "resolved";
   const countdown = !closed && lockMs !== null ? formatCountdown(lockMs, now) : null;
-  const urgent = !closed && lockMs !== null && lockMs - now < 24 * 3600 * 1000;
   const { trend } = usePredictionTrend(prediction.groupId, prediction.id, prediction.entryCount > 0);
   const shownTrend = trend && trend.total >= MIN_ENTRIES_FOR_TREND ? trend : null;
 
@@ -118,152 +117,178 @@ export function PredictionFeedCard({
     setChoice(null);
   }
 
+  const lastName = (code: string) => {
+    const full = drivers.find((d) => d.code === code)?.name;
+    return full ? full.split(" ").slice(-1)[0] : code;
+  };
+  // Under three hours left is when "when" stops being background information (the critique's warning threshold).
+  const closingSoon = !closed && lockMs !== null && lockMs - now < 3 * 3600 * 1000;
+
   return (
-    <motion.article
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03, ease: [0.2, 0, 0, 1] }}
-      className="overflow-hidden rounded-card border border-white/[0.08] bg-surface-1/70"
-    >
-      {/* The market's header strip: who's running it, which round, and how long it stays open. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.06] bg-surface-2/40 px-4 py-2.5 text-caption">
-        {showGroup ? (
-          <Link href={groupHref(prediction.groupId)} className="flex min-w-0 items-center gap-2 rounded-control font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+    // One container, no inner borders (design spec §4.11 / critique §4.2): the round is the one boxed item in a feed
+    // of unboxed posts, which is what marks it out as something to act on.
+    <article className="rounded-card bg-surface-1 p-4 sm:p-5">
+      {/* Context: where the round is running, for which race, and when it was opened. */}
+      <p className="flex min-w-0 items-center gap-1.5 text-body-sm text-secondary">
+        {showGroup && (
+          <Link href={groupHref(prediction.groupId)} className="flex min-w-0 shrink items-center gap-2 rounded-control font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             <EntityAvatar imageUrl={groupAvatarUrl} name={prediction.groupName} seed={prediction.groupId} size={20} />
             <span className="truncate">{prediction.groupName}</span>
           </Link>
-        ) : (
-          <span className="font-semibold text-primary">Prediction round</span>
         )}
-        <span aria-hidden className="text-tertiary">
-          ·
-        </span>
-        <span suppressHydrationWarning className="text-tertiary">
+        {showGroup && <Dot tight />}
+        <span className="truncate">{prediction.raceName}</span>
+        <Dot tight />
+        <span suppressHydrationWarning className="shrink-0 whitespace-nowrap">
           {timeAgo(prediction.createdAt)}
         </span>
-        <span className="ml-auto flex items-center gap-2">
-          <span className="flex items-center gap-1 rounded-full bg-surface-3/70 px-2 py-0.5 font-medium text-secondary">
-            <Icon icon={Trophy} size={16} className="size-3.5" />
-            {predictionTypeLabels[prediction.type]}
+      </p>
+
+      {/* The question names the type, so there's no separate type badge. */}
+      <h3 className="mt-3 text-title-md text-primary">{QUESTION[prediction.type]}</h3>
+
+      {/* State and stakes, one line. Open isn't badged; only the last three hours turn the countdown amber. */}
+      <p className="mt-1 text-body-sm text-secondary">
+        {resolved ? (
+          <span className="inline-flex items-center gap-1">
+            <Icon icon={Check} size={16} className="size-3.5" />
+            Settled on the official result
           </span>
-          {resolved ? (
-            <span className="rounded-full bg-success/12 px-2 py-0.5 font-medium text-success">Settled</span>
-          ) : countdown ? (
-            <span suppressHydrationWarning className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-medium tabular ${urgent ? "bg-warning/12 text-warning" : "bg-surface-3/70 text-secondary"}`}>
-              <Icon icon={Clock} size={16} className="size-3.5" />
-              {countdown}
-            </span>
-          ) : (
-            <span className="rounded-full bg-surface-3/70 px-2 py-0.5 font-medium text-secondary">Closed</span>
-          )}
-        </span>
-      </div>
-
-      <div className="p-4">
-        <p className="text-caption text-secondary">{prediction.raceName}</p>
-        <p className="mt-0.5 text-body font-semibold text-primary">{QUESTION[prediction.type]}</p>
-
-        <div className="mt-3">
-          {isPodium ? (
-            <PodiumMarket
-              drivers={drivers}
-              picking={picking}
-              podium={picking ? podium : ((entered?.guess as [string, string, string] | null) ?? podium)}
-              onChange={setPodium}
-              entered={entered?.guess as [string, string, string] | null}
-              correct={resolved ? (prediction.correctAnswer as [string, string, string] | null) : null}
-              trend={shownTrend}
-              nameOf={nameOf}
-            />
-          ) : (
-            <OptionTiles
-              type={prediction.type}
-              drivers={drivers}
-              trend={shownTrend}
-              picking={picking}
-              selected={picking ? (choice ?? entered?.guess ?? null) : null}
-              entered={entered?.guess ?? null}
-              correct={resolved ? prediction.correctAnswer : null}
-              onSelect={setChoice}
-            />
-          )}
-        </div>
-
-        {/* The slip: cost, what a right pick wins, entries, and the one action. */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/[0.06] pt-3">
-          <p className="min-w-0 flex-1 text-caption text-secondary">
-            <span className="tabular text-primary">{prediction.entryPoints} pts</span> to enter
-            <span aria-hidden className="text-tertiary"> · </span>
-            {isPodium ? "up to " : "a right pick wins "}
-            <span className="tabular font-semibold text-success">{winPoints} pts</span>
-            <span aria-hidden className="text-tertiary"> · </span>
+        ) : countdown ? (
+          <span suppressHydrationWarning className={`tabular ${closingSoon ? "font-medium text-warning" : ""}`}>
+            Closes in {countdown}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <Icon icon={Lock} size={16} className="size-3.5" />
+            Closed at qualifying
+          </span>
+        )}
+        <Dot />
+        <span className="tabular">{prediction.entryPoints} pts to enter</span>
+        {!resolved && (
+          <>
+            <Dot />
             <span className="tabular">
-              {prediction.entryCount} {prediction.entryCount === 1 ? "entry" : "entries"}
+              {isPodium ? "up to " : "a right pick wins "}
+              <span className="font-medium text-primary">{winPoints}</span>
             </span>
-          </p>
-          <div className="flex items-center gap-2">
-            {resolved ? (
-              prediction.hasEntered ? (
-                <span className={`text-body-sm font-semibold tabular ${(prediction.myPointsAwarded ?? 0) > 0 ? "text-success" : "text-secondary"}`}>
-                  {(prediction.myPointsAwarded ?? 0) > 0 ? `+${prediction.myPointsAwarded} pts` : `-${prediction.entryPoints} pts`}
-                </span>
-              ) : (
-                <span className="text-caption text-tertiary">You didn&apos;t enter</span>
-              )
-            ) : picking ? (
-              <>
-                {editing && (
-                  <Button variant="ghost" size="sm" onClick={() => (setEditing(false), setChoice(null))}>
-                    Cancel
-                  </Button>
-                )}
-                <Button variant="primary" size="sm" loading={saving} disabled={!changed || !!blocker} onClick={() => void confirm()}>
-                  {entered ? "Update pick" : "Confirm pick"}
-                </Button>
-              </>
-            ) : entered ? (
-              <>
-                <span className="flex items-center gap-1 text-caption font-medium text-success">
-                  <Icon icon={Check} size={16} />
-                  Your pick is in
-                </span>
-                {!closed && (
-                  <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-                    Change
-                  </Button>
-                )}
-              </>
-            ) : (
-              <span className="text-caption text-tertiary">{prediction.lockAt === null ? DEADLINE_UNKNOWN_MESSAGE : CLOSED_MESSAGE}</span>
-            )}
-          </div>
-        </div>
-        {(blocker || error) && <p className="mt-2 text-caption text-warning">{blocker ?? error}</p>}
+          </>
+        )}
+      </p>
+
+      <div className="mt-4">
+        {isPodium ? (
+          <PodiumMarket
+            drivers={drivers}
+            picking={picking}
+            podium={picking ? podium : ((entered?.guess as [string, string, string] | null) ?? podium)}
+            onChange={setPodium}
+            entered={entered?.guess as [string, string, string] | null}
+            correct={resolved ? (prediction.correctAnswer as [string, string, string] | null) : null}
+          />
+        ) : (
+          <OptionTiles
+            type={prediction.type}
+            drivers={drivers}
+            trend={shownTrend}
+            picking={picking}
+            selected={picking ? (choice ?? entered?.guess ?? null) : null}
+            entered={entered?.guess ?? null}
+            correct={resolved ? prediction.correctAnswer : null}
+            onSelect={setChoice}
+          />
+        )}
       </div>
-    </motion.article>
+
+      {/* Your row: where you stand on the left, the one action on the right. */}
+      <div className="mt-4 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">
+        <p className="min-w-0 flex-1 text-body-sm text-secondary">
+          {resolved ? (
+            prediction.hasEntered ? (
+              (prediction.myPointsAwarded ?? 0) > 0 ? (
+                <span className="font-medium tabular text-success">Right call · +{prediction.myPointsAwarded} pts</span>
+              ) : (
+                <span className="tabular">Not this time · staked {prediction.entryPoints} pts</span>
+              )
+            ) : (
+              "You didn't enter this round"
+            )
+          ) : entered && !editing ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <Icon icon={Check} size={16} className="shrink-0 text-success" />
+              <span className="truncate">
+                Your pick <span className="font-medium text-primary">{typeof entered.guess === "string" ? lastName(entered.guess) : Array.isArray(entered.guess) ? entered.guess.map(lastName).join(" · ") : (entered.label ?? "")}</span>
+              </span>
+            </span>
+          ) : closed ? (
+            prediction.lockAt === null ? DEADLINE_UNKNOWN_MESSAGE : CLOSED_MESSAGE
+          ) : (
+            <span className="tabular">
+              {prediction.entryCount} {prediction.entryCount === 1 ? "entry" : "entries"} so far
+            </span>
+          )}
+        </p>
+        {!resolved && picking && (
+          <div className="flex items-center gap-2">
+            {editing && (
+              <Button variant="ghost" size="md" onClick={() => (setEditing(false), setChoice(null))}>
+                Cancel
+              </Button>
+            )}
+            <Button variant="primary" size="md" loading={saving} disabled={!changed || !!blocker} onClick={() => void confirm()}>
+              {entered ? "Save change" : `Enter · ${prediction.entryPoints} pts`}
+            </Button>
+          </div>
+        )}
+        {!resolved && !picking && entered && !closed && (
+          <Button variant="ghost" size="md" onClick={() => setEditing(true)}>
+            Change
+          </Button>
+        )}
+      </div>
+      {(blocker || error) && <p className="mt-2 text-body-sm text-warning">{blocker ?? error}</p>}
+    </article>
+  );
+}
+
+/** A separator dot: spaced for running text, or `tight` inside a row that already has a gap. */
+function Dot({ tight = false }: { tight?: boolean }) {
+  return (
+    <span aria-hidden className={tight ? "text-tertiary" : "mx-1.5 text-tertiary"}>
+      ·
+    </span>
   );
 }
 
 type TileState = "idle" | "selected" | "entered" | "correct" | "wrong";
 
+/** An outcome button, as on a market: a flat tile, no border at rest. Selection is a neutral white ring (red is kept
+ * for the one Enter button); your entered or the right answer is the success ring; a wrong pick dims. */
 function tileClass(state: TileState, interactive: boolean) {
-  const base = "relative flex h-11 min-w-0 items-center gap-2 rounded-control border px-2.5 text-left transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+  const base =
+    "relative flex h-12 min-w-0 items-center gap-2 overflow-hidden rounded-control px-3 text-left transition-[background-color,box-shadow] duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   switch (state) {
     case "selected":
-      return `${base} border-brand bg-brand/12`;
+      return `${base} bg-surface-3 ring-1 ring-inset ring-white/60`;
     case "entered":
     case "correct":
-      return `${base} border-success/60 bg-success/10`;
+      return `${base} bg-success/10 ring-1 ring-inset ring-success/50`;
     case "wrong":
-      return `${base} border-white/10 bg-surface-2/40 opacity-70`;
+      return `${base} bg-surface-2 opacity-60`;
     default:
-      return `${base} border-white/10 bg-surface-2/60 ${interactive ? "hover:border-white/25 hover:bg-surface-2" : ""}`;
+      return `${base} bg-surface-2 ${interactive ? "hover:bg-surface-3" : ""}`;
   }
 }
 
-/** A single-driver (or retirement-count) round's options as tiles: the community's most-picked options first, each
- * with its share, filled from the race's line-up; any other driver is one picker away. */
+/** The community's share of an option, as a hairline along the tile's foot: the size of the crowd at a glance. */
+function ShareLine({ pct }: { pct: number }) {
+  return <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-white/25" style={{ transform: `scaleX(${pct / 100})` }} />;
+}
+
+/** A single-driver (or retirement-count) round's outcomes: the community's most-picked first, filled from the
+ * race's line-up; any other driver is one picker away. Each shows the driver as everywhere else on the site (team
+ * bar, headshot, code) and the share of the community's picks. */
 function OptionTiles({
   type,
   drivers,
@@ -284,6 +309,15 @@ function OptionTiles({
   onSelect: (g: PredictionGuess) => void;
 }) {
   const share = new Map((trend?.options ?? []).filter((o) => o.key !== "__other__").map((o) => [o.key, o.pct]));
+  const marker = (state: TileState, key: string) =>
+    state === "correct" || state === "entered" ? (
+      <Icon icon={Check} size={16} className="shrink-0 text-success" />
+    ) : state === "wrong" ? (
+      <Icon icon={X} size={16} className="shrink-0 text-tertiary" />
+    ) : share.has(key) ? (
+      <span className="shrink-0 text-body-sm font-medium tabular text-secondary">{share.get(key)}%</span>
+    ) : null;
+
   if (type === "dnf_count") {
     return (
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
@@ -291,52 +325,40 @@ function OptionTiles({
           const state = stateFor(n, selected, entered, correct);
           return (
             <button key={n} type="button" disabled={!picking} aria-pressed={state === "selected" || state === "entered"} onClick={() => onSelect(n)} className={`${tileClass(state, picking)} justify-center`}>
-              <span className="text-body-sm font-semibold tabular text-primary">{n}</span>
-              {share.has(String(n)) && <span className="text-caption tabular text-secondary">{share.get(String(n))}%</span>}
+              <span className="text-body font-semibold tabular text-primary">{n}</span>
+              {share.has(String(n)) && <ShareLine pct={share.get(String(n)) ?? 0} />}
             </button>
           );
         })}
       </div>
     );
   }
-  // The most-picked first, then the line-up; always including whatever is picked or was the answer.
   const codes: string[] = [];
   const add = (c: unknown) => typeof c === "string" && c && !codes.includes(c) && codes.push(c);
   [correct, entered, selected].forEach(add);
   (trend?.options ?? []).forEach((o) => o.key !== "__other__" && add(o.key));
   drivers.forEach((d) => codes.length < TILES && add(d.code));
-  const shown = codes.slice(0, Math.max(TILES, codes.length));
   return (
     <div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {shown.map((code) => {
+        {codes.map((code) => {
           const d = drivers.find((x) => x.code === code);
           const state = stateFor(code, selected, entered, correct);
           return (
-            <button key={code} type="button" disabled={!picking} aria-pressed={state === "selected" || state === "entered"} onClick={() => onSelect(code)} className={tileClass(state, picking)}>
-              <EntityAvatar imageUrl={d?.headshotUrl ?? null} name={d?.name ?? code} seed={code} size={24} />
-              <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-primary">{d?.name ?? code}</span>
-              {state === "correct" ? (
-                <Icon icon={Check} size={16} className="shrink-0 text-success" />
-              ) : state === "wrong" ? (
-                <Icon icon={X} size={16} className="shrink-0 text-tertiary" />
-              ) : share.has(code) ? (
-                <span className="shrink-0 text-caption font-semibold tabular text-secondary">{share.get(code)}%</span>
-              ) : null}
+            <button key={code} type="button" disabled={!picking} aria-pressed={state === "selected" || state === "entered"} aria-label={d?.name ?? code} onClick={() => onSelect(code)} className={tileClass(state, picking)}>
+              <DriverIdentity code={code} name={d?.name.split(" ").slice(-1)[0]} team={d?.team} headshotUrl={d?.headshotUrl ?? null} className="min-w-0 flex-1 text-body-sm" />
+              {marker(state, code)}
+              {share.has(code) && <ShareLine pct={share.get(code) ?? 0} />}
             </button>
           );
         })}
       </div>
-      {picking && drivers.length > TILES && (
-        <div className="mt-2 max-w-xs">
-          <DriverPicker drivers={drivers.filter((d) => !shown.includes(d.code))} value="" onChange={(code) => code && onSelect(code)} placeholder="Someone else…" ariaLabel="Pick another driver" />
+      {picking && drivers.length > codes.length && (
+        <div className="mt-2 sm:max-w-[calc((100%-1rem)/3)]">
+          <DriverPicker drivers={drivers.filter((d) => !codes.includes(d.code))} value="" onChange={(code) => code && onSelect(code)} placeholder="Another driver…" ariaLabel="Pick another driver" />
         </div>
       )}
-      {trend && (
-        <p className="mt-2 text-caption text-tertiary">
-          % = share of this community&apos;s {trend.total} {trend.total === 1 ? "pick" : "picks"}
-        </p>
-      )}
+      {trend && <p className="mt-2 text-caption text-tertiary">Share of this community&apos;s {trend.total} picks</p>}
     </div>
   );
 }
@@ -348,8 +370,8 @@ function stateFor(value: PredictionGuess, selected: PredictionGuess | null, ente
   return "idle";
 }
 
-/** A podium round: three places, each a driver; while picking, three pickers; otherwise the picked (and, once
- * settled, the real) podium. */
+/** A podium round: P1, P2 and P3. While picking, three pickers in a row; otherwise the picked podium and, once
+ * settled, which places were right. */
 function PodiumMarket({
   drivers,
   picking,
@@ -357,8 +379,6 @@ function PodiumMarket({
   onChange,
   entered,
   correct,
-  trend,
-  nameOf,
 }: {
   drivers: DriverOption[];
   picking: boolean;
@@ -366,34 +386,31 @@ function PodiumMarket({
   onChange: (p: [string, string, string]) => void;
   entered: [string, string, string] | null;
   correct: [string, string, string] | null;
-  trend: PredictionTrend | null;
-  nameOf: (code: string) => string;
 }) {
-  const places = ["1st", "2nd", "3rd"] as const;
-  const leader = trend?.options.find((o) => o.key !== "__other__");
+  const places = ["P1", "P2", "P3"] as const;
   if (picking) {
+    const filled = podium.filter(Boolean);
     return (
       <div>
         <div className="grid gap-2 sm:grid-cols-3">
           {places.map((place, i) => (
-            <label key={place} className="block text-caption text-secondary">
-              {place}
+            <div key={place} className="flex items-center gap-2">
+              <span className="w-6 shrink-0 text-body-sm font-semibold tabular text-tertiary">{place}</span>
               <DriverPicker
                 drivers={drivers}
                 value={podium[i]}
-                className="mt-1"
-                ariaLabel={`${place} place`}
+                className="min-w-0 flex-1"
+                ariaLabel={`${place}`}
                 onChange={(code) => {
                   const next: [string, string, string] = [...podium];
                   next[i] = code;
                   onChange(next);
                 }}
               />
-            </label>
+            </div>
           ))}
         </div>
-        {podium.filter(Boolean).length > 1 && new Set(podium.filter(Boolean)).size !== podium.filter(Boolean).length && <p className="mt-2 text-caption text-warning">Pick three different drivers.</p>}
-        {leader && <p className="mt-2 text-caption text-tertiary">Most picked to win: {leader.label} ({leader.pct}%)</p>}
+        {filled.length > 1 && new Set(filled).size !== filled.length && <p className="mt-2 text-body-sm text-warning">Pick three different drivers.</p>}
       </div>
     );
   }
@@ -405,17 +422,15 @@ function PodiumMarket({
         const right = correct ? correct[i] === code : null;
         const d = drivers.find((x) => x.code === code);
         return (
-          <li key={place} className={tileClass(right === null ? (code ? "entered" : "idle") : right ? "correct" : "wrong", false)}>
-            <span className="w-7 shrink-0 text-caption font-semibold text-tertiary">{place}</span>
+          <li key={place} className={tileClass(right === null ? "idle" : right ? "correct" : "wrong", false)}>
+            <span className="w-6 shrink-0 text-body-sm font-semibold tabular text-tertiary">{place}</span>
             {code ? (
-              <>
-                <EntityAvatar imageUrl={d?.headshotUrl ?? null} name={nameOf(code)} seed={code} size={24} />
-                <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-primary">{nameOf(code)}</span>
-                {correct && !right && <span className="shrink-0 text-caption text-tertiary">{nameOf(correct[i])}</span>}
-              </>
+              <DriverIdentity code={code} name={d?.name.split(" ").slice(-1)[0]} team={d?.team} headshotUrl={d?.headshotUrl ?? null} className="min-w-0 flex-1 text-body-sm" />
             ) : (
-              <span className="text-caption text-tertiary">Not picked</span>
+              <span className="text-body-sm text-tertiary">Not picked</span>
             )}
+            {right === true && <Icon icon={Check} size={16} className="shrink-0 text-success" />}
+            {right === false && correct && <span className="shrink-0 text-caption text-tertiary">{correct[i]}</span>}
           </li>
         );
       })}

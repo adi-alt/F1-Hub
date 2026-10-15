@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, Reply, TrendingUp } from "lucide-react";
-import { Icon } from "@/components/ui/Icon";
 import { groupHref } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
@@ -13,74 +11,58 @@ import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
  * groups' own weekly counts, because "nothing changed since your last visit" would describe a visit that never
  * happened. Rows with a zero count are dropped rather than shown as "0 new discussions".
  *
- * Compact on purpose: it shares a rail that never scrolls with the communities list, so it is a few counted
- * rows and one named conversation, not a dashboard.
+ * Compact on purpose: it shares a rail that never scrolls with the communities list, so it is three figures and
+ * one named conversation, not a dashboard.
  */
 export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; pulse: CommunityPulseData }) {
   const weeklyPosts = groups.reduce((sum, g) => sum + g.weeklyPosts, 0);
   const openPredictions = groups.reduce((sum, g) => sum + g.activePredictions, 0);
-  const weeklyMostActive = groups.reduce<GroupSummary | null>((best, g) => (g.weeklyPosts > 0 && (!best || g.weeklyPosts > best.weeklyPosts) ? g : best), null);
 
-  const rows = (
-    pulse.hasPriorVisit
-      ? [
-          { key: "posts", icon: MessageSquare, count: pulse.newPosts, label: pulse.newPosts === 1 ? "new discussion" : "new discussions" },
-          { key: "replies", icon: Reply, count: pulse.repliesToYou, label: pulse.repliesToYou === 1 ? "reply to you" : "replies to you" },
-          { key: "entries", icon: TrendingUp, count: pulse.newPredictionEntries, label: pulse.newPredictionEntries === 1 ? "new prediction entry" : "new prediction entries" },
-        ]
-      : [
-          { key: "posts", icon: MessageSquare, count: weeklyPosts, label: weeklyPosts === 1 ? "discussion this week" : "discussions this week" },
-          { key: "open", icon: TrendingUp, count: openPredictions, label: openPredictions === 1 ? "open prediction" : "open predictions" },
-        ]
-  ).filter((r) => r.count > 0);
-  const trending = pulse.hasPriorVisit ? pulse.mostActive : weeklyMostActive ? { id: weeklyMostActive.id, name: weeklyMostActive.name } : null;
-  const quiet = rows.length === 0 && !trending && !pulse.mostDiscussed;
+  const stats = pulse.hasPriorVisit
+    ? [
+        { key: "posts", count: pulse.newPosts, label: pulse.newPosts === 1 ? "new post" : "new posts" },
+        { key: "replies", count: pulse.repliesToYou, label: pulse.repliesToYou === 1 ? "reply" : "replies" },
+        { key: "entries", count: pulse.newPredictionEntries, label: pulse.newPredictionEntries === 1 ? "new pick" : "new picks" },
+      ]
+    : [
+        { key: "posts", count: weeklyPosts, label: weeklyPosts === 1 ? "post this week" : "posts this week" },
+        { key: "open", count: openPredictions, label: openPredictions === 1 ? "open round" : "open rounds" },
+      ];
+  const quiet = stats.every((r) => r.count === 0) && !pulse.mostDiscussed;
 
   return (
-    <section aria-labelledby="community-pulse" className="rounded-card border border-white/[0.08] bg-surface-1/70 p-3">
-      <div className="flex items-baseline justify-between gap-2 px-1">
-        <h3 id="community-pulse" className="text-body-sm font-semibold text-primary">
-          Pulse
-        </h3>
-        <span className="truncate text-caption text-tertiary">{pulse.hasPriorVisit ? "Since your last visit" : "This week"}</span>
-      </div>
+    <section aria-labelledby="community-pulse">
+      <h3 id="community-pulse" className="px-2 text-body font-semibold text-primary">
+        {pulse.hasPriorVisit ? "Since your last visit" : "This week"}
+      </h3>
 
       {quiet ? (
-        <p className="mt-2 px-1 text-caption text-secondary">{pulse.hasPriorVisit ? "You're caught up." : "No activity yet."}</p>
+        <p className="mt-1 px-2 text-body-sm text-secondary">{pulse.hasPriorVisit ? "You're caught up." : "No activity yet."}</p>
       ) : (
-        <ul className="mt-2 space-y-1">
-          {rows.map((r) => (
-            <li key={r.key} className="flex h-7 items-center gap-2 px-1">
-              <Icon icon={r.icon} size={16} className="shrink-0 text-tertiary" />
-              <span className="text-body-sm font-semibold tabular text-primary">{r.count}</span>
-              <span className="min-w-0 truncate text-caption text-secondary">{r.label}</span>
-            </li>
-          ))}
-          {trending && (
-            <li>
-              <Link href={groupHref(trending.id)} className="flex h-7 items-center gap-2 rounded-control px-1 text-caption text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-                <Icon icon={TrendingUp} size={16} className="shrink-0 text-success" />
-                <span className="min-w-0 truncate">
-                  <span className="font-medium text-primary">{trending.name}</span> is trending
-                </span>
-              </Link>
-            </li>
-          )}
+        <>
+          {/* Numbers first, the way the home page states a fact: the figure large, what it counts beneath. */}
+          <dl className="mt-3 grid grid-cols-3 gap-2 px-2">
+            {stats.map((r) => (
+              <div key={r.key} className="min-w-0">
+                <dt className="sr-only">{r.label}</dt>
+                <dd className={`text-title-md tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>{r.count}</dd>
+                <dd className="truncate text-caption text-secondary">{r.label}</dd>
+              </div>
+            ))}
+          </dl>
           {/* One named conversation to go and read; opens that post's discussion on its community page. */}
           {pulse.mostDiscussed && (
-            <li className="pt-1">
-              <Link
-                href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`}
-                className="block rounded-control bg-surface-2/60 px-2.5 py-2 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-              >
-                <span className="block text-caption text-tertiary">
-                  Most discussed · <span className="tabular">{pulse.mostDiscussed.comments}</span> {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
-                </span>
-                <span className="mt-0.5 line-clamp-2 block text-body-sm leading-5 text-primary">{pulse.mostDiscussed.excerpt}</span>
-              </Link>
-            </li>
+            <Link
+              href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`}
+              className="mt-3 block rounded-control px-2 py-2 transition-colors duration-fast hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              <span className="block text-caption text-secondary">
+                Most discussed · <span className="tabular">{pulse.mostDiscussed.comments}</span> {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
+              </span>
+              <span className="mt-0.5 line-clamp-2 block text-body-sm text-primary">{pulse.mostDiscussed.excerpt}</span>
+            </Link>
           )}
-        </ul>
+        </>
       )}
     </section>
   );

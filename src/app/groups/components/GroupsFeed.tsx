@@ -32,6 +32,10 @@ function interleave(posts: PostCardData[], predictions: FeedPrediction[]): FeedI
   return items.sort((a, b) => b.at - a.at);
 }
 
+/** The feed is a list (design spec P1, critique §5.1): posts separated by hairlines, no card per post. Prediction
+ * rounds are the one boxed item, which is what marks them out as something to act on. */
+const FEED_LIST = "divide-y divide-white/[0.06]";
+
 // Underline tabs: which feed the centre column shows is that column's main switch, not a small
 // in-card filter.
 const TAB_ITEMS: TabItem<FeedType>[] = [
@@ -82,7 +86,7 @@ export function GroupsFeed({
   /** This season's un-finished rounds, for opening a prediction from the composer. */
   upcomingRaces: RaceOption[];
   /** Driver roster per race id, so a round can be entered from the feed itself. */
-  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
 }) {
   const communityId = selectedCommunity?.id ?? null;
   // Each community's picture, for the prediction cards (a round carries its community's name, not its picture).
@@ -322,12 +326,14 @@ export function GroupsFeed({
               }
             />
           ) : (
-            <div className="space-y-3">
+            <div className={FEED_LIST}>
               {interleave(communityPosts, communityPredictions).map((item, i) =>
                 item.kind === "post" ? (
                   <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
                 ) : (
-                  <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                  <div key={item.key} className="py-4">
+                    <PredictionFeedCard prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                  </div>
                 ),
               )}
             </div>
@@ -372,12 +378,14 @@ export function GroupsFeed({
                 }
               />
             ) : (
-              <div className="space-y-3">
+              <div className={FEED_LIST}>
                 {interleave(posts, predictions).map((item, i) =>
                   item.kind === "post" ? (
                     <PostCard key={item.key} post={item.post} index={i} showGroup />
                   ) : (
-                    <PredictionFeedCard key={item.key} prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                    <div key={item.key} className="py-4">
+                      <PredictionFeedCard prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                    </div>
                   ),
                 )}
               </div>

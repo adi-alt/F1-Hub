@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight, Compass, Home, MoreHorizontal, Plus, Trophy } from "lucide-react";
+import { ChevronRight, Compass, Home, MoreHorizontal, Plus } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
@@ -76,18 +76,16 @@ export function GroupsLeftSidebar({
   }
 
   return (
-    <div ref={columnRef} className="flex h-full min-h-0 flex-col gap-3">
-      <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col rounded-card border border-white/[0.08] bg-surface-1/70 p-2">
-        <div className="flex h-8 shrink-0 items-center justify-between gap-2 pl-2">
-          <h3 className="text-body-sm font-semibold text-primary">
-            Communities <span className="font-normal tabular text-tertiary">{groups.length}</span>
-          </h3>
+    <div ref={columnRef} className="flex h-full min-h-0 flex-col gap-4">
+      <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col">
+        <div className="flex h-9 shrink-0 items-center justify-between gap-2 pl-2">
+          <h3 className="text-body font-semibold text-primary">Communities</h3>
           <button
             type="button"
             onClick={onCreate}
             aria-label="Start a community"
             title="Start a community"
-            className="flex size-7 items-center justify-center rounded-full text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className="flex size-8 items-center justify-center rounded-full text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
             <Icon icon={Plus} size={16} />
           </button>
@@ -101,9 +99,9 @@ export function GroupsLeftSidebar({
             <CommunityRow key={g.id} group={g} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
           ))}
           {overflow && (
-            <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-surface-2/60 hover:text-primary`}>
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2">
-                <Icon icon={MoreHorizontal} size={16} />
+            <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-white/[0.04] hover:text-primary`}>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
+                <Icon icon={MoreHorizontal} size={20} />
               </span>
               <span className="text-body-sm font-medium">
                 See all <span className="tabular text-tertiary">{groups.length}</span>
@@ -112,18 +110,18 @@ export function GroupsLeftSidebar({
           )}
         </div>
 
-        <div className="mt-1 shrink-0 border-t border-white/[0.06] pt-1">
-          <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-surface-2/60 hover:text-primary`}>
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-2">
-              <Icon icon={Compass} size={16} />
+        <div className="shrink-0">
+          <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-white/[0.04] hover:text-primary`}>
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
+              <Icon icon={Compass} size={20} />
             </span>
-            <span className="text-body-sm font-medium">Discover</span>
+            <span className="text-body-sm font-medium">Discover communities</span>
           </button>
         </div>
       </nav>
 
       {/* Only when the window is tall enough to give the list room as well. */}
-      <div ref={pulseRef} className="hidden shrink-0 [@media(min-height:760px)]:block">
+      <div ref={pulseRef} className="hidden shrink-0 border-t border-white/[0.06] pt-4 [@media(min-height:760px)]:block">
         <CommunityPulseCard groups={groups} pulse={pulse} />
       </div>
 
@@ -163,8 +161,8 @@ function AllRow({ active, onClick }: { active: boolean; onClick: () => void }) {
       active={active}
       onClick={onClick}
       icon={
-        <span className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${active ? "bg-brand/15 text-brand-text" : "bg-surface-2 text-secondary"}`}>
-          <Icon icon={Home} size={16} />
+        <span className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${active ? "text-primary" : "text-tertiary"}`}>
+          <Icon icon={Home} size={20} />
         </span>
       }
     />
@@ -177,21 +175,9 @@ function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; acti
       label={g.name}
       active={active}
       onClick={onClick}
-      icon={
-        // A small green dot where people have posted this week, like a social app's "new activity".
-        <span className="relative shrink-0">
-          <EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={28} />
-          {g.weeklyPosts > 0 && <span title="Active this week" className="absolute -bottom-px -right-px size-2 rounded-full bg-success ring-2 ring-surface-1" />}
-        </span>
-      }
-      badge={
-        g.activePredictions > 0 ? (
-          <span title={`${g.activePredictions} open prediction round${g.activePredictions === 1 ? "" : "s"}`} className="flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-surface-2 px-1.5 text-caption font-semibold tabular text-primary">
-            <Icon icon={Trophy} size={16} className="size-3 text-warning" />
-            {g.activePredictions}
-          </span>
-        ) : undefined
-      }
+      icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={28} />}
+      // New posts this week, as an unread-style dot (critique §5.2); open rounds live in the race rail.
+      badge={g.weeklyPosts > 0 ? <span title="Active this week" className="mr-1 size-1.5 shrink-0 rounded-full bg-primary/70 group-hover:hidden" /> : undefined}
       openHref={groupHref(g.id)}
       openLabel={`Open ${g.name}`}
     />
@@ -199,8 +185,8 @@ function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; acti
 }
 
 /**
- * One navigation row, the single row grammar of the rail. The selected state is one accent: a raised surface
- * with a thin brand edge and brighter text. Idle rows carry no surface, so nothing competes with the feed.
+ * One navigation row, the single row grammar of the rail. Selected is a quiet neutral tone and brighter, heavier
+ * text (red is kept for actions); idle rows carry no surface, so nothing competes with the feed.
  */
 function NavRow({
   label,
@@ -220,8 +206,7 @@ function NavRow({
   openLabel?: string;
 }) {
   return (
-    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-surface-2" : "hover:bg-surface-2/60"}`}>
-      {active && <span aria-hidden className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-brand" />}
+    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"}`}>
       <button type="button" onClick={onClick} aria-current={active} className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-control pl-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {icon}
         <span className={`min-w-0 flex-1 truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>

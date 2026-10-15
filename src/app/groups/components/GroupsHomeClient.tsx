@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
-import { Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
+import { ChevronRight, Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
@@ -16,7 +16,6 @@ import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { predictionStateAt } from "@/lib/groupPredictionTypes";
 import { groupHref, raceHref } from "@/lib/routes";
@@ -49,7 +48,7 @@ export function GroupsHomeClient({
   upcomingRaces: RaceOption[];
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
-  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
   /** Public communities the viewer isn't in, for the rail's "Communities to join". */
   suggestions?: PublicGroupSummary[];
 }) {
@@ -171,13 +170,11 @@ function WeekendStrip({ race, predictions }: { race: NextRace; predictions: Feed
   if (!race && open.length === 0) return null;
   const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
-  const flag = countryFlag(race?.country);
   return (
-    <div className="flex items-center gap-3 rounded-card border border-white/[0.08] bg-surface-1/70 px-4 py-2.5 xl:hidden">
+    <div className="flex items-center gap-3 border-b border-white/[0.06] pb-3 xl:hidden">
       {race ? (
         <Link href={raceHref(race.year, race.round, race.name)} className="min-w-0 flex-1 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           <span className="block truncate text-body-sm font-semibold text-primary">
-            {flag && <span aria-hidden>{flag} </span>}
             {race.name}
           </span>
           <span suppressHydrationWarning className="block text-caption tabular text-secondary">
@@ -188,7 +185,7 @@ function WeekendStrip({ race, predictions }: { race: NextRace; predictions: Feed
         <span className="min-w-0 flex-1 text-body-sm text-secondary">This weekend</span>
       )}
       {open.length > 0 && (
-        <Button variant="secondary" size="sm" iconStart={Trophy} asChild>
+        <Button variant="ghost" size="sm" iconEnd={ChevronRight} asChild>
           <Link href={`${groupHref(open[0].groupId)}?tab=predictions`}>
             {open.length} open round{open.length === 1 ? "" : "s"}
           </Link>

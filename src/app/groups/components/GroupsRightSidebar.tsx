@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { compactCount } from "@/lib/format";
-import { Check, ChevronRight, Clock } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 // predictionTypeLabels from the pure groupPredictionTypes.ts, not groupPredictions.ts - the same
 // nodemailer-in-client-bundle crash this session has already hit twice (see that file's own
 // comment). FeedPrediction is a type-only import, which is always erased regardless of source.
@@ -14,7 +14,6 @@ import { predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTy
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { PublicGroupSummary } from "@/lib/supabase/groups";
 import { groupHref, raceHref } from "@/lib/routes";
-import { countryFlag } from "@/lib/countryFlag";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { Button } from "@/components/ui/Button";
@@ -49,15 +48,15 @@ export function GroupsRightSidebar({
   onDiscover?: () => void;
 }) {
   return (
-    <FitStack when={fixedHeight ? FIXED_HEIGHT : "not all"} className={fixedHeight ? "xl:h-full xl:overflow-hidden" : ""} gap={12}>
-      <div data-tour="race-weekend" className={WIDGET}>
+    <FitStack when={fixedHeight ? FIXED_HEIGHT : "not all"} className={fixedHeight ? "xl:h-full xl:overflow-hidden" : ""} gap={0}>
+      <div data-tour="race-weekend">
         <RaceWeekend race={nextRace} />
       </div>
-      <div className={`${WIDGET} p-3`}>
+      <div className={SECTION}>
         <ActivePredictions predictions={predictions} />
       </div>
       {suggestions.length > 0 && (
-        <div className={`${WIDGET} p-3`}>
+        <div className={SECTION}>
           <SuggestedCommunities communities={suggestions} onDiscover={onDiscover} />
         </div>
       )}
@@ -68,7 +67,9 @@ export function GroupsRightSidebar({
 /** Where the rail is a fixed-height column beside the feed (GroupsHomeClient's app shell). */
 const FIXED_HEIGHT = "(min-width: 1280px)";
 
-const WIDGET = "overflow-hidden rounded-card border border-white/[0.08] bg-surface-1/70";
+/** Rail sections sit on the page, not in boxes (design spec §1: hierarchy through type and space), parted by a
+ * hairline, like the home page's lists. */
+const SECTION = "mt-5 border-t border-white/[0.06] pt-5";
 
 /** "Who to follow", for communities: a few public ones you're not in, each a tap from joining. Joining goes through
  * the same endpoint as Discover's cards, then opens the community. */
@@ -89,14 +90,14 @@ function SuggestedCommunities({ communities, onDiscover }: { communities: Public
   }
   return (
     <div>
-      <h3 className="px-1 text-body-sm font-semibold text-primary">Communities to join</h3>
-      <ul className="mt-2 space-y-1">
+      <h3 className="text-body font-semibold text-primary">Communities to join</h3>
+      <ul className="mt-2">
         {communities.map((c) => (
-          <li key={c.id} className="flex items-center gap-2.5 px-1 py-1">
-            <Link href={groupHref(c.id)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-              <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.id} size={32} />
+          <li key={c.id} className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-b-0">
+            <Link href={groupHref(c.id)} className="flex min-w-0 flex-1 items-center gap-3 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+              <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.id} size={36} />
               <span className="min-w-0">
-                <span className="block truncate text-body-sm font-semibold text-primary hover:underline">{c.name}</span>
+                <span className="block truncate text-body-sm font-medium text-primary hover:underline">{c.name}</span>
                 <span className="block truncate text-caption text-secondary">
                   {compactCount(c.memberCount)} members{c.activePredictions ? ` · ${c.activePredictions} open round${c.activePredictions === 1 ? "" : "s"}` : ""}
                 </span>
@@ -110,72 +111,53 @@ function SuggestedCommunities({ communities, onDiscover }: { communities: Public
         ))}
       </ul>
       {onDiscover && (
-        <button type="button" onClick={onDiscover} className="mt-1 h-8 rounded-control px-1 text-caption font-medium text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-          See more communities
+        <button type="button" onClick={onDiscover} className="mt-1 flex h-8 items-center gap-0.5 rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          Discover more
+          <Icon icon={ChevronRight} size={16} />
         </button>
       )}
     </div>
   );
 }
 
-/** The next race over its own photo where the pipeline has one: round and date, the name, the countdown to lights
- * out (the one session time a race row carries, so no qualifying or sprint time is claimed), and a way to it. */
+/** The next race, stated the way the home page states it: the round as a single caption, the name large, then the
+ * countdown as the figure (to lights out, the one session time a race row carries). The circuit photo sits above
+ * when the pipeline has one. */
 function RaceWeekend({ race }: { race: NextRace }) {
   const now = useMinuteClock();
   const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
-  const flag = countryFlag(race?.country);
 
   if (!race) {
     return (
-      <div className="p-3">
-        <h3 className="px-1 text-body-sm font-semibold text-primary">Race weekend</h3>
-        <p className="mt-1 px-1 text-caption text-secondary">No upcoming race is scheduled yet.</p>
+      <div>
+        <h3 className="text-body font-semibold text-primary">Race weekend</h3>
+        <p className="mt-1 text-body-sm text-secondary">No upcoming race is scheduled yet.</p>
       </div>
     );
   }
   return (
-    <Link href={raceHref(race.year, race.round, race.name)} className="group relative block focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring">
+    <Link href={raceHref(race.year, race.round, race.name)} className="group block rounded-card focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus-ring">
       {race.photoUrl && (
-        <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <Image src={race.photoUrl} alt="" fill sizes="340px" className="object-cover opacity-90 transition-transform duration-slow ease-standard group-hover:scale-[1.03] motion-reduce:transition-none" />
-          {/* The two washes, not a dimmed photo, are what keep the text legible over any bright patch. */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/60 to-surface-1" />
-          <div className="absolute inset-0 bg-gradient-to-r from-surface-1/80 via-surface-1/30 to-transparent" />
+        <div className="relative mb-4 h-28 overflow-hidden rounded-card">
+          <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover transition-transform duration-slow ease-standard group-hover:scale-[1.03] motion-reduce:transition-none" />
         </div>
       )}
-      <div className={`relative flex flex-col justify-end p-4 ${race.photoUrl ? "min-h-[8.5rem]" : ""}`}>
-        <p className="text-caption text-secondary">
-          Round {race.round}
-          {race.raceDate && (
-            <>
-              {" · "}
-              {new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
-            </>
-          )}
-        </p>
-        <p className="mt-0.5 flex items-start gap-1.5 text-title-md font-semibold leading-snug text-primary">
-          {flag && (
-            <span aria-hidden className="shrink-0">
-              {flag}
-            </span>
-          )}
-          <span className="min-w-0">{race.name}</span>
-        </p>
-        <div className="mt-2 flex items-center justify-between gap-2">
-          {countdown ? (
-            <span suppressHydrationWarning className="inline-flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-caption font-medium tabular text-primary backdrop-blur">
-              <Icon icon={Clock} size={16} className="size-3 text-tertiary" />
-              Lights out in {countdown}
-            </span>
-          ) : (
-            <span className="text-caption text-secondary">Race weekend underway</span>
-          )}
-          <span className="flex items-center gap-0.5 text-caption font-medium text-secondary transition-colors duration-fast group-hover:text-primary">
-            Race
-            <Icon icon={ChevronRight} size={16} className="size-3.5" />
-          </span>
+      <p className="text-body-sm text-secondary">
+        Round {race.round}
+        {race.country ? ` · ${race.country}` : ""}
+      </p>
+      <p className="mt-0.5 text-title-lg text-primary underline-offset-4 group-hover:underline">{race.name}</p>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-caption text-secondary">{countdown ? "Lights out in" : "Race weekend"}</p>
+          <p suppressHydrationWarning className="text-title-lg tabular text-primary">
+            {countdown ?? "Underway"}
+          </p>
         </div>
+        {race.raceDate && (
+          <p className="pb-1 text-body-sm text-secondary">{new Date(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</p>
+        )}
       </div>
     </Link>
   );
@@ -199,29 +181,29 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
 
   return (
     <div>
-      <div className="flex h-7 items-center justify-between gap-2 px-1">
-        <h3 className="text-body-sm font-semibold text-primary">Open rounds</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-body font-semibold text-primary">Open rounds</h3>
         {open.length > RAIL_ROUNDS && (
-          <button type="button" onClick={() => setShowAll(true)} className="rounded-control text-caption font-medium text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          <button type="button" onClick={() => setShowAll(true)} className="rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             See all <span className="tabular">{open.length}</span>
           </button>
         )}
       </div>
       {open.length === 0 ? (
-        <p className="mt-1 px-1 text-caption text-secondary">None open right now. Rounds open as a race weekend approaches.</p>
+        <p className="mt-1 text-body-sm text-secondary">None open right now. Rounds open as a race weekend approaches.</p>
       ) : (
-        <ul className="mt-1.5 space-y-1.5">
+        <ul className="mt-2">
           {shown.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className="border-b border-white/[0.06] last:border-b-0">
               <RoundRow prediction={p} now={now} />
             </li>
           ))}
         </ul>
       )}
       <Dialog open={showAll} onClose={() => setShowAll(false)} title="Open prediction rounds" size="sm">
-        <ul className="space-y-1.5">
+        <ul>
           {open.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className="border-b border-white/[0.06] last:border-b-0">
               <RoundRow prediction={p} now={now} />
             </li>
           ))}
@@ -236,33 +218,35 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
 function RoundRow({ prediction: p, now }: { prediction: FeedPrediction; now: number }) {
   const lockMs = p.lockAt ? Date.parse(p.lockAt) : null;
   const countdown = lockMs !== null ? formatCountdown(lockMs, now) : null;
-  // Under a day left is when "when" stops being background information.
-  const urgent = lockMs !== null && lockMs - now < 24 * 60 * 60 * 1000;
+  // The last three hours are when "when" stops being background information.
+  const soon = lockMs !== null && lockMs - now < 3 * 60 * 60 * 1000;
   return (
     <Link
       href={`${groupHref(p.groupId)}?tab=predictions`}
-      className="flex items-center gap-2.5 rounded-control bg-surface-2/60 px-2.5 py-2 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body-sm font-medium text-primary">
-          {predictionTypeLabels[p.type]} · {p.raceName}
-        </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-caption">
+        <span className="block truncate text-body-sm font-medium text-primary">{predictionTypeLabels[p.type]}</span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-caption text-secondary">
           {p.hasEntered ? (
             <>
-              <Icon icon={Check} size={16} className="size-3 shrink-0 text-success" />
-              <span className="min-w-0 truncate text-secondary">{p.myGuessLabel ? `You picked ${p.myGuessLabel}` : "Entered"}</span>
+              <Icon icon={Check} size={16} className="size-3.5 shrink-0 text-success" />
+              <span className="min-w-0 truncate">{p.myGuessLabel ? `You picked ${p.myGuessLabel}` : "Entered"}</span>
             </>
-          ) : countdown ? (
-            <span suppressHydrationWarning className={`truncate tabular ${urgent ? "font-medium text-warning" : "text-secondary"}`}>
-              Closes in {countdown} · {p.groupName}
-            </span>
           ) : (
-            <span className="truncate text-secondary">{p.groupName}</span>
+            <span suppressHydrationWarning className="min-w-0 truncate tabular">
+              {p.groupName}
+              {countdown && (
+                <>
+                  {" · "}
+                  <span className={soon ? "font-medium text-warning" : ""}>closes in {countdown}</span>
+                </>
+              )}
+            </span>
           )}
         </span>
       </span>
-      <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-caption font-semibold tabular text-primary">{p.entryPoints} pts</span>
+      <span className="shrink-0 text-body-sm tabular text-secondary">{p.entryPoints} pts</span>
     </Link>
   );
 }
