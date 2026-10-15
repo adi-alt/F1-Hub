@@ -5,8 +5,8 @@ import { ArrowBigDown, ArrowBigUp } from "lucide-react";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
 
 /**
- * Up and down votes with the score between them. Upvoted is the brand red, downvoted a cool blue, so the two are
- * never confusable; each arrow's tint fills when it's yours. The score rolls up or down when it changes (it stays
+ * Up and down votes with the score between them, as quiet ghost buttons. Your vote fills its arrow (up in brand
+ * red, down in blue, so the two are never confusable); hovering only lifts the tone. The score rolls up or down when it changes (it stays
  * put under reduced motion: MotionConfig). Purely presentational: onVote reports which arrow was clicked, the caller
  * (useOptimisticVote) owns the state.
  */
@@ -20,15 +20,15 @@ export function VoteControl({ score, myVote, onVote, compact = false }: { score:
         aria-label={dir === 1 ? "Upvote" : "Downvote"}
         aria-pressed={on}
         onClick={() => onVote(dir)}
-        className={`relative flex size-7 items-center justify-center rounded-full transition-colors duration-fast before:absolute before:-inset-0.5 before:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-          on ? (dir === 1 ? "text-brand-text" : "text-info") : dir === 1 ? "text-tertiary hover:bg-brand/12 hover:text-brand-text" : "text-tertiary hover:bg-info/12 hover:text-info"
+        className={`relative flex size-9 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+          on ? (dir === 1 ? "text-brand-text" : "text-info") : "text-tertiary hover:bg-surface-2 hover:text-primary"
         }`}
       >
         <Glyph aria-hidden size={18} strokeWidth={1.75} fill={on ? "currentColor" : "none"} />
       </button>
     );
   };
-  const tone = myVote === 1 ? "text-brand-text" : myVote === -1 ? "text-info" : "text-primary";
+  const tone = myVote === 1 ? "text-brand-text" : myVote === -1 ? "text-info" : "text-secondary";
   return (
     <div className={compact ? "flex items-center" : "flex flex-col items-center gap-0.5"}>
       {arrow(1)}

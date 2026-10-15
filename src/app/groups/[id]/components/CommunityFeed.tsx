@@ -307,7 +307,8 @@ export function CommunityFeed({
         <FeedControls kinds={kinds} value={query} onChange={setQuery} canModerate={canModerate} moderationEnabled={moderationEnabled} pendingCount={canModerate ? pendingCount : undefined} />
       </div>
 
-      <div className="mt-3 space-y-3">
+      {/* A list, posts parted by hairlines (critique §5.1), as on the Communities home. */}
+      <div className="mt-3 divide-y divide-white/[0.06]">
         {reloading ? (
           Array.from({ length: 3 }).map((_, i) => <PostCardSkeleton key={i} />)
         ) : reloadError ? (

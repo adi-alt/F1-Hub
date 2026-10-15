@@ -36,16 +36,16 @@ async function getRaceContext() {
  * a navigation dressed up as an action. getRaceRoster is what keeps that roster real even for a
  * race the pipeline hasn't reached yet - see its own comment.
  */
-async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string; headshotUrl: string | null }[]>> {
+async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]>> {
   const unique = [...new Set(raceIds)];
   const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
   const rosters = await Promise.all(races.map((race) => (race ? getRaceRoster(race) : [])));
   // Current roster first, the archive for anyone that misses (a departed driver a season-opener's
   // previous-year fallback roster pulled in) - see getDriverHeadshotsByCode's own comment.
   const headshotByCode = await getDriverHeadshotsByCode(rosters.flat().map((r) => r.driver));
-  const byRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
+  const byRace: Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]> = {};
   unique.forEach((raceId, i) => {
-    byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
+    byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null, team: r.team }));
   });
   return byRace;
 }

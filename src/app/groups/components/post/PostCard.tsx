@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
@@ -25,10 +24,8 @@ const ROLE_LABEL: Record<string, string> = { admin: "Admin", moderator: "Moderat
  * community home feed leads with the community, a community's own feed leads with the author (see
  * PostHeader).
  *
- * `variant`: the default is a real frosted card - a post is a discrete thing worth anchoring, and
- * a stream of them needs to read as distinct items, not one undifferentiated column of text.
- * `"compact"` (only `CommunitySection.tsx`, the homepage's activity strip) stays a divider-
- * separated row, which is right for a small preview list.
+ * `variant`: the default is a row of the feed list (hairlines between rows come from the list, critique
+ * §5.1); `"compact"` (the homepage's activity strip) is a smaller divider-separated row.
  */
 export function PostCard({
   post,
@@ -139,27 +136,23 @@ export function PostCard({
     ) : null;
 
   return (
-    <motion.article
-      /* Only the first card is a tour target - the tour needs one real post to point at, and
-         tagging every card would make the selector ambiguous. */
+    <article
+      /* Only the first card is a tour target - the tour needs one real post to point at. */
       data-tour={index === 0 ? "post" : undefined}
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index, 8) * 0.03, ease: [0.2, 0, 0, 1] }}
       onClick={variant === "compact" ? undefined : openFromCard}
       className={
         variant === "compact"
           ? "border-b border-white/10 py-3 last:border-b-0"
-          : "cursor-pointer rounded-card border border-white/[0.08] bg-surface-1/70 px-4 py-3.5 transition-colors duration-fast hover:border-white/15 hover:bg-surface-1"
+          : // A row of the feed list, not a card: no border, no fill; a faint tone on hover says the row opens.
+            "-mx-3 cursor-pointer rounded-card px-3 py-4 transition-colors duration-fast hover:bg-white/[0.025]"
       }
     >
       {/* The avatar in a column of its own and the post indented beside it, the way a social feed reads. */}
       <div className="flex gap-3">
-        <PostAvatar post={post} showGroup={showGroup} size={variant === "compact" ? 32 : 36} />
+        <PostAvatar post={post} showGroup={showGroup} size={variant === "compact" ? 32 : 40} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1 pt-0.5">
+            <div className="min-w-0 flex-1">
               <PostByline post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
             </div>
             {menu}
@@ -202,6 +195,6 @@ export function PostCard({
           onCountChange={setCommentCount}
         />
       )}
-    </motion.article>
+    </article>
   );
 }

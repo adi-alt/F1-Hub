@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { useAnchoredPanel } from "./usePanelDirection";
 
 const ACTIONS: { key: string; label: string }[] = [
@@ -68,12 +70,11 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-caption font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
+        className={`flex size-9 shrink-0 items-center justify-center rounded-full text-body transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
           open ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
         }`}
       >
-        <span aria-hidden className="text-brand-text">✦</span>
-        <span className="hidden sm:inline">Apex</span>
+        <Icon icon={Sparkles} size={20} />
       </button>
 
       {typeof document !== "undefined" &&
