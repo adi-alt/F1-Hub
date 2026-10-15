@@ -143,8 +143,9 @@ export function PostCard({
       className={
         variant === "compact"
           ? "border-b border-white/10 py-3 last:border-b-0"
-          : // A row of the feed list, not a card: no border, no fill; a faint tone on hover says the row opens.
-            "-mx-3 cursor-pointer rounded-card px-3 py-4 transition-colors duration-fast hover:bg-white/[0.025]"
+          : // A row of the feed list, not a card: no border, no fill; a faint tone on hover says the row opens. Square
+            // corners: the list draws its hairline as each row's top border, which rounded corners would bend.
+            "-mx-3 cursor-pointer px-3 py-4 transition-colors duration-fast hover:bg-white/[0.025]"
       }
     >
       {/* The avatar in a column of its own and the post indented beside it, the way a social feed reads. */}

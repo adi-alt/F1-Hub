@@ -38,6 +38,7 @@ export function GroupsHomeClient({
   upcomingRaces,
   pulse,
   driversByRace,
+  poleModelByRace = {},
   suggestions = [],
 }: {
   groups: GroupSummary[];
@@ -49,6 +50,8 @@ export function GroupsHomeClient({
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
+  /** The pole model's top three per race, where it has run (see page.tsx). */
+  poleModelByRace?: Record<string, string[]>;
   /** Public communities the viewer isn't in, for the rail's "Communities to join". */
   suggestions?: PublicGroupSummary[];
 }) {
@@ -135,16 +138,18 @@ export function GroupsHomeClient({
         </div>
       ) : (
         <div className="flex flex-col gap-6 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5 xl:grid-cols-[248px_minmax(0,1fr)_320px]">
-          <aside aria-label="Your communities" className="hidden min-h-0 lg:block">
+          {/* Bottom padding keeps the rail clear of the floating Apex launcher in the corner below it. */}
+          <aside aria-label="Your communities" className="hidden min-h-0 pb-16 lg:block">
             <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} pulse={pulse} />
           </aside>
 
-          {/* The one scrolling column from lg. A div, not a second <main>: the root layout has the page's one main. */}
-          <div ref={feedRef} data-feed-scroll className="min-w-0 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-hide">
+          {/* The one scrolling column from lg, vertical only: its 12px inner gutter holds the post rows' hover tone (they
+              reach 12px past the text), so nothing spills sideways. A div, not a second <main>. */}
+          <div ref={feedRef} data-feed-scroll className="min-w-0 lg:-mx-3 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain lg:px-3 lg:scrollbar-hide">
             <div className="space-y-3 lg:pb-8">
               <WeekendStrip race={nextRace} predictions={predictions} />
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-              <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} />
+              <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} poleModelByRace={poleModelByRace} />
             </div>
           </div>
 

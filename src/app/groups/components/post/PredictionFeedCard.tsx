@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, Lock, X } from "lucide-react";
+import { Check, Lock, Sparkles, X } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
 import { DriverPicker } from "@/components/ui/F1Pickers";
@@ -15,6 +15,7 @@ import { formatCountdown } from "@/lib/countdown";
 import { timeAgo } from "@/lib/format";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useAuth } from "@/providers/AuthProvider";
+import { askApex } from "@/components/apex/askApex";
 import { usePredictionTrend, MIN_ENTRIES_FOR_TREND } from "./PredictionTrendBars";
 import { CLOSED_MESSAGE, DEADLINE_UNKNOWN_MESSAGE, type DriverOption } from "./PredictionEntry";
 
@@ -25,6 +26,15 @@ const QUESTION: Record<PredictionType, string> = {
   fastest_lap: "Who sets the fastest lap?",
   pole: "Who takes pole?",
   dnf_count: "How many retirements?",
+};
+
+/** What "Ask Apex" asks for each kind of round: a general F1 question about this race. */
+const APEX_QUESTION: Record<PredictionType, (race: string) => string> = {
+  winner: (race) => `Who is most likely to win the ${race}, and why?`,
+  podium: (race) => `Who is likely to finish on the podium at the ${race}?`,
+  fastest_lap: (race) => `Who is likely to set the fastest lap at the ${race}?`,
+  pole: (race) => `Who is likely to take pole position at the ${race}?`,
+  dnf_count: (race) => `How many retirements should we expect at the ${race}?`,
 };
 
 /** How many option tiles a single-driver round shows before "Someone else" (the full grid is one picker away). */
@@ -49,6 +59,7 @@ export function PredictionFeedCard({
   showGroup,
   drivers = [],
   groupAvatarUrl = null,
+  modelPicks,
 }: {
   prediction: FeedPrediction;
   /** Position in the feed (kept for callers; the feed no longer staggers entrances). */
@@ -58,6 +69,8 @@ export function PredictionFeedCard({
   drivers?: DriverOption[];
   /** The community's own picture, for the header. */
   groupAvatarUrl?: string | null;
+  /** The pole model's top three for this race (pole rounds only, where the pipeline has run it). */
+  modelPicks?: string[];
 }) {
   const now = useMinuteClock();
   const { pointsBalance, refreshPointsBalance } = useAuth();
@@ -200,6 +213,32 @@ export function PredictionFeedCard({
           />
         )}
       </div>
+
+      {/* Apex: the model's own pick where one exists before qualifying (the pole model; the race simulation only
+          runs after it, when the round has closed), and a way to ask about the round either way. Labelled as AI and
+          quieter than the market itself. */}
+      {!resolved && (
+        <div className="mt-4 flex items-center gap-2 text-body-sm text-secondary">
+          <Icon icon={Sparkles} size={16} className="shrink-0 text-tertiary" />
+          <p className="min-w-0 flex-1 truncate">
+            {modelPicks?.length ? (
+              <>
+                Model&apos;s pole pick <span className="font-medium text-primary">{lastName(modelPicks[0])}</span>
+                {modelPicks.length > 1 && <>, then {modelPicks.slice(1).map(lastName).join(" and ")}</>}
+              </>
+            ) : (
+              "Want a second opinion?"
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => askApex(APEX_QUESTION[prediction.type](prediction.raceName), "everything")}
+            className="shrink-0 rounded-control px-1 font-medium text-primary underline-offset-4 transition-colors duration-fast hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            Ask Apex
+          </button>
+        </div>
+      )}
 
       {/* Your row: where you stand on the left, the one action on the right. */}
       <div className="mt-4 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">
