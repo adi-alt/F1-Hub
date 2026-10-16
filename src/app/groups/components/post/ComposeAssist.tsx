@@ -70,8 +70,8 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex size-9 shrink-0 items-center justify-center rounded-full text-body transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
-          open ? "bg-surface-3 text-primary" : "text-secondary hover:bg-surface-2 hover:text-primary"
+        className={`flex size-8 shrink-0 items-center justify-center rounded-full text-body transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
+          open ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
         }`}
       >
         <Icon icon={Sparkles} size={20} />

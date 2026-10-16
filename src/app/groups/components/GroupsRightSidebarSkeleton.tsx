@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/Skeleton";
 
-const WIDGET = "overflow-hidden rounded-card bg-surface-1";
+const WIDGET = "overflow-hidden rounded-card surface-frost";
 
 /** GroupsRightSidebar's widgets while the page loads: the race (photo, name, countdown), Apex, the open rounds. */
 export function GroupsRightSidebarSkeleton() {

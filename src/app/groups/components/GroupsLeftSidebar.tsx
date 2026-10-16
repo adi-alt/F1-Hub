@@ -77,15 +77,15 @@ export function GroupsLeftSidebar({
 
   return (
     <div ref={columnRef} className="flex h-full min-h-0 flex-col gap-3">
-      <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col rounded-card bg-surface-1 p-2">
+      <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col rounded-card p-2 surface-frost">
         <div className="flex h-9 shrink-0 items-center justify-between gap-2 pl-2">
-          <h3 className="text-body font-semibold text-primary">Communities</h3>
+          <h3 className="text-body-sm font-semibold text-primary">Communities</h3>
           <button
             type="button"
             onClick={onCreate}
             aria-label="Start a community"
             title="Start a community"
-            className="flex size-8 items-center justify-center rounded-full text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className="flex size-8 items-center justify-center rounded-full text-secondary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
             <Icon icon={Plus} size={16} />
           </button>
@@ -99,7 +99,7 @@ export function GroupsLeftSidebar({
             <CommunityRow key={g.id} group={g} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
           ))}
           {overflow && (
-            <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-surface-2/70 hover:text-primary`}>
+            <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
                 <Icon icon={MoreHorizontal} size={20} />
               </span>
@@ -111,7 +111,7 @@ export function GroupsLeftSidebar({
         </div>
 
         <div className="mt-1 shrink-0 border-t border-white/[0.06] pt-1">
-          <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-surface-2/70 hover:text-primary`}>
+          <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
             <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
               <Icon icon={Compass} size={20} />
             </span>
@@ -121,7 +121,7 @@ export function GroupsLeftSidebar({
       </nav>
 
       {/* Only when the window is tall enough to give the list room as well. */}
-      <div ref={pulseRef} className="hidden shrink-0 rounded-card bg-surface-1 px-2 py-4 [@media(min-height:760px)]:block">
+      <div ref={pulseRef} className="hidden shrink-0 rounded-card px-2 py-4 surface-frost [@media(min-height:760px)]:block">
         <CommunityPulseCard groups={groups} pulse={pulse} />
       </div>
 
@@ -185,8 +185,8 @@ function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; acti
 }
 
 /**
- * One navigation row, the single row grammar of the rail. Selected is a quiet neutral tone and brighter, heavier
- * text (red is kept for actions); idle rows carry no surface, so nothing competes with the feed.
+ * One navigation row, the single row grammar of the rail. Selected is a raised tone, a thin brand edge and heavier
+ * text, so the current feed is recognisable at a glance; idle rows carry no surface, so nothing competes with it.
  */
 function NavRow({
   label,
@@ -206,7 +206,8 @@ function NavRow({
   openLabel?: string;
 }) {
   return (
-    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-surface-2" : "hover:bg-surface-2/70"}`}>
+    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-white/[0.09]" : "hover:bg-white/[0.05]"}`}>
+      {active && <span aria-hidden className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-brand" />}
       <button type="button" onClick={onClick} aria-current={active} className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-control pl-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {icon}
         <span className={`min-w-0 flex-1 truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>

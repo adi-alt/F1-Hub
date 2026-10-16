@@ -32,7 +32,7 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
 
   return (
     <section aria-labelledby="community-pulse">
-      <h3 id="community-pulse" className="px-2 text-body font-semibold text-primary">
+      <h3 id="community-pulse" className="px-2 text-body-sm font-semibold text-primary">
         {pulse.hasPriorVisit ? "Since your last visit" : "This week"}
       </h3>
 
@@ -41,11 +41,11 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
       ) : (
         <>
           {/* Numbers first, the way the home page states a fact: the figure large, what it counts beneath. */}
-          <dl className="mt-3 grid grid-cols-3 gap-2 px-2">
+          <dl className="mt-2 grid grid-cols-3 gap-2 px-2">
             {stats.map((r) => (
               <div key={r.key} className="min-w-0">
                 <dt className="sr-only">{r.label}</dt>
-                <dd className={`text-title-md tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>{r.count}</dd>
+                <dd className={`text-title-lg tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>{r.count}</dd>
                 <dd className="truncate text-caption text-secondary">{r.label}</dd>
               </div>
             ))}
@@ -54,9 +54,9 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
           {pulse.mostDiscussed && (
             <Link
               href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`}
-              className="mt-3 block rounded-control px-2 py-2 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              className="mt-3 block rounded-b-control border-t border-white/[0.06] px-2 pb-1 pt-3 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
-              <span className="block text-caption text-secondary">
+              <span className="block text-caption text-tertiary">
                 Most discussed · <span className="tabular">{pulse.mostDiscussed.comments}</span> {pulse.mostDiscussed.comments === 1 ? "reply" : "replies"}
               </span>
               <span className="mt-0.5 line-clamp-2 block text-body-sm text-primary">{pulse.mostDiscussed.excerpt}</span>

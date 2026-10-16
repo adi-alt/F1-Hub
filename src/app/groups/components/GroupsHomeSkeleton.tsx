@@ -9,7 +9,7 @@ export function GroupsHomeSkeleton() {
     <div className="py-4 lg:h-[calc(100dvh-3.5rem)]">
       <div className="flex flex-col gap-6 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5 lg:overflow-hidden xl:grid-cols-[248px_minmax(0,1fr)_320px]">
         <div className="hidden lg:block">
-          <div className="rounded-card bg-surface-1 p-2">
+          <div className="rounded-card p-2 surface-frost">
             <Skeleton shape="block" className="ml-2 mt-2.5 h-4 w-28" />
             <div className="mt-3 space-y-0.5">
               {Array.from({ length: 6 }).map((_, i) => (
