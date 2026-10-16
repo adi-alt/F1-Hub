@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Trophy } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";

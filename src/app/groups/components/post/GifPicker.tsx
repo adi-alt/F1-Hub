@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import type { GifResult } from "@/lib/gifProvider";
 import { createPortal } from "react-dom";
 import { useAnchoredPanel } from "./usePanelDirection";

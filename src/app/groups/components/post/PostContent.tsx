@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { firstUrlIn, safeHttpUrl } from "@/lib/linkPreview";
 import { LinkPreview } from "./LinkPreview";
 

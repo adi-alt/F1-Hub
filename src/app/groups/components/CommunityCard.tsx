@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { compactCount, timeAgo } from "@/lib/format";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";

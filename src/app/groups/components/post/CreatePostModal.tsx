@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { POST_KIND_HINTS, POST_KIND_LABELS, type PostKind } from "@/lib/communities";

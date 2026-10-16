@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, Compass, Home, MoreHorizontal, Plus } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
+import { LayoutGroup, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { groupHref } from "@/lib/routes";
@@ -91,24 +92,26 @@ export function GroupsLeftSidebar({
           </button>
         </div>
 
-        <div ref={listRef} data-tour="community-list" className="mt-1 min-h-0 space-y-0.5 overflow-hidden">
-          <div data-tour="community-filter">
-            <AllRow active={selectedId === null} onClick={() => onSelect(null)} />
+        <LayoutGroup id="rail">
+          <div ref={listRef} data-tour="community-list" className="mt-1 min-h-0 space-y-0.5 overflow-hidden">
+            <div data-tour="community-filter">
+              <AllRow active={selectedId === null} onClick={() => onSelect(null)} />
+            </div>
+            {shown.map((g) => (
+              <CommunityRow key={g.id} group={g} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
+            ))}
+            {overflow && (
+              <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
+                  <Icon icon={MoreHorizontal} size={20} />
+                </span>
+                <span className="text-body-sm font-medium">
+                  See all <span className="tabular text-tertiary">{groups.length}</span>
+                </span>
+              </button>
+            )}
           </div>
-          {shown.map((g) => (
-            <CommunityRow key={g.id} group={g} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
-          ))}
-          {overflow && (
-            <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
-                <Icon icon={MoreHorizontal} size={20} />
-              </span>
-              <span className="text-body-sm font-medium">
-                See all <span className="tabular text-tertiary">{groups.length}</span>
-              </span>
-            </button>
-          )}
-        </div>
+        </LayoutGroup>
 
         <div className="mt-1 shrink-0 border-t border-white/[0.06] pt-1">
           <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
@@ -126,26 +129,28 @@ export function GroupsLeftSidebar({
       </div>
 
       <Dialog open={showAll} onClose={() => setShowAll(false)} title="Your communities" size="sm">
-        <div className="space-y-0.5">
-          <AllRow
-            active={selectedId === null}
-            onClick={() => {
-              onSelect(null);
-              setShowAll(false);
-            }}
-          />
-          {groups.map((g) => (
-            <CommunityRow
-              key={g.id}
-              group={g}
-              active={selectedId === g.id}
+        <LayoutGroup id="rail-dialog">
+          <div className="space-y-0.5">
+            <AllRow
+              active={selectedId === null}
               onClick={() => {
-                onSelect(g.id);
+                onSelect(null);
                 setShowAll(false);
               }}
             />
-          ))}
-        </div>
+            {groups.map((g) => (
+              <CommunityRow
+                key={g.id}
+                group={g}
+                active={selectedId === g.id}
+                onClick={() => {
+                  onSelect(g.id);
+                  setShowAll(false);
+                }}
+              />
+            ))}
+          </div>
+        </LayoutGroup>
       </Dialog>
     </div>
   );
@@ -177,7 +182,7 @@ function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; acti
       onClick={onClick}
       icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={28} />}
       // New posts this week, as an unread-style dot (critique §5.2); open rounds live in the race rail.
-      badge={g.weeklyPosts > 0 ? <span title="Active this week" className="mr-1 size-1.5 shrink-0 rounded-full bg-primary/70 group-hover:hidden" /> : undefined}
+      badge={g.weeklyPosts > 0 ? <span title="Active this week" className="relative mr-1 size-1.5 shrink-0 rounded-full bg-primary/70 group-hover:hidden" /> : undefined}
       openHref={groupHref(g.id)}
       openLabel={`Open ${g.name}`}
     />
@@ -206,9 +211,15 @@ function NavRow({
   openLabel?: string;
 }) {
   return (
-    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "bg-white/[0.09]" : "hover:bg-white/[0.05]"}`}>
-      {active && <span aria-hidden className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-brand" />}
-      <button type="button" onClick={onClick} aria-current={active} className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-control pl-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "" : "hover:bg-white/[0.05]"}`}>
+      {/* The highlight and its brand edge are one element shared by every row (motion's layoutId), so picking another
+          community slides it there. */}
+      {active && (
+        <motion.span aria-hidden layoutId="rail-active" className="absolute inset-0 rounded-control bg-white/[0.09]" transition={{ type: "spring", stiffness: 500, damping: 40 }}>
+          <span className="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-brand" />
+        </motion.span>
+      )}
+      <button type="button" onClick={onClick} aria-current={active} className="relative flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-control pl-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
         {icon}
         <span className={`min-w-0 flex-1 truncate text-body-sm ${active ? "font-semibold text-primary" : "font-medium text-secondary group-hover:text-primary"}`}>{label}</span>
       </button>
@@ -218,7 +229,7 @@ function NavRow({
           href={openHref}
           aria-label={openLabel}
           title="Open community"
-          className="sr-only shrink-0 rounded-control p-1 text-tertiary hover:text-primary focus-visible:not-sr-only group-hover:not-sr-only"
+          className="relative sr-only shrink-0 rounded-control p-1 text-tertiary hover:text-primary focus-visible:not-sr-only group-hover:not-sr-only"
         >
           <Icon icon={ChevronRight} size={16} />
         </Link>

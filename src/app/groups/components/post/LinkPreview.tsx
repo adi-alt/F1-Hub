@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Link } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import type { LinkPreviewData } from "@/lib/linkPreview";

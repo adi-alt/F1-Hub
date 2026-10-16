@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Picker } from "@/components/ui/Picker";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { DISCOVER_SORTS, type DiscoverSort } from "@/lib/communities";

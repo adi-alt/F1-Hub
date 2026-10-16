@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "motion/react";
 import { ChevronRight, Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
