@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 :root {
+  /* The page's ambient light: two diagonal red-to-blue bands (see body::before), shared with page-backdrop. */
+  --page-glow:
+    linear-gradient(118deg, transparent 6%, rgb(225 90 40 / 0.14) 22%, rgb(70 130 220 / 0.07) 35%, transparent 47%),
+    linear-gradient(118deg, transparent 54%, rgb(225 90 40 / 0.07) 67%, rgb(70 130 220 / 0.12) 80%, transparent 92%);
+
   /* Zinc, not a plain near-black — Tailwind's own zinc-950/900/800, so surfaces read as a
      deliberately warm-neutral dark gray rather than an unconsidered "just make it black". */
   --background: var(--surface-0);
@@ -270,9 +275,17 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    linear-gradient(118deg, transparent 6%, rgb(225 90 40 / 0.14) 22%, rgb(70 130 220 / 0.07) 35%, transparent 47%),
-    linear-gradient(118deg, transparent 54%, rgb(225 90 40 / 0.07) 67%, rgb(70 130 220 / 0.12) 80%, transparent 92%);
+  background: var(--page-glow);
+}
+
+/* The page itself, as a background an element can wear: the canvas colour and the same glow, anchored to the
+   window (background-attachment: fixed) so it lines up exactly with what's behind it. A pinned bar in a scrolling
+   column (Communities' feed tabs) wears it to hide what scrolls beneath without reading as a dark slab. Where fixed
+   attachment isn't honoured (iOS Safari), the glow is drawn across the element instead: a close match. */
+@utility page-backdrop {
+  background-color: var(--background);
+  background-image: var(--page-glow);
+  background-attachment: fixed;
 }
 
 html {
