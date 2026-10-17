@@ -20,11 +20,14 @@ export function SessionResultCard({
   session,
   lines,
   calledIt,
+  audience = "in your communities",
   race,
 }: {
   session: CommunitySession;
   lines: ResultLine[];
   calledIt?: CalledIt;
+  /** Whose entries `calledIt` counts, as it reads after the figure: "in your communities", or "here" on one community's page. */
+  audience?: string;
   race: { year: number; round: number; name: string };
 }) {
   const endedAt = new Date(sessionEndsAt(session)).toISOString();
@@ -57,7 +60,7 @@ export function SessionResultCard({
             <span className="font-semibold tabular text-primary">
               {calledIt.correct} of {calledIt.total}
             </span>{" "}
-            in your communities {calledIt.label}
+            {audience} {calledIt.label}
             <span className="ml-2 inline-block h-1 w-16 overflow-hidden rounded-full bg-white/[0.08] align-middle">
               <span className="block h-full rounded-full bg-success" style={{ width: `${share}%` }} />
             </span>

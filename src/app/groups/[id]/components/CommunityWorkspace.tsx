@@ -17,7 +17,8 @@ import type { RaceOption } from "../../components/post/PredictionComposer";
 import { CommunityFeed } from "./CommunityFeed";
 import { CommunityHeader } from "./CommunityHeader";
 import { AboutTab, MediaTab } from "./CommunityModules";
-import { CommunityRightRail, type RailPrediction } from "./CommunityRightRail";
+import { CommunityRightRail, type RailPrediction, type RailTab } from "./CommunityRightRail";
+import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communityWeekend";
 import { GroupLeaderboardTab } from "./GroupLeaderboardTab";
 import { GroupMembersTab } from "./GroupMembersTab";
 import { GroupPredictions } from "./GroupPredictions";
@@ -72,6 +73,8 @@ export function CommunityWorkspace({
   initialTab,
   focusPostId,
   isF1,
+  weekend = null,
+  crowdVsModel = null,
 }: {
   group: GroupDetail;
   myUserId: string;
@@ -103,13 +106,20 @@ export function CommunityWorkspace({
    * F1 community with nothing scheduled still gets the card (saying so); a Photography community
    * never gets one, and the page never even fetches a race for it. */
   isF1: boolean;
+  /** The race weekend this community is living in (F1 communities): the bar above the feed, session tags, results. */
+  weekend?: CommunityWeekendData;
+  /** This community against the Apex model this season. */
+  crowdVsModel?: CrowdVsModel | null;
 }) {
   const isAdmin = group.myRole === "admin";
   // Memoized because `openTab` below closes over it: a fresh array every render would give that
   // callback a new identity every render, and it's passed into the rail.
   const modules = useMemo(() => resolveModules(group.communityType, group.features), [group.communityType, group.features]);
   const tabs: Tab[] = useMemo(() => (isAdmin ? [...modules, "manage"] : modules), [isAdmin, modules]);
-  const tabItems: TabItem<Tab>[] = tabs.map((t) => ({ value: t, label: t === "manage" ? "Manage" : MODULE_LABELS[t] }));
+  // Counts where a count is the useful thing to know before opening a tab.
+  const openRoundCount = predictions.filter((p) => p.state === "open").length;
+  const tabCount: Partial<Record<Tab, number>> = { predictions: openRoundCount || undefined, members: memberCount };
+  const tabItems: TabItem<Tab>[] = tabs.map((t) => ({ value: t, label: t === "manage" ? "Manage" : MODULE_LABELS[t], count: tabCount[t] }));
 
   const defaultTab = modules[0] ?? "feed";
   // `initialTab` comes from the server's own searchParams, already validated there, so the first
@@ -175,7 +185,7 @@ export function CommunityWorkspace({
    * rendered when its module is on, but Members/About are required and always exist) falls through
    * to doing nothing rather than switching to a panel that isn't there. */
   const openTab = useCallback(
-    (next: "predictions" | "members" | "about" | "feed") => {
+    (next: RailTab) => {
       if (!(tabs as string[]).includes(next)) return;
       select(next as Tab);
     },
@@ -187,61 +197,64 @@ export function CommunityWorkspace({
 
   return (
     <>
-      {/* One grid for the whole page body, so the rail's first card starts at the same baseline as
-          the cover image rather than below a full-width header. Below lg it collapses to a single
-          column and the rail follows the feed, which is the right order on a phone: the content
-          first, the context under it. */}
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
+      {/* The community's head across the full width, then the active panel beside the rail. Below lg the rail follows
+          the panel: the content first, the context under it. */}
+      <CommunityHeader
+        group={group}
+        stats={stats}
+        openRounds={modules.includes("predictions") ? openRoundCount : undefined}
+        pendingRequests={pendingRequests}
+        onOpenManage={() => select("manage")}
+      />
+
+      <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
         <div className="min-w-0">
-          <CommunityHeader group={group} memberCount={memberCount} pendingRequests={pendingRequests} onOpenManage={() => select("manage")} />
-
           <Tabs value={tab} onValueChange={select} items={tabItems}>
-            <div className="mt-8">
-              {/* The strip scrolls sideways on a narrow screen rather than wrapping to two rows. */}
-              <TabList aria-label="Community sections" />
+            {/* The strip scrolls sideways on a narrow screen rather than wrapping to two rows. */}
+            <TabList aria-label="Community sections" />
 
-              {/* Each panel mounts fresh when its tab is chosen, so this fades the new one in. */}
-              <TabPanels className="mt-5">
-                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}>
-                  {tab === "feed" && (
-                    <CommunityFeed
-                      groupId={group.id}
-                      communityName={group.name}
-                      communityAvatarUrl={group.avatarUrl}
-                      communityDescription={group.description}
-                      communityType={group.communityType}
-                      features={group.features}
-                      permissions={group.permissions}
-                      initialPosts={posts}
-                      initialCursor={postsCursor}
-                      myRole={group.myRole}
-                      moderationEnabled={group.moderationEnabled}
-                      pendingCount={pendingPosts}
-                      upcomingRaces={upcomingRaces}
-                      callableRace={callableRace}
-                      composerOpen={composerOpen}
-                      onComposerOpenChange={setComposerOpen}
-                      focusPostId={focusPostId}
-                    />
-                  )}
-                  {tab === "predictions" && (
-                    <GroupPredictions
-                      groupId={group.id}
-                      myRole={group.myRole}
-                      predictions={predictions}
-                      races={races}
-                      driversByRace={driversByRace}
-                      pointsBalance={pointsBalance}
-                    />
-                  )}
-                  {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
-                  {tab === "media" && <MediaTab groupId={group.id} />}
-                  {tab === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
-                  {tab === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
-                  {tab === "manage" && isAdmin && <ManageTabLazy group={group} />}
-                </motion.div>
-              </TabPanels>
-            </div>
+            {/* Each panel mounts fresh when its tab is chosen, so this fades the new one in. */}
+            <TabPanels className="mt-5">
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}>
+                {tab === "feed" && (
+                  <CommunityFeed
+                    groupId={group.id}
+                    communityName={group.name}
+                    communityAvatarUrl={group.avatarUrl}
+                    communityDescription={group.description}
+                    communityType={group.communityType}
+                    features={group.features}
+                    permissions={group.permissions}
+                    initialPosts={posts}
+                    initialCursor={postsCursor}
+                    myRole={group.myRole}
+                    moderationEnabled={group.moderationEnabled}
+                    pendingCount={pendingPosts}
+                    upcomingRaces={upcomingRaces}
+                    callableRace={callableRace}
+                    composerOpen={composerOpen}
+                    onComposerOpenChange={setComposerOpen}
+                    focusPostId={focusPostId}
+                    weekend={weekend}
+                  />
+                )}
+                {tab === "predictions" && (
+                  <GroupPredictions
+                    groupId={group.id}
+                    myRole={group.myRole}
+                    predictions={predictions}
+                    races={races}
+                    driversByRace={driversByRace}
+                    pointsBalance={pointsBalance}
+                  />
+                )}
+                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
+                {tab === "media" && <MediaTab groupId={group.id} />}
+                {tab === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
+                {tab === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
+                {tab === "manage" && isAdmin && <ManageTabLazy group={group} />}
+              </motion.div>
+            </TabPanels>
           </Tabs>
         </div>
 
@@ -251,13 +264,17 @@ export function CommunityWorkspace({
         {showRail && (
           <aside className="mt-6 lg:sticky lg:top-20 lg:mt-0">
             <CommunityRightRail
-              groupId={group.id}
               stats={stats}
               pulse={pulse}
               race={nextRace}
               predictions={railPredictions}
+              leaderboard={leaderboard}
+              members={group.members}
+              myUserId={myUserId}
+              crowdVsModel={crowdVsModel}
               showRace={isF1}
               showPredictions={modules.includes("predictions")}
+              showLeaderboard={modules.includes("leaderboard")}
               onOpenTab={openTab}
             />
           </aside>
@@ -265,10 +282,11 @@ export function CommunityWorkspace({
       </div>
 
       {/* Fixed, bottom-right - the opposite corner from Ask Apex's own launcher, so the two can
-          never collide. Only on the Feed tab, and only for someone this community actually lets
-          post: a button that opens a composer the server would refuse is worse than no button. */}
+          never collide. Only on the Feed tab, only for someone this community actually lets post, and
+          only below lg: on a desktop the composer is inline above the feed, and a floating button sat
+          over the rail. */}
       {tab === "feed" && canPost && (
-        <span className="fixed bottom-5 right-5 z-30 rounded-card shadow-overlay">
+        <span className="fixed bottom-5 right-5 z-30 rounded-card shadow-overlay lg:hidden">
           <Button variant="primary" size="lg" iconStart={Plus} onClick={() => setComposerOpen(true)}>
             Create post
           </Button>

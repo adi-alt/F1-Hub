@@ -1,431 +1,282 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useState } from "react";
-import { Activity, ChartNoAxesColumn, ChevronRight, FileText, MessageSquare, Reply, Users } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
-import { useAuth } from "@/providers/AuthProvider";
+import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
-import { useCommunityPresence } from "@/hooks/useCommunityPresence";
-import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
-import { countryFlag } from "@/lib/countryFlag";
+import { formatCountdown } from "@/lib/countdown";
 import { compactCount } from "@/lib/format";
 import { predictionStateAt, predictionTypeLabels, type GroupPrediction } from "@/lib/groupPredictionTypes";
+import type { CrowdVsModel } from "@/lib/supabase/communityWeekend";
 import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
+import type { GroupMember, LeaderboardRow } from "@/lib/supabase/groups";
 import type { GroupPulse, GroupStats } from "@/lib/supabase/groupStats";
 import type { NextRaceSummary } from "@/lib/supabase/nextRace";
-import { raceHref, seasonHref } from "@/lib/routes";
+import { ApexWidget } from "../../components/ApexWidget";
+import { RaceWeekend } from "../../components/GroupsRightSidebar";
 import { PredictionTrendBars } from "../../components/post/PredictionTrendBars";
 
 /** One open round plus the aggregate that was fetched for it server-side, so the rail draws its
  * bars on first paint instead of firing a request per card after mount. */
 export type RailPrediction = { prediction: GroupPrediction; trend: PredictionTrend | null };
 
+export type RailTab = "predictions" | "leaderboard" | "members" | "about" | "feed";
+
+/** How many members the league table lists before "Full table". */
+const TABLE_ROWS = 5;
+
 /**
- * The community page's context rail: what's next on the calendar, how big and busy this place is,
- * what's open to predict, and what's changed since you were last here.
+ * The community page's rail, as the Communities home draws its own: separate widgets on Season's glass, each with a
+ * tracked eyebrow, in priority order - the race weekend, Apex on this community, the league table, the rounds open to
+ * predict, and what changed since you were last here. The community's own figures (members, activity) sit in the
+ * header, so the rail is about the weekend and the competition.
  *
- * Every card here is either real or absent. Specifically:
- *  - Upcoming Race renders only for a community whose own type is about Formula 1. A Photography
- *    community has no business being told when lights go out, and the page never fetches a race for
- *    one (see page.tsx).
- *  - Active Predictions renders only where the predictions module is genuinely on.
- *  - Online is a live presence count and is omitted entirely when presence never connected - never
- *    shown as 0 (see lib/realtime/presence.ts).
- *  - The pulse shows a diff only when there is a real previous visit to diff against.
+ * Every widget is real or absent: the race and Apex only for a community about Formula 1 (the page never fetches a
+ * race for any other), the league and rounds only where those modules are on, the crowd-vs-Apex line only once a
+ * round has settled, and the visit digest as a diff only when there is a previous visit to diff against.
  */
 export function CommunityRightRail({
-  groupId,
   stats,
   pulse,
   race,
   predictions,
+  leaderboard,
+  members,
+  myUserId,
+  crowdVsModel,
   showRace,
   showPredictions,
+  showLeaderboard,
   onOpenTab,
 }: {
-  groupId: string;
   stats: GroupStats;
   pulse: GroupPulse;
   race: NextRaceSummary;
   predictions: RailPrediction[];
+  leaderboard: LeaderboardRow[];
+  /** For the table's photos: leaderboard rows carry names, the member list carries faces. */
+  members: GroupMember[];
+  myUserId: string;
+  crowdVsModel: CrowdVsModel | null;
   showRace: boolean;
   showPredictions: boolean;
-  /** Switches the page's own tab rather than navigating - the rail sits beside the panel it
-   * points at, and a full navigation to re-render data already on screen would be a waste. */
-  onOpenTab: (tab: "predictions" | "members" | "about" | "feed") => void;
+  showLeaderboard: boolean;
+  /** Switches the page's own tab rather than navigating: the rail sits beside the panel it points at. */
+  onOpenTab: (tab: RailTab) => void;
 }) {
   return (
     <div className="space-y-3">
-      {showRace && <UpcomingRaceCard race={race} />}
-      <CommunityStatsCard groupId={groupId} stats={stats} onOpenTab={onOpenTab} />
-      {showPredictions && <ActivePredictionsCard predictions={predictions} onOpenTab={onOpenTab} />}
-      <CommunityPulseCard pulse={pulse} stats={stats} onOpenTab={onOpenTab} />
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return <section className="overflow-hidden rounded-2xl border border-white/10 bg-surface-1/60 backdrop-blur-sm">{children}</section>;
-}
-
-function CardHeader({ title, action }: { title: string; action?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-2 px-4 pt-3.5">
-      <h2 className="text-body-sm font-semibold text-primary">{title}</h2>
-      {action}
-    </div>
-  );
-}
-
-function ViewAllLink({ href, onClick }: { href?: string; onClick?: () => void }) {
-  const className = "shrink-0 rounded-control text-caption font-medium text-tertiary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
-  if (href) {
-    return (
-      <Link href={href} className={className}>
-        View all
-      </Link>
-    );
-  }
-  return (
-    <button type="button" onClick={onClick} className={className}>
-      View all
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------- upcoming race
-
-/**
- * The real next round, over its own real photo where the pipeline has one.
- *
- * The countdown counts to the race itself, which is the one session time a race row actually
- * carries - there's no per-session (qualifying/sprint) start time to count to, so none is claimed.
- * Once that instant passes, the card stops counting and says the weekend is underway instead of
- * running the clock backwards or silently dropping the badge.
- */
-function UpcomingRaceCard({ race }: { race: NextRaceSummary }) {
-  const now = useMinuteClock();
-  const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
-  const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;
-  const underway = !!raceAt && raceAt <= now;
-  const flag = countryFlag(race?.country);
-
-  return (
-    <Card>
-      <CardHeader title="Next race" action={<ViewAllLink href={race ? seasonHref(race.year) : "/season"} />} />
-
-      {!race ? (
-        <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No upcoming race is scheduled yet.</p>
-      ) : (
-        <div className="px-3 pb-3.5 pt-2.5">
-          {race.photoUrl && <Link href={raceHref(race.year, race.round, race.name)} className="group block">
-            <div className="relative aspect-[16/7] w-full overflow-hidden rounded-control bg-surface-2">
-              {/* `priority` because Next measured this as the page's Largest Contentful Paint - the rail sits
-                  above the fold and this is the only real photo on it, so lazy-loading it is what
-                  makes the page's headline paint wait on a second round trip. */}
-              {race.photoUrl && <Image src={race.photoUrl} alt="" fill priority sizes="320px" className="object-cover transition duration-500 group-hover:scale-[1.03]" />}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/35" />
-              <span className="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5 text-caption font-semibold text-white backdrop-blur-sm">
-                Round {race.round}
-              </span>
-            </div>
-          </Link>}
-
-          <div className={`${race.photoUrl ? "mt-2.5" : ""} flex items-start gap-2.5`}>
-            <div className="min-w-0 flex-1">
-              {!race.photoUrl && <p className="text-caption text-secondary">Round {race.round}</p>}
-              <p className="flex items-center gap-1.5 text-body-sm font-semibold leading-tight text-primary">
-                {flag && (
-                  <span aria-hidden className="shrink-0">
-                    {flag}
-                  </span>
-                )}
-                <span className="min-w-0 truncate">{race.name}</span>
-              </p>
-              {race.circuit && <p className="mt-0.5 truncate text-caption text-tertiary">{race.circuit}</p>}
-              {race.raceDate && (
-                <p className="mt-0.5 text-caption text-tertiary">
-                  {parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
-                </p>
-              )}
-              {/* A calendar round the pipeline hasn't dated yet is a real state - it says so rather
-                  than inventing a date or quietly showing nothing where a date belongs. */}
-              {!race.raceDate && <p className="mt-0.5 text-caption text-tertiary">Date to be confirmed</p>}
-            </div>
-
-            {(countdown || underway) && (
-              <div className="shrink-0 rounded-control border border-white/15 bg-surface-2 px-2 py-1 text-center">
-                <p className="text-body-sm font-semibold leading-none tabular text-primary">{countdown ?? "Live"}</p>
-                <p className="mt-0.5 text-caption text-secondary">{underway ? "Underway" : "to lights out"}</p>
-              </div>
-            )}
-          </div>
+      {showRace && (
+        <div className={`overflow-hidden ${PANEL}`}>
+          <RaceWeekend race={race} />
         </div>
       )}
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------- stats
-
-function CommunityStatsCard({ groupId, stats, onOpenTab }: { groupId: string; stats: GroupStats; onOpenTab: (tab: "members") => void }) {
-  const { user } = useAuth();
-  const online = useCommunityPresence(groupId, user?.uid ?? null);
-
-  return (
-    <Card>
-      <CardHeader title="Community stats" action={<ViewAllLink onClick={() => onOpenTab("members")} />} />
-      <div className="flex items-start gap-3 px-4 pb-4 pt-3">
-        <Stat icon={<Icon icon={Users} size={16} />} value={compactCount(stats.members)} label="Members" />
-        {/* Omitted entirely, not zeroed, when presence hasn't connected - see useCommunityPresence. */}
-        {online !== null && <Stat icon={<OnlineDot />} value={compactCount(online)} label="Online" />}
-        <Stat icon={<Icon icon={FileText} size={16} />} value={compactCount(stats.posts)} label={stats.posts === 1 ? "Post" : "Posts"} />
+      {showRace && (
+        <div className={`p-4 ${PANEL}`}>
+          <ApexWidget location={race?.circuit ?? null} year={race?.year ?? null} />
+        </div>
+      )}
+      {showLeaderboard && leaderboard.length > 0 && (
+        <div className={`p-4 ${PANEL}`}>
+          <LeagueTable rows={leaderboard} members={members} myUserId={myUserId} crowdVsModel={crowdVsModel} onOpen={() => onOpenTab("leaderboard")} />
+        </div>
+      )}
+      {showPredictions && (
+        <div className={`p-4 ${PANEL}`}>
+          <OpenRounds predictions={predictions} onOpen={() => onOpenTab("predictions")} />
+        </div>
+      )}
+      <div className={`p-4 ${PANEL}`}>
+        <SinceLastVisit pulse={pulse} stats={stats} onOpen={() => onOpenTab("feed")} />
       </div>
-    </Card>
-  );
-}
-
-function Stat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return (
-    <div className="min-w-0 flex-1">
-      <p className="flex items-center gap-1.5 text-body font-bold leading-none text-white">
-        <span className="shrink-0 text-tertiary">{icon}</span>
-        <span className="truncate tabular">{value}</span>
-      </p>
-      <p className="mt-1 truncate text-caption text-tertiary">{label}</p>
     </div>
   );
 }
 
-// ---------------------------------------------------------------- predictions
+function WidgetHeader({ title, action }: { title: string; action?: { label: string; onClick: () => void } }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <h2 className={EYEBROW}>{title}</h2>
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="flex shrink-0 items-center gap-0.5 rounded-control text-caption text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          {action.label}
+          <Icon icon={ChevronRight} size={16} className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
 
-function ActivePredictionsCard({ predictions, onOpenTab }: { predictions: RailPrediction[]; onOpenTab: (tab: "predictions") => void }) {
-  const now = useMinuteClock();
+// ---------------------------------------------------------------- league table
+
+/**
+ * The top of this community's prediction league as a timing tower: position, face, name, points, and the gap to the
+ * leader in Season's mono, the way the championship table reads. When you're outside the top rows your own line is
+ * pinned under them, so you always see where you stand. Under it, the crowd against the Apex model this season.
+ */
+function LeagueTable({ rows, members, myUserId, crowdVsModel, onOpen }: { rows: LeaderboardRow[]; members: GroupMember[]; myUserId: string; crowdVsModel: CrowdVsModel | null; onOpen: () => void }) {
+  const faces = new Map(members.map((m) => [m.userId, m.avatarUrl ?? null]));
+  const leader = rows[0]?.totalScore ?? 0;
+  const top = rows.slice(0, TABLE_ROWS);
+  const me = rows.find((r) => r.userId === myUserId);
+  const pinned = me && !top.includes(me) ? me : null;
+  const record = crowdVsModel?.byCommunity[0] ?? null;
+
+  const line = (r: LeaderboardRow) => {
+    const isMe = r.userId === myUserId;
+    const name = r.displayName ?? r.username ?? "Member";
+    return (
+      <li key={r.userId} className={`flex items-center gap-2.5 py-2 ${isMe ? "-mx-2 rounded-control bg-white/[0.04] px-2" : ""}`}>
+        <span className={`w-5 shrink-0 font-mono text-caption tabular ${r.rank <= 3 ? "font-semibold text-primary" : "text-tertiary"}`}>{r.rank}</span>
+        {/* The leader's line carries the one red mark in the widget. */}
+        <span aria-hidden className={`h-4 w-0.5 shrink-0 rounded-full ${r.rank === 1 ? "bg-brand" : "bg-white/15"}`} />
+        <EntityAvatar imageUrl={faces.get(r.userId) ?? null} name={name} seed={r.userId} size={24} />
+        <span className="min-w-0 flex-1 truncate text-body-sm text-primary">
+          {name}
+          {isMe && <span className="ml-1.5 text-caption text-tertiary">You</span>}
+        </span>
+        <span className="shrink-0 text-body-sm font-semibold tabular text-primary">{compactCount(r.totalScore)}</span>
+        <span className="w-12 shrink-0 text-right font-mono text-caption tabular text-tertiary">{r.rank === 1 ? "-" : `−${compactCount(leader - r.totalScore)}`}</span>
+      </li>
+    );
+  };
 
   return (
-    <Card>
-      <CardHeader title="Open prediction rounds" action={<ViewAllLink onClick={() => onOpenTab("predictions")} />} />
+    <div>
+      <WidgetHeader title="League table" action={{ label: "Full table", onClick: onOpen }} />
+      <ol className="mt-2" aria-label="Top of the league">
+        {top.map(line)}
+      </ol>
+      {pinned && (
+        <ol className="mt-1 border-t border-dashed border-white/[0.08] pt-1" aria-label="Your position">
+          {line(pinned)}
+        </ol>
+      )}
+      {record && record.rounds > 0 && (
+        <div className="mt-3 border-t border-white/[0.06] pt-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className={EYEBROW}>Crowd vs Apex</h3>
+            <span className="text-caption tabular text-tertiary">
+              {record.rounds} settled round{record.rounds === 1 ? "" : "s"}
+            </span>
+          </div>
+          <CrowdBar crowd={record.crowd} model={record.model} />
+        </div>
+      )}
+    </div>
+  );
+}
 
+/** The crowd's calls against the model's, as two figures either side of a split bar. */
+function CrowdBar({ crowd, model }: { crowd: number; model: number }) {
+  const total = crowd + model;
+  const share = total ? (crowd / total) * 100 : 50;
+  const verdict = crowd > model ? "The crowd leads" : model > crowd ? "Apex leads" : "Level";
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-2.5 text-body-sm">
+        <span className="shrink-0 text-secondary">
+          Crowd <span className="font-semibold tabular text-primary">{crowd}</span>
+        </span>
+        <span aria-hidden className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+          <span className="h-full bg-success/80" style={{ width: `${share}%` }} />
+          <span className="h-full flex-1 bg-info/70" />
+        </span>
+        <span className="shrink-0 text-secondary">
+          <span className="font-semibold tabular text-primary">{model}</span> Apex
+        </span>
+      </div>
+      <p className="mt-1 text-caption text-tertiary">{verdict} this season. Apex picks after qualifying; the crowd before it.</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- open rounds
+
+function OpenRounds({ predictions, onOpen }: { predictions: RailPrediction[]; onOpen: () => void }) {
+  const now = useMinuteClock();
+  return (
+    <div>
+      <WidgetHeader title="Open rounds" action={predictions.length ? { label: "All rounds", onClick: onOpen } : undefined} />
       {predictions.length === 0 ? (
-        <p className="px-4 pb-4 pt-2 text-xs leading-relaxed text-tertiary">No open rounds right now. New ones appear as a race weekend approaches.</p>
+        <p className="mt-1.5 text-body-sm text-secondary">No open rounds right now. New ones appear as a race weekend approaches.</p>
       ) : (
-        <div className="space-y-3 px-4 pb-4 pt-2.5">
+        <ul className="mt-1">
           {predictions.map(({ prediction, trend }) => {
-            // The deadline is the server's (lockAt: the start of the weekend's Qualifying session), so
-            // this says "Closes in" exactly while the server still accepts entries, and names the
-            // round as waiting on its result once that has passed.
+            // The deadline is the server's (lockAt: the start of the weekend's qualifying), so this says "Closes in"
+            // exactly while entries are still accepted.
             const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
             const isOpen = predictionStateAt(prediction.status, prediction.lockAt, now) === "open";
             const countdown = isOpen && lockMs !== null ? formatCountdown(lockMs, now) : null;
-            const awaitingResult = !isOpen;
             const urgent = isOpen && lockMs !== null && lockMs - now < 24 * 60 * 60 * 1000;
-
             return (
-              <div key={prediction.id}>
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-body-sm font-semibold leading-tight text-white">{prediction.raceName}</p>
-                    <p className="mt-0.5 truncate text-caption text-tertiary">{predictionTypeLabels[prediction.type]}</p>
-                  </div>
-                  <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-caption font-semibold tabular text-neutral-200">{prediction.entryPoints} pts</span>
+              <li key={prediction.id} className="border-b border-white/[0.06] py-3 last:border-b-0 last:pb-0">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="min-w-0 truncate text-body-sm font-medium text-primary">{predictionTypeLabels[prediction.type]}</p>
+                  <span className="shrink-0 text-caption tabular text-secondary">{prediction.entryPoints} pts</span>
                 </div>
-
-                <p className={`mt-1 text-caption tabular ${urgent ? "font-medium text-warning" : "text-tertiary"}`}>
-                  {countdown ? `Closes in ${countdown}` : awaitingResult ? "Awaiting result" : "Open"}
-                  {prediction.myEntry && <span className="ml-1.5 font-medium normal-case text-emerald-400/90">· Entered</span>}
+                <p className="mt-0.5 truncate text-caption text-tertiary">
+                  {prediction.raceName} ·{" "}
+                  <span className={`tabular ${urgent ? "text-warning" : ""}`}>{countdown ? `closes in ${countdown}` : "awaiting result"}</span>
+                  {prediction.myEntry && <span className="text-success"> · Entered</span>}
                 </p>
-
                 <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} trend={trend} compact />
-              </div>
+              </li>
             );
           })}
-
-          <button
-            type="button"
-            onClick={() => onOpenTab("predictions")}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2.5 text-body-sm font-medium text-neutral-100 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-          >
-            <Icon icon={ChartNoAxesColumn} size={16} />
-            {/* "Enter" only where entering is actually still possible - a round waiting on a result
-                takes you to the same panel, but the label doesn't promise an entry it won't accept. */}
-            {predictions.every(({ prediction }) => prediction.myEntry) ? "Review your predictions" : "Enter prediction"}
-          </button>
-        </div>
+        </ul>
       )}
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------- pulse
-
-/**
- * A computed digest, not a model call - every line is a count over this community's own tables.
- *
- * There is deliberately no "sentiment" line. Nothing in this app measures the mood of a community's
- * posts, and a percentage next to the word "sentiment" would be the one invented number on a page
- * of real ones. What sits in its place is a real, checkable figure: this week's published posts
- * against last week's.
- */
-function CommunityPulseCard({ pulse, stats, onOpenTab }: { pulse: GroupPulse; stats: GroupStats; onOpenTab: (tab: "feed") => void }) {
-  const [expanded, setExpanded] = useState(false);
-
-  type PulseLine = { icon: React.ReactNode; text: string };
-  const lines: PulseLine[] = pulse.hasPriorVisit
-    ? ([
-        pulse.newPosts > 0 ? { icon: <Icon icon={MessageSquare} size={16} />, text: `${pulse.newPosts} new ${pulse.newPosts === 1 ? "discussion" : "discussions"}` } : null,
-        pulse.repliesToYou > 0 ? { icon: <Icon icon={Reply} size={16} />, text: `${pulse.repliesToYou} new ${pulse.repliesToYou === 1 ? "reply" : "replies"} to your posts` } : null,
-        pulse.newPredictionEntries > 0
-          ? { icon: <Icon icon={ChartNoAxesColumn} size={16} />, text: `${pulse.newPredictionEntries} prediction ${pulse.newPredictionEntries === 1 ? "entry" : "entries"}` }
-          : null,
-        pulse.newMembers > 0 ? { icon: <Icon icon={Users} size={16} />, text: `${pulse.newMembers} new ${pulse.newMembers === 1 ? "member" : "members"}` } : null,
-      ] satisfies (PulseLine | null)[]).filter((line) => line !== null)
-    : [];
-
-  return (
-    <Card>
-      <div className="px-4 pb-4 pt-3.5">
-        <div className="flex items-center gap-1.5">
-          <span aria-hidden className="text-tertiary">
-            ✦
-          </span>
-          <h2 className="text-body-sm font-semibold text-primary">Community pulse</h2>
-        </div>
-
-        {pulse.hasPriorVisit ? (
-          <>
-            <p className="mt-1.5 text-caption text-tertiary">Since you were last here</p>
-            {lines.length === 0 ? (
-              <p className="mt-2 text-xs leading-relaxed text-tertiary">Nothing new since your last visit.</p>
-            ) : (
-              <ul className="mt-2 space-y-1.5">
-                {lines.map((line) => (
-                  <li key={line.text} className="flex items-center gap-2 text-xs text-secondary">
-                    <span aria-hidden className="shrink-0 text-tertiary">
-                      {line.icon}
-                    </span>
-                    <span className="min-w-0 truncate">{line.text}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        ) : (
-          // A first visit has nothing to diff against, so it gets the standing picture instead of
-          // "no changes since your last visit" - a claim about a visit that never happened.
-          <>
-            <p className="mt-1.5 text-caption text-tertiary">This week here</p>
-            <ul className="mt-2 space-y-1.5">
-              <li className="flex items-center gap-2 text-xs text-secondary">
-                <span aria-hidden className="shrink-0 text-tertiary">
-                  <Icon icon={MessageSquare} size={16} />
-                </span>
-                <span>
-                  {stats.weeklyPosts} {stats.weeklyPosts === 1 ? "discussion" : "discussions"}
-                </span>
-              </li>
-              <li className="flex items-center gap-2 text-xs text-secondary">
-                <span aria-hidden className="shrink-0 text-tertiary">
-                  <Icon icon={Users} size={16} />
-                </span>
-                <span>
-                  {stats.activeMembers} {stats.activeMembers === 1 ? "member" : "members"} active
-                </span>
-              </li>
-            </ul>
-          </>
-        )}
-
-        <WeeklyTrendLine stats={stats} />
-
-        {expanded && (
-          <dl className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
-            <RecapRow label="Posts this week" value={String(stats.weeklyPosts)} />
-            <RecapRow label="Posts the week before" value={String(stats.previousWeeklyPosts)} />
-            <RecapRow label="Members active this week" value={String(stats.activeMembers)} />
-            <RecapRow label="Members" value={String(stats.members)} />
-            <RecapRow label="Posts all time" value={String(stats.posts)} />
-          </dl>
-        )}
-
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            aria-expanded={expanded}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-caption font-medium text-secondary transition hover:border-white/20 hover:text-white"
-          >
-            {expanded ? "Hide recap" : "View full recap"}
-            <span aria-hidden className={expanded ? "rotate-90 transition-transform" : "transition-transform"}>
-              <Icon icon={ChevronRight} size={16} />
-            </span>
-          </button>
-          {pulse.hasPriorVisit && lines.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onOpenTab("feed")}
-              className="shrink-0 rounded-xl border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-caption font-medium text-secondary transition hover:border-white/20 hover:text-white"
-            >
-              Feed
-            </button>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-/** This week's published posts against last week's. Only ever a percentage where a percentage is
- * defined: a week that follows a silent one has no meaningful "up 400%", so that case states the
- * raw figure instead, and two silent weeks state nothing at all. */
-function WeeklyTrendLine({ stats }: { stats: GroupStats }) {
-  const { weeklyPosts, previousWeeklyPosts } = stats;
-  if (weeklyPosts === 0 && previousWeeklyPosts === 0) return null;
-
-  if (previousWeeklyPosts === 0) {
-    return (
-      <p className="mt-2.5 border-t border-white/10 pt-2.5 text-xs text-secondary">
-        {weeklyPosts} {weeklyPosts === 1 ? "post" : "posts"} this week, after a quiet one
-      </p>
-    );
-  }
-
-  const delta = Math.round(((weeklyPosts - previousWeeklyPosts) / previousWeeklyPosts) * 100);
-  const flat = delta === 0;
-  return (
-    <p className="mt-2.5 flex items-center gap-1.5 border-t border-white/10 pt-2.5 text-xs text-secondary">
-      <span aria-hidden className="text-tertiary">
-        <Icon icon={Activity} size={16} />
-      </span>
-      <span className="min-w-0">
-        Activity{" "}
-        {flat ? (
-          <span className="text-secondary">level with last week</span>
-        ) : (
-          <>
-            <span className={delta > 0 ? "font-semibold text-emerald-400" : "font-semibold text-secondary"}>
-              {delta > 0 ? "↑" : "↓"} {Math.abs(delta)}%
-            </span>{" "}
-            this week
-          </>
-        )}
-      </span>
-    </p>
-  );
-}
-
-function RecapRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="min-w-0 truncate text-caption text-tertiary">{label}</dt>
-      <dd className="shrink-0 text-caption font-semibold tabular text-secondary">{value}</dd>
+      {predictions.length > 0 && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="mt-3 flex h-9 w-full items-center justify-center rounded-control border border-white/[0.1] bg-white/[0.03] text-body-sm font-medium text-primary transition-colors duration-fast hover:border-white/20 hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          {predictions.every(({ prediction }) => prediction.myEntry) ? "Review your picks" : "Make your picks"}
+        </button>
+      )}
     </div>
   );
 }
 
-// ---------------------------------------------------------------- icons
+// ---------------------------------------------------------------- since your last visit
 
-function OnlineDot() {
-  return <span aria-hidden className="block h-2 w-2 rounded-full bg-emerald-400" />;
+/** A computed digest, not a model call: every figure is a count over this community's own tables. A first visit has
+ * nothing to diff against, so it shows the week instead of claiming "nothing new" about a visit that never happened. */
+function SinceLastVisit({ pulse, stats, onOpen }: { pulse: GroupPulse; stats: GroupStats; onOpen: () => void }) {
+  const figures = pulse.hasPriorVisit
+    ? [
+        { label: "new posts", count: pulse.newPosts },
+        { label: pulse.repliesToYou === 1 ? "reply to you" : "replies to you", count: pulse.repliesToYou },
+        { label: "new picks", count: pulse.newPredictionEntries },
+        { label: pulse.newMembers === 1 ? "new member" : "new members", count: pulse.newMembers },
+      ]
+    : [
+        { label: "posts this week", count: stats.weeklyPosts },
+        { label: "active members", count: stats.activeMembers },
+      ];
+  const quiet = pulse.hasPriorVisit && figures.every((f) => f.count === 0);
+  return (
+    <div>
+      <WidgetHeader title={pulse.hasPriorVisit ? "Since your last visit" : "This week here"} action={pulse.hasPriorVisit && !quiet ? { label: "Feed", onClick: onOpen } : undefined} />
+      {quiet ? (
+        <p className="mt-1.5 text-body-sm text-secondary">You&apos;re caught up.</p>
+      ) : (
+        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2.5">
+          {figures.map((f) => (
+            <div key={f.label} className="min-w-0">
+              <dt className="sr-only">{f.label}</dt>
+              <dd className={`text-body font-semibold tabular ${f.count > 0 ? "text-primary" : "text-tertiary"}`}>{compactCount(f.count)}</dd>
+              <dd className="truncate text-caption text-secondary">{f.label}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
 }

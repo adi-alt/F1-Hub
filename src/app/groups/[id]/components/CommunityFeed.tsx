@@ -15,6 +15,11 @@ import { PostComposer, type ComposerCommunity } from "../../components/PostCompo
 import type { RaceOption } from "../../components/post/PredictionComposer";
 import { CreatePostModal, type DraftResult } from "../../components/post/CreatePostModal";
 import { DEFAULT_FEED_QUERY, FeedControls, isFiltered, type FeedQuery } from "./FeedControls";
+import { WeekendBar } from "../../components/weekend/WeekendBar";
+import { SessionResultCard } from "../../components/weekend/SessionResultCard";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { sessionEndsAt, sessionPhaseAt, type CommunitySession, type ResultLine, type SessionKey } from "@/lib/communityWeekend";
+import type { CommunityWeekendData } from "@/lib/supabase/communityWeekend";
 
 /** A post that exists on screen but not yet on the server. `pending` drives the "Sending..." state;
  * `failed` keeps it visible with a retry rather than silently dropping what the user wrote. */
@@ -72,6 +77,7 @@ export function CommunityFeed({
   composerOpen,
   onComposerOpenChange,
   focusPostId,
+  weekend = null,
 }: {
   groupId: string;
   communityName: string;
@@ -101,6 +107,9 @@ export function CommunityFeed({
   /** A shared post permalink's `?post=` id, resolved by the server component. The post it names
    * may or may not be in this feed's first page, so it's fetched on demand - see PermalinkPost. */
   focusPostId: string | null;
+  /** The race weekend this community is living in: the session bar above the feed, a session tag on each post, and
+   * each session's result dropped into the stream where it ended. Null outside F1 communities. */
+  weekend?: CommunityWeekendData;
 }) {
   const [posts, setPosts] = useState<OptimisticPost[]>(initialPosts);
   const [cursor, setCursor] = useState(initialCursor);
@@ -110,6 +119,17 @@ export function CommunityFeed({
   const [reloading, setReloading] = useState(false);
   const [reloadError, setReloadError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Race-weekend mode, as on the Communities home: a session chosen on the bar narrows the feed to what was said
+  // during and after it, with its result first. Results otherwise sit in the stream where their session ended, but
+  // only in the plain newest-first view, where "where it ended" means something.
+  const now = useMinuteClock();
+  const [session, setSession] = useState<SessionKey | null>(null);
+  const sessions = weekend?.sessions ?? [];
+  const tagFor = (post: GroupPost) => (sessions.length ? sessionPhaseAt(sessions, Date.parse(post.createdAt)) : null);
+  const results: { session: CommunitySession; lines: ResultLine[]; at: number }[] = weekend
+    ? sessions.filter((x) => weekend.results[x.key]?.length && sessionEndsAt(x) <= now).map((x) => ({ session: x, lines: weekend.results[x.key] as ResultLine[], at: sessionEndsAt(x) }))
+    : [];
 
   const canModerate = myRole === "admin" || myRole === "moderator";
   const kinds = postKindsFor(communityType, features, myRole);
@@ -283,8 +303,31 @@ export function CommunityFeed({
     void send(post.draft, post.id);
   }
 
+  type StreamItem = { kind: "post"; post: OptimisticPost; at: number } | { kind: "result"; session: CommunitySession; lines: ResultLine[]; at: number };
+  const plainView = !filtered;
+  const stream: StreamItem[] = session
+    ? [
+        ...results.filter((r) => r.session.key === session).map((r) => ({ kind: "result" as const, ...r })),
+        ...posts
+          .filter((post) => {
+            const tag = tagFor(post);
+            return !!tag && tag.phase !== "build-up" && tag.key === session;
+          })
+          .map((post) => ({ kind: "post" as const, post, at: Date.parse(post.createdAt) })),
+      ]
+    : [
+        ...posts.map((post) => ({ kind: "post" as const, post, at: Date.parse(post.createdAt) })),
+        // Only results from within the loaded page's span, so a result never lands below posts that aren't loaded yet.
+        ...(plainView ? results.filter((r) => !cursor || posts.length === 0 || r.at >= Date.parse(posts[posts.length - 1].createdAt)).map((r) => ({ kind: "result" as const, ...r })) : []),
+      ].sort((a, b) => (plainView ? b.at - a.at : 0));
+
   return (
     <div>
+      {weekend && (
+        <div className="mb-3">
+          <WeekendBar weekend={weekend} selected={session} onSelect={setSession} />
+        </div>
+      )}
       {canPost ? (
         // The full composer, not a prompt that has to be clicked before anything appears - the same
         // one the Communities home uses, pinned to this community so it can't post anywhere else.
@@ -297,7 +340,7 @@ export function CommunityFeed({
           onPosted={refresh}
         />
       ) : (
-        <p className="rounded-2xl border border-white/10 bg-surface-1/60 px-4 py-3 text-xs text-tertiary">
+        <p className="rounded-lg border border-white/[0.06] bg-white/[0.012] px-4 py-3 text-body-sm text-tertiary">
           {/* The real reason, from the community's own permission map - not a disabled box with no
               explanation. */}
           Posting in this community is limited to {permissionLevel(permissions, "post") === "admins" ? "admins" : "moderators and admins"}.
@@ -325,18 +368,33 @@ export function CommunityFeed({
           </p>
         ) : (
           <>
-            {posts.map((post, i) =>
-              post.failed ? (
-                <FailedPost key={post.id} post={post} onRetry={() => retry(post)} onDiscard={() => setPosts((prev) => prev.filter((p) => p.id !== post.id))} />
+            {stream.map((item, i) =>
+              item.kind === "result" ? (
+                weekend && (
+                  <SessionResultCard
+                    key={`result:${item.session.key}`}
+                    session={item.session}
+                    lines={item.lines}
+                    calledIt={weekend.calledIt[item.session.key]}
+                    audience="here"
+                    race={{ year: weekend.year, round: weekend.round, name: weekend.raceName }}
+                  />
+                )
+              ) : item.post.failed ? (
+                <FailedPost key={item.post.id} post={item.post} onRetry={() => retry(item.post)} onDiscard={() => setPosts((prev) => prev.filter((p) => p.id !== item.post.id))} />
               ) : (
-                <div key={post.id} className={post.pending ? "opacity-60" : ""}>
-                  <PostCard post={post} index={i} showGroup={false} canModerate={canModerate} onModerated={refresh} />
-                  {post.pending && <p className="mt-1 pl-1 text-caption text-tertiary">Sending…</p>}
+                <div key={item.post.id} className={item.post.pending ? "opacity-60" : ""}>
+                  <PostCard post={item.post} index={i} showGroup={false} canModerate={canModerate} onModerated={refresh} sessionTag={tagFor(item.post)} />
+                  {item.post.pending && <p className="mt-1 pl-1 text-caption text-tertiary">Sending…</p>}
                 </div>
               ),
             )}
 
-            {posts.length === 0 &&
+            {session && stream.length === 0 && (
+              <EmptyState icon={MessageSquare} message={`Nothing was posted here during or after ${sessions.find((x) => x.key === session)?.label ?? "this session"} yet.`} />
+            )}
+
+            {!session && posts.length === 0 &&
               // Two genuinely different empty states: a community with nothing in it at all, and a
               // filter that happens to match nothing. Telling someone to "start the first
               // conversation" because they searched for a word nobody has used would be wrong.
@@ -348,7 +406,7 @@ export function CommunityFeed({
                     <button
                       type="button"
                       onClick={() => setQuery({ ...DEFAULT_FEED_QUERY })}
-                      className="rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 hover:text-white"
+                      className="rounded-control border border-white/10 px-4 py-1.5 text-body-sm font-medium text-primary transition-colors duration-fast hover:border-white/30"
                     >
                       Clear filters
                     </button>
@@ -363,7 +421,7 @@ export function CommunityFeed({
                       <button
                         type="button"
                         onClick={() => onComposerOpenChange(true)}
-                        className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover"
+                        className="rounded-control bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover"
                       >
                         Start Discussion
                       </button>

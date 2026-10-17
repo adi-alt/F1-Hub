@@ -101,7 +101,7 @@ export function FeedControls({
   return (
     <div className="flex items-center gap-2">
       <div className="-mx-1 min-w-0 flex-1 overflow-x-auto px-1 scrollbar-hide">
-        <div className="flex min-w-max items-center gap-1.5">
+        <div className="flex min-w-max items-center gap-0.5">
           <Chip active={value.sort === "new" && value.kind === null} onClick={() => set({ sort: "new", kind: null })}>
             Latest
           </Chip>
@@ -118,7 +118,7 @@ export function FeedControls({
       </div>
 
       {searchOpen && (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 rounded-full border border-white/[0.12] bg-black/30 px-3 py-1.5 sm:max-w-xs">
+        <div className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-control border border-white/[0.08] bg-white/[0.02] px-2.5 sm:max-w-xs">
           <span aria-hidden className="shrink-0 text-tertiary">
             <Icon icon={Search} size={16} />
           </span>
@@ -134,7 +134,7 @@ export function FeedControls({
             }}
             placeholder="Search this community"
             aria-label="Search this community's posts"
-            className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-tertiary focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-body-sm text-primary placeholder:text-tertiary focus:outline-none"
           />
           <button
             type="button"
@@ -165,12 +165,12 @@ export function FeedControls({
               onClick={toggle}
               aria-expanded={open}
               aria-label="Sort and filter"
-              className={`relative flex h-8 w-8 items-center justify-center rounded-full border transition ${
-                open ? "border-white/25 bg-white/[0.08] text-white" : "border-white/10 text-secondary hover:border-white/25 hover:text-white"
+              className={`relative flex size-8 items-center justify-center rounded-control border transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                open ? "border-white/20 bg-white/[0.08] text-primary" : "border-white/[0.08] text-secondary hover:border-white/20 hover:text-primary"
               }`}
             >
               <Icon icon={ListFilter} size={16} />
-              {isFiltered(value) && <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />}
+              {isFiltered(value) && <span aria-hidden className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-brand" />}
             </button>
           )}
         >
@@ -203,7 +203,7 @@ export function FeedControls({
                   <span className="flex items-center gap-1.5">
                     Awaiting approval
                     {pendingCount !== undefined && pendingCount > 0 && (
-                      <span className="rounded-full bg-amber-400/15 px-1.5 text-caption font-semibold text-amber-400">{pendingCount}</span>
+                      <span className="rounded-control bg-warning/15 px-1.5 text-caption font-semibold tabular text-warning">{pendingCount}</span>
                     )}
                   </span>
                 </MenuToggle>
@@ -215,7 +215,7 @@ export function FeedControls({
                   <button
                     type="button"
                     onClick={() => onChange({ ...DEFAULT_FEED_QUERY })}
-                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-secondary transition hover:bg-white/[0.06] hover:text-white"
+                    className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary"
                   >
                     Reset to latest
                   </button>
@@ -244,8 +244,8 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition ${
-        active ? "border border-white/30 bg-surface-3 text-primary" : "border border-white/10 text-secondary hover:border-white/25 hover:text-primary"
+      className={`h-8 whitespace-nowrap rounded-control px-2.5 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        active ? "bg-white/[0.08] font-medium text-primary" : "text-secondary hover:bg-white/[0.04] hover:text-primary"
       }`}
     >
       {children}
@@ -259,7 +259,7 @@ function IconButton({ label, onClick, icon }: { label: string; onClick: () => vo
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-secondary transition hover:border-white/25 hover:text-white"
+      className="flex size-8 items-center justify-center rounded-control border border-white/[0.08] text-secondary transition-colors duration-fast hover:border-white/20 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       {icon}
     </button>
@@ -273,7 +273,7 @@ function MenuOption({ selected, onClick, children }: { selected: boolean; onClic
       onClick={onClick}
       aria-checked={selected}
       role="menuitemradio"
-      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-body-sm transition hover:bg-white/[0.06] ${
+      className={`flex w-full items-center justify-between gap-2 rounded-control px-2.5 py-1.5 text-left text-body-sm transition-colors duration-fast hover:bg-white/[0.06] ${
         selected ? "text-white" : "text-secondary"
       }`}
     >
@@ -294,7 +294,7 @@ function MenuToggle({ checked, onClick, children }: { checked: boolean; onClick:
       onClick={onClick}
       aria-checked={checked}
       role="menuitemcheckbox"
-      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-body-sm transition hover:bg-white/[0.06] ${
+      className={`flex w-full items-center justify-between gap-2 rounded-control px-2.5 py-1.5 text-left text-body-sm transition-colors duration-fast hover:bg-white/[0.06] ${
         checked ? "text-white" : "text-secondary"
       }`}
     >
