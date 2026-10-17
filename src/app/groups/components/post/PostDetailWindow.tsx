@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { attachmentBadge, attachmentKind, displayName } from "./attachmentMeta";
 import { mediaKind } from "@/lib/mediaKind";

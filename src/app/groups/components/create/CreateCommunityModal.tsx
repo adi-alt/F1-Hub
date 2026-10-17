@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";

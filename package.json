@@ -12,6 +12,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@number-flow/react": "^0.6.2",
     "@sentry/nextjs": "11.4.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
@@ -19,10 +20,12 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "@visx/curve": "^4.0.0",
+    "@visx/group": "^4.0.0",
     "@visx/shape": "^4.0.0",
     "framer-motion": "^12.43.0",
     "iron-session": "^8.0.4",
     "lucide-react": "^1.44.0",
+    "motion": "^12.43.0",
     "next": "16.3.8",
     "nodemailer": "^10.0.13",
     "pdfjs-dist": "^6.3.289",

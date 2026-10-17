@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
 

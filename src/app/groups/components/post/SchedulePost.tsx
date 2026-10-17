@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";

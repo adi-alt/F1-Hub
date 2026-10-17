@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Dialog } from "@/components/ui/Dialog";
 import { FitStack } from "./FitStack";
+import { RollingText } from "@/components/ui/RollingNumber";
+import { RingChart, Ring, RingCenter } from "@/components/charts/ring/ring-chart";
 import { ApexWidget } from "./ApexWidget";
 
 export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; circuit: string | null; photoUrl: string | null } | null;
@@ -143,7 +145,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
   return (
     <Link href={raceHref(race.year, race.round, race.name)} className="group block rounded-card focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring">
       {race.photoUrl && (
-        <div className="relative aspect-[16/7] overflow-hidden">
+        <div className="relative aspect-[8/3] overflow-hidden">
           <Image src={race.photoUrl} alt="" fill sizes="320px" className="object-cover transition-transform duration-slow ease-standard group-hover:scale-[1.03] motion-reduce:transition-none" />
         </div>
       )}
@@ -156,8 +158,9 @@ function RaceWeekend({ race }: { race: NextRace }) {
         <div className="mt-3 flex items-end justify-between gap-3">
           <div>
             <p className="text-caption text-secondary">{countdown ? "Lights out in" : "Race weekend"}</p>
+            {/* The digits turn over in place each minute (NumberFlow) instead of the line re-rendering. */}
             <p suppressHydrationWarning className="text-title-lg font-semibold tabular text-primary">
-              {countdown ?? "Underway"}
+              {countdown ? <RollingText text={countdown} /> : "Underway"}
             </p>
           </div>
           {race.raceDate && (
@@ -184,13 +187,42 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
     .filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open")
     .sort((a, b) => Number(a.hasEntered) - Number(b.hasEntered) || (a.lockAt ? Date.parse(a.lockAt) : Infinity) - (b.lockAt ? Date.parse(b.lockAt) : Infinity));
   const shown = open.slice(0, RAIL_ROUNDS);
+  const entered = open.filter((p) => p.hasEntered).length;
+  // The soonest deadline among the rounds you haven't entered: the one thing in this widget that can't wait.
+  const nextLock = open.filter((p) => !p.hasEntered && p.lockAt).map((p) => Date.parse(p.lockAt as string)).sort((a, b) => a - b)[0];
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-body-sm font-semibold text-primary">Open rounds</h3>
+      <div className="flex items-center gap-3">
+        {/* Your weekend at a glance: a Bklit ring filling as you enter this weekend's open rounds. */}
+        {open.length > 0 && (
+          <RingChart
+            size={48}
+            strokeWidth={5}
+            ringGap={0}
+            baseInnerRadius={17}
+            ariaLabel={`You've entered ${entered} of ${open.length} open rounds`}
+            data={[{ label: "entered", value: entered, maxValue: open.length, color: "var(--success)" }]}
+          >
+            <Ring index={0} />
+            <RingCenter valueClassName="text-caption font-semibold text-primary" labelClassName="sr-only">
+              <span className="text-caption font-semibold tabular text-primary">
+                {entered}/{open.length}
+              </span>
+            </RingCenter>
+          </RingChart>
+        )}
+        <div className="min-w-0 flex-1">
+          <h3 className="text-body-sm font-semibold text-primary">Open rounds</h3>
+          {open.length > 0 && (
+            <p suppressHydrationWarning className="truncate text-caption text-secondary">
+              {/* The ring carries "1/3"; this line carries what it can't: when the next one you haven't entered closes. */}
+              {entered === open.length ? "All entered" : nextLock !== undefined ? `Next closes in ${formatCountdown(nextLock, now)}` : `${open.length - entered} to enter`}
+            </p>
+          )}
+        </div>
         {open.length > RAIL_ROUNDS && (
-          <button type="button" onClick={() => setShowAll(true)} className="rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          <button type="button" onClick={() => setShowAll(true)} className="shrink-0 rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             See all <span className="tabular">{open.length}</span>
           </button>
         )}

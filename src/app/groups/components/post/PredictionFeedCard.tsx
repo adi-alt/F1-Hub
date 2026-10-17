@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { LayoutGroup, motion } from "motion/react";
 import { Check, Clock, Lock, Sparkles, X } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
@@ -9,6 +10,7 @@ import { DriverPicker } from "@/components/ui/F1Pickers";
 import { ensureVisible } from "@/lib/colorContrast";
 import { teamColor } from "@/lib/teamColors";
 import { Icon } from "@/components/ui/Icon";
+import { RollingNumber } from "@/components/ui/RollingNumber";
 import { predictionStateAt, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction, PredictionTrend } from "@/lib/supabase/groupPredictions";
 import { groupHref } from "@/lib/routes";
@@ -207,6 +209,7 @@ export function PredictionFeedCard({
           />
         ) : (
           <OptionTiles
+            layoutGroupId={`pick-${prediction.id}`}
             type={prediction.type}
             drivers={drivers}
             trend={shownTrend}
@@ -324,10 +327,11 @@ type TileState = "idle" | "selected" | "entered" | "correct" | "wrong";
  * for the one Enter button); your entered or the right answer is the success ring; a wrong pick dims. */
 function tileClass(state: TileState, interactive: boolean, dimWhenLocked = true) {
   const base =
-    "relative flex h-12 min-w-0 items-center gap-2 overflow-hidden rounded-control px-3 text-left transition-[background-color,box-shadow,opacity] duration-fast disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+    "relative flex h-12 min-w-0 items-center gap-2 rounded-control px-3 text-left transition-[background-color,box-shadow,opacity] duration-fast disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   switch (state) {
     case "selected":
-      return `${base} bg-white/[0.12] ring-1 ring-inset ring-white/60`;
+      // The ring and the lift are <Selection />, which slides here from the previous choice.
+      return `${base} bg-white/[0.05]`;
     case "entered":
     case "correct":
       return `${base} bg-success/10 ring-1 ring-inset ring-success/50`;
@@ -346,7 +350,7 @@ function TileDriver({ code, driver }: { code: string; driver?: DriverOption }) {
   const bar = driver?.team ? ensureVisible(teamColor(driver.team)) : "transparent";
   const surname = driver?.name.split(" ").slice(-1)[0];
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2">
+    <span className="relative flex min-w-0 flex-1 items-center gap-2">
       <span aria-hidden className="h-6 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: bar }} />
       <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} size={24} />
       <span className="min-w-0 truncate text-body-sm">
@@ -359,13 +363,31 @@ function TileDriver({ code, driver }: { code: string; driver?: DriverOption }) {
 
 /** The community's share of an option, as a hairline along the tile's foot: the size of the crowd at a glance. */
 function ShareLine({ pct }: { pct: number }) {
-  return <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-white/25" style={{ transform: `scaleX(${pct / 100})` }} />;
+  return (
+    <motion.span
+      aria-hidden
+      className="absolute bottom-0 left-2 right-2 h-0.5 origin-left rounded-full bg-white/25"
+      initial={{ scaleX: 0 }}
+      animate={{ scaleX: pct / 100 }}
+      transition={{ type: "spring", stiffness: 120, damping: 22 }}
+    />
+  );
 }
+
+/** The selected option's ring and lift, as one element shared across the card's tiles (motion's layoutId): choosing
+ * another option slides it there rather than switching one tile off and another on. */
+function Selection() {
+  return <motion.span aria-hidden layoutId="pick" className="absolute inset-0 rounded-control bg-white/[0.07] ring-1 ring-inset ring-white/60" transition={{ type: "spring", stiffness: 520, damping: 38 }} />;
+}
+
+/** Tiles give a little under the finger, like a button on a betting slip. */
+const TAP = { scale: 0.97 };
 
 /** A single-driver (or retirement-count) round's outcomes: the community's most-picked first, filled from the
  * race's line-up; any other driver is one picker away. Each shows the driver as everywhere else on the site (team
  * bar, headshot, code) and the share of the community's picks. */
 function OptionTiles({
+  layoutGroupId,
   type,
   drivers,
   trend,
@@ -375,6 +397,8 @@ function OptionTiles({
   correct,
   onSelect,
 }: {
+  /** Scopes the sliding selection to this card (one round's tiles never animate into another's). */
+  layoutGroupId: string;
   type: PredictionType;
   drivers: DriverOption[];
   trend: PredictionTrend | null;
@@ -387,50 +411,58 @@ function OptionTiles({
   const share = new Map((trend?.options ?? []).filter((o) => o.key !== "__other__").map((o) => [o.key, o.pct]));
   const marker = (state: TileState, key: string) =>
     state === "correct" || state === "entered" ? (
-      <Icon icon={Check} size={16} className="shrink-0 text-success" />
+      <Icon icon={Check} size={16} className="relative shrink-0 text-success" />
     ) : state === "wrong" ? (
-      <Icon icon={X} size={16} className="shrink-0 text-tertiary" />
+      <Icon icon={X} size={16} className="relative shrink-0 text-tertiary" />
     ) : share.has(key) ? (
-      <span title={`${share.get(key)}% of this community's picks`} className="shrink-0 text-body-sm font-medium tabular text-secondary">
-        {share.get(key)}%
+      <span title={`${share.get(key)}% of this community's picks`} className="relative shrink-0 text-body-sm font-medium tabular text-secondary">
+        <RollingNumber value={share.get(key) ?? 0} suffix="%" />
       </span>
     ) : null;
 
   if (type === "dnf_count") {
     return (
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-        {DNF_OPTIONS.map((n) => {
-          const state = stateFor(n, selected, entered, correct);
-          return (
-            <button key={n} type="button" disabled={!picking} aria-pressed={state === "selected" || state === "entered"} onClick={() => onSelect(n)} className={`${tileClass(state, picking)} justify-center`}>
-              <span className="text-body font-semibold tabular text-primary">{n}</span>
-              {share.has(String(n)) && <ShareLine pct={share.get(String(n)) ?? 0} />}
-            </button>
-          );
-        })}
-      </div>
+      <LayoutGroup id={layoutGroupId}>
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+          {DNF_OPTIONS.map((n) => {
+            const state = stateFor(n, selected, entered, correct);
+            return (
+              <motion.button key={n} type="button" disabled={!picking} whileTap={picking ? TAP : undefined} aria-pressed={state === "selected" || state === "entered"} onClick={() => onSelect(n)} className={`${tileClass(state, picking)} justify-center`}>
+                {state === "selected" && <Selection />}
+                <span className="relative text-body font-semibold tabular text-primary">{n}</span>
+                {share.has(String(n)) && <ShareLine pct={share.get(String(n)) ?? 0} />}
+              </motion.button>
+            );
+          })}
+        </div>
+      </LayoutGroup>
     );
   }
+  // A stable order, so choosing never reshuffles the tiles under the pointer: the community's favourites, then the
+  // line-up, up to TILES; a pick, entry or answer from beyond that (chosen via "Another driver") is added at the end.
   const codes: string[] = [];
   const add = (c: unknown) => typeof c === "string" && c && !codes.includes(c) && codes.push(c);
-  [correct, entered, selected].forEach(add);
-  (trend?.options ?? []).forEach((o) => o.key !== "__other__" && add(o.key));
+  (trend?.options ?? []).forEach((o) => o.key !== "__other__" && codes.length < TILES && add(o.key));
   drivers.forEach((d) => codes.length < TILES && add(d.code));
+  [correct, entered, selected].forEach(add);
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-3">
-        {codes.map((code) => {
-          const d = drivers.find((x) => x.code === code);
-          const state = stateFor(code, selected, entered, correct);
-          return (
-            <button key={code} type="button" disabled={!picking} aria-pressed={state === "selected" || state === "entered"} aria-label={d?.name ?? code} onClick={() => onSelect(code)} className={tileClass(state, picking)}>
-              <TileDriver code={code} driver={d} />
-              {marker(state, code)}
-              {share.has(code) && <ShareLine pct={share.get(code) ?? 0} />}
-            </button>
-          );
-        })}
-      </div>
+      <LayoutGroup id={layoutGroupId}>
+        <div className="grid grid-cols-2 gap-2 @2xl:grid-cols-3">
+          {codes.map((code) => {
+            const d = drivers.find((x) => x.code === code);
+            const state = stateFor(code, selected, entered, correct);
+            return (
+              <motion.button key={code} type="button" disabled={!picking} whileTap={picking ? TAP : undefined} aria-pressed={state === "selected" || state === "entered"} aria-label={d?.name ?? code} onClick={() => onSelect(code)} className={tileClass(state, picking)}>
+                {state === "selected" && <Selection />}
+                <TileDriver code={code} driver={d} />
+                {marker(state, code)}
+                {share.has(code) && <ShareLine pct={share.get(code) ?? 0} />}
+              </motion.button>
+            );
+          })}
+        </div>
+      </LayoutGroup>
       {picking && drivers.length > codes.length && (
         <div className="mt-2 @2xl:max-w-[calc((100%-1rem)/3)] @md:max-w-[calc((100%-0.5rem)/2)]">
           <DriverPicker drivers={drivers.filter((d) => !codes.includes(d.code))} value="" onChange={(code) => code && onSelect(code)} placeholder="Another driver…" ariaLabel="Pick another driver" />

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { groupHref } from "@/lib/routes";
+import { RollingNumber } from "@/components/ui/RollingNumber";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
@@ -45,7 +46,9 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
             {stats.map((r) => (
               <div key={r.key} className="min-w-0">
                 <dt className="sr-only">{r.label}</dt>
-                <dd className={`text-title-lg tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>{r.count}</dd>
+                <dd className={`text-title-lg tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>
+                  <RollingNumber value={r.count} />
+                </dd>
                 <dd className="truncate text-caption text-secondary">{r.label}</dd>
               </div>
             ))}

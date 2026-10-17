@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { askApex } from "@/components/apex/askApex";
+import { ShimmeringText } from "@/components/ui/ShimmeringText";
 import { useApexScope } from "@/components/apex/ApexScopeProvider";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
@@ -82,10 +83,13 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
       </div>
 
       {loading ? (
-        <div aria-busy className="mt-3 space-y-2">
-          <span className="block h-3.5 w-3/4 animate-pulse rounded bg-white/[0.08]" />
-          <span className="block h-3 w-full animate-pulse rounded bg-white/[0.08]" />
-          <span className="block h-3 w-5/6 animate-pulse rounded bg-white/[0.08]" />
+        // Apex is working: say so, with a light running along the words, over the shape of the summary to come.
+        <div aria-busy className="mt-2">
+          <ShimmeringText text="Apex is reading the circuit…" className="text-body-sm" />
+          <div aria-hidden className="mt-2 space-y-2">
+            <span className="block h-3 w-full rounded bg-white/[0.06]" />
+            <span className="block h-3 w-5/6 rounded bg-white/[0.06]" />
+          </div>
         </div>
       ) : take ? (
         <div className="mt-2">
@@ -116,7 +120,7 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
                 type="button"
                 onClick={() => askApex(q)}
                 aria-label={`Ask Apex: ${q}`}
-                className="group flex w-full items-start gap-2 rounded-control bg-white/[0.05] px-3 py-2 text-left text-body-sm text-primary/90 transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="group flex w-full items-start gap-2 rounded-control bg-white/[0.05] px-3 py-1.5 text-left text-body-sm text-primary/90 transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 <span className="min-w-0 flex-1 line-clamp-2">{SHORT_LABEL[q] ?? q}</span>
                 <Icon icon={ArrowUpRight} size={16} className="mt-0.5 shrink-0 text-tertiary group-hover:text-primary" />

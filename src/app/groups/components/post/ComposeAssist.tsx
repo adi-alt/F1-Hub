@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { Sparkles } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { useAnchoredPanel } from "./usePanelDirection";

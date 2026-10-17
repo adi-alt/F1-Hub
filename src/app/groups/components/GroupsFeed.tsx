@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -35,6 +35,15 @@ function interleave(posts: PostCardData[], predictions: FeedPrediction[]): FeedI
 /** The feed is a list (design spec P1, critique §5.1): posts separated by hairlines, no card per post. Prediction
  * rounds are the one boxed item, which is what marks them out as something to act on. */
 const FEED_LIST = "divide-y divide-white/[0.06]";
+
+/** How an item that arrives in a feed already on screen (your new post, the next page) enters: it drops in and
+ * settles. `initial={false}` on the AnimatePresence above it keeps the first render still. */
+const ARRIVE = {
+  initial: { opacity: 0, y: -10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0 },
+  transition: { type: "spring" as const, stiffness: 380, damping: 32 },
+};
 
 // Underline tabs: which feed the centre column shows is that column's main switch, not a small
 // in-card filter.
@@ -330,15 +339,17 @@ export function GroupsFeed({
             />
           ) : (
             <div className={FEED_LIST}>
-              {interleave(communityPosts, communityPredictions).map((item, i) =>
-                item.kind === "post" ? (
-                  <PostCard key={item.key} post={item.post} index={i} showGroup={false} />
-                ) : (
-                  <div key={item.key} className="py-4">
-                    <PredictionFeedCard prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
-                  </div>
-                ),
-              )}
+              <AnimatePresence initial={false}>
+                {interleave(communityPosts, communityPredictions).map((item, i) => (
+                  <motion.div key={item.key} {...ARRIVE} className={item.kind === "post" ? undefined : "py-4"}>
+                    {item.kind === "post" ? (
+                      <PostCard post={item.post} index={i} showGroup={false} />
+                    ) : (
+                      <PredictionFeedCard prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                    )}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </div>
@@ -382,15 +393,17 @@ export function GroupsFeed({
               />
             ) : (
               <div className={FEED_LIST}>
-                {interleave(posts, predictions).map((item, i) =>
-                  item.kind === "post" ? (
-                    <PostCard key={item.key} post={item.post} index={i} showGroup />
-                  ) : (
-                    <div key={item.key} className="py-4">
-                      <PredictionFeedCard prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
-                    </div>
-                  ),
-                )}
+                <AnimatePresence initial={false}>
+                  {interleave(posts, predictions).map((item, i) => (
+                    <motion.div key={item.key} {...ARRIVE} className={item.kind === "post" ? undefined : "py-4"}>
+                      {item.kind === "post" ? (
+                        <PostCard post={item.post} index={i} showGroup />
+                      ) : (
+                        <PredictionFeedCard prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             )}
           </TabPanels>

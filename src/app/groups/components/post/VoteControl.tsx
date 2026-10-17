@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowBigDown, ArrowBigUp } from "lucide-react";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
 
