@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { raceHref } from "@/lib/routes";
+import { teamColor } from "@/lib/teamColors";
 
 export type ExplorerRow = {
   id: string;
@@ -109,7 +111,7 @@ export function ArchiveRaceExplorer({ rows, entityColumnLabel, resultFilterKeys 
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search races…"
           aria-label="Search races"
-          className="h-9 min-w-0 flex-1 rounded-control border border-subtle bg-surface-1 px-3 text-body-sm text-primary placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-focus-ring sm:max-w-60"
+          className="h-9 w-full min-w-0 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 text-body-sm text-primary placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-focus-ring sm:w-60"
         />
         {decades.length > 1 && (
           <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by decade">
@@ -140,22 +142,22 @@ export function ArchiveRaceExplorer({ rows, entityColumnLabel, resultFilterKeys 
       {paged.length === 0 ? (
         <p className="py-10 text-center text-body-sm text-secondary">No races match this filter.</p>
       ) : (
-        <div className="overflow-x-auto rounded-card border border-subtle">
+        <div className={`overflow-x-auto ${PANEL}`}>
           <table className="w-full min-w-[34rem] text-left text-body-sm">
             <caption className="sr-only">Races</caption>
-            <thead className="border-b border-subtle bg-surface-1 text-caption uppercase text-secondary">
+            <thead className={`border-b border-white/[0.06] ${EYEBROW}`}>
               <tr>
-                <th scope="col" className="px-4 py-3 font-medium">Year</th>
-                <th scope="col" className="px-4 py-3 font-medium">Race</th>
-                <th scope="col" className="px-4 py-3 font-medium">{entityColumnLabel}</th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">Grid</th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">Finish</th>
-                <th scope="col" className="px-4 py-3 text-right font-medium">Pts</th>
+                <th scope="col" className="px-4 py-3">Year</th>
+                <th scope="col" className="px-4 py-3">Race</th>
+                <th scope="col" className="px-4 py-3">{entityColumnLabel}</th>
+                <th scope="col" className="px-4 py-3 text-right">Grid</th>
+                <th scope="col" className="px-4 py-3 text-right">Finish</th>
+                <th scope="col" className="px-4 py-3 text-right">Pts</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-subtle">
+            <tbody className="divide-y divide-white/[0.05]">
               {paged.map((r) => (
-                <tr key={r.id} onClick={() => open(r)} className="cursor-pointer transition-colors duration-fast hover:bg-white/[0.04]">
+                <tr key={r.id} onClick={() => open(r)} className="cursor-pointer transition-colors duration-fast hover:bg-white/[0.025]">
                   <td className="px-4 py-3 tabular">
                     <Link href={raceHref(r.year, r.round, r.raceName)} onClick={(e) => e.stopPropagation()} className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-focus-ring">
                       {r.year}
@@ -165,8 +167,11 @@ export function ArchiveRaceExplorer({ rows, entityColumnLabel, resultFilterKeys 
                   <td className="whitespace-nowrap px-4 py-3 text-secondary">
                     {r.entityLabel ? (
                       <span className="flex min-w-0 items-center gap-2">
-                        {r.entityAvatarUrl !== undefined && (
-                          <EntityAvatar imageUrl={r.entityAvatarUrl} name={r.entityLabel} size={r.entityIsLogo ? 18 : 22} shape={r.entityIsLogo ? "square" : "circle"} fit={r.entityIsLogo ? "contain" : "cover"} />
+                        {/* A team is its colour, as on Season's tables, not a logo too small to read; a driver keeps their face. */}
+                        {r.entityIsLogo ? (
+                          <span aria-hidden className="h-4 w-1 shrink-0 rounded-full" style={{ background: teamColor(r.entityLabel) }} />
+                        ) : r.entityAvatarUrl !== undefined && (
+                          <EntityAvatar imageUrl={r.entityAvatarUrl} name={r.entityLabel} size={22} fit="cover" />
                         )}
                         {r.entityHref ? (
                           <Link href={r.entityHref} onClick={(e) => e.stopPropagation()} className="truncate text-primary underline-offset-4 hover:underline">
@@ -180,9 +185,9 @@ export function ArchiveRaceExplorer({ rows, entityColumnLabel, resultFilterKeys 
                       "–"
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right tabular text-secondary">{r.grid ? `P${r.grid}` : "–"}</td>
+                  <td className="px-4 py-3 text-right font-mono text-caption tabular text-tertiary">{r.grid ? `P${r.grid}` : "–"}</td>
                   <td className={`px-4 py-3 text-right tabular ${r.finishRank != null && r.finishRank <= 3 ? "font-semibold text-primary" : "text-secondary"}`}>{r.finishText}</td>
-                  <td className="px-4 py-3 text-right tabular text-secondary">{r.points > 0 ? r.points : "–"}</td>
+                  <td className={`px-4 py-3 text-right tabular ${r.points > 0 ? "font-semibold text-primary" : "text-tertiary"}`}>{r.points > 0 ? r.points : "–"}</td>
                 </tr>
               ))}
             </tbody>

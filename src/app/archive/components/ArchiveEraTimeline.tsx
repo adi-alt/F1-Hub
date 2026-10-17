@@ -7,55 +7,47 @@ import type { EraSegment } from "./eraSegments";
 export type { EraSegment };
 
 /**
- * A driver's real team-by-team history, collapsed into contiguous stints (2001-2002 Minardi,
- * 2003-2006 Renault, 2007 McLaren, ...) and drawn as one proportional segmented bar rather than a
- * list of year-by-year cards - the "represent visually, not as a stack of cards" requirement for
- * this specific shape of data (a small number of real, contiguous ranges, not a long series to
- * plot). Segments are computed by the caller (buildEraSegments, now in ./eraSegments.ts - NOT this
- * file, since this file is "use client" and buildEraSegments is called directly from server code in
- * archive/page.tsx; see that module's own comment for why it moved) directly from real per-year
- * results - nothing here invents a grouping.
+ * A driver's team-by-team history, collapsed into contiguous stints (2007-2012 McLaren, 2013-2024 Mercedes, ...): one
+ * thin proportional bar in the teams' colours, and every stint written out beneath it with its years and races, so
+ * the story reads without hovering. Hovering a stint in either place picks it out in the other; nothing is hidden behind the hover. Segments
+ * are computed by the caller (buildEraSegments, in ./eraSegments.ts - not this file, since this file is "use client"
+ * and buildEraSegments is called from server code in archive/page.tsx) from real per-race results.
  */
 export function ArchiveEraTimeline({ segments }: { segments: EraSegment[] }) {
   const [active, setActive] = useState<number | null>(null);
   if (segments.length === 0) return null;
 
   const totalYears = segments.reduce((sum, s) => sum + (s.to - s.from + 1), 0);
+  const years = (s: EraSegment) => (s.from === s.to ? `${s.from}` : `${s.from}–${s.to}`);
+  const hover = (i: number) => ({ onMouseEnter: () => setActive(i), onMouseLeave: () => setActive(null) });
 
   return (
     <div>
-      <div className="flex h-8 w-full overflow-hidden rounded-md border border-subtle">
-        {segments.map((s, i) => {
-          const span = s.to - s.from + 1;
-          const widthPct = (span / totalYears) * 100;
-          const color = teamColor(s.label);
-          return (
-            <button
-              key={`${s.label}-${s.from}`}
-              type="button"
-              onMouseEnter={() => setActive(i)}
-              onMouseLeave={() => setActive(null)}
-              onFocus={() => setActive(i)}
-              onBlur={() => setActive(null)}
-              style={{ width: `${widthPct}%`, background: color }}
-              className="relative flex min-w-[2px] items-center justify-center border-r border-black/30 text-caption font-semibold text-primary last:border-r-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white"
-              aria-label={`${s.label}, ${s.from === s.to ? s.from : `${s.from} to ${s.to}`}, ${s.raceCount} race${s.raceCount === 1 ? "" : "s"}`}
-            >
-              {widthPct > 10 && <span className="truncate px-1">{s.label}</span>}
-            </button>
-          );
-        })}
+      <div aria-hidden className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full">
+        {segments.map((s, i) => (
+          <span
+            key={`${s.label}-${s.from}`}
+            {...hover(i)}
+            className="min-w-0.5 transition-opacity duration-fast"
+            style={{ width: `${((s.to - s.from + 1) / totalYears) * 100}%`, background: teamColor(s.label), opacity: active === null || active === i ? 1 : 0.3 }}
+          />
+        ))}
       </div>
-      <div className="mt-2 min-h-[18px] text-xs text-secondary">
-        {active !== null ? (
-          <span>
-            <span className="font-medium text-primary">{segments[active].label}</span> · {segments[active].from === segments[active].to ? segments[active].from : `${segments[active].from}–${segments[active].to}`} ·{" "}
-            {segments[active].raceCount} race{segments[active].raceCount === 1 ? "" : "s"}
-          </span>
-        ) : (
-          <span className="text-tertiary">Hover a segment for details</span>
-        )}
-      </div>
+      <ol className="mt-4 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-6">
+        {segments.map((s, i) => (
+          <li
+            key={`${s.label}-${s.from}`}
+            {...hover(i)}
+            className={`flex items-center gap-3 rounded-control px-2 py-1.5 transition-colors duration-fast ${active === i ? "bg-white/[0.04]" : ""}`}
+          >
+            <span aria-hidden className="h-4 w-1 shrink-0 rounded-full" style={{ background: teamColor(s.label) }} />
+            <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-primary sm:flex-none">{s.label}</span>
+            <span className="shrink-0 font-mono text-caption tabular text-tertiary">
+              {years(s)} · {s.raceCount} race{s.raceCount === 1 ? "" : "s"}
+            </span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

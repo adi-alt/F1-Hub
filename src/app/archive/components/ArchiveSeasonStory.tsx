@@ -40,25 +40,25 @@ export function ArchiveSeasonStory({ seasons, subject }: { seasons: SeasonPoint[
   return (
     <div>
       {/* The headline first (audit §7): the answer, then the shape. */}
-      <p className="text-body text-primary">
+      <p className="text-body-sm text-secondary">
         {titles.length > 0 ? (
           <>
             {titles.length === 1 ? "Champion in " : `${titles.length} titles: `}
-            <span className="font-semibold">{titles.map((t) => t.year).join(", ")}</span>.{" "}
+            <span className="font-semibold text-primary">{titles.map((t) => t.year).join(", ")}</span>.{" "}
           </>
         ) : null}
-        Best season: <span className="font-semibold tabular">{best.year}</span>, {best.points} points
+        Best season: <span className="font-semibold tabular text-primary">{best.year}</span>, {best.points} points
         {best.wins > 0 ? `, ${best.wins} win${best.wins === 1 ? "" : "s"}` : ""}.
       </p>
 
-      <div className="mt-6 overflow-x-auto pb-1">
-        <ol aria-label={`${subject}, points season by season`} className="flex h-56 min-w-full items-end gap-1" style={{ minWidth: `${sorted.length * 14}px` }}>
+      <div className="mt-5 overflow-x-auto pb-1">
+        <ol aria-label={`${subject}, points season by season`} className="flex h-40 min-w-full items-end border-b border-white/[0.06]" style={{ minWidth: `${sorted.length * 10}px` }}>
           {sorted.map((s, i) => {
             const h = Math.max(2, (s.points / max) * 100);
             const color = teamColor(s.team);
             return (
-              <li key={s.year} className="relative flex h-full min-w-2.5 flex-1 flex-col justify-end">
-                {s.champion && <Crown aria-hidden size={14} className="mx-auto mb-1 shrink-0 text-warning" />}
+              <li key={s.year} className="relative flex h-full min-w-2 flex-1 flex-col justify-end">
+                {s.champion && <Crown aria-hidden size={12} className="mx-auto mb-1 shrink-0 text-warning" />}
                 <Link
                   href={archiveSeasonHref(s.year)}
                   aria-label={`${s.year}: ${s.points} points, ${s.wins} wins, ${s.team}${s.champion ? ", champion" : ""}`}
@@ -66,12 +66,12 @@ export function ArchiveSeasonStory({ seasons, subject }: { seasons: SeasonPoint[
                   onMouseLeave={() => setActive(null)}
                   onFocus={() => setActive(s.year)}
                   onBlur={() => setActive(null)}
-                  className="block rounded-t-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  className="mx-auto block w-3/5 min-w-1.5 rounded-t-[2px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                   style={{ height: `${h}%` }}
                 >
                   <motion.span
-                    className="block h-full w-full origin-bottom rounded-t-sm"
-                    style={{ background: color, opacity: active === null || active === s.year ? 1 : 0.35, boxShadow: s.champion ? `0 0 12px ${color}` : undefined }}
+                    className="block h-full w-full origin-bottom rounded-t-[2px]"
+                    style={{ background: color, opacity: active === null ? 0.8 : active === s.year ? 1 : 0.3 }}
                     initial={reduce ? false : { scaleY: 0 }}
                     whileInView={{ scaleY: 1 }}
                     viewport={{ once: true, amount: 0.3 }}
@@ -82,17 +82,17 @@ export function ArchiveSeasonStory({ seasons, subject }: { seasons: SeasonPoint[
             );
           })}
         </ol>
-        <div className="mt-2 flex justify-between text-caption tabular text-tertiary" aria-hidden>
+        <div className="mt-1.5 flex justify-between font-mono text-caption tabular text-tertiary" aria-hidden>
           <span>{sorted[0].year}</span>
           {sorted.length > 2 && <span>{sorted[Math.floor(sorted.length / 2)].year}</span>}
           <span>{sorted[sorted.length - 1].year}</span>
         </div>
       </div>
 
-      <p className="mt-4 min-h-6 text-body-sm text-secondary" aria-live="polite">
+      <p className="mt-3 min-h-5 text-caption text-tertiary" aria-live="polite">
         {shown ? (
           <>
-            <span className="font-semibold text-primary">{shown.year}</span> · {shown.team} · {shown.points} points · {shown.wins} win{shown.wins === 1 ? "" : "s"}, {shown.podiums} podium
+            <span className="font-semibold text-primary">{shown.year}</span> · <span className="text-secondary">{shown.team}</span> · {shown.points} points · {shown.wins} win{shown.wins === 1 ? "" : "s"}, {shown.podiums} podium
             {shown.podiums === 1 ? "" : "s"} from {shown.races} race{shown.races === 1 ? "" : "s"}
             {shown.champion ? " · Champion" : ""}
           </>
