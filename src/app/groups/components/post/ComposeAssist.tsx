@@ -33,7 +33,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
   const [error, setError] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Portaled for the same reason the Emoji and GIF panels are - see useAnchoredPanel.
-  const style = useAnchoredPanel(triggerRef, 288, 300);
+  const style = useAnchoredPanel(triggerRef, 288, 300, { open });
 
   const hasDraft = draft.trim().length > 0;
 
@@ -70,7 +70,7 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
         aria-expanded={open}
         aria-label="Apex writing suggestions"
         title={hasDraft ? "Apex writing suggestions" : "Write something first"}
-        className={`flex size-7 shrink-0 items-center justify-center rounded-full text-body transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
+        className={`flex size-7 shrink-0 items-center justify-center rounded-control text-body transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-40 ${
           open ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
         }`}
       >
@@ -91,25 +91,25 @@ export function ComposeAssist({ draft, onReplace }: { draft: string; onReplace: 
           >
             {suggestion === null ? (
               <>
-                <p className="px-0.5 pb-1 text-caption font-semibold text-tertiary">Rewrite this draft</p>
-                <div className="grid grid-cols-2 gap-1">
+                <p className="px-2 pb-1 pt-0.5 text-caption font-semibold text-tertiary">Rewrite this draft</p>
+                <div className="grid grid-cols-2 gap-0.5">
                   {ACTIONS.map((a) => (
                     <button
                       key={a.key}
                       type="button"
                       disabled={busy !== null}
                       onClick={() => void run(a.key)}
-                      className="rounded-md px-2 py-1.5 text-left text-caption text-secondary transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+                      className="rounded-control px-2 py-1.5 text-left text-caption text-secondary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-focus-ring disabled:opacity-40"
                     >
                       {busy === a.key ? "Writing…" : a.label}
                     </button>
                   ))}
                 </div>
-                {error && <p className="mt-1.5 px-0.5 text-caption text-brand-text">{error}</p>}
+                {error && <p className="mt-1.5 px-2 text-caption text-brand-text">{error}</p>}
               </>
             ) : (
               <>
-                <p className="px-0.5 pb-1 text-caption font-semibold text-tertiary">Apex suggests</p>
+                <p className="px-2 pb-1 pt-0.5 text-caption font-semibold text-tertiary">Apex suggests</p>
                 <p className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md bg-black/25 p-2 text-caption leading-relaxed text-neutral-200 scrollbar-hide">{suggestion}</p>
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <button
