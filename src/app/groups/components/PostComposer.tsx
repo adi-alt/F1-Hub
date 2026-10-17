@@ -11,7 +11,7 @@ import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
 import { PostAttachment, type AttachmentView } from "./post/PostAttachment";
 import { renderPdfFirstPage } from "./post/pdfThumbnail";
-import { SchedulePost } from "./post/SchedulePost";
+import { ScheduledChip, SchedulePost } from "./post/SchedulePost";
 import type { PostStatus } from "@/lib/supabase/groupPosts";
 import { fileNameFromUrl } from "@/lib/mediaKind";
 import { PANEL } from "./panel";
@@ -444,7 +444,7 @@ export function PostComposer({
               {fixedGroupId
                 ? isOpen &&
                   fixedCommunity && (
-                    <span className="flex h-8 min-w-0 items-center gap-2 rounded-full bg-surface-2 px-2.5 text-caption text-secondary">
+                    <span className="flex h-8 min-w-0 items-center gap-2 rounded-control bg-surface-2 px-2.5 text-caption text-secondary">
                       <EntityAvatar imageUrl={fixedCommunity.avatarUrl} name={fixedCommunity.name} seed={fixedCommunity.id} size={16} shape="square" />
                       <span className="min-w-0 max-w-[10rem] truncate">{fixedCommunity.name}</span>
                     </span>
@@ -456,7 +456,9 @@ export function PostComposer({
                   )}
               {/* Scheduling lives inside the post control: it's a choice about how this post is published, not
                   something attached to it. The caret only appears when there's a real alternative to offer. */}
-              <div className="flex shrink-0 items-stretch overflow-hidden rounded-full">
+              {/* Once a time is chosen it shows as its own chip beside the button, not squeezed inside it. */}
+              {scheduledAt && !hasCall && <ScheduledChip value={scheduledAt} onClear={() => setScheduledAt("")} />}
+              <div className="flex shrink-0 items-stretch overflow-hidden rounded-control">
                 <button
                   type="button"
                   onClick={() => void submit()}
@@ -471,7 +473,7 @@ export function PostComposer({
                   {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : (justPosted ?? (scheduledAt ? "Schedule" : "Post"))}
                 </button>
                 {/* A call has to go out before its session, so a post that carries one can't be scheduled. */}
-                {(content.trim() || scheduledAt) && !hasCall && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
+                {content.trim() && !scheduledAt && !hasCall && <SchedulePost onChange={setScheduledAt} />}
               </div>
             </div>
           </div>
@@ -521,7 +523,7 @@ function ToolButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+      className={`flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
         active ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
       }`}
     >

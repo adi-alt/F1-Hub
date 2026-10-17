@@ -24,7 +24,7 @@ const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
  * is a plain month grid, and the time is two of the app's existing Picker dropdowns - both already
  * dark, keyboard-navigable and portal-rendered.
  */
-export function SchedulePost({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+export function SchedulePost({ onChange }: { onChange: (next: string) => void }) {
   const [open, setOpen] = useState(false);
   const initial = useMemo(() => roundUpToStep(addMinutes(new Date(), 30)), []);
   const [day, setDay] = useState<Date>(startOfDay(initial));
@@ -33,7 +33,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
   const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(initial));
   const [error, setError] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const style = useAnchoredPanel(triggerRef, 340, 460);
+  const style = useAnchoredPanel(triggerRef, 320, 520, { open, align: "end" });
 
   const quickOptions = [
     { label: "Tomorrow morning", date: atTime(addDays(new Date(), 1), 9, 0) },
@@ -51,24 +51,12 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
   function schedule() {
     const when = new Date(day);
     when.setHours(Number(hour), Number(minute), 0, 0);
-    if (when <= new Date()) {
-      setError("Pick a time in the future.");
+    // The server wants at least a minute's notice; say so here rather than after Post.
+    if (when.getTime() < Date.now() + 60_000) {
+      setError("Pick a time at least a minute from now.");
       return;
     }
     commit(when);
-  }
-
-  if (value) {
-    const when = new Date(value);
-    return (
-      <span className="flex h-[30px] items-center gap-1.5 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2 text-caption text-neutral-200">
-        <Icon icon={Clock} size={16} />
-        <span className="whitespace-nowrap tabular">{when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
-        <button type="button" onClick={() => onChange("")} title="Cancel scheduling" aria-label="Cancel scheduling" className="ml-0.5 text-tertiary transition hover:text-white">
-          <Icon icon={X} size={16} />
-        </button>
-      </span>
-    );
   }
 
   return (
@@ -97,10 +85,9 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                 exit={{ opacity: 0, y: 6, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
                 style={style}
-                /* A real frosted surface: the app's own carbon at 70% with a heavy backdrop blur,
-                   not the near-opaque tooltip token, which read as flat zinc because at 0.92 alpha
-                   almost nothing shows through to blur. */
-                className="overflow-y-auto rounded-xl border border-white/10 bg-surface-1/70 shadow-2xl backdrop-blur-2xl scrollbar-hide"
+                /* The same solid overlay surface as the Apex rewrite menu beside it: at 70% the feed's text showed
+                   through the calendar. */
+                className="overflow-y-auto rounded-card border border-white/10 bg-surface-2 shadow-overlay scrollbar-hide"
               >
                 <div className="relative p-3.5">
                   <button
@@ -141,7 +128,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
 
                   <div className="grid grid-cols-7 gap-0.5 text-center">
                     {WEEKDAYS.map((d, i) => (
-                      <span key={i} className="py-1 text-caption font-semiboldr text-tertiary">
+                      <span key={i} className="py-1 text-caption font-semibold text-tertiary">
                         {d}
                       </span>
                     ))}
@@ -188,17 +175,18 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                     </div>
                   </div>
 
-                  <div className="mt-3 space-y-1.5">
-                    <p className="text-caption font-semibold text-tertiary">Quick options</p>
+                  <p className="mt-3 text-caption font-semibold text-tertiary">Quick options</p>
+                  {/* Two by two, so the whole panel fits under the composer without scrolling. */}
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                     {quickOptions.map((option) => (
                       <button
                         key={option.label}
                         type="button"
                         onClick={() => commit(option.date)}
-                        className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left text-caption text-secondary transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+                        className="min-w-0 rounded-control border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left text-caption text-secondary transition-colors duration-fast hover:border-white/20 hover:bg-white/[0.07] hover:text-primary focus-visible:outline-2 focus-visible:outline-focus-ring"
                       >
-                        <span className="block font-medium">{option.label}</span>
-                        <span className="mt-0.5 block text-caption text-tertiary">
+                        <span className="block truncate font-medium">{option.label}</span>
+                        <span className="mt-0.5 block truncate text-caption text-tertiary">
                           {option.date.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </button>
@@ -212,7 +200,7 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
                     <button
                       type="button"
                       onClick={schedule}
-                      className="shrink-0 rounded-lg bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition hover:bg-brand-hover"
+                      className="shrink-0 rounded-control bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                     >
                       Schedule
                     </button>
@@ -224,6 +212,26 @@ export function SchedulePost({ value, onChange }: { value: string; onChange: (ne
           document.body,
         )}
     </>
+  );
+}
+
+/** The chosen time, beside Post once it's set: a clock, the time, and a way to take it back. */
+export function ScheduledChip({ value, onClear }: { value: string; onClear: () => void }) {
+  const when = new Date(value);
+  return (
+    <span className="flex h-8 items-center gap-1.5 rounded-control border border-white/[0.12] bg-white/[0.04] pl-2 pr-1 text-caption text-primary">
+      <Icon icon={Clock} size={16} className="text-tertiary" />
+      <span className="whitespace-nowrap tabular">{when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        title="Cancel scheduling"
+        aria-label="Cancel scheduling"
+        className="flex size-6 items-center justify-center rounded-control text-tertiary transition-colors duration-fast hover:bg-white/[0.07] hover:text-primary focus-visible:outline-2 focus-visible:outline-focus-ring"
+      >
+        <Icon icon={X} size={16} />
+      </button>
+    </span>
   );
 }
 
