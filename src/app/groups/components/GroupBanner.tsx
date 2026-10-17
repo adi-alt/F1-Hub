@@ -9,6 +9,8 @@ const ASPECT = {
   // overlay and, for an admin, the cover control) and both need somewhere to sit. Still identity/
   // accent rather than a hero image competing with the content it introduces.
   header: "aspect-[9/2] sm:aspect-[11/2]",
+  // Behind a page's head, edge to edge, as the circuit page's photography is: it fills whatever box it is given.
+  backdrop: "absolute inset-0",
 };
 
 /** The top strip of a group card/header - a real uploaded image when one exists, else a
@@ -18,10 +20,10 @@ const ASPECT = {
  * className override string-concatenated against the base class, which - as two Tailwind aspect-
  * ratio utilities of equal specificity - would have left the winner decided by generated-CSS
  * ordering, not by which one appears later in the class list. */
-export function GroupBanner({ bannerUrl, seed, variant = "card", className = "" }: { bannerUrl: string | null; seed: string; variant?: "card" | "header"; className?: string }) {
+export function GroupBanner({ bannerUrl, seed, variant = "card", className = "" }: { bannerUrl: string | null; seed: string; variant?: keyof typeof ASPECT; className?: string }) {
   return (
     <div
-      className={`relative ${ASPECT[variant]} w-full overflow-hidden bg-cover bg-center ${className}`}
+      className={`${variant === "backdrop" ? "" : "relative "}${ASPECT[variant]} w-full overflow-hidden bg-cover bg-center ${className}`}
       style={{ background: bannerUrl ? `url(${bannerUrl})` : bannerLayers(seed), backgroundSize: "cover", backgroundPosition: "center" }}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />

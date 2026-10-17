@@ -15,7 +15,8 @@ import type { GroupPulse, GroupStats } from "@/lib/supabase/groupStats";
 import type { NextRaceSummary } from "@/lib/supabase/nextRace";
 import type { RaceOption } from "../../components/post/PredictionComposer";
 import { CommunityFeed } from "./CommunityFeed";
-import { CommunityHeader } from "./CommunityHeader";
+import { CommunityHeader, type CommunityWindow } from "./CommunityHeader";
+import { Dialog } from "@/components/ui/Dialog";
 import { AboutTab, MediaTab } from "./CommunityModules";
 import { CommunityRightRail, type RailPrediction, type RailTab } from "./CommunityRightRail";
 import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communityWeekend";
@@ -32,6 +33,13 @@ type Tab = CommunityModule | "manage";
 function isTab(value: string | null, tabs: Tab[]): value is Tab {
   return !!value && (tabs as string[]).includes(value);
 }
+
+/** The sections that open as a window over the page instead of replacing the feed: secondary reading (media,
+ * members, about) and the admin's settings. The page's own tabs are the competitive ones: feed, predictions, league. */
+const WINDOWS: readonly CommunityWindow[] = ["media", "members", "about", "manage"];
+const isWindow = (value: string | null): value is CommunityWindow => !!value && (WINDOWS as readonly string[]).includes(value);
+
+const WINDOW_TITLES: Record<CommunityWindow, string> = { media: "Media", members: "Members", about: "About", manage: "Manage community" };
 
 /**
  * The community page itself: identity, navigation, the active panel, and the context rail beside
@@ -115,10 +123,14 @@ export function CommunityWorkspace({
   // Memoized because `openTab` below closes over it: a fresh array every render would give that
   // callback a new identity every render, and it's passed into the rail.
   const modules = useMemo(() => resolveModules(group.communityType, group.features), [group.communityType, group.features]);
-  const tabs: Tab[] = useMemo(() => (isAdmin ? [...modules, "manage"] : modules), [isAdmin, modules]);
+  const tabs: Tab[] = useMemo(() => modules.filter((m) => !isWindow(m)), [modules]);
+  const windows: CommunityWindow[] = useMemo(() => {
+    const own: CommunityWindow[] = modules.filter((m): m is CommunityModule & CommunityWindow => isWindow(m));
+    return isAdmin ? [...own, "manage"] : own;
+  }, [isAdmin, modules]);
   // Counts where a count is the useful thing to know before opening a tab.
   const openRoundCount = predictions.filter((p) => p.state === "open").length;
-  const tabCount: Partial<Record<Tab, number>> = { predictions: openRoundCount || undefined, members: memberCount };
+  const tabCount: Partial<Record<Tab, number>> = { predictions: openRoundCount || undefined };
   const tabItems: TabItem<Tab>[] = tabs.map((t) => ({ value: t, label: t === "manage" ? "Manage" : MODULE_LABELS[t], count: tabCount[t] }));
 
   const defaultTab = modules[0] ?? "feed";
@@ -126,6 +138,10 @@ export function CommunityWorkspace({
   // client render matches the server exactly - no hydration mismatch, and no mount-time effect
   // reading window.location just to correct itself one render later.
   const [tab, setTab] = useState<Tab>(isTab(initialTab, tabs) ? initialTab : defaultTab);
+  // A `?tab=members` link (or the rail's "Members") opens the window over the feed.
+  const [win, setWin] = useState<CommunityWindow | null>(isWindow(initialTab) && windows.includes(initialTab) ? initialTab : null);
+  // What the window shows: kept after it closes, so the content stays put while the dialog animates out.
+  const [shown, setShown] = useState<CommunityWindow | null>(win);
   // The full-post modal. Owned here, not in the feed, because the floating "Create post" button is
   // fixed to the viewport and lives outside the feed panel entirely.
   const [composerOpen, setComposerOpen] = useState(false);
@@ -135,6 +151,12 @@ export function CommunityWorkspace({
   useEffect(() => {
     function syncFromUrl() {
       const requested = new URLSearchParams(window.location.search).get("tab");
+      if (isWindow(requested) && windows.includes(requested)) {
+        setWin(requested);
+        setShown(requested);
+        return;
+      }
+      setWin(null);
       setTab(isTab(requested, tabs) ? requested : defaultTab);
     }
     window.addEventListener("popstate", syncFromUrl);
@@ -155,7 +177,7 @@ export function CommunityWorkspace({
   useRegisterApexScope({
     key: `community:${group.id}`,
     label: group.name,
-    sublabel: tab === "manage" ? "Manage" : MODULE_LABELS[tab as CommunityModule],
+    sublabel: win ? WINDOW_TITLES[win] : MODULE_LABELS[tab as CommunityModule],
     communityId: group.id,
     suggestions: [
 "Summarise what people are discussing here.",
@@ -165,7 +187,7 @@ export function CommunityWorkspace({
     context: {
       page: "community",
       snapshot: {
-        community: { currentTab: tab },
+        community: { currentTab: win ?? tab },
       },
     },
   });
@@ -181,33 +203,46 @@ export function CommunityWorkspace({
     [defaultTab],
   );
 
+  /** A window is linkable like a tab (`?tab=members`); closing it puts the URL back to the tab underneath. */
+  const openWindow = useCallback((next: CommunityWindow) => {
+    setWin(next);
+    setShown(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.pushState(null, "", url);
+  }, []);
+  const closeWindow = useCallback(() => {
+    setWin(null);
+    const url = new URL(window.location.href);
+    if (tab === defaultTab) url.searchParams.delete("tab");
+    else url.searchParams.set("tab", tab);
+    window.history.replaceState(null, "", url);
+  }, [tab, defaultTab]);
+
   /** The rail points at tabs beside it. A target this community doesn't have (a rail card is only
    * rendered when its module is on, but Members/About are required and always exist) falls through
    * to doing nothing rather than switching to a panel that isn't there. */
   const openTab = useCallback(
     (next: RailTab) => {
+      if (isWindow(next)) {
+        if (windows.includes(next)) openWindow(next);
+        return;
+      }
       if (!(tabs as string[]).includes(next)) return;
       select(next as Tab);
     },
-    [select, tabs],
+    [select, openWindow, tabs, windows],
   );
 
   const canPost = canDo(group.permissions, "post", group.myRole);
-  const showRail = tab !== "manage";
 
   return (
     <>
       {/* The community's head across the full width, then the active panel beside the rail. Below lg the rail follows
           the panel: the content first, the context under it. */}
-      <CommunityHeader
-        group={group}
-        stats={stats}
-        openRounds={modules.includes("predictions") ? openRoundCount : undefined}
-        pendingRequests={pendingRequests}
-        onOpenManage={() => select("manage")}
-      />
+      <CommunityHeader group={group} windows={windows} pendingRequests={pendingRequests} onOpenWindow={openWindow} />
 
-      <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6">
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={select} items={tabItems}>
             {/* The strip scrolls sideways on a narrow screen rather than wrapping to two rows. */}
@@ -249,20 +284,12 @@ export function CommunityWorkspace({
                   />
                 )}
                 {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
-                {tab === "media" && <MediaTab groupId={group.id} />}
-                {tab === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
-                {tab === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
-                {tab === "manage" && isAdmin && <ManageTabLazy group={group} />}
               </motion.div>
             </TabPanels>
           </Tabs>
         </div>
 
-        {/* Manage is a full-width settings surface with its own two-column layout; a context rail
-            beside it would be competing for the same space and pointing at panels the admin has
-            deliberately left. */}
-        {showRail && (
-          <aside className="mt-6 lg:sticky lg:top-20 lg:mt-0">
+        <aside className="mt-6 lg:sticky lg:top-20 lg:mt-0">
             <CommunityRightRail
               stats={stats}
               pulse={pulse}
@@ -278,8 +305,17 @@ export function CommunityWorkspace({
               onOpenTab={openTab}
             />
           </aside>
-        )}
       </div>
+
+      {/* Media, Members, About and Manage open over the page, so the feed underneath stays where it was. */}
+      {shown && (
+        <Dialog open={win !== null} onClose={closeWindow} title={WINDOW_TITLES[shown]} size={shown === "manage" || shown === "media" ? "xl" : "lg"}>
+          {shown === "media" && <MediaTab groupId={group.id} />}
+          {shown === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
+          {shown === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
+          {shown === "manage" && isAdmin && <ManageTabLazy group={group} />}
+        </Dialog>
+      )}
 
       {/* Fixed, bottom-right - the opposite corner from Ask Apex's own launcher, so the two can
           never collide. Only on the Feed tab, only for someone this community actually lets post, and

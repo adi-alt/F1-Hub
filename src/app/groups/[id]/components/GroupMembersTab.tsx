@@ -112,8 +112,9 @@ export function GroupMembersTab({ groupId, members, myRole, myUserId }: { groupI
     return <EmptyState icon={Users} message="This community is waiting for its first members." />;
   }
 
+  // One column: this opens in a window, where two would leave no room for a name beside the role controls.
   return (
-    <ul className="grid gap-2 sm:grid-cols-2">
+    <ul className="grid gap-2">
       {members.map((m) => (
         <MemberRow key={m.userId} groupId={groupId} member={m} myRole={myRole} myUserId={myUserId} />
       ))}

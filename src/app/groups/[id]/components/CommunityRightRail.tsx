@@ -87,9 +87,12 @@ export function CommunityRightRail({
           <OpenRounds predictions={predictions} onOpen={() => onOpenTab("predictions")} />
         </div>
       )}
-      <div className={`p-4 ${PANEL}`}>
-        <SinceLastVisit pulse={pulse} stats={stats} onOpen={() => onOpenTab("feed")} />
-      </div>
+      {/* Only when there is something new: a widget that says "nothing happened" is space taken for nothing. */}
+      {hasNews(pulse, stats) && (
+        <div className={`p-4 ${PANEL}`}>
+          <SinceLastVisit pulse={pulse} stats={stats} onOpen={() => onOpenTab("feed")} />
+        </div>
+      )}
     </div>
   );
 }
@@ -246,6 +249,10 @@ function OpenRounds({ predictions, onOpen }: { predictions: RailPrediction[]; on
 
 // ---------------------------------------------------------------- since your last visit
 
+function hasNews(pulse: GroupPulse, stats: GroupStats): boolean {
+  return pulse.hasPriorVisit ? pulse.newPosts + pulse.repliesToYou + pulse.newPredictionEntries + pulse.newMembers > 0 : stats.weeklyPosts + stats.activeMembers > 0;
+}
+
 /** A computed digest, not a model call: every figure is a count over this community's own tables. A first visit has
  * nothing to diff against, so it shows the week instead of claiming "nothing new" about a visit that never happened. */
 function SinceLastVisit({ pulse, stats, onOpen }: { pulse: GroupPulse; stats: GroupStats; onOpen: () => void }) {
@@ -260,23 +267,21 @@ function SinceLastVisit({ pulse, stats, onOpen }: { pulse: GroupPulse; stats: Gr
         { label: "posts this week", count: stats.weeklyPosts },
         { label: "active members", count: stats.activeMembers },
       ];
-  const quiet = pulse.hasPriorVisit && figures.every((f) => f.count === 0);
   return (
     <div>
-      <WidgetHeader title={pulse.hasPriorVisit ? "Since your last visit" : "This week here"} action={pulse.hasPriorVisit && !quiet ? { label: "Feed", onClick: onOpen } : undefined} />
-      {quiet ? (
-        <p className="mt-1.5 text-body-sm text-secondary">You&apos;re caught up.</p>
-      ) : (
-        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2.5">
-          {figures.map((f) => (
+      <WidgetHeader title={pulse.hasPriorVisit ? "Since your last visit" : "This week here"} action={pulse.hasPriorVisit ? { label: "Feed", onClick: onOpen } : undefined} />
+      {/* Only the figures that moved. */}
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2.5">
+        {figures
+          .filter((f) => f.count > 0)
+          .map((f) => (
             <div key={f.label} className="min-w-0">
               <dt className="sr-only">{f.label}</dt>
               <dd className={`text-body font-semibold tabular ${f.count > 0 ? "text-primary" : "text-tertiary"}`}>{compactCount(f.count)}</dd>
               <dd className="truncate text-caption text-secondary">{f.label}</dd>
             </div>
           ))}
-        </dl>
-      )}
+      </dl>
     </div>
   );
 }
