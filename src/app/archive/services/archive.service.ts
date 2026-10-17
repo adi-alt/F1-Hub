@@ -9,8 +9,7 @@ import {
   getArchiveRace,
   getArchiveRaceLaps,
   getArchiveRacesByCircuitId,
-  getArchiveRacesByDriver,
-  getArchiveRacesByTeam,
+  getArchiveEntityRaces,
   getArchiveSeason,
   getArchiveTeam,
   getArchiveYearStats,
@@ -71,8 +70,10 @@ export async function getArchiveDriverData(driverId: string) {
   return getArchiveDriver(driverId);
 }
 
+// Only this driver's own rows per race (getArchiveEntityRaces): the page never reads anyone else's, and the whole-grid
+// shape was seconds per visit and too large to cache.
 export async function getArchiveDriverHistoryData(driverId: string) {
-  return getArchiveRacesByDriver(driverId);
+  return getArchiveEntityRaces("driver", driverId);
 }
 
 export async function getAllArchiveTeamsData() {
@@ -131,5 +132,5 @@ export async function getArchiveTeamData(teamId: string) {
 }
 
 export async function getArchiveTeamHistoryData(teamId: string) {
-  return getArchiveRacesByTeam(teamId);
+  return getArchiveEntityRaces("team", teamId);
 }

@@ -42,7 +42,8 @@ const RESULT_FILTERS: Record<ResultFilterKey, ResultFilter> = {
   dnf: { key: "dnf", label: "Retirements", test: (r) => r.finishRank === null },
 };
 
-const PAGE_SIZE = 25;
+/** Ten races a page: the table sits under the chart on a driver's or team's page, and ten keeps it to one screen. */
+const PAGE_SIZE = 10;
 
 function decadeLabel(year: number): string {
   return `${Math.floor(year / 10) * 10}s`;
@@ -157,7 +158,7 @@ export function ArchiveRaceExplorer({ rows, entityColumnLabel, resultFilterKeys 
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
               {paged.map((r) => (
-                <tr key={r.id} onClick={() => open(r)} className="cursor-pointer transition-colors duration-fast hover:bg-white/[0.025]">
+                <tr key={r.id} onClick={() => open(r)} onMouseEnter={() => router.prefetch(raceHref(r.year, r.round, r.raceName))} className="cursor-pointer transition-colors duration-fast hover:bg-white/[0.025]">
                   <td className="px-4 py-3 tabular">
                     <Link href={raceHref(r.year, r.round, r.raceName)} onClick={(e) => e.stopPropagation()} className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-focus-ring">
                       {r.year}

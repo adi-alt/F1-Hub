@@ -10,6 +10,8 @@ import { EYEBROW } from "@/components/ui/panel";
  * snapshot does: tracked labels in hairline-divided columns, not a row of floating numbers. Every number is a real sum
  * from the archive; a missing photo is simply left out (the colour bar carries the identity), never a lettered stand-in.
  */
+type Figure = { label: string; value: string | number; detail?: string };
+
 export function ArchiveEntityHeader({
   backHref,
   backLabel,
@@ -19,7 +21,7 @@ export function ArchiveEntityHeader({
   photoShape = "circle",
   subtitle,
   answer,
-  stats,
+  stats = [],
   favoriteButton,
   accent,
 }: {
@@ -34,13 +36,13 @@ export function ArchiveEntityHeader({
   subtitle: string;
   /** The headline about this entity, in one sentence. */
   answer?: string | null;
-  stats: { label: string; value: string | number; detail?: string }[];
+  stats?: Figure[];
   favoriteButton?: React.ReactNode;
   /** The team colour: a ring round the photo, or a bar beside the name when there is no photo. */
   accent?: string | null;
 }) {
   return (
-    <header className="mb-10">
+    <header className={answer || stats.length ? "mb-10" : ""}>
       <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-1.5 text-caption">
         <Link href={backHref} className="text-secondary transition-colors duration-fast hover:text-primary">
           {backLabel}
@@ -71,12 +73,24 @@ export function ArchiveEntityHeader({
           </div>
         </div>
       </div>
+      <ArchiveEntityFigures answer={answer} stats={stats} />
+    </header>
+  );
+}
+
+/**
+ * The header's second half: the one-sentence answer, typed in, and the figures in hairline-divided columns. Its own
+ * component so a driver's or team's page can show the name and photo the moment they're known and stream these in
+ * once the career has been read.
+ */
+export function ArchiveEntityFigures({ answer, stats }: { answer?: string | null; stats: Figure[] }) {
+  return (
+    <>
       {answer && (
         <p className="mt-4 max-w-3xl text-body text-secondary" aria-live="polite">
           <Typewriter text={answer} msPerChar={14} />
         </p>
       )}
-
       {stats.length > 0 && (
         <dl className="mt-6 grid grid-cols-2 border-t border-white/[0.06] sm:grid-cols-3 lg:flex">
           {stats.map((s, i) => (
@@ -89,6 +103,6 @@ export function ArchiveEntityHeader({
           ))}
         </dl>
       )}
-    </header>
+    </>
   );
 }
