@@ -1,20 +1,23 @@
 "use client";
 
-import { useMemo, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useRef, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { staggerItem } from "@/components/motion/variants";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { useUrlParam } from "@/hooks/useUrlParam";
+import { useFitRows } from "@/hooks/useFitRows";
 import { FavoriteButton } from "./FavoriteButton";
 import { Pagination } from "./Pagination";
 
 // The exact same sticky-header treatment ChampionshipStandings.tsx uses (Season's own reference
 // table), not a re-derived version - real opacity behind the blur so rows scrolling underneath
 // don't bleed through, same translucent-dark token every sticky/floating surface in the app uses.
-/** Rows per page. A fixed number now: the page scrolls like any other, so the table no longer fills the
- * viewport and there is no height to fit rows to. */
-const PAGE_SIZE = 25;
+/** A row's height as rendered (a 28px face, 2 x 10px padding, line box and divider), and what surrounds the rows inside the
+ * screen: the header row, the pagination under the table, and the page's bottom margin. Rows per page is however
+ * many fit between the two (useFitRows), so the list fills the screen and pages instead of scrolling. */
+const ROW_HEIGHT = 53;
+const TABLE_CHROME = 41 + 64 + 24;
 const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-subtle";
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
@@ -45,8 +48,7 @@ export type ArchiveTableColumn<T> = {
 /** The shared table both ArchiveDriverTable and ArchiveTeamTable are now thin wrappers around -
  * they were previously two byte-for-byte-identical implementations differing only in field names.
  * Owns search/sort/pagination (URL-backed via useUrlPage/useUrlParam, so a refresh or a shared
- * link preserves them), the same fixed page size (PAGE_SIZE, now that the page scrolls instead of filling the viewport) the original
- * tables used, and favoriting. Wrapped in overflow-x-auto scrollbar-hide - the one real gap the
+ * link preserves them), as many rows per page as fit the screen (useFitRows), and favoriting. Wrapped in overflow-x-auto scrollbar-hide - the one real gap the
  * original tables had: zero responsive handling at all, so a table this wide simply couldn't be
  * reached on a narrow viewport before. */
 export function ArchiveTable<T>({
@@ -90,7 +92,8 @@ export function ArchiveTable<T>({
   const sortDir: "asc" | "desc" = rawDir === "asc" ? "asc" : "desc";
   const sortColumn = columns.find((c) => c.key === sortKey);
 
-  const pageSize = PAGE_SIZE;
+  const tableRef = useRef<HTMLDivElement>(null);
+  const pageSize = useFitRows(tableRef, { rowHeight: ROW_HEIGHT, chrome: TABLE_CHROME });
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -145,7 +148,7 @@ export function ArchiveTable<T>({
 
   return (
     <div className="flex flex-col">
-      <div className="scrollbar-hide overflow-x-auto rounded-xl border border-subtle bg-surface-1">
+      <div ref={tableRef} className="scrollbar-hide overflow-x-auto rounded-lg border border-white/[0.06] bg-white/[0.012]">
         {/* No min-w here - table-fixed's real minimum is already the sum of each column's own
             declared width (see ArchiveDriverTable/ArchiveTeamTable), and an extra floor on top of
             that was one more way to force horizontal scroll at a viewport narrower than the floor
@@ -241,6 +244,8 @@ export function ArchiveTable<T>({
                           }
                         : undefined
                     }
+                    // Fetching the page on hover means it's usually on its way, or there, by the time of the click.
+                    onMouseEnter={rowHref ? () => router.prefetch(rowHref(row)) : undefined}
                     className={`transition-colors duration-fast hover:bg-white/[0.04] ${rowHref ? "cursor-pointer" : ""}`}
                   >
                     <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>

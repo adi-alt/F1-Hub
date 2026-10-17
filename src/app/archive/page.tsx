@@ -1,9 +1,12 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { ArchiveExplorer } from "./components/ArchiveExplorer";
 import { ArchiveYearView } from "./components/ArchiveYearView";
 import { RetryBanner } from "./components/RetryBanner";
-import { ArchiveEntityHeader } from "./components/ArchiveEntityHeader";
+import { ArchiveEntityFigures, ArchiveEntityHeader } from "./components/ArchiveEntityHeader";
+import { ArchiveCircuitSkeleton, ArchiveEntityBodySkeleton, ArchiveEntityHeadSkeleton } from "./components/ArchiveEntitySkeletons";
+import { ArchiveSignatureCircuit, signatureCircuit } from "./components/ArchiveSignatureCircuit";
 import { ArchiveSection } from "./components/ArchiveSection";
 import { ArchiveFavoriteToggle } from "./components/ArchiveFavoriteToggle";
 import { ArchiveApexScope } from "./components/ArchiveApexScope";
@@ -44,14 +47,9 @@ import { TrackMap } from "@/components/ui/TrackMap";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
+import { isClassified } from "@/lib/archiveResult";
 import { getArchiveCircuit, getArchiveDriver, getArchiveTeam } from "@/lib/supabase/archive";
 
-// Ergast's own three-way classification status (archiveIsClassified in circuitIntelligence.ts
-// makes the exact same real distinction, not exported from there - a one-line regex check is
-// cheaper duplicated than pulled through a shared module for this).
-function isClassified(status: string): boolean {
-  return status === "Finished" || /^\+\d+ Lap/.test(status);
-}
 
 function finishText(positionText: string): string {
   return /^\d+$/.test(positionText) ? `P${positionText}` : positionText;
@@ -295,7 +293,45 @@ async function renderDiagnosticIfAdmin(err: unknown) {
 /** A driver's whole career as a real explorer, not 400 stacked cards - search/decade/result-type
  * filters, a dense table, a persistent focused panel for the selected race, real computed stats,
  * and a real team-era timeline (contiguous stints, not a fabricated grouping). */
-async function ArchiveDriverHistory({ driverId }: { driverId: string }) {
+//
+// Streamed in two parts, each behind its own keyed Suspense: the name and photo (one cached row) the moment the page is
+// opened, then the career (the figures, the curve, the table) as soon as it's read, with skeletons standing in until
+// then. The keys make each driver a new boundary, so a click from the table shows the skeleton at once instead of
+// holding the previous page until everything is ready.
+function ArchiveDriverHistory({ driverId }: { driverId: string }) {
+  return (
+    <div data-surface="frosted" className="page-wide py-8">
+      <Suspense key={`head:${driverId}`} fallback={<ArchiveEntityHeadSkeleton />}>
+        <ArchiveDriverHead driverId={driverId} />
+      </Suspense>
+      <Suspense key={`body:${driverId}`} fallback={<ArchiveEntityBodySkeleton />}>
+        <ArchiveDriverBody driverId={driverId} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ArchiveDriverHead({ driverId }: { driverId: string }) {
+  const driver = await getArchiveDriverData(driverId).catch(() => null);
+  const name = driver?.name ?? driverId;
+  const teams = driver?.constructors ?? [];
+  return (
+    <>
+      <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
+      <ArchiveEntityHeader
+        backHref="/archive?section=driver"
+        backLabel="Archive"
+        kind="Driver"
+        name={name}
+        photoUrl={driver?.photoUrl ?? null}
+        subtitle={[driver ? (driver.firstYear === driver.lastYear ? `${driver.firstYear}` : `${driver.firstYear}–${driver.lastYear}`) : null, teams.join(", ") || null].filter(Boolean).join(" · ")}
+        favoriteButton={<ArchiveFavoriteToggle type="driver" id={driverId} />}
+      />
+    </>
+  );
+}
+
+async function ArchiveDriverBody({ driverId }: { driverId: string }) {
   try {
     return await ArchiveDriverHistoryInner(driverId);
   } catch (err) {
@@ -365,17 +401,11 @@ async function ArchiveDriverHistoryInner(driverId: string) {
     (titles > 0 ? `${titles === 1 ? "World champion" : `${n(titles)[0].toUpperCase()}${n(titles).slice(1)}-time world champion`}, ` : "") +
     `${wins} win${wins === 1 ? "" : "s"} and ${podiums} podium${podiums === 1 ? "" : "s"} from ${races.length} race${races.length === 1 ? "" : "s"}, ${Math.min(...years)}–${Math.max(...years)}.`;
 
+  const signature = signatureCircuit(entries, "wins");
+
   return (
-    <div data-surface="frosted" className="page-wide py-8">
-      <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
-      <ArchiveEntityHeader
-        backHref="/archive?section=driver"
-        backLabel="Archive"
-        kind="Driver"
-        name={name}
-        photoUrl={driver?.photoUrl ?? null}
-        accent={lastTeam ? teamColor(lastTeam) : null}
-        subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${eraSegments.map((e) => e.label).filter((v, i, a) => a.indexOf(v) === i).join(", ")}`}
+    <>
+      <ArchiveEntityFigures
         answer={answer}
         stats={[
           ...(titles > 0 ? [{ label: "Titles", value: titles }] : []),
@@ -385,12 +415,14 @@ async function ArchiveDriverHistoryInner(driverId: string) {
           { label: "Races", value: races.length },
           { label: "Finishes", value: finishes, detail: `${retirements} retirement${retirements === 1 ? "" : "s"}` },
         ]}
-        favoriteButton={<ArchiveFavoriteToggle type="driver" id={driverId} />}
       />
-      <div className="space-y-10">
-        <ArchiveSection id="seasons" title="Season by season" note="Points each year, in the team's colours">
-          <ArchiveSeasonStory seasons={seasons} subject={name} />
-        </ArchiveSection>
+      <div className="mt-10 space-y-10">
+        <SeasonsWithCircuit
+          seasons={<ArchiveSeasonStory seasons={seasons} subject={name} />}
+          note="Points each year, in the team's colours"
+          circuitTitle={signature && signature.wins > 0 ? "Best circuit" : "Most raced circuit"}
+          circuit={signature ? <ArchiveSignatureCircuit circuit={signature} lapColor={lastTeam ? teamColor(lastTeam) : null} /> : null}
+        />
         {eraSegments.length > 1 && (
           <ArchiveSection id="teams" title="Teams through time">
             <ArchiveEraTimeline segments={eraSegments} />
@@ -400,7 +432,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
           <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilterKeys={["wins", "podiums", "points", "dnf"]} />
         </ArchiveSection>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -408,7 +440,42 @@ async function ArchiveDriverHistoryInner(driverId: string) {
  * best-placed finisher per race (never the overall race winner if that happened to be a rival),
  * plus a real driver-relationships table (every driver who's carried this team's colours, with
  * their own real race/win counts against THIS team specifically). */
-async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
+// Streamed as the driver's page is (see ArchiveDriverHistory).
+function ArchiveTeamHistory({ teamId }: { teamId: string }) {
+  return (
+    <div data-surface="frosted" className="page-wide py-8">
+      <Suspense key={`head:${teamId}`} fallback={<ArchiveEntityHeadSkeleton photo={false} />}>
+        <ArchiveTeamHead teamId={teamId} />
+      </Suspense>
+      <Suspense key={`body:${teamId}`} fallback={<ArchiveEntityBodySkeleton />}>
+        <ArchiveTeamBody teamId={teamId} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function ArchiveTeamHead({ teamId }: { teamId: string }) {
+  const team = await getArchiveTeamData(teamId);
+  if (!team) notFound();
+  return (
+    <>
+      <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
+      <ArchiveEntityHeader
+        backHref="/archive?section=team"
+        backLabel="Archive"
+        kind="Constructor"
+        name={team.name}
+        photoUrl={null}
+        photoShape="square"
+        accent={teamColor(team.name)}
+        subtitle={`${team.firstYear === team.lastYear ? team.firstYear : `${team.firstYear}–${team.lastYear}`} · ${team.raceCount} race${team.raceCount === 1 ? "" : "s"}`}
+        favoriteButton={<ArchiveFavoriteToggle type="team" id={teamId} />}
+      />
+    </>
+  );
+}
+
+async function ArchiveTeamBody({ teamId }: { teamId: string }) {
   try {
     return await ArchiveTeamHistoryInner(teamId);
   } catch (err) {
@@ -419,7 +486,6 @@ async function ArchiveTeamHistory({ teamId }: { teamId: string }) {
 async function ArchiveTeamHistoryInner(teamId: string) {
   const [team, races, yearStats] = await Promise.all([getArchiveTeamData(teamId), getArchiveTeamHistoryData(teamId), getArchiveYearStats()]);
   if (!team) notFound();
-  const years = races.map((r) => r.year);
 
   type Entry = { race: ArchiveRaceDoc; result: ArchiveResultEntry };
   const allEntries: Entry[] = races.flatMap((race) => race.results.filter((r) => r.teamId === teamId).map((result) => ({ race, result })));
@@ -482,18 +548,11 @@ async function ArchiveTeamHistoryInner(teamId: string) {
     (titles > 0 ? `${titles === 1 ? "Constructors' champion" : `${n(titles)[0].toUpperCase()}${n(titles).slice(1)}-time constructors' champion`} since 1991, ` : "") +
     `${wins} win${wins === 1 ? "" : "s"} from ${byRace.size} race${byRace.size === 1 ? "" : "s"}, with ${relationships.length} driver${relationships.length === 1 ? "" : "s"}.`;
 
+  const signature = signatureCircuit(allEntries, "starts");
+
   return (
-    <div data-surface="frosted" className="page-wide py-8">
-      <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
-      <ArchiveEntityHeader
-        backHref="/archive?section=team"
-        backLabel="Archive"
-        kind="Constructor"
-        name={team.name}
-        photoUrl={null}
-        photoShape="square"
-        accent={teamColor(team.name)}
-        subtitle={`${Math.min(...years)}–${Math.max(...years)} · ${byRace.size} race${byRace.size === 1 ? "" : "s"}`}
+    <>
+      <ArchiveEntityFigures
         answer={answer}
         stats={[
           ...(titles > 0 ? [{ label: "Titles since 1991", value: titles }] : []),
@@ -502,12 +561,14 @@ async function ArchiveTeamHistoryInner(teamId: string) {
           { label: "Points", value: Math.round(totalPoints * 10) / 10 },
           { label: "Drivers", value: relationships.length },
         ]}
-        favoriteButton={<ArchiveFavoriteToggle type="team" id={teamId} />}
       />
-      <div className="space-y-10">
-        <ArchiveSection id="seasons" title="Season by season" note="Points each year, both cars and the sprint">
-          <ArchiveSeasonStory seasons={seasons} subject={team.name} />
-        </ArchiveSection>
+      <div className="mt-10 space-y-10">
+        <SeasonsWithCircuit
+          seasons={<ArchiveSeasonStory seasons={seasons} subject={team.name} />}
+          note="Points each year, both cars and the sprint"
+          circuitTitle="Most raced circuit"
+          circuit={signature ? <ArchiveSignatureCircuit circuit={signature} lapColor={teamColor(team.name)} /> : null}
+        />
         {relationships.length > 0 && (
           <ArchiveSection id="drivers" title="Its drivers" note="Most races first" bare>
             <ArchiveDriverRelationships drivers={relationships} />
@@ -517,18 +578,29 @@ async function ArchiveTeamHistoryInner(teamId: string) {
           <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilterKeys={["wins", "podiums"]} />
         </ArchiveSection>
       </div>
+    </>
+  );
+}
+
+/** The career curve beside the signature circuit's drawing (stacked on a phone). The circuit reads its layout on its
+ * own, so it streams in behind its own skeleton rather than holding the curve back. */
+function SeasonsWithCircuit({ seasons, note, circuit, circuitTitle }: { seasons: React.ReactNode; note: string; circuit: React.ReactNode; circuitTitle: string }) {
+  return (
+    <div className={`grid gap-6 ${circuit ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
+      <ArchiveSection id="seasons" title="Season by season" note={note}>
+        {seasons}
+      </ArchiveSection>
+      {circuit && (
+        <ArchiveSection id="circuit" title={circuitTitle} bare>
+          <Suspense fallback={<ArchiveCircuitSkeleton />}>{circuit}</Suspense>
+        </ArchiveSection>
+      )}
     </div>
   );
 }
 
-// Only ever mattered once a prolific driver/team's own real, un-cached data fetch (see
-// getArchiveRacesByDriver/getArchiveRacesByTeam in lib/supabase/archive.ts) started taking real
-// multi-second wall time - a local dev server has no execution ceiling at all, but a Vercel
-// serverless function does, and this route never declared one, so it was falling back to whatever
-// the platform's own default is. Alonso/Ferrari's real fetch alone measured single digit seconds
-// in isolation; a full page render on top of that (photo lookups, favorites, JSX) had real room to
-// cross a short default before this existed. Same order of magnitude as this app's own
-// season-compare/season-intelligence AI routes, which already run this long routinely.
+// Headroom for a cold read of a prolific team's history (getArchiveEntityRaces) plus the render on a serverless
+// function, whose platform default ceiling is short.
 export const maxDuration = 60;
 
 /** The share card follows the view: a season, a driver's career, a team's history or a circuit's races. Names come
