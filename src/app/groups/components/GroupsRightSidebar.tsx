@@ -313,7 +313,7 @@ function RoundRow({ prediction: p, now }: { prediction: FeedPrediction; now: num
   const soon = lockMs !== null && lockMs - now < 3 * 60 * 60 * 1000;
   return (
     <Link
-      href={`${groupHref(p.groupId)}?tab=predictions`}
+      href={`${groupHref(p.groupId)}&tab=predictions`}
       className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       <span className="min-w-0 flex-1">

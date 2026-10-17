@@ -1,10 +1,11 @@
 import { Skeleton } from "@/components/ui/Skeleton";
 
-// Real Suspense fallback for CommunityPage's own async fetches (group detail, posts, predictions,
+// The stand-in while a community loads (the Communities page's Suspense fallback and its loading.tsx when the URL
+// names a community), for CommunityView's own async fetches (group detail, posts, predictions,
 // stats, pulse, next race). Mirrors the page's actual shape - the breadcrumb and menu, the avatar and
 // name, the tab strip and feed in the content column, the rail's widgets beside it - so the layout
 // doesn't jump when the real thing arrives. "Feed" is the tab that lands by default, so that's the shape shown.
-export default function CommunityDetailLoading() {
+export function CommunityDetailSkeleton() {
   return (
     <div role="status" className="page-wide skeleton-delay pb-10 pt-6 lg:pt-8">
       <span className="sr-only">Loading the community</span>

@@ -17,6 +17,7 @@ import { useOptimisticVote } from "./useOptimisticVote";
 import { PANEL_INTERACTIVE } from "../panel";
 import { CallChip } from "./CallChip";
 import type { SessionPhase } from "@/lib/communityWeekend";
+import { groupHref } from "@/lib/routes";
 
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", moderator: "Moderator" };
 
@@ -62,7 +63,8 @@ export function PostCard({
    * post's discussion window - see CommunityFeed. A personal post has no community page to open on,
    * so no Share button is rendered for one at all (the `post.groupId` guard below). */
   async function share() {
-    const url = `${window.location.origin}/groups/${post.groupId}?post=${post.id}`;
+    if (!post.groupId) return;
+    const url = `${window.location.origin}${groupHref(post.groupId)}&post=${post.id}`;
     try {
       await navigator.clipboard.writeText(url);
       setShareLabel("Link copied");

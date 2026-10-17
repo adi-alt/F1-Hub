@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SignInGate } from "@/components/auth/SignInGate";
+import { CommunityView, communityMetadata } from "./_community/CommunityView";
+import { CommunityDetailSkeleton } from "./_community/components/CommunityDetailSkeleton";
 import { GroupsHomeClient } from "./components/GroupsHomeClient";
 import { getUserGroups, discoverCommunities } from "@/lib/supabase/groups";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
@@ -30,7 +33,7 @@ async function getRaceContext() {
 
 /**
  * Driver rosters for exactly the races the viewer's own open rounds reference - the same handful of
- * small fetches a community's own page already does (see groups/[id]/page.tsx), not the whole
+ * small fetches a community's own page already does (see groups/_community/CommunityView.tsx), not the whole
  * season.
  *
  * This is what lets a prediction be entered from the feed itself. Without a real roster the card
@@ -57,19 +60,42 @@ async function getDriversByRace(raceIds: string[]): Promise<Record<string, { cod
  * rather than failing this whole page (an empty predictions/next-race list already reads fine as
  * "nothing right now" - Promise.all only needs to not fully reject, and none of these four throws
  * for "no data", only for a real query error, so any real failure still surfaces normally). */
-export const metadata: Metadata = pageMetadata({
-  title: "Communities",
-  description: "Prediction leagues and F1 communities: pick the podium every Grand Prix with friends and see who reads the sport best.",
-  path: "/groups",
-});
+type GroupsSearchParams = Promise<{ id?: string; tab?: string; post?: string; invite?: string }>;
 
-export default async function GroupsPage() {
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+export async function generateMetadata({ searchParams }: { searchParams: GroupsSearchParams }): Promise<Metadata> {
+  const id = one((await searchParams).id);
+  if (id) return communityMetadata(id);
+  return pageMetadata({
+    title: "Communities",
+    description: "Prediction leagues and F1 communities: pick the podium every Grand Prix with friends and see who reads the sport best.",
+    path: "/groups",
+  });
+}
+
+export default async function GroupsPage({ searchParams }: { searchParams: GroupsSearchParams }) {
   const session = await getSession();
+  const params = await searchParams;
+  const id = one(params.id);
   if (!session.uid) {
     return (
-      <div className="page-wide py-8">
-        <SignInGate label="your communities" />
+      <div className={id ? "page-narrow py-10" : "page-wide py-8"}>
+        <SignInGate label={id ? "this community" : "your communities"} />
       </div>
+    );
+  }
+
+  // One community (`/groups?id=`). Keyed, so opening a different community shows its skeleton at once instead of
+  // holding the previous page until the new one has loaded.
+  if (id) {
+    return (
+      <Suspense
+        key={id}
+        fallback={<CommunityDetailSkeleton />}
+      >
+        <CommunityView id={id} tab={one(params.tab)} post={one(params.post)} invite={one(params.invite)} />
+      </Suspense>
     );
   }
 

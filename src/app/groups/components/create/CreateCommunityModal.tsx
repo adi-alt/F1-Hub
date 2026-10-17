@@ -25,6 +25,7 @@ import { GroupBanner } from "../GroupBanner";
 import { ImageDropzone } from "./ImageDropzone";
 import { SelectionCard, SelectionCardGroup } from "./SelectionCard";
 import { TYPE_ICONS, VISIBILITY_ICONS } from "./icons";
+import { groupHref } from "@/lib/routes";
 
 /** One object URL per file, revoked when the file changes or the modal unmounts. ImageDropzone
  * makes its own for its own preview; the review step needs a second, independently-scoped one
@@ -200,7 +201,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
       }).catch(() => {});
     }
 
-    router.push(`/groups/${body.id}`);
+    router.push(groupHref(body.id));
   }
 
   return createPortal(

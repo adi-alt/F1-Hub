@@ -12,6 +12,10 @@ import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/ro
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
+import { EYEBROW } from "@/components/ui/panel";
+import { NotificationsForm } from "@/components/profile/NotificationsForm";
+import { ACCOUNT_SECTIONS, AccountNav, accountHref, type AccountSection } from "./components/AccountNav";
+import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
 
@@ -140,34 +144,68 @@ async function mergeCurrentSeason(
   }
 }
 
-// Only "personalisation" is implemented as a section here — notifications/edit-profile stay at
-// their own /profile/notifications and /profile/edit routes for now. Defaults to it when no
-// section is given at all, since it's the only thing this route currently renders.
-export const metadata: Metadata = pageMetadata({
-  title: "Profile",
-  description: "Your favourite drivers, teams and tracks, and how they're doing this season.",
-  path: "/profile",
-  index: false,
-});
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ section?: string }> }): Promise<Metadata> {
+  const section = sectionOf((await searchParams).section);
+  const meta: Record<AccountSection, { title: string; description: string }> = {
+    personalisation: { title: "Personalisation", description: "Your favourite drivers, teams and circuits, current and historical." },
+    notifications: { title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in." },
+    profile: { title: "Profile", description: "Your name on Apex F1 Hub." },
+  };
+  return pageMetadata({ ...meta[section], path: accountHref(section), index: false });
+}
 
-export default async function ProfilePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ section?: string; tab?: string }>;
-}) {
+function sectionOf(value: string | undefined): AccountSection {
+  return ACCOUNT_SECTIONS.some((s) => s.value === value) ? (value as AccountSection) : "personalisation";
+}
+
+const INTRO: Record<AccountSection, string> = {
+  personalisation: "Favourite any driver, team or circuit, current or historical. Favourites come first everywhere on the site.",
+  notifications: "When Apex F1 Hub emails you.",
+  profile: "How you appear to everyone else.",
+};
+
+/**
+ * The account, in one place: personalisation, notifications and the profile, as sections of one page
+ * (`/profile?section=`), each with the site's eyebrow title and its content on the glass panel. Every link into the
+ * account (the header menu, old `/profile/edit` and `/profile/notifications` links) lands here.
+ */
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ section?: string; tab?: string }> }) {
   const session = await getSession();
   if (!session.uid) {
     return (
       <div className="page-content py-6">
-        <SignInGate label="personalization" />
+        <SignInGate label="your account" />
       </div>
     );
   }
+  const { section: rawSection, tab } = await searchParams;
+  const section = sectionOf(rawSection);
+  const title = ACCOUNT_SECTIONS.find((s) => s.value === section)!.label;
 
-  const { tab } = await searchParams;
+  return (
+    <div className="page-content py-8">
+      <p className={EYEBROW}>Account</p>
+      <h1 className="mt-1 text-display-md text-primary">{title}</h1>
+      <p className="mt-2 max-w-2xl text-body-sm text-secondary">{INTRO[section]}</p>
+      <div className="mt-6">
+        <AccountNav current={section} />
+      </div>
+      <div className="mt-6">
+        {section === "personalisation" && <Personalisation uid={session.uid} tab={tab} />}
+        {section === "notifications" && <Notifications uid={session.uid} />}
+        {section === "profile" && <ProfileDetailsForm />}
+      </div>
+    </div>
+  );
+}
+
+async function Notifications({ uid }: { uid: string }) {
+  const profile = await safeRead(() => getUserProfile(uid), null);
+  return <NotificationsForm initialNotifyBeforeQualifying={profile?.notifyBeforeQualifying} initialNotifyOnResults={profile?.notifyOnResults} />;
+}
+
+async function Personalisation({ uid, tab }: { uid: string; tab?: string }) {
   const initialTab: Tab = VALID_TABS.includes(tab as Tab) ? (tab as Tab) : "players";
-  const uid = session.uid;
-
   // A Firestore outage (quota, transient error, anything) degrades this page to empty tabs
   // instead of crashing it outright — same reasoning as archive/page.tsx's ArchiveIndex.
   const [profile, drivers, teams, circuits, teamHomeCircuits] = await Promise.all([
@@ -221,22 +259,11 @@ export default async function ProfilePage({
   }
 
   return (
-    <div className="page-content py-6">
-      <h1 className="shrink-0 text-3xl font-bold text-white">Personalization</h1>
-      <p className="mt-2 shrink-0 text-sm text-neutral-400">
-        Favorite any driver, team, or circuit, current or historical. Favorited ones always show
-        up first, then everything else, most recent first.
-      </p>
-
-      <div className="mt-4 flex flex-col">
-        <PersonalizationTabs
-          initialTab={initialTab}
-          players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}
-          teams={{ items: teamItems, favoriteIds: profile?.favoriteTeams ?? [] }}
-          circuits={{ items: circuitItems, favoriteIds: profile?.favoriteTracks ?? [] }}
-        />
-      </div>
-      <div className="shrink-0 pb-2" />
-    </div>
+    <PersonalizationTabs
+      initialTab={initialTab}
+      players={{ items: driverItems, favoriteIds: profile?.favoriteDrivers ?? [] }}
+      teams={{ items: teamItems, favoriteIds: profile?.favoriteTeams ?? [] }}
+      circuits={{ items: circuitItems, favoriteIds: profile?.favoriteTracks ?? [] }}
+    />
   );
 }

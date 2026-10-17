@@ -2,21 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { FavoriteEntityList, type FavoriteEntity } from "./FavoriteEntityList";
 
 export type Tab = "players" | "teams" | "circuits";
 
 const TABS: { key: Tab; label: string; type: "driver" | "team" | "track"; nameLabel: string; extraLabel: string }[] = [
-  { key: "players", label: "Players", type: "driver", nameLabel: "Driver", extraLabel: "Companies" },
-  { key: "teams", label: "Teams", type: "team", nameLabel: "Team", extraLabel: "Home Circuit" },
+  { key: "players", label: "Drivers", type: "driver", nameLabel: "Driver", extraLabel: "Teams" },
+  { key: "teams", label: "Teams", type: "team", nameLabel: "Team", extraLabel: "Most raced at" },
   { key: "circuits", label: "Circuits", type: "track", nameLabel: "Circuit", extraLabel: "Country" },
 ];
 
 const PLACEHOLDER: Record<Tab, string> = {
-  players: "Search players...",
-  teams: "Search teams...",
-  circuits: "Search circuits...",
+  players: "Search drivers…",
+  teams: "Search teams…",
+  circuits: "Search circuits…",
 };
 
 /** One tab at a time, not all three stacked — the same switch-instantly pattern the archive's own
@@ -48,55 +48,21 @@ export function PersonalizationTabs({
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-full border border-[var(--f1-line)] bg-black/20 p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => switchTo(t.key)}
-              className="relative rounded-full px-4 py-1.5 text-sm font-medium transition"
-            >
-              {t.key === tab && (
-                <motion.div
-                  layoutId="personalization-tab-capsule"
-                  className="absolute inset-0 rounded-full bg-[var(--f1-red)]"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                />
-              )}
-              <span className={`relative z-10 ${t.key === tab ? "text-white" : "text-neutral-300 hover:text-white"}`}>
-                {t.label}
-              </span>
-            </button>
-          ))}
-        </div>
+    <Tabs variant="segmented" value={tab} onValueChange={switchTo} items={TABS.map((t) => ({ value: t.key, label: t.label }))}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <TabList aria-label="What to favourite" />
         <input
+          type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={PLACEHOLDER[tab]}
-          className="w-full max-w-xs rounded-full border border-[var(--f1-line)] bg-black/20 px-4 py-1.5 text-sm text-white placeholder:text-tertiary focus:border-white/40 focus:outline-none"
+          aria-label={PLACEHOLDER[tab]}
+          className="h-9 w-full rounded-control border border-white/[0.08] bg-white/[0.02] px-3 text-body-sm text-primary placeholder:text-tertiary focus-visible:border-white/25 focus-visible:outline-2 focus-visible:outline-focus-ring sm:w-64"
         />
       </div>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={tab}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-          className="mt-4"
-        >
-          <FavoriteEntityList
-            type={active.type}
-            nameLabel={active.nameLabel}
-            extraLabel={active.extraLabel}
-            items={data.items}
-            favoriteIds={data.favoriteIds}
-            search={search}
-          />
-        </motion.div>
-      </AnimatePresence>
-    </div>
+      <TabPanels className="mt-4">
+        <FavoriteEntityList type={active.type} nameLabel={active.nameLabel} extraLabel={active.extraLabel} items={data.items} favoriteIds={data.favoriteIds} search={search} />
+      </TabPanels>
+    </Tabs>
   );
 }

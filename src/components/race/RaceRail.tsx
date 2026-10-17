@@ -84,7 +84,7 @@ function Communities({ communities }: { communities: RaceCommunityCard[] }) {
         {communities.slice(0, 3).map((c) => (
           <li key={c.groupId}>
             <Link
-              href={c.prediction ? `${groupHref(c.groupId)}?tab=predictions` : groupHref(c.groupId)}
+              href={c.prediction ? `${groupHref(c.groupId)}&tab=predictions` : groupHref(c.groupId)}
               className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.groupId} size={28} />

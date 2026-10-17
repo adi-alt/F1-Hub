@@ -83,7 +83,7 @@ export function PersonalHero({ publicData, personalData, firstName, onPredict }:
       landing={publicData}
       greeting={greeting}
       actions={action}
-      aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} />}
+      aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} drawing={publicData.drawingByRound?.[race.round] ?? null} />}
       footer={<FavouritesHere circuit={race.circuit} history={publicData.trackHistory} />}
     />
   );
@@ -350,10 +350,12 @@ export function HeroSkeleton() {
         <Skeleton shape="block" className="mt-8 h-16 w-full max-w-xl" />
         <Skeleton shape="block" className="mt-10 h-12 w-48" />
       </div>
-      <div>
-        <Skeleton shape="block" className="h-6 w-40" />
+      {/* The track card: the circuit's drawing, then its record holders. */}
+      <div className="rounded-card border border-white/[0.06] p-5">
+        <Skeleton shape="block" className="aspect-[16/9] w-full" />
+        <Skeleton shape="block" className="mt-4 h-6 w-40" />
         <Skeleton shape="text" className="mt-2 w-48" />
-        {[0, 1, 2, 3].map((i) => (
+        {[0, 1, 2].map((i) => (
           <div key={i} className="mt-4 flex items-center gap-3">
             <Skeleton shape="circle" className="size-9" />
             <div className="flex-1">
@@ -424,7 +426,8 @@ export function PersonalHomeOutline() {
   return (
     <SkeletonGroup>
       <HeroSkeleton />
-      <Skeleton shape="block" className="mt-12 h-56" />
+      {/* The standings ticker under the hero: a single strip, not a block. */}
+      <Skeleton shape="block" className="mt-8 h-11" />
       <div className="mt-12">
         <YourWeekendSkeleton />
       </div>

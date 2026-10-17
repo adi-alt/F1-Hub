@@ -11,6 +11,7 @@ import { EYEBROW } from "@/components/ui/panel";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
 import type { GroupDetail } from "@/lib/supabase/groups";
 import { GroupBanner } from "../../components/GroupBanner";
+import { groupHref } from "@/lib/routes";
 
 /** The community's secondary sections, which open as windows over the page rather than replacing the feed. */
 export type CommunityWindow = "media" | "members" | "about" | "manage";
@@ -56,7 +57,7 @@ export function CommunityHeader({
   const iconInputRef = useRef<HTMLInputElement>(null);
 
   async function share() {
-    const url = `${window.location.origin}/groups/${group.id}`;
+    const url = `${window.location.origin}${groupHref(group.id)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);

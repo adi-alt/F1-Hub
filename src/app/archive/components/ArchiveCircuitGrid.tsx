@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { archiveCircuitHref } from "@/lib/routes";
-import { TrackMap } from "@/components/ui/TrackMap";
+import { CircuitThumb } from "@/components/circuit/CircuitThumb";
 import { FavoriteButton } from "./FavoriteButton";
 import { StatusBadge } from "./StatusBadge";
 import type { ArchiveCircuit } from "@/lib/supabase/archive";
@@ -88,11 +88,18 @@ export function ArchiveCircuitGrid({
               // translucent zinc surface ArchiveTable's own wrapper uses, so "by track" reads as
               // the same visual family as "by year" (SeasonCard) and the tables, not a flatter,
               // heavier block sitting next to them.
-              className="block overflow-hidden rounded-2xl border border-subtle bg-surface-1 transition hover:border-white/30 hover:shadow-xl hover:shadow-black/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+              className="block overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.012] backdrop-blur-[2px] transition-colors duration-fast hover:border-white/[0.14] hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
-              <div className="relative h-32 w-full bg-gradient-to-b from-white/[0.09] to-white/[0.02]">
-                {/* The track map on its light panel, inset so the card's edge stays visible around it. */}
-                <TrackMap compact map={c.trackMap} name={c.name ?? c.circuitId} className="absolute inset-2" />
+              <div className="relative h-32 w-full">
+                {/* The circuit's line drawing, as the circuits pages draw it (its Wikipedia map only when the track
+                    library has no layout for it). */}
+                <div className="absolute inset-3 flex items-center justify-center">
+                  {c.drawing || c.trackMap ? (
+                    <CircuitThumb drawing={c.drawing} map={c.trackMap} compact name={c.name ?? c.circuitId} className="h-full w-full" />
+                  ) : (
+                    <span className="text-caption text-tertiary">No layout on record</span>
+                  )}
+                </div>
                 <FavoriteButton
                   favorited={favoriteIds.has(c.circuitId)}
                   onToggle={() => onToggleFavorite(c.circuitId)}

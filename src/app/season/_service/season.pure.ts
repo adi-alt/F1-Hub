@@ -11,6 +11,7 @@ import type { ConstructorStanding, DriverStanding } from "@/lib/standings";
 import type { WeatherForecast } from "@/lib/supabase/calendar";
 import type { SessionWeather } from "@/lib/types/race";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 
 export type DriverStandingRow = DriverStanding & {
   headshotUrl: string | null;
@@ -100,6 +101,8 @@ export type RaceSummary = {
   /** The circuit's track map (archive_circuits.track_map_*), shown when the round has no photos of
    * its own. Null when the circuit isn't matched or has no map: never a circuit photo. */
   circuitTrackMap: CircuitTrackMap | null;
+  /** The circuit's line drawing from the track library, drawn in place of the map when there is one. */
+  circuitDrawing?: CircuitDrawing | null;
   /** Pre-event forecast snapshot, written once by the pipeline when the race was close enough. */
   forecast: WeatherForecast | null;
   /** What the weather actually was during the session, for a race that has run. */

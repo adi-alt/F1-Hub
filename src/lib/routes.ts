@@ -34,9 +34,11 @@ export function seasonHref(year: number): string {
   return `/season?year=${year}`;
 }
 
+// Every entity on the site is query-routed on its section's own page: a race (/race?year=&race=), a season, an
+// archive driver/team/circuit, a circuit, a community. Old path-style links (/circuits/<slug>, /groups/<id>,
+// /race/<year>/<slug>, ...) redirect here.
 export function circuitHref(circuit: string): string {
-  // Uses the canonical path segment instead of query param.
-  return `/circuits/${slugifyRaceName(circuit)}`;
+  return `/circuits?circuit=${slugifyRaceName(circuit)}`;
 }
 
 export function archiveSeasonHref(year: number): string {
@@ -55,8 +57,7 @@ export function archiveTeamHref(teamId: string): string {
   return `/archive?team=${encodeURIComponent(teamId)}`;
 }
 
-// Not query-param routed, unlike the above — a group is a real resource with its own id-scoped
-// page, same style as /profile or /models, not a filtered view over a shared collection.
+/** A community. Further parameters (`tab`, `post`, `invite`) are appended with `&`. */
 export function groupHref(id: string): string {
-  return `/groups/${id}`;
+  return `/groups?id=${encodeURIComponent(id)}`;
 }

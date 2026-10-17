@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { refreshOnce } from "@/lib/refreshGuard";
+import { useFitRows } from "@/hooks/useFitRows";
+import { EYEBROW, PANEL } from "@/components/ui/panel";
+import { Pagination } from "@/app/archive/components/Pagination";
 
 export type FavoriteEntity = {
   id: string;
@@ -31,9 +34,12 @@ type FavoriteType = "driver" | "team" | "track";
  * both find and favorite who they're after. Favorited entries always sort to the top; everything
  * else follows most-recent-first.
  *
- * A fixed page size (PAGE_SIZE): the page scrolls like any other, so there is no fixed viewport
- * height to fit rows to. */
-const PAGE_SIZE = 20;
+ * Drawn as the archive's lists are (the site's glass panel, eyebrow headers, the shared pagination), with as many
+ * rows per page as fit the screen, so it pages instead of scrolling. */
+const ROW_HEIGHT = 53;
+const TABLE_CHROME = 41 + 64 + 24;
+
+const ITEM_LABEL: Record<FavoriteType, string> = { driver: "driver", team: "team", track: "circuit" };
 
 export function FavoriteEntityList({
   type,
@@ -54,7 +60,8 @@ export function FavoriteEntityList({
   const [page, setPage] = useUrlPage();
   const router = useRouter();
 
-  const pageSize = PAGE_SIZE;
+  const tableRef = useRef<HTMLDivElement>(null);
+  const pageSize = useFitRows(tableRef, { rowHeight: ROW_HEIGHT, chrome: TABLE_CHROME });
 
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -105,49 +112,43 @@ export function FavoriteEntityList({
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-tertiary">Nothing indexed yet, check back once the archive catches up.</p>;
+    return <p className="text-body-sm text-tertiary">Nothing indexed yet, check back once the archive catches up.</p>;
   }
   if (sorted.length === 0) {
-    return <p className="text-sm text-tertiary">No matches for &ldquo;{search}&rdquo;.</p>;
+    return <p className="text-body-sm text-tertiary">No matches for &ldquo;{search}&rdquo;.</p>;
   }
 
   return (
     <div className="flex flex-col">
-      <div className="overflow-hidden rounded-xl border border-[var(--f1-line)]">
-        <table className="w-full text-left text-sm">
-          <thead
-            className="border-b border-[var(--f1-line)] bg-[var(--f1-carbon)] text-xs uppercase tracking-wide text-tertiary"
-          >
+      <div ref={tableRef} className={`overflow-x-auto ${PANEL}`}>
+        <table className="w-full text-left text-body-sm">
+          <thead className={`border-b border-white/[0.06] ${EYEBROW}`}>
             <tr>
-              <th className="w-12 px-4 py-2.5">S.No</th>
-              <th className="px-4 py-2.5">{nameLabel}</th>
-              <th className="px-4 py-2.5 text-right">Races</th>
-              <th className="px-4 py-2.5 text-right">Years</th>
-              <th className="px-4 py-2.5">{extraLabel}</th>
-              <th className="w-12 px-4 py-2.5 text-center">Favorite</th>
+              <th scope="col" className="w-12 px-4 py-3">#</th>
+              <th scope="col" className="px-4 py-3">{nameLabel}</th>
+              <th scope="col" className="px-4 py-3 text-right">Races</th>
+              <th scope="col" className="px-4 py-3 text-right">Years</th>
+              <th scope="col" className="hidden px-4 py-3 md:table-cell">{extraLabel}</th>
+              <th scope="col" className="w-16 px-4 py-3 text-center">
+                <span className="sr-only">Favourite</span>
+              </th>
             </tr>
           </thead>
-          <motion.tbody
-            key={`${type}-${pageSafe}-${search}`}
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer}
-            className="divide-y divide-[var(--f1-line)]"
-          >
+          <motion.tbody key={`${type}-${pageSafe}-${search}`} initial="hidden" animate="show" variants={staggerContainer} className="divide-y divide-white/[0.05]">
             {pageItems.map((item, i) => (
-              <motion.tr key={item.id} variants={staggerItem}>
-                <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
-                <td className="px-4 py-2.5">
-                  <Link href={item.href} className="truncate font-medium text-white hover:text-brand-text">
+              <motion.tr key={item.id} variants={staggerItem} className="transition-colors duration-fast hover:bg-white/[0.025]">
+                <td className="px-4 py-2.5 font-mono text-caption tabular text-tertiary">{pageStart + i + 1}</td>
+                <td className="max-w-0 px-4 py-2.5">
+                  <Link href={item.href} className="block truncate font-medium text-primary underline-offset-4 hover:underline">
                     {item.name}
                   </Link>
                 </td>
-                <td className="px-4 py-2.5 text-right text-neutral-400">{item.raceCount}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right text-neutral-400">
-                  {item.firstYear === item.lastYear ? item.firstYear || "N/A" : `${item.firstYear}–${item.lastYear}`}
+                <td className="px-4 py-2.5 text-right tabular text-secondary">{item.raceCount}</td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right tabular text-secondary">
+                  {item.firstYear === item.lastYear ? item.firstYear || "–" : `${item.firstYear}–${item.lastYear}`}
                 </td>
-                <td className="max-w-xs truncate px-4 py-2.5 text-tertiary" title={item.extra}>
-                  {item.extra || "N/A"}
+                <td className="hidden max-w-xs truncate px-4 py-2.5 text-tertiary md:table-cell" title={item.extra}>
+                  {item.extra || "–"}
                 </td>
                 <td className="px-4 py-2.5 text-center">
                   <FavoriteButton favorited={favorites.has(item.id)} onToggle={() => toggleFavorite(item.id)} className="mx-auto" />
@@ -157,32 +158,7 @@ export function FavoriteEntityList({
           </motion.tbody>
         </table>
       </div>
-
-      <div className="mt-3 grid shrink-0 grid-cols-3 items-center text-sm text-tertiary">
-        <div>
-          {pageSafe > 1 && (
-            <button
-              onClick={() => setPage(pageSafe - 1)}
-              className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white"
-            >
-              ← Prev
-            </button>
-          )}
-        </div>
-        <span className="text-center">
-          Page {pageSafe} of {totalPages}, {sorted.length} total
-        </span>
-        <div className="text-right">
-          {pageSafe < totalPages && (
-            <button
-              onClick={() => setPage(pageSafe + 1)}
-              className="rounded-full border border-[var(--f1-line)] px-3 py-1 transition hover:border-white/30 hover:text-white"
-            >
-              Next →
-            </button>
-          )}
-        </div>
-      </div>
+      <Pagination page={pageSafe} totalPages={totalPages} totalItems={sorted.length} itemLabel={ITEM_LABEL[type]} onPageChange={setPage} />
     </div>
   );
 }

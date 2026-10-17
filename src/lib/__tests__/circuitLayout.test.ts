@@ -2,7 +2,7 @@
 // Synthetic rows; the real library is built by pipeline/circuit_layouts.py.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chooseLayout, circuitEras, latestLayout, seasonLabel, layoutAsTrack, parseLayout, seasonRanges, type CircuitLayout } from "../circuitLayout";
+import { chooseLayout, circuitEras, displayLayout, latestLayout, seasonLabel, layoutAsTrack, parseLayout, seasonRanges, type CircuitLayout } from "../circuitLayout";
 
 const outline = Array.from({ length: 60 }, (_, i) => [Math.round(1000 * Math.cos(i / 10)), Math.round(1000 * Math.sin(i / 10))]);
 const drawnRow = (id: string, seasons: number[], raceNameMatch: string | null = null) => ({
@@ -58,6 +58,15 @@ test("latestLayout: a stand-in for a round no layout covers yet - recent, measur
   assert.equal(latestLayout(l, 2026)?.layoutId, "sing@2023", "raced last season: measured over drawn, and not the variant");
   assert.equal(latestLayout(parse([drawnRow("old", [2008, 2009])]), 2026), null, "not raced for years: it may have changed");
   assert.equal(latestLayout([], 2026), null);
+});
+
+test("displayLayout: one answer for the circuits home and the circuit page - this season's, else the latest recent, else the last usual one", () => {
+  const l = parse([drawnRow("sil-8", [2010, 2024, 2025]), measuredRow("sil@2023", [2023, 2024, 2025]), drawnRow("sil-1", [1950, 1951])]);
+  assert.equal(displayLayout(l, 2025, "British Grand Prix")?.layoutId, "sil@2023", "this season's race: its own layout");
+  assert.equal(displayLayout(l, 2026, "British Grand Prix")?.layoutId, "sil@2023", "a race to come: as last raced");
+  const stale = parse([drawnRow("old-2", [2006, 2007]), drawnRow("old-1", [1990, 1991]), drawnRow("variant", [2007], "sakhir")]);
+  assert.equal(displayLayout(stale, 2026, "Some Grand Prix")?.layoutId, "old-2", "data stops short of this season: the last usual layout, never a blank");
+  assert.equal(displayLayout([], 2026, "Any Grand Prix"), null);
 });
 
 test("circuitEras: a drawing keeps only the seasons no measured layout covers; a variant is its own era", () => {
