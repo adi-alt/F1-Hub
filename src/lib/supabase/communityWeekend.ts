@@ -58,9 +58,9 @@ function crowdPick(type: PredictionType, guesses: readonly PredictionGuess[]): s
 /**
  * The weekend Communities is living in (see pickWeekend): its sessions with which have results, each session's top
  * three, and, for the sessions your communities ran settled rounds on (pole for qualifying, the winner for the race),
- * how many of their entries called it.
+ * how many of their entries called it. Pass `groupIds` to count one community's entries rather than all of yours.
  */
-export async function getCommunityWeekend(uid: string, season: number, nowMs = Date.now()): Promise<CommunityWeekendData> {
+export async function getCommunityWeekend(uid: string, season: number, nowMs = Date.now(), { groupIds }: { groupIds?: string[] } = {}): Promise<CommunityWeekendData> {
   const [entries, races] = await Promise.all([getCalendarEntriesByYear(season), getRacesByYear(season)]);
   const entry = pickWeekend(entries, nowMs);
   if (!entry) return null;
@@ -77,14 +77,14 @@ export async function getCommunityWeekend(uid: string, season: number, nowMs = D
   });
   const roster = race ? await getRaceRoster(race).catch(() => []) : [];
   const results = sessionResults(race, stages, new Map(roster.map((r) => [r.driver, { name: r.driverName, team: r.team }])));
-  const calledIt = race?.id ? await calledItFor(uid, race.id) : {};
+  const calledIt = race?.id ? await calledItFor(uid, race.id, groupIds) : {};
   return { year: entry.year, round: entry.round, raceId: race?.id ?? null, raceName: entry.name ?? race?.name ?? "", sessions, results, calledIt };
 }
 
 /** How your communities' entries did on this race's settled rounds: pole for qualifying; the winner (a winner round,
- * else a podium's winner slot) for the race. */
-async function calledItFor(uid: string, raceId: string): Promise<Partial<Record<SessionKey, CalledIt>>> {
-  const groupIds = await memberGroupIds(uid);
+ * else a podium's winner slot) for the race. `scope` narrows it to given communities (one community's own page). */
+async function calledItFor(uid: string, raceId: string, scope?: string[]): Promise<Partial<Record<SessionKey, CalledIt>>> {
+  const groupIds = scope ?? (await memberGroupIds(uid));
   if (!groupIds.length) return {};
   const { data: rounds, error } = await queryWithRetry(() =>
     supabaseAdmin.from("group_predictions").select("id, type, correct_answer").eq("race_id", raceId).eq("status", "resolved").in("group_id", groupIds).in("type", ["pole", "winner", "podium"]),

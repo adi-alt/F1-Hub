@@ -134,7 +134,7 @@ function SuggestedCommunities({ communities, onDiscover }: { communities: Public
 /** The next race, stated the way the home page states it: the round as a single caption, the name large, then the
  * countdown as the figure (to lights out, the one session time a race row carries). The circuit photo sits above
  * when the pipeline has one. */
-function RaceWeekend({ race }: { race: NextRace }) {
+export function RaceWeekend({ race }: { race: NextRace }) {
   const now = useMinuteClock();
   const raceAt = race?.raceDate ? parseUtcDateTime(race.raceDate).getTime() : null;
   const countdown = raceAt && raceAt > now ? formatCountdown(raceAt, now) : null;

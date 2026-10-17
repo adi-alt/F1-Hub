@@ -27,6 +27,7 @@ import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { getCallableRace } from "@/lib/supabase/postCalls";
+import { getCommunityWeekend, getCrowdVsModel } from "@/lib/supabase/communityWeekend";
 import { pageMetadata } from "@/lib/seo";
 
 /** How many open rounds the context rail shows before it stops being a rail. The rest are one
@@ -109,12 +110,13 @@ export default async function CommunityPage({
   const wantsLeaderboard = modules.includes("leaderboard");
   const wantsRace = isF1Type(group.communityType);
 
-  const [feed, leaderboard, predictions, pointsBalance, seasonRaces, pendingRequests, stats, pulse, nextRace, callableRace] = await Promise.all([
+  const season = await getCurrentSeason();
+  const [feed, leaderboard, predictions, pointsBalance, seasonRaces, pendingRequests, stats, pulse, nextRace, callableRace, weekend, crowdVsModel] = await Promise.all([
     listPosts(id, uid),
     wantsLeaderboard ? getGroupLeaderboard(id, uid) : Promise.resolve([]),
     wantsPredictions ? listPredictions(id, uid) : Promise.resolve([]),
     getPointsBalance(uid),
-    wantsPredictions && wantsRace ? getRacesByYear(await getCurrentSeason()) : Promise.resolve([]),
+    wantsPredictions && wantsRace ? getRacesByYear(season) : Promise.resolve([]),
     canModerate ? countPendingJoinRequests(id).catch(() => 0) : Promise.resolve(0),
     getGroupStats(id, uid).catch(() => statsFallback(group.members.length)),
     // Reads this member's previous visit to THIS community. Read-only: the visit is stamped when
@@ -122,7 +124,12 @@ export default async function CommunityPage({
     getGroupPulse(id, uid),
     wantsRace ? getNextRace().catch(() => null) : Promise.resolve(null),
     // Takes with receipts: this weekend's race while calls are open, for an F1 community's composer.
-    wantsRace ? getCallableRace(await getCurrentSeason()).catch(() => null) : Promise.resolve(null),
+    wantsRace ? getCallableRace(season).catch(() => null) : Promise.resolve(null),
+    // The race weekend this community is living in, as on the Communities home, with "called it" counted from this
+    // community's own rounds. Decoration around the feed: a failure leaves the bar out, never the page.
+    wantsRace ? getCommunityWeekend(uid, season, undefined, { groupIds: [id] }).catch(() => null) : Promise.resolve(null),
+    // This community against the Apex model this season, for the rail's league widget.
+    wantsRace && wantsPredictions ? getCrowdVsModel([{ id, name: group.name, avatarUrl: group.avatarUrl }], season).catch(() => null) : Promise.resolve(null),
   ]);
 
   // Races for the prediction race picker - current season, most recent first, so the realistic
@@ -216,6 +223,8 @@ export default async function CommunityPage({
           initialTab={requestedPost ? "feed" : (requestedTab ?? null)}
           focusPostId={requestedPost ?? null}
           isF1={wantsRace}
+          weekend={weekend}
+          crowdVsModel={crowdVsModel}
         />
       </div>
     </div>

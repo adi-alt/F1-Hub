@@ -2,15 +2,18 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Share2 } from "lucide-react";
+import { Camera, Check, Share2 } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
 import { compactCount } from "@/lib/format";
 import type { GroupDetail } from "@/lib/supabase/groups";
+import type { GroupStats } from "@/lib/supabase/groupStats";
+import { useAuth } from "@/providers/AuthProvider";
+import { useCommunityPresence } from "@/hooks/useCommunityPresence";
+import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { GroupBanner } from "../../components/GroupBanner";
 
 /**
@@ -18,8 +21,9 @@ import { GroupBanner } from "../../components/GroupBanner";
  * that belong at this level - sharing, the membership menu, and (for an admin) the overflow that
  * holds the things only an admin can do.
  *
- * Deliberately NOT enormous - GroupBanner's flatter "header" ratio, a 64px avatar, and three lines
- * of metadata, so the actual content starts near the top of the viewport rather than a screen down.
+ * Drawn as Season draws a page's head: one glass panel, the cover fading into it, an eyebrow naming the kind of
+ * community, the name, and the week's figures in hairline-divided columns (members, who was active, posts against
+ * last week, open rounds, who is here now). GroupBanner's flatter "header" ratio keeps the feed near the top.
  *
  * There is no per-community notification setting in the membership menu. `profiles` has two global
  * notification flags and nothing per-community, so "All activity / Highlights / Muted" would be
@@ -30,12 +34,15 @@ import { GroupBanner } from "../../components/GroupBanner";
  */
 export function CommunityHeader({
   group,
-  memberCount,
+  stats,
+  openRounds,
   pendingRequests,
   onOpenManage,
 }: {
   group: GroupDetail;
-  memberCount: number;
+  stats: GroupStats;
+  /** Rounds open to predict, where the community runs predictions at all. */
+  openRounds?: number;
   /** Only ever passed for admins/moderators - shown as a badge so a waiting request is visible
    * without opening Manage. */
   pendingRequests?: number;
@@ -49,6 +56,8 @@ export function CommunityHeader({
   const [copied, setCopied] = useState(false);
   const [leaveError, setLeaveError] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const { user } = useAuth();
+  const online = useCommunityPresence(group.id, user?.uid ?? null);
 
   async function share() {
     const url = `${window.location.origin}/groups/${group.id}`;
@@ -80,35 +89,58 @@ export function CommunityHeader({
     router.refresh();
   }
 
-  return (
-    <header>
-      <div className="relative overflow-hidden rounded-card border border-white/10">
-        <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} variant="header" />
+  const delta = weeklyDelta(stats);
+  const figures: { label: string; value: React.ReactNode; detail?: React.ReactNode }[] = [
+    { label: "Members", value: compactCount(stats.members) },
+    { label: "Active this week", value: compactCount(stats.activeMembers) },
+    {
+      label: "Posts this week",
+      value: compactCount(stats.weeklyPosts),
+      detail: delta === null ? null : <span className={delta > 0 ? "text-success" : "text-tertiary"}>{delta > 0 ? "↑" : delta < 0 ? "↓" : "±"} {Math.abs(delta)}% on last week</span>,
+    },
+    ...(openRounds !== undefined ? [{ label: "Open rounds", value: openRounds }] : []),
+  ];
 
-        {/* The tagline sits ON the cover, which is the whole reason it's a separate field from the
-            description below the name. Right-aligned and capped so it can never grow into the
-            avatar's corner, and simply absent when a community hasn't set one. */}
+  return (
+    // One panel, Season's glass: the cover across its top, the identity row overlapping the cover's foot, then the
+    // figures in hairline-divided columns as Season's snapshot draws them.
+    <header className={`overflow-hidden ${PANEL}`}>
+      <div className="relative">
+        <GroupBanner bannerUrl={group.bannerUrl} seed={group.id} variant="header" />
+        {/* The cover fades into the panel, so the name below reads as sitting on it rather than under a photo. */}
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-surface-0/90 to-transparent" />
         {group.tagline && (
-          <p className="pointer-events-none absolute inset-y-0 right-4 hidden max-w-[min(55%,26rem)] items-center text-right text-body font-medium leading-snug text-white/95 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:flex sm:text-lg">
+          <p className="pointer-events-none absolute bottom-12 right-5 hidden max-w-[min(50%,24rem)] text-right text-body font-medium leading-snug text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] sm:block">
             <span className="line-clamp-2">{group.tagline}</span>
           </p>
         )}
-
         {isAdmin && <ChangeCoverButton groupId={group.id} hasBanner={!!group.bannerUrl} />}
       </div>
 
-      <div className="px-1">
-        <div className="-mt-8 flex items-end justify-between gap-3">
-          {/* relative z-10 is load-bearing, not decoration: the cover above is `relative` (it has
-              to be, for the tagline overlay and the cover control positioned inside it), and a
-              positioned element paints over a later non-positioned sibling. Without this the
-              avatar - which deliberately overlaps the cover by -mt-8 - is drawn UNDERNEATH it and
-              its top half disappears. */}
-          <span className="relative z-10 rounded-full ring-4 ring-surface-0">
-            <EntityAvatar imageUrl={group.avatarUrl} name={group.name} seed={group.id} size={64} />
+      <div className="relative px-4 sm:px-5">
+        <div className="-mt-10 flex flex-wrap items-end gap-x-4 gap-y-3">
+          {/* relative z-10: the cover above is positioned, and would otherwise paint over the half that overlaps it. */}
+          <span className="relative z-10 shrink-0 rounded-full ring-4 ring-surface-0">
+            <EntityAvatar imageUrl={group.avatarUrl} name={group.name} seed={group.id} size={80} />
           </span>
+          <div className="relative z-10 min-w-0 flex-1 basis-56 pb-1">
+            <p className={EYEBROW}>
+              {meta.label} · {visibilityLabel(group.visibility)} · Est. {new Date(group.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+            </p>
+            <h1 className="mt-1 break-words text-display-md text-primary">{group.name}</h1>
+          </div>
 
-          <div className="mb-1 flex items-center gap-2">
+          <div className="relative z-10 flex w-full flex-wrap items-center gap-2 pb-1.5 sm:w-auto">
+            {pendingRequests !== undefined && pendingRequests > 0 && (
+              <button
+                type="button"
+                onClick={onOpenManage}
+                className="order-last flex h-8 items-center gap-1.5 rounded-control px-2 text-body-sm font-medium text-warning sm:order-none transition-colors duration-fast hover:bg-warning/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                <span aria-hidden className="size-1.5 rounded-full bg-warning" />
+                {pendingRequests} request{pendingRequests === 1 ? "" : "s"} to join
+              </button>
+            )}
             <Button variant="secondary" size="sm" iconStart={Share2} onClick={() => void share()}>
               {copied ? "Link copied" : "Share"}
             </Button>
@@ -125,6 +157,7 @@ export function CommunityHeader({
                   aria-expanded={open}
                   className="flex h-8 items-center gap-1.5 rounded-control border border-strong bg-surface-2 px-3 text-body-sm font-medium text-primary transition-colors duration-fast hover:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
+                  <Icon icon={Check} size={16} className="size-3.5 text-success" />
                   Joined
                   <svg viewBox="0 0 20 20" className={`h-3 w-3 transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
                     <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -136,14 +169,14 @@ export function CommunityHeader({
                 <div className="p-1">
                   <div className="px-2.5 py-2">
                     <p className="text-caption text-tertiary">Your role</p>
-                    <p className="mt-0.5 text-sm capitalize text-neutral-200">{group.myRole}</p>
+                    <p className="mt-0.5 text-body-sm capitalize text-primary">{group.myRole}</p>
                   </div>
                   <div className="my-1 border-t border-white/10" />
                   <button
                     type="button"
                     disabled={leaving}
                     onClick={() => void leave(close)}
-                    className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-danger transition hover:bg-danger/10 disabled:opacity-50"
+                    className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-danger transition-colors duration-fast hover:bg-danger/10 disabled:opacity-50"
                   >
                     {leaving ? "Leaving…" : "Leave community"}
                   </button>
@@ -156,37 +189,45 @@ export function CommunityHeader({
           </div>
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h1 className="text-display-md text-primary">{group.name}</h1>
-          {pendingRequests !== undefined && pendingRequests > 0 && (
-            <Badge tone="warning">{`${pendingRequests} request${pendingRequests === 1 ? "" : "s"} to join`}</Badge>
-          )}
-        </div>
-
-        {group.description && <p className="mt-2 max-w-2xl text-body-sm text-secondary">{group.description}</p>}
-
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-caption text-secondary">
-          <Pill>{meta.label}</Pill>
-          {group.topic && (
-            <Pill>{group.topic}</Pill>
-          )}
-          {group.tags.map((tag) => (
-            <Pill key={tag}>#{tag}</Pill>
-          ))}
-          <Pill>{visibilityLabel(group.visibility)}</Pill>
-        </div>
-
-        <p className="mt-3 text-caption text-tertiary">
-          {compactCount(memberCount)} member{memberCount === 1 ? "" : "s"} · Created{" "}
-          {new Date(group.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
-        </p>
+        {group.description && <p className="mt-3 max-w-2xl text-body-sm text-secondary">{group.description}</p>}
+        {/* The topic and tags as quiet text, not a row of pills. */}
+        {(group.topic || group.tags.length > 0) && (
+          <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-caption text-tertiary">
+            {group.topic && <span className="text-secondary">{group.topic}</span>}
+            {group.tags.map((tag) => (
+              <span key={tag}>#{tag}</span>
+            ))}
+          </p>
+        )}
       </div>
+
+      <dl className="mt-4 grid grid-cols-2 border-t border-white/[0.06] sm:flex">
+        {figures.map((f, i) => (
+          <div key={f.label} className={`min-w-0 px-4 py-3 sm:flex-1 sm:px-5 ${i > 0 ? "sm:border-l sm:border-white/[0.06]" : ""} ${i > 1 ? "border-t border-white/[0.06] sm:border-t-0" : ""}`}>
+            <dt className={EYEBROW}>{f.label}</dt>
+            <dd className="mt-1 text-title-md tabular text-primary">{f.value}</dd>
+            {f.detail && <dd className="truncate text-caption tabular">{f.detail}</dd>}
+          </div>
+        ))}
+        {/* Live presence, only once it has connected: never a made-up zero. */}
+        {online !== null && (
+          <div className={`min-w-0 px-4 py-3 sm:flex-1 sm:border-l sm:border-white/[0.06] sm:px-5 ${figures.length > 1 ? "border-t border-white/[0.06] sm:border-t-0" : ""}`}>
+            <dt className={EYEBROW}>Here now</dt>
+            <dd className="mt-1 flex items-center gap-2 text-title-md tabular text-primary">
+              <span aria-hidden className="size-2 rounded-full bg-success motion-safe:animate-pulse" />
+              {compactCount(online)}
+            </dd>
+          </div>
+        )}
+      </dl>
     </header>
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full border border-subtle px-2.5 py-0.5 leading-5 text-secondary">{children}</span>;
+/** This week's posts against last week's, as a whole percentage; null where that isn't defined (a quiet last week). */
+function weeklyDelta({ weeklyPosts, previousWeeklyPosts }: GroupStats): number | null {
+  if (previousWeeklyPosts === 0) return null;
+  return Math.round(((weeklyPosts - previousWeeklyPosts) / previousWeeklyPosts) * 100);
 }
 
 /**
@@ -236,7 +277,7 @@ function ChangeCoverButton({ groupId, hasBanner }: { groupId: string; hasBanner:
   }
 
   return (
-    <div className="absolute bottom-2.5 right-2.5 flex flex-col items-end gap-1.5">
+    <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5">
       {error && <p className="max-w-[16rem] rounded-md bg-black/80 px-2 py-1 text-right text-caption leading-snug text-brand-text">{error}</p>}
 
       {hasBanner ? (
@@ -332,7 +373,7 @@ function AdminMenu({ group, onOpenManage, pendingRequests }: { group: GroupDetai
             onClick={toggle}
             aria-expanded={open}
             aria-label="Community options"
-            className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border transition ${
+            className={`flex size-8 items-center justify-center rounded-control border transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
               open ? "border-white/25 bg-white/[0.1] text-white" : "border-white/10 text-secondary hover:border-white/30 hover:text-white"
             }`}
           >
@@ -366,7 +407,7 @@ function AdminMenu({ group, onOpenManage, pendingRequests }: { group: GroupDetai
             >
               Manage community
               {pendingRequests !== undefined && pendingRequests > 0 && (
-                <span className="shrink-0 rounded-full bg-brand/15 px-1.5 py-0.5 text-caption font-semibold text-brand-text">{pendingRequests}</span>
+                <span className="shrink-0 rounded-control bg-warning/15 px-1.5 py-0.5 text-caption font-semibold tabular text-warning">{pendingRequests}</span>
               )}
             </button>
             {error && <p className="px-2.5 pb-1.5 pt-0.5 text-caption leading-snug text-brand-text">{error}</p>}
