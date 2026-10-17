@@ -26,7 +26,7 @@ type FavoriteType = "driver" | "team" | "track";
 /** One favorites list per entity type (drivers/teams/tracks) — same list whether an entry got
  * favorited here, from the archive's own heart icons, or picked at signup: there's exactly one
  * favoriteDrivers/Teams/Tracks array per user, and this reads/writes it directly via
- * /api/archive/favorites, the same route the archive page uses. No separate "marked as favorite"
+ * /api/archive/favorites, the same route the archive page uses. No separate "marked as favourite"
  * copy anywhere.
  *
  * `items` spans the full archive (1950-last year) plus the current season, merged in by the

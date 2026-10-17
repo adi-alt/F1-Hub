@@ -35,7 +35,7 @@ function ProgressionTooltip({
   });
   return (
     <div className="min-w-[200px] rounded-lg border px-3 py-2.5 text-xs shadow-xl backdrop-blur-md" style={{ ...tooltipStyle, borderRadius: 8 }}>
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+      <p className="mb-1.5 text-caption font-semibold uppercase tracking-wide text-white">
         {round != null ? `Round ${round} ` : ""}
         {raceName}
       </p>
@@ -43,7 +43,7 @@ function ProgressionTooltip({
         {sorted.map((entry, i) => (
           <div key={String(entry.dataKey)} className="flex items-center justify-between gap-4">
             <span className="flex items-center gap-1.5 text-neutral-300">
-              <span className="w-3 shrink-0 font-mono text-[10px] text-tertiary">P{i + 1}</span>
+              <span className="w-3 shrink-0 font-mono text-caption text-tertiary">P{i + 1}</span>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: entry.color }} />
               {labelFor(String(entry.dataKey))}
             </span>

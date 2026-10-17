@@ -164,7 +164,7 @@ export function RoleSelect({
                         {opt.label}
                         {selected && <span className="text-brand-text">✓</span>}
                       </span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-tertiary">{opt.hint}</span>
+                      <span className="mt-0.5 block text-caption leading-snug text-tertiary">{opt.hint}</span>
                     </button>
                   );
                 })}

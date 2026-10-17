@@ -13,7 +13,7 @@ export function PredictionComparison({ accuracy }: { accuracy: PredictionAccurac
         {accuracy.reconstructed && (
           <span
             title="Computed after the race from the same real pre-race inputs a live run would have used — this race's own qualifying-to-race-day window closed before a prediction was ever frozen."
-            className="rounded-sm bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400"
+            className="rounded-sm bg-amber-500/15 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide text-amber-400"
           >
             Reconstructed
           </span>

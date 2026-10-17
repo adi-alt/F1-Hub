@@ -444,6 +444,32 @@ html::-webkit-scrollbar {
   }
 }
 
+/* The system's accessibility settings, site-wide (HIG accessibility.md › Vision; materials.md › Liquid Glass).
+   Reduce Transparency: no blur anywhere, and the glass panels (glass-panel, the shared PANEL recipe) become the
+   solid surface they imitate, so nothing behind them shows through. Increase Contrast: secondary and tertiary text
+   brighten (to 13.5:1 and 11.5:1 on the page) and the hairline edges of panels and dividers become visible lines. */
+@media (prefers-reduced-transparency: reduce) {
+  *,
+  *::before,
+  *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .glass-panel {
+    background-color: var(--surface-1) !important;
+  }
+}
+@media (prefers-contrast: more) {
+  :root {
+    --text-secondary: #d4d4d8;
+    --text-tertiary: #c4c4cc;
+    --border-subtle: #5a5a63;
+  }
+  .glass-panel {
+    border-color: rgb(255 255 255 / 0.3) !important;
+  }
+}
+
 /* ---------------------------------------------------------------------------------------- motion (home) ---
    The home's sense of being alive: sections that rise in as they scroll into view, the start lights, the
    standings ticker, cards that tilt toward the cursor, a slow drift on the race photo. Every one switches off

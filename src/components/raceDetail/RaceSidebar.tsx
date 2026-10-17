@@ -17,7 +17,7 @@ function Card({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4">{children}</div>;
 }
 function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-tertiary">{children}</p>;
+  return <p className="text-caption font-semibold uppercase tracking-[0.16em] text-tertiary">{children}</p>;
 }
 function FactRow({ label, value }: { label: string; value: string }) {
   return (
@@ -99,7 +99,7 @@ export function RaceSidebar({
           </>
         ) : live ? (
           <>
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-400">
+            <p className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.16em] text-emerald-400">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
               Live now
             </p>
@@ -175,10 +175,10 @@ export function RaceSidebar({
           <>
             <Divider />
             <Label>Your race</Label>
-            <p className="mt-1.5 text-sm text-neutral-300">Set a favorite driver or make a prediction to get a personal briefing here.</p>
+            <p className="mt-1.5 text-sm text-neutral-300">Set a favourite driver or make a prediction to get a personal briefing here.</p>
             <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
               <Link href="/profile?section=personalisation" className="text-xs font-medium text-neutral-400 transition hover:text-white">
-                Set favorites →
+                Set favourites →
               </Link>
               {!isCompleted && (
                 <a href="#prediction" className="text-xs font-medium text-neutral-400 transition hover:text-white">

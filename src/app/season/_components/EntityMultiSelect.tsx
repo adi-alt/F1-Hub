@@ -101,7 +101,7 @@ export function EntityMultiSelect({
       else byGroup.set(key, [o]);
     }
     const out: { heading: string | null; options: MultiSelectOption[] }[] = [];
-    if (favs.length > 0) out.push({ heading: "Favorites", options: favs });
+    if (favs.length > 0) out.push({ heading: "Favourites", options: favs });
     for (const [key, list] of byGroup) out.push({ heading: key || null, options: list });
     return out;
   }, [filtered, favoriteCodes]);
@@ -259,7 +259,7 @@ export function EntityMultiSelect({
                   />
                 </div>
                 {multiple && (
-                  <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-[11px] font-medium text-tertiary">
+                  <div className="flex shrink-0 items-center justify-between border-b border-white/[0.06] px-3 py-1.5 text-caption font-medium text-tertiary">
                     <button type="button" onClick={selectAll} className="transition hover:text-white">
                       Select all
                     </button>
@@ -277,7 +277,7 @@ export function EntityMultiSelect({
                   ) : (
                     groups.map((g) => (
                       <div key={g.heading ?? "_"}>
-                        {g.heading && <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-tertiary">{g.heading}</p>}
+                        {g.heading && <p className="px-3 pb-1 pt-2 text-caption font-semibold uppercase tracking-wide text-tertiary">{g.heading}</p>}
                         {g.options.map((o) => {
                           const checked = selectedSet.has(o.code);
                           return (

@@ -240,7 +240,7 @@ export function LapChart({
         style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
       >
         <p className="text-sm font-semibold text-white">{nameFor(highlighted)}</p>
-        <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Lap {lap}</p>
+        <p className="mt-1.5 text-caption uppercase tracking-wide text-tertiary">Lap {lap}</p>
         <p className="font-mono text-sm text-white">Position: P{position}</p>
         {prevPosition != null && <p className="font-mono text-xs text-tertiary">Previous lap: P{prevPosition}</p>}
         {delta !== null && delta !== 0 && (
