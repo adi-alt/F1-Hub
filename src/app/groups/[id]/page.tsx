@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { GroupRealtimeWatcher } from "@/components/GroupRealtimeWatcher";
 import { GroupVisitBeacon } from "./components/GroupVisitBeacon";
@@ -188,16 +186,12 @@ export default async function CommunityPage({
     // Wide enough for a real two-column workspace (content + context rail) at desktop widths, while
     // the content column itself stays a comfortable reading measure. Matches the Communities index's
     // own max width rather than inventing a third one for this page.
-    <div className="page-wide py-6">
+    // No top padding: the head brings its own, so its full-bleed cover meets the site header as the circuit page's does.
+    <div className="page-wide pb-10">
       <GroupRealtimeWatcher groupId={id} />
       <GroupVisitBeacon groupId={id} />
 
-      <Link href="/groups" className="inline-flex items-center gap-1 rounded-control text-body-sm text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-        <ChevronLeft aria-hidden size={16} />
-        Communities
-      </Link>
-
-      <div className="mt-4">
+      <div>
         <CommunityWorkspace
           group={group}
           myUserId={uid}
