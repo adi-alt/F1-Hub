@@ -11,6 +11,11 @@ import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { GroupSummary, PublicGroupSummary } from "@/lib/supabase/groups";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
+import { WeekendBar } from "./weekend/WeekendBar";
+import type { ModelPick, SessionKey } from "@/lib/communityWeekend";
+import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communityWeekend";
+import type { PredictionType } from "@/lib/groupPredictionTypes";
+import type { CallableRace } from "@/lib/supabase/postCalls";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
 import { GroupsFeed } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
@@ -38,7 +43,10 @@ export function GroupsHomeClient({
   upcomingRaces,
   pulse,
   driversByRace,
-  poleModelByRace = {},
+  modelByRace = {},
+  weekend = null,
+  crowdVsModel = null,
+  callableRace = null,
   suggestions = [],
 }: {
   groups: GroupSummary[];
@@ -50,8 +58,14 @@ export function GroupsHomeClient({
   pulse: CommunityPulseData;
   /** Driver roster per race id, for the open rounds shown in the feed. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
-  /** The pole model's top three per race, where it has run (see page.tsx). */
-  poleModelByRace?: Record<string, string[]>;
+  /** The Apex model's pick per race and round type (see getModelPicks). */
+  modelByRace?: Record<string, Partial<Record<PredictionType, ModelPick>>>;
+  /** The race weekend Communities is living in (see getCommunityWeekend): the bar above the feed, results in it. */
+  weekend?: CommunityWeekendData;
+  /** Your communities against the Apex model this season (see getCrowdVsModel). */
+  crowdVsModel?: CrowdVsModel | null;
+  /** This weekend's race while calls on it are open (see getCallableRace). */
+  callableRace?: CallableRace | null;
   /** Public communities the viewer isn't in, for the rail's "Communities to join". */
   suggestions?: PublicGroupSummary[];
 }) {
@@ -63,6 +77,9 @@ export function GroupsHomeClient({
   // fetch) need it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
+  // A session chosen on the weekend bar narrows the feed to what was said during and after it.
+  const [sessionFilter, setSessionFilter] = useState<SessionKey | null>(null);
+  const openRounds = predictions.filter((p) => p.state === "open");
 
   // Picking another community swaps the feed, so bring its top into view: the feed column on a desktop, the page
   // on a phone. Not on first render.
@@ -76,7 +93,7 @@ export function GroupsHomeClient({
     const feed = feedRef.current;
     if (feed && getComputedStyle(feed).overflowY !== "visible") feed.scrollTo({ top: 0 });
     else window.scrollTo({ top: 0 });
-  }, [selectedId]);
+  }, [selectedId, sessionFilter]);
 
   // Two real scopes, not one that quietly ignores half its own state:
   //
@@ -120,7 +137,7 @@ export function GroupsHomeClient({
         },
   );
 
-  const rightRail = <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} />;
+  const rightRail = <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />;
 
   return (
     <div className={groups.length > 0 ? "py-4 lg:h-[calc(100dvh-3.5rem)]" : "py-6"}>
@@ -147,9 +164,32 @@ export function GroupsHomeClient({
               reach 12px past the text), so nothing spills sideways. A div, not a second <main>. */}
           <div ref={feedRef} data-feed-scroll className="min-w-0 lg:-mx-3 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain lg:px-3 lg:scrollbar-hide">
             <div className="space-y-3 lg:pb-8">
-              <WeekendStrip race={nextRace} predictions={predictions} />
+              {weekend ? (
+                <WeekendBar
+                  weekend={weekend}
+                  selected={sessionFilter}
+                  onSelect={setSessionFilter}
+                  openRounds={openRounds.length}
+                  roundsHref={openRounds[0] ? `${groupHref(openRounds[0].groupId)}?tab=predictions` : undefined}
+                />
+              ) : (
+                <WeekendStrip race={nextRace} predictions={predictions} />
+              )}
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-              <GroupsFeed groups={groups} initialPosts={initialPosts} initialCursor={initialCursor} selectedCommunity={selectedCommunity} predictions={predictions} upcomingRaces={upcomingRaces} driversByRace={driversByRace} poleModelByRace={poleModelByRace} />
+              <GroupsFeed
+                groups={groups}
+                initialPosts={initialPosts}
+                initialCursor={initialCursor}
+                selectedCommunity={selectedCommunity}
+                predictions={predictions}
+                upcomingRaces={upcomingRaces}
+                driversByRace={driversByRace}
+                modelByRace={modelByRace}
+                weekend={weekend}
+                sessionFilter={sessionFilter}
+                onClearSession={() => setSessionFilter(null)}
+                callableRace={callableRace}
+              />
             </div>
           </div>
 
@@ -167,8 +207,8 @@ export function GroupsHomeClient({
   );
 }
 
-/** Below xl the race-weekend rail sits after an endless feed, where nobody reaches it: this keeps the one thing that
- * can't wait (the race and what's open to predict) above the feed instead. */
+/** The fallback above the feed when there's no race weekend to live in (the season is over, or its calendar can't be
+ * read): the race and what's open to predict, below xl where the race rail isn't shown. */
 function WeekendStrip({ race, predictions }: { race: NextRace; predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
   const open = predictions.filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open");

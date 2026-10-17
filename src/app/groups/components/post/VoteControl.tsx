@@ -20,11 +20,11 @@ export function VoteControl({ score, myVote, onVote, compact = false }: { score:
         aria-label={dir === 1 ? "Upvote" : "Downvote"}
         aria-pressed={on}
         onClick={() => onVote(dir)}
-        className={`relative flex size-9 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+        className={`relative flex size-8 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
           on ? (dir === 1 ? "text-brand-text" : "text-info") : "text-tertiary hover:bg-surface-2 hover:text-primary"
         }`}
       >
-        <Glyph aria-hidden size={18} strokeWidth={1.75} fill={on ? "currentColor" : "none"} />
+        <Glyph aria-hidden size={16} strokeWidth={1.75} fill={on ? "currentColor" : "none"} />
       </button>
     );
   };
@@ -32,7 +32,7 @@ export function VoteControl({ score, myVote, onVote, compact = false }: { score:
   return (
     <div className={compact ? "flex items-center" : "flex flex-col items-center gap-0.5"}>
       {arrow(1)}
-      <span className={`relative inline-flex h-5 min-w-[1.5rem] items-center justify-center overflow-hidden text-body-sm font-semibold tabular ${tone}`}>
+      <span className={`relative inline-flex h-5 min-w-[1.5rem] items-center justify-center overflow-hidden text-caption font-semibold tabular ${tone}`}>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span key={score} initial={{ y: myVote === -1 ? -10 : 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: myVote === -1 ? 10 : -10, opacity: 0 }} transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}>
             {score}

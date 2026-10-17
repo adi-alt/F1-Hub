@@ -20,6 +20,9 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Dialog } from "@/components/ui/Dialog";
 import { FitStack } from "./FitStack";
+import { CrowdVsApexWidget } from "./CrowdVsApexWidget";
+import type { CrowdVsModel } from "@/lib/supabase/communityWeekend";
+import { EYEBROW, PANEL } from "./panel";
 import { RollingText } from "@/components/ui/RollingNumber";
 import { RingChart, Ring, RingCenter } from "@/components/charts/ring/ring-chart";
 import { ApexWidget } from "./ApexWidget";
@@ -41,7 +44,10 @@ export function GroupsRightSidebar({
   suggestions = [],
   onDiscover,
   fixedHeight = true,
+  crowdVsModel = null,
 }: {
+  /** Your communities against the Apex model this season. */
+  crowdVsModel?: CrowdVsModel | null;
   /** Whether the rail is the fixed-height column beside the scrolling feed (from xl) or simply follows the page. */
   fixedHeight?: boolean;
   predictions: FeedPrediction[];
@@ -59,7 +65,7 @@ export function GroupsRightSidebar({
         <ApexWidget location={nextRace?.circuit ?? null} year={nextRace?.year ?? null} />
       </div>
       <div className={`${WIDGET} p-4`}>
-        <ActivePredictions predictions={predictions} />
+        <ActivePredictions predictions={predictions} crowdVsModel={crowdVsModel} />
       </div>
       {suggestions.length > 0 && (
         <div className={`${WIDGET} p-4`}>
@@ -73,9 +79,8 @@ export function GroupsRightSidebar({
 /** Where the rail is a fixed-height column beside the feed (GroupsHomeClient's app shell). */
 const FIXED_HEIGHT = "(min-width: 1280px)";
 
-/** A rail widget: a frosted pane (surface-frost) over the page's ambient light, so the rails read as a set of
- * widgets beside the feed while the feed itself stays an unboxed list. */
-const WIDGET = "rounded-card surface-frost";
+/** A rail widget: the site's glass panel (as Season draws its sections), so the rails read as a set of widgets. */
+const WIDGET = PANEL;
 
 /** "Who to follow", for communities: a few public ones you're not in, each a tap from joining. Joining goes through
  * the same endpoint as Discover's cards, then opens the community. */
@@ -96,12 +101,12 @@ function SuggestedCommunities({ communities, onDiscover }: { communities: Public
   }
   return (
     <div>
-      <h3 className="text-body-sm font-semibold text-primary">Communities to join</h3>
+      <h3 className={EYEBROW}>Communities to join</h3>
       <ul className="mt-2">
         {communities.map((c) => (
           <li key={c.id} className="flex items-center gap-3 border-b border-white/[0.06] py-3 last:border-b-0">
             <Link href={groupHref(c.id)} className="flex min-w-0 flex-1 items-center gap-3 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-              <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.id} size={36} />
+              <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.id} size={28} />
               <span className="min-w-0">
                 <span className="block truncate text-body-sm font-medium text-primary hover:underline">{c.name}</span>
                 <span className="block truncate text-caption text-secondary">
@@ -137,7 +142,7 @@ function RaceWeekend({ race }: { race: NextRace }) {
   if (!race) {
     return (
       <div className="p-4">
-        <h3 className="text-body-sm font-semibold text-primary">Race weekend</h3>
+        <h3 className={EYEBROW}>Race weekend</h3>
         <p className="mt-1 text-body-sm text-secondary">No upcoming race is scheduled yet.</p>
       </div>
     );
@@ -154,12 +159,12 @@ function RaceWeekend({ race }: { race: NextRace }) {
           Round {race.round}
           {race.country ? ` · ${race.country}` : ""}
         </p>
-        <p className="mt-0.5 text-title-md text-primary underline-offset-4 group-hover:underline">{race.name}</p>
+        <p className="mt-0.5 text-body font-semibold text-primary underline-offset-4 group-hover:underline">{race.name}</p>
         <div className="mt-3 flex items-end justify-between gap-3">
           <div>
             <p className="text-caption text-secondary">{countdown ? "Lights out in" : "Race weekend"}</p>
             {/* The digits turn over in place each minute (NumberFlow) instead of the line re-rendering. */}
-            <p suppressHydrationWarning className="text-title-lg font-semibold tabular text-primary">
+            <p suppressHydrationWarning className="text-title-md font-semibold tabular text-primary">
               {countdown ? <RollingText text={countdown} /> : "Underway"}
             </p>
           </div>
@@ -180,9 +185,10 @@ const RAIL_ROUNDS = 2;
  * the minute it closes. The ones you haven't entered come first, then the soonest to close; two are listed and the
  * rest open in a dialog. Each row says what you'd play for (its entry points) and where you stand.
  */
-function ActivePredictions({ predictions: allPredictions }: { predictions: FeedPrediction[] }) {
+function ActivePredictions({ predictions: allPredictions, crowdVsModel }: { predictions: FeedPrediction[]; crowdVsModel: CrowdVsModel | null }) {
   const now = useMinuteClock();
   const [showAll, setShowAll] = useState(false);
+  const [showRecord, setShowRecord] = useState(false);
   const open = allPredictions
     .filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open")
     .sort((a, b) => Number(a.hasEntered) - Number(b.hasEntered) || (a.lockAt ? Date.parse(a.lockAt) : Infinity) - (b.lockAt ? Date.parse(b.lockAt) : Infinity));
@@ -197,10 +203,10 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
         {/* Your weekend at a glance: a Bklit ring filling as you enter this weekend's open rounds. */}
         {open.length > 0 && (
           <RingChart
-            size={48}
-            strokeWidth={5}
+            size={40}
+            strokeWidth={4}
             ringGap={0}
-            baseInnerRadius={17}
+            baseInnerRadius={14}
             ariaLabel={`You've entered ${entered} of ${open.length} open rounds`}
             data={[{ label: "entered", value: entered, maxValue: open.length, color: "var(--success)" }]}
           >
@@ -213,7 +219,7 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
           </RingChart>
         )}
         <div className="min-w-0 flex-1">
-          <h3 className="text-body-sm font-semibold text-primary">Open rounds</h3>
+          <h3 className={EYEBROW}>Open rounds</h3>
           {open.length > 0 && (
             <p suppressHydrationWarning className="truncate text-caption text-secondary">
               {/* The ring carries "1/3"; this line carries what it can't: when the next one you haven't entered closes. */}
@@ -238,6 +244,10 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
           ))}
         </ul>
       )}
+      {/* Crowd vs Apex, the season's running score, under the rounds it's made of: one line, the breakdown a click
+          away. Shown before any round has settled too, so the rivalry is known before it starts. */}
+      {crowdVsModel && <CrowdVsApexLine record={crowdVsModel} onOpen={() => setShowRecord(true)} />}
+
       <Dialog open={showAll} onClose={() => setShowAll(false)} title="Open prediction rounds" size="sm">
         <ul>
           {open.map((p) => (
@@ -247,7 +257,50 @@ function ActivePredictions({ predictions: allPredictions }: { predictions: FeedP
           ))}
         </ul>
       </Dialog>
+      {crowdVsModel && (
+        <Dialog open={showRecord} onClose={() => setShowRecord(false)} title="Crowd vs Apex" size="sm">
+          <CrowdVsApexWidget record={crowdVsModel} heading={false} />
+        </Dialog>
+      )}
     </div>
+  );
+}
+
+/** The season's crowd-vs-Apex score in one line: your communities' right calls against the model's, with the split
+ * drawn between them. Opens the full record. */
+function CrowdVsApexLine({ record, onOpen }: { record: CrowdVsModel; onOpen: () => void }) {
+  const { crowd, model, rounds } = record.overall;
+  const share = crowd + model > 0 ? crowd / (crowd + model) : 0.5;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="-mx-2 mt-2 block w-[calc(100%+1rem)] rounded-control border-t border-white/[0.06] px-2 pb-1 pt-3 text-left transition-colors duration-fast hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+    >
+      <span className="flex items-center justify-between gap-2">
+        <span className={EYEBROW}>Crowd vs Apex</span>
+        <span className="flex items-center gap-0.5 text-caption text-secondary">
+          {rounds ? `${rounds} settled` : "Season record"}
+          <Icon icon={ChevronRight} size={16} className="size-3.5" />
+        </span>
+      </span>
+      {rounds ? (
+        <span className="mt-1.5 flex items-center gap-2 text-caption text-secondary">
+          <span className="shrink-0">
+            You <span className="text-body-sm font-semibold tabular text-primary">{crowd}</span>
+          </span>
+          <span aria-hidden className="flex h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+            <span className="h-full bg-success" style={{ width: `${share * 100}%` }} />
+            <span className="h-full flex-1 bg-info/70" />
+          </span>
+          <span className="shrink-0">
+            <span className="text-body-sm font-semibold tabular text-primary">{model}</span> Apex
+          </span>
+        </span>
+      ) : (
+        <span className="mt-1 block text-caption text-secondary">Your communities against the Apex model, scored as rounds settle.</span>
+      )}
+    </button>
   );
 }
 
@@ -261,7 +314,7 @@ function RoundRow({ prediction: p, now }: { prediction: FeedPrediction; now: num
   return (
     <Link
       href={`${groupHref(p.groupId)}?tab=predictions`}
-      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-body-sm font-medium text-primary">{predictionTypeLabels[p.type]}</span>

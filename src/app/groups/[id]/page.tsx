@@ -26,6 +26,7 @@ import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { getCallableRace } from "@/lib/supabase/postCalls";
 import { pageMetadata } from "@/lib/seo";
 
 /** How many open rounds the context rail shows before it stops being a rail. The rest are one
@@ -108,7 +109,7 @@ export default async function CommunityPage({
   const wantsLeaderboard = modules.includes("leaderboard");
   const wantsRace = isF1Type(group.communityType);
 
-  const [feed, leaderboard, predictions, pointsBalance, seasonRaces, pendingRequests, stats, pulse, nextRace] = await Promise.all([
+  const [feed, leaderboard, predictions, pointsBalance, seasonRaces, pendingRequests, stats, pulse, nextRace, callableRace] = await Promise.all([
     listPosts(id, uid),
     wantsLeaderboard ? getGroupLeaderboard(id, uid) : Promise.resolve([]),
     wantsPredictions ? listPredictions(id, uid) : Promise.resolve([]),
@@ -120,6 +121,8 @@ export default async function CommunityPage({
     // the page is left (GroupVisitBeacon), so a refresh during the visit doesn't reset the window.
     getGroupPulse(id, uid),
     wantsRace ? getNextRace().catch(() => null) : Promise.resolve(null),
+    // Takes with receipts: this weekend's race while calls are open, for an F1 community's composer.
+    wantsRace ? getCallableRace(await getCurrentSeason()).catch(() => null) : Promise.resolve(null),
   ]);
 
   // Races for the prediction race picker - current season, most recent first, so the realistic
@@ -198,6 +201,7 @@ export default async function CommunityPage({
           railPredictions={railPredictions}
           races={races}
           upcomingRaces={upcomingRaces}
+          callableRace={callableRace}
           driversByRace={driversByRace}
           pointsBalance={pointsBalance}
           memberCount={group.members.length}

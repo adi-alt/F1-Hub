@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { PostKind } from "@/lib/communities";
-import { createPost } from "@/lib/supabase/groupPosts";
+import { createPost, discardNewPost } from "@/lib/supabase/groupPosts";
+import { saveCall, validateCall } from "@/lib/supabase/postCalls";
+import { getCurrentSeason } from "@/lib/currentSeason";
+import type { PostCall } from "@/lib/postCalls";
 import { getSession } from "@/lib/session/getSession";
 import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError } from "@/services/errors";
@@ -27,10 +30,20 @@ export async function POST(request: Request) {
     attachment?: { name?: string | null; mime?: string | null; size?: number | null; thumbUrl?: string | null; pages?: number | null } | null;
     kind?: PostKind;
     scheduledAt?: string | null;
+    /** A call on this weekend's race (takes with receipts), checked against the race and its lock below. */
+    call?: unknown;
   };
   if (typeof body.content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
 
   try {
+    // A call is checked before the post exists, and only on a post that goes out now: a scheduled post's call would
+    // be revealed (or quietly dropped) after the result, which is no call at all.
+    let call: PostCall | null = null;
+    if (body.call) {
+      if (body.scheduledAt) return NextResponse.json({ error: "A post with a call can't be scheduled: it has to be made before the session." }, { status: 400 });
+      call = await validateCall(body.call, await getCurrentSeason());
+    }
+
     // scheduledAt is validated inside createPost (real date, at least a minute out, at most a year)
     // and is deliberately unable to bypass a community's moderation queue - see its own comment.
     const post = await createPost(body.groupId ?? null, session.uid, {
@@ -51,6 +64,15 @@ export async function POST(request: Request) {
       kind: body.kind,
       scheduledAt: body.scheduledAt,
     });
+    if (call) {
+      try {
+        await saveCall(post.id, session.uid, call);
+      } catch (err) {
+        console.error("saveCall:", err);
+        await discardNewPost(post.id, session.uid);
+        return NextResponse.json({ error: "Calls aren't available just yet. Post it without the call, or try again later." }, { status: 503 });
+      }
+    }
     return NextResponse.json(post);
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });

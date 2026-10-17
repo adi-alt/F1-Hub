@@ -7,6 +7,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { groupHref } from "@/lib/routes";
 import type { PostCardData } from "./types";
+import type { SessionPhase } from "@/lib/communityWeekend";
+import { CallRecordBadge } from "./CallChip";
 
 /**
  * Who wrote a post, the way a social feed says it: the author's own photo, and one muted line
@@ -21,7 +23,20 @@ type HeaderProps = {
   /** Admin/Moderator, when the author holds one. */
   roleLabel?: string;
   pending?: boolean;
+  /** Where in the race weekend the post was written (Communities' weekend mode), shown after the time. */
+  sessionTag?: SessionPhase;
 };
+
+/** "during Qualifying" (with a live dot), "after FP2", "build-up". */
+function SessionTag({ tag }: { tag: NonNullable<SessionPhase> }) {
+  if (tag.phase === "build-up") return <span className="shrink-0 whitespace-nowrap text-tertiary">build-up</span>;
+  return (
+    <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-tertiary" title={tag.phase === "live" ? `Written while ${tag.label} was running` : `Written after ${tag.label}`}>
+      {tag.phase === "live" && <span aria-hidden className="size-1.5 rounded-full bg-brand" />}
+      {tag.phase === "live" ? "during" : "after"} {tag.label}
+    </span>
+  );
+}
 
 export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "post" | "showGroup"> & { size?: number }) {
   const { user } = useAuth();
@@ -43,7 +58,7 @@ export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "po
   );
 }
 
-export function PostByline({ post, showGroup, roleLabel, pending }: HeaderProps) {
+export function PostByline({ post, showGroup, roleLabel, pending, sessionTag }: HeaderProps) {
   const inCommunity = showGroup && !!post.groupId;
   const dot = (
     <span aria-hidden className="text-tertiary">
@@ -53,6 +68,7 @@ export function PostByline({ post, showGroup, roleLabel, pending }: HeaderProps)
   return (
     <div className="flex min-w-0 items-center gap-x-1.5 text-body-sm leading-5">
       <span className="min-w-0 shrink truncate font-semibold text-primary">{post.authorName}</span>
+      {post.authorRecord && <CallRecordBadge record={post.authorRecord} />}
       {roleLabel && <Badge tone="neutral">{roleLabel}</Badge>}
       {inCommunity && (
         <>
@@ -66,6 +82,16 @@ export function PostByline({ post, showGroup, roleLabel, pending }: HeaderProps)
       <time suppressHydrationWarning dateTime={post.createdAt} title={new Date(post.createdAt).toLocaleString()} className="shrink-0 whitespace-nowrap text-tertiary">
         {timeAgo(post.createdAt)}
       </time>
+      {sessionTag && (
+        <>
+          <span aria-hidden className="hidden text-tertiary sm:inline">
+            ·
+          </span>
+          <span className="hidden sm:flex">
+            <SessionTag tag={sessionTag} />
+          </span>
+        </>
+      )}
       {pending && <Badge tone="warning">Pending approval</Badge>}
     </div>
   );

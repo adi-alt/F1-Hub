@@ -5,6 +5,7 @@ import { ArrowUpRight, Sparkles } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { askApex } from "@/components/apex/askApex";
 import { ShimmeringText } from "@/components/ui/ShimmeringText";
+import { EYEBROW } from "./panel";
 import { useApexScope } from "@/components/apex/ApexScopeProvider";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
@@ -75,8 +76,8 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
   return (
     <section aria-labelledby="apex-widget">
       <div className="flex items-center justify-between gap-2">
-        <h3 id="apex-widget" className="flex items-center gap-1.5 text-body-sm font-semibold text-primary">
-          <Icon icon={Sparkles} size={16} className="text-secondary" />
+        <h3 id="apex-widget" className={`flex items-center gap-1.5 ${EYEBROW}`}>
+          <Icon icon={Sparkles} size={16} className="size-3.5" />
           Apex
         </h3>
         <span className="text-caption text-tertiary">AI summary</span>
@@ -94,7 +95,7 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
       ) : take ? (
         <div className="mt-2">
           <p className="text-body-sm font-medium text-primary">{take.headline}</p>
-          <p ref={summaryRef} id="apex-take" className={`mt-1 text-body-sm text-secondary ${expanded ? "" : "line-clamp-3"}`}>
+          <p ref={summaryRef} id="apex-take" className={`mt-1 text-caption leading-5 text-secondary ${expanded ? "" : "line-clamp-3"}`}>
             {take.summary}
           </p>
           {/* An explicit toggle rather than a mid-word ellipsis left as the only ending. */}
@@ -120,10 +121,10 @@ export function ApexWidget({ location, year }: { location: string | null; year: 
                 type="button"
                 onClick={() => askApex(q)}
                 aria-label={`Ask Apex: ${q}`}
-                className="group flex w-full items-start gap-2 rounded-control bg-white/[0.05] px-3 py-1.5 text-left text-body-sm text-primary/90 transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="group flex w-full items-start gap-2 rounded-control bg-white/[0.04] px-2.5 py-1.5 text-left text-caption text-primary/90 transition-colors duration-fast hover:bg-white/[0.09] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 <span className="min-w-0 flex-1 line-clamp-2">{SHORT_LABEL[q] ?? q}</span>
-                <Icon icon={ArrowUpRight} size={16} className="mt-0.5 shrink-0 text-tertiary group-hover:text-primary" />
+                <Icon icon={ArrowUpRight} size={16} className="size-3.5 shrink-0 text-tertiary group-hover:text-primary" />
               </button>
             </li>
           ))}

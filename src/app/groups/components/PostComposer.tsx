@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, X, type LucideIcon } from "lucide-react";
+import { Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Target, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
@@ -14,6 +14,9 @@ import { renderPdfFirstPage } from "./post/pdfThumbnail";
 import { SchedulePost } from "./post/SchedulePost";
 import type { PostStatus } from "@/lib/supabase/groupPosts";
 import { fileNameFromUrl } from "@/lib/mediaKind";
+import { PANEL } from "./panel";
+import { CallBuilder, isCompleteCall, type CallDraft } from "./post/CallBuilder";
+import type { CallableRace } from "@/lib/supabase/postCalls";
 import { CommunitySelector } from "./post/CommunitySelector";
 import { EmojiPicker } from "./post/EmojiPicker";
 import { GifPicker } from "./post/GifPicker";
@@ -75,6 +78,7 @@ export function PostComposer({
   fixedGroupId,
   placeholder,
   upcomingRaces = [],
+  callableRace = null,
 }: {
   groups: ComposerCommunity[];
   onPosted: () => void;
@@ -87,6 +91,8 @@ export function PostComposer({
   /** This season's un-finished rounds, for opening a prediction. Empty (the default) simply means
    * no prediction mode is offered - every other caller of this composer passes nothing. */
   upcomingRaces?: RaceOption[];
+  /** This weekend's race while calls on it are still open (takes with receipts); null hides "Make a call". */
+  callableRace?: CallableRace | null;
 }) {
   const { user, displayName } = useAuth();
   const [focused, setFocused] = useState(false);
@@ -114,6 +120,12 @@ export function PostComposer({
   // real UTC instant only at submit (new Date(local).toISOString()), which is what makes "7:30 PM"
   // mean 7:30 PM where they are - the server stores and compares instants, never wall clocks.
   const [scheduledAt, setScheduledAt] = useState("");
+  // A call on this weekend's race, graded against the result once it's in (takes with receipts).
+  const [callOpen, setCallOpen] = useState(false);
+  const [callDraft, setCallDraft] = useState<CallDraft | null>(null);
+  const hasCall = !!callableRace && callOpen && isCompleteCall(callDraft, callableRace);
+  // A call that's been started but isn't finished holds the post back, so it never goes out without the call meant.
+  const callIncomplete = !!callableRace && callOpen && !hasCall;
   const [scheduledConfirmation, setScheduledConfirmation] = useState("");
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
@@ -140,7 +152,7 @@ export function PostComposer({
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
   const canPredict = !!targetGroup && postKindsFor(targetGroup.communityType, targetGroup.features).includes("prediction");
-  const isOpen = focused || content.length > 0 || !!mediaPreview;
+  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen;
 
   // A blob: URL (createObjectURL below) holds its referenced data in memory until explicitly
   // revoked or the document unloads - real, if minor, for a composer someone can attach/remove
@@ -163,6 +175,8 @@ export function PostComposer({
     setNotice("");
     setConfirmDiscard(false);
     setScheduledAt("");
+    setCallOpen(false);
+    setCallDraft(null);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
@@ -266,7 +280,8 @@ export function PostComposer({
         mediaUrl,
         attachment: attachment ? { name: attachment.name, mime: attachment.mime, size: attachment.size, thumbUrl: attachment.thumbUrl, pages: attachment.pages } : null,
         kind: isPrediction && canPredict ? "prediction" : undefined,
-        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        scheduledAt: scheduledAt && !hasCall ? new Date(scheduledAt).toISOString() : null,
+        call: hasCall && callableRace && callDraft ? { raceId: callableRace.raceId, ...callDraft } : undefined,
       }),
     });
     const body = (await res.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
@@ -287,10 +302,10 @@ export function PostComposer({
   }
 
   return (
-    // One unit: your photo, a borderless field and the tools under it on a single frosted pane, so they read as one
-    // interaction. Focus anywhere inside lights the pane's edge. Idle and open are the same pane; opening adds the
+    // One unit: your photo, a borderless field and the tools under it on the site's glass panel, so they read as one
+    // interaction. Focus anywhere inside lifts the panel's edge. Idle and open are the same panel; opening adds the
     // title line and grows the field.
-    <div className="relative rounded-card px-4 py-3 surface-frost transition-shadow duration-fast focus-within:ring-1 focus-within:ring-white/25">
+    <div className={`relative px-4 py-3 ${PANEL} transition-colors duration-fast focus-within:border-white/[0.16]`}>
       {(isOpen || mode === "prediction") && (
         <button
           type="button"
@@ -317,7 +332,7 @@ export function PostComposer({
 
       {mode === "prediction" ? (
         <div className="flex items-start gap-3">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
+          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={32} />
           <div className="min-w-0 flex-1">
             <p className="pr-8 text-body-sm font-semibold text-primary">New prediction round</p>
             <PredictionComposer
@@ -333,7 +348,7 @@ export function PostComposer({
       ) : (
         <>
           <div className="flex items-start gap-3">
-            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={36} />
+            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={32} />
             <div className="min-w-0 flex-1 pr-8">
               {isOpen && (
                 <input
@@ -342,7 +357,7 @@ export function PostComposer({
                   placeholder="Title (optional)"
                   maxLength={300}
                   aria-label="Post title"
-                  className="block w-full bg-transparent pt-1.5 text-body font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
+                  className="block w-full bg-transparent pt-1 text-body-sm font-semibold text-primary placeholder:font-normal placeholder:text-tertiary focus:outline-none"
                 />
               )}
               <textarea
@@ -356,15 +371,29 @@ export function PostComposer({
                 maxLength={2000}
                 // Idle it is one line and clips a long placeholder rather than wrapping it into a second line the row
                 // can't show; focused it opens to three rows and wraps normally.
-                className={`block w-full resize-none bg-transparent text-body text-primary placeholder:text-tertiary focus:outline-none ${
-                  isOpen ? "mt-1 min-h-[4.5rem]" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-1.5"
+                className={`block w-full resize-none bg-transparent text-body-sm leading-6 text-primary placeholder:text-tertiary focus:outline-none ${
+                  isOpen ? "mt-1 min-h-[4.5rem]" : "cursor-text overflow-hidden text-ellipsis whitespace-nowrap py-1"
                 }`}
               />
             </div>
           </div>
 
+          {callOpen && callableRace && (
+            <div className="pl-11">
+              <CallBuilder
+                race={callableRace}
+                value={callDraft}
+                onChange={setCallDraft}
+                onRemove={() => {
+                  setCallOpen(false);
+                  setCallDraft(null);
+                }}
+              />
+            </div>
+          )}
+
           {(attachment || mediaError || scheduledConfirmation) && (
-            <div className="space-y-2 pl-12 pt-2">
+            <div className="space-y-2 pl-11 pt-2">
               {attachment && (
                 // The SAME component the published post renders, so what is previewed here is literally what will
                 // appear in the feed.
@@ -386,7 +415,7 @@ export function PostComposer({
           )}
 
           {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
-          <div className="mt-2 flex flex-wrap items-center gap-0.5 pl-10">
+          <div className="mt-1.5 flex flex-wrap items-center gap-0.5 pl-9">
             <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photo" />
             <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
             <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
@@ -395,6 +424,8 @@ export function PostComposer({
             {/* A different thing from the tag above: that marks THIS post as prediction talk, this opens a real
                 round the community can enter. Only where the viewer holds the permission; the server re-checks. */}
             {canOpenPrediction && <ToolButton onClick={() => setMode("prediction")} icon={Crosshair} label="New round" />}
+            {/* Takes with receipts: claim something about this weekend's race and have it graded against the result. */}
+            {callableRace && <ToolButton onClick={() => setCallOpen((v) => !v)} active={callOpen} icon={Target} label="Make a call" />}
 
             <input
               ref={fileInputRef}
@@ -429,17 +460,18 @@ export function PostComposer({
                 <button
                   type="button"
                   onClick={() => void submit()}
-                  disabled={posting || uploadingMedia || !content.trim()}
+                  disabled={posting || uploadingMedia || !content.trim() || callIncomplete}
                   aria-busy={posting}
-                  title={!content.trim() && !posting ? "Write something to post" : undefined}
-                  className={`flex h-8 items-center gap-1.5 px-4 text-body-sm font-semibold transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${
+                  title={callIncomplete ? "Finish the call, or remove it" : !content.trim() && !posting ? "Write something to post" : undefined}
+                  className={`flex h-8 items-center gap-1.5 px-3.5 text-body-sm font-semibold transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${
                     justPosted ? "bg-success/15 text-success" : "bg-brand text-white hover:bg-brand-hover disabled:bg-white/[0.08] disabled:text-tertiary"
                   }`}
                 >
                   {justPosted && <Icon icon={Check} size={16} />}
                   {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : (justPosted ?? (scheduledAt ? "Schedule" : "Post"))}
                 </button>
-                {(content.trim() || scheduledAt) && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
+                {/* A call has to go out before its session, so a post that carries one can't be scheduled. */}
+                {(content.trim() || scheduledAt) && !hasCall && <SchedulePost value={scheduledAt} onChange={setScheduledAt} />}
               </div>
             </div>
           </div>
@@ -467,7 +499,7 @@ export function PostComposer({
   );
 }
 
-/** A toolbar tool: an icon-only 32px ghost button (quieter than Post), named by its tooltip and accessible label. */
+/** A toolbar tool: an icon-only 28px ghost button (quieter than Post), named by its tooltip and accessible label. */
 function ToolButton({
   ref,
   onClick,
@@ -489,11 +521,11 @@ function ToolButton({
       aria-pressed={active}
       aria-label={label}
       title={label}
-      className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+      className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
         active ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
       }`}
     >
-      <Icon icon={icon} size={20} />
+      <Icon icon={icon} size={16} />
     </button>
   );
 }

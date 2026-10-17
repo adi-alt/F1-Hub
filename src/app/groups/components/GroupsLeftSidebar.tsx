@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, Compass, Home, MoreHorizontal, Plus } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
+import { EYEBROW, PANEL } from "./panel";
 import { LayoutGroup, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
@@ -12,8 +13,8 @@ import type { GroupSummary } from "@/lib/supabase/groups";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 import { CommunityPulseCard } from "./CommunityPulseCard";
 
-/** Row height plus the gap between rows: the list is sized in whole rows. */
-const ROW_PX = 40 + 2;
+/** Row height (36px) plus the gap between rows: the list is sized in whole rows. */
+const ROW_PX = 36 + 2;
 
 /**
  * Your communities, as the left rail. Selecting a row doesn't navigate: it switches the feed to that community's
@@ -78,9 +79,9 @@ export function GroupsLeftSidebar({
 
   return (
     <div ref={columnRef} className="flex h-full min-h-0 flex-col gap-3">
-      <nav ref={cardRef} aria-label="Your communities" className="flex min-h-0 shrink flex-col rounded-card p-2 surface-frost">
-        <div className="flex h-9 shrink-0 items-center justify-between gap-2 pl-2">
-          <h3 className="text-body-sm font-semibold text-primary">Communities</h3>
+      <nav ref={cardRef} aria-label="Your communities" className={`flex min-h-0 shrink flex-col p-2 ${PANEL}`}>
+        <div className="flex h-8 shrink-0 items-center justify-between gap-2 pl-2">
+          <h3 className={EYEBROW}>Communities</h3>
           <button
             type="button"
             onClick={onCreate}
@@ -102,8 +103,8 @@ export function GroupsLeftSidebar({
             ))}
             {overflow && (
               <button type="button" onClick={() => setShowAll(true)} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
-                  <Icon icon={MoreHorizontal} size={20} />
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full text-tertiary">
+                  <Icon icon={MoreHorizontal} size={16} />
                 </span>
                 <span className="text-body-sm font-medium">
                   See all <span className="tabular text-tertiary">{groups.length}</span>
@@ -115,8 +116,8 @@ export function GroupsLeftSidebar({
 
         <div className="mt-1 shrink-0 border-t border-white/[0.06] pt-1">
           <button type="button" onClick={onDiscover} className={`${ROW} text-secondary hover:bg-white/[0.05] hover:text-primary`}>
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-tertiary">
-              <Icon icon={Compass} size={20} />
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full text-tertiary">
+              <Icon icon={Compass} size={16} />
             </span>
             <span className="text-body-sm font-medium">Discover communities</span>
           </button>
@@ -124,7 +125,7 @@ export function GroupsLeftSidebar({
       </nav>
 
       {/* Only when the window is tall enough to give the list room as well. */}
-      <div ref={pulseRef} className="hidden shrink-0 rounded-card px-2 py-4 surface-frost [@media(min-height:760px)]:block">
+      <div ref={pulseRef} className={`hidden shrink-0 px-2 py-3 ${PANEL} [@media(min-height:760px)]:block`}>
         <CommunityPulseCard groups={groups} pulse={pulse} />
       </div>
 
@@ -157,7 +158,7 @@ export function GroupsLeftSidebar({
 }
 
 const ROW =
-  "flex h-10 w-full items-center gap-2.5 rounded-control px-1.5 text-left transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+  "flex h-9 w-full items-center gap-2.5 rounded-control px-1.5 text-left transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 
 function AllRow({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (
@@ -166,8 +167,8 @@ function AllRow({ active, onClick }: { active: boolean; onClick: () => void }) {
       active={active}
       onClick={onClick}
       icon={
-        <span className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${active ? "text-primary" : "text-tertiary"}`}>
-          <Icon icon={Home} size={20} />
+        <span className={`flex size-6 shrink-0 items-center justify-center rounded-full transition-colors duration-fast ${active ? "text-primary" : "text-tertiary"}`}>
+          <Icon icon={Home} size={16} />
         </span>
       }
     />
@@ -180,7 +181,7 @@ function CommunityRow({ group: g, active, onClick }: { group: GroupSummary; acti
       label={g.name}
       active={active}
       onClick={onClick}
-      icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={28} />}
+      icon={<EntityAvatar imageUrl={g.avatarUrl} name={g.name} seed={g.id} size={24} />}
       // New posts this week, as an unread-style dot (critique §5.2); open rounds live in the race rail.
       badge={g.weeklyPosts > 0 ? <span title="Active this week" className="relative mr-1 size-1.5 shrink-0 rounded-full bg-primary/70 group-hover:hidden" /> : undefined}
       openHref={groupHref(g.id)}
@@ -211,7 +212,7 @@ function NavRow({
   openLabel?: string;
 }) {
   return (
-    <div className={`group relative flex h-10 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "" : "hover:bg-white/[0.05]"}`}>
+    <div className={`group relative flex h-9 items-center gap-1 rounded-control pr-1 transition-colors duration-fast ${active ? "" : "hover:bg-white/[0.05]"}`}>
       {/* The highlight and its brand edge are one element shared by every row (motion's layoutId), so picking another
           community slides it there. */}
       {active && (
