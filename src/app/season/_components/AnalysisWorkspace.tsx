@@ -71,7 +71,7 @@ export function AnalysisWorkspace({
     >
       <Tabs value={analysisTab} onValueChange={setAnalysisTab} items={TABS}>
         <div className="flex items-center gap-4 px-4 pt-2.5 sm:px-5">
-          <p className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.18em] text-tertiary">Analysis</p>
+          <p className="shrink-0 text-caption font-semibold uppercase leading-none tracking-[0.18em] text-tertiary">Analysis</p>
           <TabList aria-label="Season analysis views" className="min-w-0" />
         </div>
         <div aria-hidden className="border-b border-white/[0.06]" />

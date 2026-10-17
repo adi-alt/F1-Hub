@@ -23,10 +23,11 @@ test("sectionHeadingId derives the heading id from the section id", () => {
   assert.equal(sectionHeadingId("race-pace"), "race-pace-heading");
 });
 
-test("a level 2 Section is a region labelled by its own h2 in title-lg", () => {
+test("a level 2 Section is a region labelled by its own h2, Season's eyebrow over a hairline", () => {
   const html = render({ id: "results", title: "Results", level: 2, children: "table" });
   assert.match(html, /^<section id="results" aria-labelledby="results-heading">/);
-  assert.match(html, /<h2 id="results-heading" class="text-title-lg text-primary">Results<\/h2>/);
+  assert.match(html, /<h2 id="results-heading" class="min-w-0 text-caption font-semibold uppercase tracking-\[0.16em\] text-tertiary">Results<\/h2>/);
+  assert.match(html, /<div aria-hidden="true" class="mt-2 h-px w-full [^"]*"><\/div>/);
   assert.doesNotMatch(html, /<h[13-6]\b/);
 });
 
@@ -39,15 +40,14 @@ test("a level 3 Section renders an h3 in title-md", () => {
 
 test("the description is body-sm text-secondary, and the provenance line follows it", () => {
   const html = render(FULL);
-  assert.match(html, /<p class="mt-1 text-body-sm text-secondary">Final classification after penalties\.<\/p>/);
+  assert.match(html, /<p class="mt-2 text-body-sm text-secondary">Final classification after penalties\.<\/p>/);
   assert.match(html, /<p class="text-caption text-tertiary [^"]*">Official classification · updated 17:42<\/p>/);
   assert.ok(html.indexOf("Final classification after") < html.indexOf("Official classification ·"));
 });
 
-test("actions sit after the heading block, on the right", () => {
+test("actions sit beside the eyebrow, on the right, above the hairline", () => {
   const html = render(FULL);
-  assert.match(html, /<\/p><\/div><div class="flex min-w-0 max-w-full flex-wrap items-center gap-2"><button type="button">Export<\/button><\/div>/);
-  assert.match(html, /^<section [^>]*><div class="flex flex-wrap items-start justify-between [^"]*">/);
+  assert.match(html, /<\/h2><div class="flex min-w-0 max-w-full flex-wrap items-center gap-2"><button type="button">Export<\/button><\/div><\/div><div aria-hidden/);
 });
 
 test("the content follows the header", () => {
@@ -61,10 +61,13 @@ test("optional parts are left out entirely", () => {
   assert.doesNotMatch(html, /<p\b|shrink-0/);
 });
 
-test("sentence case: no uppercase or tracked micro-labels, at most three type sizes", () => {
+test("at most two type sizes in a page section's head: the 12px eyebrow and caption, the body-sm description", () => {
   const html = render(FULL);
-  assert.doesNotMatch(html, /uppercase|tracking-/);
-  assert.deepEqual(typeSizes(html), new Set(["text-title-lg", "text-body-sm", "text-caption"]));
+  assert.deepEqual(typeSizes(html), new Set(["text-body-sm", "text-caption"]));
+});
+
+test("a level 3 heading stays a sentence-case title, never an eyebrow", () => {
+  assert.doesNotMatch(renderHeader({ title: "Weather", level: 3 }), /uppercase|tracking-/);
 });
 
 test("SectionHeader works on its own, without a section or an id", () => {
@@ -75,8 +78,8 @@ test("SectionHeader works on its own, without a section or an id", () => {
 
 test("SectionHeader takes a heading id for a region it labels, and className for layout", () => {
   const html = renderHeader({ title: "Weather", level: 2, headingId: "weather-heading", className: "mb-6" });
-  assert.match(html, /<h2 id="weather-heading" class="text-title-lg text-primary">Weather<\/h2>/);
-  assert.match(html, /^<div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 mb-6">/);
+  assert.match(html, /<h2 id="weather-heading" class="min-w-0 [^"]*uppercase[^"]*">Weather<\/h2>/);
+  assert.match(html, /^<div class="mb-6">/);
 });
 
 test("Section className is for layout and lands on the section", () => {

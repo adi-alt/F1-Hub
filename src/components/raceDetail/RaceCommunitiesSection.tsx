@@ -18,7 +18,7 @@ function MemberStack({ members, total }: { members: { id: string; name: string }
         </div>
       ))}
       {overflow > 0 && (
-        <span className="-ml-2 flex h-[22px] w-[22px] items-center justify-center rounded-full border border-[var(--f1-carbon)] bg-white/[0.08] text-[9px] font-semibold text-neutral-300">
+        <span className="-ml-2 flex h-[22px] w-[22px] items-center justify-center rounded-full border border-[var(--f1-carbon)] bg-white/[0.08] text-caption font-semibold text-neutral-300">
           +{overflow}
         </span>
       )}

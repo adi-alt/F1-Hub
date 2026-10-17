@@ -77,7 +77,7 @@ export function HomeShell({
             </Button>
           }
         >
-          {"Your favorites, predictions and communities didn't load. The rest of the site still works."}
+          {"Your favourites, predictions and communities didn't load. The rest of the site still works."}
         </Alert>
       </PageContainer>
     );

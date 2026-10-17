@@ -58,7 +58,7 @@ function FilterPill({ active, onClick, children }: { active: boolean; onClick: (
 export function FavoritesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
     <FilterPill active={value} onClick={() => onChange(!value)}>
-      ★ Favorites
+      ★ Favourites
     </FilterPill>
   );
 }
@@ -114,7 +114,7 @@ export function TrackFilters({
         />
       </div>
       <FilterPill active={favoritesOnly} onClick={() => onFavoritesOnlyChange(!favoritesOnly)}>
-        ★ Favorites
+        ★ Favourites
       </FilterPill>
       {hasActiveFilters && (
         <button

@@ -22,7 +22,7 @@ export function FavoriteButton({
         e.stopPropagation();
         onToggle();
       }}
-      aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+      aria-label={favorited ? "Remove from favourites" : "Add to favourites"}
       aria-pressed={favorited}
       className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)] ${className}`}
     >

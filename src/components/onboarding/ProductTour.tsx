@@ -201,7 +201,7 @@ function IntroCard({ onStart, onSkip, reduceMotion }: { onStart: () => void; onS
         transition={{ duration: reduceMotion ? 0 : 0.2 }}
         className="w-full max-w-sm rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/85 p-5 shadow-2xl backdrop-blur-2xl"
       >
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-text">Welcome to Apex F1 Hub</p>
+        <p className="text-caption font-semibold uppercase tracking-[0.16em] text-brand-text">Welcome to Apex F1 Hub</p>
         <h2 id="tour-intro-title" className="mt-1.5 text-[18px] font-bold leading-snug text-white">
           Let&apos;s take a quick tour
         </h2>
@@ -280,7 +280,7 @@ function TourLayer({
         </p>
 
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-[11px] tabular-nums text-tertiary" aria-live="polite">
+          <span className="text-caption tabular-nums text-tertiary" aria-live="polite">
             {index + 1} / {total}
           </span>
           <button type="button" onClick={onSkip} className="text-[11.5px] font-medium text-tertiary transition hover:text-white">

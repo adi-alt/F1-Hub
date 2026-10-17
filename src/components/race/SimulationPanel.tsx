@@ -40,7 +40,7 @@ function ProbabilityBars({ label, entries, barColor }: { label: string; entries:
             transition={{ duration: 0.2, delay: i * 0.02 }}
             className="flex items-center gap-2.5 py-[3px]"
           >
-            <span className="w-4 shrink-0 text-right font-mono text-[11px] text-tertiary">{i + 1}</span>
+            <span className="w-4 shrink-0 text-right font-mono text-caption text-tertiary">{i + 1}</span>
             <span className="w-12 shrink-0 truncate text-sm font-medium text-white">{e.driver}</span>
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
               <motion.div
@@ -85,7 +85,7 @@ function ExpectedFinishList({ entries }: { entries: SimulatedDriverEntry[] }) {
             className="flex items-center justify-between gap-3 border-b border-[var(--f1-line)] py-[7px]"
           >
             <span className="flex items-center gap-2.5">
-              <span className="w-4 shrink-0 text-right font-mono text-[11px] text-tertiary">{i + 1}</span>
+              <span className="w-4 shrink-0 text-right font-mono text-caption text-tertiary">{i + 1}</span>
               <span className="text-sm font-medium text-white">{entry.driver}</span>
             </span>
             <span className="font-mono text-sm tabular-nums text-neutral-300">P{entry.medianPosition}</span>
@@ -261,7 +261,7 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
                   ))}
                 </AnimatePresence>
               </div>
-              <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-tertiary">
+              <div className="mt-3 flex flex-wrap gap-3 text-caption text-tertiary">
                 {BANDS.map((band) => (
                   <span key={band.key} className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-sm" style={{ background: band.color }} />

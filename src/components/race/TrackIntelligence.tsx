@@ -35,9 +35,9 @@ function fmtSec(sec: number): string {
 function StatCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-tertiary">{label}</p>
+      <p className="text-caption uppercase tracking-wide text-tertiary">{label}</p>
       <p className="mt-0.5 truncate text-sm font-semibold text-white">{value}</p>
-      {sub && <p className="text-[11px] text-tertiary">{sub}</p>}
+      {sub && <p className="text-caption text-tertiary">{sub}</p>}
     </div>
   );
 }
@@ -147,7 +147,7 @@ export function TrackTrendsContent({ liveRaces, archiveRaces, circuitName }: { l
             from a 1-year window (one race) reads very differently from the same stat over 20
             years, and the selector above already lets it be either. */}
         {windowed.length > 0 && (
-          <p className="mt-4 text-[11px] text-tertiary">
+          <p className="mt-4 text-caption text-tertiary">
             Based on {windowed.length} {windowed.length === 1 ? "race" : "races"}{" "}
             {matchedWindow?.years ? `over the last ${matchedWindow.years} season${matchedWindow.years === 1 ? "" : "s"}` : "across all available history"} at {circuitName}.
           </p>

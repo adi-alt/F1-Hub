@@ -207,9 +207,9 @@ export function ArchiveTable<T>({
                   )}
                 </th>
               ))}
-              {/* "Fav" not "Favorite" - same reasoning as "#" above; title= keeps the full word
+              {/* "Fav" not "Favourite" - same reasoning as "#" above; title= keeps the full word
                   available on hover for anyone unsure what the abbreviation means. */}
-              <th scope="col" title="Favorite" className="overflow-hidden truncate whitespace-nowrap px-4 py-2.5 text-center">
+              <th scope="col" title="Favourite" className="overflow-hidden truncate whitespace-nowrap px-4 py-2.5 text-center">
                 Fav
               </th>
             </tr>

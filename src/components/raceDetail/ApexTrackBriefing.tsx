@@ -67,7 +67,7 @@ function ApexLabel({ isAi }: { isAi?: boolean }) {
       <span aria-hidden className="text-brand-text">
         ✦
       </span>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tertiary">{isAi === undefined ? "Apex on this circuit" : isAi ? "Apex AI take" : "Track summary"}</p>
+      <p className="text-caption font-semibold uppercase tracking-[0.16em] text-tertiary">{isAi === undefined ? "Apex on this circuit" : isAi ? "Apex AI take" : "Track summary"}</p>
     </div>
   );
 }

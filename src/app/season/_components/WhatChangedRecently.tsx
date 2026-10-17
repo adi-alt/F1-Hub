@@ -85,9 +85,9 @@ export function WhatChangedRecently({
   return (
     <section aria-label="What changed recently" className="flex h-full min-h-0 flex-col">
       <header className="shrink-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">What changed</p>
+        <p className="text-caption font-semibold uppercase tracking-[0.18em] text-tertiary">What changed</p>
         <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
-        <p className="mt-2.5 text-[11px] text-tertiary">
+        <p className="mt-2.5 text-caption text-tertiary">
           {isDrivers ? "Drivers" : "Constructors"} · since the previous completed round
         </p>
 

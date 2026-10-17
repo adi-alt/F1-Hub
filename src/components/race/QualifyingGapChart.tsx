@@ -28,9 +28,9 @@ function QualifyingTooltip({ active, payload }: TooltipContentProps) {
       style={{ background: tooltipStyle.background, backdropFilter: tooltipStyle.backdropFilter, WebkitBackdropFilter: tooltipStyle.WebkitBackdropFilter, borderColor: "var(--tooltip-border)" }}
     >
       <p className="text-sm font-semibold text-white">{d.driverName}</p>
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Qualifying position</p>
+      <p className="mt-1.5 text-caption uppercase tracking-wide text-tertiary">Qualifying position</p>
       <p className="font-mono text-sm text-white">P{d.grid}</p>
-      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-tertiary">Gap to pole</p>
+      <p className="mt-1.5 text-caption uppercase tracking-wide text-tertiary">Gap to pole</p>
       <p className="font-mono text-sm text-white">{d.gap === 0 ? "Pole" : `+${d.gap.toFixed(3)}s`}</p>
     </div>
   );

@@ -43,7 +43,7 @@ function PaceRow({ lap, index, widthPct, roster }: { lap: PracticeBestLap; index
       <span className={`w-11 shrink-0 text-sm font-medium ${isFastest ? "text-white" : "text-neutral-200"}`}>{lap.driver}</span>
       <span className="flex-1" />
       <span className={`whitespace-nowrap font-mono text-[13px] ${isFastest ? "text-white" : "text-neutral-300"}`}>{lap.lapTimeSec.toFixed(3)}s</span>
-      <span className="w-14 shrink-0 whitespace-nowrap text-right text-[11px]">
+      <span className="w-14 shrink-0 whitespace-nowrap text-right text-caption">
         {isFastest ? (
           <span className="font-semibold uppercase tracking-wider text-brand-text">Fastest</span>
         ) : (

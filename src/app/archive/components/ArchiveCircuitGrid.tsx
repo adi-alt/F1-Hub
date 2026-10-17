@@ -58,7 +58,7 @@ export function ArchiveCircuitGrid({
   if (filtered.length === 0) {
     return (
       <p className="mt-8 text-sm text-tertiary">
-        {favoritesOnly ? "You haven't favorited any tracks yet." : `No circuits found${search ? ` for "${search}"` : ""}.`}
+        {favoritesOnly ? "You haven't favourited any tracks yet." : `No circuits found${search ? ` for "${search}"` : ""}.`}
         {onClearFilters && (
           <>
             {" "}
