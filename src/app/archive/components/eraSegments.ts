@@ -19,7 +19,7 @@ export function buildEraSegments(yearLabels: { year: number; label: string; race
   const segments: EraSegment[] = [];
   for (const { year, label, raceCount } of sorted) {
     const last = segments[segments.length - 1];
-    if (last && last.label === label && last.to === year - 1) {
+    if (last && last.label === label && (last.to === year || last.to === year - 1)) {
       last.to = year;
       last.raceCount += raceCount;
     } else {

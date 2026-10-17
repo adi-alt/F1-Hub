@@ -4,6 +4,7 @@ import { ArchiveExplorer } from "./components/ArchiveExplorer";
 import { ArchiveYearView } from "./components/ArchiveYearView";
 import { RetryBanner } from "./components/RetryBanner";
 import { ArchiveEntityHeader } from "./components/ArchiveEntityHeader";
+import { ArchiveSection } from "./components/ArchiveSection";
 import { ArchiveFavoriteToggle } from "./components/ArchiveFavoriteToggle";
 import { ArchiveApexScope } from "./components/ArchiveApexScope";
 import { ArchiveExplorerWithFocus } from "./components/ArchiveExplorerWithFocus";
@@ -31,7 +32,6 @@ import {
 import { SignInGate } from "@/components/auth/SignInGate";
 import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
 import { getArchiveDriverPhotosByIds, getArchiveYearStats } from "@/lib/supabase/archive";
-import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { ArchiveSeasonStory, type SeasonPoint } from "./components/ArchiveSeasonStory";
 import { constructorChampionOverride, isVerifiedChampionYear } from "@/lib/eras";
 import { teamColor } from "@/lib/teamColors";
@@ -207,6 +207,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
       <ArchiveEntityHeader
         backHref="/archive?section=track"
         backLabel="Archive"
+        kind="Circuit"
         name={circuit.name ?? circuit.circuitId}
         subtitle={[circuit.locality, circuit.country].filter(Boolean).join(", ") || `${first}–${Math.max(...years)}`}
         answer={answer}
@@ -218,8 +219,8 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
         ]}
         favoriteButton={<ArchiveFavoriteToggle type="track" id={circuitId} />}
       />
-      <div className="space-y-8 lg:space-y-12">
-        <RaceSectionCard id="circuit" title="The circuit and its winners">
+      <div className="space-y-10">
+        <ArchiveSection id="circuit" title="The circuit and its winners">
           <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-12">
             {circuit.trackMap ? <TrackMap map={circuit.trackMap} name={circuit.name ?? circuit.circuitId} /> : <p className="text-body-sm text-secondary">No track map on record.</p>}
             <ol className="divide-y divide-subtle">
@@ -245,10 +246,10 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
               })}
             </ol>
           </div>
-        </RaceSectionCard>
-        <RaceSectionCard id="races" title="Every Grand Prix here" description="Select a race to open it." bare>
+        </ArchiveSection>
+        <ArchiveSection id="races" title="Every Grand Prix here" note="Select a race to open it" bare>
           <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Winner" />
-        </RaceSectionCard>
+        </ArchiveSection>
       </div>
     </div>
   );
@@ -370,6 +371,7 @@ async function ArchiveDriverHistoryInner(driverId: string) {
       <ArchiveEntityHeader
         backHref="/archive?section=driver"
         backLabel="Archive"
+        kind="Driver"
         name={name}
         photoUrl={driver?.photoUrl ?? null}
         accent={lastTeam ? teamColor(lastTeam) : null}
@@ -385,18 +387,18 @@ async function ArchiveDriverHistoryInner(driverId: string) {
         ]}
         favoriteButton={<ArchiveFavoriteToggle type="driver" id={driverId} />}
       />
-      <div className="space-y-8 lg:space-y-12">
-        <RaceSectionCard id="seasons" title="Season by season" description="Points each year, in the colours of the team. Select a season to open it.">
+      <div className="space-y-10">
+        <ArchiveSection id="seasons" title="Season by season" note="Points each year, in the team's colours">
           <ArchiveSeasonStory seasons={seasons} subject={name} />
-        </RaceSectionCard>
+        </ArchiveSection>
         {eraSegments.length > 1 && (
-          <RaceSectionCard id="teams" title="Teams through time">
+          <ArchiveSection id="teams" title="Teams through time">
             <ArchiveEraTimeline segments={eraSegments} />
-          </RaceSectionCard>
+          </ArchiveSection>
         )}
-        <RaceSectionCard id="races" title="Every race" description="Select a race to open it; select a team to open its history." bare>
+        <ArchiveSection id="races" title="Every race" note="Select a race or a team to open it" bare>
           <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Team" resultFilterKeys={["wins", "podiums", "points", "dnf"]} />
-        </RaceSectionCard>
+        </ArchiveSection>
       </div>
     </div>
   );
@@ -486,6 +488,7 @@ async function ArchiveTeamHistoryInner(teamId: string) {
       <ArchiveEntityHeader
         backHref="/archive?section=team"
         backLabel="Archive"
+        kind="Constructor"
         name={team.name}
         photoUrl={null}
         photoShape="square"
@@ -501,18 +504,18 @@ async function ArchiveTeamHistoryInner(teamId: string) {
         ]}
         favoriteButton={<ArchiveFavoriteToggle type="team" id={teamId} />}
       />
-      <div className="space-y-8 lg:space-y-12">
-        <RaceSectionCard id="seasons" title="Season by season" description="Points each year, both cars and the sprint. Select a season to open it.">
+      <div className="space-y-10">
+        <ArchiveSection id="seasons" title="Season by season" note="Points each year, both cars and the sprint">
           <ArchiveSeasonStory seasons={seasons} subject={team.name} />
-        </RaceSectionCard>
+        </ArchiveSection>
         {relationships.length > 0 && (
-          <RaceSectionCard id="drivers" title="Its drivers" description="Everyone who raced for the team, most races first.">
+          <ArchiveSection id="drivers" title="Its drivers" note="Most races first" bare>
             <ArchiveDriverRelationships drivers={relationships} />
-          </RaceSectionCard>
+          </ArchiveSection>
         )}
-        <RaceSectionCard id="races" title="Every race" description="The team's best-placed car in each race. Select a race to open it." bare>
+        <ArchiveSection id="races" title="Every race" note="The team's best-placed car in each race" bare>
           <ArchiveExplorerWithFocus rows={rows} entityColumnLabel="Driver" resultFilterKeys={["wins", "podiums"]} />
-        </RaceSectionCard>
+        </ArchiveSection>
       </div>
     </div>
   );
