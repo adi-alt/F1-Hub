@@ -26,6 +26,7 @@ import type { GroupBan, GroupDetail, GroupInvite, JoinRequest } from "@/lib/supa
 import { AvatarUpload } from "../../../components/AvatarUpload";
 import { BannerUpload } from "../../../components/BannerUpload";
 import { GroupBanner } from "../../../components/GroupBanner";
+import { groupHref } from "@/lib/routes";
 
 type Section = "general" | "appearance" | "requests" | "invites" | "features" | "permissions" | "moderation" | "danger";
 
@@ -506,7 +507,7 @@ function InvitesSection({ group }: { group: GroupDetail }) {
     };
   }, [group.id, reloadKey]);
 
-  const linkFor = (token: string) => `${window.location.origin}/groups/${group.id}?invite=${token}`;
+  const linkFor = (token: string) => `${window.location.origin}${groupHref(group.id)}&invite=${token}`;
 
   async function create() {
     setBusy("create");

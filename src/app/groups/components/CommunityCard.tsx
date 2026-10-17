@@ -9,6 +9,7 @@ import { compactCount, timeAgo } from "@/lib/format";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
 import type { PublicGroupSummary } from "@/lib/supabase/groups";
 import { GroupBanner } from "./GroupBanner";
+import { groupHref } from "@/lib/routes";
 
 /**
  * The one community card. Replaces GroupCardShell's "render every signal for every community"
@@ -39,7 +40,7 @@ export function CommunityCard({
   const [error, setError] = useState("");
 
   const meta = communityTypeMeta(community.communityType);
-  const href = `/groups/${community.id}`;
+  const href = groupHref(community.id);
 
   async function join(e: React.MouseEvent) {
     // The card is a link; the join button sits inside it. Without this, joining also navigates

@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { ArchiveCircuitGridSkeleton } from "./components/ArchiveCircuitGridSkeleton";
 import { ArchiveGridSkeleton } from "./components/ArchiveGridSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ArchiveEntityBodySkeleton, ArchiveEntityHeadSkeleton } from "./components/ArchiveEntitySkeletons";
 import { SeasonDetailSkeleton } from "@/components/ui/SeasonDetailSkeleton";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 
@@ -35,38 +36,41 @@ export default function ArchiveLoading() {
   // same SeasonDetail component /season does - same skeleton, not the entity-explorer shape below.
   if (searchParams.has("year") && !searchParams.has("round")) return <SeasonDetailSkeleton />;
 
-  // circuit/driver/team detail pages (ArchiveEntityHeader + ArchiveExplorerWithFocus) - matches
-  // that real layout now: a viewport-locked header, then a two-column explorer/focused-panel
-  // split, not the old flat list of link cards this page no longer renders.
-  const isHistoryRoute = ["round", "circuit", "driver", "team"].some((key) => searchParams.has(key));
-  if (isHistoryRoute) {
+  // A driver's or team's page: the same stand-ins the page streams behind (ArchiveEntitySkeletons), so the shape
+  // doesn't change between the route loading and the page's own parts arriving.
+  if (searchParams.has("driver") || searchParams.has("team")) {
     return (
-      <div role="status" className="page-wide skeleton-delay py-6">
+      <div className="page-wide skeleton-delay py-8">
+        <ArchiveEntityHeadSkeleton photo={searchParams.has("driver")} />
+        <ArchiveEntityBodySkeleton />
+      </div>
+    );
+  }
+  // A circuit's page: the header and figures, the circuit and its winners, then every Grand Prix there.
+  if (searchParams.has("circuit") || searchParams.has("round")) {
+    return (
+      <div role="status" className="page-wide skeleton-delay py-8">
         <span className="sr-only">Loading the archive</span>
-        <div className="shrink-0">
-          <Skeleton shape="block" className="h-4 w-16" />
-          <div className="mt-2 flex items-center gap-3">
-            <Skeleton shape="circle" className="h-11 w-11" />
-            <div className="min-w-0 flex-1">
-              <Skeleton shape="block" className="h-7 w-56" />
-              <Skeleton shape="block" className="mt-1.5 h-4 w-40" />
+        <ArchiveEntityHeadSkeleton photo={false} />
+        <Skeleton shape="block" className="mt-4 h-5 w-full max-w-xl" />
+        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-white/[0.06] pt-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i}>
+              <Skeleton shape="block" className="h-3 w-16" />
+              <Skeleton shape="block" className="mt-2 h-6 w-12" />
             </div>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-3 sm:flex sm:flex-wrap sm:gap-6">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} shape="block" className="h-10 w-16" />
+          ))}
+        </div>
+        <Skeleton shape="block" className="mt-10 h-3 w-48" />
+        <div className="mt-4 grid gap-8 rounded-lg border border-white/[0.06] p-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          <Skeleton shape="block" className="aspect-[3/2] w-full" />
+          <div className="space-y-4 self-center">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} shape="block" className="h-5 w-full" />
             ))}
           </div>
         </div>
-        <div className="mt-4 grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <div className="flex min-h-0 flex-col">
-            <Skeleton shape="block" className="mb-3 h-8 w-full max-w-xs" />
-            <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-white/[0.07]">
-              <TableRowsSkeleton />
-            </div>
-          </div>
-          <Skeleton shape="block" className="h-64 w-full" />
-        </div>
+        <Skeleton shape="block" className="mt-10 h-[24rem] w-full" />
       </div>
     );
   }

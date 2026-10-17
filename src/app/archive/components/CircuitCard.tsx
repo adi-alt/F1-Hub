@@ -4,14 +4,15 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { describeWeatherCode } from "@/lib/weatherCodes";
 import { archiveCircuitHref } from "@/lib/routes";
-import { TrackMap } from "@/components/ui/TrackMap";
+import { CircuitThumb } from "@/components/circuit/CircuitThumb";
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 import type { ArchiveCircuit, ArchiveWeather } from "@/lib/supabase/archive";
 
 /** A compact vertical block (image on top, text below) - now embedded as Race Overview's own
  * right-hand column rather than its own full-width row, so it always renders narrow regardless
  * of viewport width; a side-by-side sm:flex layout would cramp/overflow at that width even on a
  * wide screen, since the column is narrow, not the viewport. */
-export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; weather?: ArchiveWeather | null }) {
+export function CircuitCard({ circuit, weather, drawing = null }: { circuit: ArchiveCircuit; weather?: ArchiveWeather | null; drawing?: CircuitDrawing | null }) {
   const conditions = weather ? describeWeatherCode(weather.weatherCode) : null;
 
   return (
@@ -19,13 +20,13 @@ export function CircuitCard({ circuit, weather }: { circuit: ArchiveCircuit; wea
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="surface-inset overflow-hidden rounded-xl border border-subtle bg-surface-1"
+      className="overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.012] backdrop-blur-[2px]"
     >
-      {circuit.trackMap && (
+      {(drawing || circuit.trackMap) && (
         <div className="p-3.5 pb-0">
-          {/* The circuit's current Wikipedia track map: not necessarily the configuration this
-              historical year raced on. */}
-          <TrackMap map={circuit.trackMap} name={circuit.name ?? "Circuit"} />
+          {/* This season's layout from the track library (the circuits pages' drawing); the Wikipedia map, which may
+              not be the configuration this year raced on, only when the library has none. */}
+          <CircuitThumb drawing={drawing} map={circuit.trackMap} name={circuit.name ?? "Circuit"} turns className="aspect-[3/2] w-full" />
         </div>
       )}
       <div className="p-3.5">

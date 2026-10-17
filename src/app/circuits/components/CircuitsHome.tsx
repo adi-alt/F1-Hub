@@ -157,7 +157,7 @@ function NextUp({ entry, year }: { entry: CircuitExplorerEntry; year: number }) 
                 <dl className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-5 md:border-l md:border-subtle md:pl-8">
                   <Fact label="Length · turns" value={`${facts.lengthKm.toFixed(3)} km · ${facts.turns}`} />
                   <Fact label="Type" value={facts.trackType === "street" ? `Street${facts.nightRace ? ", at night" : ""}` : facts.trackType === "hybrid" ? "Hybrid" : "Permanent"} />
-                  {facts.lapRecord && <Fact label={`Lap record · ${facts.lapRecord.driverName}, ${facts.lapRecord.year}`} value={formatLapTime(facts.lapRecord.timeSec)} />}
+                  {facts.lapRecord && <Fact label="Lap record" value={formatLapTime(facts.lapRecord.timeSec)} detail={`${facts.lapRecord.driverName}, ${facts.lapRecord.year}`} />}
                   <Fact label="First Grand Prix" value={String(facts.firstGrandPrix)} />
                 </dl>
               )}
@@ -227,13 +227,14 @@ function CircuitCard({ entry, isNext, favourite }: { entry: CircuitExplorerEntry
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="min-w-0">
       <dt className="truncate text-caption text-secondary" title={label}>
         {label}
       </dt>
       <dd className="mt-1 text-body font-semibold tabular text-primary">{value}</dd>
+      {detail && <dd className="truncate text-caption text-tertiary">{detail}</dd>}
     </div>
   );
 }

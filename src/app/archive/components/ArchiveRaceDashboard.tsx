@@ -21,6 +21,7 @@ import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import type { StatTile } from "@/components/raceDetail/StatTiles";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
+import { layoutToDrawing } from "@/lib/circuitLayout";
 import { QualifyingBarChart } from "./QualifyingBarChart";
 import { PitStopsTimeline } from "./PitStopsTimeline";
 import { useArchiveLaps } from "../_hooks/useArchiveLaps";
@@ -261,7 +262,7 @@ export function ArchiveRaceDashboard({
         statTiles={statTiles}
         circuitCard={
           circuit ? (
-            <CircuitCard circuit={circuit} weather={race.weather} />
+            <CircuitCard circuit={circuit} weather={race.weather} drawing={layout ? layoutToDrawing(layout) : null} />
           ) : (
             <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-tertiary">
               No circuit details backfilled for this race yet.

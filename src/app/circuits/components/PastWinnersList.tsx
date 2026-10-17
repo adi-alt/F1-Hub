@@ -7,6 +7,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { WinnerMedia } from "../services/circuits.service";
 import type { CurrentTeam } from "@/lib/supabase/media";
+import { PANEL } from "@/components/ui/panel";
 
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 const HEADER_ROW_CLASS = "sticky top-0 z-10 border-b border-subtle text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md";
@@ -124,7 +125,7 @@ export function PastWinnersList({
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-md px-3 py-1.5 text-caption font-medium capitalize transition ${
+            className={`rounded-control px-3 py-1.5 text-caption font-medium capitalize transition-colors duration-fast ${
               tab === t ? "bg-white/[0.08] text-primary" : "text-tertiary hover:text-secondary"
             }`}
           >
@@ -133,7 +134,7 @@ export function PastWinnersList({
         ))}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-subtle bg-surface-1">
+      <div className={`overflow-hidden ${PANEL}`}>
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}>
             {tab === "year" && (

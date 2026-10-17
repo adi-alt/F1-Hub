@@ -57,7 +57,7 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
           {/* One named conversation to go and read; opens that post's discussion on its community page. */}
           {pulse.mostDiscussed && (
             <Link
-              href={`${groupHref(pulse.mostDiscussed.groupId)}?post=${pulse.mostDiscussed.postId}`}
+              href={`${groupHref(pulse.mostDiscussed.groupId)}&post=${pulse.mostDiscussed.postId}`}
               className="mt-3 block rounded-b-control border-t border-white/[0.06] px-2 pb-1 pt-3 transition-colors duration-fast hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               <span className="block text-caption text-tertiary">

@@ -6,7 +6,10 @@ import { CircuitEras } from "./CircuitEras";
 import { CircuitRaceTabs } from "./CircuitRaceTabs";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
-import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
+import { PanelSection } from "@/components/ui/PanelSection";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { raceHref } from "@/lib/routes";
 import { circuitAvgFieldMovement, type CircuitDetailData } from "../services/circuits.service";
 
@@ -57,7 +60,7 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
     (currentSeasonRace?.photoUrls?.length ? currentSeasonRace.photoUrls : null) ??
     [...liveRaces].sort((a, b) => b.year - a.year).find((r) => r.photoUrls?.length)?.photoUrls ??
     [];
-  const heroDrawing = (eras.find((e) => e.layout.seasons.includes(year) && !e.layout.raceNameMatch) ?? eras[eras.length - 1])?.drawing ?? null;
+  const heroDrawing = data.heroDrawing;
 
   return (
     <div data-surface="frosted" className="page-wide pb-12">
@@ -74,57 +77,61 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
         drawing={heroDrawing}
       />
 
-      {/* One column, each section full width and sized to its content: the race, Apex's read of it, the records,
-          then the history. (A main column beside a rail left whichever side was shorter standing empty.) */}
-      <div className="space-y-8 lg:space-y-12">
-        {/* The race (replay and story, as tabs) beside the track through time; then Apex beside the records. */}
+      {/* Rows of two, each pair stretched to the taller one's height (PanelSection fill) so neither leaves a blank
+          block under it; a section alone in its row takes the full width. */}
+      <div className="space-y-10 lg:space-y-12">
         {(raceForSimulation || eras.length > 0) && (
-          <div className={`grid grid-cols-1 items-start gap-8 lg:gap-10 ${raceForSimulation && eras.length > 0 ? "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" : ""}`}>
+          <div className={`grid grid-cols-1 items-stretch gap-8 lg:gap-6 ${raceForSimulation && eras.length > 0 ? "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" : ""}`}>
             {raceForSimulation && (
-              <CircuitRaceTabs
-                year={raceForSimulation.year}
+              <PanelSection
+                id="race"
                 title={`${raceForSimulation.year} ${raceForSimulation.name}`}
-                resultsHref={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)}
-                replay={replay}
-                laps={raceLaps}
-                results={raceForSimulation.results ?? []}
-                trackStory={trackStory}
-                layout={raceLayout}
-              />
+                fill
+                action={
+                  <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="flex items-center gap-0.5 rounded-control text-caption text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                    Full results
+                    <Icon icon={ChevronRight} size={16} className="size-3.5" />
+                  </Link>
+                }
+              >
+                <CircuitRaceTabs replay={replay} laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} />
+              </PanelSection>
             )}
             {eras.length > 0 && (
-              <section id="eras" aria-labelledby="eras-heading" className="min-w-0 scroll-mt-24 rounded-card bg-surface-1 p-5">
-                <h2 id="eras-heading" className="text-title-lg text-primary">
-                  The track through time
-                </h2>
-                <p className="mb-4 text-body-sm text-secondary">Every layout it has had, from the first on record.</p>
-                <CircuitEras eras={eras} winners={winners} currentYear={year} />
-              </section>
+              <PanelSection id="eras" title="The track through time" note="Every layout on record" fill>
+                <div className="flex flex-1 flex-col justify-center">
+                  <CircuitEras eras={eras} winners={winners} currentYear={year} />
+                </div>
+              </PanelSection>
             )}
           </div>
         )}
 
         {/* Apex beside the records; the records take the row when Apex has nothing to say. */}
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-10 lg:[&:has(>*:only-child)]:grid-cols-1">
+        <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-2 lg:gap-6 lg:[&:has(>*:only-child)]:grid-cols-1">
           <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
           {timeline.length > 0 && (
-            <RaceSectionCard id="records" title="Records">
+            <PanelSection id="records" title="Records" fill>
               <CircuitRecords timeline={timeline} winnerMedia={winnerMedia} />
-            </RaceSectionCard>
+            </PanelSection>
           )}
         </div>
 
         {(timeline.length > 0 || trend.length >= 2) && (
-          <div className={`grid grid-cols-1 items-stretch gap-8 lg:gap-10 ${timeline.length > 0 && trend.length >= 2 ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]" : ""}`}>
+          <div className={`grid grid-cols-1 items-stretch gap-8 lg:gap-6 ${timeline.length > 0 && trend.length >= 2 ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]" : ""}`}>
             {timeline.length > 0 && (
-              <RaceSectionCard id="past-winners" title="Past winners" bare>
+              <PanelSection id="past-winners" title="Past winners" bare>
                 <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
-              </RaceSectionCard>
+              </PanelSection>
             )}
             {trend.length >= 2 && (
-              <RaceSectionCard id="pole-evolution" title="Pole times">
-                <CircuitTrendChart data={trend} height={380} />
-              </RaceSectionCard>
+              <PanelSection id="pole-evolution" title="Pole times" fill>
+                <div className="flex flex-1 flex-col justify-center">
+                  {/* As tall as the winners table beside it (up to its 8-row page), so a circuit with few races
+                      doesn't leave a short table under a tall chart. */}
+                  <CircuitTrendChart data={trend} height={Math.max(180, Math.min(340, Math.min(timeline.length, 8) * 42 - 10))} />
+                </div>
+              </PanelSection>
             )}
           </div>
         )}

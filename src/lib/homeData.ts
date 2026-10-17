@@ -1,3 +1,4 @@
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 // The signed-in homepage's own aggregation layer — same role personalization.ts plays for
 // favorites/standings, just for the "personal" half of the homepage (see src/app/page.tsx). Reads
 // from the Groups data layer (getUserGroups/listPublicGroups/listFeedPosts) but never writes to or
@@ -68,6 +69,9 @@ export type PublicHomeData = {
   predictionInsight: PredictionInsight | null;
   /** Track maps (Wikimedia) of the next few rounds, for the home's Coming up. */
   trackMapByRound?: Record<number, CircuitTrackMap | null>;
+  /** The same rounds' line drawings from the track library (and the next race's), drawn in place of the maps where
+   * the library has a layout - as the circuits pages draw every circuit. */
+  drawingByRound?: Record<number, CircuitDrawing | null>;
   /** The championship's top five and the last podium, as on the landing page (the signed-in home's Season section). */
   season?: LandingSeason;
 };

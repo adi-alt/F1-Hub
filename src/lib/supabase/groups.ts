@@ -21,6 +21,7 @@ import { signInviteToken, verifyInviteToken } from "@/lib/inviteTokens";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
+import { groupHref } from "@/lib/routes";
 
 // Tagged AND short-TTL, not one or the other: every in-app mutation below that actually changes
 // what listPublicGroups/getGroupPreview display (name/description/visibility/avatar/banner/member
@@ -1068,7 +1069,7 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   const needsToken = (group?.visibility as string | undefined) !== "public";
   const inviterName = (await profilesById([uid])).get(uid)?.display_name ?? "A member";
   // APP_BASE_URL when configured, else the origin of the request (see trustedOrigin).
-  const baseLink = `${trustedOrigin(origin)}/groups/${groupId}`;
+  const baseLink = `${trustedOrigin(origin)}${groupHref(groupId)}`;
 
   // Names are user-controlled: escape for the HTML body, and strip control characters for the
   // subject header (audit SEC-11).
@@ -1082,7 +1083,7 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   const transporter = getTransporter();
   await Promise.all(
     cleaned.map(async (to) => {
-      const link = needsToken ? `${baseLink}?invite=${(await insertInvite(groupId, uid, expiresAt, 1)).token}` : baseLink;
+      const link = needsToken ? `${baseLink}&invite=${(await insertInvite(groupId, uid, expiresAt, 1)).token}` : baseLink;
       await transporter.sendMail({
         from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
         to,

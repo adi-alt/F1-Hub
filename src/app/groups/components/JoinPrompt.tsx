@@ -6,6 +6,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
 import type { GroupPreview, InviteState, JoinRequestStatus } from "@/lib/supabase/groups";
 import { GroupBanner } from "./GroupBanner";
+import { groupHref } from "@/lib/routes";
 
 /**
  * What a signed-in visitor sees for a community they're not in yet - enough preview to decide
@@ -63,7 +64,7 @@ export function JoinPrompt({
       return;
     }
     // The invitation is in the URL; drop it so a refresh doesn't replay a spent token.
-    if (invited) router.replace(`/groups/${group.id}`);
+    if (invited) router.replace(groupHref(group.id));
     router.refresh();
   }
 

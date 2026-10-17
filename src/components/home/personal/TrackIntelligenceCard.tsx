@@ -7,7 +7,8 @@ import { useHomepageIntelligence } from "@/components/home/ai/HomepageIntelligen
 import { Typewriter } from "@/components/motion/Typewriter";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { TrackMap } from "@/components/ui/TrackMap";
+import { CircuitThumb } from "@/components/circuit/CircuitThumb";
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 import type { TrackHistory } from "@/lib/personalization";
 
 const n = (count: number, one: string) => `${count} ${count === 1 ? one : `${one}s`}`;
@@ -17,7 +18,7 @@ const n = (count: number, one: string) => `${count} ${count === 1 ? one : `${one
  * Apex's outlook for your driver. One frosted card beside the race; your favourites' records here sit in the left
  * column (FavouritesHere), so the two columns come out the same height.
  */
-export function TrackIntelligenceCard({ circuit, history }: { circuit: string; history: TrackHistory | null }) {
+export function TrackIntelligenceCard({ circuit, history, drawing = null }: { circuit: string; history: TrackHistory | null; drawing?: CircuitDrawing | null }) {
   const { intelligence, isLoading } = useHomepageIntelligence();
   if (!history) return null;
   const outlook = intelligence?.personalOutlook?.overallAssessment ?? intelligence?.personalRaceBrief?.whyItMatters ?? null;
@@ -29,8 +30,8 @@ export function TrackIntelligenceCard({ circuit, history }: { circuit: string; h
 
   return (
     <section aria-labelledby="track-intel" className="flex h-full min-w-0 flex-col rounded-card bg-surface-1 p-5">
-      <TrackMap map={history.trackMap} name={circuit} className="aspect-[16/9] w-full" />
-      <div className={`${history.trackMap ? "mt-4" : ""} flex items-baseline justify-between gap-3`}>
+      <CircuitThumb drawing={drawing} map={history.trackMap} name={circuit} turns className="aspect-[16/9] w-full" />
+      <div className={`${drawing || history.trackMap ? "mt-4" : ""} flex items-baseline justify-between gap-3`}>
         <h2 id="track-intel" className="text-title-md text-primary">
           Track intelligence
         </h2>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { tiltProps } from "@/components/motion/useTilt";
 import { Icon } from "@/components/ui/Icon";
-import { TrackMap } from "@/components/ui/TrackMap";
+import { CircuitThumb } from "@/components/circuit/CircuitThumb";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import type { PublicHomeData } from "@/lib/homeData";
 import { raceHref } from "@/lib/routes";
@@ -40,8 +40,8 @@ export function ComingUp({ publicData }: { publicData: PublicHomeData }) {
                 className="tilt group flex w-full items-center gap-4 rounded-card bg-surface-1 px-3 py-2.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 <div className="w-20 shrink-0">
-                  {publicData.trackMapByRound?.[r.round] ? (
-                    <TrackMap map={publicData.trackMapByRound[r.round]} name={r.circuit} compact className="aspect-[3/2] w-20" />
+                  {publicData.drawingByRound?.[r.round] || publicData.trackMapByRound?.[r.round] ? (
+                    <CircuitThumb drawing={publicData.drawingByRound?.[r.round]} map={publicData.trackMapByRound?.[r.round]} name={r.circuit} compact className="aspect-[3/2] w-20" />
                   ) : (
                     <div className="flex aspect-[3/2] w-20 items-center justify-center rounded-card bg-white/[0.04] text-title-md tabular text-tertiary">R{r.round}</div>
                   )}

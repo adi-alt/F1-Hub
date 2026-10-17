@@ -1,3 +1,4 @@
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/supabase/queryWithRetry";
@@ -87,6 +88,8 @@ export type ArchiveCircuit = {
   // The only circuit image the app shows. archive_circuits.image_url / image_urls (photos from the
   // circuit's Commons category, often not of the track) are deliberately not read.
   trackMap: CircuitTrackMap | null;
+  /** The circuit's line drawing from the track library, attached where it's shown (lib/supabase/circuitLayouts). */
+  drawing?: CircuitDrawing | null;
   lat: number | null;
   long: number | null;
   // Merged in by getAllArchiveCircuits from a full archive_races scan (getArchiveCircuitStats
