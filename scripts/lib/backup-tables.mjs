@@ -18,6 +18,8 @@ export const IRREPLACEABLE = [
   "group_bans",
   "group_predictions",
   "group_prediction_entries",
+  // Members' calls on posts (takes with receipts): what they claimed and when; the grades are derived from races.
+  "post_calls",
   "group_race_scores",
   "picks",
   "points_transactions",
