@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { groupHref } from "@/lib/routes";
 import { RollingNumber } from "@/components/ui/RollingNumber";
+import { EYEBROW } from "./panel";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 
@@ -33,7 +34,7 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
 
   return (
     <section aria-labelledby="community-pulse">
-      <h3 id="community-pulse" className="px-2 text-body-sm font-semibold text-primary">
+      <h3 id="community-pulse" className={`px-2 ${EYEBROW}`}>
         {pulse.hasPriorVisit ? "Since your last visit" : "This week"}
       </h3>
 
@@ -46,7 +47,7 @@ export function CommunityPulseCard({ groups, pulse }: { groups: GroupSummary[]; 
             {stats.map((r) => (
               <div key={r.key} className="min-w-0">
                 <dt className="sr-only">{r.label}</dt>
-                <dd className={`text-title-lg tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>
+                <dd className={`text-body font-semibold tabular ${r.count > 0 ? "text-primary" : "text-tertiary"}`}>
                   <RollingNumber value={r.count} />
                 </dd>
                 <dd className="truncate text-caption text-secondary">{r.label}</dd>

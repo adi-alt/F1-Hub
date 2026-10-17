@@ -10,6 +10,8 @@ import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
+import { getCommunityWeekend, getCrowdVsModel, getModelPicks } from "@/lib/supabase/communityWeekend";
+import { getCallableRace } from "@/lib/supabase/postCalls";
 
 /** The rounds a prediction can still be opened on: this season's own races that haven't finished,
  * in calendar order. Exactly what createPrediction will accept (it rejects a completed race
@@ -36,7 +38,7 @@ async function getRaceContext() {
  * a navigation dressed up as an action. getRaceRoster is what keeps that roster real even for a
  * race the pipeline hasn't reached yet - see its own comment.
  */
-async function getDriversByRace(raceIds: string[]): Promise<{ byRace: Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]>; poleModelByRace: Record<string, string[]> }> {
+async function getDriversByRace(raceIds: string[]): Promise<Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]>> {
   const unique = [...new Set(raceIds)];
   const races = await Promise.all(unique.map((raceId) => getRaceById(raceId)));
   const rosters = await Promise.all(races.map((race) => (race ? getRaceRoster(race) : [])));
@@ -44,15 +46,10 @@ async function getDriversByRace(raceIds: string[]): Promise<{ byRace: Record<str
   // previous-year fallback roster pulled in) - see getDriverHeadshotsByCode's own comment.
   const headshotByCode = await getDriverHeadshotsByCode(rosters.flat().map((r) => r.driver));
   const byRace: Record<string, { code: string; name: string; headshotUrl: string | null; team: string }[]> = {};
-  // The pole model's top three, where the pipeline has run it: it uses prior form only, so unlike the race
-  // simulation it exists while a round is still open (before qualifying).
-  const poleModelByRace: Record<string, string[]> = {};
   unique.forEach((raceId, i) => {
     byRace[raceId] = rosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null, team: r.team }));
-    const order = races[i]?.polePrediction?.order;
-    if (order?.length) poleModelByRace[raceId] = [...order].sort((a, b) => a.predictedQualiPosition - b.predictedQualiPosition).slice(0, 3).map((d) => d.driver);
   });
-  return { byRace, poleModelByRace };
+  return byRace;
 }
 
 /** Groups home - feed-first (see GroupsHomeClient's own comment for the full reasoning). Every
@@ -76,7 +73,8 @@ export default async function GroupsPage() {
     );
   }
 
-  const [groups, feed, predictions, raceContext, pulse, discover] = await Promise.all([
+  const season = await getCurrentSeason();
+  const [groups, feed, predictions, raceContext, pulse, discover, weekend, callableRace] = await Promise.all([
     getUserGroups(session.uid),
     listFeedPosts(session.uid),
     listMyPredictions(session.uid),
@@ -86,11 +84,27 @@ export default async function GroupsPage() {
     getCommunityPulse(session.uid),
     // A few public communities to suggest (the same cached query the Discover sheet uses).
     discoverCommunities({ uid: session.uid, limit: 12 }).catch(() => ({ communities: [] })),
+    // Race-weekend mode: the weekend the section lives in, its sessions and results. Read-only; on a failure the page
+    // falls back to the plain race strip rather than failing.
+    getCommunityWeekend(session.uid, season).catch((err) => {
+      console.error("getCommunityWeekend:", err);
+      return null;
+    }),
+    // Takes with receipts: the race calls can be made on now, if any. A failure just hides "Make a call".
+    getCallableRace(season).catch(() => null),
   ]);
   const suggestions = discover.communities.filter((c) => !c.isMember).slice(0, 3);
 
-  // Sequential on purpose: it depends on which rounds came back above.
-  const { byRace: driversByRace, poleModelByRace } = await getDriversByRace(predictions.map((p) => p.raceId));
+  // Sequential on purpose: these depend on which rounds and communities came back above. Each degrades on its own.
+  const raceIds = predictions.map((p) => p.raceId);
+  const [driversByRace, modelByRace, crowdVsModel] = await Promise.all([
+    getDriversByRace(raceIds),
+    getModelPicks(raceIds).catch(() => ({})),
+    getCrowdVsModel(groups.map((g) => ({ id: g.id, name: g.name, avatarUrl: g.avatarUrl })), season).catch((err) => {
+      console.error("getCrowdVsModel:", err);
+      return null;
+    }),
+  ]);
 
   return (
     // The same frame as every page, without its vertical padding: GroupsHomeClient is an app shell that fills the
@@ -106,7 +120,10 @@ export default async function GroupsPage() {
           upcomingRaces={raceContext.upcomingRaces}
           pulse={pulse}
           driversByRace={driversByRace}
-          poleModelByRace={poleModelByRace}
+          modelByRace={modelByRace}
+          weekend={weekend}
+          crowdVsModel={crowdVsModel}
+          callableRace={callableRace}
           suggestions={suggestions}
         />
       </div>

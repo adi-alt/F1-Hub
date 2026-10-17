@@ -240,23 +240,6 @@
   border: 1px solid rgb(255 255 255 / 0.12);
 }
 
-/* Frosted glass for widgets and cards that sit over the page's ambient light (Communities): a faint white tint,
-   a strong blur that carries the colour behind it, a hairline edge and a soft top highlight, like light catching
-   the rim of a pane. Where backdrop-filter isn't supported the tint is raised so text keeps its contrast. Inner
-   fills on it use translucent white (bg-white/[0.05]), never a solid zinc surface. */
-@utility surface-frost {
-  background-color: rgb(255 255 255 / 0.10);
-  border: 1px solid rgb(255 255 255 / 0.09);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.07),
-    0 12px 32px -16px rgb(0 0 0 / 0.6);
-  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-    background-color: rgb(255 255 255 / 0.045);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    backdrop-filter: blur(24px) saturate(180%);
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);

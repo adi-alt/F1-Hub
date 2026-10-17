@@ -14,6 +14,9 @@ import { PostMedia } from "./PostMedia";
 import { PostAttachment } from "./PostAttachment";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
+import { PANEL_INTERACTIVE } from "../panel";
+import { CallChip } from "./CallChip";
+import type { SessionPhase } from "@/lib/communityWeekend";
 
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", moderator: "Moderator" };
 
@@ -24,8 +27,8 @@ const ROLE_LABEL: Record<string, string> = { admin: "Admin", moderator: "Moderat
  * community home feed leads with the community, a community's own feed leads with the author (see
  * PostHeader).
  *
- * `variant`: the default is a row of the feed list (hairlines between rows come from the list, critique
- * §5.1); `"compact"` (the homepage's activity strip) is a smaller divider-separated row.
+ * `variant`: the default is a card in the site's glass panel; `"compact"` (the homepage's activity strip) is a
+ * smaller divider-separated row.
  */
 export function PostCard({
   post,
@@ -34,6 +37,7 @@ export function PostCard({
   canModerate = false,
   onModerated,
   variant = "default",
+  sessionTag,
 }: {
   post: PostCardData;
   index?: number;
@@ -41,6 +45,8 @@ export function PostCard({
   canModerate?: boolean;
   onModerated?: (action: "approve" | "reject") => void;
   variant?: "default" | "compact";
+  /** Where in the race weekend it was written (Communities' weekend mode). */
+  sessionTag?: SessionPhase;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -143,29 +149,30 @@ export function PostCard({
       className={
         variant === "compact"
           ? "border-b border-white/10 py-3 last:border-b-0"
-          : // A row of the feed list, not a card: no border, no fill; a faint tone on hover says the row opens. Square
-            // corners: the list draws its hairline as each row's top border, which rounded corners would bend.
-            "-mx-3 cursor-pointer px-3 py-4 transition-colors duration-fast hover:bg-white/[0.025]"
+          : // A card in the site's own glass (the same panel as prediction rounds and Season's sections); the edge lifts
+            // on hover to say the card opens.
+            `cursor-pointer p-4 ${PANEL_INTERACTIVE}`
       }
     >
       {/* The avatar in a column of its own and the post indented beside it, the way a social feed reads. */}
       <div className="flex gap-3">
-        <PostAvatar post={post} showGroup={showGroup} size={variant === "compact" ? 32 : 40} />
+        <PostAvatar post={post} showGroup={showGroup} size={32} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <PostByline post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} />
+              <PostByline post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} sessionTag={sessionTag} />
             </div>
             {menu}
           </div>
 
-          <div className="mt-1.5">
+          <div className="mt-1">
             <PostContent title={post.title} content={post.content} />
             {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
                 rows uploaded before it existed, which have a URL and nothing else. */}
             {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
+            {post.call && <CallChip call={post.call} />}
             {kindChip && (
-              <Badge tone="neutral" className="mt-3">
+              <Badge tone="neutral" className="mt-2">
                 {kindChip}
               </Badge>
             )}

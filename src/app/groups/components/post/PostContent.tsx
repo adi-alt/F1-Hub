@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { motion } from "motion/react";
 import { firstUrlIn, safeHttpUrl } from "@/lib/linkPreview";
 import { LinkPreview } from "./LinkPreview";
 
@@ -20,16 +19,17 @@ export function PostContent({ title, content }: { title: string | null; content:
   const previewUrl = firstUrlIn(content);
 
   return (
-    // Title 16px semibold, body 16px on a 24px line (critique §5.1): the text is what a post is for.
+    // Title and body at the site's 14px base (Season's rows and copy), the title set apart by weight; the body on a
+    // 24px line so longer posts stay comfortable to read.
     <div>
-      {title && <p className="text-body font-semibold text-primary">{title}</p>}
+      {title && <p className="text-body-sm font-semibold text-primary">{title}</p>}
       {/* break-words + overflow-wrap-anywhere: a single unbroken 300-character URL or token would
           otherwise set the card's minimum width and push the whole column sideways. */}
-      {/* layout: expanding a long post changes the card's height, and animating it keeps the rest
-          of the feed from snapping upward under the reader. */}
-      <motion.p layout="position" className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body text-primary/90 ${title ? "mt-0.5" : ""}`}>
+      {/* No layout animation here: the card moves as a whole when the feed reorders (a filter, a new post), and a
+          paragraph animating its own position separately trails behind its card. Show more expands in place. */}
+      <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body-sm leading-6 text-primary/85 ${title ? "mt-0.5" : ""}`}>
         {linkify(shown)}
-      </motion.p>
+      </p>
       {isLong && (
         <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 rounded-control text-body-sm font-medium text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           {expanded ? "Show less" : "Show more"}

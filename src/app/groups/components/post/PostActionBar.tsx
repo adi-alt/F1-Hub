@@ -19,7 +19,7 @@ import type { VoteValue } from "@/lib/supabase/groupPosts";
  */
 /** Ghost actions (critique §5.1): 36px targets, no borders or fills at rest, a neutral tone on hover. */
 const ACTION =
-  "flex h-9 items-center gap-1.5 rounded-full px-2.5 text-body-sm text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+  "flex h-8 items-center gap-1.5 rounded-full px-2.5 text-caption text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 
 export function PostActionBar({
   score,
@@ -46,7 +46,7 @@ export function PostActionBar({
   return (
     // h-7 controls (28px) rather than the 36px these were: still a comfortable target, but a row of
     // them no longer costs a third of the card's height.
-    <div className="-ml-2.5 mt-1.5 flex items-center gap-2">
+    <div className="-ml-2 mt-2 flex items-center gap-1">
       <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
       <button type="button" onClick={onOpenComments} aria-label={`Open discussion, ${commentCount} comment${commentCount === 1 ? "" : "s"}`} className={ACTION}>
         <Icon icon={MessageSquare} size={16} />

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
-import { Check, Clock, Lock, Sparkles, X } from "lucide-react";
+import { Check, Clock, Lock, Sparkles, Users, X } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
 import { DriverPicker } from "@/components/ui/F1Pickers";
@@ -11,6 +11,8 @@ import { ensureVisible } from "@/lib/colorContrast";
 import { teamColor } from "@/lib/teamColors";
 import { Icon } from "@/components/ui/Icon";
 import { RollingNumber } from "@/components/ui/RollingNumber";
+import { PANEL } from "../panel";
+import { comparableDriver, type ModelPick } from "@/lib/communityWeekend";
 import { predictionStateAt, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
 import type { FeedPrediction, PredictionTrend } from "@/lib/supabase/groupPredictions";
 import { groupHref } from "@/lib/routes";
@@ -62,7 +64,7 @@ export function PredictionFeedCard({
   showGroup,
   drivers = [],
   groupAvatarUrl = null,
-  modelPicks,
+  modelPick = null,
 }: {
   prediction: FeedPrediction;
   /** Position in the feed (kept for callers; the feed no longer staggers entrances). */
@@ -72,8 +74,8 @@ export function PredictionFeedCard({
   drivers?: DriverOption[];
   /** The community's own picture, for the header. */
   groupAvatarUrl?: string | null;
-  /** The pole model's top three for this race (pole rounds only, where the pipeline has run it). */
-  modelPicks?: string[];
+  /** The Apex model's pick for this round, where its model has run for the race (see modelPickFor). */
+  modelPick?: ModelPick | null;
 }) {
   const now = useMinuteClock();
   const { pointsBalance, refreshPointsBalance } = useAuth();
@@ -141,14 +143,13 @@ export function PredictionFeedCard({
   const closingSoon = !closed && lockMs !== null && lockMs - now < 3 * 3600 * 1000;
 
   return (
-    // One frosted pane, no inner borders (critique §4.2): the round is the one boxed item in a feed of unboxed
-    // posts, which is what marks it out as something to act on.
-    <article className="@container rounded-card p-4 surface-frost sm:p-5">
+    // The site's glass panel, like every card in the feed; no inner borders (critique §4.2).
+    <article className={`@container p-4 ${PANEL}`}>
       {/* Context: where the round is running, for which race, and when it was opened. */}
-      <p className="flex min-w-0 items-center gap-1.5 text-body-sm text-secondary">
+      <p className="flex min-w-0 items-center gap-1.5 text-caption text-secondary">
         {showGroup && (
           <Link href={groupHref(prediction.groupId)} className="flex min-w-0 shrink items-center gap-2 rounded-control font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-            <EntityAvatar imageUrl={groupAvatarUrl} name={prediction.groupName} seed={prediction.groupId} size={20} />
+            <EntityAvatar imageUrl={groupAvatarUrl} name={prediction.groupName} seed={prediction.groupId} size={16} />
             <span className="truncate">{prediction.groupName}</span>
           </Link>
         )}
@@ -161,24 +162,24 @@ export function PredictionFeedCard({
       </p>
 
       {/* The question names the type, so there's no separate type badge. */}
-      <h3 className="mt-3 text-title-md text-primary">{QUESTION[prediction.type]}</h3>
+      <h3 className="mt-2 text-body font-semibold text-primary">{QUESTION[prediction.type]}</h3>
 
       {/* State and stakes on one line, the figures in the primary tone so the eye finds them: when it closes, what
           it costs, what it pays. Open isn't badged; only the last three hours turn the deadline amber. */}
-      <p className="mt-1.5 flex flex-wrap items-center gap-y-1 text-body-sm text-secondary">
+      <p className="mt-1 flex flex-wrap items-center gap-y-1 text-caption text-secondary">
         {resolved ? (
           <span className="inline-flex items-center gap-1.5">
-            <Icon icon={Check} size={16} className="text-tertiary" />
+            <Icon icon={Check} size={16} className="size-3.5 text-tertiary" />
             Settled on the official result
           </span>
         ) : countdown ? (
           <span suppressHydrationWarning className={`inline-flex items-center gap-1.5 tabular ${closingSoon ? "text-warning" : ""}`}>
-            <Icon icon={Clock} size={16} className={closingSoon ? "" : "text-tertiary"} />
+            <Icon icon={Clock} size={16} className={`size-3.5 ${closingSoon ? "" : "text-tertiary"}`} />
             Closes in <span className={`font-medium ${closingSoon ? "" : "text-primary"}`}>{countdown}</span>
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">
-            <Icon icon={Lock} size={16} className="text-tertiary" />
+            <Icon icon={Lock} size={16} className="size-3.5 text-tertiary" />
             Closed at qualifying
           </span>
         )}
@@ -197,7 +198,7 @@ export function PredictionFeedCard({
         )}
       </p>
 
-      <div className="mt-4">
+      <div className="mt-3">
         {isPodium ? (
           <PodiumMarket
             drivers={drivers}
@@ -223,8 +224,8 @@ export function PredictionFeedCard({
       </div>
 
       {/* Your row: where you stand on the left, the one action on the right. */}
-      <div className="mt-4 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">
-        <p className="min-w-0 flex-1 text-body-sm text-secondary">
+      <div className="mt-3 flex min-h-8 flex-wrap items-center gap-x-4 gap-y-2">
+        <p className="min-w-0 flex-1 text-caption text-secondary">
           {resolved ? (
             prediction.hasEntered ? (
               (prediction.myPointsAwarded ?? 0) > 0 ? (
@@ -267,48 +268,107 @@ export function PredictionFeedCard({
         {!resolved && picking && (
           <div className="flex items-center gap-2">
             {editing && (
-              <Button variant="ghost" size="md" onClick={() => (setEditing(false), setChoice(null))}>
+              <Button variant="ghost" size="sm" onClick={() => (setEditing(false), setChoice(null))}>
                 Cancel
               </Button>
             )}
-            <Button variant="primary" size="md" loading={saving} disabled={!changed || !!blocker} onClick={() => void confirm()}>
+            <Button variant="primary" size="sm" loading={saving} disabled={!changed || !!blocker} onClick={() => void confirm()}>
               {entered ? "Save change" : `Enter · ${prediction.entryPoints} pts`}
             </Button>
           </div>
         )}
         {!resolved && !picking && entered && !closed && (
-          <Button variant="ghost" size="md" onClick={() => setEditing(true)}>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             Change
           </Button>
         )}
       </div>
       {(blocker || error) && <p role="alert" className="mt-2 text-body-sm text-warning">{blocker ?? error}</p>}
-      {/* Apex, after the task and quieter than it: the model's own pick where one exists before qualifying (the pole
-          model; the race simulation only runs after it, when the round has closed), and a way to ask about the round.
-          Marked as AI by its icon and name. */}
-      {!resolved && (
-        <div className="mt-3 flex items-center gap-1.5 text-caption text-tertiary">
-          <Icon icon={Sparkles} size={16} className="size-3.5 shrink-0" />
-          <p className="min-w-0 flex-1 truncate">
-            {modelPicks?.length ? (
-              <>
-                Apex model&apos;s pole pick <span className="font-medium text-secondary">{lastName(modelPicks[0])}</span>
-                {modelPicks.length > 1 && <>, then {modelPicks.slice(1).map(lastName).join(" and ")}</>}
-              </>
-            ) : (
-              "Not sure? Apex can talk you through this race."
-            )}
-          </p>
-          <button
-            type="button"
-            onClick={() => askApex(APEX_QUESTION[prediction.type](prediction.raceName), "everything")}
-            className="-my-1.5 shrink-0 rounded-control px-1.5 py-1.5 font-medium text-secondary underline-offset-4 transition-colors duration-fast hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          >
-            Ask Apex
-          </button>
-        </div>
-      )}
+      {/* Crowd vs Apex, after the task and quieter than it: where this community leans against the Apex model's pick,
+          each marked right or wrong once the round is settled. The model's race picks come from after qualifying (the
+          simulation needs the grid), which the line says while the round is still open. Retirement rounds have no
+          model, so they show the crowd only. */}
+      <CrowdVsApex
+        type={prediction.type}
+        trend={shownTrend}
+        entryCount={prediction.entryCount}
+        modelPick={modelPick}
+        answer={resolved ? comparableDriver(prediction.type, prediction.correctAnswer) : null}
+        closed={closed}
+        nameOf={lastName}
+        onAsk={() => askApex(APEX_QUESTION[prediction.type](prediction.raceName), "everything")}
+      />
     </article>
+  );
+}
+
+/** The crowd's pick against the Apex model's, one line. */
+function CrowdVsApex({
+  type,
+  trend,
+  entryCount,
+  modelPick,
+  answer,
+  closed,
+  nameOf,
+  onAsk,
+}: {
+  type: PredictionType;
+  trend: PredictionTrend | null;
+  entryCount: number;
+  modelPick: ModelPick | null;
+  answer: string | null;
+  closed: boolean;
+  nameOf: (code: string) => string;
+  onAsk: () => void;
+}) {
+  const top = trend?.options.find((o) => o.key !== "__other__") ?? null;
+  const crowd = type === "dnf_count" ? (top ? top.label : null) : top ? top.key : null;
+  const verdict = (pick: string | null) =>
+    answer && pick ? (pick === answer ? <Icon icon={Check} size={16} className="size-3.5 text-success" aria-label="right" /> : <Icon icon={X} size={16} className="size-3.5 text-tertiary" aria-label="wrong" />) : null;
+  const hasModel = type !== "dnf_count";
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-secondary">
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Icon icon={Users} size={16} className="size-3.5 shrink-0 text-tertiary" />
+        <span className="text-tertiary">Crowd</span>
+        {crowd && top ? (
+          <span className="flex items-center gap-1">
+            <span className="font-semibold text-primary">{type === "dnf_count" ? crowd : nameOf(crowd)}</span>
+            <span className="tabular">{top.pct}%</span>
+            {verdict(type === "dnf_count" ? null : crowd)}
+          </span>
+        ) : (
+          <span className="tabular">{entryCount ? `${entryCount} ${entryCount === 1 ? "entry" : "entries"} so far` : "no entries yet"}</span>
+        )}
+      </span>
+      {hasModel && (
+        <>
+          <span aria-hidden className="text-tertiary">
+            vs
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Icon icon={Sparkles} size={16} className="size-3.5 shrink-0 text-tertiary" />
+            <span className="text-tertiary">Apex</span>
+            {modelPick ? (
+              <span className="flex items-center gap-1">
+                <span className="font-semibold text-primary">{nameOf(modelPick.driver)}</span>
+                {verdict(modelPick.driver)}
+              </span>
+            ) : (
+              <span>{closed ? "no pick" : "picks after qualifying"}</span>
+            )}
+          </span>
+        </>
+      )}
+      <button
+        type="button"
+        onClick={onAsk}
+        className="-my-1.5 ml-auto shrink-0 rounded-control px-1.5 py-1.5 font-medium text-secondary underline-offset-4 transition-colors duration-fast hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      >
+        Ask Apex
+      </button>
+    </div>
   );
 }
 
@@ -327,7 +387,7 @@ type TileState = "idle" | "selected" | "entered" | "correct" | "wrong";
  * for the one Enter button); your entered or the right answer is the success ring; a wrong pick dims. */
 function tileClass(state: TileState, interactive: boolean, dimWhenLocked = true) {
   const base =
-    "relative flex h-12 min-w-0 items-center gap-2 rounded-control px-3 text-left transition-[background-color,box-shadow,opacity] duration-fast disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+    "relative flex h-10 min-w-0 items-center gap-2 rounded-control px-3 text-left transition-[background-color,box-shadow,opacity] duration-fast disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
   switch (state) {
     case "selected":
       // The ring and the lift are <Selection />, which slides here from the previous choice.
@@ -351,8 +411,8 @@ function TileDriver({ code, driver }: { code: string; driver?: DriverOption }) {
   const surname = driver?.name.split(" ").slice(-1)[0];
   return (
     <span className="relative flex min-w-0 flex-1 items-center gap-2">
-      <span aria-hidden className="h-6 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: bar }} />
-      <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} size={24} />
+      <span aria-hidden className="h-5 w-[3px] shrink-0 rounded-full" style={{ backgroundColor: bar }} />
+      <EntityAvatar imageUrl={driver?.headshotUrl ?? null} name={driver?.name ?? code} size={20} />
       <span className="min-w-0 truncate text-body-sm">
         <span className="font-semibold text-primary">{code}</span>
         {surname && <span className="ml-1.5 hidden text-secondary @sm:inline">{surname}</span>}

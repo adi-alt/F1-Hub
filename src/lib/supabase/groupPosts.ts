@@ -4,6 +4,7 @@ import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
 import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { allowedMediaUrl, isAllowedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
+import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
 
@@ -40,6 +41,10 @@ export type GroupPost = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  /** A call the post makes about the race weekend, graded against the result (takes with receipts). */
+  call?: PostCallView | null;
+  /** The author's season record from their calls. */
+  authorRecord?: AuthorRecord | null;
 };
 
 export type PostComment = {
@@ -72,6 +77,10 @@ export type FeedPost = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  /** A call the post makes about the race weekend, graded against the result (takes with receipts). */
+  call?: PostCallView | null;
+  /** The author's season record from their calls. */
+  authorRecord?: AuthorRecord | null;
 };
 
 /** Builds the attachment from whatever metadata the row actually has. A row with a media_url but
@@ -206,6 +215,14 @@ export async function createPost(
     .single();
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
   return { id: data.id as string, status, scheduledAt: status === "scheduled" ? scheduledAt : null };
+}
+
+/** Removes a post that was just created when what it was created with can't be stored alongside it (a call, when
+ * post_calls isn't there yet): the author gets an error instead of a post that silently lost its call. Never used to
+ * delete anything a reader could have seen - only the row this request inserted a moment ago. */
+export async function discardNewPost(postId: string, uid: string): Promise<void> {
+  const { error } = await supabaseAdmin.from("group_posts").delete().eq("id", postId).eq("user_id", uid);
+  if (error) console.error(`discardNewPost(${postId}): ${error.message}`);
 }
 
 /** How far ahead a post may be scheduled. A year is generous for a race calendar and still bounds
@@ -369,10 +386,10 @@ export async function listPosts(
     mapped.sort((a, b) => rank(b) - rank(a) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const page = mapped.slice(offset, offset + limit);
     const nextOffset = offset + page.length;
-    return { posts: page, nextCursor: nextOffset < mapped.length ? `${OFFSET_CURSOR_PREFIX}${nextOffset}` : null };
+    return { posts: await withCalls(page), nextCursor: nextOffset < mapped.length ? `${OFFSET_CURSOR_PREFIX}${nextOffset}` : null };
   }
 
-  return { posts: mapped, nextCursor: hasMoreChronological ? (enriching[enriching.length - 1].created_at as string) : null };
+  return { posts: await withCalls(mapped), nextCursor: hasMoreChronological ? (enriching[enriching.length - 1].created_at as string) : null };
 }
 
 /**
@@ -408,7 +425,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const authorRole = groupId ? ((await getMemberRole(groupId, post.user_id as string)) ?? "member") : "member";
 
-  return {
+  const view: GroupPost = {
     id: post.id as string,
     groupId: (groupId ?? "") as string,
     userId: post.user_id as string,
@@ -427,6 +444,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     myVote: myVoteByTarget.get(postId) ?? 0,
     commentCount: (comments ?? []).length,
   };
+  return (await withCalls([view]))[0];
 }
 
 /** How a community's feed is ordered. Every one of these is computed from data that really exists:
@@ -586,7 +604,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       commentCount: commentCounts.get(p.id as string) ?? 0,
     };
   });
-  return { posts, nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };
+  return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };
 }
 
 /** Sets (or clears) the current user's vote - clicking the already-active direction again clears

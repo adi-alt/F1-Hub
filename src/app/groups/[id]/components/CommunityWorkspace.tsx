@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CallableRace } from "@/lib/supabase/postCalls";
 import { motion } from "motion/react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -59,6 +60,7 @@ export function CommunityWorkspace({
   railPredictions,
   races,
   upcomingRaces,
+  callableRace = null,
   driversByRace,
   pointsBalance,
   memberCount,
@@ -83,6 +85,8 @@ export function CommunityWorkspace({
   /** The subset that hasn't run yet, which is exactly what createPrediction will accept. The
    * composer gets this one, so it can't offer a round the server would refuse. */
   upcomingRaces: RaceOption[];
+  /** This weekend's race while calls on it are open (takes with receipts). */
+  callableRace?: CallableRace | null;
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
   pointsBalance: number;
   memberCount: number;
@@ -214,6 +218,7 @@ export function CommunityWorkspace({
                       moderationEnabled={group.moderationEnabled}
                       pendingCount={pendingPosts}
                       upcomingRaces={upcomingRaces}
+                      callableRace={callableRace}
                       composerOpen={composerOpen}
                       onComposerOpenChange={setComposerOpen}
                       focusPostId={focusPostId}

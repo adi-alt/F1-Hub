@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/Skeleton";
+import { PANEL } from "./panel";
 import { GroupsRightSidebarSkeleton } from "./GroupsRightSidebarSkeleton";
 import { PostCardSkeleton } from "./post/PostCardSkeleton";
 
@@ -9,12 +10,12 @@ export function GroupsHomeSkeleton() {
     <div className="py-4 lg:h-[calc(100dvh-3.5rem)]">
       <div className="flex flex-col gap-6 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5 lg:overflow-hidden xl:grid-cols-[248px_minmax(0,1fr)_320px]">
         <div className="hidden lg:block">
-          <div className="rounded-card p-2 surface-frost">
+          <div className={`p-2 ${PANEL}`}>
             <Skeleton shape="block" className="ml-2 mt-2.5 h-4 w-28" />
             <div className="mt-3 space-y-0.5">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex h-10 items-center gap-2.5 px-1.5">
-                  <Skeleton shape="circle" className="size-7 shrink-0" />
+                <div key={i} className="flex h-9 items-center gap-2.5 px-1.5">
+                  <Skeleton shape="circle" className="size-6 shrink-0" />
                   <Skeleton shape="block" className="h-3 w-3/4" />
                 </div>
               ))}
@@ -23,20 +24,20 @@ export function GroupsHomeSkeleton() {
         </div>
 
         <div className="min-w-0 space-y-3 lg:overflow-hidden">
-          <div className="border-b border-white/[0.06] pb-3 pt-1">
+          <div className={`px-4 py-3 ${PANEL}`}>
             <div className="flex items-center gap-3">
-              <Skeleton shape="circle" className="size-10 shrink-0" />
-              <Skeleton shape="block" className="h-4 w-1/2" />
+              <Skeleton shape="circle" className="size-8 shrink-0" />
+              <Skeleton shape="block" className="h-3.5 w-1/2" />
             </div>
-            <div className="mt-2 flex items-center gap-2 pl-[3.25rem]">
+            <div className="mt-2 flex items-center gap-2 pl-9">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} shape="circle" className="size-6" />
+                <Skeleton key={i} shape="circle" className="size-5" />
               ))}
-              <Skeleton shape="block" className="ml-auto h-9 w-16 rounded-full" />
+              <Skeleton shape="block" className="ml-auto h-8 w-14 rounded-full" />
             </div>
           </div>
           <Skeleton shape="block" className="h-9 w-56" />
-          <div className="divide-y divide-white/[0.06]">
+          <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <PostCardSkeleton key={i} />
             ))}

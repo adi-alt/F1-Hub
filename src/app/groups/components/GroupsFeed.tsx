@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
+import { PANEL } from "./panel";
 import { ChevronRight, MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -18,23 +19,40 @@ import { PostComposer } from "./PostComposer";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { RaceOption } from "./post/PredictionComposer";
 import type { PostCardData } from "./post/types";
+import { SessionResultCard } from "./weekend/SessionResultCard";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { liveSession, sessionEndsAt, sessionPhaseAt, type CommunitySession, type ModelPick, type ResultLine, type SessionKey } from "@/lib/communityWeekend";
+import type { CommunityWeekendData } from "@/lib/supabase/communityWeekend";
+import type { PredictionType } from "@/lib/groupPredictionTypes";
+import type { CallableRace } from "@/lib/supabase/postCalls";
 
-/** One row of the stream: a discussion or an open prediction round, ordered together by the time
- * each was actually created. Keeping them in one list (rather than a predictions strip above the
- * feed) is what makes a prediction read as something the community posted, which is what it is. */
-type FeedItem = { key: string; at: number } & ({ kind: "post"; post: PostCardData } | { kind: "prediction"; prediction: FeedPrediction });
+/** One row of the stream: a discussion, a prediction round, or a race-weekend session's result, ordered together by
+ * when each happened (a result sits where its session ended). Keeping them in one list (rather than strips above the
+ * feed) is what makes a round read as something the community posted, and a result as part of the conversation
+ * around it. */
+type FeedItem = { key: string; at: number } & (
+  | { kind: "post"; post: PostCardData }
+  | { kind: "prediction"; prediction: FeedPrediction }
+  | { kind: "result"; session: CommunitySession; lines: ResultLine[] }
+);
 
-function interleave(posts: PostCardData[], predictions: FeedPrediction[]): FeedItem[] {
+type ResultItem = Extract<FeedItem, { kind: "result" }>;
+
+function interleave(posts: PostCardData[], predictions: FeedPrediction[], results: ResultItem[] = []): FeedItem[] {
   const items: FeedItem[] = [
     ...posts.map((post) => ({ key: `post:${post.id}`, at: new Date(post.createdAt).getTime(), kind: "post" as const, post })),
     ...predictions.map((prediction) => ({ key: `prediction:${prediction.id}`, at: new Date(prediction.createdAt).getTime(), kind: "prediction" as const, prediction })),
+    ...results,
   ];
   return items.sort((a, b) => b.at - a.at);
 }
 
-/** The feed is a list (design spec P1, critique §5.1): posts separated by hairlines, no card per post. Prediction
- * rounds are the one boxed item, which is what marks them out as something to act on. */
-const FEED_LIST = "divide-y divide-white/[0.06]";
+/** The session a round is about: pole is settled by qualifying; every other round by the race. */
+const sessionOfRound = (p: FeedPrediction): SessionKey => (p.type === "pole" ? "Q" : "R");
+
+/** The feed is a stack of cards in the site's glass panel (posts and prediction rounds alike), 12px apart, as Season
+ * stacks its sections. */
+const FEED_LIST = "space-y-3";
 
 /** How an item that arrives in a feed already on screen (your new post, the next page) enters: it drops in and
  * settles. `initial={false}` on the AnimatePresence above it keeps the first render still. */
@@ -83,7 +101,11 @@ export function GroupsFeed({
   predictions,
   upcomingRaces,
   driversByRace,
-  poleModelByRace = {},
+  modelByRace = {},
+  weekend = null,
+  sessionFilter = null,
+  onClearSession,
+  callableRace = null,
 }: {
   groups: GroupSummary[];
   initialPosts: FeedPost[];
@@ -97,13 +119,87 @@ export function GroupsFeed({
   upcomingRaces: RaceOption[];
   /** Driver roster per race id, so a round can be entered from the feed itself. */
   driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
-  /** The pole model's top three per race, where it has run. */
-  poleModelByRace?: Record<string, string[]>;
+  /** The Apex model's pick per race and round type, for the cards' crowd-vs-Apex line. */
+  modelByRace?: Record<string, Partial<Record<PredictionType, ModelPick>>>;
+  /** The race weekend Communities is living in: tags posts with their session, drops each session's result in. */
+  weekend?: CommunityWeekendData;
+  /** A session chosen on the weekend bar: the feed narrows to what was said during and after it. */
+  sessionFilter?: SessionKey | null;
+  onClearSession?: () => void;
+  /** This weekend's race while calls are open (takes with receipts), for the composer. */
+  callableRace?: CallableRace | null;
 }) {
   const communityId = selectedCommunity?.id ?? null;
   // Each community's picture, for the prediction cards (a round carries its community's name, not its picture).
   const avatarById = new Map(groups.map((g) => [g.id, g.avatarUrl]));
   const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;
+
+  // Race-weekend mode. A minute clock keeps the composer's prompt and the live tags current.
+  const now = useMinuteClock();
+  const sessions = weekend?.sessions ?? [];
+  const live = liveSession(sessions, now);
+  const results: ResultItem[] = weekend
+    ? sessions
+        .filter((s) => weekend.results[s.key]?.length)
+        .map((s) => ({ key: `result:${weekend.round}:${s.key}`, at: sessionEndsAt(s), kind: "result" as const, session: s, lines: weekend.results[s.key] as ResultLine[] }))
+    : [];
+  const tagFor = (post: PostCardData) => (sessions.length ? sessionPhaseAt(sessions, Date.parse(post.createdAt)) : null);
+  const inFilter = (item: FeedItem) => {
+    if (!sessionFilter) return true;
+    if (item.kind === "result") return item.session.key === sessionFilter;
+    if (item.kind === "prediction") return item.prediction.raceId === weekend?.raceId && sessionOfRound(item.prediction) === sessionFilter;
+    const tag = tagFor(item.post);
+    return !!tag && tag.phase !== "build-up" && tag.key === sessionFilter;
+  };
+  const filterLabel = sessions.find((s) => s.key === sessionFilter)?.label;
+
+  const renderItem = (item: FeedItem, i: number, showGroup: boolean) =>
+    item.kind === "post" ? (
+      <PostCard post={item.post} index={i} showGroup={showGroup} sessionTag={tagFor(item.post)} />
+    ) : item.kind === "result" ? (
+      weekend && <SessionResultCard session={item.session} lines={item.lines} calledIt={weekend.calledIt[item.session.key]} race={{ year: weekend.year, round: weekend.round, name: weekend.raceName }} />
+    ) : (
+      <PredictionFeedCard
+        prediction={item.prediction}
+        index={i}
+        showGroup={showGroup}
+        drivers={driversByRace[item.prediction.raceId] ?? []}
+        modelPick={modelByRace[item.prediction.raceId]?.[item.prediction.type] ?? null}
+        groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null}
+      />
+    );
+
+  /** The stream itself: the items, newest first, narrowed to the chosen session if there is one. */
+  const renderList = (items: FeedItem[], showGroup: boolean) => {
+    const visible = items.filter(inFilter);
+    if (sessionFilter && visible.length === 0) {
+      return (
+        <EmptyState
+          boxed
+          icon={MessageSquare}
+          message={`Nothing was posted during or after ${filterLabel ?? "this session"} yet.`}
+          action={
+            onClearSession && (
+              <Button variant="secondary" size="md" onClick={onClearSession}>
+                Show everything
+              </Button>
+            )
+          }
+        />
+      );
+    }
+    return (
+      <div className={FEED_LIST}>
+        <AnimatePresence initial={false}>
+          {visible.map((item, i) => (
+            <motion.div key={item.key} {...ARRIVE}>
+              {renderItem(item, i, showGroup)}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    );
+  };
 
   // The composer only exists at the very top of the stream, so someone twenty posts down had no
   // way to start one without scrolling all the way back by hand. This watches whether it's still
@@ -283,7 +379,7 @@ export function GroupsFeed({
   return (
     <div className="space-y-3">
       {selectedCommunity && (
-        <div className="flex items-center gap-3 rounded-card px-4 py-3 surface-frost">
+        <div className={`flex items-center gap-3 px-4 py-3 ${PANEL}`}>
           <EntityAvatar imageUrl={selectedCommunity.avatarUrl} name={selectedCommunity.name} seed={selectedCommunity.id} size={32} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body-sm font-semibold text-primary">{selectedCommunity.name}</p>
@@ -304,8 +400,9 @@ export function GroupsFeed({
           groups={groups}
           onPosted={communityId ? refreshCommunity : refreshAggregate}
           fixedGroupId={communityId ?? undefined}
-          placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : undefined}
+          placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : live ? `${live.label} is live. What's happening?` : undefined}
           upcomingRaces={upcomingRaces}
+          callableRace={callableRace}
         />
       </div>
 
@@ -338,19 +435,7 @@ export function GroupsFeed({
               }
             />
           ) : (
-            <div className={FEED_LIST}>
-              <AnimatePresence initial={false}>
-                {interleave(communityPosts, communityPredictions).map((item, i) => (
-                  <motion.div key={item.key} {...ARRIVE} className={item.kind === "post" ? undefined : "py-4"}>
-                    {item.kind === "post" ? (
-                      <PostCard post={item.post} index={i} showGroup={false} />
-                    ) : (
-                      <PredictionFeedCard prediction={item.prediction} index={i} showGroup={false} drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
-                    )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+            renderList(interleave(communityPosts, communityPredictions, results), false)
           )}
         </div>
       ) : (
@@ -392,19 +477,7 @@ export function GroupsFeed({
                 }
               />
             ) : (
-              <div className={FEED_LIST}>
-                <AnimatePresence initial={false}>
-                  {interleave(posts, predictions).map((item, i) => (
-                    <motion.div key={item.key} {...ARRIVE} className={item.kind === "post" ? undefined : "py-4"}>
-                      {item.kind === "post" ? (
-                        <PostCard post={item.post} index={i} showGroup />
-                      ) : (
-                        <PredictionFeedCard prediction={item.prediction} index={i} showGroup drivers={driversByRace[item.prediction.raceId] ?? []} modelPicks={item.prediction.type === "pole" ? poleModelByRace[item.prediction.raceId] : undefined} groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null} />
-                      )}
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+              renderList(interleave(posts, predictions, results), true)
             )}
           </TabPanels>
         </Tabs>

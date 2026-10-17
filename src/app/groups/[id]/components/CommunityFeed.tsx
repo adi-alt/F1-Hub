@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CallableRace } from "@/lib/supabase/postCalls";
 import { MessageSquare } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { canDo, permissionLevel, postKindsFor, type CommunityFeatures, type CommunityPermissions, type PostKind } from "@/lib/communities";
@@ -67,6 +68,7 @@ export function CommunityFeed({
   moderationEnabled,
   pendingCount,
   upcomingRaces,
+  callableRace = null,
   composerOpen,
   onComposerOpenChange,
   focusPostId,
@@ -88,6 +90,8 @@ export function CommunityFeed({
    * it from the composer. Empty for a community with no predictions module, which is exactly what
    * makes the composer not offer it. */
   upcomingRaces: RaceOption[];
+  /** This weekend's race while calls on it are open (takes with receipts). */
+  callableRace?: CallableRace | null;
   /** The full-post modal is controlled from the workspace, because the page's floating "Create
    * post" button lives out there (fixed to the viewport, outside this panel) and opens the same
    * one this feed's own empty state does. Controlled rather than signalled: two owners of one
@@ -289,6 +293,7 @@ export function CommunityFeed({
           fixedGroupId={groupId}
           placeholder={`Share your thoughts with ${communityName}...`}
           upcomingRaces={upcomingRaces}
+          callableRace={callableRace}
           onPosted={refresh}
         />
       ) : (
@@ -307,8 +312,8 @@ export function CommunityFeed({
         <FeedControls kinds={kinds} value={query} onChange={setQuery} canModerate={canModerate} moderationEnabled={moderationEnabled} pendingCount={canModerate ? pendingCount : undefined} />
       </div>
 
-      {/* A list, posts parted by hairlines (critique §5.1), as on the Communities home. */}
-      <div className="mt-3 divide-y divide-white/[0.06]">
+      {/* Posts as cards in the site's glass panel, 12px apart, as on the Communities home. */}
+      <div className="mt-3 space-y-3">
         {reloading ? (
           Array.from({ length: 3 }).map((_, i) => <PostCardSkeleton key={i} />)
         ) : reloadError ? (

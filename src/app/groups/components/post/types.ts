@@ -1,6 +1,7 @@
 import type { PostKind } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { PostAttachment, PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
+import type { AuthorRecord, PostCallView } from "@/lib/supabase/postCalls";
 
 /** The one post shape every shared post component (PostCard/PostHeader/PostActionBar/...) works
  * against - both GroupPost (a specific group's own feed, always a real group, so groupName/
@@ -33,4 +34,8 @@ export type PostCardData = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  /** A call on the race weekend, graded against the result (takes with receipts). */
+  call?: PostCallView | null;
+  /** The author's season record from their calls. */
+  authorRecord?: AuthorRecord | null;
 };
