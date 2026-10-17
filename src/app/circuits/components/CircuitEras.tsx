@@ -17,11 +17,12 @@ export type EraEntry = { layout: CircuitLayout; drawing: CircuitDrawing };
 export function CircuitEras({ eras, winners, currentYear }: { eras: EraEntry[]; winners: { year: number; winner: string }[]; currentYear: number }) {
   // Opens at the beginning, so the story runs forward through time - today's layout is already drawn in the hero.
   // A circuit with only one layout (nothing to tell) shows that one.
-  const startIndex = useMemo(() => (eras.length > 1 ? 0 : eras.findIndex((e) => e.layout.seasons.includes(currentYear)) || 0), [eras, currentYear]);
+  // (findIndex is -1 when no era covers this season, e.g. a circuit whose only layout predates it - never an index.)
+  const startIndex = useMemo(() => (eras.length > 1 ? 0 : Math.max(0, eras.findIndex((e) => e.layout.seasons.includes(currentYear)))), [eras, currentYear]);
   const [selected, setSelected] = useState(startIndex);
   if (eras.length === 0) return null;
 
-  const era = eras[Math.min(selected, eras.length - 1)];
+  const era = eras[Math.min(Math.max(0, selected), eras.length - 1)];
   const previous = eras.slice(0, selected).reverse().find((e) => !e.layout.raceNameMatch) ?? null;
   const story = eraStory(era.layout, previous?.layout ?? null, winners);
   const go = (i: number) => setSelected(Math.max(0, Math.min(eras.length - 1, i)));
@@ -37,7 +38,7 @@ export function CircuitEras({ eras, winners, currentYear }: { eras: EraEntry[]; 
   return (
     <div className="@container">
       <div className="grid items-center gap-6 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @3xl:gap-12">
-        <CircuitCanvas drawing={era.drawing} className="max-h-[20rem]" lapColor="rgb(255 255 255 / 0.75)" lapSeconds={9} />
+        <CircuitCanvas drawing={era.drawing} className="max-h-60" lapColor="rgb(255 255 255 / 0.75)" lapSeconds={9} />
         <div className="min-w-0">
           <p className="text-caption text-tertiary">
             Era {selected + 1} of {eras.length}

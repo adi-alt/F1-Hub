@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useState } from "react";
 import { MediaSkeleton } from "@/components/ui/Skeletons";
-import { TrackMap } from "@/components/ui/TrackMap";
+import { CircuitThumb } from "@/components/circuit/CircuitThumb";
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";
 
 type State = "loading" | "loaded" | "error";
@@ -23,11 +24,13 @@ type State = "loading" | "loaded" | "error";
 export function RaceMedia({
   photoUrls,
   circuitTrackMap,
+  circuitDrawing = null,
   raceName,
   circuit,
 }: {
   photoUrls: string[];
   circuitTrackMap: CircuitTrackMap | null;
+  circuitDrawing?: CircuitDrawing | null;
   raceName: string;
   circuit: string | null;
 }) {
@@ -43,7 +46,7 @@ export function RaceMedia({
   const mark = (url: string, next: State) => setStates((prev) => (prev[url] === next ? prev : { ...prev, [url]: next }));
 
   if (usable.length === 0) {
-    if (circuitTrackMap) return <TrackMap map={circuitTrackMap} name={circuit ?? raceName} />;
+    if (circuitDrawing || circuitTrackMap) return <CircuitThumb drawing={circuitDrawing} map={circuitTrackMap} name={circuit ?? raceName} turns className="aspect-[16/7] w-full" />;
     return (
       <MediaPlaceholder label={circuit ? `No imagery available yet for ${circuit}.` : "No race imagery available for this round yet."} />
     );

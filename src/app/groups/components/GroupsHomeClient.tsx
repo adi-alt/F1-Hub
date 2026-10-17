@@ -170,7 +170,7 @@ export function GroupsHomeClient({
                   selected={sessionFilter}
                   onSelect={setSessionFilter}
                   openRounds={openRounds.length}
-                  roundsHref={openRounds[0] ? `${groupHref(openRounds[0].groupId)}?tab=predictions` : undefined}
+                  roundsHref={openRounds[0] ? `${groupHref(openRounds[0].groupId)}&tab=predictions` : undefined}
                 />
               ) : (
                 <WeekendStrip race={nextRace} predictions={predictions} />
@@ -231,7 +231,7 @@ function WeekendStrip({ race, predictions }: { race: NextRace; predictions: Feed
       )}
       {open.length > 0 && (
         <Button variant="ghost" size="sm" iconEnd={ChevronRight} asChild>
-          <Link href={`${groupHref(open[0].groupId)}?tab=predictions`}>
+          <Link href={`${groupHref(open[0].groupId)}&tab=predictions`}>
             {open.length} open round{open.length === 1 ? "" : "s"}
           </Link>
         </Button>

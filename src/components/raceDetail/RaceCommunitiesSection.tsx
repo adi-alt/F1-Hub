@@ -27,7 +27,7 @@ function MemberStack({ members, total }: { members: { id: string; name: string }
 }
 
 function CommunityRow({ card }: { card: RaceCommunityCard }) {
-  const href = card.prediction ? `${groupHref(card.groupId)}?tab=predictions` : groupHref(card.groupId);
+  const href = card.prediction ? `${groupHref(card.groupId)}&tab=predictions` : groupHref(card.groupId);
   const actionLabel = card.prediction ? (card.isMember ? "View predictions" : "Join & predict") : card.isMember ? "Open" : "Explore";
   return (
     <Link

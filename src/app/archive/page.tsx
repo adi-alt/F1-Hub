@@ -35,6 +35,7 @@ import {
 import { SignInGate } from "@/components/auth/SignInGate";
 import type { ArchiveRaceDoc, ArchiveResultEntry } from "@/lib/supabase/archive";
 import { getArchiveDriverPhotosByIds, getArchiveYearStats } from "@/lib/supabase/archive";
+import { getCircuitDrawing, safeCircuitDrawingsById } from "@/lib/supabase/circuitLayouts";
 import { ArchiveSeasonStory, type SeasonPoint } from "./components/ArchiveSeasonStory";
 import { constructorChampionOverride, isVerifiedChampionYear } from "@/lib/eras";
 import { teamColor } from "@/lib/teamColors";
@@ -43,7 +44,7 @@ import { getAllCurrentTeams } from "@/lib/supabase/media";
 import { getUserProfile } from "@/lib/supabase/users";
 import { safeRead, safeReadTracked } from "@/lib/safeRead";
 import { raceHref } from "@/lib/routes";
-import { TrackMap } from "@/components/ui/TrackMap";
+import { CircuitThumb } from "@/components/circuit/CircuitThumb";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
@@ -72,14 +73,16 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   // on first byte - otherwise left undefined and picked up client-side the first time that tab is
   // actually visited (see ArchiveExplorer's useArchiveDrivers/useArchiveTeams). Previously all four
   // facets' data was fetched on every load no matter which one was being looked at.
-  const [circuitsRead, driversRead, teamsRead, profile, yearStats] = await Promise.all([
+  const [circuitsRead, driversRead, teamsRead, profile, yearStats, drawings] = await Promise.all([
     safeReadTracked(() => getAllArchiveCircuitsData(), []),
     section === "driver" ? safeReadTracked(() => getAllArchiveDriversData(), []) : Promise.resolve(null),
     section === "team" ? safeReadTracked(() => getAllArchiveTeamsData(), []) : Promise.resolve(null),
     safeRead(() => getUserProfile(uid), null),
     safeRead(() => getArchiveYearStatsData(), {} as Awaited<ReturnType<typeof getArchiveYearStatsData>>),
+    safeCircuitDrawingsById(),
   ]);
-  const { data: circuits } = circuitsRead;
+  // Each circuit with its own line drawing, so the By track grid draws them as the circuits pages do.
+  const circuits = circuitsRead.data.map((c) => ({ ...c, drawing: drawings[c.circuitId] ?? null }));
   // Real failure, not "genuinely nothing indexed yet" - safeRead alone can't tell those apart
   // (both just come back as []), and only the former should read as an error to retry. A facet
   // that wasn't eager-fetched here (driversRead/teamsRead null) hasn't failed - it hasn't been
@@ -165,7 +168,12 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
   if (!circuit) notFound();
 
   const winners = races.map((r) => r.results.find((res) => res.position === 1)).filter((w): w is ArchiveResultEntry => !!w);
-  const photoByDriver = await getArchiveDriverPhotosByIds([...new Set(winners.map((w) => w.driverId))]);
+  // The layout as last raced here, from the track library: the circuits pages' own drawing.
+  const lastRace = races.reduce<ArchiveRaceDoc | null>((a, b) => (!a || b.year > a.year || (b.year === a.year && b.round > a.round) ? b : a), null);
+  const [photoByDriver, drawing] = await Promise.all([
+    getArchiveDriverPhotosByIds([...new Set(winners.map((w) => w.driverId))]),
+    getCircuitDrawing({ circuitId, circuitName: circuit.name ?? null, year: lastRace?.year ?? 0, raceName: lastRace?.raceName ?? "" }),
+  ]);
 
   const rows: ExplorerRow[] = races
     .map((race): ExplorerRow => {
@@ -220,7 +228,11 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
       <div className="space-y-10">
         <ArchiveSection id="circuit" title="The circuit and its winners">
           <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-12">
-            {circuit.trackMap ? <TrackMap map={circuit.trackMap} name={circuit.name ?? circuit.circuitId} /> : <p className="text-body-sm text-secondary">No track map on record.</p>}
+            {drawing || circuit.trackMap ? (
+              <CircuitThumb drawing={drawing} map={circuit.trackMap} name={circuit.name ?? circuit.circuitId} turns className="aspect-[3/2] w-full" />
+            ) : (
+              <p className="text-body-sm text-secondary">No track map on record.</p>
+            )}
             <ol className="divide-y divide-subtle">
               {topWinners.map(([name, wins], i) => {
                 const id = winnerIdByName.get(name);

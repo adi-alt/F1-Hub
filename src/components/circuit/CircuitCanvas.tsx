@@ -61,7 +61,7 @@ export function CircuitCanvas({
         role="img"
         aria-label={`Circuit layout, ${drawing.source === "measured" ? "traced from F1 timing data" : "a drawing"}, raced ${drawing.seasons[0]}${drawing.seasons.length > 1 ? ` to ${drawing.seasons[drawing.seasons.length - 1]}` : ""}`}
       >
-        <path d={drawing.path} fill="none" stroke="rgb(255 255 255 / 0.06)" strokeWidth={14} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <path ref={refitIfOutside} d={drawing.path} fill="none" stroke="rgb(255 255 255 / 0.06)" strokeWidth={14} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         <motion.path
           d={drawing.path}
           fill="none"
@@ -109,4 +109,24 @@ export function CircuitCanvas({
       {caption && drawing.source === "drawn" && drawing.attribution && <figcaption className="mt-1 text-center text-caption text-tertiary">Drawing: {drawing.attribution}</figcaption>}
     </figure>
   );
+}
+
+/** A stored viewBox that doesn't contain its own path (bad library data: Ain Diab's line sits far outside its box)
+ * would draw nothing. When the line lies mostly outside the box, the box is reset to the line's real bounds; a sound
+ * layout keeps its exact framing. Set on the element directly, so there is no re-render. */
+function refitIfOutside(path: SVGPathElement | null) {
+  const svg = path?.ownerSVGElement;
+  if (!path || !svg) return;
+  try {
+    const box = path.getBBox();
+    const vb = svg.viewBox.baseVal;
+    if (!box.width || !box.height || !vb.width) return;
+    const overlapW = Math.max(0, Math.min(box.x + box.width, vb.x + vb.width) - Math.max(box.x, vb.x));
+    const overlapH = Math.max(0, Math.min(box.y + box.height, vb.y + vb.height) - Math.max(box.y, vb.y));
+    if ((overlapW * overlapH) / (box.width * box.height) > 0.8) return;
+    const pad = Math.max(box.width, box.height) * 0.04;
+    svg.setAttribute("viewBox", `${box.x - pad} ${box.y - pad} ${box.width + pad * 2} ${box.height + pad * 2}`);
+  } catch {
+    // Not rendered yet (display: none): the stored viewBox stands.
+  }
 }

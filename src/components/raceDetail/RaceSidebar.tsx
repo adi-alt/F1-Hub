@@ -220,7 +220,7 @@ export function RaceSidebar({
           </div>
           <div className="mt-2 space-y-2">
             {communities.slice(0, 2).map((c) => {
-              const href = c.prediction ? `${groupHref(c.groupId)}?tab=predictions` : groupHref(c.groupId);
+              const href = c.prediction ? `${groupHref(c.groupId)}&tab=predictions` : groupHref(c.groupId);
               const actionLabel = c.prediction ? (c.isMember ? "View" : "Join & predict") : c.isMember ? "Open" : "Explore";
               return (
                 <Link

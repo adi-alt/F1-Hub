@@ -87,6 +87,17 @@ export function latestLayout(layouts: CircuitLayout[], year: number): CircuitLay
   return recent.sort((a, b) => last(b) - last(a) || Number(b.source === "measured") - Number(a.source === "measured"))[0] ?? null;
 }
 
+/**
+ * The one drawing to show for a circuit this season, wherever it's shown (the circuits home's card, the circuit
+ * page's head), so the two can never disagree: the layout this season's race ran on (chooseLayout), else its latest
+ * recent one (latestLayout, for a race still to come), else its most recent usual layout of any year, so a circuit
+ * whose data stops short of this season still has its shape drawn rather than a blank card. Never a variant named
+ * for a different race.
+ */
+export function displayLayout(layouts: CircuitLayout[], year: number, raceName: string): CircuitLayout | null {
+  return chooseLayout(layouts, year, raceName) ?? latestLayout(layouts, year) ?? latestLayout(layouts, 0);
+}
+
 /** A measured layout in the shape the circuit view draws: the same geometry, with nothing on it located (this
  * race has no positions of its own) and the timing line not claimed (it can move between seasons). */
 export function layoutAsTrack(layout: MeasuredLayout): RaceTrackStory {

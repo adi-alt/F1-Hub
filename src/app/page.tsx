@@ -14,6 +14,7 @@ import { PageContainer } from "@/components/ui/PageContainer";
 import { RefreshAlert } from "@/components/ui/RefreshAlert";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import type { Metadata } from "next";
+import { getCircuitDrawing } from "@/lib/supabase/circuitLayouts";
 
 // The title, description and share card are the root layout's own (the site's); only the canonical is the page's.
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -97,10 +98,20 @@ export default async function HomePage() {
   // The track map of each of the next few rounds (the home's Coming up), only for those: a handful of URLs.
   const trackMapById = new Map(archiveCircuits.map((c) => [c.circuitId, c.trackMap ?? null]));
   const trackMapByRound: PublicHomeData["trackMapByRound"] = {};
-  for (const r of races.filter((r) => r.status !== "completed").slice(0, 4)) {
+  const comingRounds = races.filter((r) => r.status !== "completed").slice(0, 4);
+  for (const r of comingRounds) {
     const id = resolveCurrentCircuitToArchiveId(r.circuit, circuitLocalities, circuitIdsByName);
     trackMapByRound[r.round] = id ? (trackMapById.get(id) ?? null) : null;
   }
+  // Their line drawings (the next race's included), chosen as the circuits pages choose theirs. Cached reads.
+  const drawingByRound: PublicHomeData["drawingByRound"] = Object.fromEntries(
+    await Promise.all(
+      comingRounds.map(async (r) => [
+        r.round,
+        await getCircuitDrawing({ circuitId: resolveCurrentCircuitToArchiveId(r.circuit, circuitLocalities, circuitIdsByName), circuitName: r.circuit ?? null, year: r.year, raceName: r.name }),
+      ]),
+    ),
+  );
 
   // getPersonalHomeData (below) already resolves the full favorite-card arrays for the signed-in
   // case — fetched once here, reused for buildFacts/buildSeasonRecap/getTrackHistory, rather than
@@ -186,6 +197,7 @@ export default async function HomePage() {
     seasonRecap,
     calendarByRound,
     trackMapByRound,
+    drawingByRound,
     weatherByRound,
     currentDrivers,
     predictionInsight,

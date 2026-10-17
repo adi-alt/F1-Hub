@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
-import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
+import { PanelSection } from "@/components/ui/PanelSection";
 import type { SharedCircuitIntelligence } from "@/lib/ai/schemas/seasonIntelligence";
 
 type BlockKey = "trackTake" | "raceDifference" | "trackVsSeason" | "historicalPattern";
@@ -95,7 +95,7 @@ export function CircuitApexTake({ location, year, status, title = "Apex on this 
       {shownTab === "raceDifference" && "factors" in block && block.factors.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {block.factors.map((f) => (
-            <li key={f.label} className="rounded-sm border border-subtle px-2 py-0.5 text-caption text-secondary">
+            <li key={f.label} className="rounded-control border border-white/[0.08] px-2 py-0.5 text-caption text-secondary">
               {f.label}
             </li>
           ))}
@@ -137,8 +137,8 @@ function Frame({ children, title, bare }: { children: React.ReactNode; title: st
   // @container: the read lays out by the width it's given (a full row, half a row, or a tab), not the screen's.
   if (bare) return <div className="@container">{children}</div>;
   return (
-    <RaceSectionCard id="apex" title={title}>
+    <PanelSection id="apex" title={title} fill>
       <div className="@container">{children}</div>
-    </RaceSectionCard>
+    </PanelSection>
   );
 }

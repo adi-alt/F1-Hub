@@ -54,6 +54,7 @@ describe("signed invite tokens", () => {
   test("extractInviteToken finds a token in a pasted link, a query string, or bare", () => {
     const t = token();
     assert.equal(extractInviteToken(`https://apexf1hub.com/groups/${GROUP}?invite=${t}`), t);
+    assert.equal(extractInviteToken(`https://apexf1hub.com/groups?id=${GROUP}&invite=${t}`), t);
     assert.equal(extractInviteToken(`  ?tab=feed&invite=${t}  `), t);
     assert.equal(extractInviteToken(t), t);
     assert.equal(extractInviteToken(`https://apexf1hub.com/groups/${GROUP}`), null);

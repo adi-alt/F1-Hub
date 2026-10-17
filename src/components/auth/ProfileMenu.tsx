@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, LogOut, Pencil, SlidersHorizontal, Star } from "lucide-react";
+import { Bell, LogOut, Pencil, SlidersHorizontal, Sparkles, Star } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
@@ -14,8 +14,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 const ITEMS = [
   { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersHorizontal },
-  { href: "/profile/notifications", label: "Notifications", icon: Bell },
-  { href: "/profile/edit", label: "Edit profile", icon: Pencil },
+  { href: "/profile?section=notifications", label: "Notifications", icon: Bell },
+  { href: "/profile?section=profile", label: "Profile", icon: Pencil },
 ];
 
 // The panel's actual frosted look - a real translucent dark glass (~50% tint, not glass-surface's
@@ -106,7 +106,7 @@ export function ProfileMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className="flex items-center gap-2 rounded-xl border border-white/10 px-2 py-1.5 text-sm text-neutral-200 transition hover:border-white/20 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        className="flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1.5 text-body-sm text-primary transition hover:border-white/20 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         {user.photoURL ? (
           <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
@@ -147,7 +147,7 @@ export function ProfileMenu() {
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
                 style={{ position: "fixed", top: rect.top, right: rect.right }}
-                className="z-[200] w-56"
+                className="z-[200] w-64"
               >
                 {/* One shape, not two: the tail is a child of the SAME element that carries the
                     real background/blur/border (below), and copies every one of those via CSS
@@ -166,13 +166,33 @@ export function ProfileMenu() {
                     }}
                   />
                   <div className="relative overflow-hidden rounded-xl">
+                    {/* Who's signed in, at the top of the menu, as account menus everywhere open. */}
+                    <div className="flex items-center gap-3 border-b border-white/10 px-3.5 py-3">
+                      {user.photoURL ? (
+                        <Image src={user.photoURL} alt="" width={36} height={36} className="rounded-full" unoptimized />
+                      ) : (
+                        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand text-body-sm font-bold text-white">
+                          {name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-body-sm font-semibold text-primary">{name}</p>
+                        {user.email && user.email !== name && <p className="truncate text-caption text-tertiary">{user.email}</p>}
+                      </div>
+                      {pointsBalance !== null && (
+                        <span className="flex shrink-0 items-center gap-1 text-caption font-semibold tabular text-secondary">
+                          <Icon icon={Star} size={16} className="size-3.5 text-tertiary" />
+                          {pointsBalance}
+                        </span>
+                      )}
+                    </div>
                     <nav aria-label="Account" className="p-1.5">
                       {ITEMS.map((item) => (
                         <Link
                           key={item.href}
                           href={item.href}
                           onClick={() => setOpen(false)}
-                          className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+                          className="flex items-center gap-2.5 rounded-control px-2.5 py-2 text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.08] hover:text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                         >
                           <Icon icon={item.icon} size={16} className="text-tertiary" />
                           {item.label}
@@ -189,12 +209,10 @@ export function ProfileMenu() {
                           void fetch("/api/users/onboarding", { method: "DELETE" }).catch(() => {});
                           startTour();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+                        className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.08] hover:text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
-                        <span aria-hidden className="w-4 shrink-0 text-center text-[13px] text-tertiary">
-                          ✦
-                        </span>
-                        Replay Apex F1 Hub tour
+                        <Icon icon={Sparkles} size={16} className="text-tertiary" />
+                        Replay the tour
                       </button>
                       <button
                         type="button"
@@ -202,7 +220,7 @@ export function ProfileMenu() {
                           setOpen(false);
                           void signOut();
                         }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-neutral-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+                        className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.08] hover:text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                       >
                         <Icon icon={LogOut} size={16} className="text-tertiary" />
                         Log out

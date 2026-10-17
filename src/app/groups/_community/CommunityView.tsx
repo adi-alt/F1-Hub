@@ -27,6 +27,7 @@ import { getCurrentSeason } from "@/lib/currentSeason";
 import { getCallableRace } from "@/lib/supabase/postCalls";
 import { getCommunityWeekend, getCrowdVsModel } from "@/lib/supabase/communityWeekend";
 import { pageMetadata } from "@/lib/seo";
+import { groupHref } from "@/lib/routes";
 
 /** How many open rounds the context rail shows before it stops being a rail. The rest are one
  * click away in the Predictions tab it links to. */
@@ -42,25 +43,27 @@ function statsFallback(memberCount: number): GroupStats {
 
 // getGroupPreview works regardless of membership (it's also what the not-a-member JoinPrompt
 // branch below uses) and is cached, so this costs a cache hit, not a second real fetch.
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
+export async function communityMetadata(id: string): Promise<Metadata> {
   const preview = await getGroupPreview(id).catch(() => null);
-  if (!preview) return pageMetadata({ title: "Community", description: "A prediction league and F1 community on Apex F1 Hub.", path: `/groups/${id}` });
+  if (!preview) return pageMetadata({ title: "Community", description: "A prediction league and F1 community on Apex F1 Hub.", path: groupHref(id) });
   // A private community's own description stays private: only its name goes on the card (an invite link needs it).
   const about = preview.visibility === "public" && preview.description ? preview.description : "A prediction league and F1 community on Apex F1 Hub.";
   const members = `${preview.memberCount} member${preview.memberCount === 1 ? "" : "s"}`;
-  return pageMetadata({ title: preview.name, description: `${about} ${members}.`, path: `/groups/${id}` });
+  return pageMetadata({ title: preview.name, description: `${about} ${members}.`, path: groupHref(id) });
 }
 
-export default async function CommunityPage({
-  params,
-  searchParams,
+/** One community, at `/groups?id=` (the Communities page renders this when the URL names a community). */
+export async function CommunityView({
+  id,
+  tab: requestedTab,
+  post: requestedPost,
+  invite: inviteToken,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; post?: string; invite?: string }>;
+  id: string;
+  tab?: string;
+  post?: string;
+  invite?: string;
 }) {
-  const { id } = await params;
-  const { tab: requestedTab, post: requestedPost, invite: inviteToken } = await searchParams;
   const session = await getSession();
   if (!session.uid) {
     return (

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { extractInviteToken } from "@/lib/inviteLink";
+import { groupHref } from "@/lib/routes";
 
 // A pasted link is /groups/<id> (a public community) or /groups/<id>?invite=<token> (a private one).
 // Accept either the whole link or a bare id by pulling the uuid out rather than parsing a URL, and
@@ -37,14 +38,14 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
       // A private community without a valid invitation: take them to its page to request access,
       // instead of a dead-end error.
       if (body?.code === "request_required") {
-        router.push(`/groups/${groupId}`);
+        router.push(groupHref(groupId));
         return;
       }
       setError(body?.error ?? "Could not join community.");
       setStatus("error");
       return;
     }
-    router.push(`/groups/${groupId}`);
+    router.push(groupHref(groupId));
   }
 
   if (compact) {

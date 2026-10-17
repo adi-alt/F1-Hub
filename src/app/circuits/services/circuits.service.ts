@@ -28,7 +28,7 @@ import type { RaceDoc } from "@/lib/types/race";
 import { slugifyRaceName, archiveDriverHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
-import { chooseLayout, circuitEras, latestLayout, layoutToDrawing, seasonLabel, type CircuitDrawing, type CircuitLayout } from "@/lib/circuitLayout";
+import { chooseLayout, circuitEras, displayLayout, layoutToDrawing, seasonLabel, type CircuitDrawing, type CircuitLayout } from "@/lib/circuitLayout";
 import { getCircuitLayouts, getRaceLayout } from "@/lib/supabase/circuitLayouts";
 import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
 import { replayFor, type ReplayEntry } from "@/lib/replayManifest";
@@ -69,8 +69,9 @@ export async function getCircuitsExplorerData(year: number, uid: string): Promis
         getRaceLayout({ circuitId: archiveId, circuitName: race.circuit ?? null, year, raceName: race.name }),
         race.state === "completed" ? getRaceTrackStoryByRound(year, race.round) : Promise.resolve(null),
       ]);
-      // A round still to come has no layout covering it yet: its circuit as last raced stands in.
-      const layout = found ?? (race.state === "completed" ? null : latestLayout(await getCircuitLayouts({ circuitId: archiveId, circuitName: race.circuit ?? null }), year));
+      // The same choice the circuit's own page makes (displayLayout), so a card is never blank where the page has a
+      // drawing: this season's layout, else the circuit as last raced.
+      const layout = found ?? displayLayout(await getCircuitLayouts({ circuitId: archiveId, circuitName: race.circuit ?? null }), year, race.name);
       return {
         race,
         facts: getCircuitFacts(race.circuit ?? ""),
@@ -91,7 +92,7 @@ export async function getCircuitsExplorerData(year: number, uid: string): Promis
   };
 }
 
-/** Resolves a `/circuits/[circuit]` URL slug back to the real, original-cased circuit string
+/** Resolves a `/circuits?circuit=` URL slug back to the real, original-cased circuit string
  * every live-data lookup actually needs (`races.circuit`, e.g. "Spa-Francorchamps", "Monte
  * Carlo") - NOT a naive `slug.replace(/-/g, " ")`, which is lossy in two ways every slug this app
  * itself generates can hit: it can't tell a hyphen that came from a space apart from one that was
@@ -184,6 +185,8 @@ export type CircuitDetailData = {
   currentTeams: CurrentTeam[];
   /** Every era of this circuit, oldest first, each as a ready drawing (drawn history plus measured layouts). */
   eras: { layout: CircuitLayout; drawing: CircuitDrawing }[];
+  /** The head's drawing: displayLayout, the same choice the circuits home makes for this circuit's card. */
+  heroDrawing: CircuitDrawing | null;
   /** The traced story of `raceForSimulation` (where its lead changes happened), when it has one. */
   trackStory: RaceTrackStory | null;
   /** The layout `raceForSimulation` was run on, for its circuit view when it has no traced story. */
@@ -227,6 +230,8 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
   ]);
   const eras = circuitEras(layouts).map((layout) => ({ layout, drawing: layoutToDrawing(layout) }));
   const raceLayout = raceForSimulation ? chooseLayout(layouts, raceForSimulation.year, raceForSimulation.name) : null;
+  // The head's drawing, chosen exactly as the circuits home chooses its card's (displayLayout).
+  const heroLayout = displayLayout(layouts, year, currentSeasonRace?.name ?? raceForSimulation?.name ?? "");
   // Replays are for the current season's races only (older seasons' are retired at the season changeover).
   const replay = raceForSimulation && raceForSimulation.year === year ? replayFor(raceForSimulation.year, raceForSimulation.round) : null;
 
@@ -244,6 +249,7 @@ export async function getCircuitDetailData(location: string, year: number, uid: 
     currentDrivers,
     currentTeams,
     eras,
+    heroDrawing: heroLayout ? layoutToDrawing(heroLayout) : null,
     trackStory,
     raceLayout,
     replay,

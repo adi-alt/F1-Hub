@@ -15,6 +15,7 @@ import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { RaceDoc } from "@/lib/types/race";
 import type { DriverStandingRow, ConstructorStandingRow, RaceResultSummary, RacePodiumEntry, RacePredictionSummary, RaceSummary, RaceWeekendStatus } from "./season.pure";
 import { getCurrentSeason } from "@/lib/currentSeason";
+import { safeCircuitDrawingsById } from "@/lib/supabase/circuitLayouts";
 
 // Every type and pure deterministic computation (buildBattles, buildRecords, computeHeadToHead,
 // computeRecentForm, computeStreaks, computePositionChanges) lives in season.pure.ts instead of
@@ -49,6 +50,13 @@ function sessionResultFor(code: string, race: RaceDoc | undefined, winnerName: s
     return { label: "Fastest", value: `${name} \u00b7 ${formatLapTime(best.lapTimeSec)}` };
   }
   return null;
+}
+
+/** The archive's circuits, each with its line drawing attached (one cached read of the track library), so a round's
+ * summary carries the circuit's drawing alongside its map. */
+async function circuitsWithDrawings(): Promise<ArchiveCircuit[]> {
+  const [circuits, drawings] = await Promise.all([getAllArchiveCircuits(), safeCircuitDrawingsById()]);
+  return circuits.map((c) => ({ ...c, drawing: drawings[c.circuitId] ?? null }));
 }
 
 function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], circuits: ArchiveCircuit[]): RaceSummary[] {
@@ -168,6 +176,10 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], 
         // relying on the incidental non-match.
         return locality ? (findArchiveCircuitByLocation(circuits, locality, race?.country ?? null)?.trackMap ?? null) : null;
       })(),
+      circuitDrawing: (() => {
+        const locality = race?.circuit ?? entry.circuit;
+        return locality ? (findArchiveCircuitByLocation(circuits, locality, race?.country ?? null)?.drawing ?? null) : null;
+      })(),
       forecast: entry.weatherForecast,
       raceWeather: race?.weather ?? null,
       podium,
@@ -194,7 +206,7 @@ export async function getSeasonPageData(year: number, uid: string) {
     getAllCurrentTeams(),
     getUserProfile(uid),
     archiveIdByCodePromise,
-    getAllArchiveCircuits(),
+    circuitsWithDrawings(),
   ]);
   const standings = computeStandings(races);
 
@@ -264,7 +276,7 @@ function computeArchiveProgression(races: ArchiveRaceDoc[], driverIds: string[])
  * already over (real pit-stops/qualifying/lap data races.ts never has at all), not a fallback.
  * See getSeasonDetailData below for which of the two this actually calls. */
 async function getArchiveSeasonDetailData(year: number, uid: string) {
-  const [races, currentTeams, profile, circuits] = await Promise.all([getArchiveSeason(year), getAllCurrentTeams(), getUserProfile(uid), getAllArchiveCircuits()]);
+  const [races, currentTeams, profile, circuits] = await Promise.all([getArchiveSeason(year), getAllCurrentTeams(), getUserProfile(uid), circuitsWithDrawings()]);
   // Only this season's own drivers (~20-40 ids), not every driver the archive has ever had (805
   // rows and growing) - getAllArchiveDrivers() was the wrong tool here, a real slowdown on a page
   // that now loads on every single archive year visit, not just the rare "browse all drivers" one.
@@ -374,6 +386,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       weekendStatus: "completed" as const,
       photoUrls: r.photoUrls ?? (r.photoUrl ? [r.photoUrl] : []),
       circuitTrackMap: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.trackMap ?? null) : null,
+      circuitDrawing: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.drawing ?? null) : null,
       forecast: null,
       raceWeather: null,
       podium: results
@@ -406,7 +419,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
 }
 
 
-/** The one entry point both /season and /archive/[year] call — same return shape either way, only
+/** The one entry point both /season and /archive?year= call — same return shape either way, only
  * the data source differs, picked by seasonStatus, never a per-page assumption. */
 export async function getSeasonDetailData(year: number, uid: string) {
   const status = seasonStatus(year, await getCurrentSeason());

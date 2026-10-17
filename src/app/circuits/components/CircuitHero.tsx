@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EYEBROW } from "@/components/ui/panel";
 import { RotatingBackdrop } from "@/components/home/RotatingBackdrop";
 import { CircuitCanvas } from "@/components/circuit/CircuitCanvas";
 import { formatLapTime, raceTitle } from "@/lib/format";
@@ -50,8 +51,8 @@ export function CircuitHero({
         { label: "Direction", value: facts.direction === "clockwise" ? "Clockwise" : "Anticlockwise" },
         { label: "Type", value: facts.trackType === "street" ? "Street" : facts.trackType === "hybrid" ? "Hybrid" : "Permanent" },
         { label: "First Grand Prix", value: String(facts.firstGrandPrix) },
-        facts.lapRecord ? { label: `Lap record · ${facts.lapRecord.driverName}, ${facts.lapRecord.year}`, value: formatLapTime(facts.lapRecord.timeSec) } : null,
-      ].filter((x): x is { label: string; value: string } => x !== null)
+        facts.lapRecord ? { label: "Lap record", value: formatLapTime(facts.lapRecord.timeSec), detail: `${facts.lapRecord.driverName}, ${facts.lapRecord.year}` } : null,
+      ].filter((x): x is { label: string; value: string; detail?: string } => x !== null)
     : [];
 
   return (
@@ -76,7 +77,7 @@ export function CircuitHero({
               {displayName}
             </span>
           </nav>
-          <p className="text-body-sm text-secondary">
+          <p className={EYEBROW}>
             {grandPrixName ?? "Grand Prix"}
             {(location || country) && ` · ${[location, country].filter(Boolean).join(", ")}`}
           </p>
@@ -102,13 +103,15 @@ export function CircuitHero({
       </div>
 
       {stats.length > 0 && (
-        <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-5 border-y border-subtle py-5 sm:grid-cols-3 lg:grid-cols-6">
-          {stats.map((item) => (
-            <div key={item.label} className="min-w-0">
-              <dt className="truncate text-caption text-secondary" title={item.label}>
+        <dl className="mt-10 grid grid-cols-2 border-t border-white/[0.06] sm:grid-cols-3 lg:grid-cols-6">
+          {stats.map((item, i) => (
+            // Season's snapshot: tracked labels in hairline-divided columns.
+            <div key={item.label} className={`min-w-0 py-3.5 pr-4 lg:px-5 lg:first:pl-0 ${i > 0 ? "lg:border-l lg:border-white/[0.06]" : ""}`}>
+              <dt className={`truncate ${EYEBROW}`} title={item.label}>
                 {item.label}
               </dt>
-              <dd className="mt-1 text-title-md font-semibold tabular text-primary">{item.value}</dd>
+              <dd className="mt-1 text-title-md tabular text-primary">{item.value}</dd>
+              {item.detail && <dd className="truncate text-caption text-tertiary">{item.detail}</dd>}
             </div>
           ))}
         </dl>
