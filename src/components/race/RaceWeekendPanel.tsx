@@ -57,7 +57,7 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
                 >
                   {isLive && <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />}
                   <span className={`font-semibold ${isLive ? "text-emerald-400" : isNext ? "text-brand-text" : completed ? "" : "text-white"}`}>{sessionCode(s.label)}</span>
-                  <span className={`ml-1.5 font-mono text-[11px] ${isLive || isNext ? "text-neutral-300" : "text-tertiary"}`}>
+                  <span className={`ml-1.5 font-mono text-caption ${isLive || isNext ? "text-neutral-300" : "text-tertiary"}`}>
                     {isLive && "Live · "}
                     {formatLocalWeekday(s.date, tz)} {formatLocalTime(s.date, tz)}
                   </span>
@@ -67,7 +67,7 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
           </div>
           {live ? (
             <div className="text-right">
-              <p className="flex items-center justify-end gap-1.5 text-[11px] uppercase tracking-wide text-emerald-400">
+              <p className="flex items-center justify-end gap-1.5 text-caption uppercase tracking-wide text-emerald-400">
                 <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
                 Live now
               </p>
@@ -78,7 +78,7 @@ export function RaceWeekendPanel({ calendarEntry, id }: { calendarEntry: Calenda
             countdown &&
             upcoming && (
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-wide text-tertiary">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
+                <p className="text-caption uppercase tracking-wide text-tertiary">{sessionCode(upcoming.label) === "R" ? "Lights out in" : `${upcoming.label} in`}</p>
                 <p className="font-mono text-lg font-semibold text-white">{countdown}</p>
                 <p className="text-xs text-tertiary">{formatLocalDateTime(upcoming.date, tz)}</p>
               </div>

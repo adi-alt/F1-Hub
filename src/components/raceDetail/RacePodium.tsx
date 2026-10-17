@@ -41,7 +41,7 @@ function PodiumCard({ entry }: { entry: PodiumEntry }) {
       </div>
       <div className="shrink-0 text-right">
         {entry.gapOrTime && <p className="font-mono text-xs text-neutral-400">{entry.gapOrTime}</p>}
-        {typeof entry.points === "number" && entry.points > 0 && <p className="mt-0.5 text-[11px] text-tertiary">{entry.points} pts</p>}
+        {typeof entry.points === "number" && entry.points > 0 && <p className="mt-0.5 text-caption text-tertiary">{entry.points} pts</p>}
       </div>
     </motion.div>
   );

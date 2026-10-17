@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ProvenanceLine, type Provenance } from "./ProvenanceLine";
+import { EYEBROW } from "./panel";
 
 export type SectionLevel = 2 | 3;
 
@@ -35,13 +36,31 @@ export type SectionHeaderProps = {
  * body, a rail block) and pass `headingId` if that region is labelled by the heading.
  */
 export function SectionHeader({ title, level, description, actions, provenance, headingId, className }: SectionHeaderProps) {
-  const Heading = level === 2 ? "h2" : "h3";
+  // A page section (h2) is headed the way Season heads its own ("SEASON SNAPSHOT", "CHAMPIONSHIP"): a tracked
+  // uppercase eyebrow over a hairline, so every section on the site reads as one family. A sub-section (h3) keeps a
+  // sentence-case title, the step down inside a section.
+  if (level === 2) {
+    return (
+      <div className={className}>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h2 id={headingId} className={`min-w-0 ${EYEBROW}`}>
+            {title}
+          </h2>
+          {/* At most the row's width: a wide control wraps under the title, then scrolls inside itself. */}
+          {actions && <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>}
+        </div>
+        <div aria-hidden className="mt-2 h-px w-full bg-gradient-to-r from-white/[0.09] to-transparent" />
+        {description && <p className="mt-2 text-body-sm text-secondary">{description}</p>}
+        {provenance && <ProvenanceLine {...provenance} className="mt-1" />}
+      </div>
+    );
+  }
   return (
     <div className={["flex flex-wrap items-start justify-between gap-x-4 gap-y-3", className].filter(Boolean).join(" ")}>
       <div className="min-w-0 grow basis-64">
-        <Heading id={headingId} className={HEADING_CLASS[level]}>
+        <h3 id={headingId} className={HEADING_CLASS[level]}>
           {title}
-        </Heading>
+        </h3>
         {description && <p className="mt-1 text-body-sm text-secondary">{description}</p>}
         {provenance && <ProvenanceLine {...provenance} className="mt-1" />}
       </div>

@@ -83,7 +83,7 @@ export function ApexSeasonTake({ personal }: { personal: PersonalSeasonContext }
 function PersonalLine({ companion, className = "" }: { companion: string; className?: string }) {
   return (
     <div className={`max-w-3xl border-l border-[var(--f1-red)]/35 pl-3.5 ${className}`}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">For you</p>
+      <p className="text-caption font-semibold uppercase tracking-[0.18em] text-tertiary">For you</p>
       <p className="mt-1 text-sm leading-relaxed text-neutral-400">{companion}</p>
     </div>
   );

@@ -86,7 +86,7 @@ export function ProgressionPanel({
 
   // Which entity codes are favorited, in *this* code space (season driver code / team name) -
   // favDrivers/favTeams are archive-id sets, matched here the same way ChampionshipStandings does
-  // per row. Shared by "Following" mode and the Custom multi-select's "Favorites" grouping, rather
+  // per row. Shared by "Following" mode and the Custom multi-select's "Favourites" grouping, rather
   // than each recomputing its own version of the same lookup.
   const favoriteEntityCodes = useMemo(
     () =>
@@ -211,7 +211,7 @@ export function ProgressionPanel({
                     transition={{ duration: 0.15 }}
                     className="mt-4 flex min-h-[72px] items-center justify-center rounded-md border border-dashed border-white/10 px-4 text-center text-sm text-tertiary"
                   >
-                    {driverSet === "following" ? "No favorites picked yet, mark one in the standings above." : "Pick at least one to plot."}
+                    {driverSet === "following" ? "No favourites picked yet, mark one in the standings above." : "Pick at least one to plot."}
                   </motion.div>
                 ) : (
                   <motion.div key="chart" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} className="mt-4">

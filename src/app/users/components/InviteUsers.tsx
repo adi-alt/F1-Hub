@@ -252,8 +252,8 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                       >
                         {reading ? "Reading file…" : "Choose a file"}
                       </button>
-                      <p className="mt-1 text-[11px] text-tertiary">or drag one here — CSV, XLSX, JSON, TXT or PDF</p>
-                      {fileNote && <p className="mt-1.5 text-[11px] text-neutral-400">{fileNote}</p>}
+                      <p className="mt-1 text-caption text-tertiary">or drag one here — CSV, XLSX, JSON, TXT or PDF</p>
+                      {fileNote && <p className="mt-1.5 text-caption text-neutral-400">{fileNote}</p>}
                     </div>
                   </div>
                 )}
@@ -263,13 +263,13 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
                   a file import is a guess about someone else's spreadsheet. */}
               {candidates.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-[11px] text-tertiary">
+                  <p className="text-caption text-tertiary">
                     {candidates.length} {candidates.length === 1 ? "recipient" : "recipients"}
                     {overCap && <span className="text-brand-text"> — {MAX_PER_BATCH} at a time is the limit</span>}
                   </p>
                   <div className="mt-1.5 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
                     {candidates.map((email) => (
-                      <span key={email} className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] py-0.5 pl-2 pr-1 text-[11px] text-neutral-300">
+                      <span key={email} className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] py-0.5 pl-2 pr-1 text-caption text-neutral-300">
                         {email}
                         <button
                           type="button"
@@ -305,7 +305,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t border-[var(--f1-line)] px-4 py-3">
-              <p className="text-[11px] text-tertiary">They&apos;ll get a link to sign up.</p>
+              <p className="text-caption text-tertiary">They&apos;ll get a link to sign up.</p>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={close} className="rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-400 transition hover:text-white">
                   Close

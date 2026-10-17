@@ -22,7 +22,7 @@ const ENTITY_TABS: TabItem<EntityType>[] = [
   { value: "constructors", label: "Constructors" },
 ];
 
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 // Sticky headers need real opacity behind that blur, not the table's own near-transparent
 // surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
 // translucent-dark token every other floating/sticky surface on the site already uses.
@@ -223,7 +223,7 @@ export function ChampionshipStandings({
       <Tabs value={entityType} onValueChange={switchEntityType} items={ENTITY_TABS}>
         <div className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4">
           <div>
-            <p id={championshipLabelId} className="text-[10px] font-semibold uppercase tracking-[0.18em] text-tertiary">Championship</p>
+            <p id={championshipLabelId} className="text-caption font-semibold uppercase tracking-[0.18em] text-tertiary">Championship</p>
             <div className="mt-2.5">
               <TabList aria-labelledby={championshipLabelId} />
             </div>
@@ -243,7 +243,7 @@ export function ChampionshipStandings({
                 }`}
               >
                 <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
-                My favorites
+                My favourites
               </button>
             )}
             <input
@@ -291,9 +291,9 @@ export function ChampionshipStandings({
                       <span aria-hidden>Gap</span>
                       <span className="sr-only">Gap to leader</span>
                     </th>
-                    <th scope="col" className="w-10 px-4 py-3 text-center font-semibold" title="Favorite">
+                    <th scope="col" className="w-10 px-4 py-3 text-center font-semibold" title="Favourite">
                       <span aria-hidden>Fav</span>
-                      <span className="sr-only">Favorite</span>
+                      <span className="sr-only">Favourite</span>
                     </th>
                   </tr>
                 </thead>
@@ -493,7 +493,7 @@ function DriverDetail({
       <Metric label="Avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-tertiary">Recent</p>
+          <p className="mb-1 text-caption uppercase tracking-wide text-tertiary">Recent</p>
           <div className="flex gap-1">
             {form.map((f) => (
               <span
@@ -551,7 +551,7 @@ function TeamDetail({
       <Metric label="Best-car avg finish" value={avg !== null ? `P${avg.toFixed(1)}` : "-"} />
       {form.length > 0 && (
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-wide text-tertiary">Recent</p>
+          <p className="mb-1 text-caption uppercase tracking-wide text-tertiary">Recent</p>
           <div className="flex gap-1">
             {form.map((f) => (
               <span
@@ -588,7 +588,7 @@ function TeamDetail({
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wide text-tertiary">{label}</p>
+      <p className="text-caption uppercase tracking-wide text-tertiary">{label}</p>
       <p className="font-mono text-sm font-semibold tabular-nums text-white">{value}</p>
     </div>
   );

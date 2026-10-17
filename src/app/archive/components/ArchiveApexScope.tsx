@@ -158,7 +158,7 @@ export function ArchiveDriverBrowserApexScope({ search, favoritesOnly }: { searc
   if (trimmedSearch) {
     suggestions.push(`Tell me about ${trimmedSearch}'s career`, `Compare ${trimmedSearch} with another driver`);
   } else if (favoritesOnly) {
-    suggestions.push("Compare my favorite drivers");
+    suggestions.push("Compare my favourite drivers");
   } else {
     suggestions.push("Who has the longest career on record?", "Which drivers raced for the most constructors?");
   }
@@ -167,7 +167,7 @@ export function ArchiveDriverBrowserApexScope({ search, favoritesOnly }: { searc
   useRegisterApexScope({
     key: "archive:driver-browser",
     label: "F1 Drivers",
-    sublabel: trimmedSearch ? `Search: ${trimmedSearch}` : favoritesOnly ? "Favorites" : "All-time roster",
+    sublabel: trimmedSearch ? `Search: ${trimmedSearch}` : favoritesOnly ? "Favourites" : "All-time roster",
     context: {
       page: "archive",
       snapshot: {
@@ -195,7 +195,7 @@ export function ArchiveTeamBrowserApexScope({ search, favoritesOnly }: { search:
   if (trimmedSearch) {
     suggestions.push(`Tell me about ${trimmedSearch}'s history`, `Which drivers have raced for ${trimmedSearch}?`);
   } else if (favoritesOnly) {
-    suggestions.push("Compare my favorite teams");
+    suggestions.push("Compare my favourite teams");
   } else {
     suggestions.push("Which constructors are active this season?", "Which team has the most race entries?");
   }
@@ -204,7 +204,7 @@ export function ArchiveTeamBrowserApexScope({ search, favoritesOnly }: { search:
   useRegisterApexScope({
     key: "archive:team-browser",
     label: "F1 Constructors",
-    sublabel: trimmedSearch ? `Search: ${trimmedSearch}` : favoritesOnly ? "Favorites" : "All-time roster",
+    sublabel: trimmedSearch ? `Search: ${trimmedSearch}` : favoritesOnly ? "Favourites" : "All-time roster",
     context: {
       page: "archive",
       snapshot: {

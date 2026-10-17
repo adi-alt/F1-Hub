@@ -117,7 +117,7 @@ export function SeasonDetail({
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
             <h1 className="flex items-baseline gap-3">
               <span className="text-[44px] font-bold leading-none tracking-[-0.03em] text-white sm:text-6xl">{year}</span>
-              <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-tertiary">Season</span>
+              <span className="text-caption font-semibold uppercase tracking-[0.24em] text-tertiary">Season</span>
             </h1>
 
             {currentRound && (
@@ -133,7 +133,7 @@ export function SeasonDetail({
 
           <div className="mt-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
             <SeasonScrubber year={year} raceSummaries={raceSummaries} />
-            <p className="shrink-0 text-[11px] sm:mt-5 tabular-nums text-tertiary">
+            <p className="shrink-0 text-caption sm:mt-5 tabular-nums text-tertiary">
               {status === "ongoing" ? (
                 <>
                   <span className="font-medium text-neutral-300">

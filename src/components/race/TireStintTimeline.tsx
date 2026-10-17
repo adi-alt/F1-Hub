@@ -88,7 +88,7 @@ export function TireStintTimeline({
                       // show for a strategy chart someone's trying to read.
                       <motion.div
                         key={s.stintNumber}
-                        className="flex items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-black/70"
+                        className="flex items-center justify-center text-caption font-semibold uppercase tracking-wide text-black/70"
                         style={{ flexGrow: s.lapCount, flexBasis: 0, background: compoundColor(s.compound), transformOrigin: "left" }}
                         initial={{ scaleX: 0 }}
                         whileInView={{ scaleX: 1 }}
@@ -107,7 +107,7 @@ export function TireStintTimeline({
           })}
         </AnimatePresence>
       </motion.div>
-      <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-tertiary">
+      <div className="mt-3 flex flex-wrap gap-3 text-caption text-tertiary">
         {Object.entries(COMPOUND_COLOR).map(([name, color]) => (
           <span key={name} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-sm" style={{ background: color }} />

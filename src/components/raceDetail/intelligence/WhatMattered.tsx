@@ -24,12 +24,12 @@ export function WhatMattered({
       <ol className="space-y-3">
         {keyFactors.map((factor, i) => (
           <li key={i} className="flex gap-3">
-            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-semibold text-neutral-400">{i + 1}</span>
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-caption font-semibold text-neutral-400">{i + 1}</span>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium text-white">{factor.title}</p>
                 <span
-                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide ${
                     factor.claimType === "fact" ? "bg-emerald-400/10 text-emerald-400" : "bg-sky-400/10 text-sky-400"
                   }`}
                 >

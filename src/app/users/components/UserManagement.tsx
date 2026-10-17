@@ -27,7 +27,7 @@ type RoleFilter = "all" | "admin" | "moderator" | "member";
 type SortKey = "name" | "role" | "joined";
 type SortDir = "asc" | "desc";
 
-const HEADER_CLASS = "text-left text-[11px] font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
+const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
 // A sticky header needs real opacity behind its blur or rows scrolling underneath bleed through.
 // Same token every other sticky/floating surface in the app already uses.
 const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
@@ -60,7 +60,7 @@ function isOnboarded(user: UserProfile): boolean {
 function StatusBadge({ onboarded }: { onboarded: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-caption font-medium ${
         onboarded ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-300"
       }`}
     >
@@ -340,7 +340,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-medium text-white">
                                   {name}
-                                  {isSelf && <span className="ml-2 text-[11px] font-normal text-tertiary">You</span>}
+                                  {isSelf && <span className="ml-2 text-caption font-normal text-tertiary">You</span>}
                                 </p>
                                 {user.username && <p className="truncate text-xs text-tertiary">@{user.username}</p>}
                               </div>

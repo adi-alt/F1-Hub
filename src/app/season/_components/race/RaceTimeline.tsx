@@ -60,17 +60,17 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
                 className={`mb-2.5 block h-[11px] w-[11px] shrink-0 rounded-full ${current ? "pulse-ring" : ""}`}
                 style={done || current ? { background: color } : { border: `1px solid ${color}`, background: "var(--background)" }}
               />
-              <span className={`w-full truncate text-[11px] font-medium ${done || current ? "text-white" : "text-neutral-400"}`}>{s.label}</span>
-              <time dateTime={date.toISOString()} className="mt-0.5 w-full truncate font-mono text-[10px] tabular-nums text-tertiary">
+              <span className={`w-full truncate text-caption font-medium ${done || current ? "text-white" : "text-neutral-400"}`}>{s.label}</span>
+              <time dateTime={date.toISOString()} className="mt-0.5 w-full truncate font-mono text-caption tabular-nums text-tertiary">
                 {date.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
               </time>
-              {current && <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-brand-text">Next up</span>}
+              {current && <span className="mt-1 text-caption font-semibold uppercase tracking-[0.14em] text-brand-text">Next up</span>}
               {s.result && (
-                <span className="mt-1 w-full truncate text-[10px] text-tertiary" title={`${s.result.label}: ${s.result.value}`}>
+                <span className="mt-1 w-full truncate text-caption text-tertiary" title={`${s.result.label}: ${s.result.value}`}>
                   {s.result.value}
                 </span>
               )}
-              {!s.result && !current && <span className="mt-1 text-[10px] text-tertiary">{done ? "Completed" : "Upcoming"}</span>}
+              {!s.result && !current && <span className="mt-1 text-caption text-tertiary">{done ? "Completed" : "Upcoming"}</span>}
             </li>
           );
         })}
@@ -96,14 +96,14 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                 <p className={`text-sm font-medium ${done || current ? "text-white" : "text-neutral-400"}`}>
                   {s.label}
-                  {current && <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-text">Next up</span>}
+                  {current && <span className="ml-2 align-middle text-caption font-semibold uppercase tracking-[0.14em] text-brand-text">Next up</span>}
                 </p>
-                <time dateTime={date.toISOString()} className="font-mono text-[11px] tabular-nums text-tertiary">
+                <time dateTime={date.toISOString()} className="font-mono text-caption tabular-nums text-tertiary">
                   {date.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                 </time>
               </div>
               {s.result && (
-                <p className="mt-0.5 text-[11px] text-tertiary">
+                <p className="mt-0.5 text-caption text-tertiary">
                   <span className="text-tertiary">{s.result.label}:</span> <span className="text-neutral-300">{s.result.value}</span>
                 </p>
               )}

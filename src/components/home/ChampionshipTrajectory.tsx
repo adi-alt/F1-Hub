@@ -35,7 +35,7 @@ const pointsLine = line<{ x: number; y: number }>({ x: (d) => d.x, y: (d) => d.y
  * Championship/Archive/Model charts elsewhere in the app. Plots real cumulative points per
  * completed round for 2-3 real drivers (see computeChampionshipProgression — summed straight off
  * race_results, nothing simulated); answers a real question depending on which series the caller
- * passes in ("is my favorite closing the gap on the leader", "how close is the title fight").
+ * passes in ("is my favourite closing the gap on the leader", "how close is the title fight").
  *
  * Redesigned for visual premium-ness, not just interactivity: a Catmull-Rom smoothed curve (exact
  * through every real point), a restrained gradient fill per line, two reference gridlines, a static
@@ -232,7 +232,7 @@ export function ChampionshipTrajectory({
             return (
               <span
                 key={`label-${p.code}`}
-                className="absolute max-w-[45%] truncate text-right text-[9px] font-semibold"
+                className="absolute max-w-[45%] truncate text-right text-caption font-semibold"
                 style={{ left: `${(last.x / WIDTH) * 100}%`, top: `${(last.y / HEIGHT) * 100}%`, transform: "translate(calc(-100% - 6px), -50%)", color: p.color }}
               >
                 {p.label} · {rows[rows.length - 1][p.code]}
@@ -259,7 +259,7 @@ export function ChampionshipTrajectory({
             <p className="whitespace-nowrap font-semibold text-white">
               Round {hovered.round}: {hovered.raceName}
             </p>
-            <p className="whitespace-nowrap text-[10px] text-tertiary">{hovered.trackShort as string}</p>
+            <p className="whitespace-nowrap text-caption text-tertiary">{hovered.trackShort as string}</p>
             {series.map((s) => {
               const points = Number(hovered[s.code] ?? 0);
               const finishPosition = hovered[`${s.code}__finishPosition`];
@@ -279,7 +279,7 @@ export function ChampionshipTrajectory({
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-4 text-[10px] text-tertiary">
+      <div className="mt-2 flex flex-wrap gap-4 text-caption text-tertiary">
         {series.map((s) => (
           <span key={s.code} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: s.color }} /> {s.label}

@@ -72,7 +72,7 @@ export function GrandPrixHistoryContent({ raceName, timeline }: { raceName: stri
         </div>
 
         <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-tertiary">Year by year</p>
+          <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-tertiary">Year by year</p>
           <div className="space-y-1">
             {rowsShown.map((r) => (
               <div key={r.year} className="flex items-center justify-between gap-3 text-sm">
