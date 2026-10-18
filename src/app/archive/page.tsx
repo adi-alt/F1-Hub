@@ -69,7 +69,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
   // historical reconciliation needs the full list regardless of which tab is open (and its own
   // fetch is far cheaper than drivers/teams anyway), year-stats because "By year" - the default -
   // needs it immediately. Drivers (805 rows) and teams (171 rows) are each only eager-fetched here
-  // when they're the *initial* facet - a direct load of ?section=driver still paints with real data
+  // when they're the *initial* facet - a direct load of ?tab=driver still paints with real data
   // on first byte - otherwise left undefined and picked up client-side the first time that tab is
   // actually visited (see ArchiveExplorer's useArchiveDrivers/useArchiveTeams). Previously all four
   // facets' data was fetched on every load no matter which one was being looked at.
@@ -211,7 +211,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
     <div data-surface="frosted" className="page-wide py-8">
       <ArchiveApexScope entityType="circuit" entityId={circuitId} name={circuit.name ?? circuit.circuitId} />
       <ArchiveEntityHeader
-        backHref="/archive?section=track"
+        backHref="/?section=archive&tab=track"
         backLabel="Archive"
         kind="Circuit"
         name={circuit.name ?? circuit.circuitId}
@@ -331,7 +331,7 @@ async function ArchiveDriverHead({ driverId }: { driverId: string }) {
     <>
       <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
       <ArchiveEntityHeader
-        backHref="/archive?section=driver"
+        backHref="/?section=archive&tab=driver"
         backLabel="Archive"
         kind="Driver"
         name={name}
@@ -473,7 +473,7 @@ async function ArchiveTeamHead({ teamId }: { teamId: string }) {
     <>
       <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
       <ArchiveEntityHeader
-        backHref="/archive?section=team"
+        backHref="/?section=archive&tab=team"
         backLabel="Archive"
         kind="Constructor"
         name={team.name}
@@ -598,12 +598,13 @@ async function ArchiveTeamHistoryInner(teamId: string) {
  * own, so it streams in behind its own skeleton rather than holding the curve back. */
 function SeasonsWithCircuit({ seasons, note, circuit, circuitTitle }: { seasons: React.ReactNode; note: string; circuit: React.ReactNode; circuitTitle: string }) {
   return (
-    <div className={`grid gap-6 ${circuit ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
-      <ArchiveSection id="seasons" title="Season by season" note={note}>
+    // Stretched, both sides fill the row: the circuit's panel is exactly as tall as the chart's.
+    <div className={`grid items-stretch gap-6 ${circuit ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" : ""}`}>
+      <ArchiveSection id="seasons" title="Season by season" note={note} fill>
         {seasons}
       </ArchiveSection>
       {circuit && (
-        <ArchiveSection id="circuit" title={circuitTitle} bare>
+        <ArchiveSection id="circuit" title={circuitTitle} bare fill>
           <Suspense fallback={<ArchiveCircuitSkeleton />}>{circuit}</Suspense>
         </ArchiveSection>
       )}
@@ -642,7 +643,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     title: "Archive",
     // No end year: the archive's newest season follows the calendar (R-22).
     description: `Every Formula 1 season since ${ARCHIVE_EARLIEST_YEAR}: results, qualifying, pit stops and the championship, round by round.`,
-    path: "/archive",
+    path: "/?section=archive",
   });
 }
 
@@ -652,7 +653,7 @@ export default async function ArchivePage({
   searchParams: Promise<{
     year?: string;
     round?: string;
-    section?: string;
+    tab?: string;
     circuit?: string;
     driver?: string;
     team?: string;
@@ -667,7 +668,7 @@ export default async function ArchivePage({
     );
   }
 
-  const { year: yearParam, round: roundParam, section, circuit, driver, team } = await searchParams;
+  const { year: yearParam, round: roundParam, tab: section, circuit, driver, team } = await searchParams;
   const year = yearParam ? Number(yearParam) : null;
   const round = roundParam ? Number(roundParam) : null;
 

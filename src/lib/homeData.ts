@@ -204,10 +204,10 @@ function computeNextAction(
     return { section: "hero", label: `Make your ${nextRace.name} prediction`, href: raceHref(nextRace.year, nextRace.round, nextRace.name) };
   }
   if (!hasFavorites) {
-    return { section: "yourF1", label: "Choose your favorite driver", href: "/profile?section=personalisation" };
+    return { section: "yourF1", label: "Choose your favorite driver", href: "/?section=profile&tab=personalisation" };
   }
   if (groupCount === 0) {
-    return { section: "community", label: "Find your F1 community", href: "/groups" };
+    return { section: "community", label: "Find your F1 community", href: "/?section=communities" };
   }
   if (nextRace && myPick && nextRace.status !== "completed" && !!nextRace.inputs?.length) {
     return { section: "hero", label: "Compare your pick with the model", href: raceHref(nextRace.year, nextRace.round, nextRace.name, "simulation") };

@@ -7,7 +7,7 @@ import { PANEL } from "@/components/ui/panel";
 /** The account page's own shape while it loads, for whichever section the URL names: the eyebrow, title and intro,
  * the section tabs, then that section's panel (the favourites table, the two switches, or the profile form). */
 export default function ProfileLoading() {
-  const section = useSearchParams().get("section");
+  const section = useSearchParams().get("tab");
   return (
     <div role="status" className="page-content skeleton-delay py-8">
       <span className="sr-only">Loading your account</span>

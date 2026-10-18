@@ -120,7 +120,7 @@ export function LandingArchiveSection() {
         {ARCHIVE_ENTRIES.map((e) => (
           <li key={e.section} className="min-w-0">
             <Link
-              href={`/archive?section=${e.section}`}
+              href={`/?section=archive&tab=${e.section}`}
               aria-label={`Archive ${e.title.toLowerCase()}`}
               className="group flex h-full flex-col overflow-hidden rounded-card border border-subtle bg-surface-1 transition-[transform,border-color,box-shadow] duration-base hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_20px_44px_-24px_rgb(225_6_0/0.55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >

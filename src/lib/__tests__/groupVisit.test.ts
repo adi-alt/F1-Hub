@@ -25,8 +25,8 @@ describe("community visit stamp", () => {
   });
 
   it("the page leaves the stamp to the beacon, which fires on hide, pagehide and unmount", () => {
-    assert.match(read("src/app/groups/_community/CommunityView.tsx"), /<GroupVisitBeacon groupId=\{id\} \/>/);
-    const beacon = read("src/app/groups/_community/components/GroupVisitBeacon.tsx");
+    assert.match(read("src/app/communities/_community/CommunityView.tsx"), /<GroupVisitBeacon groupId=\{id\} \/>/);
+    const beacon = read("src/app/communities/_community/components/GroupVisitBeacon.tsx");
     for (const needle of ["sendBeacon", "visibilitychange", "pagehide", "MIN_GAP_MS"]) assert.ok(beacon.includes(needle), needle);
   });
 });

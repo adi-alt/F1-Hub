@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+
 import { Menu } from "lucide-react";
 import { Sheet } from "@/components/ui/Dialog";
+import { useAppLocation } from "@/hooks/useAppLocation";
 import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { seasonHref } from "@/lib/routes";
 
 const baseLinks = (season: number): { href: string; label: string; section: NavSection }[] => [
   { href: seasonHref(season), label: "Season", section: "season" },
-  { href: "/circuits", label: "Circuits", section: "circuits" },
-  { href: "/archive", label: "Archive", section: "archive" },
-  { href: "/groups", label: "Communities", section: "communities" },
+  { href: "/?section=circuits", label: "Circuits", section: "circuits" },
+  { href: "/?section=archive", label: "Archive", section: "archive" },
+  { href: "/?section=communities", label: "Communities", section: "communities" },
 ];
 
 export function MobileNav({
@@ -27,10 +28,12 @@ export function MobileNav({
   const [open, setOpen] = useState(false);
   const links = [
     ...baseLinks(season),
-    ...(showUsers ? [{ href: "/users", label: "Users", section: "users" as const }] : []),
-    ...(showModels ? [{ href: "/models", label: "Models", section: "models" as const }] : []),
+    ...(showUsers ? [{ href: "/?section=users", label: "Users", section: "users" as const }] : []),
+    ...(showModels ? [{ href: "/?section=models", label: "Models", section: "models" as const }] : []),
+    ...(showModels ? [{ href: "/?section=photos", label: "Photos", section: "photos" as const }] : []),
   ];
-  const activeSection = navSectionFor(usePathname());
+  const { pathname, params } = useAppLocation();
+  const activeSection = navSectionFor(pathname, params);
 
   return (
     <div className="md:hidden">

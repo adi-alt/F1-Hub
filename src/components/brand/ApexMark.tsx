@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useAppLocation } from "@/hooks/useAppLocation";
 
 /**
  * The Apex F1 Hub mark, "Apex": an A drawn in thick round strokes, its crossbar running out past the leg as a racing line
@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
  * same on the server and in the browser, so nothing moves or swaps as the page loads.
  */
 export function ApexMark({ size = 24, className }: { size?: number; className?: string }) {
-  const pathname = usePathname();
+  const { key: pathname } = useAppLocation();
   // A new lap on each route change (not on the first render): React's "adjust state when a prop changes" pattern.
   const [seen, setSeen] = useState(pathname);
   const [lap, setLap] = useState(0);

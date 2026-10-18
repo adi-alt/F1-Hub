@@ -678,7 +678,7 @@ function DangerSection({ group }: { group: GroupDetail }) {
       setDeleting(false);
       return;
     }
-    router.push("/groups");
+    router.push("/?section=communities");
     router.refresh();
   }
 

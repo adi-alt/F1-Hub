@@ -247,7 +247,7 @@ export function YourCommunitiesSection({ personalData }: Pick<Props, "personalDa
       level={2}
       title={mine.length ? "Your communities" : "Communities to join"}
       actions={
-        <Link href="/groups" className={TEXT_LINK}>
+        <Link href="/?section=communities" className={TEXT_LINK}>
           All communities <Icon icon={ArrowRight} size={16} />
         </Link>
       }

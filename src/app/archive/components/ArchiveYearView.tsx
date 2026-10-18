@@ -16,7 +16,7 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
   if (year < ARCHIVE_EARLIEST_YEAR || year > latestYear) {
     return (
       <div className="page-content py-10">
-        <Link href="/archive" className="text-sm text-tertiary hover:text-secondary">
+        <Link href="/?section=archive" className="text-sm text-tertiary hover:text-secondary">
           ← Archive
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-primary">{year}</h1>
@@ -30,7 +30,7 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
   if (data.raceSummaries.length === 0) {
     return (
       <div className="page-content py-10">
-        <Link href="/archive" className="text-sm text-tertiary hover:text-secondary">
+        <Link href="/?section=archive" className="text-sm text-tertiary hover:text-secondary">
           ← Archive
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-primary">{year}</h1>
@@ -48,7 +48,7 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
         <SeasonDetail
           year={year}
           status={data.status}
-          backHref="/archive"
+          backHref="/?section=archive"
           drivers={data.drivers}
           constructors={data.constructors}
           progression={data.progression}

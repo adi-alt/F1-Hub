@@ -22,6 +22,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 import { groupHref } from "@/lib/routes";
+import { notifyJoinDecision, notifyJoinRequest, notifyRoleChanged } from "@/lib/notificationEvents";
 
 // Tagged AND short-TTL, not one or the other: every in-app mutation below that actually changes
 // what listPublicGroups/getGroupPreview display (name/description/visibility/avatar/banner/member
@@ -843,6 +844,7 @@ export async function updateMemberRole(groupId: string, actingUid: string, targe
 
   const { error } = await supabaseAdmin.from("group_members").update({ role: newRole }).eq("group_id", groupId).eq("user_id", targetUid);
   if (error) throw new Error(`updateMemberRole(${groupId}, ${targetUid}): ${error.message}`);
+  if (newRole !== targetRole) await notifyRoleChanged(groupId, targetUid, actingUid, newRole);
 }
 
 /** Removes a member. With `ban`, they are also barred from rejoining (join, invitation redemption
@@ -1143,6 +1145,7 @@ export async function requestToJoin(groupId: string, uid: string, message?: stri
     .from("group_join_requests")
     .upsert({ group_id: groupId, user_id: uid, message: trimmed, status: "pending", decided_at: null, decided_by: null }, { onConflict: "group_id,user_id" });
   if (error) throw new Error(`requestToJoin(${groupId}): ${error.message}`);
+  await notifyJoinRequest(groupId, uid);
   return { status: "pending" };
 }
 
@@ -1209,6 +1212,7 @@ export async function decideJoinRequest(groupId: string, actingUid: string, targ
     .eq("group_id", groupId)
     .eq("user_id", targetUid);
   if (error) throw new Error(`decideJoinRequest(${groupId}): ${error.message}`);
+  await notifyJoinDecision(groupId, targetUid, actingUid, decision === "approve");
 }
 
 export async function countPendingJoinRequests(groupId: string): Promise<number> {

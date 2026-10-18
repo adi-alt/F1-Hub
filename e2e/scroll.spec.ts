@@ -28,7 +28,7 @@ test.describe("native document scroll", () => {
   }
 
   test("PageDown scrolls straight away, without clicking the page first", async ({ page }) => {
-    await page.goto("/race?year=2026&race=bahrain-grand-prix");
+    await page.goto("/?section=season&year=2026&race=bahrain-grand-prix");
     await settle(page);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await page.keyboard.press("PageDown");

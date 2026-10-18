@@ -71,14 +71,14 @@ const nextConfig: NextConfig = {
   // before anything renders; the request's own query string (an invite token, a post, a tab) is carried across.
   async redirects() {
     return [
-      { source: "/circuits/:circuit", destination: "/circuits?circuit=:circuit", permanent: true },
-      { source: "/groups/:id", destination: "/groups?id=:id", permanent: true },
-      { source: "/profile/edit", destination: "/profile?section=profile", permanent: true },
-      { source: "/profile/notifications", destination: "/profile?section=notifications", permanent: true },
-      { source: "/race/:year/:slug", destination: "/race?year=:year&race=:slug", permanent: true },
-      { source: "/season/:year/race/:slug", destination: "/race?year=:year&race=:slug", permanent: true },
-      { source: "/archive/:year/:slug", destination: "/race?year=:year&race=:slug", permanent: true },
-      { source: "/archive/:year", destination: "/archive?year=:year", permanent: true },
+      { source: "/circuits/:circuit", destination: "/?section=circuits&circuit=:circuit", permanent: true },
+      { source: "/groups/:id", destination: "/?section=communities&id=:id", permanent: true },
+      { source: "/profile/edit", destination: "/?section=profile&tab=profile", permanent: true },
+      { source: "/profile/notifications", destination: "/?section=profile&tab=notifications", permanent: true },
+      { source: "/race/:year/:slug", destination: "/?section=season&year=:year&race=:slug", permanent: true },
+      { source: "/season/:year/race/:slug", destination: "/?section=season&year=:year&race=:slug", permanent: true },
+      { source: "/archive/:year/:slug", destination: "/?section=season&year=:year&race=:slug", permanent: true },
+      { source: "/archive/:year", destination: "/?section=archive&year=:year", permanent: true },
     ];
   },
   async headers() {

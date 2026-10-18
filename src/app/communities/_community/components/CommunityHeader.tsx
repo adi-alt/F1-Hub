@@ -82,7 +82,7 @@ export function CommunityHeader({
       return;
     }
     close();
-    router.push("/groups");
+    router.push("/?section=communities");
     router.refresh();
   }
 
@@ -175,7 +175,7 @@ export function CommunityHeader({
       <div className="mb-6 flex items-start justify-between gap-3">
         {/* Back to Communities the way the circuit page goes back to Circuits: a breadcrumb, not a lone arrow. */}
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 pt-1.5 text-body-sm">
-          <Link href="/groups" className="shrink-0 rounded-control text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          <Link href="/?section=communities" className="shrink-0 rounded-control text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
             Communities
           </Link>
           <span aria-hidden className="text-tertiary">

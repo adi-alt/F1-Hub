@@ -14,6 +14,7 @@ export type { GroupPrediction, PredictionGuess, PredictionState, PredictionStatu
 export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import { predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTypes";
+import { notifyNewRound, notifyPredictionSettled } from "@/lib/notificationEvents";
 
 export type FeedPrediction = Omit<GroupPrediction, "myEntry"> & {
   groupName: string;
@@ -419,6 +420,7 @@ export async function createPrediction(
     if (error.code === "23505") throw new ServiceError(`This group already has a ${predictionTypeLabels[input.type]} prediction for that race.`, 409);
     throw new Error(`createPrediction(${groupId}): ${error.message}`);
   }
+  await notifyNewRound(groupId, data.id as string, uid, input.type, race.name);
   return { id: data.id as string };
 }
 
@@ -590,5 +592,7 @@ export async function resolvePrediction(groupId: string, predictionId: string, u
     p_results_source: race.resultsSource ?? null,
   });
   if (settleError) throw predictionError(settleError);
-  return data as ResolveResult;
+  const result = data as ResolveResult;
+  if (!result.alreadyResolved) await notifyPredictionSettled(groupId, predictionId, type, race.name);
+  return result;
 }

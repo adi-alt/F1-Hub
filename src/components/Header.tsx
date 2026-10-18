@@ -1,19 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+
 import { useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Timer } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ApexMark } from "@/components/brand/ApexMark";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { headerStatus, shortRaceName, type HeaderSession } from "@/lib/headerSchedule";
 import { permissionsForRole } from "@/lib/rbac";
+import { useAppLocation } from "@/hooks/useAppLocation";
 import { navSectionFor, type NavSection } from "@/lib/navSections";
 import { raceHref, seasonHref } from "@/lib/routes";
 
@@ -85,14 +87,14 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
   const permissions = role ? permissionsForRole(role) : null;
   const showUsers = !!permissions?.canViewUsers;
   const showModels = !!permissions?.canAccessAdmin;
-  const pathname = usePathname();
-  const activeSection = navSectionFor(pathname);
+  const { pathname, params, key: locationKey } = useAppLocation();
+  const activeSection = navSectionFor(pathname, params);
   // The section just clicked, until the route catches up with it: the underline goes there at once. Cleared on the
   // next route change (React's "adjust state when a prop changes" pattern), after which the route decides again.
   const [picked, setPicked] = useState<{ section: NavSection; from: string } | null>(null);
-  if (picked && picked.from !== pathname) setPicked(null);
+  if (picked && picked.from !== locationKey) setPicked(null);
   const marked = picked?.section ?? activeSection;
-  const pick = (section: NavSection) => setPicked({ section, from: pathname });
+  const pick = (section: NavSection) => setPicked({ section, from: locationKey });
 
   // z-header (the token scale): above the page, below dialogs and sheets, whose scrim has to dim it.
   return (
@@ -121,23 +123,28 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
             <NavLink href={seasonHref(season)} section="season" active={activeSection} marked={marked} onPick={pick} tour="nav-season">
               Season
             </NavLink>
-            <NavLink href="/circuits" section="circuits" active={activeSection} marked={marked} onPick={pick} tour="nav-circuits">
+            <NavLink href="/?section=circuits" section="circuits" active={activeSection} marked={marked} onPick={pick} tour="nav-circuits">
               Circuits
             </NavLink>
-            <NavLink href="/archive" section="archive" active={activeSection} marked={marked} onPick={pick} tour="nav-archive">
+            <NavLink href="/?section=archive" section="archive" active={activeSection} marked={marked} onPick={pick} tour="nav-archive">
               Archive
             </NavLink>
-            <NavLink href="/groups" section="communities" active={activeSection} marked={marked} onPick={pick} tour="nav-communities">
+            <NavLink href="/?section=communities" section="communities" active={activeSection} marked={marked} onPick={pick} tour="nav-communities">
               Communities
             </NavLink>
             {showUsers && (
-              <NavLink href="/users" section="users" active={activeSection} marked={marked} onPick={pick} tour="nav-users">
+              <NavLink href="/?section=users" section="users" active={activeSection} marked={marked} onPick={pick} tour="nav-users">
                 Users
               </NavLink>
             )}
             {showModels && (
-              <NavLink href="/models" section="models" active={activeSection} marked={marked} onPick={pick} tour="nav-models">
+              <NavLink href="/?section=models" section="models" active={activeSection} marked={marked} onPick={pick} tour="nav-models">
                 Models
+              </NavLink>
+            )}
+            {showModels && (
+              <NavLink href="/?section=photos" section="photos" active={activeSection} marked={marked} onPick={pick} tour="nav-photos">
+                Photos
               </NavLink>
             )}
           </nav>
@@ -156,6 +163,7 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
 
         <div className="ml-auto flex items-center gap-4">
           <SessionStatus sessions={sessions} />
+          {isAuthorized && <NotificationBell />}
           <SignInButton />
           {isAuthorized && <MobileNav season={season} showUsers={showUsers} showModels={showModels} />}
         </div>

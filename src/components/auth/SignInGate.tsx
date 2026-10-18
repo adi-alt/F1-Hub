@@ -29,11 +29,11 @@ function gateFor(label: string): Gate {
 
 /** The rest of the site, for the "Also on Apex F1 Hub" row - the gate's own section left out. */
 const ALSO: { key: Preview | "season"; href: string; icon: typeof Flag; title: string; text: string }[] = [
-  { key: "predict", href: "/groups", icon: Trophy, title: "Predict", text: "Picks for every Grand Prix, with friends" },
-  { key: "replay", href: "/season", icon: Flag, title: "Races", text: "Replays, qualifying and the simulation" },
-  { key: "season", href: "/season", icon: Users, title: "Season", text: "Standings, form and the title fight" },
-  { key: "circuit", href: "/circuits", icon: MapPin, title: "Circuits", text: "Every track and how it changed" },
-  { key: "archive", href: "/archive", icon: Archive, title: "Archive", text: "Every race since 1950" },
+  { key: "predict", href: "/?section=communities", icon: Trophy, title: "Predict", text: "Picks for every Grand Prix, with friends" },
+  { key: "replay", href: "/?section=season", icon: Flag, title: "Races", text: "Replays, qualifying and the simulation" },
+  { key: "season", href: "/?section=season", icon: Users, title: "Season", text: "Standings, form and the title fight" },
+  { key: "circuit", href: "/?section=circuits", icon: MapPin, title: "Circuits", text: "Every track and how it changed" },
+  { key: "archive", href: "/?section=archive", icon: Archive, title: "Archive", text: "Every race since 1950" },
   { key: "apex", href: "/", icon: Bot, title: "Apex", text: "An AI analyst for every race" },
 ];
 

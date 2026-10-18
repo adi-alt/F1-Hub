@@ -8,7 +8,7 @@ import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { safeRead } from "@/lib/safeRead";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
-import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
+import { archiveCircuitHref, archiveDriverHref, archiveTeamHref, groupHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
@@ -16,6 +16,14 @@ import { EYEBROW } from "@/components/ui/panel";
 import { NotificationsForm } from "@/components/profile/NotificationsForm";
 import { ACCOUNT_SECTIONS, AccountNav, accountHref, type AccountSection } from "./components/AccountNav";
 import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
+import { ProfileOverview, type ProfileOverviewData } from "./components/ProfileOverview";
+import { getPointsBalance, listRecentTransactions } from "@/lib/supabase/points";
+import { getUserGroups } from "@/lib/supabase/groups";
+import { getUserPicksForYear } from "@/lib/supabase/picks";
+import { computePredictionPerformance } from "@/lib/predictionPerformance";
+import { getNotificationPrefs } from "@/lib/supabase/notifications";
+import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
+import { parseUtcDateTime } from "@/lib/countdown";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
 
@@ -144,8 +152,8 @@ async function mergeCurrentSeason(
   }
 }
 
-export async function generateMetadata({ searchParams }: { searchParams: Promise<{ section?: string }> }): Promise<Metadata> {
-  const section = sectionOf((await searchParams).section);
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ tab?: string }> }): Promise<Metadata> {
+  const section = sectionOf((await searchParams).tab);
   const meta: Record<AccountSection, { title: string; description: string }> = {
     personalisation: { title: "Personalisation", description: "Your favourite drivers, teams and circuits, current and historical." },
     notifications: { title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in." },
@@ -160,16 +168,16 @@ function sectionOf(value: string | undefined): AccountSection {
 
 const INTRO: Record<AccountSection, string> = {
   personalisation: "Favourite any driver, team or circuit, current or historical. Favourites come first everywhere on the site.",
-  notifications: "When Apex F1 Hub emails you.",
+  notifications: "What Apex F1 Hub tells you about, on the site and by email.",
   profile: "How you appear to everyone else.",
 };
 
 /**
  * The account, in one place: personalisation, notifications and the profile, as sections of one page
- * (`/profile?section=`), each with the site's eyebrow title and its content on the glass panel. Every link into the
+ * (`/?section=profile&tab=`), each with the site's eyebrow title and its content on the glass panel. Every link into the
  * account (the header menu, old `/profile/edit` and `/profile/notifications` links) lands here.
  */
-export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ section?: string; tab?: string }> }) {
+export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string; kind?: string }> }) {
   const session = await getSession();
   if (!session.uid) {
     return (
@@ -178,7 +186,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       </div>
     );
   }
-  const { section: rawSection, tab } = await searchParams;
+  const { tab: rawSection, kind: tab } = await searchParams;
   const section = sectionOf(rawSection);
   const title = ACCOUNT_SECTIONS.find((s) => s.value === section)!.label;
 
@@ -193,15 +201,94 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <div className="mt-6">
         {section === "personalisation" && <Personalisation uid={session.uid} tab={tab} />}
         {section === "notifications" && <Notifications uid={session.uid} />}
-        {section === "profile" && <ProfileDetailsForm />}
+        {section === "profile" && <ProfileSection uid={session.uid} />}
       </div>
     </div>
   );
 }
 
+const POINTS_REASON: Record<string, string> = {
+  starting_grant: "Welcome grant",
+  prediction_entry: "Entered a prediction round",
+  prediction_payout: "Prediction round won",
+  prediction_refund: "Prediction round refunded",
+};
+
+/** The Profile section: who you are (editable) and account actions on the left; this season, favourites and
+ * communities on the right. Every read degrades to its empty state rather than failing the page. */
+async function ProfileSection({ uid }: { uid: string }) {
+  const season = await getCurrentSeason();
+  const [profile, points, recent, groups, picks, races, drivers, teams, circuits] = await Promise.all([
+    safeRead(() => getUserProfile(uid), null),
+    safeRead(() => getPointsBalance(uid), null),
+    safeRead(() => listRecentTransactions(uid, 5), []),
+    safeRead(() => getUserGroups(uid), []),
+    safeRead(() => getUserPicksForYear(uid, season), []),
+    safeRead(() => getRacesByYear(season), []),
+    safeRead(() => getAllArchiveDrivers(), []),
+    safeRead(() => getAllArchiveTeams(), []),
+    safeRead(() => getAllArchiveCircuits(), []),
+  ]);
+  const perf = computePredictionPerformance(picks, races);
+  const names = <T,>(ids: string[] | undefined, list: T[], id: (x: T) => string, name: (x: T) => string, href: (id: string) => string) => {
+    const all = ids ?? [];
+    const byId = new Map(list.map((x) => [id(x), name(x)]));
+    return { total: all.length, items: all.slice(0, 6).map((i) => ({ name: byId.get(i) ?? i, href: href(i) })) };
+  };
+  const data: ProfileOverviewData = {
+    memberSince: profile?.createdAt ?? new Date().toISOString(),
+    role: profile?.role ?? null,
+    points,
+    season,
+    record: {
+      scoredRaces: perf.points.races,
+      pointsEarned: perf.points.earned,
+      winner: perf.winner,
+      podium: perf.podiumSlots,
+    },
+    recentPoints: recent.map((t) => ({ amount: t.amount, label: POINTS_REASON[t.reason] ?? t.reason, at: t.createdAt })),
+    favourites: [
+      { kind: "Drivers", ...names(profile?.favoriteDrivers, drivers, (d) => d.driverId, (d) => d.name, archiveDriverHref) },
+      { kind: "Teams", ...names(profile?.favoriteTeams, teams, (t) => t.teamId, (t) => t.name, archiveTeamHref) },
+      { kind: "Circuits", ...names(profile?.favoriteTracks, circuits, (c) => c.circuitId, (c) => c.name ?? c.circuitId, archiveCircuitHref) },
+    ],
+    communities: groups.map((g) => ({ id: g.id, name: g.name, avatarUrl: g.avatarUrl, role: g.myRole, href: groupHref(g.id) })),
+  };
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <ProfileDetailsForm
+        initial={{ firstName: profile?.firstName ?? "", lastName: profile?.lastName ?? "", username: profile?.username ?? null, memberSince: data.memberSince, role: data.role }}
+      />
+      <ProfileOverview data={data} />
+    </div>
+  );
+}
+
 async function Notifications({ uid }: { uid: string }) {
-  const profile = await safeRead(() => getUserProfile(uid), null);
-  return <NotificationsForm initialNotifyBeforeQualifying={profile?.notifyBeforeQualifying} initialNotifyOnResults={profile?.notifyOnResults} />;
+  const season = await getCurrentSeason();
+  const [profile, prefs, groups, calendar] = await Promise.all([
+    safeRead(() => getUserProfile(uid), null),
+    safeRead(() => getNotificationPrefs(uid), {}),
+    safeRead(() => getUserGroups(uid), []),
+    safeRead(() => getCalendarEntriesByYear(season), []),
+  ]);
+  // The next qualifying session still to start: when this weekend's picks and rounds lock.
+  // eslint-disable-next-line react-hooks/purity -- a server render: "now" is the request's time.
+  const now = Date.now();
+  const next = calendar
+    .flatMap((e) => e.sessions.filter((x) => /^qualifying$/i.test(x.label)).map((x) => ({ raceName: e.name ?? "Next race", startsAt: x.date })))
+    .filter((x) => parseUtcDateTime(x.startsAt).getTime() > now)
+    .sort((a, b) => parseUtcDateTime(a.startsAt).getTime() - parseUtcDateTime(b.startsAt).getTime())[0] ?? null;
+  return (
+    <NotificationsForm
+      initialPrefs={prefs}
+      initialNotifyBeforeQualifying={profile?.notifyBeforeQualifying}
+      initialNotifyOnResults={profile?.notifyOnResults}
+      email={profile?.email ?? null}
+      moderates={groups.filter((g) => g.myRole !== "member").length}
+      nextQualifying={next}
+    />
+  );
 }
 
 async function Personalisation({ uid, tab }: { uid: string; tab?: string }) {

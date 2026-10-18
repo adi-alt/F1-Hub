@@ -1,3 +1,4 @@
+import { sectionHref } from "@/lib/sectionRoutes";
 // Query-parameterized routing for the year -> race hierarchy (Season and Archive both), matching
 // this file's own original convention and every other Archive facet (?circuit=, ?driver=, ?team=)
 // - archive is a browsing page over query params, not a path-segment resource hierarchy. Every
@@ -26,38 +27,54 @@ export function slugifyRaceName(name: string): string {
  * (`round` isn't part of the URL, kept in the signature only so every call site already has it in
  * scope without a lookup - see /race/page.tsx, which re-resolves it from the slug anyway). */
 export function raceHref(year: number, round: number, raceName: string, section?: string): string {
-  const base = `/race?year=${year}&race=${slugifyRaceName(raceName)}`;
-  return section ? `${base}&tab=${section}` : base;
+  return sectionHref("season", { year, race: slugifyRaceName(raceName), tab: section });
 }
 
+// Every page is `/?section=<header name>&...` (lib/sectionRoutes.ts); these build each entity's URL in that shape.
+// Old path-style links (/archive?team=, /groups?id=, /circuits/<slug>, /race/<year>/<slug>, ...) redirect to them.
 export function seasonHref(year: number): string {
-  return `/season?year=${year}`;
+  return sectionHref("season", { year });
 }
 
-// Every entity on the site is query-routed on its section's own page: a race (/race?year=&race=), a season, an
-// archive driver/team/circuit, a circuit, a community. Old path-style links (/circuits/<slug>, /groups/<id>,
-// /race/<year>/<slug>, ...) redirect here.
 export function circuitHref(circuit: string): string {
-  return `/circuits?circuit=${slugifyRaceName(circuit)}`;
+  return sectionHref("circuits", { circuit: slugifyRaceName(circuit) });
+}
+
+export function circuitsHref(): string {
+  return sectionHref("circuits");
+}
+
+export function archiveHref(tab?: "year" | "track" | "driver" | "team"): string {
+  return sectionHref("archive", { tab: tab === "year" ? undefined : tab });
 }
 
 export function archiveSeasonHref(year: number): string {
-  return `/archive?year=${year}`;
+  return sectionHref("archive", { year });
 }
 
 export function archiveCircuitHref(circuitId: string): string {
-  return `/archive?circuit=${encodeURIComponent(circuitId)}`;
+  return sectionHref("archive", { circuit: circuitId });
 }
 
 export function archiveDriverHref(driverId: string): string {
-  return `/archive?driver=${encodeURIComponent(driverId)}`;
+  return sectionHref("archive", { driver: driverId });
 }
 
 export function archiveTeamHref(teamId: string): string {
-  return `/archive?team=${encodeURIComponent(teamId)}`;
+  return sectionHref("archive", { team: teamId });
+}
+
+/** The Communities home. */
+export function communitiesHref(): string {
+  return sectionHref("communities");
 }
 
 /** A community. Further parameters (`tab`, `post`, `invite`) are appended with `&`. */
 export function groupHref(id: string): string {
-  return `/groups?id=${encodeURIComponent(id)}`;
+  return sectionHref("communities", { id });
+}
+
+/** The account: personalisation (the default), notifications or profile. */
+export function profileHref(tab?: "personalisation" | "notifications" | "profile", kind?: string): string {
+  return sectionHref("profile", { tab, kind });
 }
