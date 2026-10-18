@@ -1,17 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { Bell, Mail } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
-import { PANEL } from "@/components/ui/panel";
+import { EYEBROW, PANEL } from "@/components/ui/panel";
+import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
+import { formatLocalDateTime } from "@/lib/countdown";
+import { channelsFor, NOTIFICATION_KINDS, type Channel, type NotificationKind, type NotificationPrefs } from "@/lib/notificationKinds";
 
-function Toggle({ checked, onChange, labelledBy }: { checked: boolean; onChange: (v: boolean) => void; labelledBy: string }) {
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-labelledby={labelledBy}
+      aria-label={label}
       onClick={() => onChange(!checked)}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${checked ? "bg-brand" : "bg-white/10"}`}
     >
@@ -20,55 +23,183 @@ function Toggle({ checked, onChange, labelledBy }: { checked: boolean; onChange:
   );
 }
 
-const ROWS = [
-  { key: "notifyBeforeQualifying", title: "Before qualifying locks", body: "A heads-up before the grid for the next race is set, while picks are still open." },
-  { key: "notifyOnResults", title: "When results land", body: "A summary once a race you've picked for is over." },
-] as const;
+const GROUPS = ["Predictions", "Conversations", "Your communities"] as const;
 
-/** Email preferences: each switch saves as it's flipped (PATCH /api/users/me), and puts itself back if the save
- * fails. The emails themselves aren't sent yet, which the page says rather than implying otherwise. */
-export function NotificationsForm({ initialNotifyBeforeQualifying, initialNotifyOnResults }: { initialNotifyBeforeQualifying?: boolean; initialNotifyOnResults?: boolean }) {
-  const [values, setValues] = useState({ notifyBeforeQualifying: !!initialNotifyBeforeQualifying, notifyOnResults: !!initialNotifyOnResults });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * How Apex F1 Hub tells you things: for each kind of event, on the site (the bell in the header) and/or by email,
+ * saved as each switch is flipped and put back if the save fails. Then the race-weekend reminder emails, and where
+ * everything is delivered. Moderator-only kinds are marked, so nobody wonders why they never arrive.
+ */
+export function NotificationsForm({
+  initialPrefs,
+  initialNotifyBeforeQualifying,
+  initialNotifyOnResults,
+  email,
+  moderates,
+  nextQualifying,
+}: {
+  initialPrefs: NotificationPrefs;
+  initialNotifyBeforeQualifying?: boolean;
+  initialNotifyOnResults?: boolean;
+  email: string | null;
+  /** How many communities the person admins or moderates. */
+  moderates: number;
+  nextQualifying: { raceName: string; startsAt: string } | null;
+}) {
+  const tz = useViewerTimeZone();
+  const [prefs, setPrefs] = useState<NotificationPrefs>(initialPrefs);
+  const [reminders, setReminders] = useState({ notifyBeforeQualifying: !!initialNotifyBeforeQualifying, notifyOnResults: !!initialNotifyOnResults });
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
-  async function set(key: keyof typeof values, value: boolean) {
-    setValues((v) => ({ ...v, [key]: value }));
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/users/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [key]: value }) });
-      if (!res.ok) throw new Error(`${res.status}`);
-    } catch {
-      setValues((v) => ({ ...v, [key]: !value }));
-      setError("Couldn't save that change. Try again.");
-    } finally {
-      setSaving(false);
+  async function setChannel(kind: NotificationKind, channel: Channel, value: boolean) {
+    const before = prefs;
+    setPrefs({ ...prefs, [kind]: { ...channelsFor(prefs, kind), [channel]: value } });
+    setStatus("saving");
+    const res = await fetch("/api/notifications/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [kind]: { [channel]: value } }) }).catch(() => null);
+    if (!res?.ok) {
+      setPrefs(before);
+      setStatus("error");
+      return;
     }
+    setStatus("idle");
+  }
+
+  async function setReminder(key: keyof typeof reminders, value: boolean) {
+    setReminders((r) => ({ ...r, [key]: value }));
+    setStatus("saving");
+    const res = await fetch("/api/users/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [key]: value }) }).catch(() => null);
+    if (!res?.ok) {
+      setReminders((r) => ({ ...r, [key]: !value }));
+      setStatus("error");
+      return;
+    }
+    setStatus("idle");
   }
 
   return (
-    <div className="max-w-xl">
-      <ul className={`divide-y divide-white/[0.06] ${PANEL}`}>
-        {ROWS.map((row) => (
-          <li key={row.key} className="flex items-center justify-between gap-4 px-5 py-4">
-            <div className="min-w-0">
-              <p id={`notify-${row.key}`} className="text-body-sm font-medium text-primary">
-                {row.title}
-              </p>
-              <p className="mt-0.5 text-caption text-tertiary">{row.body}</p>
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="space-y-6">
+        <section aria-labelledby="notify-events" className={PANEL}>
+          <div className="flex items-end justify-between gap-3 border-b border-white/[0.06] px-5 py-3">
+            <h2 id="notify-events" className={EYEBROW}>
+              What happens
+            </h2>
+            <div className="flex shrink-0 gap-5 text-caption text-tertiary" aria-hidden>
+              <span className="flex w-11 flex-col items-center gap-0.5">
+                <Icon icon={Bell} size={16} className="size-3.5" />
+                On site
+              </span>
+              <span className="flex w-11 flex-col items-center gap-0.5">
+                <Icon icon={Mail} size={16} className="size-3.5" />
+                Email
+              </span>
             </div>
-            <Toggle checked={values[row.key]} onChange={(v) => void set(row.key, v)} labelledBy={`notify-${row.key}`} />
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 flex items-start gap-2 text-caption text-tertiary">
-        <Icon icon={Info} size={16} className="mt-px size-3.5" />
-        <span>Your choices are saved now. The emails themselves start once sending is switched on; nothing you set here is lost before then.</span>
-      </p>
-      <p aria-live="polite" className="mt-2 min-h-4 text-caption">
-        {error ? <span className="text-danger">{error}</span> : saving ? <span className="text-tertiary">Saving…</span> : null}
-      </p>
+          </div>
+          {GROUPS.map((group) => (
+            <div key={group}>
+              <p className="px-5 pb-1 pt-4 text-caption font-semibold text-secondary">{group}</p>
+              <ul className="divide-y divide-white/[0.05]">
+                {NOTIFICATION_KINDS.filter((k) => k.group === group).map((k) => {
+                  const ch = channelsFor(prefs, k.kind);
+                  return (
+                    <li key={k.kind} className="flex items-center justify-between gap-4 px-5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-body-sm font-medium text-primary">{k.label}</p>
+                        <p className="mt-0.5 text-caption text-tertiary">
+                          {k.description}
+                          {k.moderatorsOnly && moderates === 0 && " Only if you moderate a community."}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-5">
+                        <Toggle checked={ch.site} onChange={(v) => void setChannel(k.kind, "site", v)} label={`${k.label}: on the site`} />
+                        <Toggle checked={ch.email} onChange={(v) => void setChannel(k.kind, "email", v)} label={`${k.label}: by email`} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </section>
+
+        <section aria-labelledby="notify-weekend" className={PANEL}>
+          <h2 id="notify-weekend" className={`border-b border-white/[0.06] px-5 py-3 ${EYEBROW}`}>
+            Race weekend emails
+          </h2>
+          <ul className="divide-y divide-white/[0.05]">
+            {[
+              { key: "notifyBeforeQualifying" as const, title: "Before qualifying locks", body: "A heads-up while picks and prediction rounds are still open." },
+              { key: "notifyOnResults" as const, title: "When results land", body: "How your picks did, once a race you picked for is over." },
+            ].map((r) => (
+              <li key={r.key} className="flex items-center justify-between gap-4 px-5 py-3">
+                <div className="min-w-0">
+                  <p className="text-body-sm font-medium text-primary">{r.title}</p>
+                  <p className="mt-0.5 text-caption text-tertiary">{r.body}</p>
+                </div>
+                <Toggle checked={reminders[r.key]} onChange={(v) => void setReminder(r.key, v)} label={`${r.title} email`} />
+              </li>
+            ))}
+          </ul>
+          <p className="border-t border-white/[0.06] px-5 py-3 text-caption text-tertiary">Your choice is saved now; these two reminders start once scheduled sending is switched on.</p>
+        </section>
+        <p aria-live="polite" className="min-h-4 text-caption">
+          {status === "error" ? <span className="text-danger">Couldn&apos;t save that change. Try again.</span> : status === "saving" ? <span className="text-tertiary">Saving…</span> : null}
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <section aria-labelledby="notify-delivery" className={`p-5 ${PANEL}`}>
+          <h2 id="notify-delivery" className={EYEBROW}>
+            Where they go
+          </h2>
+          <dl className="mt-3 space-y-3">
+            <div>
+              <dt className="flex items-center gap-1.5 text-caption text-tertiary">
+                <Icon icon={Bell} size={16} className="size-3.5" />
+                On the site
+              </dt>
+              <dd className="mt-0.5 text-body-sm text-primary">The bell at the top of every page</dd>
+            </div>
+            <div>
+              <dt className="flex items-center gap-1.5 text-caption text-tertiary">
+                <Icon icon={Mail} size={16} className="size-3.5" />
+                Email
+              </dt>
+              <dd className="mt-0.5 truncate text-body-sm text-primary">{email ?? "No email on your account"}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-tertiary">Times shown in</dt>
+              <dd suppressHydrationWarning className="mt-0.5 text-body-sm text-primary">
+                {tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        {nextQualifying && (
+          <section aria-labelledby="notify-next" className={`p-5 ${PANEL}`}>
+            <h2 id="notify-next" className={EYEBROW}>
+              Next lock
+            </h2>
+            <p className="mt-3 text-body-sm font-medium text-primary">{nextQualifying.raceName}</p>
+            <p suppressHydrationWarning className="mt-0.5 text-caption text-secondary">
+              Qualifying starts {formatLocalDateTime(nextQualifying.startsAt, tz ?? undefined)}
+            </p>
+            <p className="mt-2 text-caption text-tertiary">Picks and prediction rounds for this race close then.</p>
+          </section>
+        )}
+
+        {moderates > 0 && (
+          <section aria-labelledby="notify-mod" className={`p-5 ${PANEL}`}>
+            <h2 id="notify-mod" className={EYEBROW}>
+              As a moderator
+            </h2>
+            <p className="mt-3 text-body-sm text-secondary">
+              You run {moderates} {moderates === 1 ? "community" : "communities"}: join requests and posts waiting for approval come to you and the other moderators.
+            </p>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

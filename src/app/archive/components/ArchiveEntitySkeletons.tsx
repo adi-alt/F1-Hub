@@ -41,7 +41,7 @@ export function ArchiveEntityBodySkeleton() {
 
 export function ArchiveCircuitSkeleton() {
   return (
-    <div className={`flex h-72 flex-col p-5 ${PANEL}`}>
+    <div className={`flex h-72 flex-1 flex-col p-5 lg:h-auto ${PANEL}`}>
       <Skeleton shape="block" className="mx-auto w-3/4 flex-1" />
       <Skeleton shape="block" className="mt-4 h-4 w-40" />
     </div>

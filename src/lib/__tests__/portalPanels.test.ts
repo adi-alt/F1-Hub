@@ -14,7 +14,7 @@ import { join } from "node:path";
  * error, no warning and no type complaint. Hence a static guard: createPortal must wrap
  * AnimatePresence, never the other way round.
  */
-const POST_DIR = join(process.cwd(), "src/app/groups/components/post");
+const POST_DIR = join(process.cwd(), "src/app/communities/components/post");
 
 function tsxFiles(dir: string): string[] {
   return readdirSync(dir)

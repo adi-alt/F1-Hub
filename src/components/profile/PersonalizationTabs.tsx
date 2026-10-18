@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { FavoriteEntityList, type FavoriteEntity } from "./FavoriteEntityList";
@@ -22,7 +21,7 @@ const PLACEHOLDER: Record<Tab, string> = {
 /** One tab at a time, not all three stacked — the same switch-instantly pattern the archive's own
  * By year/track/driver/team tabs use. The active tab is also reflected in the URL
  * (/profile?section=personalisation&tab=...) so it's linkable/refreshable, but switching tabs is
- * still instant: local state drives the UI immediately, router.replace just syncs the URL
+ * still instant: local state drives the UI immediately, the history API just syncs the URL (no server round trip)
  * afterward rather than the tab click waiting on a server round-trip. */
 export function PersonalizationTabs({
   initialTab,
@@ -35,7 +34,6 @@ export function PersonalizationTabs({
   teams: { items: FavoriteEntity[]; favoriteIds: string[] };
   circuits: { items: FavoriteEntity[]; favoriteIds: string[] };
 }) {
-  const router = useRouter();
   const [tab, setTabState] = useState<Tab>(initialTab);
   const [search, setSearch] = useState("");
   const data = { players, teams, circuits }[tab];
@@ -44,7 +42,7 @@ export function PersonalizationTabs({
   function switchTo(next: Tab) {
     setTabState(next);
     setSearch("");
-    router.replace(`/profile?section=personalisation&tab=${next}`, { scroll: false });
+    window.history.replaceState(window.history.state, "", `/?section=profile&tab=personalisation&kind=${next}`);
   }
 
   return (

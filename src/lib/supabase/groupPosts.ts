@@ -5,6 +5,7 @@ import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/gro
 import { allowedMediaUrl, isAllowedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
 import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
+import { notifyPostModerated, notifyPostPending, notifyReply } from "@/lib/notificationEvents";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
 
@@ -214,6 +215,7 @@ export async function createPost(
     .select("id")
     .single();
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
+  if (status === "pending" && groupId) await notifyPostPending(groupId, data.id as string, uid);
   return { id: data.id as string, status, scheduledAt: status === "scheduled" ? scheduledAt : null };
 }
 
@@ -695,6 +697,7 @@ export async function addComment(groupId: string | null, postId: string, uid: st
   // The group_post_comments trigger rejects a parent that belongs to a different post.
   if (error?.message.includes("parent_comment_not_in_post")) throw new ServiceError("That comment isn't part of this discussion.", 400);
   if (error || !data) throw error ?? new ServiceError("Could not add comment.", 500);
+  await notifyReply(groupId, postId, data.id as string, uid, parentCommentId ?? null);
   return { id: data.id as string };
 }
 
@@ -715,4 +718,5 @@ export async function moderatePost(groupId: string, postId: string, uid: string,
   const status: PostStatus = action === "approve" ? "published" : "rejected";
   const { error } = await supabaseAdmin.from("group_posts").update({ status }).eq("id", postId).eq("group_id", groupId);
   if (error) throw new Error(`moderatePost(${postId}): ${error.message}`);
+  await notifyPostModerated(groupId, postId, uid, action === "approve");
 }

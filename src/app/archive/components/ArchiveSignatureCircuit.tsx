@@ -72,9 +72,9 @@ export async function ArchiveSignatureCircuit({ circuit, lapColor }: { circuit: 
   const years = circuit.firstYear === circuit.lastYear ? `${circuit.firstYear}` : `${circuit.firstYear}–${circuit.lastYear}`;
 
   return (
-    <div className={`flex flex-col p-5 ${PANEL}`}>
+    <div className={`flex flex-1 flex-col p-5 ${PANEL}`}>
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        <CircuitCanvas drawing={drawing} caption={false} className="max-h-48 w-full" lapColor={lapColor} lapSeconds={8} />
+        <CircuitCanvas drawing={drawing} caption={false} className="max-h-64 w-full" lapColor={lapColor} lapSeconds={8} />
       </div>
       <div className="mt-3 flex items-end justify-between gap-3">
         <div className="min-w-0">

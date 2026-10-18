@@ -31,7 +31,7 @@ function FacetTabsSkeleton() {
  * of always showing the "by year" shape regardless. */
 export default function ArchiveLoading() {
   const searchParams = useSearchParams();
-  const section = searchParams.get("section");
+  const section = searchParams.get("tab");
   // ?year= (without ?round=, a specific-race lookup that redirects immediately) renders the exact
   // same SeasonDetail component /season does - same skeleton, not the entity-explorer shape below.
   if (searchParams.has("year") && !searchParams.has("round")) return <SeasonDetailSkeleton />;

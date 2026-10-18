@@ -177,7 +177,7 @@ export function RaceSidebar({
             <Label>Your race</Label>
             <p className="mt-1.5 text-sm text-neutral-300">Set a favourite driver or make a prediction to get a personal briefing here.</p>
             <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-              <Link href="/profile?section=personalisation" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+              <Link href="/?section=profile&tab=personalisation" className="text-xs font-medium text-neutral-400 transition hover:text-white">
                 Set favourites →
               </Link>
               {!isCompleted && (

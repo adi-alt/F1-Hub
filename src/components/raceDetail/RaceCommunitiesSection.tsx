@@ -75,7 +75,7 @@ export function RaceCommunitiesSection({ mode, communities, id }: { mode: "predi
       title={mode === "predicting" ? "Communities predicting this race" : "Communities to join"}
       description={mode === "predicting" ? "Real groups with an open prediction for this exact race, most active first." : "No group has opened a prediction for this race yet - here's where people are talking F1."}
       headerRight={
-        <Link href="/groups" className="text-xs font-medium text-neutral-400 transition hover:text-white">
+        <Link href="/?section=communities" className="text-xs font-medium text-neutral-400 transition hover:text-white">
           Discover more →
         </Link>
       }

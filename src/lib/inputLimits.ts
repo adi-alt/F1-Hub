@@ -22,6 +22,7 @@ export const preferencesPatchSchema = z.object({
   notifyBeforeQualifying: z.boolean().optional(),
   notifyOnResults: z.boolean().optional(),
   firstName: personName.optional(),
+  lastName: personName.optional(),
 });
 
 /** POST /api/auth/complete-signup. The username's own format (3-20 letters, numbers or

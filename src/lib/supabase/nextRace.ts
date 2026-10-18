@@ -20,7 +20,7 @@ export type NextRaceSummary = {
 /**
  * Lives here rather than inside one page because two surfaces now render it: the Communities index
  * rail and a single community's own rail. Previously it was a private helper in
- * app/groups/page.tsx, which a second caller could only have reached by importing a page module or
+ * app/communities/page.tsx, which a second caller could only have reached by importing a page module or
  * by copying the photo-fallback chain - and a copied fallback chain is exactly how the two would
  * have drifted apart.
  *

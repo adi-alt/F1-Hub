@@ -14,7 +14,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata: Metadata = pageMetadata({
   title: "Season",
   description: "The current Formula 1 season, round by round: drivers' and constructors' standings with sprint points, form and the title fight.",
-  path: "/season",
+  path: "/?section=season",
 });
 
 export default async function SeasonPage({

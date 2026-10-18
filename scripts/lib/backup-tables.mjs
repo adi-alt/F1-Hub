@@ -63,7 +63,9 @@ export const REBUILDABLE = [
 ];
 
 /** Short-lived or regenerable, and some of it sensitive (one-time codes): deliberately not backed up. */
-export const EPHEMERAL = ["otp_codes", "ai_cache", "rate_limits", "pipeline_runs"];
+// notifications: a feed of recent events (each one also lives in the table it describes - the round, the post, the
+// request), so losing it loses the "unread" marks, not data.
+export const EPHEMERAL = ["otp_codes", "ai_cache", "rate_limits", "pipeline_runs", "notifications"];
 
 /** Supabase Auth's own tables, backed up from the auth schema (accounts and sign-in methods). */
 export const AUTH_TABLES = ["users", "identities"];

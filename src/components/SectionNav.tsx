@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAppLocation } from "@/hooks/useAppLocation";
 
 type Item = { id: string; label: string };
 
@@ -46,7 +46,7 @@ function scan(): { items: Item[]; targets: HTMLElement[] } {
  * least three sections; it never covers content until it is hovered.
  */
 export function SectionNav() {
-  const pathname = usePathname();
+  const { key: pathname } = useAppLocation();
   const [items, setItems] = useState<Item[]>([]);
   const [active, setActive] = useState<string | null>(null);
 

@@ -3,9 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { TOUR_STEPS, type TourStep } from "./tourSteps";
+import { useAppLocation } from "@/hooks/useAppLocation";
 
 type TourContextValue = { start: () => void };
 const TourContext = createContext<TourContextValue>({ start: () => {} });
@@ -26,7 +26,7 @@ const STEP_KEY = "f1hub_tour_step";
 
 export function ProductTourProvider({ children }: { children: React.ReactNode }) {
   const { user, onboardingDone, setOnboardingDone } = useAuth();
-  const pathname = usePathname();
+  const { appPath, params, key: pathname } = useAppLocation();
   const reduceMotion = useReducedMotion();
 
   const [running, setRunning] = useState(false);
@@ -35,7 +35,7 @@ export function ProductTourProvider({ children }: { children: React.ReactNode })
   const [rect, setRect] = useState<Rect | null>(null);
   const startedFor = useRef<string | null>(null);
 
-  const onCommunities = pathname === "/groups";
+  const onCommunities = appPath === "/communities" && !params?.get("id");
   // A step whose target isn't on this page is dropped before the run starts, so Next/Back never
   // land on a dead step and the spotlight is never empty.
   const steps = useMemo(

@@ -43,7 +43,7 @@ export type UserProfile = {
 export type PreferencesPatch = Partial<
   Pick<
     UserProfile,
-    "favoriteDrivers" | "favoriteTeams" | "favoriteTracks" | "notifyBeforeQualifying" | "notifyOnResults" | "firstName"
+    "favoriteDrivers" | "favoriteTeams" | "favoriteTracks" | "notifyBeforeQualifying" | "notifyOnResults" | "firstName" | "lastName"
   >
 >;
 
@@ -354,6 +354,7 @@ export async function updateUserPreferences(uid: string, patch: PreferencesPatch
   if (patch.notifyBeforeQualifying !== undefined) update.notify_before_qualifying = patch.notifyBeforeQualifying;
   if (patch.notifyOnResults !== undefined) update.notify_on_results = patch.notifyOnResults;
   if (patch.firstName !== undefined) update.first_name = patch.firstName;
+  if (patch.lastName !== undefined) update.last_name = patch.lastName;
   if (Object.keys(update).length === 0) return;
   const { error } = await supabaseAdmin.from("profiles").update(update).eq("id", uid);
   if (error) throw new Error(`updateUserPreferences(${uid}): ${error.message}`);

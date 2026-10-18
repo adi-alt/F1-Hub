@@ -13,9 +13,9 @@ import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 const ITEMS = [
-  { href: "/profile?section=personalisation", label: "Personalisation", icon: SlidersHorizontal },
-  { href: "/profile?section=notifications", label: "Notifications", icon: Bell },
-  { href: "/profile?section=profile", label: "Profile", icon: Pencil },
+  { href: "/?section=profile&tab=personalisation", label: "Personalisation", icon: SlidersHorizontal },
+  { href: "/?section=profile&tab=notifications", label: "Notifications", icon: Bell },
+  { href: "/?section=profile&tab=profile", label: "Profile", icon: Pencil },
 ];
 
 // The panel's actual frosted look - a real translucent dark glass (~50% tint, not glass-surface's

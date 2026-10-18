@@ -18,8 +18,8 @@ export default async function NotFound() {
   const season = await getCurrentSeason();
   const next = [
     { href: seasonHref(season), icon: Flag, title: `${season} season`, text: "Standings, races and the title fight" },
-    { href: "/circuits", icon: MapPin, title: "Circuits", text: "Every track on the calendar" },
-    { href: "/archive", icon: Archive, title: "Archive", text: "Every race since 1950" },
+    { href: "/?section=circuits", icon: MapPin, title: "Circuits", text: "Every track on the calendar" },
+    { href: "/?section=archive", icon: Archive, title: "Archive", text: "Every race since 1950" },
     { href: "/", icon: Home, title: "Home", text: "The next race and the latest" },
   ];
 

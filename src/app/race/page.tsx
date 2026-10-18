@@ -39,9 +39,9 @@ import { pageMetadata } from "@/lib/seo";
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ year?: string; race?: string }> }): Promise<Metadata> {
   const { year: yearParam, race: raceParam } = await searchParams;
   const year = Number(yearParam);
-  const fallback = pageMetadata({ title: "Race", description: "A Formula 1 race weekend: results, qualifying, the race replay and the model's simulation.", path: "/race" });
+  const fallback = pageMetadata({ title: "Race", description: "A Formula 1 race weekend: results, qualifying, the race replay and the model's simulation.", path: "/?section=season" });
   if (!yearParam || !raceParam || Number.isNaN(year)) return fallback;
-  const path = `/race?year=${year}&race=${raceParam}`;
+  const path = `/?section=season&year=${year}&race=${raceParam}`;
 
   if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     const match = (await getRacesByYear(year)).find((r) => slugifyRaceName(r.name) === raceParam);

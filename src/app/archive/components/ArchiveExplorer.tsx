@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
@@ -77,8 +76,7 @@ export function ArchiveExplorer({
   favoriteDrivers: string[];
   favoriteTeams: string[];
 }) {
-  const router = useRouter();
-  const [section, setSectionState] = useUrlParam("section", initialSection);
+  const [section, setSectionState] = useUrlParam("tab", initialSection);
   const [search, setSearch] = useUrlParam("q");
   const [era, setEra] = useUrlParam("era", "all");
   const [status, setStatus] = useUrlParam("status", "all");
@@ -108,7 +106,7 @@ export function ArchiveExplorer({
   const teamsQuery = useArchiveTeams(facet === "team", initialTeams);
 
   function switchTo(next: Facet) {
-    // Each setter below also calls router.replace on its own (see useUrlParam) - redundant with
+    // Each setter below also writes the URL on its own (see useUrlParam) - redundant with
     // the explicit replace at the end, but harmless: every call here is a client-side history
     // update with no network request, and the final explicit replace (a fresh, clean URL, not
     // derived from the others' stale searchParams snapshots) is what actually wins in the address
@@ -120,7 +118,8 @@ export function ArchiveExplorer({
     setStatus("all");
     setCountry("");
     setFavParam("");
-    router.replace(`/archive?section=${next}`, { scroll: false });
+    // A clean URL for the new tab (no search or filters carried over), without a server round trip.
+    window.history.replaceState(window.history.state, "", `/?section=archive&tab=${next}`);
   }
 
   const filteredYears = years.filter((y) => {

@@ -44,7 +44,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Circuit
   return pageMetadata({
     title: "Circuits",
     description: "Every circuit on the Formula 1 calendar: the track drawn from real timing data, how its layout changed, past winners and records.",
-    path: "/circuits",
+    path: "/?section=circuits",
   });
 }
 

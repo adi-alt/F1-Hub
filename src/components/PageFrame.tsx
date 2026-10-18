@@ -1,8 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { Footer } from "@/components/Footer";
 import { useAuth } from "@/providers/AuthProvider";
+import { useAppLocation } from "@/hooks/useAppLocation";
 
 /**
  * The page's one <main> and, for a signed-out visitor on the landing page, the footer. The document
@@ -11,7 +11,7 @@ import { useAuth } from "@/providers/AuthProvider";
  * and the browser's scrollbar.
  */
 export function PageFrame({ season, children }: { season: number; children: React.ReactNode }) {
-  const pathname = usePathname();
+  const { appPath } = useAppLocation();
   const { isAuthorized, loading } = useAuth();
 
   return (
@@ -25,7 +25,7 @@ export function PageFrame({ season, children }: { season: number; children: Reac
           aimed at. `!loading` matters as much as `!isAuthorized`: useAuth() starts with isAuthorized
           false before the session check resolves, so without it the footer would flash in under the
           homepage's loading skeleton for every visitor, then disappear. */}
-      {pathname === "/" && !loading && !isAuthorized && <Footer season={season} />}
+      {appPath === "/" && !loading && !isAuthorized && <Footer season={season} />}
     </>
   );
 }

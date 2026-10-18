@@ -28,7 +28,7 @@ test.describe("native document scroll", () => {
   }
 
   test("PageDown scrolls straight away, without clicking the page first", async ({ page }) => {
-    await page.goto("/race?year=2026&race=bahrain-grand-prix");
+    await page.goto("/?section=season&year=2026&race=bahrain-grand-prix");
     await settle(page);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await page.keyboard.press("PageDown");
@@ -36,7 +36,7 @@ test.describe("native document scroll", () => {
   });
 
   test("the header stays in view while the page scrolls", async ({ page }) => {
-    await page.goto("/season?year=2026");
+    await page.goto("/?section=season&year=2026");
     await settle(page);
     await page.evaluate(() => window.scrollTo(0, 900));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
@@ -45,7 +45,7 @@ test.describe("native document scroll", () => {
   });
 
   test("Back returns to where you were on the page", async ({ page }) => {
-    await page.goto("/season?year=2026");
+    await page.goto("/?section=season&year=2026");
     await settle(page);
     await page.evaluate(() => window.scrollTo(0, 700));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
@@ -66,7 +66,7 @@ test.describe("native document scroll", () => {
   });
 
   test("a clicked in-page link keeps the heading below the sticky header", async ({ page }) => {
-    await page.goto("/season?year=2026");
+    await page.goto("/?section=season&year=2026");
     await settle(page);
     const scrollPadding = await page.evaluate(() => getComputedStyle(document.documentElement).scrollPaddingTop);
     expect(parseFloat(scrollPadding)).toBeGreaterThanOrEqual(64);
