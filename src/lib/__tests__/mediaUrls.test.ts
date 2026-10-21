@@ -13,6 +13,7 @@ mockModule("next/cache", { revalidateTag: () => {}, unstable_cache: (fn: unknown
 
 const UPLOAD = "https://proj.supabase.co/storage/v1/object/public/post-media/user-1/photo.png";
 const GIF = "https://static.klipy.com/ii/0b/5f/md.gif";
+const SERVED = "/api/posts/media/file?path=user-1%2Fphoto.png";
 
 let media: typeof import("../mediaUrls");
 let posts: typeof import("../supabase/groupPosts");
@@ -101,8 +102,29 @@ describe("reading posts", () => {
     assert.equal(bad?.attachment, null);
 
     const ok = await posts.getPostById("p-ok", "user-2");
-    assert.equal(ok?.mediaUrl, UPLOAD);
-    assert.equal(ok?.attachment?.url, UPLOAD);
+    assert.equal(ok?.mediaUrl, SERVED, "an upload is shown through the checked route, never the bucket's address");
+    assert.equal(ok?.attachment?.url, SERVED);
     assert.equal(ok?.attachment?.thumbUrl, null, "a bad thumbnail is dropped on its own");
+  });
+});
+
+describe("served and stored addresses", () => {
+  test("an upload round-trips: shown served, stored as the bucket's URL; a GIF is untouched", () => {
+    assert.equal(media.servedMediaUrl(UPLOAD), SERVED);
+    assert.equal(media.storedMediaUrl(SERVED), UPLOAD);
+    assert.equal(media.servedMediaUrl(GIF), GIF);
+    assert.equal(media.storedMediaUrl(GIF), GIF);
+  });
+
+  test("a served URL that isn't a plain upload path is left as is, so the write check refuses it", () => {
+    for (const bad of ["/api/posts/media/file?path=..%2F..%2Fsecret", "/api/posts/media/file?path=a%2Fb%2Fc.png", "/api/posts/media/file?path="]) {
+      assert.equal(media.storedMediaUrl(bad), bad);
+      assert.equal(media.isAllowedMediaUrl(media.storedMediaUrl(bad)), false);
+    }
+  });
+
+  test("a post written with the served URL the composer was shown stores the bucket's URL", async () => {
+    await posts.createPost(null, "user-1", { content: "photo", mediaUrl: SERVED });
+    assert.equal(fake.rows("group_posts")[0].media_url, UPLOAD);
   });
 });

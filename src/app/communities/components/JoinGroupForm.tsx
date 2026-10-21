@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { fieldControlClass } from "@/components/ui/Field";
 import { extractInviteToken } from "@/lib/inviteLink";
 import { groupHref } from "@/lib/routes";
 
@@ -60,37 +62,31 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Paste invite link or code"
-          className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+          aria-label="Invite link or community code"
+          className={`flex-1 ${fieldControlClass(status === "error")}`}
         />
-        <button
-          type="submit"
-          disabled={status === "saving"}
-          className="shrink-0 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
-        >
-          {status === "saving" ? "Joining…" : "Join"}
-        </button>
-        {status === "error" && <p className="mt-2 basis-full text-xs text-brand-text">{error}</p>}
+        <Button type="submit" variant="secondary" size="md" loading={status === "saving"}>
+          Join
+        </Button>
+        {status === "error" && <p className="mt-2 basis-full text-caption text-brand-text">{error}</p>}
       </form>
     );
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="rounded-xl border border-white/10 bg-surface-1 p-5">
-      <p className="text-sm font-semibold text-white">Join a community</p>
+    <form onSubmit={(e) => void submit(e)} className="rounded-card border border-white/10 bg-surface-1 p-5">
+      <p className="text-body-sm font-semibold text-primary">Join a community</p>
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Paste invite link or code"
-        className="mt-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary"
+        aria-label="Invite link or community code"
+        className={`mt-3 ${fieldControlClass(status === "error")}`}
       />
-      <button
-        type="submit"
-        disabled={status === "saving"}
-        className="mt-3 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
-      >
-        {status === "saving" ? "Joining…" : "Join"}
-      </button>
-      {status === "error" && <p className="mt-2 text-xs text-brand-text">{error}</p>}
+      <Button type="submit" variant="secondary" size="md" className="mt-3" loading={status === "saving"}>
+        Join
+      </Button>
+      {status === "error" && <p className="mt-2 text-caption text-brand-text">{error}</p>}
     </form>
   );
 }

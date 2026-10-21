@@ -1,5 +1,6 @@
 import { useId, type ComponentProps, type ReactNode } from "react";
-import { ChevronDown, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
+import { Picker, type PickerOption } from "./Picker";
 
 // No "use client": nothing here holds state, so a Field renders in a Server Component too (a server
 // form with no handlers), and a Client Component can still pass it onChange and friends.
@@ -97,38 +98,21 @@ export function TextInput({
   );
 }
 
-/** A native select in a Field, with a chevron in place of the browser's own arrow. Pass the
- * <option>s as children; every other native select prop passes through except className and style. */
+/** A choice in a Field, as the app's own dropdown (Picker) rather than the browser's: one dropdown everywhere. */
 export function Select({
   label,
   hint,
   error,
   id,
   className,
-  children,
-  ...selectProps
-}: FieldOwnProps & Omit<ComponentProps<"select">, "id" | "className" | "style" | "aria-describedby" | "aria-invalid">) {
+  options,
+  value,
+  onChange,
+  placeholder,
+}: FieldOwnProps & { options: PickerOption[]; value: string; onChange: (value: string) => void; placeholder?: string }) {
   return (
     <Field label={label} hint={hint} error={error} id={id} className={className}>
-      {({ id: controlId, describedBy, invalid }) => (
-        <div className="relative">
-          <select
-            {...selectProps}
-            id={controlId}
-            aria-describedby={describedBy}
-            aria-invalid={invalid || undefined}
-            className={`peer appearance-none pe-9 ${fieldControlClass(invalid)}`}
-          >
-            {children}
-          </select>
-          <ChevronDown
-            aria-hidden
-            size={16}
-            strokeWidth={1.75}
-            className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-secondary peer-disabled:text-disabled"
-          />
-        </div>
-      )}
+      {({ id: controlId, describedBy }) => <Picker id={controlId} describedBy={describedBy} options={options} value={value} onChange={onChange} placeholder={placeholder} />}
     </Field>
   );
 }

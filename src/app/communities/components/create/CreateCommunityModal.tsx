@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
+import { fieldControlClass } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
@@ -517,15 +518,11 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                         }}
                         type="email"
                         placeholder="person@email.com"
-                        className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                        className={`flex-1 ${fieldControlClass(false)}`}
                       />
-                      <button
-                        type="button"
-                        onClick={addEmail}
-                        className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
-                      >
+                      <Button variant="secondary" size="md" onClick={addEmail}>
                         Add
-                      </button>
+                      </Button>
                     </div>
                     {emailError && <p className="mt-1 text-caption text-brand-text">{emailError}</p>}
                     {emails.length > 0 && (
@@ -576,33 +573,18 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
             </>
           ) : (
           <>
-          <button
-            type="button"
-            onClick={() => (stepIndex === 0 ? requestClose() : go(-1))}
-            disabled={submitting}
-            className="text-sm text-secondary transition hover:text-white disabled:opacity-40"
-          >
+          <Button variant="ghost" size="md" onClick={() => (stepIndex === 0 ? requestClose() : go(-1))} disabled={submitting}>
             {stepIndex === 0 ? "Cancel" : "Back"}
-          </button>
+          </Button>
 
           {step === "review" ? (
-            <button
-              type="button"
-              onClick={() => void submit()}
-              disabled={submitting}
-              className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
-            >
-              {submitting ? "Creating…" : "Create Community"}
-            </button>
+            <Button variant="primary" size="md" onClick={() => void submit()} loading={submitting}>
+              Create community
+            </Button>
           ) : (
-            <button
-              type="button"
-              onClick={() => go(1)}
-              disabled={!canAdvance}
-              className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-            >
+            <Button variant="primary" size="md" onClick={() => go(1)} disabled={!canAdvance}>
               Next
-            </button>
+            </Button>
           )}
           </>
           )}

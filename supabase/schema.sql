@@ -717,7 +717,8 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values (
   'post-media',
   'post-media',
-  true,
+  -- Not public since 20261023_private_post_media.sql: files are served through /api/posts/media/file, which checks the post.
+  false,
   2097152,
   array[
     'image/png', 'image/jpeg', 'image/webp', 'image/gif',

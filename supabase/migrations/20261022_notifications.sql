@@ -16,7 +16,7 @@ create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
   kind text not null check (kind in (
-    'prediction_result', 'new_round', 'reply', 'join_request', 'join_decision', 'post_pending', 'post_moderated', 'role_changed'
+    'prediction_result', 'new_round', 'reply', 'join_request', 'join_decision', 'post_pending', 'post_moderated', 'role_changed', 'invite'
   )),
   title text not null check (char_length(title) between 1 and 200),
   body text check (body is null or char_length(body) <= 500),

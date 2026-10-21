@@ -13,16 +13,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * AuthDialog when it opened the provider in a popup rather than navigating the main tab):
  * - popup=1: redirect to /auth/popup-closed, which posts the result back to the tab that opened
  *   it (via postMessage) and closes itself - the main tab never reloads at all.
- * - otherwise: redirect back to the page it started on (`next`) with a flag AuthDialogHost.tsx watches for, to reopen the dialog on
+ * - otherwise: redirect home with a flag AuthDialogHost.tsx watches for, to reopen the dialog on
  *   the OTP step - the same-tab fallback for when the popup was blocked. */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const isPopup = url.searchParams.get("popup") === "1";
-  // Where a same-tab round trip started: a path on this site only (not "//host", which a browser reads as another site).
-  const nextParam = url.searchParams.get("next");
-  const next = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") && !nextParam.startsWith("/\\") ? nextParam : "/";
-  const withFlag = (flag: string) => `${url.origin}${next}${next.includes("?") ? "&" : "?"}${flag}`;
 
   function landing(step: "otp" | "error", email?: string) {
     if (isPopup) {
@@ -31,7 +27,7 @@ export async function GET(request: Request) {
       if (email) dest.searchParams.set("email", email);
       return NextResponse.redirect(dest);
     }
-    return NextResponse.redirect(withFlag(step === "otp" ? "authStep=otp" : "authError=1"));
+    return NextResponse.redirect(step === "otp" ? `${url.origin}/?authStep=otp` : `${url.origin}/?authError=1`);
   }
 
   if (!code) return landing("error");

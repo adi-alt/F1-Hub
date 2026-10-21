@@ -561,3 +561,16 @@ describe("hidden communities and the door", () => {
     await groups.updateGroupSettings(PRIVATE, ADMIN, { visibility: "public", communityType: "general" });
   });
 });
+
+describe("inviting people who already have an account", () => {
+  test("members aren't emailed again; someone with an account is emailed and told on the site", async () => {
+    fake.rows("profiles").find((p) => p.id === MEMBER)!.email = "mia@test.invalid";
+    fake.rows("profiles").find((p) => p.id === OUTSIDER)!.email = "otto@test.invalid";
+    const res = await groups.inviteByEmail(PRIVATE, ADMIN, ["mia@test.invalid", "otto@test.invalid", "new@test.invalid"], "https://preview.example");
+    assert.deepEqual(res, { sent: 2, alreadyMembers: 1 });
+    assert.deepEqual(sent.map((m) => m.to).sort(), ["new@test.invalid", "otto@test.invalid"]);
+    const notices = fake.rows("notifications");
+    assert.deepEqual(notices.map((n) => [n.user_id, n.kind]), [[OUTSIDER, "invite"]]);
+    assert.match(String(notices[0].href), new RegExp(`^/\\?section=communities&id=${PRIVATE}&invite=`), "the same personal link, as a site path");
+  });
+});

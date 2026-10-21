@@ -28,6 +28,22 @@ const safely = async (work: () => Promise<void>) => {
   }
 };
 
+/** Someone was invited by email and already has an account: the invitation shows on the site too, with the same
+ * link. The email itself went from inviteByEmail, so this is a site notice only (the kind is siteOnly). */
+export const notifyInvited = (groupId: string, userId: string, inviterId: string, href: string) =>
+  safely(async () => {
+    const [community, inviter] = await Promise.all([groupName(groupId), personName(inviterId)]);
+    await notify([userId], {
+      kind: "invite",
+      title: `${inviter} invited you to ${community}`,
+      body: "Open it to join.",
+      href,
+      actorId: inviterId,
+      groupId,
+      dedupeKey: `invite:${groupId}:${new Date().toISOString().slice(0, 10)}`,
+    });
+  });
+
 /** A prediction round was settled: each person who entered hears whether they called it, and what they won. */
 export const notifyPredictionSettled = (groupId: string, predictionId: string, type: PredictionType, raceName: string) =>
   safely(async () => {

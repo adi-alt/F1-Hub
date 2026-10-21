@@ -98,29 +98,26 @@ test("TextInput defaults to type=text and leaves aria-invalid off while valid", 
   assert.ok(has(input, "border-strong"));
 });
 
-test("Select renders its options in a styled native select with a decorative chevron", () => {
-  const html = renderToStaticMarkup(
-    withChildren(
-      Select,
-      { label: "Team", hint: "Pick one", name: "team" },
-      createElement("option", { key: "mcl", value: "mcl" }, "McLaren"),
-      createElement("option", { key: "fer", value: "fer" }, "Ferrari"),
-    ),
-  );
-  const select = find(html, "select");
-  assert.equal(select?.attrs.name, "team");
-  assert.equal(find(html, "label")?.attrs.for, select?.attrs.id);
-  assert.equal(select?.attrs["aria-describedby"], `${select?.attrs.id}-hint`);
-  assert.ok(has(select, "appearance-none", "border-strong", "min-h-10"));
-  assert.equal(tags(html).filter((tag) => tag.name === "option").length, 2);
-  assert.match(html, /<svg[^>]*class="lucide lucide-chevron-down[^"]*pointer-events-none[^"]*"[^>]*aria-hidden="true"/);
+const teams = [
+  { value: "mcl", label: "McLaren" },
+  { value: "fer", label: "Ferrari" },
+];
+
+test("Select is the app's own dropdown, its label and hint wired to the trigger, showing the chosen option", () => {
+  const html = renderToStaticMarkup(createElement(Select, { label: "Team", hint: "Pick one", options: teams, value: "fer", onChange: () => {} }));
+  assert.equal(find(html, "select"), undefined, "no native select");
+  const trigger = find(html, "button");
+  assert.equal(trigger?.attrs["aria-haspopup"], "listbox");
+  assert.equal(find(html, "label")?.attrs.for, trigger?.attrs.id);
+  assert.equal(trigger?.attrs["aria-describedby"], `${trigger?.attrs.id}-hint`);
+  assert.match(html, /Ferrari/);
 });
 
 test("every class Field renders is a real Tailwind utility", async () => {
   const html = [
     renderToStaticMarkup(withChildren(Field, { label: "Bio", hint: "h", error: "e" }, control)),
     renderToStaticMarkup(createElement(TextInput, { label: "Name" })),
-    renderToStaticMarkup(withChildren(Select, { label: "Team", error: "Pick one" }, createElement("option", null, "McLaren"))),
+    renderToStaticMarkup(createElement(Select, { label: "Team", error: "Pick one", options: teams, value: "", onChange: () => {} })),
   ].join("");
   assert.deepEqual(await classesWithoutCss(html), []);
 });

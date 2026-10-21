@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { fieldControlClass } from "@/components/ui/Field";
 import { Picker } from "@/components/ui/Picker";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import {
@@ -70,11 +72,11 @@ export function ManageTab({ group, pendingRequests = 0 }: { group: GroupDetail; 
               key={s.value}
               type="button"
               onClick={() => open(s.value)}
-              className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${
+              className={`whitespace-nowrap rounded-control px-3 py-2 text-left text-body-sm transition-colors duration-fast ${
                 section === s.value
                   ? s.value === "danger"
                     ? "bg-brand/10 text-brand-text"
-                    : "bg-white/[0.06] text-white"
+                    : "bg-white/[0.06] text-primary"
                   : "text-tertiary hover:bg-white/[0.03] hover:text-secondary"
               }`}
             >
@@ -129,17 +131,12 @@ function useSave(groupId: string) {
 function SaveRow({ status, error, onSave, disabled, dirty }: { status: string; error: string; onSave: () => void; disabled?: boolean; dirty: boolean }) {
   return (
     <div className="mt-5 flex items-center gap-3">
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={status === "saving" || disabled}
-        className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-      >
-        {status === "saving" ? "Saving…" : "Save changes"}
-      </button>
-      {status === "saved" && !dirty && <span className="text-xs text-emerald-400">Saved</span>}
+      <Button variant="primary" size="sm" onClick={onSave} disabled={disabled || !dirty} loading={status === "saving"}>
+        Save changes
+      </Button>
+      {status === "saved" && !dirty && <span className="text-caption text-success">Saved</span>}
       {error && (
-        <span role="alert" className="text-xs text-brand-text">
+        <span role="alert" className="text-caption text-brand-text">
           {error}{" "}
           <button type="button" onClick={onSave} className="underline underline-offset-2">
             Retry
@@ -153,8 +150,8 @@ function SaveRow({ status, error, onSave, disabled, dirty }: { status: string; e
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-sm font-semibold text-white">{title}</h2>
-      {description && <p className="mt-0.5 text-xs leading-relaxed text-tertiary">{description}</p>}
+      <h2 className="text-body font-semibold text-primary">{title}</h2>
+      {description && <p className="mt-0.5 text-caption leading-relaxed text-tertiary">{description}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -193,35 +190,35 @@ function GeneralSection({ group }: { group: GroupDetail }) {
   return (
     <Section title="General" description="Name, description and how this community is found.">
       <div className="space-y-4">
-        <label className="block text-xs text-secondary">
+        <label className="block text-caption text-secondary">
           Name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={40}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className={`mt-1 resize-none ${fieldControlClass(false)}`}
           />
         </label>
 
-        <label className="block text-xs text-secondary">
+        <label className="block text-caption text-secondary">
           Description
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={280}
             rows={3}
-            className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className={`mt-1 resize-none ${fieldControlClass(false)}`}
           />
         </label>
 
-        <label className="block text-xs text-secondary">
+        <label className="block text-caption text-secondary">
           Tagline
           <input
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
             maxLength={MAX_TAGLINE_CHARS}
             placeholder="A short line shown over the cover image"
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+            className={`mt-1 resize-none ${fieldControlClass(false)}`}
           />
           {/* Stated rather than silently truncated - it sits over an image at any width, which is
               why it's capped at all. */}
@@ -230,7 +227,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           </span>
         </label>
 
-        <div className="text-xs text-secondary">
+        <div className="text-caption text-secondary">
           Topic
           <Picker
             options={COMMUNITY_TOPICS.map((t) => ({ value: t, label: t }))}
@@ -244,7 +241,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           />
         </div>
 
-        <div className="text-xs text-secondary">
+        <div className="text-caption text-secondary">
           Community type
           <Picker
             options={COMMUNITY_TYPES.map((t) => ({ value: t.value, label: t.label, description: t.tagline }))}
@@ -256,11 +253,11 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           {/* Changing the type changes which modules are available at all, so it's worth saying so
               before they save rather than after tabs appear or vanish. */}
           {communityType !== group.communityType && (
-            <p className="mt-1.5 text-caption text-amber-400/80">Changing the type changes which features this community can use. Nothing is deleted.</p>
+            <p className="mt-1.5 text-caption text-warning">Changing the type changes which features this community can use. Nothing is deleted.</p>
           )}
         </div>
 
-        <div className="text-xs text-secondary">
+        <div className="text-caption text-secondary">
           Visibility
           <Picker
             options={VISIBILITY_OPTIONS.filter((v) => !(communityType === "private_circle" && v.value === "public")).map((v) => ({ value: v.value, label: v.label, description: v.description }))}
@@ -269,7 +266,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
             ariaLabel="Visibility"
             className="mt-1"
           />
-          {visibility !== group.visibility && <p className="mt-1.5 text-caption text-amber-400/80">{VISIBILITY_CHANGE[visibility]}</p>}
+          {visibility !== group.visibility && <p className="mt-1.5 text-caption text-warning">{VISIBILITY_CHANGE[visibility]}</p>}
           {communityType === "private_circle" && visibility === "public" && <p className="mt-1.5 text-caption text-brand-text">A Private Circle can&apos;t be public. Pick another type or visibility.</p>}
         </div>
       </div>
@@ -313,9 +310,9 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
         {enabled
           .filter((m) => !toggles.includes(m))
           .map((m) => (
-            <div key={m} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
+            <div key={m} className="flex items-center justify-between rounded-control border border-white/10 bg-black/20 px-3.5 py-2.5">
               <span>
-                <span className="block text-sm text-secondary">{MODULE_LABELS[m]}</span>
+                <span className="block text-body-sm text-secondary">{MODULE_LABELS[m]}</span>
                 <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
               <span className="text-caption font-semibold text-tertiary">Always on</span>
@@ -331,12 +328,12 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
               role="switch"
               aria-checked={on}
               onClick={() => setFeatures((prev) => ({ ...prev, [m]: !on }))}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
+              className={`flex w-full items-center justify-between gap-3 rounded-control border px-3.5 py-2.5 text-left transition ${
                 on ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
               }`}
             >
               <span className="min-w-0">
-                <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
+                <span className="block text-body-sm font-medium text-primary">{MODULE_LABELS[m]}</span>
                 <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
               <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-white/10"}`} aria-hidden>
@@ -346,7 +343,7 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
           );
         })}
 
-        {toggles.length === 0 && <p className="text-xs text-tertiary">This community type has no optional features.</p>}
+        {toggles.length === 0 && <p className="text-caption text-tertiary">This community type has no optional features.</p>}
       </div>
 
       <SaveRow status={status} error={error} dirty={dirty} onSave={() => void save({ features })} />
@@ -364,9 +361,9 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
     <Section title="Permissions" description="Who can do what. Every one of these is enforced on the server, not just hidden in the UI.">
       <div className="space-y-3">
         {PERMISSION_ACTIONS.map((action) => (
-          <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
+          <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-white/10 bg-black/20 px-3.5 py-3">
             <span className="min-w-0">
-              <span className="block text-sm text-neutral-200">{action.label}</span>
+              <span className="block text-body-sm text-primary">{action.label}</span>
               <span className="block text-caption text-tertiary">{action.description}</span>
             </span>
             <Picker
@@ -399,12 +396,12 @@ function ModerationSection({ group }: { group: GroupDetail }) {
         role="switch"
         aria-checked={moderationEnabled}
         onClick={() => setModerationEnabled((v) => !v)}
-        className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-3 text-left transition ${
+        className={`flex w-full items-center justify-between gap-3 rounded-control border px-3.5 py-3 text-left transition ${
           moderationEnabled ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
         }`}
       >
         <span>
-          <span className="block text-sm font-medium text-white">Require post approval</span>
+          <span className="block text-body-sm font-medium text-primary">Require post approval</span>
           <span className="block text-caption text-tertiary">
             Member posts wait for an admin or moderator. Admins and moderators bypass their own queue.
           </span>
@@ -468,50 +465,45 @@ function JoinRequestsSection({ group, pendingRequests }: { group: GroupDetail; p
       {requests === null ? (
         <div className="space-y-2">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="skeleton-shimmer h-14 rounded-lg bg-white/[0.04]" />
+            <div key={i} className="skeleton-shimmer h-14 rounded-control bg-white/[0.04]" />
           ))}
         </div>
       ) : requests === "error" ? (
-        <p className="rounded-lg border border-white/10 bg-black/20 p-6 text-center text-sm text-secondary">
+        <p className="rounded-control border border-white/10 bg-black/20 p-6 text-center text-body-sm text-secondary">
           Couldn&apos;t load the requests.{" "}
           <button type="button" onClick={() => { setRequests(null); setReloadKey((k) => k + 1); }} className="underline underline-offset-2 hover:text-primary">
             Retry
           </button>
         </p>
       ) : requests.length === 0 ? (
-        <p className="rounded-lg border border-white/10 bg-black/20 p-6 text-center text-sm text-tertiary">
+        <p className="rounded-control border border-white/10 bg-black/20 p-6 text-center text-body-sm text-tertiary">
           {group.visibility === "public" ? "This community is public, so people join directly - there's nothing to approve." : "No one is waiting to join."}
         </p>
       ) : (
         <ul className="space-y-2">
           {requests.map((request) => (
-            <li key={request.userId} className="rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
+            <li key={request.userId} className="rounded-control border border-white/10 bg-black/20 px-3.5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0">
-                  <span className="block truncate text-sm text-neutral-200">{request.displayName ?? request.username ?? "Member"}</span>
+                  <span className="block truncate text-body-sm text-primary">{request.displayName ?? request.username ?? "Member"}</span>
                   <span className="block text-caption text-tertiary">Asked {new Date(request.createdAt).toLocaleDateString()}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={busy === request.userId}
-                    onClick={() => void decide(request.userId, "approve")}
-                    className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
-                  >
+                  <Button variant="primary" size="sm" loading={busy === request.userId} onClick={() => void decide(request.userId, "approve")}>
                     Approve
-                  </button>
+                  </Button>
                   <ConfirmButton onConfirm={() => void decide(request.userId, "reject")} question="Reject?" confirmLabel="Reject" pending={busy === request.userId}>
                     Reject
                   </ConfirmButton>
                 </span>
               </div>
-              {request.message && <p className="mt-2 border-t border-white/10 pt-2 text-xs leading-relaxed text-secondary">{request.message}</p>}
+              {request.message && <p className="mt-2 border-t border-white/10 pt-2 text-caption leading-relaxed text-secondary">{request.message}</p>}
             </li>
           ))}
         </ul>
       )}
       {error && (
-        <p role="alert" className="mt-3 text-xs text-brand-text">
+        <p role="alert" className="mt-3 text-caption text-brand-text">
           {error}
         </p>
       )}
@@ -540,9 +532,9 @@ function DangerSection({ group }: { group: GroupDetail }) {
 
   return (
     <Section title="Danger zone" description="These can't be undone.">
-      <div className="rounded-lg border border-brand/30 bg-brand/4 px-4 py-3.5">
-        <p className="text-sm font-medium text-neutral-200">Delete this community</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-tertiary">
+      <div className="rounded-control border border-brand/30 bg-brand/4 px-4 py-3.5">
+        <p className="text-body-sm font-medium text-primary">Delete this community</p>
+        <p className="mt-0.5 text-caption leading-relaxed text-tertiary">
           Every post, comment, prediction and score is permanently removed for all {group.members.length} member
           {group.members.length === 1 ? "" : "s"}. Points already spent on predictions are not refunded.
         </p>
@@ -552,13 +544,12 @@ function DangerSection({ group }: { group: GroupDetail }) {
             question={`Permanently delete "${group.name}"?`}
             confirmLabel="Delete forever"
             pending={deleting}
-            className="rounded-full border border-brand/50 px-3.5 py-1.5 text-xs font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-40"
           >
             Delete community
           </ConfirmButton>
         </div>
         {error && (
-          <p role="alert" className="mt-2 text-xs text-brand-text">
+          <p role="alert" className="mt-2 text-caption text-brand-text">
             {error}
           </p>
         )}

@@ -3,6 +3,8 @@
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
+const OAUTH_RETURN_KEY = "f1hub-oauth-return"; // AuthDialog's
+
 /** The landing spot for the popup-based OAuth round trip (see /auth/callback's own `popup=1`
  * branch and AuthDialog's handleProvider) - posts the real result (step + email, both already
  * resolved server-side in /auth/callback) back to the tab that opened this popup, then closes
@@ -17,7 +19,21 @@ function PopupClosedInner() {
   useEffect(() => {
     const step = params.get("step");
     const email = params.get("email");
-    window.opener?.postMessage({ source: "f1hub-oauth", step, email }, window.location.origin);
+    if (!window.opener) {
+      // Not a popup after all (it was blocked, so the round trip ran in the main tab): back to the page it started on,
+      // with the flag that reopens sign-in at the code step. Only a path on this site is followed.
+      let back = "/";
+      try {
+        const saved = sessionStorage.getItem(OAUTH_RETURN_KEY);
+        sessionStorage.removeItem(OAUTH_RETURN_KEY);
+        if (saved?.startsWith("/") && !saved.startsWith("//") && !saved.startsWith("/\\")) back = saved;
+      } catch {
+        // Storage blocked: home.
+      }
+      window.location.replace(`${back}${back.includes("?") ? "&" : "?"}${step === "otp" ? "authStep=otp" : "authError=1"}`);
+      return;
+    }
+    window.opener.postMessage({ source: "f1hub-oauth", step, email }, window.location.origin);
     window.close();
   }, [params]);
 

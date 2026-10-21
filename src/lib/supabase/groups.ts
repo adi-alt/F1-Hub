@@ -22,7 +22,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 import { groupHref } from "@/lib/routes";
-import { notifyJoinDecision, notifyJoinRequest, notifyRoleChanged } from "@/lib/notificationEvents";
+import { notifyInvited, notifyJoinDecision, notifyJoinRequest, notifyRoleChanged } from "@/lib/notificationEvents";
 
 // Tagged AND short-TTL, not one or the other: every in-app mutation below that actually changes
 // what listPublicGroups/getGroupPreview display (name/description/visibility/avatar/banner/member
@@ -1106,7 +1106,7 @@ export async function inspectInvite(groupId: string, token: string | null | unde
 /** Emails an invitation to each address. A public community gets its plain link; a private or hidden
  * one gets a per-recipient, single-use, 7-day signed invitation, so a forwarded email can't be used
  * by a second person and each can be cancelled from Manage. */
-export async function inviteByEmail(groupId: string, uid: string, emails: string[], origin: string): Promise<{ sent: number }> {
+export async function inviteByEmail(groupId: string, uid: string, emails: string[], origin: string): Promise<{ sent: number; alreadyMembers: number }> {
   await requireInviteRights(groupId, uid);
   const cleaned = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
   if (cleaned.length === 0) throw new ServiceError("Add at least one email address.", 400);
@@ -1118,8 +1118,7 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   const groupName = (group?.name as string | undefined) ?? "an Apex F1 Hub group";
   const needsToken = (group?.visibility as string | undefined) !== "public";
   const inviterName = (await profilesById([uid])).get(uid)?.display_name ?? "A member";
-  // APP_BASE_URL when configured, else the origin of the request (see trustedOrigin).
-  const baseLink = `${trustedOrigin(origin)}${groupHref(groupId)}`;
+  // Links use APP_BASE_URL when configured, else the origin of the request (see trustedOrigin).
 
   // Names are user-controlled: escape for the HTML body, and strip control characters for the
   // subject header (audit SEC-11).
@@ -1128,22 +1127,42 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   const subjectGroup = singleLine(groupName);
   const subjectInviter = singleLine(inviterName);
 
-  if (needsToken) await assertInviteCapacity(groupId, uid, cleaned.length);
+  // People already in it aren't invited again; people with an account also get the invitation on the site.
+  const { data: accounts } = await supabaseAdmin.from("profiles").select("id, email").in("email", cleaned);
+  const accountByEmail = new Map((accounts ?? []).map((p) => [String(p.email).toLowerCase(), p.id as string]));
+  const accountIds = [...accountByEmail.values()];
+  const { data: inside } = accountIds.length
+    ? await supabaseAdmin.from("group_members").select("user_id").eq("group_id", groupId).in("user_id", accountIds)
+    : { data: [] as { user_id: string }[] };
+  const memberIds = new Set((inside ?? []).map((m) => m.user_id as string));
+  const recipients = cleaned.filter((e) => !memberIds.has(accountByEmail.get(e) ?? ""));
+  const alreadyMembers = cleaned.length - recipients.length;
+  if (recipients.length === 0) return { sent: 0, alreadyMembers };
+
+  if (needsToken) await assertInviteCapacity(groupId, uid, recipients.length);
   const expiresAt = expiryFromNow(INVITE_DEFAULT_DAYS);
   const transporter = getTransporter();
+  const expiry = needsToken ? "<p style=\"font-size:12px;color:#888;margin:0\">This link is for you only and works for 7 days.</p>" : "";
   await Promise.all(
-    cleaned.map(async (to) => {
-      const link = needsToken ? `${baseLink}&invite=${(await insertInvite(groupId, uid, expiresAt, 1)).token}` : baseLink;
+    recipients.map(async (to) => {
+      const path = needsToken ? `${groupHref(groupId)}&invite=${(await insertInvite(groupId, uid, expiresAt, 1)).token}` : groupHref(groupId);
+      const link = `${trustedOrigin(origin)}${path}`;
       await transporter.sendMail({
         from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
         to,
         subject: `${subjectInviter} invited you to join ${subjectGroup} on Apex F1 Hub`,
         text: `${inviterName} invited you to join "${groupName}" on Apex F1 Hub - a prediction league and F1 community. Join here: ${link}`,
-        html: `<p>${safeInviter} invited you to join <strong>${safeGroup}</strong> on Apex F1 Hub - a prediction league and F1 community.</p><p><a href="${escapeHtml(link)}">Join ${safeGroup}</a></p>`,
+        html: `<div style="font-family:system-ui,sans-serif;max-width:520px">
+<p style="font-size:16px;font-weight:600;margin:0 0 8px">${safeInviter} invited you to join ${safeGroup}</p>
+<p style="font-size:14px;color:#444;margin:0 0 16px">A prediction league and F1 community on Apex F1 Hub: pick the podium every Grand Prix and see who reads the sport best.</p>
+<p style="margin:0 0 24px"><a href="${escapeHtml(link)}" style="background:#e10600;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:14px">Join ${safeGroup}</a></p>
+${expiry}</div>`,
       });
+      const accountId = accountByEmail.get(to);
+      if (accountId) await notifyInvited(groupId, accountId, uid, path);
     }),
   );
-  return { sent: cleaned.length };
+  return { sent: recipients.length, alreadyMembers };
 }
 
 // ============================================================= join requests

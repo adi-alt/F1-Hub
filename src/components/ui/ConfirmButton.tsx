@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./Button";
 
 /**
  * A destructive action that asks first, in place - replacing `window.confirm()`, which this app
@@ -55,36 +56,38 @@ export function ConfirmButton({
   }, [armed]);
 
   if (!armed) {
+    // A caller's own resting look (a text link inside a card) wins; otherwise it's the app's small secondary button.
+    if (className)
+      return (
+        <button type="button" disabled={disabled || pending} onClick={() => setArmed(true)} className={className}>
+          {pending ? "Working…" : children}
+        </button>
+      );
     return (
-      <button
-        type="button"
-        disabled={disabled || pending}
-        onClick={() => setArmed(true)}
-        className={className || "text-xs text-tertiary transition hover:text-brand-text disabled:opacity-40"}
-      >
-        {pending ? "Working…" : children}
-      </button>
+      <Button variant="secondary" size="sm" disabled={disabled} loading={pending} onClick={() => setArmed(true)}>
+        {children}
+      </Button>
     );
   }
 
   return (
-    <span ref={wrapRef} className="inline-flex items-center gap-2 text-xs" role="group" aria-label={question}>
-      <span className="text-neutral-400">{question}</span>
-      <button
+    <span ref={wrapRef} className="inline-flex flex-wrap items-center gap-2" role="group" aria-label={question}>
+      <span className="text-caption text-secondary">{question}</span>
+      <Button
         ref={confirmRef}
-        type="button"
-        disabled={pending}
+        variant="danger"
+        size="sm"
+        loading={pending}
         onClick={() => {
           setArmed(false);
           onConfirm();
         }}
-        className="font-semibold text-brand-text transition hover:brightness-125 disabled:opacity-40"
       >
         {confirmLabel}
-      </button>
-      <button type="button" onClick={() => setArmed(false)} className="text-tertiary transition hover:text-white">
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setArmed(false)}>
         Cancel
-      </button>
+      </Button>
     </span>
   );
 }

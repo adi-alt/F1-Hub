@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { Copy, Link2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { fieldControlClass } from "@/components/ui/Field";
+import { Picker } from "@/components/ui/Picker";
 import { EYEBROW } from "@/components/ui/panel";
 import type { GroupDetail, GroupInvite } from "@/lib/supabase/groups";
 import { groupHref } from "@/lib/routes";
-
-const FIELD = "h-8 rounded-control border border-white/10 bg-black/30 px-2.5 text-body-sm text-primary focus:border-white/30 focus:outline-none";
 
 /** "Expires today / tomorrow / in 4 days": how long is left, not a date to work out. */
 function expiresIn(iso: string): string {
@@ -96,40 +96,45 @@ export function InvitePanel({ group }: { group: GroupDetail }) {
 
   return (
     <div className="space-y-8">
-      <section>
-        <h3 className={EYEBROW}>{isPublic ? "Share the link" : "Invitation links"}</h3>
+      {/* The invitation people actually receive comes first: an email to them (and a notice, if they're on the site). */}
+      <EmailInvites group={group} />
+
+      <section className="border-t border-white/[0.06] pt-6">
+        <h3 className={EYEBROW}>{isPublic ? "Or share the link" : "Or share a link"}</h3>
         <p className="mt-1 text-caption text-tertiary">
           {isPublic
             ? "Anyone can join this community, so its link is all people need."
-            : "Anyone with a link can join straight away, until it expires or runs out of uses. Cancel one and it stops working at once."}
+            : "For a group chat: anyone with the link can join straight away, until it expires or runs out of uses. Cancel one and it stops working at once."}
         </p>
 
         {isPublic ? (
-          <Button variant="primary" size="sm" className="mt-4" iconStart={Copy} onClick={() => void copy(pageLink(), "page")}>
+          <Button variant="secondary" size="md" className="mt-4" iconStart={Copy} onClick={() => void copy(pageLink(), "page")}>
             {copied === "page" ? "Link copied" : "Copy link"}
           </Button>
         ) : (
           <>
             <div className="mt-4 flex flex-wrap items-end gap-3">
-              <label className="text-caption text-secondary">
+              <div className="text-caption text-secondary">
                 Expires after
-                <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={`mt-1 block ${FIELD}`}>
-                  <option value={1}>1 day</option>
-                  <option value={7}>7 days</option>
-                  <option value={30}>30 days</option>
-                </select>
-              </label>
-              <label className="text-caption text-secondary">
+                <Picker
+                  options={[1, 7, 30].map((n) => ({ value: String(n), label: n === 1 ? "1 day" : `${n} days` }))}
+                  value={String(days)}
+                  onChange={(v) => setDays(Number(v))}
+                  ariaLabel="Expires after"
+                  className="mt-1 w-32"
+                />
+              </div>
+              <div className="text-caption text-secondary">
                 Can be used
-                <select value={maxUses} onChange={(e) => setMaxUses(Number(e.target.value))} className={`mt-1 block ${FIELD}`}>
-                  {[1, 5, 10, 25, 100].map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? "time" : "times"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button variant="primary" size="sm" iconStart={Link2} loading={busy === "create"} onClick={() => void create()}>
+                <Picker
+                  options={[1, 5, 10, 25, 100].map((n) => ({ value: String(n), label: `${n} ${n === 1 ? "time" : "times"}` }))}
+                  value={String(maxUses)}
+                  onChange={(v) => setMaxUses(Number(v))}
+                  ariaLabel="Can be used"
+                  className="mt-1 w-32"
+                />
+              </div>
+              <Button variant="secondary" size="md" iconStart={Link2} loading={busy === "create"} onClick={() => void create()}>
                 {copied === "new" ? "Link created and copied" : "Create link"}
               </Button>
             </div>
@@ -182,8 +187,6 @@ export function InvitePanel({ group }: { group: GroupDetail }) {
           </p>
         )}
       </section>
-
-      <EmailInvites group={group} />
     </div>
   );
 }
@@ -192,22 +195,24 @@ export function InvitePanel({ group }: { group: GroupDetail }) {
  * so a forwarded email can't let a second person in. */
 function EmailInvites({ group }: { group: GroupDetail }) {
   const [text, setText] = useState("");
-  const [state, setState] = useState<{ kind: "idle" | "sending" } | { kind: "sent"; count: number } | { kind: "error"; message: string }>({ kind: "idle" });
+  const [state, setState] = useState<{ kind: "idle" | "sending" } | { kind: "sent"; count: number; members: number } | { kind: "error"; message: string }>({ kind: "idle" });
   const emails = text.split(/[\s,;]+/).filter(Boolean);
 
   async function send() {
     setState({ kind: "sending" });
     const res = await fetch(`/api/groups/${group.id}/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emails }) }).catch(() => null);
-    const body = (await res?.json().catch(() => null)) as { sent?: number; error?: string } | null;
+    const body = (await res?.json().catch(() => null)) as { sent?: number; alreadyMembers?: number; error?: string } | null;
     if (!res?.ok) return setState({ kind: "error", message: body?.error ?? "Couldn't send the invitations. Check your connection and try again." });
     setText("");
-    setState({ kind: "sent", count: body?.sent ?? emails.length });
+    setState({ kind: "sent", count: body?.sent ?? emails.length, members: body?.alreadyMembers ?? 0 });
   }
 
   return (
     <section>
       <h3 className={EYEBROW}>Invite by email</h3>
-      <p className="mt-1 text-caption text-tertiary">Up to 10 addresses at a time, separated by commas or spaces.</p>
+      <p className="mt-1 text-caption text-tertiary">
+        Each person gets an email with {group.visibility === "public" ? "a link to join" : "their own link, good for 7 days"}, and a notice on the site if they already have an account. Up to 10 addresses at a time.
+      </p>
       <div className="mt-4 flex flex-wrap items-start gap-2">
         <input
           type="text"
@@ -220,14 +225,19 @@ function EmailInvites({ group }: { group: GroupDetail }) {
           onKeyDown={(e) => e.key === "Enter" && emails.length > 0 && void send()}
           placeholder="friend@example.com, another@example.com"
           aria-label="Email addresses to invite"
-          className={`min-w-0 flex-1 basis-64 ${FIELD}`}
+          className={`min-w-0 flex-1 basis-64 ${fieldControlClass(false)}`}
         />
-        <Button variant="secondary" size="sm" iconStart={Mail} disabled={emails.length === 0} loading={state.kind === "sending"} onClick={() => void send()}>
-          Send
+        <Button variant="primary" size="md" iconStart={Mail} disabled={emails.length === 0} loading={state.kind === "sending"} onClick={() => void send()}>
+          Send invitations
         </Button>
       </div>
       <p aria-live="polite" className="mt-2 min-h-4 text-caption">
-        {state.kind === "sent" && <span className="text-success">Sent to {state.count} {state.count === 1 ? "person" : "people"}.</span>}
+        {state.kind === "sent" && (
+          <span className="text-success">
+            {state.count > 0 ? `Invitation sent to ${state.count} ${state.count === 1 ? "person" : "people"}.` : "No one to invite."}
+            {state.members > 0 && ` ${state.members} ${state.members === 1 ? "is" : "are"} already in.`}
+          </span>
+        )}
         {state.kind === "error" && <span className="text-brand-text">{state.message}</span>}
       </p>
     </section>

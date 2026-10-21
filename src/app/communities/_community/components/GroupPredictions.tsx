@@ -165,12 +165,9 @@ export function GroupPredictions({
             action={
               myRole === "admin" &&
               !showNew && (
-                <button
-                  onClick={() => setShowNew(true)}
-                  className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover"
-                >
+                <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>
                   Create a prediction round
-                </button>
+                </Button>
               )
             }
           />

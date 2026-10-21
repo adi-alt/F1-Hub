@@ -112,7 +112,11 @@ export function NotificationsForm({
                       </div>
                       <div className="flex shrink-0 gap-5">
                         <Toggle checked={ch.site} onChange={(v) => void setChannel(k.kind, "site", v)} label={`${k.label}: on the site`} />
-                        <Toggle checked={ch.email} onChange={(v) => void setChannel(k.kind, "email", v)} label={`${k.label}: by email`} />
+                        {k.siteOnly ? (
+                          <span className="w-11 text-center text-caption text-tertiary" title="Always emailed">Always</span>
+                        ) : (
+                          <Toggle checked={ch.email} onChange={(v) => void setChannel(k.kind, "email", v)} label={`${k.label}: by email`} />
+                        )}
                       </div>
                     </li>
                   );
