@@ -53,9 +53,9 @@ function previewFor(p: Preview) {
  * The previews are miniatures with no names or numbers, so nothing reads as real data. Opens the same shared
  * sign-in/sign-up dialog the header uses (store/useAuthDialogStore).
  */
-export function SignInGate({ label = "this" }: { label?: string }) {
+export function SignInGate({ label = "this", title, lead }: { label?: string; /** Overrides the section's own heading, e.g. an invitation naming its community. */ title?: string; lead?: string }) {
   const open = useAuthDialogStore((s) => s.open);
-  const g = gateFor(label);
+  const g = { ...gateFor(label), ...(title ? { title } : {}), ...(lead ? { lead } : {}) };
   const behind = (["circuit", "archive", "replay", "predict"] as Preview[]).filter((p) => p !== g.preview).slice(0, 2);
   const also = ALSO.filter((a) => a.key !== g.preview && !(g.preview === "apex" && a.key === "season")).slice(0, 4);
 

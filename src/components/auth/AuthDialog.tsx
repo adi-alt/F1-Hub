@@ -16,6 +16,9 @@ import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
 import type { Role } from "@/lib/rbac";
 import { ApexMark } from "@/components/brand/ApexMark";
 
+/** Where a same-tab OAuth round trip returns to (read by /auth/popup-closed). */
+const OAUTH_RETURN_KEY = "f1hub-oauth-return";
+
 type Step = "method" | "otp" | "profile";
 type OAuthProvider = "google" | "github" | "discord" | "gitlab";
 
@@ -400,8 +403,14 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
 
         const popup = window.open(data.url, "f1hub-oauth", "width=480,height=640");
         if (!popup) {
-          // Blocked - same-tab redirect, exactly the old behavior (/auth/callback's own `popup`
-          // param is simply absent this time, so it lands back on `/` the same way it always did).
+          // Blocked - the same round trip in this tab. It ends on the popup's landing page, which, with no opener to
+          // report to, returns to the page remembered here (an invitation link opened signed-out comes back to itself).
+          // Kept in this tab's storage rather than the redirect URL, so the provider's allowed redirect list is unchanged.
+          try {
+            sessionStorage.setItem(OAUTH_RETURN_KEY, `${window.location.pathname}${window.location.search}`);
+          } catch {
+            // Storage blocked: the landing page falls back to home.
+          }
           window.location.href = data.url;
           return;
         }
@@ -683,30 +692,9 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
 
           {options ? (
             <>
-              <Select label="Favourite driver (optional)" value={favoriteDriver} onChange={(e) => setFavoriteDriver(e.target.value)}>
-                <option value="">None</option>
-                {options.drivers.map((d) => (
-                  <option key={d.code} value={d.code}>
-                    {d.name}
-                  </option>
-                ))}
-              </Select>
-              <Select label="Favourite team (optional)" value={favoriteTeam} onChange={(e) => setFavoriteTeam(e.target.value)}>
-                <option value="">None</option>
-                {options.teams.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
-              <Select label="Favourite track (optional)" value={favoriteTrack} onChange={(e) => setFavoriteTrack(e.target.value)}>
-                <option value="">None</option>
-                {options.tracks.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
+              <Select label="Favourite driver (optional)" placeholder="None" value={favoriteDriver} onChange={setFavoriteDriver} options={[{ value: "", label: "None" }, ...options.drivers.map((d) => ({ value: d.code, label: d.name }))]} />
+              <Select label="Favourite team (optional)" placeholder="None" value={favoriteTeam} onChange={setFavoriteTeam} options={[{ value: "", label: "None" }, ...options.teams.map((t) => ({ value: t, label: t }))]} />
+              <Select label="Favourite track (optional)" placeholder="None" value={favoriteTrack} onChange={setFavoriteTrack} options={[{ value: "", label: "None" }, ...options.tracks.map((t) => ({ value: t, label: t }))]} />
             </>
           ) : (
             <div className="space-y-3" role="status" aria-label="Loading the favourites lists">

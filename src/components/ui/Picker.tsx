@@ -64,6 +64,8 @@ export function Picker({
   allowCustomValue = false,
   customValueLabel = (input: string) => `Use "${input}"`,
   ariaLabel,
+  id,
+  describedBy,
   className = "",
   align = "start",
 }: {
@@ -84,6 +86,9 @@ export function Picker({
   allowCustomValue?: boolean;
   customValueLabel?: (input: string) => string;
   ariaLabel?: string;
+  /** The trigger's id and aria-describedby, so a Field's label and hint belong to it. */
+  id?: string;
+  describedBy?: string;
   className?: string;
   align?: "start" | "end";
 }) {
@@ -291,6 +296,8 @@ export function Picker({
     <div ref={rootRef} className={`relative ${className}`}>
       <button
         ref={triggerRef}
+        id={id}
+        aria-describedby={describedBy}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && (open ? close(false) : openPicker())}

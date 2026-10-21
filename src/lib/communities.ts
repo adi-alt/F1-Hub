@@ -277,12 +277,12 @@ export const VISIBILITY_OPTIONS: VisibilityMeta[] = [
   {
     value: "private",
     label: "Private",
-    description: "Discoverable, but joining needs an invite or approval.",
+    description: "Not listed. Anyone with the link can ask to join, and an admin or moderator approves them.",
   },
   {
     value: "hidden",
     label: "Hidden",
-    description: "Not listed in search or recommendations. Invite only.",
+    description: "Not listed. Only people with an invitation can join.",
   },
 ];
 
@@ -379,7 +379,7 @@ export const PERMISSION_ACTIONS: { value: PermissionAction; label: string; descr
   { value: "post", label: "Create posts", description: "Start a new discussion in the feed" },
   { value: "comment", label: "Reply", description: "Comment on someone else's post" },
   { value: "createPredictions", label: "Create prediction rounds", description: "Open a new round for the community to enter" },
-  { value: "invite", label: "Invite people", description: "Send email invitations to join" },
+  { value: "invite", label: "Invite people", description: "Create invitation links and send email invitations" },
 ];
 
 export const PERMISSION_LEVELS: { value: PermissionLevel; label: string }[] = [

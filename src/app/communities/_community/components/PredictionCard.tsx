@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { useState } from "react";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
@@ -258,14 +259,9 @@ export function PredictionCard({
           <div className="mt-3">
             <GuessInput type={prediction.type} drivers={drivers} value={guess} onChange={setGuess} />
             <div className="mt-3 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void submit()}
-                disabled={status === "saving" || !guessComplete}
-                className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-              >
-                {status === "saving" ? "Submitting…" : myEntry ? "Update prediction" : "Submit prediction"}
-              </button>
+              <Button variant="primary" size="sm" onClick={() => void submit()} disabled={!guessComplete} loading={status === "saving"}>
+                {myEntry ? "Update prediction" : "Submit prediction"}
+              </Button>
               {editing && (
                 <button
                   type="button"

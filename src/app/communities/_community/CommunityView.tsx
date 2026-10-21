@@ -14,7 +14,9 @@ import {
   getMemberRole,
   getMyJoinRequest,
   inspectInvite,
+  isBanned,
 } from "@/lib/supabase/groups";
+import { isUuid } from "@/lib/ids";
 import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/groupStats";
 import { getPredictionTrend, listPredictions } from "@/lib/supabase/groupPredictions";
 import { listPosts } from "@/lib/supabase/groupPosts";
@@ -44,12 +46,13 @@ function statsFallback(memberCount: number): GroupStats {
 // getGroupPreview works regardless of membership (it's also what the not-a-member JoinPrompt
 // branch below uses) and is cached, so this costs a cache hit, not a second real fetch.
 export async function communityMetadata(id: string): Promise<Metadata> {
-  const preview = await getGroupPreview(id).catch(() => null);
+  const preview = isUuid(id) ? await getGroupPreview(id).catch(() => null) : null;
   if (!preview) return pageMetadata({ title: "Community", description: "A prediction league and F1 community on Apex F1 Hub.", path: groupHref(id) });
   // A private community's own description stays private: only its name goes on the card (an invite link needs it).
   const about = preview.visibility === "public" && preview.description ? preview.description : "A prediction league and F1 community on Apex F1 Hub.";
   const members = `${preview.memberCount} member${preview.memberCount === 1 ? "" : "s"}`;
-  return pageMetadata({ title: preview.name, description: `${about} ${members}.`, path: groupHref(id) });
+  // Only a public community belongs in search results; the others are reached by link or invitation.
+  return pageMetadata({ title: preview.name, description: `${about} ${members}.`, path: groupHref(id), index: preview.visibility === "public" });
 }
 
 /** One community, at `/groups?id=` (the Communities page renders this when the URL names a community). */
@@ -76,15 +79,17 @@ export async function CommunityView({
   // Captured after the sign-in check so it stays a plain string inside the closures below, where
   // TypeScript's narrowing of `session.uid` wouldn't survive.
   const uid = session.uid;
+  if (!isUuid(id)) notFound();
 
   const role = await getMemberRole(id, uid);
   if (!role) {
-    const [preview, joinRequest, inviteState] = await Promise.all([
+    const [preview, joinRequest, inviteState, banned] = await Promise.all([
       getGroupPreview(id),
       getMyJoinRequest(id, uid).catch(() => null),
       // What the invitation in the URL would do right now (valid / expired / cancelled / used up),
       // checked without consuming it. Joining re-checks everything atomically on the server.
       inspectInvite(id, typeof inviteToken === "string" ? inviteToken : null).catch(() => null),
+      isBanned(id, uid).catch(() => false),
     ]);
     if (!preview) notFound();
     return (
@@ -94,6 +99,7 @@ export async function CommunityView({
           joinRequestStatus={joinRequest?.status ?? null}
           inviteToken={inviteState === "valid" && typeof inviteToken === "string" ? inviteToken : null}
           inviteState={inviteState}
+          banned={banned}
         />
       </div>
     );

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
 import { AuthDialog } from "./AuthDialog";
 
-/** Watches for the flags /auth/callback redirects home with (see that route) — `authStep=otp`
+/** Watches for the flags /auth/callback redirects back with (see that route) — `authStep=otp`
  * reopens the dialog straight onto the OTP step after an OAuth round trip, `authError=1` just
  * clears itself since AuthDialog's own "method" step is a fine enough fallback. Needs
  * useSearchParams, hence the Suspense boundary — this runs on every page, not just ones that
@@ -16,12 +16,14 @@ function OAuthResumeWatcher() {
   const openAtOtp = useAuthDialogStore((s) => s.openAtOtp);
 
   useEffect(() => {
-    if (searchParams.get("authStep") === "otp") {
-      openAtOtp();
-      router.replace("/", { scroll: false });
-    } else if (searchParams.get("authError") === "1") {
-      router.replace("/", { scroll: false });
-    }
+    const otp = searchParams.get("authStep") === "otp";
+    if (!otp && searchParams.get("authError") !== "1") return;
+    if (otp) openAtOtp();
+    // Only the flag goes: the page the round trip started on (an invitation, say) stays.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("authStep");
+    url.searchParams.delete("authError");
+    router.replace(`${url.pathname}${url.search}`, { scroll: false });
   }, [searchParams, openAtOtp, router]);
 
   return null;

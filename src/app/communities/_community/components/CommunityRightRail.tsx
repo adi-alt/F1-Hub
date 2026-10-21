@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { EYEBROW, PANEL } from "@/components/ui/panel";
@@ -21,7 +22,7 @@ import { PredictionTrendBars } from "../../components/post/PredictionTrendBars";
  * bars on first paint instead of firing a request per card after mount. */
 export type RailPrediction = { prediction: GroupPrediction; trend: PredictionTrend | null };
 
-export type RailTab = "predictions" | "leaderboard" | "members" | "about" | "feed";
+export type RailTab = "predictions" | "leaderboard" | "members" | "about" | "feed" | "invite";
 
 /** How many members the league table lists before "Full table". */
 const TABLE_ROWS = 5;
@@ -48,6 +49,7 @@ export function CommunityRightRail({
   showRace,
   showPredictions,
   showLeaderboard,
+  canInvite = false,
   onOpenTab,
 }: {
   stats: GroupStats;
@@ -62,6 +64,8 @@ export function CommunityRightRail({
   showRace: boolean;
   showPredictions: boolean;
   showLeaderboard: boolean;
+  /** Whether this viewer may invite: the People widget's button. */
+  canInvite?: boolean;
   /** Switches the page's own tab rather than navigating: the rail sits beside the panel it points at. */
   onOpenTab: (tab: RailTab) => void;
 }) {
@@ -85,6 +89,12 @@ export function CommunityRightRail({
       {showPredictions && (
         <div className={`p-4 ${PANEL}`}>
           <OpenRounds predictions={predictions} onOpen={() => onOpenTab("predictions")} />
+        </div>
+      )}
+      {/* A community with no race weekend (a Private Circle, say) is about its people: who's here, and asking more in. */}
+      {!showRace && (
+        <div className={`p-4 ${PANEL}`}>
+          <People members={members} canInvite={canInvite} onOpen={() => onOpenTab("members")} onInvite={() => onOpenTab("invite")} />
         </div>
       )}
       {/* Only when there is something new: a widget that says "nothing happened" is space taken for nothing. */}
@@ -242,6 +252,32 @@ function OpenRounds({ predictions, onOpen }: { predictions: RailPrediction[]; on
         >
           {predictions.every(({ prediction }) => prediction.myEntry) ? "Review your picks" : "Make your picks"}
         </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- people
+
+const PEOPLE_ROWS = 6;
+
+function People({ members, canInvite, onOpen, onInvite }: { members: GroupMember[]; canInvite: boolean; onOpen: () => void; onInvite: () => void }) {
+  return (
+    <div>
+      <WidgetHeader title={`${members.length} ${members.length === 1 ? "member" : "members"}`} action={members.length > PEOPLE_ROWS ? { label: "All", onClick: onOpen } : undefined} />
+      <ul className="mt-3 space-y-2.5">
+        {members.slice(0, PEOPLE_ROWS).map((m) => (
+          <li key={m.userId} className="flex items-center gap-2.5">
+            <EntityAvatar imageUrl={m.avatarUrl ?? null} name={m.displayName ?? m.username ?? "M"} seed={m.userId} size={28} />
+            <span className="min-w-0 flex-1 truncate text-body-sm text-primary">{m.displayName ?? m.username ?? "Member"}</span>
+            {m.role !== "member" && <span className="shrink-0 text-caption capitalize text-tertiary">{m.role}</span>}
+          </li>
+        ))}
+      </ul>
+      {canInvite && (
+        <Button variant="secondary" size="sm" iconStart={UserPlus} className="mt-4 w-full" onClick={onInvite}>
+          Invite people
+        </Button>
       )}
     </div>
   );

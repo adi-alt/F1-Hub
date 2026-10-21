@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { fieldControlClass } from "@/components/ui/Field";
 import { Picker } from "@/components/ui/Picker";
 import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import {
@@ -22,19 +24,17 @@ import {
   type CommunityVisibility,
   type PermissionLevel,
 } from "@/lib/communities";
-import type { GroupBan, GroupDetail, GroupInvite, JoinRequest } from "@/lib/supabase/groups";
+import type { GroupDetail, JoinRequest } from "@/lib/supabase/groups";
 import { AvatarUpload } from "../../../components/AvatarUpload";
 import { BannerUpload } from "../../../components/BannerUpload";
 import { GroupBanner } from "../../../components/GroupBanner";
-import { groupHref } from "@/lib/routes";
 
-type Section = "general" | "appearance" | "requests" | "invites" | "features" | "permissions" | "moderation" | "danger";
+type Section = "general" | "appearance" | "requests" | "features" | "permissions" | "moderation" | "danger";
 
 const SECTIONS: { value: Section; label: string }[] = [
   { value: "general", label: "General" },
   { value: "appearance", label: "Appearance" },
   { value: "requests", label: "Join requests" },
-  { value: "invites", label: "Invitations" },
   { value: "features", label: "Features" },
   { value: "permissions", label: "Permissions" },
   { value: "moderation", label: "Moderation" },
@@ -49,41 +49,52 @@ const SECTIONS: { value: Section; label: string }[] = [
  * quietly do nothing is worse than a short one that works. What Moderation does have - the post
  * approval toggle and the live pending queue - is genuinely enforced in createPost.
  */
-export function ManageTab({ group }: { group: GroupDetail }) {
-  const [section, setSection] = useState<Section>("general");
+export function ManageTab({ group, pendingRequests = 0 }: { group: GroupDetail; pendingRequests?: number }) {
+  // A moderator's part of running a community is the door: join requests. Requests only exist for a private
+  // community (a hidden one is invite-only), unless some are still waiting from before a change.
+  const showRequests = group.visibility === "private" || pendingRequests > 0;
+  const sections = SECTIONS.filter((s) => (s.value === "requests" ? showRequests : group.myRole === "admin"));
+  const [section, setSection] = useState<Section>(pendingRequests > 0 && showRequests ? "requests" : (sections[0]?.value ?? "general"));
+  // Sections stay mounted once opened, so a half-made edit survives a look at another section.
+  const [opened, setOpened] = useState<Set<Section>>(() => new Set([section]));
+  const open = (next: Section) => {
+    setSection(next);
+    setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
+  };
+  const panel = (value: Section, node: React.ReactNode) => opened.has(value) && <div hidden={section !== value}>{node}</div>;
 
   return (
     <div className="gap-6 lg:grid lg:grid-cols-[180px_minmax(0,1fr)]">
       <nav aria-label="Management sections" className="-mx-1 mb-4 overflow-x-auto px-1 lg:mx-0 lg:mb-0 lg:overflow-visible lg:px-0">
         <div className="flex min-w-max gap-1 lg:min-w-0 lg:flex-col">
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <button
               key={s.value}
               type="button"
-              onClick={() => setSection(s.value)}
-              className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm transition ${
+              onClick={() => open(s.value)}
+              className={`whitespace-nowrap rounded-control px-3 py-2 text-left text-body-sm transition-colors duration-fast ${
                 section === s.value
                   ? s.value === "danger"
                     ? "bg-brand/10 text-brand-text"
-                    : "bg-white/[0.06] text-white"
+                    : "bg-white/[0.06] text-primary"
                   : "text-tertiary hover:bg-white/[0.03] hover:text-secondary"
               }`}
             >
               {s.label}
+              {s.value === "requests" && pendingRequests > 0 && <span className="ml-2 rounded-control bg-warning/15 px-1.5 py-0.5 text-caption font-semibold tabular text-warning">{pendingRequests}</span>}
             </button>
           ))}
         </div>
       </nav>
 
       <div className="min-w-0">
-        {section === "general" && <GeneralSection group={group} />}
-        {section === "appearance" && <AppearanceSection group={group} />}
-        {section === "requests" && <JoinRequestsSection group={group} />}
-        {section === "invites" && <InvitesSection group={group} />}
-        {section === "features" && <FeaturesSection group={group} />}
-        {section === "permissions" && <PermissionsSection group={group} />}
-        {section === "moderation" && <ModerationSection group={group} />}
-        {section === "danger" && <DangerSection group={group} />}
+        {panel("general", <GeneralSection group={group} />)}
+        {panel("appearance", <AppearanceSection group={group} />)}
+        {panel("requests", <JoinRequestsSection group={group} pendingRequests={pendingRequests} />)}
+        {panel("features", <FeaturesSection group={group} />)}
+        {panel("permissions", <PermissionsSection group={group} />)}
+        {panel("moderation", <ModerationSection group={group} />)}
+        {panel("danger", <DangerSection group={group} />)}
       </div>
     </div>
   );
@@ -117,20 +128,15 @@ function useSave(groupId: string) {
   return { save, status, error };
 }
 
-function SaveRow({ status, error, onSave, disabled }: { status: string; error: string; onSave: () => void; disabled?: boolean }) {
+function SaveRow({ status, error, onSave, disabled, dirty }: { status: string; error: string; onSave: () => void; disabled?: boolean; dirty: boolean }) {
   return (
     <div className="mt-5 flex items-center gap-3">
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={status === "saving" || disabled}
-        className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-      >
-        {status === "saving" ? "Saving…" : "Save changes"}
-      </button>
-      {status === "saved" && <span className="text-xs text-emerald-400">Saved</span>}
+      <Button variant="primary" size="sm" onClick={onSave} disabled={disabled || !dirty} loading={status === "saving"}>
+        Save changes
+      </Button>
+      {status === "saved" && !dirty && <span className="text-caption text-success">Saved</span>}
       {error && (
-        <span role="alert" className="text-xs text-brand-text">
+        <span role="alert" className="text-caption text-brand-text">
           {error}{" "}
           <button type="button" onClick={onSave} className="underline underline-offset-2">
             Retry
@@ -144,12 +150,19 @@ function SaveRow({ status, error, onSave, disabled }: { status: string; error: s
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-sm font-semibold text-white">{title}</h2>
-      {description && <p className="mt-0.5 text-xs leading-relaxed text-tertiary">{description}</p>}
+      <h2 className="text-body font-semibold text-primary">{title}</h2>
+      {description && <p className="mt-0.5 text-caption leading-relaxed text-tertiary">{description}</p>}
       <div className="mt-4">{children}</div>
     </section>
   );
 }
+
+/** What changing to each visibility does, said before Save rather than discovered after. */
+const VISIBILITY_CHANGE: Record<CommunityVisibility, string> = {
+  public: "It will be listed in Discover and anyone can join without asking. Requests still waiting stay in Join requests.",
+  private: "It won't be listed. People with the link can ask to join; you or a moderator approve them. Open invitation links keep working.",
+  hidden: "It won't be listed, and only people with an invitation link can join: no one can ask. Open invitation links keep working.",
+};
 
 function GeneralSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
@@ -177,35 +190,35 @@ function GeneralSection({ group }: { group: GroupDetail }) {
   return (
     <Section title="General" description="Name, description and how this community is found.">
       <div className="space-y-4">
-        <label className="block text-xs text-secondary">
+        <label className="block text-caption text-secondary">
           Name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={40}
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className={`mt-1 resize-none ${fieldControlClass(false)}`}
           />
         </label>
 
-        <label className="block text-xs text-secondary">
+        <label className="block text-caption text-secondary">
           Description
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             maxLength={280}
             rows={3}
-            className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className={`mt-1 resize-none ${fieldControlClass(false)}`}
           />
         </label>
 
-        <label className="block text-xs text-secondary">
+        <label className="block text-caption text-secondary">
           Tagline
           <input
             value={tagline}
             onChange={(e) => setTagline(e.target.value)}
             maxLength={MAX_TAGLINE_CHARS}
             placeholder="A short line shown over the cover image"
-            className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+            className={`mt-1 resize-none ${fieldControlClass(false)}`}
           />
           {/* Stated rather than silently truncated - it sits over an image at any width, which is
               why it's capped at all. */}
@@ -214,7 +227,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           </span>
         </label>
 
-        <div className="text-xs text-secondary">
+        <div className="text-caption text-secondary">
           Topic
           <Picker
             options={COMMUNITY_TOPICS.map((t) => ({ value: t, label: t }))}
@@ -228,7 +241,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           />
         </div>
 
-        <div className="text-xs text-secondary">
+        <div className="text-caption text-secondary">
           Community type
           <Picker
             options={COMMUNITY_TYPES.map((t) => ({ value: t.value, label: t.label, description: t.tagline }))}
@@ -240,26 +253,29 @@ function GeneralSection({ group }: { group: GroupDetail }) {
           {/* Changing the type changes which modules are available at all, so it's worth saying so
               before they save rather than after tabs appear or vanish. */}
           {communityType !== group.communityType && (
-            <p className="mt-1.5 text-caption text-amber-400/80">Changing the type changes which features this community can use. Nothing is deleted.</p>
+            <p className="mt-1.5 text-caption text-warning">Changing the type changes which features this community can use. Nothing is deleted.</p>
           )}
         </div>
 
-        <div className="text-xs text-secondary">
+        <div className="text-caption text-secondary">
           Visibility
           <Picker
-            options={VISIBILITY_OPTIONS.map((v) => ({ value: v.value, label: v.label, description: v.description }))}
+            options={VISIBILITY_OPTIONS.filter((v) => !(communityType === "private_circle" && v.value === "public")).map((v) => ({ value: v.value, label: v.label, description: v.description }))}
             value={visibility}
             onChange={(next) => setVisibility(next as CommunityVisibility)}
             ariaLabel="Visibility"
             className="mt-1"
           />
+          {visibility !== group.visibility && <p className="mt-1.5 text-caption text-warning">{VISIBILITY_CHANGE[visibility]}</p>}
+          {communityType === "private_circle" && visibility === "public" && <p className="mt-1.5 text-caption text-brand-text">A Private Circle can&apos;t be public. Pick another type or visibility.</p>}
         </div>
       </div>
 
       <SaveRow
         status={status}
         error={error}
-        disabled={name.trim().length < 3}
+        disabled={name.trim().length < 3 || (communityType === "private_circle" && visibility === "public")}
+        dirty={isDirty}
         onSave={() => void save({ name, description: description || null, tagline: tagline || null, topic: topic || null, communityType, visibility })}
       />
     </Section>
@@ -283,7 +299,8 @@ function AppearanceSection({ group }: { group: GroupDetail }) {
 function FeaturesSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [features, setFeatures] = useState(group.features);
-  useUnsavedChangesWarning(JSON.stringify(features) !== JSON.stringify(group.features));
+  const dirty = JSON.stringify(features) !== JSON.stringify(group.features);
+  useUnsavedChangesWarning(dirty);
   const enabled = resolveModules(group.communityType, features);
   const toggles = toggleableModules(group.communityType);
 
@@ -293,9 +310,9 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
         {enabled
           .filter((m) => !toggles.includes(m))
           .map((m) => (
-            <div key={m} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
+            <div key={m} className="flex items-center justify-between rounded-control border border-white/10 bg-black/20 px-3.5 py-2.5">
               <span>
-                <span className="block text-sm text-secondary">{MODULE_LABELS[m]}</span>
+                <span className="block text-body-sm text-secondary">{MODULE_LABELS[m]}</span>
                 <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
               <span className="text-caption font-semibold text-tertiary">Always on</span>
@@ -311,12 +328,12 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
               role="switch"
               aria-checked={on}
               onClick={() => setFeatures((prev) => ({ ...prev, [m]: !on }))}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
+              className={`flex w-full items-center justify-between gap-3 rounded-control border px-3.5 py-2.5 text-left transition ${
                 on ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
               }`}
             >
               <span className="min-w-0">
-                <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
+                <span className="block text-body-sm font-medium text-primary">{MODULE_LABELS[m]}</span>
                 <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
               </span>
               <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-white/10"}`} aria-hidden>
@@ -326,10 +343,10 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
           );
         })}
 
-        {toggles.length === 0 && <p className="text-xs text-tertiary">This community type has no optional features.</p>}
+        {toggles.length === 0 && <p className="text-caption text-tertiary">This community type has no optional features.</p>}
       </div>
 
-      <SaveRow status={status} error={error} onSave={() => void save({ features })} />
+      <SaveRow status={status} error={error} dirty={dirty} onSave={() => void save({ features })} />
     </Section>
   );
 }
@@ -337,15 +354,16 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
 function PermissionsSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [permissions, setPermissions] = useState<CommunityPermissions>(group.permissions ?? {});
-  useUnsavedChangesWarning(JSON.stringify(permissions) !== JSON.stringify(group.permissions ?? {}));
+  const dirty = JSON.stringify(permissions) !== JSON.stringify(group.permissions ?? {});
+  useUnsavedChangesWarning(dirty);
 
   return (
     <Section title="Permissions" description="Who can do what. Every one of these is enforced on the server, not just hidden in the UI.">
       <div className="space-y-3">
         {PERMISSION_ACTIONS.map((action) => (
-          <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
+          <div key={action.value} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-white/10 bg-black/20 px-3.5 py-3">
             <span className="min-w-0">
-              <span className="block text-sm text-neutral-200">{action.label}</span>
+              <span className="block text-body-sm text-primary">{action.label}</span>
               <span className="block text-caption text-tertiary">{action.description}</span>
             </span>
             <Picker
@@ -360,7 +378,7 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
         ))}
       </div>
 
-      <SaveRow status={status} error={error} onSave={() => void save({ permissions })} />
+      <SaveRow status={status} error={error} dirty={dirty} onSave={() => void save({ permissions })} />
     </Section>
   );
 }
@@ -368,7 +386,8 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
 function ModerationSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [moderationEnabled, setModerationEnabled] = useState(group.moderationEnabled);
-  useUnsavedChangesWarning(moderationEnabled !== group.moderationEnabled);
+  const dirty = moderationEnabled !== group.moderationEnabled;
+  useUnsavedChangesWarning(dirty);
 
   return (
     <Section title="Moderation" description="Review posts before they appear in the feed.">
@@ -377,12 +396,12 @@ function ModerationSection({ group }: { group: GroupDetail }) {
         role="switch"
         aria-checked={moderationEnabled}
         onClick={() => setModerationEnabled((v) => !v)}
-        className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-3 text-left transition ${
+        className={`flex w-full items-center justify-between gap-3 rounded-control border px-3.5 py-3 text-left transition ${
           moderationEnabled ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
         }`}
       >
         <span>
-          <span className="block text-sm font-medium text-white">Require post approval</span>
+          <span className="block text-body-sm font-medium text-primary">Require post approval</span>
           <span className="block text-caption text-tertiary">
             Member posts wait for an admin or moderator. Admins and moderators bypass their own queue.
           </span>
@@ -397,37 +416,47 @@ function ModerationSection({ group }: { group: GroupDetail }) {
         a report inbox aren&apos;t built yet and aren&apos;t shown here rather than being shown as switches that do nothing.
       </p>
 
-      <SaveRow status={status} error={error} onSave={() => void save({ moderationEnabled })} />
+      <SaveRow status={status} error={error} dirty={dirty} onSave={() => void save({ moderationEnabled })} />
     </Section>
   );
 }
 
-function JoinRequestsSection({ group }: { group: GroupDetail }) {
+function JoinRequestsSection({ group, pendingRequests }: { group: GroupDetail; pendingRequests: number }) {
   const router = useRouter();
-  const [requests, setRequests] = useState<JoinRequest[] | null>(null);
+  const [requests, setRequests] = useState<JoinRequest[] | null | "error">(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
+  // Reloads when the page's own count moves (a new request arriving while this is open).
   useEffect(() => {
     let cancelled = false;
     fetch(`/api/groups/${group.id}/join-requests`)
       .then((res) => (res.ok ? (res.json() as Promise<{ requests: JoinRequest[] }>) : Promise.reject(new Error("failed"))))
       .then((body) => !cancelled && setRequests(body.requests))
-      .catch(() => !cancelled && setRequests([]));
+      .catch(() => !cancelled && setRequests("error"));
     return () => {
       cancelled = true;
     };
-  }, [group.id]);
+  }, [group.id, pendingRequests, reloadKey]);
 
   async function decide(userId: string, decision: "approve" | "reject") {
     setBusy(userId);
+    setError("");
     const res = await fetch(`/api/groups/${group.id}/join-requests/${userId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision }),
     }).catch(() => null);
     setBusy(null);
-    if (!res?.ok) return;
-    setRequests((prev) => (prev ?? []).filter((r) => r.userId !== userId));
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setError(body?.error ?? "Couldn't save that decision. Check your connection and try again.");
+      // Already decided by someone else, or gone: the list is out of date.
+      if (res?.status === 404 || res?.status === 409) setReloadKey((k) => k + 1);
+      return;
+    }
+    setRequests((prev) => (Array.isArray(prev) ? prev.filter((r) => r.userId !== userId) : prev));
     router.refresh();
   }
 
@@ -436,229 +465,48 @@ function JoinRequestsSection({ group }: { group: GroupDetail }) {
       {requests === null ? (
         <div className="space-y-2">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="skeleton-shimmer h-14 rounded-lg bg-white/[0.04]" />
+            <div key={i} className="skeleton-shimmer h-14 rounded-control bg-white/[0.04]" />
           ))}
         </div>
+      ) : requests === "error" ? (
+        <p className="rounded-control border border-white/10 bg-black/20 p-6 text-center text-body-sm text-secondary">
+          Couldn&apos;t load the requests.{" "}
+          <button type="button" onClick={() => { setRequests(null); setReloadKey((k) => k + 1); }} className="underline underline-offset-2 hover:text-primary">
+            Retry
+          </button>
+        </p>
       ) : requests.length === 0 ? (
-        <p className="rounded-lg border border-white/10 bg-black/20 p-6 text-center text-sm text-tertiary">
+        <p className="rounded-control border border-white/10 bg-black/20 p-6 text-center text-body-sm text-tertiary">
           {group.visibility === "public" ? "This community is public, so people join directly - there's nothing to approve." : "No one is waiting to join."}
         </p>
       ) : (
         <ul className="space-y-2">
           {requests.map((request) => (
-            <li key={request.userId} className="rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
+            <li key={request.userId} className="rounded-control border border-white/10 bg-black/20 px-3.5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="min-w-0">
-                  <span className="block truncate text-sm text-neutral-200">{request.displayName ?? request.username ?? "Member"}</span>
+                  <span className="block truncate text-body-sm text-primary">{request.displayName ?? request.username ?? "Member"}</span>
                   <span className="block text-caption text-tertiary">Asked {new Date(request.createdAt).toLocaleDateString()}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={busy === request.userId}
-                    onClick={() => void decide(request.userId, "approve")}
-                    className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
-                  >
+                  <Button variant="primary" size="sm" loading={busy === request.userId} onClick={() => void decide(request.userId, "approve")}>
                     Approve
-                  </button>
+                  </Button>
                   <ConfirmButton onConfirm={() => void decide(request.userId, "reject")} question="Reject?" confirmLabel="Reject" pending={busy === request.userId}>
                     Reject
                   </ConfirmButton>
                 </span>
               </div>
-              {request.message && <p className="mt-2 border-t border-white/10 pt-2 text-xs leading-relaxed text-secondary">{request.message}</p>}
+              {request.message && <p className="mt-2 border-t border-white/10 pt-2 text-caption leading-relaxed text-secondary">{request.message}</p>}
             </li>
           ))}
         </ul>
       )}
-    </Section>
-  );
-}
-
-/** Invitation links and bans. An invitation is signed, expires, has a use limit and can be cancelled
- * at any time - cancelling takes effect on the next attempt to use it. The server decides everything
- * (joinGroup / redeem_group_invite); this only issues, lists and cancels. */
-function InvitesSection({ group }: { group: GroupDetail }) {
-  const [invites, setInvites] = useState<GroupInvite[] | null>(null);
-  const [bans, setBans] = useState<GroupBan[] | null>(null);
-  const [days, setDays] = useState(7);
-  const [maxUses, setMaxUses] = useState(10);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState<string | null>(null);
-  const isPublic = group.visibility === "public";
-
-  // Bumped after a change so the effect below reloads both lists - one place that loads them.
-  const [reloadKey, setReloadKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const [invitesRes, bansRes] = await Promise.all([fetch(`/api/groups/${group.id}/invites`).catch(() => null), fetch(`/api/groups/${group.id}/bans`).catch(() => null)]);
-      const nextInvites = invitesRes?.ok ? ((await invitesRes.json()) as { invites: GroupInvite[] }).invites : [];
-      const nextBans = bansRes?.ok ? ((await bansRes.json()) as { bans: GroupBan[] }).bans : [];
-      if (!cancelled) {
-        setInvites(nextInvites);
-        setBans(nextBans);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [group.id, reloadKey]);
-
-  const linkFor = (token: string) => `${window.location.origin}${groupHref(group.id)}&invite=${token}`;
-
-  async function create() {
-    setBusy("create");
-    setError("");
-    const res = await fetch(`/api/groups/${group.id}/invites`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expiresInDays: days, maxUses }),
-    }).catch(() => null);
-    const body = (await res?.json().catch(() => null)) as { error?: string; token?: string } | null;
-    setBusy(null);
-    if (!res?.ok) {
-      setError(body?.error ?? "Couldn't create the invitation.");
-      return;
-    }
-    setReloadKey((k) => k + 1);
-    if (body?.token) void copy(body.token, "new");
-  }
-
-  async function copy(token: string, key: string) {
-    await navigator.clipboard.writeText(linkFor(token)).catch(() => {});
-    setCopied(key);
-    setTimeout(() => setCopied((c) => (c === key ? null : c)), 2000);
-  }
-
-  async function cancel(id: string) {
-    setBusy(id);
-    setError("");
-    const res = await fetch(`/api/groups/${group.id}/invites/${id}`, { method: "DELETE" }).catch(() => null);
-    setBusy(null);
-    if (!res?.ok) {
-      setError("Couldn't cancel that invitation.");
-      return;
-    }
-    setInvites((prev) => (prev ?? []).filter((i) => i.id !== id));
-  }
-
-  async function unban(userId: string) {
-    setBusy(userId);
-    setError("");
-    const res = await fetch(`/api/groups/${group.id}/bans/${userId}`, { method: "DELETE" }).catch(() => null);
-    setBusy(null);
-    if (!res?.ok) {
-      setError("Couldn't lift that ban.");
-      return;
-    }
-    setBans((prev) => (prev ?? []).filter((b) => b.userId !== userId));
-  }
-
-  return (
-    <Section title="Invitations" description="Signed links that let someone into a private or hidden community without waiting for approval. Each one expires, has a use limit, and can be cancelled at any time.">
-      {isPublic ? (
-        <p className="rounded-lg border border-white/10 bg-black/20 p-6 text-center text-sm text-tertiary">This community is public, so anyone can join it directly - there&apos;s nothing to invite people past.</p>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-white/10 bg-black/20 p-3.5">
-            <label className="text-xs text-secondary">
-              Expires after
-              <select
-                value={days}
-                onChange={(e) => setDays(Number(e.target.value))}
-                className="mt-1 block rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-sm text-white"
-              >
-                <option value={1}>1 day</option>
-                <option value={7}>7 days</option>
-                <option value={30}>30 days</option>
-              </select>
-            </label>
-            <label className="text-xs text-secondary">
-              Can be used
-              <select
-                value={maxUses}
-                onChange={(e) => setMaxUses(Number(e.target.value))}
-                className="mt-1 block rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-sm text-white"
-              >
-                {[1, 5, 10, 25, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n} {n === 1 ? "time" : "times"}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              disabled={busy === "create"}
-              onClick={() => void create()}
-              className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
-            >
-              {busy === "create" ? "Creating…" : copied === "new" ? "Link copied" : "Create invitation link"}
-            </button>
-          </div>
-
-          <div className="mt-4">
-            {invites === null ? (
-              <div className="skeleton-shimmer h-14 rounded-lg bg-white/[0.04]" />
-            ) : invites.length === 0 ? (
-              <p className="text-sm text-tertiary">No active invitations.</p>
-            ) : (
-              <ul className="space-y-2">
-                {invites.map((invite) => (
-                  <li key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-3">
-                    <span className="min-w-0 text-xs text-secondary">
-                      <span className="block text-sm text-neutral-200">
-                        Used {invite.useCount} of {invite.maxUses}
-                      </span>
-                      Expires {new Date(invite.expiresAt).toLocaleDateString()} · created by {invite.creatorName ?? "a member"}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-3">
-                      {invite.token ? (
-                        <button type="button" onClick={() => { if (invite.token) void copy(invite.token, invite.id); }} className="text-xs font-medium text-secondary transition hover:text-white">
-                          {copied === invite.id ? "Copied" : "Copy link"}
-                        </button>
-                      ) : null}
-                      <ConfirmButton onConfirm={() => void cancel(invite.id)} question="Cancel this invitation?" confirmLabel="Cancel it" pending={busy === invite.id}>
-                        Cancel
-                      </ConfirmButton>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      )}
-
       {error && (
-        <p role="alert" className="mt-3 text-xs text-brand-text">
+        <p role="alert" className="mt-3 text-caption text-brand-text">
           {error}
         </p>
       )}
-
-      <h3 className="mt-8 text-sm font-semibold text-white">Banned</h3>
-      <p className="mt-1 text-xs text-tertiary">People removed with &ldquo;Ban&rdquo; can&apos;t rejoin, use an invitation, or send a request.</p>
-      <div className="mt-3">
-        {bans === null ? (
-          <div className="skeleton-shimmer h-12 rounded-lg bg-white/[0.04]" />
-        ) : bans.length === 0 ? (
-          <p className="text-sm text-tertiary">No one is banned.</p>
-        ) : (
-          <ul className="space-y-2">
-            {bans.map((ban) => (
-              <li key={ban.userId} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
-                <span className="min-w-0 truncate text-sm text-neutral-200">{ban.displayName ?? ban.username ?? "Member"}</span>
-                <ConfirmButton onConfirm={() => void unban(ban.userId)} question="Lift this ban?" confirmLabel="Unban" pending={busy === ban.userId}>
-                  Unban
-                </ConfirmButton>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </Section>
   );
 }
@@ -684,9 +532,9 @@ function DangerSection({ group }: { group: GroupDetail }) {
 
   return (
     <Section title="Danger zone" description="These can't be undone.">
-      <div className="rounded-lg border border-brand/30 bg-brand/4 px-4 py-3.5">
-        <p className="text-sm font-medium text-neutral-200">Delete this community</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-tertiary">
+      <div className="rounded-control border border-brand/30 bg-brand/4 px-4 py-3.5">
+        <p className="text-body-sm font-medium text-primary">Delete this community</p>
+        <p className="mt-0.5 text-caption leading-relaxed text-tertiary">
           Every post, comment, prediction and score is permanently removed for all {group.members.length} member
           {group.members.length === 1 ? "" : "s"}. Points already spent on predictions are not refunded.
         </p>
@@ -696,13 +544,12 @@ function DangerSection({ group }: { group: GroupDetail }) {
             question={`Permanently delete "${group.name}"?`}
             confirmLabel="Delete forever"
             pending={deleting}
-            className="rounded-full border border-brand/50 px-3.5 py-1.5 text-xs font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-40"
           >
             Delete community
           </ConfirmButton>
         </div>
         {error && (
-          <p role="alert" className="mt-2 text-xs text-brand-text">
+          <p role="alert" className="mt-2 text-caption text-brand-text">
             {error}
           </p>
         )}

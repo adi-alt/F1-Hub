@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -46,18 +47,13 @@ export function BannerUpload({ groupId, hasBanner }: { groupId: string; hasBanne
   return (
     <div>
       <div className="flex items-center gap-3 text-sm">
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={status === "uploading" || status === "removing"}
-          className="rounded-full border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
-        >
-          {status === "uploading" ? "Uploading…" : hasBanner ? "Replace banner" : "Upload banner"}
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={status === "removing"} loading={status === "uploading"}>
+          {hasBanner ? "Replace cover" : "Upload cover"}
+        </Button>
         {hasBanner && (
-          <button type="button" onClick={() => void remove()} disabled={status === "uploading" || status === "removing"} className="text-tertiary hover:text-secondary disabled:opacity-60">
-            {status === "removing" ? "Removing…" : "Remove"}
-          </button>
+          <Button variant="ghost" size="sm" onClick={() => void remove()} disabled={status === "uploading"} loading={status === "removing"}>
+            Remove
+          </Button>
         )}
       </div>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void onChange(e)} />

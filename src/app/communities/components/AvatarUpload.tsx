@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -29,14 +30,9 @@ export function AvatarUpload({ groupId }: { groupId: string }) {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={status === "uploading"}
-        className="rounded-full border border-white/10 px-4 py-2 text-sm text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
-      >
-        {status === "uploading" ? "Uploading…" : "Change community avatar"}
-      </button>
+      <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={status === "uploading"}>
+        Change community icon
+      </Button>
       <input
         ref={inputRef}
         type="file"

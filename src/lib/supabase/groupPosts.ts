@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
 import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
-import { allowedMediaUrl, isAllowedMediaUrl } from "@/lib/mediaUrls";
+import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
 import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
 import { notifyPostModerated, notifyPostPending, notifyReply } from "@/lib/notificationEvents";
@@ -153,8 +153,8 @@ export async function createPost(
   if (trimmedTitle && trimmedTitle.length > MAX_TITLE_CHARS) throw new ServiceError(`Titles are limited to ${MAX_TITLE_CHARS} characters.`, 400);
   // Only the app's own uploads and Klipy GIFs (SEC-17, see mediaUrls.ts). An empty string is "no
   // attachment", not a bad one.
-  const mediaUrl = input.mediaUrl || null;
-  const thumbUrl = input.attachment?.thumbUrl || null;
+  const mediaUrl = input.mediaUrl ? storedMediaUrl(input.mediaUrl) : null;
+  const thumbUrl = input.attachment?.thumbUrl ? storedMediaUrl(input.attachment.thumbUrl) : null;
   if ((mediaUrl && !isAllowedMediaUrl(mediaUrl)) || (thumbUrl && !isAllowedMediaUrl(thumbUrl))) {
     throw new ServiceError("That attachment can't be used here. Upload the file, or pick a GIF.", 400);
   }

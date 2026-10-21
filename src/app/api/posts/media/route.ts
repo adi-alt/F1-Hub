@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { servedMediaUrl } from "@/lib/mediaUrls";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
 import { limitRequest } from "@/lib/rateLimit";
@@ -85,14 +86,15 @@ export async function POST(request: Request) {
     const { error: thumbError } = await supabaseAdmin.storage
       .from("post-media")
       .upload(thumbPath, Buffer.from(await thumb.arrayBuffer()), { contentType: "image/png" });
-    if (!thumbError) thumbUrl = supabaseAdmin.storage.from("post-media").getPublicUrl(thumbPath).data.publicUrl;
+    if (!thumbError) thumbUrl = servedMediaUrl(supabaseAdmin.storage.from("post-media").getPublicUrl(thumbPath).data.publicUrl);
   }
 
   const pagesRaw = form.get("pages");
   const pages = typeof pagesRaw === "string" && /^\d{1,5}$/.test(pagesRaw) ? Number(pagesRaw) : null;
 
   return NextResponse.json({
-    mediaUrl: publicUrl.publicUrl,
+    // Shown through the checked route; createPost turns it back into the stored address.
+    mediaUrl: servedMediaUrl(publicUrl.publicUrl),
     name: safeOriginalName(file.name),
     mime: file.type,
     size: file.size,

@@ -3,18 +3,19 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Ellipsis, EllipsisVertical, FileText, Image as ImageIcon, Images, Settings, Share2, Trash2, Users, type LucideIcon } from "lucide-react";
+import { Camera, Ellipsis, EllipsisVertical, EyeOff, FileText, Globe, Image as ImageIcon, Images, Lock, LogOut, Settings, Share2, Trash2, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { EYEBROW } from "@/components/ui/panel";
-import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
+import { communityTypeMeta } from "@/lib/communities";
 import type { GroupDetail } from "@/lib/supabase/groups";
 import { GroupBanner } from "../../components/GroupBanner";
 import { groupHref } from "@/lib/routes";
 
 /** The community's secondary sections, which open as windows over the page rather than replacing the feed. */
-export type CommunityWindow = "media" | "members" | "about" | "manage";
+export type CommunityWindow = "media" | "members" | "about" | "invite" | "manage";
 
 const WINDOW_ITEMS: { value: CommunityWindow; label: string; icon: LucideIcon }[] = [
   { value: "media", label: "Media", icon: Images },
@@ -24,12 +25,13 @@ const WINDOW_ITEMS: { value: CommunityWindow; label: string; icon: LucideIcon }[
 
 /**
  * The community's head, drawn as the circuit page draws its own: the cover full-bleed behind it, fading into the page;
- * a breadcrumb back to Communities; then the avatar, an eyebrow naming the kind of community, the name and the
- * membership button, kept compact so the feed starts near the top. Everything else - sharing, the secondary sections
- * (media, members, about), and for an admin the cover, the icon and Manage - lives in one menu at the top right,
- * and the sections open as windows over the page.
+ * a breadcrumb back to Communities; then the avatar, an eyebrow naming the kind of community, the name, who can get in
+ * and how many are here, and Invite for everyone allowed to invite - in a private community that's the main thing to
+ * do. Everything else - the link, the secondary sections (media, members, about), for an admin the cover, the icon,
+ * Manage (a moderator's too, for join requests), your role and Leave - lives in one menu at the top right, and the
+ * sections open as windows over the page.
  *
- * There is no per-community notification setting in the membership menu: `profiles` has two global flags and nothing
+ * There is no per-community notification setting in the menu: `profiles` has two global flags and nothing
  * per-community, so such a setting would change nothing. Left out rather than faked.
  */
 export function CommunityHeader({
@@ -39,7 +41,7 @@ export function CommunityHeader({
   onOpenWindow,
 }: {
   group: GroupDetail;
-  /** The windows this community has (its modules, and Manage for an admin), in menu order. */
+  /** The windows this viewer can open (its modules, Invite and Manage when allowed), in menu order. */
   windows: CommunityWindow[];
   /** Only ever passed for admins/moderators, so a waiting request is visible without opening Manage. */
   pendingRequests?: number;
@@ -51,6 +53,7 @@ export function CommunityHeader({
   const [copied, setCopied] = useState(false);
   const [leaveError, setLeaveError] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [busy, setBusy] = useState<"cover" | "icon" | null>(null);
   const [uploadError, setUploadError] = useState("");
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -120,47 +123,19 @@ export function CommunityHeader({
 
   const sections = WINDOW_ITEMS.filter((w) => windows.includes(w.value));
 
-  // The membership button: beside the name, and on a phone up beside the menu, where the name has the row to itself.
-  const membership = (
-    <Popover
-      align="end"
-      ariaLabel="Membership options"
-      panelClassName="w-60"
-      trigger={({ open, toggle, ref }) => (
-        <button
-          ref={ref}
-          type="button"
-          onClick={toggle}
-          aria-expanded={open}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-control border border-strong bg-surface-2 px-3 text-body-sm font-medium text-primary transition-colors duration-fast hover:bg-surface-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
-          <Icon icon={Check} size={16} className="size-3.5 text-success" />
-          Joined
-          <svg viewBox="0 0 20 20" className={`h-3 w-3 transition ${open ? "rotate-180" : ""}`} fill="none" aria-hidden>
-            <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      )}
-    >
-      {({ close }) => (
-        <div className="p-1">
-          <div className="px-2.5 py-2">
-            <p className="text-caption text-tertiary">Your role</p>
-            <p className="mt-0.5 text-body-sm capitalize text-primary">{group.myRole}</p>
-          </div>
-          <div className="my-1 border-t border-white/10" />
-          <button
-            type="button"
-            disabled={leaving}
-            onClick={() => void leave(close)}
-            className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-danger transition-colors duration-fast hover:bg-danger/10 disabled:opacity-50"
-          >
-            {leaving ? "Leaving…" : "Leave community"}
-          </button>
-          {leaveError && <p className="px-2.5 pb-1.5 pt-0.5 text-caption leading-snug text-brand-text">{leaveError}</p>}
-        </div>
-      )}
-    </Popover>
+  const privacy =
+    group.visibility === "public"
+      ? { icon: Globe, text: "Public · anyone can join" }
+      : group.visibility === "hidden"
+        ? { icon: EyeOff, text: "Hidden · only people with an invitation can join" }
+        : { icon: Lock, text: "Private · people ask to join, and admins approve them" };
+  const memberCount = group.members.length;
+
+  // Invite is the head's one action: beside the name, and on a phone up beside the menu, where the name has the row to itself.
+  const invite = windows.includes("invite") && (
+    <Button variant="primary" size="sm" iconStart={UserPlus} onClick={() => onOpenWindow("invite")}>
+      Invite
+    </Button>
   );
 
   return (
@@ -188,7 +163,7 @@ export function CommunityHeader({
 
         <div className="relative z-20 flex shrink-0 flex-col items-end gap-1.5">
           <div className="flex items-center gap-2">
-          <div className="sm:hidden">{membership}</div>
+          <div className="sm:hidden">{invite}</div>
           <Popover
             align="end"
             ariaLabel="Community menu"
@@ -197,7 +172,10 @@ export function CommunityHeader({
               <button
                 ref={ref}
                 type="button"
-                onClick={toggle}
+                onClick={() => {
+                  setConfirmLeave(false);
+                  toggle();
+                }}
                 aria-expanded={open}
                 aria-label="Community menu"
                 title="Community menu"
@@ -225,28 +203,64 @@ export function CommunityHeader({
                   {extra}
                 </button>
               );
+              // Leaving asks first, in the menu: in a private or hidden community there's no walking back in.
+              if (confirmLeave) {
+                return (
+                  <div className="p-3">
+                    <p className="text-body-sm font-medium text-primary">Leave {group.name}?</p>
+                    <p className="mt-1 text-caption leading-snug text-tertiary">
+                      {group.visibility === "public"
+                        ? "You can join again any time."
+                        : group.visibility === "hidden"
+                          ? "You'll need a new invitation to come back. Invitation links you made stop working."
+                          : "You'll need an invitation or an admin's approval to come back. Invitation links you made stop working."}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Button variant="danger" size="sm" loading={leaving} onClick={() => void leave(close)}>
+                        Leave
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmLeave(false)}>
+                        Stay
+                      </Button>
+                    </div>
+                    {leaveError && <p className="mt-2 text-caption leading-snug text-brand-text">{leaveError}</p>}
+                  </div>
+                );
+              }
               return (
                 <div className="p-1">
-                  {item(copied ? "Link copied" : "Share", Share2, () => void share())}
+                  {item(copied ? "Link copied" : "Copy link", Share2, () => void share())}
                   <div className="my-1 border-t border-white/10" />
                   {sections.map((s) => item(s.label, s.icon, () => onOpenWindow(s.value)))}
+                  {windows.includes("manage") &&
+                    item(
+                      isAdmin ? "Manage" : "Join requests",
+                      Settings,
+                      () => onOpenWindow("manage"),
+                      pendingRequests !== undefined && pendingRequests > 0 ? (
+                        <span className="shrink-0 rounded-control bg-warning/15 px-1.5 py-0.5 text-caption font-semibold tabular text-warning">{pendingRequests}</span>
+                      ) : undefined,
+                    )}
                   {isAdmin && (
                     <>
                       <div className="my-1 border-t border-white/10" />
                       {item(group.bannerUrl ? "Change cover" : "Add cover", Camera, () => coverInputRef.current?.click())}
                       {group.bannerUrl && item("Remove cover", Trash2, () => void removeCover(), undefined, true)}
                       {item("Change icon", ImageIcon, () => iconInputRef.current?.click())}
-                      {windows.includes("manage") &&
-                        item(
-                          "Manage",
-                          Settings,
-                          () => onOpenWindow("manage"),
-                          pendingRequests !== undefined && pendingRequests > 0 ? (
-                            <span className="shrink-0 rounded-control bg-warning/15 px-1.5 py-0.5 text-caption font-semibold tabular text-warning">{pendingRequests}</span>
-                          ) : undefined,
-                        )}
                     </>
                   )}
+                  <div className="my-1 border-t border-white/10" />
+                  <p className="px-2.5 pb-1 pt-1.5 text-caption text-tertiary">
+                    You&apos;re {group.myRole === "admin" ? "an admin" : `a ${group.myRole}`} here
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmLeave(true)}
+                    className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-danger transition-colors duration-fast hover:bg-danger/10"
+                  >
+                    <Icon icon={LogOut} size={16} />
+                    Leave community
+                  </button>
                 </div>
               );
             }}
@@ -262,17 +276,43 @@ export function CommunityHeader({
         </span>
         <div className="min-w-0 flex-1">
           <p className={`line-clamp-2 ${EYEBROW}`}>
-            {meta.label} · {visibilityLabel(group.visibility)}
+            {meta.label}
             {group.topic ? ` · ${group.topic}` : ""}
           </p>
           <h1 className="break-words text-title-lg text-primary sm:text-display-md">{group.name}</h1>
         </div>
 
-        <div className="hidden shrink-0 sm:block">{membership}</div>
+        <div className="hidden shrink-0 sm:block">{invite}</div>
+      </div>
+
+      {/* Who can get in, said in words, and who's here - one click from the list. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-secondary">
+        <span className="flex items-center gap-1.5">
+          <Icon icon={privacy.icon} size={16} className="text-tertiary" />
+          {privacy.text}
+        </span>
+        <span aria-hidden className="text-tertiary">
+          ·
+        </span>
+        <button
+          type="button"
+          onClick={() => onOpenWindow("members")}
+          disabled={!windows.includes("members")}
+          className="flex items-center gap-2 rounded-control transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:pointer-events-none"
+        >
+          <span className="flex -space-x-1.5">
+            {group.members.slice(0, 5).map((m) => (
+              <span key={m.userId} className="rounded-full ring-2 ring-surface-0">
+                <EntityAvatar imageUrl={m.avatarUrl ?? null} name={m.displayName ?? m.username ?? "M"} seed={m.userId} size={20} />
+              </span>
+            ))}
+          </span>
+          {memberCount} {memberCount === 1 ? "member" : "members"}
+        </button>
       </div>
 
       {(group.description || group.tagline) && (
-        <p className="mt-4 line-clamp-2 max-w-3xl text-body-sm text-secondary">
+        <p className="mt-3 line-clamp-2 max-w-3xl text-body-sm text-secondary">
           {group.tagline && <span className="font-medium text-primary">{group.tagline} </span>}
           {group.description}
         </p>

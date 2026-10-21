@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { fieldControlClass } from "@/components/ui/Field";
 import { extractInviteToken } from "@/lib/inviteLink";
 import { groupHref } from "@/lib/routes";
 
@@ -32,13 +34,18 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(inviteToken ? { inviteToken } : {}),
-    });
+    }).catch(() => null);
+    if (!res) {
+      setError("Couldn't reach the server. Check your connection and try again.");
+      setStatus("error");
+      return;
+    }
     const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!res.ok) {
-      // A private community without a valid invitation: take them to its page to request access,
-      // instead of a dead-end error.
-      if (body?.code === "request_required") {
-        router.push(groupHref(groupId));
+      // A private community without a valid invitation, or one whose invitation has died: its own page says what
+      // happened and offers what's left (asking to join), instead of a dead-end error here.
+      if (body?.code === "request_required" || body?.code?.startsWith("invite_")) {
+        router.push(inviteToken ? `${groupHref(groupId)}&invite=${encodeURIComponent(inviteToken)}` : groupHref(groupId));
         return;
       }
       setError(body?.error ?? "Could not join community.");
@@ -55,37 +62,31 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Paste invite link or code"
-          className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+          aria-label="Invite link or community code"
+          className={`flex-1 ${fieldControlClass(status === "error")}`}
         />
-        <button
-          type="submit"
-          disabled={status === "saving"}
-          className="shrink-0 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
-        >
-          {status === "saving" ? "Joining…" : "Join"}
-        </button>
-        {status === "error" && <p className="mt-2 basis-full text-xs text-brand-text">{error}</p>}
+        <Button type="submit" variant="secondary" size="md" loading={status === "saving"}>
+          Join
+        </Button>
+        {status === "error" && <p className="mt-2 basis-full text-caption text-brand-text">{error}</p>}
       </form>
     );
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="rounded-xl border border-white/10 bg-surface-1 p-5">
-      <p className="text-sm font-semibold text-white">Join a community</p>
+    <form onSubmit={(e) => void submit(e)} className="rounded-card border border-white/10 bg-surface-1 p-5">
+      <p className="text-body-sm font-semibold text-primary">Join a community</p>
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Paste invite link or code"
-        className="mt-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary"
+        aria-label="Invite link or community code"
+        className={`mt-3 ${fieldControlClass(status === "error")}`}
       />
-      <button
-        type="submit"
-        disabled={status === "saving"}
-        className="mt-3 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-60"
-      >
-        {status === "saving" ? "Joining…" : "Join"}
-      </button>
-      {status === "error" && <p className="mt-2 text-xs text-brand-text">{error}</p>}
+      <Button type="submit" variant="secondary" size="md" className="mt-3" loading={status === "saving"}>
+        Join
+      </Button>
+      {status === "error" && <p className="mt-2 text-caption text-brand-text">{error}</p>}
     </form>
   );
 }

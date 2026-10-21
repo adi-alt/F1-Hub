@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { listJoinRequests, requestToJoin } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
-import { ServiceError } from "@/services/errors";
+import { limitRequest } from "@/lib/rateLimit";
+import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 /** Admin/moderator view of who's waiting. requireMember + a role check live in the service layer,
  * same as every other group read. */
@@ -21,12 +22,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const limited = await limitRequest(request, "groupJoin", session.uid);
+  if (limited) return limited;
   const { id } = await params;
   const { message } = (await request.json().catch(() => ({}))) as { message?: string };
   try {
     return NextResponse.json(await requestToJoin(id, session.uid, message));
   } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
     throw err;
   }
 }

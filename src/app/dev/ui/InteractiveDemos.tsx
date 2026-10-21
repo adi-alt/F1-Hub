@@ -148,15 +148,22 @@ export function TableDemo() {
 /** Text and select fields with hints and an error. */
 export function FieldDemo() {
   const [username, setUsername] = useState("ab");
+  const [team, setTeam] = useState("ferrari");
   const tooShort = username.trim().length < 3;
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <TextInput label="Username" hint="3-20 letters, numbers or underscores." error={tooShort ? "Use at least 3 characters." : undefined} value={username} onChange={(e) => setUsername(e.target.value)} />
-      <Select label="Favourite team" hint="Shown on your profile." defaultValue="ferrari">
-        <option value="ferrari">Ferrari</option>
-        <option value="mclaren">McLaren</option>
-        <option value="mercedes">Mercedes</option>
-      </Select>
+      <Select
+        label="Favourite team"
+        hint="Shown on your profile."
+        value={team}
+        onChange={setTeam}
+        options={[
+          { value: "ferrari", label: "Ferrari" },
+          { value: "mclaren", label: "McLaren" },
+          { value: "mercedes", label: "Mercedes" },
+        ]}
+      />
     </div>
   );
 }

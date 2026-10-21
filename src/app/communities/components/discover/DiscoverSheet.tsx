@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
@@ -284,13 +285,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
       <p className="text-sm font-semibold text-secondary">Something went wrong loading communities.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-3 rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
-      >
-        Retry
-      </button>
+      <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
+          Retry
+        </Button>
     </div>
   );
 }
@@ -328,13 +325,9 @@ function EmptyState({ query, topics, onClearTopics }: { query: string; topics: s
     return (
       <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
         <p className="text-sm font-semibold text-secondary">No public communities in {topics.length === 1 ? topics[0] : "those topics"} yet.</p>
-        <button
-          type="button"
-          onClick={onClearTopics}
-          className="mt-3 rounded-full border border-white/10 px-4 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30"
-        >
+        <Button variant="secondary" size="sm" className="mt-3" onClick={onClearTopics}>
           Show all topics
-        </button>
+        </Button>
       </div>
     );
   }
