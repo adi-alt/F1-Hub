@@ -400,9 +400,10 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
 
         const popup = window.open(data.url, "f1hub-oauth", "width=480,height=640");
         if (!popup) {
-          // Blocked - same-tab redirect, exactly the old behavior (/auth/callback's own `popup`
-          // param is simply absent this time, so it lands back on `/` the same way it always did).
-          window.location.href = data.url;
+          // Blocked - a same-tab round trip instead, asked for without `popup` (that URL would land on the popup's
+          // close page) and carrying this page, so an invitation link opened signed-out comes back to itself.
+          const next = `${window.location.pathname}${window.location.search}`;
+          void supabase.auth.signInWithOAuth({ provider, options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` } });
           return;
         }
 

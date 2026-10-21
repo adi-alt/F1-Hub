@@ -51,7 +51,9 @@ export function CommunityCard({
     setError("");
     const res = await fetch(`/api/groups/${community.id}/join`, { method: "POST" }).catch(() => null);
     if (!res?.ok) {
-      setError("Couldn't join. Try again.");
+      // The server's reason (banned, private) is the useful one; "try again" only fits a failed connection.
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setError(body?.error ?? "Couldn't join. Check your connection and try again.");
       setJoining(false);
       return;
     }

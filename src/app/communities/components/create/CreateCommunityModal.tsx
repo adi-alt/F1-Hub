@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
@@ -83,7 +84,8 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [topic, setTopic] = useState("");
-  const [chosenVisibility, setVisibility] = useState<CommunityVisibility>("public");
+  // No visibility until one is picked: the type's own default stands in (a league or a circle starts private).
+  const [chosenVisibility, setVisibility] = useState<CommunityVisibility | null>(null);
   const [features, setFeatures] = useState<CommunityFeatures>({});
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -91,7 +93,11 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
   const [emailInput, setEmailInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // Set once the community exists but a follow-up (image, invitations) failed: the footer then opens it.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
+  const trimmedName = name.trim();
   const bannerPreview = useObjectUrl(bannerFile);
   const avatarPreview = useObjectUrl(avatarFile);
 
@@ -99,11 +105,21 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
   // rather than "corrected" in an effect: the displayed value and the submitted value are the same
   // expression, so there's no frame where the UI shows Public for a community that will be created
   // Private, and no cascading re-render.
-  const visibility: CommunityVisibility = communityType === "private_circle" && chosenVisibility === "public" ? "private" : chosenVisibility;
+  const picked = chosenVisibility ?? (communityType === "prediction_league" || communityType === "private_circle" ? "private" : "public");
+  const visibility: CommunityVisibility = communityType === "private_circle" && picked === "public" ? "private" : picked;
+  const pendingEmail = emailInput.trim().toLowerCase();
+  const dirty = !!(trimmedName || description.trim() || emails.length || pendingEmail || avatarFile || bannerFile);
+
+  /** Closing a half-made community asks first; an empty one just closes. */
+  function requestClose() {
+    if (submitting) return;
+    if (createdId) return router.push(groupHref(createdId));
+    if (dirty && !confirmDiscard) return setConfirmDiscard(true);
+    onClose();
+  }
 
   const meta = communityTypeMeta(communityType);
   const stepIndex = STEPS.indexOf(step);
-  const trimmedName = name.trim();
 
   // Live, honest validation. Deliberately no "is this name taken" lookup: the only search endpoint
   // returns PUBLIC communities, so a client-side duplicate check would confidently clear a name
@@ -121,9 +137,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
   // Tab-trap/restore-on-close/scroll-lock shared with every other floating window (see the hook's
   // own comment); Escape itself still respects mid-submit the same way the backdrop click below
   // does. This used to be its own bare Escape-only listener with none of the rest.
-  useModalFocusTrap(panelRef, true, () => {
-    if (!submitting) onClose();
-  });
+  useModalFocusTrap(panelRef, true, requestClose);
 
   // Focus moves to the panel on each step change so a screen reader announces the new step rather
   // than leaving focus on a button that no longer exists. Runs independently of the hook's own
@@ -180,34 +194,42 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
       return;
     }
 
-    // Best-effort follow-ups. A failed image upload must not discard a community that already
-    // exists - the user lands in it and can set the image from Manage.
+    // Follow-ups. A failure must not discard a community that already exists; it's said here, with the way to
+    // finish it from the community itself, instead of being swallowed.
+    const problems: string[] = [];
+    const followUp = async (what: string, url: string, init: RequestInit) => {
+      const r = await fetch(url, init).catch(() => null);
+      if (!r?.ok) problems.push(`${what}: ${((await r?.json().catch(() => null)) as { error?: string } | null)?.error ?? "it didn't go through"}`);
+    };
     if (bannerFile) {
       const form = new FormData();
       form.append("banner", bannerFile);
-      await fetch(`/api/groups/${body.id}/banner`, { method: "POST", body: form }).catch(() => {});
+      await followUp("The cover", `/api/groups/${body.id}/banner`, { method: "POST", body: form });
     }
     if (avatarFile) {
       const form = new FormData();
       form.append("avatar", avatarFile);
-      await fetch(`/api/groups/${body.id}/avatar`, { method: "POST", body: form }).catch(() => {});
+      await followUp("The icon", `/api/groups/${body.id}/avatar`, { method: "POST", body: form });
+    }
+    // An address typed but never added counts: leaving it out silently would be the surprise.
+    const invitees = EMAIL_RE.test(pendingEmail) ? [...new Set([...emails, pendingEmail])] : emails;
+    if (invitees.length > 0) {
+      await followUp("The invitations", `/api/groups/${body.id}/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emails: invitees }) });
     }
 
-    if (emails.length > 0) {
-      await fetch(`/api/groups/${body.id}/invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails }),
-      }).catch(() => {});
+    if (problems.length > 0) {
+      setCreatedId(body.id);
+      setSubmitting(false);
+      setError(`Your community is ready, but not everything went through. ${problems.join(". ")}. You can finish it from the community's menu.`);
+      return;
     }
-
     router.push(groupHref(body.id));
   }
 
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-6"
-      onClick={() => !submitting && onClose()}
+      onClick={requestClose}
     >
       <motion.div
         ref={panelRef}
@@ -230,7 +252,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
               <h2 className="mt-0.5 text-lg font-bold text-white">{STEP_TITLES[step].title}</h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               disabled={submitting}
               aria-label="Close"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white disabled:opacity-40"
@@ -533,9 +555,30 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-5 py-3.5 sm:px-6">
+          {createdId ? (
+            <>
+              <span />
+              <Button variant="primary" size="md" onClick={() => router.push(groupHref(createdId))}>
+                Open community
+              </Button>
+            </>
+          ) : confirmDiscard ? (
+            <>
+              <p className="text-body-sm text-secondary">Discard this community?</p>
+              <span className="flex gap-2">
+                <Button variant="ghost" size="md" onClick={() => setConfirmDiscard(false)}>
+                  Keep editing
+                </Button>
+                <Button variant="danger" size="md" onClick={onClose}>
+                  Discard
+                </Button>
+              </span>
+            </>
+          ) : (
+          <>
           <button
             type="button"
-            onClick={() => (stepIndex === 0 ? onClose() : go(-1))}
+            onClick={() => (stepIndex === 0 ? requestClose() : go(-1))}
             disabled={submitting}
             className="text-sm text-secondary transition hover:text-white disabled:opacity-40"
           >
@@ -560,6 +603,8 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
             >
               Next
             </button>
+          )}
+          </>
           )}
         </footer>
       </motion.div>

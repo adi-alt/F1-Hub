@@ -618,6 +618,7 @@ export async function joinGroup(uid: string, groupId: string, inviteToken?: stri
       if (check.reason === "expired") throw new ServiceError("This invitation has expired.", 410, "invite_expired");
       throw new ServiceError("That invitation isn't valid.", 404, "invite_invalid");
     }
+    if (!(await inviteCreatorMayInvite(groupId, check.inviteId))) throw new ServiceError("This invitation was cancelled.", 410, "invite_revoked");
     const { data, error } = await supabaseAdmin.rpc("redeem_group_invite", { p_group_id: groupId, p_invite_id: check.inviteId, p_user_id: uid });
     if (error) throw accessError(error);
     result = data as { joined?: boolean };
@@ -630,7 +631,32 @@ export async function joinGroup(uid: string, groupId: string, inviteToken?: stri
   return { id: group.id as string, name: group.name as string };
 }
 
-async function isBanned(groupId: string, uid: string): Promise<boolean> {
+/** An invitation speaks for the member who made it: once they've left, been removed or lost the right to invite (a
+ * role change, a stricter Permissions setting), it stops letting anyone in. Missing invites pass through, so the
+ * redemption itself reports them. */
+async function inviteCreatorMayInvite(groupId: string, inviteId: string): Promise<boolean> {
+  const [{ data: invite, error }, { data: group, error: groupError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_invites").select("created_by").eq("id", inviteId).eq("group_id", groupId).maybeSingle()),
+    queryWithRetry(() => supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle()),
+  ]);
+  if (error || groupError) throw new Error(`inviteCreatorMayInvite(${groupId}): ${(error ?? groupError)?.message}`);
+  if (!invite) return true;
+  return canDo(group?.permissions, "invite", await getMemberRole(groupId, invite.created_by as string));
+}
+
+/** Cancels every live invitation a person made in a community: run when they leave or are removed, so a link they
+ * shared can't bring anyone in after them - or bring them back in. */
+async function revokeInvitesBy(groupId: string, creatorId: string, revokedBy: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("group_invites")
+    .update({ revoked_at: new Date().toISOString(), revoked_by: revokedBy })
+    .eq("group_id", groupId)
+    .eq("created_by", creatorId)
+    .is("revoked_at", null);
+  if (error) throw new Error(`revokeInvitesBy(${groupId}): ${error.message}`);
+}
+
+export async function isBanned(groupId: string, uid: string): Promise<boolean> {
   const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_bans").select("user_id").eq("group_id", groupId).eq("user_id", uid).maybeSingle());
   if (error) throw new Error(`isBanned(${groupId}, ${uid}): ${error.message}`);
   return !!data;
@@ -795,6 +821,11 @@ export async function updateGroupSettings(
     if (!isVisibility(updates.visibility)) throw new ServiceError("Unknown visibility.", 400);
     patch.visibility = updates.visibility;
   }
+  if (updates.visibility === "public") {
+    // The create flow's rule, held here too: a Private Circle is never public (createGroup).
+    const type = updates.communityType ?? (await supabaseAdmin.from("groups").select("community_type").eq("id", groupId).maybeSingle()).data?.community_type;
+    if (type === "private_circle") throw new ServiceError("A Private Circle can't be public. Change its type first.", 400);
+  }
   if (updates.moderationEnabled !== undefined) patch.moderation_enabled = updates.moderationEnabled;
   if (updates.communityType !== undefined) {
     if (!isCommunityType(updates.communityType)) throw new ServiceError("Unknown community type.", 400);
@@ -868,6 +899,7 @@ export async function removeMember(groupId: string, actingUid: string, targetUid
   }
   if (!targetRole) return; // already not a member - removing is idempotent
 
+  await revokeInvitesBy(groupId, targetUid, actingUid);
   const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", targetUid);
   if (error) throw new Error(`removeMember(${groupId}, ${targetUid}): ${error.message}`);
   expireTag(GROUP_DISCOVERY_TAG); // member count changed
@@ -936,6 +968,8 @@ export type GroupInvite = {
   createdAt: string;
   createdBy: string;
   creatorName: string | null;
+  /** Who has joined through it, first first. */
+  joinedBy: string[];
 };
 
 async function requireInviteRights(groupId: string, uid: string): Promise<GroupRole> {
@@ -1009,10 +1043,24 @@ export async function listGroupInvites(groupId: string, uid: string): Promise<Gr
       .limit(100),
   );
   if (error) throw new Error(`listGroupInvites(${groupId}): ${error.message}`);
-  const live = (data ?? []).filter((r) => (r.use_count as number) < (r.max_uses as number));
+  const open = (data ?? []).filter((r) => (r.use_count as number) < (r.max_uses as number));
+  if (!open.length) return [];
+  const creators = [...new Set(open.map((r) => r.created_by as string))];
+  const [{ data: roles, error: rolesError }, { data: group }, { data: redemptions, error: redemptionsError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role").eq("group_id", groupId).in("user_id", creators)),
+    queryWithRetry(() => supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle()),
+    queryWithRetry(() => supabaseAdmin.from("group_invite_redemptions").select("invite_id, user_id").in("invite_id", open.map((r) => r.id as string)).order("redeemed_at")),
+  ]);
+  if (rolesError || redemptionsError) throw new Error(`listGroupInvites(${groupId}): ${(rolesError ?? redemptionsError)?.message}`);
+  // Links whose creator can no longer invite don't work any more (inviteCreatorMayInvite), so they aren't listed.
+  const roleOf = new Map((roles ?? []).map((r) => [r.user_id as string, r.role as string]));
+  const live = open.filter((r) => canDo(group?.permissions, "invite", roleOf.get(r.created_by as string)));
   if (!live.length) return [];
-  const profileById = await profilesById([...new Set(live.map((r) => r.created_by as string))]);
+  const profileById = await profilesById([...new Set([...live.map((r) => r.created_by as string), ...(redemptions ?? []).map((r) => r.user_id as string)])]);
+  const joinedBy = (inviteId: string) =>
+    (redemptions ?? []).filter((r) => r.invite_id === inviteId).map((r) => profileById.get(r.user_id as string)?.display_name ?? "A member");
   return live.map((r) => ({
+    joinedBy: joinedBy(r.id as string),
     id: r.id as string,
     token: r.created_by === uid ? signInviteToken({ inviteId: r.id as string, groupId, expiresAt: new Date(r.expires_at as string) }) : null,
     expiresAt: r.expires_at as string,
@@ -1052,7 +1100,7 @@ export async function inspectInvite(groupId: string, token: string | null | unde
   if (data.revoked_at) return "revoked";
   if (new Date(data.expires_at as string).getTime() <= Date.now()) return "expired";
   if ((data.use_count as number) >= (data.max_uses as number)) return "exhausted";
-  return "valid";
+  return (await inviteCreatorMayInvite(groupId, check.inviteId)) ? "valid" : "revoked";
 }
 
 /** Emails an invitation to each address. A public community gets its plain link; a private or hidden
@@ -1135,6 +1183,7 @@ export async function requestToJoin(groupId: string, uid: string, message?: stri
   if (groupError) throw new Error(`requestToJoin(${groupId}): ${groupError.message}`);
   if (!group) throw new ServiceError("That community doesn't exist.", 404);
   if (group.visibility === "public") throw new ServiceError("This community is public - you can join it directly.", 400);
+  if (group.visibility === "hidden") throw new ServiceError("This community is invite-only. Ask a member for an invitation.", 403, "invite_only");
 
   const existingRole = await getMemberRole(groupId, uid);
   if (existingRole) throw new ServiceError("You're already a member.", 400);
@@ -1150,7 +1199,7 @@ export async function requestToJoin(groupId: string, uid: string, message?: stri
 }
 
 export async function cancelJoinRequest(groupId: string, uid: string): Promise<void> {
-  const { error } = await supabaseAdmin.from("group_join_requests").delete().eq("group_id", groupId).eq("user_id", uid);
+  const { error } = await supabaseAdmin.from("group_join_requests").delete().eq("group_id", groupId).eq("user_id", uid).eq("status", "pending");
   if (error) throw new Error(`cancelJoinRequest(${groupId}): ${error.message}`);
 }
 
@@ -1248,6 +1297,7 @@ export async function leaveGroup(groupId: string, uid: string): Promise<void> {
     throw new ServiceError("You're the only admin. Promote someone else before leaving.", 400);
   }
 
+  await revokeInvitesBy(groupId, uid, uid);
   const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", uid);
   if (error) throw new Error(`leaveGroup(${groupId}): ${error.message}`);
   expireTag(GROUP_DISCOVERY_TAG); // member count changed

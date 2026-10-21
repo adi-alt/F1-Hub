@@ -494,3 +494,70 @@ describe("invitation emails", () => {
     assert.equal(sent.length, 0);
   });
 });
+
+describe("an invitation speaks for the member who made it", () => {
+  const future = () => new Date(Date.now() + 86_400_000);
+  const seedInvite = (createdBy: string, group = PRIVATE) => {
+    const id = newId();
+    const expiresAt = future();
+    fake.seed("group_invites", { id, group_id: group, created_by: createdBy, expires_at: expiresAt.toISOString(), max_uses: 10 });
+    return { id, token: signInviteToken({ inviteId: id, groupId: group, expiresAt }) };
+  };
+  const revoked = (id: string) => !!fake.rows("group_invites").find((r) => r.id === id)!.revoked_at;
+
+  test("removing someone cancels the links they made in that community, and only there", async () => {
+    const mine = seedInvite(MOD);
+    const elsewhere = seedInvite(MOD, OTHER_PRIVATE);
+    const admins = seedInvite(ADMIN);
+    await groups.removeMember(PRIVATE, ADMIN, MOD);
+    assert.deepEqual([revoked(mine.id), revoked(elsewhere.id), revoked(admins.id)], [true, false, false]);
+  });
+
+  test("leaving cancels your links too", async () => {
+    const mine = seedInvite(MOD);
+    await groups.leaveGroup(PRIVATE, MOD);
+    assert.ok(revoked(mine.id));
+  });
+
+  test("a link whose maker can no longer invite (demoted, or invites tightened) is refused before the database is asked", async () => {
+    const link = seedInvite(MOD);
+    fake.rows("group_members").find((m) => m.group_id === PRIVATE && m.user_id === MOD)!.role = "member";
+    const err = await serviceError(groups.joinGroup(OUTSIDER, PRIVATE, link.token));
+    assert.deepEqual([err.httpStatus, err.code], [410, "invite_revoked"]);
+    assert.equal(fake.rpcCalls.length, 0);
+    assert.equal(await groups.inspectInvite(PRIVATE, link.token), "revoked");
+    assert.deepEqual(await groups.listGroupInvites(PRIVATE, ADMIN), [], "and it isn't listed as open");
+
+    fake.rows("groups").find((g) => g.id === PRIVATE)!.permissions = { invite: "members" };
+    assert.equal(await groups.inspectInvite(PRIVATE, link.token), "valid", "allowed again, it works again");
+  });
+
+  test("the list says who joined through each link", async () => {
+    const link = seedInvite(ADMIN);
+    fake.seed("group_invite_redemptions", { invite_id: link.id, user_id: VICTIM, redeemed_at: new Date().toISOString() });
+    const [listed] = await groups.listGroupInvites(PRIVATE, ADMIN);
+    assert.deepEqual(listed.joinedBy, ["Vic Victim"]);
+  });
+});
+
+describe("hidden communities and the door", () => {
+  test("a hidden community takes no join requests: it is invite-only", async () => {
+    fake.rows("groups").find((g) => g.id === PRIVATE)!.visibility = "hidden";
+    const err = await serviceError(groups.requestToJoin(PRIVATE, OUTSIDER, "let me in"));
+    assert.deepEqual([err.httpStatus, err.code], [403, "invite_only"]);
+    assert.equal(fake.rows("group_join_requests").length, 0);
+  });
+
+  test("withdrawing removes only a pending request, never a decided one", async () => {
+    fake.seed("group_join_requests", { group_id: PRIVATE, user_id: OUTSIDER, status: "approved" });
+    await groups.cancelJoinRequest(PRIVATE, OUTSIDER);
+    assert.equal(fake.rows("group_join_requests").length, 1);
+  });
+
+  test("a Private Circle can't be made public from settings either", async () => {
+    fake.rows("groups").find((g) => g.id === PRIVATE)!.community_type = "private_circle";
+    assert.equal((await serviceError(groups.updateGroupSettings(PRIVATE, ADMIN, { visibility: "public" }))).httpStatus, 400);
+    assert.equal(fake.rows("groups").find((g) => g.id === PRIVATE)!.visibility, "private");
+    await groups.updateGroupSettings(PRIVATE, ADMIN, { visibility: "public", communityType: "general" });
+  });
+});

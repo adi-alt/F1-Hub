@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Button } from "@/components/ui/Button";
 import { communityTypeMeta, visibilityLabel } from "@/lib/communities";
 import type { GroupPreview, InviteState, JoinRequestStatus } from "@/lib/supabase/groups";
 import { GroupBanner } from "./GroupBanner";
@@ -17,8 +18,10 @@ import { groupHref } from "@/lib/routes";
  *
  *   public   - Join, immediately
  *   private  - Request to Join, with an optional note, then a waiting state
- *   invited  - a private community reached through a valid, signed invitation link: Accept invitation
- *   rejected - says so plainly, and lets them ask again rather than silently doing nothing
+ *   hidden   - invite-only: no request, just how to get in
+ *   invited  - a private or hidden community reached through a valid, signed invitation link: Accept invitation
+ *   rejected - says so plainly, and lets them ask again
+ *   banned   - says so, with nothing to click that the server would refuse
  *
  * Knowing the community's link is not the key to a private community - approval or a valid
  * invitation is, and the server enforces that (joinGroup), whatever this component shows. An
@@ -30,12 +33,14 @@ export function JoinPrompt({
   joinRequestStatus,
   inviteToken = null,
   inviteState = null,
+  banned = false,
 }: {
   group: GroupPreview;
   joinRequestStatus: JoinRequestStatus | null;
   /** A token the server has already checked is valid; null when there isn't one. */
   inviteToken?: string | null;
   inviteState?: InviteState | null;
+  banned?: boolean;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "working" | "error">("idle");
@@ -45,9 +50,25 @@ export function JoinPrompt({
   const [showMessage, setShowMessage] = useState(false);
 
   const isPublic = group.visibility === "public";
+  const inviteOnly = group.visibility === "hidden";
   const invited = !isPublic && !!inviteToken;
   const deadInvite = !isPublic && !inviteToken && inviteState && inviteState !== "valid" ? inviteState : null;
   const meta = communityTypeMeta(group.communityType);
+
+  // While a request waits, coming back to the tab re-asks the server: an approval lands as the community itself.
+  useEffect(() => {
+    if (requestState !== "pending") return;
+    const onVisible = () => document.visibilityState === "visible" && router.refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [requestState, router]);
+
+  /** A failure that means the page itself is out of date (the invitation died, the community changed) re-renders it. */
+  function fail(body: { error?: string; code?: string } | null, fallback: string) {
+    setError(body?.error ?? fallback);
+    setStatus("error");
+    if (body?.code?.startsWith("invite_") || body?.code === "banned") router.refresh();
+  }
 
   async function join() {
     setStatus("working");
@@ -57,12 +78,7 @@ export function JoinPrompt({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(invited ? { inviteToken } : {}),
     }).catch(() => null);
-    if (!res?.ok) {
-      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
-      setError(body?.error ?? "Couldn't join this community.");
-      setStatus("error");
-      return;
-    }
+    if (!res?.ok) return fail((await res?.json().catch(() => null)) as { error?: string; code?: string } | null, "Couldn't join this community. Check your connection and try again.");
     // The invitation is in the URL; drop it so a refresh doesn't replay a spent token.
     if (invited) router.replace(groupHref(group.id));
     router.refresh();
@@ -76,10 +92,11 @@ export function JoinPrompt({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: message.trim() || undefined }),
     }).catch(() => null);
-    const body = (await res?.json().catch(() => null)) as { status?: JoinRequestStatus; error?: string } | null;
+    const body = (await res?.json().catch(() => null)) as { status?: JoinRequestStatus; error?: string; code?: string } | null;
     if (!res?.ok) {
-      setError(body?.error ?? "Couldn't send your request.");
-      setStatus("error");
+      fail(body, "Couldn't send your request. Check your connection and try again.");
+      // 400: it went public, 403: it went invite-only - either way the page is stale.
+      if (res?.status === 400 || res?.status === 403) router.refresh();
       return;
     }
     setRequestState("pending");
@@ -88,12 +105,17 @@ export function JoinPrompt({
 
   async function withdraw() {
     setStatus("working");
-    await fetch(`/api/groups/${group.id}/join-requests`, { method: "DELETE" }).catch(() => {});
+    const res = await fetch(`/api/groups/${group.id}/join-requests`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) return fail(null, "Couldn't withdraw your request. Try again.");
     setRequestState(null);
     setShowMessage(false);
     setMessage("");
     setStatus("idle");
+    // An approval that landed in the meantime: the refresh shows the community instead.
+    router.refresh();
   }
+
+  const canRequest = !isPublic && !inviteOnly && !invited && !banned;
 
   return (
     <div className="overflow-hidden rounded-xl border border-white/10 bg-surface-1">
@@ -106,19 +128,17 @@ export function JoinPrompt({
           </span>
         </div>
 
-        <h1 className="mt-3 text-2xl font-bold text-white">{group.name}</h1>
-        <p className="mt-1 text-xs text-tertiary">
+        <h1 className="mt-3 text-title-lg font-semibold text-primary">{group.name}</h1>
+        <p className="mt-1 text-caption text-tertiary">
           {meta.label} · {visibilityLabel(group.visibility)}
-          {group.topic ? ` · ${group.topic}` : ""}
+          {group.topic ? ` · ${group.topic}` : ""} · {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
         </p>
-        {group.description && <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-secondary">{group.description}</p>}
-        <p className="mt-3 text-xs text-tertiary">
-          {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
-        </p>
+        {/* A private or hidden community's description is for its members (as on its share card). */}
+        {isPublic && group.description && <p className="mx-auto mt-3 max-w-md text-body-sm leading-relaxed text-secondary">{group.description}</p>}
 
         <div className="mt-6">
-          {deadInvite && (
-            <p role="status" className="mx-auto mb-4 max-w-sm rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs leading-relaxed text-secondary">
+          {deadInvite && !banned && (
+            <p role="status" className="mx-auto mb-4 max-w-sm rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-caption leading-relaxed text-secondary">
               {deadInvite === "expired"
                 ? "This invitation has expired."
                 : deadInvite === "revoked"
@@ -126,69 +146,57 @@ export function JoinPrompt({
                   : deadInvite === "exhausted"
                     ? "This invitation has already been used."
                     : "This invitation link isn't valid."}{" "}
-              You can still ask to join below.
+              {inviteOnly ? "Ask whoever sent it for a new one." : requestState === "pending" ? "Your request to join is still waiting." : "You can still ask to join below."}
             </p>
           )}
-          {isPublic || invited ? (
-            <button
-              onClick={() => void join()}
-              disabled={status === "working"}
-              className="rounded-full bg-brand px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-60"
-            >
-              {status === "working" ? "Joining…" : invited ? "Accept invitation" : "Join Community"}
-            </button>
+          {banned ? (
+            <p className="text-body-sm text-secondary">You can&apos;t join this community.</p>
+          ) : isPublic || invited ? (
+            <Button variant="primary" size="md" loading={status === "working"} onClick={() => void join()}>
+              {invited ? "Accept invitation" : "Join community"}
+            </Button>
+          ) : inviteOnly ? (
+            !deadInvite && <p className="mx-auto max-w-sm text-body-sm text-secondary">This community is invite-only. Ask a member to send you an invitation link.</p>
           ) : requestState === "pending" ? (
             <div>
-              <p className="text-sm font-medium text-neutral-200">Request sent</p>
-              <p className="mt-1 text-xs text-tertiary">An admin will review it. You&apos;ll get in as soon as they approve.</p>
-              <button onClick={() => void withdraw()} disabled={status === "working"} className="mt-3 text-xs text-tertiary transition hover:text-white disabled:opacity-50">
+              <p className="text-body-sm font-medium text-primary">Request sent</p>
+              <p className="mt-1 text-caption text-tertiary">An admin or moderator will review it. You&apos;ll get in as soon as they approve.</p>
+              <Button variant="ghost" size="sm" className="mt-3" loading={status === "working"} onClick={() => void withdraw()}>
                 Withdraw request
-              </button>
-            </div>
-          ) : requestState === "rejected" ? (
-            <div>
-              {/* Said plainly rather than leaving a button that silently does nothing. */}
-              <p className="text-sm font-medium text-neutral-200">Your request wasn&apos;t approved.</p>
-              <button
-                onClick={() => void request()}
-                disabled={status === "working"}
-                className="mt-3 rounded-full border border-white/10 px-5 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 disabled:opacity-50"
-              >
-                Ask again
-              </button>
+              </Button>
             </div>
           ) : (
-            <div className="mx-auto max-w-sm">
-              {showMessage && (
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  maxLength={500}
-                  rows={3}
-                  autoFocus
-                  placeholder="Tell them why you'd like to join (optional)"
-                  aria-label="Message to the admins"
-                  className="mb-3 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-left text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
-                />
-              )}
-              <button
-                onClick={() => void request()}
-                disabled={status === "working"}
-                className="rounded-full bg-brand px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-60"
-              >
-                {status === "working" ? "Sending…" : "Request to Join"}
-              </button>
-              {!showMessage && (
-                <button onClick={() => setShowMessage(true)} className="mt-2 block w-full text-xs text-tertiary transition hover:text-secondary">
-                  Add a message
-                </button>
-              )}
-            </div>
+            canRequest && (
+              <div className="mx-auto max-w-sm">
+                {/* Said plainly, then the same form again: a second ask can carry a note too. */}
+                {requestState === "rejected" && <p className="mb-3 text-body-sm text-secondary">Your last request wasn&apos;t approved. You can ask again.</p>}
+                {showMessage && (
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    autoFocus
+                    placeholder="Tell them why you'd like to join (optional)"
+                    aria-label="Message to the admins"
+                    className="mb-3 w-full resize-none rounded-control border border-white/10 bg-black/30 px-3 py-2 text-left text-body-sm text-primary placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                  />
+                )}
+                <Button variant={requestState === "rejected" ? "secondary" : "primary"} size="md" loading={status === "working"} onClick={() => void request()}>
+                  {requestState === "rejected" ? "Ask again" : "Request to join"}
+                </Button>
+                {!showMessage && (
+                  <button type="button" onClick={() => setShowMessage(true)} className="mt-2 block w-full text-caption text-tertiary transition hover:text-secondary">
+                    Add a message
+                  </button>
+                )}
+              </div>
+            )
           )}
         </div>
 
         {error && (
-          <p role="alert" className="mt-3 text-xs text-brand-text">
+          <p role="alert" className="mt-3 text-caption text-brand-text">
             {error}
           </p>
         )}

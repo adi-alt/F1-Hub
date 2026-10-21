@@ -4,7 +4,8 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { CommunityView, communityMetadata } from "./_community/CommunityView";
 import { CommunityDetailSkeleton } from "./_community/components/CommunityDetailSkeleton";
 import { GroupsHomeClient } from "./components/GroupsHomeClient";
-import { getUserGroups, discoverCommunities } from "@/lib/supabase/groups";
+import { getUserGroups, discoverCommunities, getGroupPreview } from "@/lib/supabase/groups";
+import { isUuid } from "@/lib/ids";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyPredictions } from "@/lib/supabase/groupPredictions";
 import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
@@ -79,9 +80,16 @@ export default async function GroupsPage({ searchParams }: { searchParams: Group
   const params = await searchParams;
   const id = one(params.id);
   if (!session.uid) {
+    // Someone opening a shared link or an invitation is told which community it is, not shown the generic pitch.
+    const preview = id && isUuid(id) ? await getGroupPreview(id).catch(() => null) : null;
+    const invited = !!one(params.invite);
     return (
       <div className={id ? "page-narrow py-10" : "page-wide py-8"}>
-        <SignInGate label={id ? "this community" : "your communities"} />
+        <SignInGate
+          label={id ? "this community" : "your communities"}
+          title={preview ? (invited ? `You're invited to ${preview.name}` : preview.name) : undefined}
+          lead={preview ? `Sign in to ${invited ? "accept the invitation" : preview.visibility === "public" ? "join" : "see how to join"}. It's free.` : undefined}
+        />
       </div>
     );
   }

@@ -23,6 +23,7 @@ import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communit
 import { GroupLeaderboardTab } from "./GroupLeaderboardTab";
 import { GroupMembersTab } from "./GroupMembersTab";
 import { GroupPredictions } from "./GroupPredictions";
+import { InvitePanel } from "./InvitePanel";
 
 /** Manage isn't a module - it's an admin surface, so it never appears in resolveModules and is
  * appended here only for the people who can actually use it. */
@@ -36,10 +37,10 @@ function isTab(value: string | null, tabs: Tab[]): value is Tab {
 
 /** The sections that open as a window over the page instead of replacing the feed: secondary reading (media,
  * members, about) and the admin's settings. The page's own tabs are the competitive ones: feed, predictions, league. */
-const WINDOWS: readonly CommunityWindow[] = ["media", "members", "about", "manage"];
+const WINDOWS: readonly CommunityWindow[] = ["media", "members", "about", "invite", "manage"];
 const isWindow = (value: string | null): value is CommunityWindow => !!value && (WINDOWS as readonly string[]).includes(value);
 
-const WINDOW_TITLES: Record<CommunityWindow, string> = { media: "Media", members: "Members", about: "About", manage: "Manage community" };
+const WINDOW_TITLES: Record<CommunityWindow, string> = { media: "Media", members: "Members", about: "About", invite: "Invite people", manage: "Manage community" };
 
 /**
  * The community page itself: identity, navigation, the active panel, and the context rail beside
@@ -120,14 +121,17 @@ export function CommunityWorkspace({
   crowdVsModel?: CrowdVsModel | null;
 }) {
   const isAdmin = group.myRole === "admin";
+  const canInvite = canDo(group.permissions, "invite", group.myRole);
+  // A moderator manages the door (join requests); everything else in Manage is an admin's.
+  const canManage = isAdmin || (group.myRole === "moderator" && (group.visibility === "private" || (pendingRequests ?? 0) > 0));
   // Memoized because `openTab` below closes over it: a fresh array every render would give that
   // callback a new identity every render, and it's passed into the rail.
   const modules = useMemo(() => resolveModules(group.communityType, group.features), [group.communityType, group.features]);
   const tabs: Tab[] = useMemo(() => modules.filter((m) => !isWindow(m)), [modules]);
   const windows: CommunityWindow[] = useMemo(() => {
     const own: CommunityWindow[] = modules.filter((m): m is CommunityModule & CommunityWindow => isWindow(m));
-    return isAdmin ? [...own, "manage"] : own;
-  }, [isAdmin, modules]);
+    return [...own, ...(canInvite ? (["invite"] as const) : []), ...(canManage ? (["manage"] as const) : [])];
+  }, [canInvite, canManage, modules]);
   // Counts where a count is the useful thing to know before opening a tab.
   const openRoundCount = predictions.filter((p) => p.state === "open").length;
   const tabCount: Partial<Record<Tab, number>> = { predictions: openRoundCount || undefined };
@@ -145,6 +149,8 @@ export function CommunityWorkspace({
   // The full-post modal. Owned here, not in the feed, because the floating "Create post" button is
   // fixed to the viewport and lives outside the feed panel entirely.
   const [composerOpen, setComposerOpen] = useState(false);
+  // A window this person can no longer open (a role changed under them) closes rather than showing an empty dialog.
+  if (win && !windows.includes(win)) setWin(null);
 
   // The only thing left for an effect is a genuine external subscription: Back/Forward. setState
   // here runs inside the event callback, not in the effect body.
@@ -246,10 +252,11 @@ export function CommunityWorkspace({
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={select} items={tabItems}>
             {/* The strip scrolls sideways on a narrow screen rather than wrapping to two rows. */}
-            <TabList aria-label="Community sections" />
+            {/* A lone tab is a label, not navigation: left out. */}
+            {tabItems.length > 1 && <TabList aria-label="Community sections" />}
 
             {/* Each panel mounts fresh when its tab is chosen, so this fades the new one in. */}
-            <TabPanels className="mt-5">
+            <TabPanels className={tabItems.length > 1 ? "mt-5" : ""}>
               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}>
                 {tab === "feed" && (
                   <CommunityFeed
@@ -302,6 +309,7 @@ export function CommunityWorkspace({
               showRace={isF1}
               showPredictions={modules.includes("predictions")}
               showLeaderboard={modules.includes("leaderboard")}
+              canInvite={canInvite}
               onOpenTab={openTab}
             />
           </aside>
@@ -309,11 +317,12 @@ export function CommunityWorkspace({
 
       {/* Media, Members, About and Manage open over the page, so the feed underneath stays where it was. */}
       {shown && (
-        <Dialog open={win !== null} onClose={closeWindow} title={WINDOW_TITLES[shown]} size={shown === "manage" || shown === "media" ? "xl" : "lg"}>
+        <Dialog open={win !== null} onClose={closeWindow} title={shown === "manage" && !isAdmin ? "Join requests" : WINDOW_TITLES[shown]} size={shown === "manage" || shown === "media" ? "xl" : "lg"}>
           {shown === "media" && <MediaTab groupId={group.id} />}
           {shown === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
           {shown === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
-          {shown === "manage" && isAdmin && <ManageTabLazy group={group} />}
+          {shown === "invite" && canInvite && <InvitePanel group={group} />}
+          {shown === "manage" && canManage && <ManageTabLazy group={group} pendingRequests={pendingRequests} />}
         </Dialog>
       )}
 
@@ -332,10 +341,10 @@ export function CommunityWorkspace({
   );
 }
 
-/** Manage is the heaviest panel and the least-visited, so it's only imported when an admin actually
+/** Manage is the heaviest panel and the least-visited, so it's only imported when an admin (or moderator) actually
  * opens it rather than shipped in every member's bundle. */
-function ManageTabLazy({ group }: { group: GroupDetail }) {
-  const [Loaded, setLoaded] = useState<React.ComponentType<{ group: GroupDetail }> | null>(null);
+function ManageTabLazy({ group, pendingRequests }: { group: GroupDetail; pendingRequests?: number }) {
+  const [Loaded, setLoaded] = useState<React.ComponentType<{ group: GroupDetail; pendingRequests?: number }> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -354,5 +363,5 @@ function ManageTabLazy({ group }: { group: GroupDetail }) {
       </div>
     );
   }
-  return <Loaded group={group} />;
+  return <Loaded group={group} pendingRequests={pendingRequests} />;
 }

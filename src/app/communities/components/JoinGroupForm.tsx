@@ -32,13 +32,18 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(inviteToken ? { inviteToken } : {}),
-    });
+    }).catch(() => null);
+    if (!res) {
+      setError("Couldn't reach the server. Check your connection and try again.");
+      setStatus("error");
+      return;
+    }
     const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
     if (!res.ok) {
-      // A private community without a valid invitation: take them to its page to request access,
-      // instead of a dead-end error.
-      if (body?.code === "request_required") {
-        router.push(groupHref(groupId));
+      // A private community without a valid invitation, or one whose invitation has died: its own page says what
+      // happened and offers what's left (asking to join), instead of a dead-end error here.
+      if (body?.code === "request_required" || body?.code?.startsWith("invite_")) {
+        router.push(inviteToken ? `${groupHref(groupId)}&invite=${encodeURIComponent(inviteToken)}` : groupHref(groupId));
         return;
       }
       setError(body?.error ?? "Could not join community.");
