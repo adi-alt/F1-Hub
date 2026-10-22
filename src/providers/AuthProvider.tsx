@@ -48,6 +48,28 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 /** The session as the server read it for this request (root layout): `null` for a signed-out visitor. */
 export type InitialAuth = { uid: string; email: string | null; photoURL: string | null; role: Role; displayName: string | null } | null;
 
+/** Tells the server this browser's time zone, so emails can give times in it ("Qualifying starts Sat 25 Oct, 23:00").
+ * Once per zone per person: a move or a new device with a different zone sends it again. */
+function rememberTimeZone(uid: string) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const key = `apex-tz:${uid}`;
+  try {
+    if (!tz || localStorage.getItem(key) === tz) return;
+  } catch {
+    return;
+  }
+  void fetch("/api/users/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ timeZone: tz }) })
+    .then((res) => {
+      if (!res.ok) return;
+      try {
+        localStorage.setItem(key, tz);
+      } catch {
+        // Storage blocked: it's sent again next time, which is harmless.
+      }
+    })
+    .catch(() => {});
+}
+
 export function AuthProvider({ children, initialAuth }: { children: ReactNode; initialAuth?: InitialAuth }) {
   const router = useRouter();
   // Seeded from the server's own read of the session cookie, so the first render - the server's HTML included -
@@ -76,6 +98,7 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
           setPointsBalance(body.pointsBalance ?? null);
           if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
           setOnboardingDone(body.onboardingDone ?? true);
+          if (body.uid) rememberTimeZone(body.uid);
         } else {
           // The session ended between the page render and this request: follow the server.
           setRole(null);

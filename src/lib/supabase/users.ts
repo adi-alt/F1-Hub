@@ -45,7 +45,7 @@ export type PreferencesPatch = Partial<
     UserProfile,
     "favoriteDrivers" | "favoriteTeams" | "favoriteTracks" | "notifyBeforeQualifying" | "notifyOnResults" | "firstName" | "lastName"
   >
->;
+> & { timeZone?: string };
 
 export type NewProfileInput = {
   firstName: string;
@@ -355,6 +355,7 @@ export async function updateUserPreferences(uid: string, patch: PreferencesPatch
   if (patch.notifyOnResults !== undefined) update.notify_on_results = patch.notifyOnResults;
   if (patch.firstName !== undefined) update.first_name = patch.firstName;
   if (patch.lastName !== undefined) update.last_name = patch.lastName;
+  if (patch.timeZone !== undefined) update.time_zone = patch.timeZone;
   if (Object.keys(update).length === 0) return;
   const { error } = await supabaseAdmin.from("profiles").update(update).eq("id", uid);
   if (error) throw new Error(`updateUserPreferences(${uid}): ${error.message}`);
