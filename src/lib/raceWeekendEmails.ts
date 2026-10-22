@@ -38,7 +38,7 @@ export async function sendRaceWeekendEmails(now = Date.now()): Promise<{ reminde
   for (const race of upcoming) {
     const lockAt = locks.get(race.id);
     const ms = lockAt ? Date.parse(lockAt) - now : NaN;
-    if (ms > 0 && ms <= REMIND_WITHIN_MS) reminders += await remind(race, ms);
+    if (lockAt && ms > 0 && ms <= REMIND_WITHIN_MS) reminders += await remind(race, ms, lockAt);
   }
 
   for (const race of races) {
@@ -49,7 +49,7 @@ export async function sendRaceWeekendEmails(now = Date.now()): Promise<{ reminde
 }
 
 /** Each opted-in person: which of their rounds for this race are still open and whether they've entered, and their pick. */
-async function remind(race: RaceRow, msLeft: number): Promise<number> {
+async function remind(race: RaceRow, msLeft: number, lockAt: string): Promise<number> {
   const { data: people } = await supabaseAdmin.from("profiles").select("id").eq("notify_before_qualifying", true);
   const ids = (people ?? []).map((p) => p.id as string);
   if (!ids.length) return 0;
@@ -90,6 +90,8 @@ async function remind(race: RaceRow, msLeft: number): Promise<number> {
         preheader: open ? `${open} still to do before qualifying` : "You're all set for qualifying",
         context: { label: `Round ${race.round} · ${race.name}` },
         eyebrow: "Race weekend",
+        // Qualifying's start, in each person's own time zone.
+        times: [{ label: "Qualifying starts", at: lockAt }],
         rows,
         cta: "Make your picks",
         reason: "You asked for a reminder before qualifying locks.",

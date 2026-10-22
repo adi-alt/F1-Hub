@@ -48,12 +48,31 @@ export function emailOrigin(): string {
 
 export const SETTINGS_PATH = "/?section=profile&tab=notifications";
 
+/** A moment in the reader's own time zone, the way a person says it: "Sat 25 Oct, 23:00 GMT+5:30". UTC (and says
+ * so) while their zone isn't known or isn't valid. */
+export function formatWhen(iso: string, timeZone?: string | null): string {
+  const format = (tz: string) =>
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" })
+      .format(new Date(iso))
+      .replace(" at ", ", ");
+  try {
+    return format(timeZone || "UTC");
+  } catch {
+    return format("UTC");
+  }
+}
+
 const absolute = (href: string) => (/^https?:\/\//.test(href) ? href : `${emailOrigin()}${href}`);
 
 // The page's glow (globals.css --page-glow) flattened onto carbon: email clients can't blend transparent layers.
 const GLOW =
   "linear-gradient(118deg,#09090b 6%,#27140f 22%,#0d111a 35%,#09090b 47%,#09090b 54%,#180f0d 67%,#101824 80%,#09090b 92%)";
-const CARD = "linear-gradient(135deg,#26262c,#18181c)";
+// The site's glass (components/ui/panel.ts): a barely-there white fill and a hairline edge, so the page's light shows
+// through. Mail apps can't blur, so the fill is a touch stronger than the site's to read as frosted on its own;
+// Outlook, which drops rgba, gets the solid bgcolor.
+const GLASS = "background-color:rgba(255,255,255,0.045);background-image:linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.015));border:1px solid rgba(255,255,255,0.1);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);";
+const INSET = "background-color:rgba(0,0,0,0.24);border:1px solid rgba(255,255,255,0.07);";
+const HAIRLINE = "rgba(255,255,255,0.07)";
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
 
 const initials = (name: string) =>
@@ -95,21 +114,21 @@ export function renderEmail(c: EmailContent): RenderedEmail {
   if (c.text) blocks.push(row(`<div style="font:15px/1.6 ${FONT};color:#b4b4bb;margin-top:10px;">${e(c.text)}</div>`));
   if (c.code) {
     blocks.push(
-      row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr><td align="center" bgcolor="#0f0f12" style="background:#0f0f12;border:1px solid #2c2c31;border-radius:10px;padding:20px 0;font:700 34px/1 'Courier New',monospace;letter-spacing:10px;color:#f2f2f3;">${e(c.code)}</td></tr></table>`),
+      row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr><td align="center" bgcolor="#0f0f12" style="${INSET}border-radius:10px;padding:20px 0;font:700 34px/1 'Courier New',monospace;letter-spacing:10px;color:#f2f2f3;">${e(c.code)}</td></tr></table>`),
     );
   }
   if (c.quote || c.rows?.length) {
     const quote = c.quote
-      ? `<div style="border-left:3px solid #3a3a42;padding:2px 0 2px 12px;font:15px/1.55 ${FONT};color:#d6d6db;">${e(c.quote)}</div>`
+      ? `<div style="border-left:3px solid rgba(255,255,255,0.18);padding:2px 0 2px 12px;font:15px/1.55 ${FONT};color:#d6d6db;">${e(c.quote)}</div>`
       : "";
     const rows = (c.rows ?? [])
       .map(
         (r, i) =>
-          `<tr><td style="padding:7px 0;font:14px ${FONT};color:#9a9aa2;${i ? "border-top:1px solid #26262b;" : ""}">${e(r.label)}</td><td align="right" style="padding:7px 0 7px 12px;font:600 14px ${FONT};color:#f2f2f3;${i ? "border-top:1px solid #26262b;" : ""}">${e(r.value)}</td></tr>`,
+          `<tr><td style="padding:7px 0;font:14px ${FONT};color:#9a9aa2;${i ? "border-top:1px solid ${HAIRLINE};" : ""}">${e(r.label)}</td><td align="right" style="padding:7px 0 7px 12px;font:600 14px ${FONT};color:#f2f2f3;${i ? "border-top:1px solid ${HAIRLINE};" : ""}">${e(r.value)}</td></tr>`,
       )
       .join("");
     blocks.push(
-      row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr><td bgcolor="#111114" style="background:#111114;border:1px solid #2c2c31;border-radius:10px;padding:12px 16px;">${quote}${rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"${quote ? ' style="margin-top:10px;"' : ""}>${rows}</table>` : ""}</td></tr></table>`),
+      row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;"><tr><td bgcolor="#111114" style="${INSET}border-radius:10px;padding:12px 16px;">${quote}${rows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"${quote ? ' style="margin-top:10px;"' : ""}>${rows}</table>` : ""}</td></tr></table>`),
     );
   }
   if (c.warning) {
@@ -140,7 +159,7 @@ export function renderEmail(c: EmailContent): RenderedEmail {
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${e(c.preheader)}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#09090b" style="background-color:#09090b;background-image:${GLOW};">
 <tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" width="520" cellpadding="0" cellspacing="0" bgcolor="#1c1c21" style="width:100%;max-width:520px;background-color:#1c1c21;background-image:${CARD};border:1px solid #2c2c31;border-radius:16px;overflow:hidden;">
+<table role="presentation" width="520" cellpadding="0" cellspacing="0" bgcolor="#16161a" style="width:100%;max-width:520px;${GLASS}border-radius:16px;overflow:hidden;">
 <tr><td height="4" bgcolor="#e10600" style="height:4px;background:#e10600;font-size:0;line-height:0;">&nbsp;</td></tr>
 <tr><td style="padding:22px 28px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
 <td valign="middle"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="5" height="16" bgcolor="#e10600" style="width:5px;height:16px;background:#e10600;border-radius:3px;font-size:0;">&nbsp;</td><td style="padding-left:9px;font:700 15px ${FONT};color:#f2f2f3;letter-spacing:0.02em;">Apex F1 Hub</td></tr></table></td>
@@ -149,7 +168,7 @@ export function renderEmail(c: EmailContent): RenderedEmail {
 ${c.eyebrow ? row(`<div style="font:700 11px ${FONT};letter-spacing:0.14em;text-transform:uppercase;color:#9a9aa2;margin-top:22px;">${e(c.eyebrow)}</div>`) : row('<div style="height:14px;"></div>')}
 ${blocks.join("\n")}
 <tr><td style="padding:28px 0 0;"></td></tr>
-<tr><td style="padding:16px 28px 22px;border-top:1px solid #2c2c31;font:12px/1.6 ${FONT};color:#77767e;">${e(c.reason)}${footerLinks ? `<br>${footerLinks}` : ""}</td></tr>
+<tr><td style="padding:16px 28px 22px;border-top:1px solid ${HAIRLINE};font:12px/1.6 ${FONT};color:#77767e;">${e(c.reason)}${footerLinks ? `<br>${footerLinks}` : ""}</td></tr>
 </table>
 <div style="font:11px ${FONT};color:#55545b;margin-top:16px;">&copy; ${new Date().getFullYear()} Apex F1 Hub</div>
 </td></tr></table>

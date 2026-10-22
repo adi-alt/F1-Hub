@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getTransporter } from "@/lib/otp";
 import { singleLine } from "@/lib/html";
-import { renderEmail, type EmailContent } from "@/lib/email/layout";
+import { formatWhen, renderEmail, type EmailContent } from "@/lib/email/layout";
 import { unsubscribeUrl } from "@/lib/email/unsubscribe";
 import { channelsFor, cleanPrefsPatch, type NotificationKind, type NotificationPrefs } from "@/lib/notificationKinds";
 
@@ -19,7 +19,11 @@ export type NotificationEvent = {
   dedupeKey?: string | null;
   /** What the email shows beyond the title and body: the community, a quote, the figures. The title is the email's
    * title, the body its text, and `href` its button. */
-  email?: Partial<Pick<EmailContent, "subject" | "preheader" | "context" | "eyebrow" | "who" | "big" | "quote" | "rows" | "reason">> & { cta?: string };
+  email?: Partial<Pick<EmailContent, "subject" | "preheader" | "context" | "eyebrow" | "who" | "big" | "quote" | "rows" | "reason">> & {
+    cta?: string;
+    /** Moments shown as rows in each reader's own time zone ("Closes · Sat 25 Oct, 23:00 GMT+5:30"). */
+    times?: { label: string; at: string }[];
+  };
 };
 
 export type NotificationItem = {
@@ -92,6 +96,12 @@ export async function notify(userIds: readonly string[], event: NotificationEven
 async function sendEmails(to: { id: string; email: string }[], event: NotificationEvent, rows: { id: string; user_id: string }[]) {
   const transporter = getTransporter();
   const e = event.email ?? {};
+  // Read on its own and allowed to fail: a missing zone (or column) only means the time is given in UTC.
+  const zones = new Map<string, string | null>();
+  if (e.times?.length) {
+    const { data } = await supabaseAdmin.from("profiles").select("id, time_zone").in("id", to.map((p) => p.id));
+    for (const row of data ?? []) zones.set(row.id as string, (row.time_zone as string | null) ?? null);
+  }
   await Promise.all(
     to.map(async (person) => {
       try {
@@ -105,7 +115,7 @@ async function sendEmails(to: { id: string; email: string }[], event: Notificati
           who: e.who,
           big: e.big,
           quote: e.quote,
-          rows: e.rows,
+          rows: [...(e.times ?? []).map((t) => ({ label: t.label, value: formatWhen(t.at, zones.get(person.id)) })), ...(e.rows ?? [])],
           cta: event.href ? { label: e.cta ?? "Open on Apex F1 Hub", href: event.href } : undefined,
           reason: e.reason ?? "You get this because of your notification settings.",
           unsubscribeUrl: unsubscribeUrl(person.id, event.kind),

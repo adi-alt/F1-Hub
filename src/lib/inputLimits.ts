@@ -21,6 +21,19 @@ export const preferencesPatchSchema = z.object({
   favoriteTracks: favoriteIds.optional(),
   notifyBeforeQualifying: z.boolean().optional(),
   notifyOnResults: z.boolean().optional(),
+  // The browser's IANA zone, for times in emails. Only a name the runtime knows is kept.
+  timeZone: z
+    .string()
+    .max(64)
+    .refine((tz) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: tz });
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .optional(),
   firstName: personName.optional(),
   lastName: personName.optional(),
 });

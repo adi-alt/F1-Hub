@@ -100,8 +100,11 @@ export const notifyPredictionSettled = (groupId: string, predictionId: string, t
 /** A new prediction round opened: everyone in the community but whoever opened it. */
 export const notifyNewRound = (groupId: string, predictionId: string, creatorId: string, type: PredictionType, raceName: string) =>
   safely(async () => {
-    const [members, c] = await Promise.all([communityMembers(groupId), community(groupId)]);
+    const [members, c, { data: round }] = await Promise.all([communityMembers(groupId), community(groupId), supabaseAdmin.from("group_predictions").select("race_id").eq("id", predictionId).maybeSingle()]);
     const label = predictionTypeLabels[type] ?? "Prediction";
+    // The lock is when qualifying starts: shown to each member in their own time.
+    const { data: locks } = round?.race_id ? await supabaseAdmin.rpc("prediction_lock_times", { p_race_ids: [round.race_id] }) : { data: null };
+    const lockAt = ((locks ?? []) as { lock_at: string | null }[])[0]?.lock_at ?? null;
     await notify(members, {
       kind: "new_round",
       title: `New round in ${c.name}: ${label}`,
@@ -115,6 +118,7 @@ export const notifyNewRound = (groupId: string, predictionId: string, creatorId:
         preheader: `${raceName} · closes when qualifying starts`,
         context: contextOf(c),
         eyebrow: `New round · ${raceName}`,
+        times: lockAt ? [{ label: "Closes", at: lockAt }] : undefined,
         cta: "Make your pick",
         reason: `You're a member of ${c.name}.`,
       },

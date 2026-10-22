@@ -16,7 +16,7 @@ const kindLabel = (kind: string) => NOTIFICATION_KINDS.find((k) => k.kind === ki
 function page(title: string, body: string, form?: string): NextResponse {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Apex F1 Hub</title></head>
 <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:#09090b linear-gradient(118deg,#09090b 6%,#27140f 22%,#0d111a 35%,#09090b 47%,#09090b 54%,#180f0d 67%,#101824 80%,#09090b 92%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#f2f2f3;">
-<main style="max-width:440px;width:100%;background:linear-gradient(135deg,#26262c,#18181c);border:1px solid #2c2c31;border-radius:16px;overflow:hidden;">
+<main style="max-width:440px;width:100%;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.1);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-radius:16px;overflow:hidden;">
 <div style="height:4px;background:#e10600;"></div>
 <div style="padding:28px;">
 <p style="margin:0;font-weight:700;font-size:15px;"><span style="display:inline-block;width:5px;height:16px;background:#e10600;border-radius:3px;vertical-align:-3px;margin-right:9px;"></span>Apex F1 Hub</p>

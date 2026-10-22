@@ -74,3 +74,17 @@ describe("unsubscribe tokens", () => {
     assert.equal(readUnsubscribeToken(null), null);
   });
 });
+
+describe("times in the reader's own zone", () => {
+  test("a moment reads in the reader's zone, and in UTC (saying so) when the zone is unknown or invalid", () => {
+    const at = "2026-10-25T17:30:00Z";
+    assert.equal(layout.formatWhen(at, "Asia/Kolkata"), "Sun 25 Oct, 23:00 GMT+5:30");
+    assert.equal(layout.formatWhen(at, null), "Sun 25 Oct, 17:30 UTC");
+    assert.equal(layout.formatWhen(at, "Not/AZone"), "Sun 25 Oct, 17:30 UTC");
+  });
+
+  test("the card is frosted glass over the page's light, with a solid colour for clients that drop rgba", () => {
+    const { html } = renderEmail({ subject: "s", preheader: "p", title: "t", reason: "r" });
+    assert.match(html, /bgcolor="#16161a" style="[^"]*background-color:rgba\(255,255,255,0\.045\)/);
+  });
+});

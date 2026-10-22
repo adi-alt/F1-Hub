@@ -354,6 +354,7 @@
   "profiles.onboarding_outcome": "text null=YES default=",
   "profiles.points_balance": "integer null=NO default=100",
   "profiles.role": "text null=YES default=",
+  "profiles.time_zone": "text null=YES default=",
   "profiles.username": "text null=YES default=",
   "qualifying_results.driver": "text null=NO default=",
   "qualifying_results.driver_name": "text null=NO default=",
