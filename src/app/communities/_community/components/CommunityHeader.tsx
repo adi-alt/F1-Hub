@@ -3,12 +3,12 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Ellipsis, EllipsisVertical, EyeOff, FileText, Globe, Image as ImageIcon, Images, Lock, LogOut, Settings, Share2, Trash2, Users, type LucideIcon } from "lucide-react";
+import { Camera, Check, Ellipsis, EllipsisVertical, EyeOff, FileText, Globe, Image as ImageIcon, Images, Lock, LogOut, Settings, Share2, Trash2, Users, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
-import { EYEBROW } from "@/components/ui/panel";
+import { EYEBROW, MENU_ITEM } from "@/components/ui/panel";
 import { communityTypeMeta } from "@/lib/communities";
 import type { GroupDetail } from "@/lib/supabase/groups";
 import { GroupBanner } from "../../components/GroupBanner";
@@ -53,7 +53,7 @@ export function CommunityHeader({
   const [copied, setCopied] = useState(false);
   const [leaveError, setLeaveError] = useState("");
   const [leaving, setLeaving] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirm, setConfirm] = useState<"leave" | "cover" | null>(null);
   const [busy, setBusy] = useState<"cover" | "icon" | null>(null);
   const [uploadError, setUploadError] = useState("");
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -160,13 +160,13 @@ export function CommunityHeader({
           <Popover
             align="end"
             ariaLabel="Community menu"
-            panelClassName="w-56"
+            panelClassName="w-64"
             trigger={({ open, toggle, ref }) => (
               <button
                 ref={ref}
                 type="button"
                 onClick={() => {
-                  setConfirmLeave(false);
+                  setConfirm(null);
                   toggle();
                 }}
                 aria-expanded={open}
@@ -181,80 +181,95 @@ export function CommunityHeader({
             )}
           >
             {({ close }) => {
-              const item = (label: string, icon: LucideIcon, onClick: () => void, extra?: React.ReactNode, danger = false) => (
+              // The account menu's language (auth/ProfileMenu): who you are here at the top, then groups of quiet rows.
+              const item = (label: string, icon: LucideIcon, onClick: () => void, opts: { extra?: React.ReactNode; keepOpen?: boolean } = {}) => (
                 <button
                   key={label}
                   type="button"
                   onClick={() => {
-                    close();
+                    if (!opts.keepOpen) close();
                     onClick();
                   }}
-                  className={`flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm transition-colors duration-fast ${danger ? "text-danger hover:bg-danger/10" : "text-primary hover:bg-white/[0.06]"}`}
+                  className={MENU_ITEM}
                 >
-                  <Icon icon={icon} size={16} className={danger ? "" : "text-tertiary"} />
+                  <Icon icon={icon} size={16} className="text-tertiary" />
                   <span className="min-w-0 flex-1">{label}</span>
-                  {extra}
+                  {opts.extra}
                 </button>
               );
-              // Leaving asks first, in the menu: in a private or hidden community there's no walking back in.
-              if (confirmLeave) {
+              // Leaving and removing the cover ask first, in the menu itself.
+              if (confirm) {
+                const leavingNow = confirm === "leave";
                 return (
-                  <div className="p-3">
-                    <p className="text-body-sm font-medium text-primary">Leave {group.name}?</p>
+                  <div className="p-3.5">
+                    <p className="text-body-sm font-medium text-primary">{leavingNow ? `Leave ${group.name}?` : "Remove the cover?"}</p>
                     <p className="mt-1 text-caption leading-snug text-tertiary">
-                      {group.visibility === "public"
-                        ? "You can join again any time."
-                        : group.visibility === "hidden"
-                          ? "You'll need a new invitation to come back. Invitation links you made stop working."
-                          : "You'll need an invitation or an admin's approval to come back. Invitation links you made stop working."}
+                      {!leavingNow
+                        ? "The page goes back to its generated look. You can add a cover again any time."
+                        : group.visibility === "public"
+                          ? "You can join again any time."
+                          : group.visibility === "hidden"
+                            ? "You'll need a new invitation to come back. Invitation links you made stop working."
+                            : "You'll need an invitation or an admin's approval to come back. Invitation links you made stop working."}
                     </p>
                     <div className="mt-3 flex gap-2">
-                      <Button variant="danger" size="sm" loading={leaving} onClick={() => void leave(close)}>
-                        Leave
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        loading={leavingNow ? leaving : busy === "cover"}
+                        onClick={() => {
+                          if (leavingNow) return void leave(close);
+                          close();
+                          setConfirm(null);
+                          void removeCover();
+                        }}
+                      >
+                        {leavingNow ? "Leave" : "Remove"}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setConfirmLeave(false)}>
-                        Stay
+                      <Button variant="ghost" size="sm" onClick={() => setConfirm(null)}>
+                        {leavingNow ? "Stay" : "Keep"}
                       </Button>
                     </div>
-                    {leaveError && <p className="mt-2 text-caption leading-snug text-brand-text">{leaveError}</p>}
+                    {leavingNow && leaveError && <p className="mt-2 text-caption leading-snug text-brand-text">{leaveError}</p>}
                   </div>
                 );
               }
               return (
-                <div className="p-1">
-                  {item(copied ? "Link copied" : "Copy link", Share2, () => void share())}
-                  <div className="my-1 border-t border-white/10" />
-                  {sections.map((s) => item(s.value === "members" && windows.includes("invite") ? "Manage members" : s.label, s.icon, () => onOpenWindow(s.value)))}
-                  {windows.includes("manage") &&
-                    item(
-                      isAdmin ? "Manage" : "Join requests",
-                      Settings,
-                      () => onOpenWindow("manage"),
-                      pendingRequests !== undefined && pendingRequests > 0 ? (
-                        <span className="shrink-0 rounded-control bg-warning/15 px-1.5 py-0.5 text-caption font-semibold tabular text-warning">{pendingRequests}</span>
-                      ) : undefined,
-                    )}
+                <>
+                  <div className="flex items-center gap-3 border-b border-white/10 px-3.5 py-3">
+                    <EntityAvatar imageUrl={group.avatarUrl} name={group.name} seed={group.id} size={36} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-body-sm font-semibold text-primary">{group.name}</p>
+                      <p className="truncate text-caption text-tertiary">
+                        You&apos;re {group.myRole === "admin" ? "an admin" : `a ${group.myRole}`} here
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-1.5">
+                    {item(copied ? "Link copied" : "Copy link", copied ? Check : Share2, () => void share(), { keepOpen: true })}
+                    {sections.map((s) => item(s.value === "members" && windows.includes("invite") ? "Manage members" : s.label, s.icon, () => onOpenWindow(s.value)))}
+                    {windows.includes("manage") &&
+                      item(isAdmin ? "Manage community" : "Join requests", Settings, () => onOpenWindow("manage"), {
+                        extra:
+                          pendingRequests !== undefined && pendingRequests > 0 ? (
+                            <span className="shrink-0 rounded-control bg-warning/15 px-1.5 py-0.5 text-caption font-semibold tabular text-warning">{pendingRequests}</span>
+                          ) : undefined,
+                      })}
+                  </div>
                   {isAdmin && (
-                    <>
-                      <div className="my-1 border-t border-white/10" />
+                    <div className="border-t border-white/10 p-1.5">
                       {item(group.bannerUrl ? "Change cover" : "Add cover", Camera, () => coverInputRef.current?.click())}
-                      {group.bannerUrl && item("Remove cover", Trash2, () => void removeCover(), undefined, true)}
+                      {group.bannerUrl && item("Remove cover", Trash2, () => setConfirm("cover"), { keepOpen: true })}
                       {item("Change icon", ImageIcon, () => iconInputRef.current?.click())}
-                    </>
+                    </div>
                   )}
-                  <div className="my-1 border-t border-white/10" />
-                  <p className="px-2.5 pb-1 pt-1.5 text-caption text-tertiary">
-                    You&apos;re {group.myRole === "admin" ? "an admin" : `a ${group.myRole}`} here
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmLeave(true)}
-                    className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-danger transition-colors duration-fast hover:bg-danger/10"
-                  >
-                    <Icon icon={LogOut} size={16} />
-                    Leave community
-                  </button>
-                </div>
+                  <div className="border-t border-white/10 p-1.5">
+                    <button type="button" onClick={() => setConfirm("leave")} className={`${MENU_ITEM} hover:text-danger`}>
+                      <Icon icon={LogOut} size={16} className="text-tertiary" />
+                      Leave community
+                    </button>
+                  </div>
+                </>
               );
             }}
           </Popover>

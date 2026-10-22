@@ -46,7 +46,7 @@ export function BannerUpload({ groupId, hasBanner }: { groupId: string; hasBanne
 
   return (
     <div>
-      <div className="flex items-center gap-3 text-sm">
+      <div className="flex items-center gap-2">
         <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()} disabled={status === "removing"} loading={status === "uploading"}>
           {hasBanner ? "Replace cover" : "Upload cover"}
         </Button>
@@ -57,7 +57,7 @@ export function BannerUpload({ groupId, hasBanner }: { groupId: string; hasBanne
         )}
       </div>
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => void onChange(e)} />
-      {status === "error" && <p className="mt-2 text-xs text-brand-text">{error}</p>}
+      {status === "error" && <p role="alert" className="mt-2 text-caption text-danger">{error}</p>}
     </div>
   );
 }

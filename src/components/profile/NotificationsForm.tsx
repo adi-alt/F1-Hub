@@ -3,25 +3,12 @@
 import { useState } from "react";
 import { Bell, Mail } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
+import { Switch } from "@/components/ui/Switch";
 import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatLocalDateTime } from "@/lib/countdown";
 import { channelsFor, NOTIFICATION_KINDS, type Channel, type NotificationKind, type NotificationPrefs } from "@/lib/notificationKinds";
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${checked ? "bg-brand" : "bg-white/10"}`}
-    >
-      <span className={`absolute top-0.5 size-5 rounded-full bg-white transition-[left] duration-fast ${checked ? "left-5" : "left-0.5"}`} />
-    </button>
-  );
-}
 
 const GROUPS = ["Predictions", "Conversations", "Your communities"] as const;
 
@@ -111,11 +98,11 @@ export function NotificationsForm({
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-5">
-                        <Toggle checked={ch.site} onChange={(v) => void setChannel(k.kind, "site", v)} label={`${k.label}: on the site`} />
+                        <Switch checked={ch.site} onChange={(v) => void setChannel(k.kind, "site", v)} label={`${k.label}: on the site`} />
                         {k.siteOnly ? (
                           <span className="w-11 text-center text-caption text-tertiary" title="Always emailed">Always</span>
                         ) : (
-                          <Toggle checked={ch.email} onChange={(v) => void setChannel(k.kind, "email", v)} label={`${k.label}: by email`} />
+                          <Switch checked={ch.email} onChange={(v) => void setChannel(k.kind, "email", v)} label={`${k.label}: by email`} />
                         )}
                       </div>
                     </li>
@@ -140,7 +127,7 @@ export function NotificationsForm({
                   <p className="text-body-sm font-medium text-primary">{r.title}</p>
                   <p className="mt-0.5 text-caption text-tertiary">{r.body}</p>
                 </div>
-                <Toggle checked={reminders[r.key]} onChange={(v) => void setReminder(r.key, v)} label={`${r.title} email`} />
+                <Switch checked={reminders[r.key]} onChange={(v) => void setReminder(r.key, v)} label={`${r.title} email`} />
               </li>
             ))}
           </ul>
