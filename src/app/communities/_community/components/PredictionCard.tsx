@@ -228,7 +228,7 @@ export function PredictionCard({
                       ? "Not scored"
                       : prediction.myEntry.pointsAwarded > 0
                         ? `+${prediction.myEntry.pointsAwarded}`
-                        : `-${prediction.myEntry.pointsWagered}`
+                        : `−${prediction.myEntry.pointsWagered}`
                   }
                   highlight={(prediction.myEntry.pointsAwarded ?? 0) > 0}
                 />
@@ -296,7 +296,6 @@ export function PredictionCard({
               question="Resolve and pay out?"
               confirmLabel="Resolve"
               pending={status === "saving"}
-              className="text-xs font-medium text-secondary transition hover:text-white disabled:opacity-40"
             >
               Resolve this round
             </ConfirmButton>

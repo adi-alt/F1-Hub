@@ -298,7 +298,7 @@ export function CommunityWorkspace({
                     pointsBalance={pointsBalance}
                   />
                 )}
-                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
+                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatarUrl ?? null]))} />}
               </motion.div>
             </TabPanels>
           </Tabs>

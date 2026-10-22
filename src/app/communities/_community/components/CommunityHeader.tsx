@@ -128,7 +128,7 @@ export function CommunityHeader({
       ? { icon: Globe, text: "Public · anyone can join" }
       : group.visibility === "hidden"
         ? { icon: EyeOff, text: "Hidden · only people with an invitation can join" }
-        : { icon: Lock, text: "Private · people ask to join, and admins approve them" };
+        : { icon: Lock, text: "Private · people ask to join, and admins or moderators approve them" };
   const memberCount = group.members.length;
 
 

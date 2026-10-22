@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { RetryLine } from "../../components/GroupsFeed";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CallableRace } from "@/lib/supabase/postCalls";
@@ -414,13 +415,9 @@ export function CommunityFeed({
                   message={canPost ? "Nothing has been posted here yet: start the first conversation." : "Nothing has been posted here yet: once someone posts, it shows up here."}
                   action={
                     canPost ? (
-                      <button
-                        type="button"
-                        onClick={() => onComposerOpenChange(true)}
-                        className="rounded-control bg-brand px-4 py-1.5 text-body-sm font-semibold text-white transition-colors duration-fast hover:bg-brand-hover"
-                      >
-                        Start Discussion
-                      </button>
+                      <Button variant="primary" size="md" onClick={() => onComposerOpenChange(true)}>
+                        Write a post
+                      </Button>
                     ) : undefined
                   }
                 />
@@ -501,9 +498,10 @@ function PermalinkPost({ postId }: { postId: string }) {
 
   if (error) {
     return (
-      <div className="fixed bottom-5 right-5 z-[100] max-w-xs rounded-xl border border-brand/40 bg-zinc-900/95 p-3 shadow-lg backdrop-blur-md">
-        <p className="text-xs text-brand-text">{error}</p>
-        <button type="button" onClick={close} className="mt-1.5 text-caption font-medium text-secondary transition hover:text-white">
+      // Top centre, clear of the mobile Create post button in the bottom corner.
+      <div role="alert" className="fixed inset-x-4 top-20 z-[100] mx-auto flex max-w-sm items-center justify-between gap-3 rounded-card surface-glass p-3 shadow-overlay">
+        <p className="text-body-sm text-primary">{error}</p>
+        <button type="button" onClick={close} className="shrink-0 rounded-control px-2 py-1 text-body-sm font-medium text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-focus-ring">
           Dismiss
         </button>
       </div>
@@ -520,7 +518,7 @@ function PermalinkPost({ postId }: { postId: string }) {
  * behind it reconciles on its own next load rather than sharing state across a fetch boundary. */
 function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => void }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
-  const roleLabel = post.authorRole && post.authorRole !== "member" ? post.authorRole.toUpperCase() : undefined;
+  const roleLabel = post.authorRole && post.authorRole !== "member" ? post.authorRole[0].toUpperCase() + post.authorRole.slice(1) : undefined;
 
   return (
     <PostDetailWindow

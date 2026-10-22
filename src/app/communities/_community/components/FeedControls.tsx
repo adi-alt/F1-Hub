@@ -234,7 +234,7 @@ export function FeedControls({
 const CHIP_LABELS: Partial<Record<PostKind, string>> = {
   announcement: "Announcements",
   question: "Questions",
-  race_discussion: "Race Weekend",
+  race_discussion: "Race weekend",
   prediction: "Predictions",
 };
 

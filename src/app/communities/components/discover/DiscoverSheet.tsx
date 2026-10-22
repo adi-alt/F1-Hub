@@ -153,7 +153,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
         <header className="shrink-0 border-b border-white/10 px-5 pb-4 pt-5 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-white">Discover Communities</h2>
+              <h2 className="text-lg font-bold text-white">Discover communities</h2>
               <p className="mt-0.5 text-xs text-tertiary">Find people and spaces around what interests you.</p>
             </div>
             <button

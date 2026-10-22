@@ -526,7 +526,7 @@ export function GroupsFeed({
         <div className="pointer-events-none sticky bottom-4 z-20 flex justify-center">
           <span className="pointer-events-auto rounded-card shadow-overlay">
             <Button variant="secondary" size="md" iconStart={Plus} onClick={jumpToComposer}>
-              New post
+              Write a post
             </Button>
           </span>
         </div>
