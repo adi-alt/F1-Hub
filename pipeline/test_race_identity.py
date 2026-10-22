@@ -250,7 +250,7 @@ print("calendar_rows_to_retire: all checks passed")
 
 
 # --- audit_data_consistency: the checks added with this change -------------------------------------
-from audit_data_consistency import audit_unfetched_rounds, audit_venue_drift
+from audit_data_consistency import audit_results_completeness, audit_unfetched_rounds, audit_venue_drift
 
 
 class RowsCursor:
@@ -269,6 +269,15 @@ ended = [{"label": "Race", "date": (real_now - datetime.timedelta(days=3)).repla
 recent = [{"label": "Race", "date": (real_now - datetime.timedelta(hours=2)).replace(tzinfo=None).isoformat()}]
 problems = audit_unfetched_rounds(RowsCursor([("2026_r16_bahrain-grand-prix", ended), ("2026_r17_singapore-grand-prix", recent), ("2026_r18_x", None)]))
 assert len(problems) == 1 and problems[0].startswith("2026_r16_bahrain-grand-prix") and "never fetched" in problems[0], problems
+
+completeness = audit_results_completeness(RowsCursor([
+    ("2026_r10_empty", "official", ended, 0),  # completed, nothing stored: flagged
+    ("2026_r11_stuck", "openf1_preliminary", ended, 20),  # preliminary 3 days on: flagged
+    ("2026_r12_fresh", "openf1_preliminary", recent, 20),  # preliminary 2 hours on: still in its window
+    ("2026_r13_ok", "official", ended, 20),
+]))
+assert [p.split(":")[0] for p in completeness] == ["2026_r10_empty", "2026_r11_stuck"], completeness
+print("audit_results_completeness: all checks passed")
 
 drift = audit_venue_drift(RowsCursor([
     (2026, "spanish-grand-prix", "Madrid", "Barcelona"),  # real move, not yet marked reviewed: warned
