@@ -9,6 +9,10 @@ export const PANEL = "glass-panel rounded-lg border border-white/[0.06] bg-white
 /** A panel that opens something: the edge and fill lift a little on hover, as Season's interactive rows do. */
 export const PANEL_INTERACTIVE = `${PANEL} transition-colors duration-fast hover:border-white/[0.12] hover:bg-white/[0.025]`;
 
+/** A row in a menu (the account menu, a community's ⋮ menu): quiet until hovered or focused. */
+export const MENU_ITEM =
+  "flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.08] hover:text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring";
+
 /** A section label, Season's eyebrow ("SEASON SNAPSHOT", "WHAT CHANGED"): small, uppercase, widely tracked. At the
  * 12px caption token rather than Season's 10px, the floor the design spec and its lint hold new code to. */
 export const EYEBROW = "text-caption font-semibold uppercase tracking-[0.16em] text-tertiary";

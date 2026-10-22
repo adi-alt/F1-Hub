@@ -60,7 +60,7 @@ export function GroupMembersTab({ group, myUserId, initialTab = "members" }: { g
   if (items.length === 1) return list;
 
   return (
-    <Tabs value={tab} onValueChange={setTab} items={items} variant="segmented">
+    <Tabs value={tab} onValueChange={setTab} items={items}>
       <TabList aria-label="Members sections" />
       <TabPanels className="mt-5">
         {tab === "members" && list}
