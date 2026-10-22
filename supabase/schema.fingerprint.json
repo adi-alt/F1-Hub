@@ -572,7 +572,7 @@
   "group_predictions.group_predictions_group_id_race_id_type_key": "UNIQUE (group_id, race_id, type)",
   "group_predictions.group_predictions_pkey": "PRIMARY KEY (id)",
   "group_predictions.group_predictions_race_id_fkey": "FOREIGN KEY (race_id) REFERENCES races(id) ON DELETE CASCADE",
-  "group_predictions.group_predictions_status_check": "CHECK ((status = ANY (ARRAY['open'::text, 'locked'::text, 'resolved'::text])))",
+  "group_predictions.group_predictions_status_check": "CHECK ((status = ANY (ARRAY['open'::text, 'locked'::text, 'resolved'::text, 'void'::text])))",
   "group_predictions.group_predictions_type_check": "CHECK ((type = ANY (ARRAY['winner'::text, 'podium'::text, 'fastest_lap'::text, 'pole'::text, 'dnf_count'::text])))",
   "group_race_scores.group_race_scores_group_id_fkey": "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE",
   "group_race_scores.group_race_scores_pkey": "PRIMARY KEY (group_id, race_id, user_id)",
@@ -892,6 +892,7 @@
   "redeem_group_invite(uuid,uuid,uuid,timestamp with time zone)": "5403449527f6f6023fe2f6d4ecaa21af",
   "save_pick(uuid,text,text,text[],text,text,text[],boolean,text,timestamp with time zone)": "bec838f6a59eecbbac88da6e840a3f31",
   "settle_prediction(uuid,uuid,jsonb,text,timestamp with time zone)": "3fb99efc52a7654350d7734781b9ec1f",
+  "void_prediction(uuid,uuid,timestamp with time zone)": "ffc99e71403acfe32f20fa2b9ad4a76c",
   "valid_prediction_guess(text,jsonb)": "3ac56ad384fbaead945c2863b6c12249",
   "weekend_start_at(text)": "a298395f7bf535cf6de70e5268928e5b"
  },

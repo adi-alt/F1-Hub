@@ -453,4 +453,35 @@ describe("prediction lifecycle (SQL)", () => {
       await assert.rejects(savePick(race, BOB, iso(RACE_START_MS - 1), ["VER", "NOR"]), /invalid_pick/);
     });
   });
+
+  describe("voiding (refund everyone)", () => {
+    const voidRound = (prediction: string, group = GROUP) =>
+      t.as<{ void_prediction: { alreadyVoid: boolean; refundCount: number; refundTotal: number } }>("service_role", null, `select void_prediction($1::uuid, $2::uuid) as void_prediction`, [prediction, group]);
+
+    test("every entrant gets their entry back with a refund row, once; a settled round can't be voided", async () => {
+      const prediction = await seedPrediction(t, await seedRace(t, CONVENTIONAL), { entryPoints: 10 });
+      for (const [user, guess] of [[BOB, "VER"], [CAROL, "NOR"]] as const) await enter(t, prediction, user, guess, iso(QUALI_MS - 1000));
+      const [b0, c0] = [await balance(t, BOB), await balance(t, CAROL)];
+      const [{ void_prediction: res }] = await voidRound(prediction);
+      assert.deepEqual(res, { alreadyVoid: false, refundCount: 2, refundTotal: 20 });
+      assert.equal(await balance(t, BOB), b0 + 10);
+      assert.equal(await balance(t, CAROL), c0 + 10);
+      assert.equal((await ledger(t, BOB, "prediction_refund")).length >= 1, true);
+      const [{ void_prediction: again }] = await voidRound(prediction);
+      assert.equal(again.alreadyVoid, true);
+      assert.equal(await balance(t, BOB), b0 + 10, "voiding twice refunds once");
+      assert.equal((await t.owner<{ status: string }>(`select status from group_predictions where id = $1`, [prediction]))[0].status, "void");
+
+      const settled = await seedPrediction(t, await seedRace(t, CONVENTIONAL));
+      await enter(t, settled, BOB, "VER", iso(QUALI_MS - 1000));
+      await settle(t, settled, "VER");
+      await assert.rejects(voidRound(settled), /prediction_resolved/);
+      await assert.rejects(voidRound(prediction, OTHER_GROUP), /prediction_not_found/, "only within its own community");
+    });
+
+    test("clients can't call it", async () => {
+      const prediction = await seedPrediction(t, await seedRace(t, CONVENTIONAL));
+      for (const role of ["anon", "authenticated"] as const) await assert.rejects(t.as(role, BOB, `select void_prediction($1::uuid, $2::uuid)`, [prediction, GROUP]), /permission denied/);
+    });
+  });
 });

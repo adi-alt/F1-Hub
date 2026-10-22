@@ -20,6 +20,11 @@ export const POLICIES = {
   aiBurst: { limit: 10, windowSeconds: 60, by: "user" },
   aiDaily: { limit: 200, windowSeconds: 86_400, by: "user" },
   aiAnonymous: { limit: 20, windowSeconds: 3_600, by: "ip" },
+  // Sign-in (audit R-10): the database already limits codes per address; these limit one network trying many
+  // addresses or guessing codes across them. Well above a household sharing an IP.
+  otpStart: { limit: 20, windowSeconds: 3_600, by: "ip" },
+  otpVerify: { limit: 60, windowSeconds: 3_600, by: "ip" },
+  signupComplete: { limit: 10, windowSeconds: 3_600, by: "ip" },
   // Reads that call out to a third party or run many queries.
   usernameCheck: { limit: 30, windowSeconds: 60, by: "ip" },
   linkPreview: { limit: 30, windowSeconds: 60, by: "user" },

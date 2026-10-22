@@ -1,8 +1,11 @@
+import { limitRequest } from "@/lib/rateLimit";
 import { NextResponse } from "next/server";
 import { verifyOtpAndLogin } from "@/services/auth.service";
 import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 export async function POST(request: Request) {
+  const limited = await limitRequest(request, "otpVerify");
+  if (limited) return limited;
   const { code } = await request.json();
   if (typeof code !== "string") {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });

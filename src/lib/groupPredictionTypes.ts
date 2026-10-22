@@ -10,7 +10,7 @@
 export type PredictionType = "winner" | "podium" | "fastest_lap" | "pole" | "dnf_count";
 /** The stored lifecycle status. "locked" is written by the scheduled lock_due_predictions() once the
  * deadline passes; enforcement never waits for it (enter_prediction compares the clock itself). */
-export type PredictionStatus = "open" | "locked" | "resolved";
+export type PredictionStatus = "open" | "locked" | "resolved" | "void";
 
 /** What a round IS right now, deadline included - the one thing every surface should render from,
  * instead of each re-deriving "is it closed?" from the race date (audit COM-05: four surfaces had
