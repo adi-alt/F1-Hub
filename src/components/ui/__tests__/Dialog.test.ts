@@ -51,7 +51,8 @@ describe("Dialog panel", () => {
 
   it("scrolls the body inside the panel while the header and footer stay put", () => {
     const html = render({ footer: createElement("button", { type: "button" }, "Delete") });
-    assertClasses(openingTag(html, /<div[^>]*overflow-y-auto[^>]*>/), ["min-h-0", "flex-1"]);
+    // Content height, eased as it changes (SmoothBody), and shrinking to scroll at the panel's maximum.
+    assertClasses(openingTag(html, /<div[^>]*overflow-y-auto[^>]*>/), ["min-h-0", "flex-initial", "transition-[height]"]);
     assert.equal((html.match(/<div class="[^"]*\bshrink-0\b[^"]*"/g) ?? []).length, 2, "header and footer");
     assert.ok(html.includes(`>${BODY}</div>`));
     assert.match(html, /<div class="[^"]*justify-end[^"]*"><button type="button">Delete<\/button><\/div>/);
@@ -183,7 +184,7 @@ describe("Dialog minHeight (a steady-height, multi-step dialog)", () => {
     const plain = render();
     assert.equal(attr(panel(plain), "style"), undefined);
     assertClasses(closeTag(plain), ["-mr-2", "-mt-1"]);
-    assertClasses(bodyTag(plain), ["flex-1"]);
+    assertClasses(bodyTag(plain), ["flex-initial"]);
     const sheet = render({ variant: "sheet", minHeight: "40.5rem" });
     assert.equal(attr(panel(sheet), "style"), undefined);
     assert.ok(!classesOf(panel(sheet)).includes("justify-center-safe"));

@@ -21,9 +21,8 @@ import { AboutTab, MediaTab } from "./CommunityModules";
 import { CommunityRightRail, type RailPrediction, type RailTab } from "./CommunityRightRail";
 import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communityWeekend";
 import { GroupLeaderboardTab } from "./GroupLeaderboardTab";
-import { GroupMembersTab } from "./GroupMembersTab";
+import { GroupMembersTab, managesMembers } from "./GroupMembersTab";
 import { GroupPredictions } from "./GroupPredictions";
-import { InvitePanel } from "./InvitePanel";
 
 /** Manage isn't a module - it's an admin surface, so it never appears in resolveModules and is
  * appended here only for the people who can actually use it. */
@@ -40,7 +39,7 @@ function isTab(value: string | null, tabs: Tab[]): value is Tab {
 const WINDOWS: readonly CommunityWindow[] = ["media", "members", "about", "invite", "manage"];
 const isWindow = (value: string | null): value is CommunityWindow => !!value && (WINDOWS as readonly string[]).includes(value);
 
-const WINDOW_TITLES: Record<CommunityWindow, string> = { media: "Media", members: "Members", about: "About", invite: "Invite people", manage: "Manage community" };
+const WINDOW_TITLES: Record<CommunityWindow, string> = { media: "Media", members: "Members", about: "About", invite: "Manage members", manage: "Manage community" };
 
 /**
  * The community page itself: identity, navigation, the active panel, and the context rail beside
@@ -317,11 +316,16 @@ export function CommunityWorkspace({
 
       {/* Media, Members, About and Manage open over the page, so the feed underneath stays where it was. */}
       {shown && (
-        <Dialog open={win !== null} onClose={closeWindow} title={shown === "manage" && !isAdmin ? "Join requests" : WINDOW_TITLES[shown]} size={shown === "manage" || shown === "media" ? "xl" : "lg"}>
+        <Dialog
+          open={win !== null}
+          onClose={closeWindow}
+          title={shown === "manage" && !isAdmin ? "Join requests" : (shown === "members" || shown === "invite") && managesMembers(group) ? "Manage members" : WINDOW_TITLES[shown]}
+          size={shown === "manage" || shown === "media" ? "xl" : "lg"}
+        >
           {shown === "media" && <MediaTab groupId={group.id} />}
-          {shown === "members" && <GroupMembersTab groupId={group.id} members={group.members} myRole={group.myRole} myUserId={myUserId} />}
+          {/* Members and inviting are one window ("Manage members"); `invite` opens it on the Invite tab. */}
+          {(shown === "members" || shown === "invite") && <GroupMembersTab key={shown} group={group} myUserId={myUserId} initialTab={shown === "invite" ? "invite" : "members"} />}
           {shown === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
-          {shown === "invite" && canInvite && <InvitePanel group={group} />}
           {shown === "manage" && canManage && <ManageTabLazy group={group} pendingRequests={pendingRequests} />}
         </Dialog>
       )}

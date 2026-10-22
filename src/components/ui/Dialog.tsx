@@ -156,6 +156,30 @@ export function Sheet(props: SheetProps) {
   return <Overlay variant="sheet" {...props} />;
 }
 
+/** A dialog body that eases to its content's height as the content changes (a section switched, a list loaded, a
+ * confirm opened), instead of the panel jumping. It still scrolls once the panel reaches its maximum height. The first
+ * render is natural height, so nothing animates on open; reduced motion skips the easing. */
+function SmoothBody({ children }: { children: ReactNode }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number>();
+  useEffect(() => {
+    const el = inner.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setHeight(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div
+      // + 8: the body's own py-1, inside its border box.
+      style={height === undefined ? undefined : { height: height + 8 }}
+      className="-my-1 min-h-0 flex-initial overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary transition-[height] duration-base ease-standard motion-reduce:transition-none"
+    >
+      <div ref={inner}>{children}</div>
+    </div>
+  );
+}
+
 /**
  * What Dialog and Sheet render into the portal (container, scrim and panel) with none of their
  * behaviour: no portal, focus trap, Escape handling or exit timing. Exported so the markup can be
@@ -210,9 +234,12 @@ export function DialogLayer({
       </div>
       {/* -my-1 py-1 keeps the 16px gap but gives focus rings at the scroll edges room to show. In a
           steady dialog the body doesn't stretch, so the header and body centre together. */}
-      {hasContent(children) && (
-        <div className={cx("-my-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary", steady ? "flex-initial" : "flex-1")}>{children}</div>
-      )}
+      {hasContent(children) &&
+        (variant === "dialog" && !steady && !withAside ? (
+          <SmoothBody>{children}</SmoothBody>
+        ) : (
+          <div className={cx("-my-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary", steady ? "flex-initial" : "flex-1")}>{children}</div>
+        ))}
       {hasContent(footer) && <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 px-6 pt-2">{footer}</div>}
     </>
   );

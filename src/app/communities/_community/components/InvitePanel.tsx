@@ -88,7 +88,7 @@ export function InvitePanel({ group }: { group: GroupDetail }) {
     const res = await fetch(`/api/groups/${group.id}/invites/${id}`, { method: "DELETE" }).catch(() => null);
     setBusy(null);
     if (!res?.ok) {
-      setError("Couldn't cancel that invitation. Try again.");
+      setError("Couldn't revoke that link. Try again.");
       return;
     }
     setInvites((prev) => (Array.isArray(prev) ? prev.filter((i) => i.id !== id) : prev));
@@ -104,7 +104,7 @@ export function InvitePanel({ group }: { group: GroupDetail }) {
         <p className="mt-1 text-caption text-tertiary">
           {isPublic
             ? "Anyone can join this community, so its link is all people need."
-            : "For a group chat: anyone with the link can join straight away, until it expires or runs out of uses. Cancel one and it stops working at once."}
+            : "For a group chat: anyone with the link can join straight away, until it expires or runs out of uses. Revoke one and it stops working at once."}
         </p>
 
         {isPublic ? (
@@ -170,8 +170,8 @@ export function InvitePanel({ group }: { group: GroupDetail }) {
                             {copied === invite.id ? "Copied" : "Copy"}
                           </Button>
                         )}
-                        <ConfirmButton onConfirm={() => void cancel(invite.id)} question="Cancel this link?" confirmLabel="Cancel it" pending={busy === invite.id}>
-                          Cancel
+                        <ConfirmButton onConfirm={() => void cancel(invite.id)} question="Revoke this link?" confirmLabel="Revoke" pending={busy === invite.id}>
+                          Revoke
                         </ConfirmButton>
                       </span>
                     </li>

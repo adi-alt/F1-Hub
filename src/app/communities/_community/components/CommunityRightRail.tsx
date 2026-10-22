@@ -91,8 +91,8 @@ export function CommunityRightRail({
           <OpenRounds predictions={predictions} onOpen={() => onOpenTab("predictions")} />
         </div>
       )}
-      {/* A community with no race weekend (a Private Circle, say) is about its people: who's here, and asking more in. */}
-      {!showRace && (
+      {/* Without a league table (which already shows the faces), the rail shows who's here, and a way to ask more in. */}
+      {!(showLeaderboard && leaderboard.length > 0) && (
         <div className={`p-4 ${PANEL}`}>
           <People members={members} canInvite={canInvite} onOpen={() => onOpenTab("members")} onInvite={() => onOpenTab("invite")} />
         </div>
