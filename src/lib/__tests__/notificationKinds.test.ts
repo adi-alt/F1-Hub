@@ -16,7 +16,9 @@ describe("notification settings", () => {
     assert.equal(cleanPrefsPatch("nope"), null);
   });
   it("every kind the database allows is described for settings", () => {
-    const sql = fs.readFileSync("supabase/migrations/20261022_notifications.sql", "utf8");
+    // The newest migration that lists the kinds is the one in force.
+    const dir = "supabase/migrations";
+    const sql = fs.readdirSync(dir).sort().map((f) => fs.readFileSync(`${dir}/${f}`, "utf8")).filter((t) => t.includes("'role_changed'")).at(-1) ?? "";
     for (const k of NOTIFICATION_KINDS) assert.match(sql, new RegExp(`'${k.kind}'`));
   });
 });
