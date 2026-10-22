@@ -1,4 +1,5 @@
-import { escapeHtml, singleLine, trustedOrigin } from "@/lib/html";
+import { singleLine, trustedOrigin } from "@/lib/html";
+import { renderEmail } from "@/lib/email/layout";
 import { getTransporter } from "@/lib/otp";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
@@ -57,16 +58,21 @@ export async function inviteUsersByEmail(emails: string[], origin: string, invit
   const link = `${trustedOrigin(origin)}/`;
   const from = singleLine(inviterName?.trim() || "An admin");
   const transporter = getTransporter();
+  const { subject, html, text } = renderEmail({
+    subject: `${from} invited you to Apex F1 Hub`,
+    preheader: "Formula 1 predictions, race analysis and community leagues",
+    context: { label: "Invitation" },
+    eyebrow: "You're invited",
+    title: `${from} invited you to Apex F1 Hub`,
+    text: "Pick the podium every Grand Prix, play prediction leagues with friends, and dig into every race since 1950 with an AI analyst beside you. Free.",
+    cta: { label: "Get started", href: link },
+    reason: `You got this because ${from} entered this address on Apex F1 Hub. If you don't know them, ignore it.`,
+  });
+  const mail = { subject, html, text };
 
   await Promise.all(
     toSend.map((to) =>
-      transporter.sendMail({
-        from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
-        to,
-        subject: `${from} invited you to Apex F1 Hub`,
-        text: `${from} invited you to Apex F1 Hub - Formula 1 predictions, race analysis and community leagues. Get started: ${link}`,
-        html: `<p>${escapeHtml(from)} invited you to <strong>Apex F1 Hub</strong> - Formula 1 predictions, race analysis and community leagues.</p><p><a href="${escapeHtml(link)}">Get started</a></p>`,
-      }),
+      transporter.sendMail({ from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`, to, ...mail }),
     ),
   );
 

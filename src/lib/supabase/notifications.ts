@@ -2,7 +2,9 @@ import { after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getTransporter } from "@/lib/otp";
-import { escapeHtml, singleLine, trustedOrigin } from "@/lib/html";
+import { singleLine } from "@/lib/html";
+import { renderEmail, type EmailContent } from "@/lib/email/layout";
+import { unsubscribeUrl } from "@/lib/email/unsubscribe";
 import { channelsFor, cleanPrefsPatch, type NotificationKind, type NotificationPrefs } from "@/lib/notificationKinds";
 
 export type NotificationEvent = {
@@ -15,6 +17,9 @@ export type NotificationEvent = {
   groupId?: string | null;
   /** Makes the event notify each person once, however many times the code raising it runs. */
   dedupeKey?: string | null;
+  /** What the email shows beyond the title and body: the community, a quote, the figures. The title is the email's
+   * title, the body its text, and `href` its button. */
+  email?: Partial<Pick<EmailContent, "subject" | "preheader" | "context" | "eyebrow" | "who" | "big" | "quote" | "rows" | "reason">> & { cta?: string };
 };
 
 export type NotificationItem = {
@@ -27,8 +32,6 @@ export type NotificationItem = {
   readAt: string | null;
   actor: { name: string; avatarUrl: string | null } | null;
 };
-
-const EMAIL_ORIGIN = "https://apexf1hub.com";
 
 /** PostgREST's "no such table": the notifications migration isn't applied yet, which reads as an empty centre. */
 const missingTable = (error: { code?: string } | null) => error?.code === "PGRST205" || error?.code === "42P01";
@@ -85,21 +88,30 @@ export async function notify(userIds: readonly string[], event: NotificationEven
   }
 }
 
+/** Each person's email, in the shared design (lib/email/layout), with their own one-click way to stop this kind. */
 async function sendEmails(to: { id: string; email: string }[], event: NotificationEvent, rows: { id: string; user_id: string }[]) {
-  const origin = trustedOrigin(EMAIL_ORIGIN);
-  const link = event.href ? `${origin}${event.href}` : origin;
-  const settings = `${origin}/?section=profile&tab=notifications`;
-  const html = `<div style="font-family:system-ui,sans-serif;max-width:520px">
-<p style="font-size:16px;font-weight:600;margin:0 0 8px">${escapeHtml(event.title)}</p>
-${event.body ? `<p style="font-size:14px;color:#444;margin:0 0 16px">${escapeHtml(event.body)}</p>` : ""}
-<p style="margin:0 0 24px"><a href="${escapeHtml(link)}" style="background:#e10600;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:14px">Open on Apex F1 Hub</a></p>
-<p style="font-size:12px;color:#888;margin:0">You get this because of your notification settings. <a href="${escapeHtml(settings)}" style="color:#888">Change them</a>.</p>
-</div>`;
   const transporter = getTransporter();
+  const e = event.email ?? {};
   await Promise.all(
     to.map(async (person) => {
       try {
-        await transporter.sendMail({ from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`, to: person.email, subject: singleLine(event.title, 120), html });
+        const mail = renderEmail({
+          subject: e.subject ?? event.title,
+          preheader: e.preheader ?? event.body ?? event.title,
+          context: e.context,
+          eyebrow: e.eyebrow,
+          title: event.title,
+          text: event.body ?? undefined,
+          who: e.who,
+          big: e.big,
+          quote: e.quote,
+          rows: e.rows,
+          cta: event.href ? { label: e.cta ?? "Open on Apex F1 Hub", href: event.href } : undefined,
+          reason: e.reason ?? "You get this because of your notification settings.",
+          unsubscribeUrl: unsubscribeUrl(person.id, event.kind),
+          settingsLink: true,
+        });
+        await transporter.sendMail({ from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`, to: person.email, subject: mail.subject, html: mail.html, text: mail.text, headers: mail.headers });
         const row = rows.find((r) => r.user_id === person.id);
         if (row) await supabaseAdmin.from("notifications").update({ emailed_at: new Date().toISOString() }).eq("id", row.id);
       } catch (err) {
@@ -182,4 +194,16 @@ export async function updateNotificationPrefs(uid: string, patch: unknown): Prom
   const { error } = await supabaseAdmin.from("profiles").update({ notification_prefs: merged }).eq("id", uid);
   if (error) throw new Error(`updateNotificationPrefs(${uid}): ${error.message}`);
   return merged;
+}
+
+/** Turns one kind of email off for a person (the "Stop emails like this" link). The race-weekend emails have their
+ * own switches in Settings, so those are what it flips for them; everything else is that kind's email channel. */
+export async function stopEmails(uid: string, kind: NotificationKind): Promise<void> {
+  const flag = kind === "race_reminder" ? "notify_before_qualifying" : kind === "race_results" ? "notify_on_results" : null;
+  if (flag) {
+    const { error } = await supabaseAdmin.from("profiles").update({ [flag]: false }).eq("id", uid);
+    if (error) throw new Error(`stopEmails(${uid}): ${error.message}`);
+    return;
+  }
+  await updateNotificationPrefs(uid, { [kind]: { email: false } });
 }

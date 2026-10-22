@@ -416,7 +416,7 @@ describe("join requests", () => {
 });
 
 describe("invitation emails", () => {
-  const linkIn = (mail: Mail) => mail.text.match(/Join here: (\S+)/)![1];
+  const linkIn = (mail: Mail) => mail.text.match(/(?:Accept invitation|Join community): (\S+)/)![1];
 
   test("a private community gets a distinct, single-use, 7-day signed invitation per recipient", async () => {
     const res = await groups.inviteByEmail(PRIVATE, ADMIN, ["a@test.invalid", "B@test.invalid", "a@test.invalid"], "https://preview.example");
@@ -572,5 +572,22 @@ describe("inviting people who already have an account", () => {
     const notices = fake.rows("notifications");
     assert.deepEqual(notices.map((n) => [n.user_id, n.kind]), [[OUTSIDER, "invite"]]);
     assert.match(String(notices[0].href), new RegExp(`^/\\?section=communities&id=${PRIVATE}&invite=`), "the same personal link, as a site path");
+  });
+});
+
+describe("leaving a community you didn't choose to", () => {
+  test("removing or banning someone tells them, once, with no community content", async () => {
+    await groups.removeMember(PRIVATE, ADMIN, MEMBER);
+    await groups.removeMember(PRIVATE, ADMIN, MOD, { ban: true });
+    const notices = fake.rows("notifications");
+    assert.deepEqual(notices.map((n) => [n.user_id, n.kind]).sort(), [[MEMBER, "membership"], [MOD, "membership"]].sort());
+    assert.match(String(notices.find((n) => n.user_id === MOD)!.title), /can't rejoin/);
+    assert.equal(notices[0].group_id, null, "not tied to the community (its rows would vanish with it)");
+  });
+
+  test("deleting a community tells everyone who was in it but the person who deleted it", async () => {
+    await groups.deleteGroup(PRIVATE, ADMIN);
+    assert.deepEqual(fake.rows("notifications").map((n) => n.user_id).sort(), [MEMBER, MOD].sort());
+    assert.match(String(fake.rows("notifications")[0].title), /Private Club was deleted/);
   });
 });

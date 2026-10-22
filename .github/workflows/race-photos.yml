@@ -110,3 +110,12 @@ jobs:
         if: github.event_name == 'schedule' || inputs.mode != 'scan'
         working-directory: pipeline
         run: python race_photos.py --recheck
+      # Tells the site's admins when photos are waiting to be chosen (/api/cron/emails); nothing when none are.
+      - name: Tell admins about new photos
+        if: github.event_name == 'schedule' || inputs.mode != 'recheck'
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://www.apexf1hub.com' }}
+        run: |
+          curl --fail-with-body -sS -X POST "$APP_BASE_URL/api/cron/emails" \
+            -H "x-cron-secret: $CRON_SECRET" -H "Content-Type: application/json" \
+            -d '{"job":"photos-ready"}'
