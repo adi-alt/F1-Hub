@@ -99,7 +99,7 @@ export function NotificationsForm({
             <div key={group}>
               <p className="px-5 pb-1 pt-4 text-caption font-semibold text-secondary">{group}</p>
               <ul className="divide-y divide-white/[0.05]">
-                {NOTIFICATION_KINDS.filter((k) => k.group === group).map((k) => {
+                {NOTIFICATION_KINDS.filter((k) => k.group === group && !k.hidden).map((k) => {
                   const ch = channelsFor(prefs, k.kind);
                   return (
                     <li key={k.kind} className="flex items-center justify-between gap-4 px-5 py-3">
@@ -144,7 +144,7 @@ export function NotificationsForm({
               </li>
             ))}
           </ul>
-          <p className="border-t border-white/[0.06] px-5 py-3 text-caption text-tertiary">Your choice is saved now; these two reminders start once scheduled sending is switched on.</p>
+          <p className="border-t border-white/[0.06] px-5 py-3 text-caption text-tertiary">Each comes once per race weekend, and only when you have picks open or results to see.</p>
         </section>
         <p aria-live="polite" className="min-h-4 text-caption">
           {status === "error" ? <span className="text-danger">Couldn&apos;t save that change. Try again.</span> : status === "saving" ? <span className="text-tertiary">Saving…</span> : null}

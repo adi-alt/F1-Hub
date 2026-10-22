@@ -1,9 +1,10 @@
-import { escapeHtml, singleLine, trustedOrigin } from "@/lib/html";
+import { singleLine, trustedOrigin } from "@/lib/html";
 import { unstable_cache } from "next/cache";
 import { expireTag } from "@/lib/cacheTags";
 import {
   canDo,
   isCommunityType,
+  visibilityLabel,
   MAX_TAGLINE_CHARS,
   isVisibility,
   normalizeTags,
@@ -22,7 +23,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { ServiceError } from "@/services/errors";
 import { groupHref } from "@/lib/routes";
-import { notifyInvited, notifyJoinDecision, notifyJoinRequest, notifyRoleChanged } from "@/lib/notificationEvents";
+import { notifyCommunityDeleted, notifyInvited, notifyJoinDecision, notifyJoinRequest, notifyRemoved, notifyRoleChanged } from "@/lib/notificationEvents";
+import { renderEmail } from "@/lib/email/layout";
 
 // Tagged AND short-TTL, not one or the other: every in-app mutation below that actually changes
 // what listPublicGroups/getGroupPreview display (name/description/visibility/avatar/banner/member
@@ -903,6 +905,7 @@ export async function removeMember(groupId: string, actingUid: string, targetUid
   const { error } = await supabaseAdmin.from("group_members").delete().eq("group_id", groupId).eq("user_id", targetUid);
   if (error) throw new Error(`removeMember(${groupId}, ${targetUid}): ${error.message}`);
   expireTag(GROUP_DISCOVERY_TAG); // member count changed
+  await notifyRemoved(groupId, targetUid, actingUid, !!opts.ban);
 }
 
 export type GroupBan = { userId: string; displayName: string | null; username: string | null; reason: string | null; createdAt: string };
@@ -930,11 +933,17 @@ export async function unbanMember(groupId: string, actingUid: string, targetUid:
 
 export async function deleteGroup(groupId: string, uid: string): Promise<void> {
   await requireAdmin(groupId, uid);
+  // Read before the cascade takes them: who to tell, and what it was called.
+  const [{ data: group }, { data: members }] = await Promise.all([
+    supabaseAdmin.from("groups").select("name").eq("id", groupId).maybeSingle(),
+    supabaseAdmin.from("group_members").select("user_id").eq("group_id", groupId),
+  ]);
   // `on delete cascade` on every group_* table's group_id FK (schema.sql) handles members,
   // scores, predictions/entries, posts/votes/comments in one statement - nothing else to clean up.
   const { error } = await supabaseAdmin.from("groups").delete().eq("id", groupId);
   if (error) throw new Error(`deleteGroup(${groupId}): ${error.message}`);
   expireTag(GROUP_DISCOVERY_TAG);
+  if (group?.name) await notifyCommunityDeleted(group.name as string, (members ?? []).map((m) => m.user_id as string), uid);
 }
 
 const MAX_INVITE_EMAILS = 10;
@@ -1114,16 +1123,16 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   const invalid = cleaned.find((e) => !EMAIL_RE.test(e));
   if (invalid) throw new ServiceError(`"${invalid}" isn't a valid email address.`, 400);
 
-  const { data: group } = await supabaseAdmin.from("groups").select("name, visibility").eq("id", groupId).maybeSingle();
+  const [{ data: group }, { count: memberTotal }] = await Promise.all([
+    supabaseAdmin.from("groups").select("name, visibility, avatar_url").eq("id", groupId).maybeSingle(),
+    supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId),
+  ]);
+  const memberCount = memberTotal ?? 0;
   const groupName = (group?.name as string | undefined) ?? "an Apex F1 Hub group";
   const needsToken = (group?.visibility as string | undefined) !== "public";
   const inviterName = (await profilesById([uid])).get(uid)?.display_name ?? "A member";
-  // Links use APP_BASE_URL when configured, else the origin of the request (see trustedOrigin).
-
-  // Names are user-controlled: escape for the HTML body, and strip control characters for the
-  // subject header (audit SEC-11).
-  const safeGroup = escapeHtml(groupName);
-  const safeInviter = escapeHtml(inviterName);
+  // Links use APP_BASE_URL when configured, else the origin of the request (see trustedOrigin). Names are
+  // user-controlled: renderEmail escapes them in the HTML, and the subject has control characters stripped (audit SEC-11).
   const subjectGroup = singleLine(groupName);
   const subjectInviter = singleLine(inviterName);
 
@@ -1142,22 +1151,23 @@ export async function inviteByEmail(groupId: string, uid: string, emails: string
   if (needsToken) await assertInviteCapacity(groupId, uid, recipients.length);
   const expiresAt = expiryFromNow(INVITE_DEFAULT_DAYS);
   const transporter = getTransporter();
-  const expiry = needsToken ? "<p style=\"font-size:12px;color:#888;margin:0\">This link is for you only and works for 7 days.</p>" : "";
   await Promise.all(
     recipients.map(async (to) => {
       const path = needsToken ? `${groupHref(groupId)}&invite=${(await insertInvite(groupId, uid, expiresAt, 1)).token}` : groupHref(groupId);
       const link = `${trustedOrigin(origin)}${path}`;
-      await transporter.sendMail({
-        from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`,
-        to,
-        subject: `${subjectInviter} invited you to join ${subjectGroup} on Apex F1 Hub`,
-        text: `${inviterName} invited you to join "${groupName}" on Apex F1 Hub - a prediction league and F1 community. Join here: ${link}`,
-        html: `<div style="font-family:system-ui,sans-serif;max-width:520px">
-<p style="font-size:16px;font-weight:600;margin:0 0 8px">${safeInviter} invited you to join ${safeGroup}</p>
-<p style="font-size:14px;color:#444;margin:0 0 16px">A prediction league and F1 community on Apex F1 Hub: pick the podium every Grand Prix and see who reads the sport best.</p>
-<p style="margin:0 0 24px"><a href="${escapeHtml(link)}" style="background:#e10600;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:14px">Join ${safeGroup}</a></p>
-${expiry}</div>`,
+      const mail = renderEmail({
+        subject: `${subjectInviter} invited you to ${subjectGroup}`,
+        preheader: `${memberCount} ${memberCount === 1 ? "member" : "members"} · a Formula 1 community on Apex F1 Hub`,
+        context: { label: "Invitation" },
+        who: { name: groupName, sub: `${visibilityLabel(group?.visibility)} community · ${memberCount} ${memberCount === 1 ? "member" : "members"}`, imageUrl: (group?.avatar_url as string | null) ?? null },
+        title: `${inviterName} invited you to join`,
+        text: needsToken
+          ? "Pick the podium every Grand Prix with them and see who reads the race best. This link is for you only and works for 7 days."
+          : "Pick the podium every Grand Prix with them and see who reads the race best.",
+        cta: { label: needsToken ? "Accept invitation" : "Join community", href: link },
+        reason: `You got this because ${inviterName} entered this address on Apex F1 Hub. If you don't know them, ignore it: nothing happens until you accept.`,
       });
+      await transporter.sendMail({ from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`, to, subject: mail.subject, html: mail.html, text: mail.text });
       const accountId = accountByEmail.get(to);
       if (accountId) await notifyInvited(groupId, accountId, uid, path);
     }),

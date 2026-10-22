@@ -588,7 +588,7 @@
   "notifications.notifications_dedupe_key_check": "CHECK (((dedupe_key IS NULL) OR (char_length(dedupe_key) <= 200)))",
   "notifications.notifications_group_id_fkey": "FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE",
   "notifications.notifications_href_check": "CHECK (((href IS NULL) OR ((char_length(href) <= 500) AND (href ~~ '/%'::text))))",
-  "notifications.notifications_kind_check": "CHECK ((kind = ANY (ARRAY['prediction_result'::text, 'new_round'::text, 'reply'::text, 'join_request'::text, 'join_decision'::text, 'post_pending'::text, 'post_moderated'::text, 'role_changed'::text, 'invite'::text])))",
+  "notifications.notifications_kind_check": "CHECK ((kind = ANY (ARRAY['prediction_result'::text, 'new_round'::text, 'reply'::text, 'join_request'::text, 'join_decision'::text, 'post_pending'::text, 'post_moderated'::text, 'role_changed'::text, 'invite'::text, 'membership'::text, 'photos_ready'::text, 'race_reminder'::text, 'race_results'::text])))",
   "notifications.notifications_pkey": "PRIMARY KEY (id)",
   "notifications.notifications_title_check": "CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))",
   "notifications.notifications_user_id_dedupe_key_key": "UNIQUE (user_id, dedupe_key)",
