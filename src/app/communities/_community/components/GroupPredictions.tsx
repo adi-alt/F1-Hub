@@ -12,6 +12,8 @@ import { PredictionCard } from "./PredictionCard";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { fieldControlClass } from "@/components/ui/Field";
+import { EYEBROW, PANEL } from "@/components/ui/panel";
 import type { GroupRole } from "@/lib/supabase/groups";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -22,7 +24,7 @@ const TYPES: PredictionType[] = ["winner", "podium", "fastest_lap", "pole", "dnf
 type RaceOption = { id: string; name: string; round: number; status: string };
 type DriverOption = { code: string; name: string; headshotUrl: string | null };
 
-function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; races: RaceOption[]; onCreated: () => void }) {
+function NewPredictionForm({ groupId, races, onCreated, onCancel }: { groupId: string; races: RaceOption[]; onCreated: () => void; onCancel: () => void }) {
   const [raceId, setRaceId] = useState(races[0]?.id ?? "");
   const [type, setType] = useState<PredictionType>("winner");
   const [entryPoints, setEntryPoints] = useState(20);
@@ -38,10 +40,10 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ raceId, type, entryPoints: entry }),
-    });
-    const body = (await res.json().catch(() => null)) as { error?: string } | null;
-    if (!res.ok) {
-      setError(body?.error ?? "Could not create prediction.");
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    if (!res?.ok) {
+      setError(body?.error ?? "Couldn't open the round. Check your connection and try again.");
       setStatus("error");
       return;
     }
@@ -50,59 +52,67 @@ function NewPredictionForm({ groupId, races, onCreated }: { groupId: string; rac
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-surface-1/60 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="text-xs text-tertiary">
-          Race
-          <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this prediction" className="mt-1" />
+    <div className={`p-5 ${PANEL}`}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <span className={EYEBROW}>Race</span>
+          <RacePicker races={races} value={raceId} onChange={setRaceId} ariaLabel="Race for this round" className="mt-2" />
         </div>
-        <div className="text-xs text-tertiary">
-          Prediction type
+        <div>
+          <span className={EYEBROW}>What to predict</span>
           <Picker
             options={TYPES.map((t) => ({ value: t, label: predictionTypeLabels[t] }))}
             value={type}
             onChange={(next) => setType(next as PredictionType)}
-            ariaLabel="Prediction type"
-            className="mt-1"
+            ariaLabel="What to predict"
+            className="mt-2"
           />
         </div>
       </div>
 
-      <div className="mt-3">
-        <p className="text-xs text-tertiary">Prediction entry</p>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <div className="mt-4">
+        <p className={EYEBROW}>Entry</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2" role="group" aria-label="Entry points">
           {ENTRY_PRESETS.map((p) => (
             <button
               key={p}
               type="button"
+              aria-pressed={!custom && entryPoints === p}
               onClick={() => {
                 setEntryPoints(p);
                 setCustom("");
               }}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                !custom && entryPoints === p ? "border-white/40 bg-surface-3 text-primary" : "border-white/10 text-secondary hover:border-white/30"
+              className={`h-10 rounded-control border px-3 text-body-sm font-medium transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                !custom && entryPoints === p ? "border-strong bg-surface-3 text-primary" : "border-subtle text-secondary hover:text-primary"
               }`}
             >
-              {p} points
+              {p} pts
             </button>
           ))}
           <input
             value={custom}
             onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
             placeholder="Custom"
-            className="w-20 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+            aria-label="Custom entry points"
+            inputMode="numeric"
+            className={`w-24 ${fieldControlClass(false)}`}
           />
         </div>
       </div>
 
-      {error && <p className="mt-2 text-caption text-danger">{error}</p>}
-      <button
-        onClick={() => void submit()}
-        disabled={status === "saving" || !raceId}
-        className="mt-3 h-10 rounded-control bg-brand px-4 text-body-sm font-medium text-white transition-colors duration-fast hover:bg-brand-hover disabled:opacity-40"
-      >
-        {status === "saving" ? "Creating…" : "Create prediction"}
-      </button>
+      {error && (
+        <p role="alert" className="mt-3 text-caption text-danger">
+          {error}
+        </p>
+      )}
+      <div className="mt-5 flex gap-2">
+        <Button variant="primary" size="md" onClick={() => void submit()} disabled={!raceId} loading={status === "saving"}>
+          Open round
+        </Button>
+        <Button variant="ghost" size="md" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }
@@ -137,6 +147,7 @@ export function GroupPredictions({
             <NewPredictionForm
               groupId={groupId}
               races={races}
+              onCancel={() => setShowNew(false)}
               onCreated={() => {
                 setShowNew(false);
                 router.refresh();
@@ -159,17 +170,10 @@ export function GroupPredictions({
             icon={Trophy}
             message={
               myRole === "admin"
-                ? "No prediction rounds are active: open one and the community can start predicting."
+                ? "No prediction rounds are open. Open one above and the community can start predicting."
                 : "No prediction rounds are active: an admin opens them ahead of a race weekend."
             }
-            action={
-              myRole === "admin" &&
-              !showNew && (
-                <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>
-                  Create a prediction round
-                </Button>
-              )
-            }
+
           />
         )}
       </div>

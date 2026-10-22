@@ -70,6 +70,8 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
 
   // First page, refetched whenever the query/topics/sort change. Debounced so typing doesn't fire
   // one request per keystroke.
+  // Bumped by Retry: the same query again (setting the query to itself wouldn't re-run anything).
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const id = ++requestId.current;
     const timer = setTimeout(() => {
@@ -99,7 +101,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [buildUrl]);
+  }, [buildUrl, attempt]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -151,7 +153,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
         <header className="shrink-0 border-b border-white/10 px-5 pb-4 pt-5 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold text-white">Discover Communities</h2>
+              <h2 className="text-lg font-bold text-white">Discover communities</h2>
               <p className="mt-0.5 text-xs text-tertiary">Find people and spaces around what interests you.</p>
             </div>
             <button
@@ -230,7 +232,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           ) : listError ? (
-            <ErrorState onRetry={() => setQuery((q) => q)} />
+            <ErrorState onRetry={() => setAttempt((n) => n + 1)} />
           ) : communities.length === 0 ? (
             <EmptyState query={query} topics={topics} onClearTopics={() => setTopics([])} />
           ) : (

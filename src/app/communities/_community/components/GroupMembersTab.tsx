@@ -80,7 +80,7 @@ function MemberRow({ groupId, member, myRole, myUserId, onBanned }: { groupId: s
     setSeen(member.role);
     setRole(member.role);
   }
-  const [confirm, setConfirm] = useState<"remove" | "ban" | null>(null);
+  const [confirm, setConfirm] = useState<"remove" | "ban" | "admin" | null>(null);
   const [busy, setBusy] = useState(false);
   const [gone, setGone] = useState(false);
   const [error, setError] = useState("");
@@ -134,7 +134,7 @@ function MemberRow({ groupId, member, myRole, myUserId, onBanned }: { groupId: s
         </div>
         {canManage ? (
           <div className="flex shrink-0 items-center gap-2">
-            <Picker options={ROLE_OPTIONS} value={role} onChange={(r) => void changeRole(r as GroupRole)} ariaLabel={`Role for ${name}`} className="w-36" align="end" />
+            <Picker options={ROLE_OPTIONS} value={role} onChange={(r) => (r === "admin" && role !== "admin" ? setConfirm("admin") : void changeRole(r as GroupRole))} ariaLabel={`Role for ${name}`} className="w-36" align="end" />
             {!confirm && (
               <>
                 <Button variant="secondary" size="sm" onClick={() => setConfirm("remove")}>
@@ -153,17 +153,34 @@ function MemberRow({ groupId, member, myRole, myUserId, onBanned }: { groupId: s
 
       {/* The question gets its own line under the person, so the row never has to squeeze it in. */}
       {confirm && (
-        <div role="group" aria-label={confirm === "ban" ? `Ban ${name}` : `Remove ${name}`} className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-control bg-white/[0.04] px-3 py-2.5">
+        <div role="group" aria-label={confirm === "ban" ? `Ban ${name}` : confirm === "admin" ? `Make ${name} an admin` : `Remove ${name}`} className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-control bg-white/[0.04] px-3 py-2.5">
           <p className="min-w-0 flex-1 basis-56 text-caption text-secondary">
-            {confirm === "ban" ? `Remove ${name} and ban them? They can't come back, and their invitation links stop working.` : `Remove ${name}? Their invitation links stop working. They can rejoin later.`}
+            {confirm === "admin"
+              ? `Make ${name} an admin? They get full control: settings, roles, bans and deleting the community.`
+              : confirm === "ban"
+                ? `Remove ${name} and ban them? They can't come back, and their invitation links stop working.`
+                : `Remove ${name}? Their invitation links stop working. They can rejoin later.`}
           </p>
           <span className="flex shrink-0 gap-2">
             <Button variant="ghost" size="sm" onClick={() => setConfirm(null)} disabled={busy}>
               Keep
             </Button>
-            <Button variant="danger" size="sm" loading={busy} onClick={() => void remove(confirm === "ban")}>
-              {confirm === "ban" ? "Remove and ban" : "Remove"}
-            </Button>
+            {confirm === "admin" ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setConfirm(null);
+                  void changeRole("admin");
+                }}
+              >
+                Make admin
+              </Button>
+            ) : (
+              <Button variant="danger" size="sm" loading={busy} onClick={() => void remove(confirm === "ban")}>
+                {confirm === "ban" ? "Remove and ban" : "Remove"}
+              </Button>
+            )}
           </span>
         </div>
       )}

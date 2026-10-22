@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
@@ -52,7 +52,29 @@ const SECTIONS: { value: Section; label: string }[] = [
  * Every control here changes something real. There is no "blocked words" or "report queue": neither has a backing
  * table, and switches that quietly do nothing are worse than a short screen that works.
  */
-export function ManageTab({ group, pendingRequests = 0 }: { group: GroupDetail; pendingRequests?: number }) {
+/** Which sections hold unsaved edits, so closing the window can ask first (see CommunityWorkspace). */
+const DirtyContext = createContext<(section: string, dirty: boolean) => void>(() => {});
+
+/** A section's unsaved state: warns before the tab closes, and tells Manage so its window can ask before closing. */
+function useDirty(section: string, dirty: boolean) {
+  const report = useContext(DirtyContext);
+  useUnsavedChangesWarning(dirty);
+  useEffect(() => {
+    report(section, dirty);
+    return () => report(section, false);
+  }, [report, section, dirty]);
+}
+
+export function ManageTab({ group, pendingRequests = 0, onDirtyChange }: { group: GroupDetail; pendingRequests?: number; onDirtyChange?: (dirty: boolean) => void }) {
+  const dirtySections = useRef(new Set<string>());
+  const report = useCallback(
+    (section: string, dirty: boolean) => {
+      if (dirty) dirtySections.current.add(section);
+      else dirtySections.current.delete(section);
+      onDirtyChange?.(dirtySections.current.size > 0);
+    },
+    [onDirtyChange],
+  );
   // A moderator's part of running a community is the door: join requests. Requests only exist for a private
   // community (a hidden one is invite-only), unless some are still waiting from before a change.
   const showRequests = group.visibility === "private" || pendingRequests > 0;
@@ -68,6 +90,7 @@ export function ManageTab({ group, pendingRequests = 0 }: { group: GroupDetail; 
   const items: TabItem<Section>[] = sections.map((s) => ({ ...s, count: s.value === "requests" && pendingRequests > 0 ? pendingRequests : undefined }));
 
   return (
+    <DirtyContext.Provider value={report}>
     <div>
       {items.length > 1 && (
         <Tabs value={section} onValueChange={open} items={items}>
@@ -83,6 +106,7 @@ export function ManageTab({ group, pendingRequests = 0 }: { group: GroupDetail; 
         {panel("delete", <DeleteSection group={group} />)}
       </div>
     </div>
+    </DirtyContext.Provider>
   );
 }
 
@@ -186,7 +210,7 @@ function GeneralSection({ group }: { group: GroupDetail }) {
     topic !== (group.topic ?? "") ||
     communityType !== group.communityType ||
     visibility !== group.visibility;
-  useUnsavedChangesWarning(isDirty);
+  useDirty("general", isDirty);
   const circlePublic = communityType === "private_circle" && visibility === "public";
   const discard = () => {
     setName(group.name);
@@ -278,7 +302,7 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
   const [features, setFeatures] = useState(group.features);
   const [moderationEnabled, setModerationEnabled] = useState(group.moderationEnabled);
   const dirty = JSON.stringify(features) !== JSON.stringify(group.features) || moderationEnabled !== group.moderationEnabled;
-  useUnsavedChangesWarning(dirty);
+  useDirty("features", dirty);
   const enabled = resolveModules(group.communityType, features);
   const toggles = toggleableModules(group.communityType);
 
@@ -321,7 +345,7 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [permissions, setPermissions] = useState<CommunityPermissions>(group.permissions ?? {});
   const dirty = JSON.stringify(permissions) !== JSON.stringify(group.permissions ?? {});
-  useUnsavedChangesWarning(dirty);
+  useDirty("permissions", dirty);
 
   return (
     <section aria-label="Permissions">

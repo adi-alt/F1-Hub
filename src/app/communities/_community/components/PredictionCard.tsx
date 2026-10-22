@@ -29,7 +29,7 @@ type Blocker =
   | null;
 
 function blockerFor(prediction: GroupPrediction, state: PredictionState, drivers: DriverOption[], pointsBalance: number, hasEntry: boolean): Blocker {
-  if (state === "resolved") return { kind: "resolved", message: "Results are in." };
+  if (state === "resolved" || state === "void") return { kind: "resolved", message: state === "void" ? "This round was voided." : "Results are in." };
   // Once the race has run, "waiting for an admin" is the more useful thing to say than the deadline.
   if (prediction.raceStatus === "completed") return { kind: "raceRun", message: "This race has already run. Waiting for an admin to resolve it." };
   // `state` folds the server's deadline (lockAt - the start of the weekend's Qualifying session)
@@ -110,6 +110,7 @@ export function PredictionCard({
 
   const isAdmin = myRole === "admin";
   const state: PredictionState = serverClosed && prediction.status === "open" ? "locked" : predictionStateAt(prediction.status, prediction.lockAt, now);
+  const done = state === "resolved" || state === "void";
   const blocker = blockerFor(prediction, state, drivers, pointsBalance, myEntry !== null);
   const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
   const countdown = state === "open" && lockMs !== null ? formatCountdown(lockMs, now) : "";
@@ -139,13 +140,14 @@ export function PredictionCard({
     onChanged();
   }
 
-  async function resolve() {
+  /** Resolve (pay out) or void (refund everyone): both move points, so both refresh the balance. */
+  async function act(action: "resolve" | "void") {
     setStatus("saving");
     setError("");
-    const res = await fetch(`/api/groups/${groupId}/predictions/${prediction.id}/resolve`, { method: "POST" }).catch(() => null);
+    const res = await fetch(`/api/groups/${groupId}/predictions/${prediction.id}/${action}`, { method: "POST" }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { error?: string } | null;
     if (!res?.ok) {
-      setError(body?.error ?? "Couldn't resolve this round yet.");
+      setError(body?.error ?? (action === "resolve" ? "Couldn't resolve this round yet." : "Couldn't void this round. Try again."));
       setStatus("idle");
       return;
     }
@@ -228,7 +230,7 @@ export function PredictionCard({
                       ? "Not scored"
                       : prediction.myEntry.pointsAwarded > 0
                         ? `+${prediction.myEntry.pointsAwarded}`
-                        : `-${prediction.myEntry.pointsWagered}`
+                        : `−${prediction.myEntry.pointsWagered}`
                   }
                   highlight={(prediction.myEntry.pointsAwarded ?? 0) > 0}
                 />
@@ -242,7 +244,7 @@ export function PredictionCard({
         {/* Entered and still open: show it back, with what it's actually worth if it lands (the
             real double-or-nothing payout resolvePrediction pays out - see its own comment) and a
             way to change it while there's time. */}
-        {state !== "resolved" && myEntry && !editing && (
+        {!done && myEntry && !editing && (
           <div className="mt-3 space-y-2">
             <Row label="Your prediction" value={formatGuess(prediction.type, myEntry.guess, drivers)} avatar={<GuessAvatars type={prediction.type} guess={myEntry.guess} drivers={drivers} />} />
             <Row label="Potential payout" value={payoutPreview(prediction.type, myEntry.pointsWagered)} highlight />
@@ -255,7 +257,7 @@ export function PredictionCard({
         )}
 
         {/* The entry form, only when entering is genuinely possible. */}
-        {state !== "resolved" && !blocker && (!myEntry || editing) && (
+        {!done && !blocker && (!myEntry || editing) && (
           <div className="mt-3">
             <GuessInput type={prediction.type} drivers={drivers} value={guess} onChange={setGuess} />
             <div className="mt-3 flex items-center gap-3">
@@ -279,7 +281,7 @@ export function PredictionCard({
         )}
 
         {/* Why you can't enter, specifically. */}
-        {blocker && state !== "resolved" && <p className="mt-3 text-xs leading-relaxed text-tertiary">{blocker.message}</p>}
+        {blocker && !done && <p className="mt-3 text-caption text-tertiary">{blocker.message}</p>}
 
         {error && (
           <p role="alert" className="mt-2 text-xs text-brand-text">
@@ -289,16 +291,18 @@ export function PredictionCard({
 
         {/* Resolving pays points out, so it stays admin-only regardless of the community's
             create-predictions permission. */}
-        {isAdmin && state !== "resolved" && (
-          <div className="mt-3 border-t border-white/10 pt-3">
-            <ConfirmButton
-              onConfirm={() => void resolve()}
-              question="Resolve and pay out?"
-              confirmLabel="Resolve"
-              pending={status === "saving"}
-              className="text-xs font-medium text-secondary transition hover:text-white disabled:opacity-40"
-            >
+        {state === "void" && (
+          <p className="mt-3 text-caption text-tertiary">{prediction.myEntry ? "This round was voided. Your entry points were refunded." : "This round was voided."}</p>
+        )}
+
+        {/* Resolving pays points out and voiding refunds them, so both stay admin-only. */}
+        {isAdmin && !done && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+            <ConfirmButton onConfirm={() => void act("resolve")} question="Resolve and pay out?" confirmLabel="Resolve" pending={status === "saving"}>
               Resolve this round
+            </ConfirmButton>
+            <ConfirmButton onConfirm={() => void act("void")} question="Void it and refund every entry?" confirmLabel="Void" pending={status === "saving"}>
+              Void
             </ConfirmButton>
           </div>
         )}
@@ -309,12 +313,13 @@ export function PredictionCard({
 
 function StatusBadge({ state }: { state: PredictionState }) {
   const map: Record<string, { label: string; className: string }> = {
-    open: { label: "Open", className: "bg-emerald-400/10 text-emerald-400" },
+    open: { label: "Open", className: "bg-success/10 text-success" },
     locked: { label: "Locked", className: "bg-white/[0.06] text-secondary" },
-    resolved: { label: "Resolved", className: "bg-brand/10 text-brand-text" },
+    resolved: { label: "Resolved", className: "bg-white/[0.06] text-primary" },
+    void: { label: "Void", className: "bg-white/[0.06] text-tertiary" },
   };
   const badge = map[state] ?? map.open;
-  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold ${badge.className}`}>{badge.label}</span>;
+  return <span className={`shrink-0 rounded-control px-2 py-0.5 text-caption font-semibold ${badge.className}`}>{badge.label}</span>;
 }
 
 function Row({ label, value, highlight, avatar }: { label: string; value: string; highlight?: boolean; avatar?: React.ReactNode }) {

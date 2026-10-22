@@ -574,6 +574,10 @@ export async function resolvePrediction(groupId: string, predictionId: string, u
   if (!race || race.status !== "completed" || !race.results?.length) {
     throw new ServiceError("This race hasn't finished yet - results aren't available to resolve against.", 400);
   }
+  // Points are paid once and never taken back, so only against the official classification (audit R-05).
+  if (race.resultsSource === "openf1_preliminary") {
+    throw new ServiceError("Only preliminary results are in. Resolve once the official classification lands, usually within a few hours.", 409, "results_preliminary");
+  }
 
   const type = prediction.type as PredictionType;
   let correctAnswer: PredictionGuess | null;
@@ -595,4 +599,15 @@ export async function resolvePrediction(groupId: string, predictionId: string, u
   const result = data as ResolveResult;
   if (!result.alreadyResolved) await notifyPredictionSettled(groupId, predictionId, type, race.name);
   return result;
+}
+
+export type VoidResult = { alreadyVoid: boolean; refundCount: number; refundTotal: number };
+
+/** Admin voids a round that can't be settled fairly: every entrant gets their entry points back (void_prediction,
+ * 20261027_prediction_void.sql, atomic and idempotent). A settled round can't be voided. */
+export async function voidPrediction(groupId: string, predictionId: string, uid: string): Promise<VoidResult> {
+  await requireAdmin(groupId, uid);
+  const { data, error } = await supabaseAdmin.rpc("void_prediction", { p_prediction_id: predictionId, p_group_id: groupId });
+  if (error) throw predictionError(error);
+  return data as VoidResult;
 }

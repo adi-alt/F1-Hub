@@ -1,5 +1,7 @@
 "use client";
 
+import { MENU_ITEM } from "@/components/ui/panel";
+import { Button } from "@/components/ui/Button";
 import { useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
@@ -76,13 +78,28 @@ export function PostCard({
     }
   }
 
-  async function moderate(action: "approve" | "reject") {
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [moderating, setModerating] = useState(false);
+  const [moderateError, setModerateError] = useState("");
+
+  /** Only a decision the server took changes the feed; a failure is said, in the menu, and nothing moves. */
+  async function moderate(action: "approve" | "reject", close: () => void) {
     if (!post.groupId) return;
-    await fetch(`/api/groups/${post.groupId}/posts/${post.id}/moderate`, {
+    setModerating(true);
+    setModerateError("");
+    const res = await fetch(`/api/groups/${post.groupId}/posts/${post.id}/moderate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
-    });
+    }).catch(() => null);
+    setModerating(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setModerateError(body?.error ?? "Couldn't do that. Check your connection and try again.");
+      return;
+    }
+    close();
+    setConfirmRemove(false);
     onModerated?.(action);
   }
 
@@ -105,41 +122,48 @@ export function PostCard({
           <button
             ref={ref}
             type="button"
-            onClick={toggle}
+            onClick={() => {
+              setConfirmRemove(false);
+              setModerateError("");
+              toggle();
+            }}
             aria-expanded={open}
             aria-label="Post actions"
-            className={`-mr-1.5 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${open ? "bg-surface-3 text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"}`}
+            className={`-mr-1.5 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${open ? "bg-surface-3 text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"}`}
           >
             <Icon icon={MoreHorizontal} size={16} />
           </button>
         )}
       >
-        {({ close }) => (
-          <div className="p-1">
-            {status === "pending" && (
-              <button
-                type="button"
-                onClick={() => {
-                  close();
-                  void moderate("approve");
-                }}
-                className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-success transition-colors duration-fast hover:bg-success/10"
-              >
-                Approve post
+        {({ close }) =>
+          confirmRemove ? (
+            <div className="p-3.5">
+              <p className="text-body-sm font-medium text-primary">Remove this post?</p>
+              <p className="mt-1 text-caption text-tertiary">It disappears from the feed for everyone.</p>
+              <div className="mt-3 flex gap-2">
+                <Button variant="danger" size="sm" loading={moderating} onClick={() => void moderate("reject", close)}>
+                  Remove
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmRemove(false)}>
+                  Keep
+                </Button>
+              </div>
+              {moderateError && <p role="alert" className="mt-2 text-caption text-danger">{moderateError}</p>}
+            </div>
+          ) : (
+            <div className="p-1.5">
+              {status === "pending" && (
+                <button type="button" disabled={moderating} onClick={() => void moderate("approve", close)} className={MENU_ITEM}>
+                  {moderating ? "Approving…" : "Approve post"}
+                </button>
+              )}
+              <button type="button" onClick={() => setConfirmRemove(true)} className={`${MENU_ITEM} hover:text-danger`}>
+                Remove post
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                close();
-                void moderate("reject");
-              }}
-              className="w-full rounded-control px-2.5 py-2 text-left text-body-sm text-danger transition-colors duration-fast hover:bg-danger/10"
-            >
-              Remove post
-            </button>
-          </div>
-        )}
+              {moderateError && <p role="alert" className="px-2.5 pb-1 text-caption text-danger">{moderateError}</p>}
+            </div>
+          )
+        }
       </Popover>
     ) : null;
 

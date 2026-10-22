@@ -21,7 +21,7 @@ const PODIUM_TONE: Record<number, string> = { 1: "text-[#e8c866]", 2: "text-seco
  * either be fabricated or need a new schema column to track - skipped rather than faked. Avatars
  * are the same EntityAvatar/initials-fallback treatment the Members tab's rows already use - this
  * table lists the same kind of entity and had been the one place in Communities that didn't. */
-export function GroupLeaderboardTab({ rows, myUserId }: { rows: LeaderboardRow[]; myUserId: string }) {
+export function GroupLeaderboardTab({ rows, myUserId, avatars }: { rows: LeaderboardRow[]; myUserId: string; avatars?: Record<string, string | null> }) {
   if (rows.length === 0) {
     return <EmptyState icon={Trophy} message="No scored races yet: scores land here once a race a member picked finishes." />;
   }
@@ -35,12 +35,12 @@ export function GroupLeaderboardTab({ rows, myUserId }: { rows: LeaderboardRow[]
           <motion.li
             key={row.userId}
             variants={staggerItem}
-            className={`flex items-center justify-between rounded-xl border px-4 py-3 ${isMe ? "border-brand/40 bg-brand/6" : "border-white/10 bg-surface-1/60"}`}
+            className={`flex items-center justify-between rounded-control border px-4 py-3 ${isMe ? "border-white/20 bg-white/[0.05]" : "border-white/[0.06] bg-white/[0.012]"}`}
           >
             <div className="flex min-w-0 items-center gap-3">
-              <span className={`w-5 shrink-0 text-right font-mono text-sm font-bold tabular ${PODIUM_TONE[row.rank] ?? "text-tertiary"}`}>{row.rank}</span>
-              <EntityAvatar imageUrl={null} name={name} size={30} />
-              <span className={`min-w-0 truncate font-medium ${isMe ? "text-white" : "text-neutral-200"}`}>{name}</span>
+              <span className={`w-5 shrink-0 text-right font-mono text-body-sm font-bold tabular ${PODIUM_TONE[row.rank] ?? "text-tertiary"}`}>{row.rank}</span>
+              <EntityAvatar imageUrl={avatars?.[row.userId] ?? null} name={name} seed={row.userId} size={30} />
+              <span className={`min-w-0 truncate font-medium ${isMe ? "text-primary" : "text-secondary"}`}>{name}</span>
               {isMe && <span className="shrink-0 text-caption font-semibold text-brand-text">You</span>}
             </div>
             <div className="shrink-0 text-right">

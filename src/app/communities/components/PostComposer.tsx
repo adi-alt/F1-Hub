@@ -219,12 +219,13 @@ export function PostComposer({
       form.append("pages", String(preview.pages));
     }
 
-    const res = await fetch("/api/posts/media", { method: "POST", body: form });
-    const body = (await res.json().catch(() => null)) as
+    // A dropped connection is a failed upload, never a spinner that never stops.
+    const res = await fetch("/api/posts/media", { method: "POST", body: form }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as
       | { mediaUrl?: string; name?: string; mime?: string; size?: number; thumbUrl?: string | null; pages?: number | null; error?: string }
       | null;
 
-    if (res.ok && body?.mediaUrl) {
+    if (res?.ok && body?.mediaUrl) {
       setMediaUrl(body.mediaUrl);
       setAttachment({
         url: body.mediaUrl,
@@ -283,9 +284,9 @@ export function PostComposer({
         scheduledAt: scheduledAt && !hasCall ? new Date(scheduledAt).toISOString() : null,
         call: hasCall && callableRace && callDraft ? { raceId: callableRace.raceId, ...callDraft } : undefined,
       }),
-    });
-    const body = (await res.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
-    if (res.ok) {
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
+    if (res?.ok) {
       // A scheduled post deliberately does NOT appear in the feed yet, so say where it went -
       // otherwise a successful schedule is indistinguishable from a post that vanished.
       if (body?.status === "scheduled" && body.scheduledAt) {
@@ -296,7 +297,7 @@ export function PostComposer({
       setJustPosted(body?.status === "scheduled" ? "Scheduled" : "Posted");
       setTimeout(() => setJustPosted(null), 2000);
     } else {
-      setNotice(body?.error ?? "Could not post - try again.");
+      setNotice(body?.error ?? "Couldn't post. Check your connection and try again.");
     }
     setPosting(false);
   }

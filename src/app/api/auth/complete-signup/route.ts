@@ -1,9 +1,12 @@
+import { limitRequest } from "@/lib/rateLimit";
 import { NextResponse } from "next/server";
 import { completeSignup } from "@/services/auth.service";
 import { ServiceError, serviceErrorBody } from "@/services/errors";
 import { signupSchema } from "@/lib/inputLimits";
 
 export async function POST(request: Request) {
+  const limited = await limitRequest(request, "signupComplete");
+  if (limited) return limited;
   // Types and size caps (SEC-25, see inputLimits.ts); the username's format and "first name is
   // required" stay completeSignup's own checks, with their own messages.
   const parsed = signupSchema.safeParse(await request.json().catch(() => null));

@@ -250,20 +250,28 @@ export function GroupsFeed({
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
+  // The tab itself failed to load (not a later page): said in place of the list, with Retry.
+  const [tabError, setTabError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  function switchTab(next: FeedType) {
-    if (next === feedType) return;
+  function switchTab(next: FeedType, force = false) {
+    if (next === feedType && !force) return;
     setFeedType(next);
     setLoading(true);
     setError(false);
+    setTabError(false);
     fetch(`/api/groups/feed?feedType=${next}`)
-      .then((res) => res.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
       .then((body: { posts: FeedPost[]; nextCursor: string | null }) => {
         setPosts(body.posts);
         setCursor(body.nextCursor);
       })
-      .catch(() => setError(true))
+      // Never the previous tab's posts under the new tab's name.
+      .catch(() => {
+        setPosts([]);
+        setCursor(null);
+        setTabError(true);
+      })
       .finally(() => setLoading(false));
   }
 
@@ -295,7 +303,7 @@ export function GroupsFeed({
 
   function refreshAggregate() {
     fetch(`/api/groups/feed?feedType=${feedType}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
       .then((body: { posts: FeedPost[]; nextCursor: string | null }) => {
         setPosts(body.posts);
         setCursor(body.nextCursor);
@@ -367,13 +375,15 @@ export function GroupsFeed({
 
   function refreshCommunity() {
     if (!communityId) return;
+    setCommunityInitialError(false);
     fetch(`/api/groups/${communityId}/posts`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
       .then((body: { posts: GroupPost[]; nextCursor: string | null }) => {
         setCommunityPosts(body.posts);
         setCommunityCursor(body.nextCursor);
       })
-      .catch(() => {});
+      // Shown only while nothing is on screen yet (the first load); a failed refresh keeps what's there.
+      .catch(() => setCommunityInitialError(true));
   }
 
   return (
@@ -410,12 +420,7 @@ export function GroupsFeed({
         <div>
           {communityPosts === null ? (
             communityInitialError ? (
-              <p className="py-6 text-center text-caption text-secondary">
-                Couldn&apos;t load this community&apos;s feed.{" "}
-                <button type="button" onClick={refreshCommunity} className="text-secondary underline-offset-2 hover:text-white hover:underline">
-                  Retry
-                </button>
-              </p>
+              <RetryLine message="Couldn't load this community's feed." onRetry={refreshCommunity} />
             ) : (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -475,6 +480,8 @@ export function GroupsFeed({
                   <PostCardSkeleton key={i} />
                 ))}
               </div>
+            ) : tabError ? (
+              <RetryLine message="Couldn't load these posts." onRetry={() => switchTab(feedType, true)} />
             ) : posts.length === 0 ? (
               <EmptyState
                 boxed
@@ -497,14 +504,7 @@ export function GroupsFeed({
         communityCursor ? (
           <div ref={communitySentinelRef} className="py-2">
             {communityLoadingMore && <PostCardSkeleton />}
-            {communityMoreError && (
-              <p className="text-center text-caption text-secondary">
-                Couldn&apos;t load more.{" "}
-                <button type="button" onClick={() => void loadMoreCommunity()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
-                  Try again
-                </button>
-              </p>
-            )}
+            {communityMoreError && <RetryLine message="Couldn't load more." onRetry={() => void loadMoreCommunity()} />}
           </div>
         ) : (
           (communityPosts?.length ?? 0) > 0 && <EndOfFeed />
@@ -512,14 +512,7 @@ export function GroupsFeed({
       ) : cursor ? (
         <div ref={sentinelRef} className="py-2">
           {loadingMore && <PostCardSkeleton />}
-          {error && (
-            <p className="text-center text-xs text-tertiary">
-              Couldn&apos;t load more.{" "}
-              <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
-                Try again
-              </button>
-            </p>
-          )}
+          {error && <RetryLine message="Couldn't load more." onRetry={() => void loadMore()} />}
         </div>
       ) : (
         !loading && posts.length > 0 && <EndOfFeed />
@@ -533,7 +526,7 @@ export function GroupsFeed({
         <div className="pointer-events-none sticky bottom-4 z-20 flex justify-center">
           <span className="pointer-events-auto rounded-card shadow-overlay">
             <Button variant="secondary" size="md" iconStart={Plus} onClick={jumpToComposer}>
-              New post
+              Write a post
             </Button>
           </span>
         </div>
@@ -568,5 +561,17 @@ function EndOfFeed() {
       </svg>
       You&apos;re all caught up
     </motion.p>
+  );
+}
+
+/** A failed load, said where its content would be, with the one way forward. */
+export function RetryLine({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="flex items-center justify-center gap-3 py-6 text-body-sm text-secondary">
+      {message}
+      <Button variant="secondary" size="sm" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
   );
 }

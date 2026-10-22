@@ -5,6 +5,7 @@
 // not folded into lib/supabase/* — same role src/lib/highlights.ts and predictionAccuracy.ts
 // already have: a derived view-model layer on top of the data layer, not a data source itself.
 
+import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
 import { getArchiveCircuit, getArchiveDriver, getArchiveDriverIdsByCode, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
@@ -483,7 +484,13 @@ export async function getRecentCircuitPhotos(
     currentSeasonCircuit ? getRacesByCircuit(currentSeasonCircuit) : Promise.resolve([]),
   ]);
 
+  // Photos an admin approved for this circuit's races come first (audit R-04): they're the ones a person has
+  // checked show this place. The Commons categories below fill in only while too few are approved.
+  const approved = (await Promise.all(currentRaces.map(async (r) => (await getApprovedRacePhotos(r.id).catch(() => [])).map((p) => ({ url: p.imageUrl, year: r.year }))))).flat();
+  if (approved.length >= MIN_PHOTOS_FOR_ROTATION) return dedupeSortedByYear(approved);
+
   const recent = dedupeSortedByYear([
+    ...approved,
     ...withPhotos(archiveRaces.filter((r) => r.year >= earliestYear)),
     ...withPhotos(currentRaces.filter((r) => r.year >= earliestYear)),
   ]);

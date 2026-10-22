@@ -227,6 +227,36 @@ def audit_unfetched_rounds(cur) -> list[str]:
     return problems
 
 
+def audit_results_completeness(cur) -> list[str]:
+    """Two states that look finished but aren't (audit R-03): a race marked completed with no race_results at all,
+    and results still marked 'openf1_preliminary' a day after the weekend's last session (the official
+    classification never replaced them, so prediction rounds can't be settled - see resolvePrediction)."""
+    problems: list[str] = []
+    cur.execute(
+        "select races.id, races.results_source, calendar.sessions, "
+        "(select count(*) from race_results where race_results.race_id = races.id) as result_count "
+        "from races left join calendar on calendar.year = races.year and calendar.round = races.round "
+        "and calendar.status is distinct from 'cancelled' "
+        "where races.status = 'completed'"
+    )
+    now = datetime.now(timezone.utc)
+    for race_id, results_source, sessions, result_count in cur.fetchall():
+        if result_count == 0:
+            problems.append(f"{race_id}: status is 'completed' but it has zero race_results")
+            continue
+        if results_source != "openf1_preliminary":
+            continue
+        dates = []
+        for s in sessions or []:
+            if not s.get("date"):
+                continue
+            d = datetime.fromisoformat(s["date"])
+            dates.append(d if d.tzinfo else d.replace(tzinfo=timezone.utc))
+        if dates and now > max(dates) + timedelta(hours=24):
+            problems.append(f"{race_id}: results are still preliminary {(now - max(dates)).days}d after the weekend - the official classification never arrived")
+    return problems
+
+
 def audit_venue_drift(cur) -> list[str]:
     """WARNINGS, not failures: an event whose location this season differs from its previous
     season's. Upstream naming drifts harmlessly (Yas Island/Yas Marina, Monaco/Monte Carlo) and venues
@@ -262,7 +292,7 @@ def main() -> int:
     conn = _connect()
     try:
         with conn.cursor() as cur:
-            problems = audit_races(cur) + audit_related_tables(cur) + audit_calendar_alignment(cur) + audit_freshness(cur) + audit_unfetched_rounds(cur)
+            problems = audit_races(cur) + audit_related_tables(cur) + audit_calendar_alignment(cur) + audit_freshness(cur) + audit_unfetched_rounds(cur) + audit_results_completeness(cur)
             warnings = audit_venue_drift(cur)
     finally:
         conn.close()

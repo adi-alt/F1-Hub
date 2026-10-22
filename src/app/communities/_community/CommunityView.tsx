@@ -198,7 +198,8 @@ export async function CommunityView({
     // the content column itself stays a comfortable reading measure. Matches the Communities index's
     // own max width rather than inventing a third one for this page.
     // No top padding: the head brings its own, so its full-bleed cover meets the site header as the circuit page's does.
-    <div className="page-wide pb-10">
+    // Room under the content for the mobile Create post button.
+    <div className="page-wide pb-24 lg:pb-10">
       <GroupRealtimeWatcher groupId={id} />
       <GroupVisitBeacon groupId={id} />
 

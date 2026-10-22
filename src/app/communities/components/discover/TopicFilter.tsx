@@ -72,10 +72,10 @@ export function TopicFilter({
                     key={facet.topic}
                     className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-secondary transition hover:bg-white/[0.05] hover:text-white"
                   >
-                    <input type="checkbox" checked={checked} onChange={() => toggle(facet.topic)} className="sr-only" />
+                    <input type="checkbox" checked={checked} onChange={() => toggle(facet.topic)} className="peer sr-only" />
                     <span
                       aria-hidden
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus-ring ${
                         checked ? "border-brand bg-brand" : "border-white/25"
                       }`}
                     >

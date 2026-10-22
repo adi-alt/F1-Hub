@@ -245,13 +245,9 @@ function OpenRounds({ predictions, onOpen }: { predictions: RailPrediction[]; on
         </ul>
       )}
       {predictions.length > 0 && (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="mt-3 flex h-9 w-full items-center justify-center rounded-control border border-white/[0.1] bg-white/[0.03] text-body-sm font-medium text-primary transition-colors duration-fast hover:border-white/20 hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
+        <Button variant="secondary" size="md" className="mt-3 w-full" onClick={onOpen}>
           {predictions.every(({ prediction }) => prediction.myEntry) ? "Review your picks" : "Make your picks"}
-        </button>
+        </Button>
       )}
     </div>
   );

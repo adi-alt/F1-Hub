@@ -187,7 +187,7 @@ describe("resolvePrediction", () => {
 
   test("the correct answer is worked out from the results for each round type, and sent with the results source", async () => {
     setRace({
-      status: "completed", pole_sitter: "LEC", results_source: "openf1_preliminary",
+      status: "completed", pole_sitter: "LEC", results_source: "official",
       race_results: [result("VER", 1, { fastest_lap_sec: 92.5 }), result("NOR", 2, { fastest_lap_sec: 91.9 }), result("LEC", 3, { fastest_lap_sec: 93 }), result("HAM", 4, { status: "dnf" }), result("RUS", 5, { status: "dnf" })],
     });
     const expected: Record<string, unknown> = { winner: "VER", pole: "LEC", fastest_lap: "NOR", dnf_count: 2, podium: ["VER", "NOR", "LEC"] };
@@ -199,8 +199,19 @@ describe("resolvePrediction", () => {
       fake.rpcCalls.length = 0;
       await predictions.resolvePrediction(GROUP, id, ADMIN);
       const call = settle()[0];
-      assert.deepEqual(call.args, { p_prediction_id: id, p_group_id: GROUP, p_correct_answer: answer, p_results_source: "openf1_preliminary" }, type);
+      assert.deepEqual(call.args, { p_prediction_id: id, p_group_id: GROUP, p_correct_answer: answer, p_results_source: "official" }, type);
     }
+  });
+
+  test("preliminary results are refused: points are paid once, against the official classification", async () => {
+    setRace({ status: "completed", pole_sitter: "LEC", results_source: "openf1_preliminary", race_results: [result("VER", 1, {}), result("NOR", 2, {}), result("LEC", 3, {})] });
+    fake.rpcs.settle_prediction = () => ok();
+    const id = newId();
+    fake.seed("group_predictions", { id, group_id: GROUP, race_id: RACE, type: "winner", entry_points: 10, created_by: ADMIN });
+    fake.rpcCalls.length = 0;
+    const err = await predictions.resolvePrediction(GROUP, id, ADMIN).catch((e: { httpStatus: number; code: string }) => e);
+    assert.deepEqual([(err as { httpStatus: number }).httpStatus, (err as { code: string }).code], [409, "results_preliminary"]);
+    assert.equal(settle().length, 0);
   });
 
   test("a round type the race data can't answer yet is refused before settlement", async () => {

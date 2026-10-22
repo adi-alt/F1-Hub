@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CallableRace } from "@/lib/supabase/postCalls";
 import { motion } from "motion/react";
 import { Plus } from "lucide-react";
@@ -216,13 +216,22 @@ export function CommunityWorkspace({
     url.searchParams.set("tab", next);
     window.history.pushState(null, "", url);
   }, []);
+  // Manage's unsaved edits: closing asks first instead of dropping them.
+  const manageDirty = useRef(false);
+  const [askDiscard, setAskDiscard] = useState(false);
   const closeWindow = useCallback(() => {
+    if (manageDirty.current && !askDiscard) {
+      setAskDiscard(true);
+      return;
+    }
+    setAskDiscard(false);
+    manageDirty.current = false;
     setWin(null);
     const url = new URL(window.location.href);
     if (tab === defaultTab) url.searchParams.delete("tab");
     else url.searchParams.set("tab", tab);
     window.history.replaceState(null, "", url);
-  }, [tab, defaultTab]);
+  }, [tab, defaultTab, askDiscard]);
 
   /** The rail points at tabs beside it. A target this community doesn't have (a rail card is only
    * rendered when its module is on, but Members/About are required and always exist) falls through
@@ -289,7 +298,7 @@ export function CommunityWorkspace({
                     pointsBalance={pointsBalance}
                   />
                 )}
-                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} />}
+                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatarUrl ?? null]))} />}
               </motion.div>
             </TabPanels>
           </Tabs>
@@ -321,12 +330,25 @@ export function CommunityWorkspace({
           onClose={closeWindow}
           title={shown === "manage" && !isAdmin ? "Join requests" : (shown === "members" || shown === "invite") && managesMembers(group) ? "Manage members" : WINDOW_TITLES[shown]}
           size={shown === "manage" || shown === "media" ? "xl" : "lg"}
+          footer={
+            askDiscard && shown === "manage" ? (
+              <>
+                <p className="mr-auto text-body-sm text-secondary">You have unsaved changes.</p>
+                <Button variant="ghost" size="sm" onClick={() => setAskDiscard(false)}>
+                  Keep editing
+                </Button>
+                <Button variant="danger" size="sm" onClick={closeWindow}>
+                  Discard and close
+                </Button>
+              </>
+            ) : undefined
+          }
         >
           {shown === "media" && <MediaTab groupId={group.id} />}
           {/* Members and inviting are one window ("Manage members"); `invite` opens it on the Invite tab. */}
           {(shown === "members" || shown === "invite") && <GroupMembersTab key={shown} group={group} myUserId={myUserId} initialTab={shown === "invite" ? "invite" : "members"} />}
           {shown === "about" && <AboutTab group={group} modules={modules} memberCount={memberCount} />}
-          {shown === "manage" && canManage && <ManageTabLazy group={group} pendingRequests={pendingRequests} />}
+          {shown === "manage" && canManage && <ManageTabLazy group={group} pendingRequests={pendingRequests} onDirtyChange={(d) => (manageDirty.current = d)} />}
         </Dialog>
       )}
 
@@ -347,8 +369,8 @@ export function CommunityWorkspace({
 
 /** Manage is the heaviest panel and the least-visited, so it's only imported when an admin (or moderator) actually
  * opens it rather than shipped in every member's bundle. */
-function ManageTabLazy({ group, pendingRequests }: { group: GroupDetail; pendingRequests?: number }) {
-  const [Loaded, setLoaded] = useState<React.ComponentType<{ group: GroupDetail; pendingRequests?: number }> | null>(null);
+function ManageTabLazy({ group, pendingRequests, onDirtyChange }: { group: GroupDetail; pendingRequests?: number; onDirtyChange: (dirty: boolean) => void }) {
+  const [Loaded, setLoaded] = useState<React.ComponentType<{ group: GroupDetail; pendingRequests?: number; onDirtyChange?: (dirty: boolean) => void }> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -367,5 +389,5 @@ function ManageTabLazy({ group, pendingRequests }: { group: GroupDetail; pending
       </div>
     );
   }
-  return <Loaded group={group} pendingRequests={pendingRequests} />;
+  return <Loaded group={group} pendingRequests={pendingRequests} onDirtyChange={onDirtyChange} />;
 }

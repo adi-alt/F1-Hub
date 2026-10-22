@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { deliverOtp } from "@/lib/otp";
+import { limitRequest } from "@/lib/rateLimit";
 import { startSignIn } from "@/services/auth.service";
 import { ServiceError, serviceErrorBody } from "@/services/errors";
 
 // No idToken in the body anymore — the Supabase session lives in this request's cookies (set by
 // the browser client after password sign-in, or by /auth/callback after an OAuth redirect), so
 // startSignIn() can just ask "who does this request say is signed in" itself.
-export async function POST() {
+export async function POST(request: Request) {
+  const limited = await limitRequest(request, "otpStart");
+  if (limited) return limited;
   try {
     const { email, code } = await startSignIn();
     // after() runs once this response has already gone out - the actual SMTP round trip (a

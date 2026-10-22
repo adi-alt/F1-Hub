@@ -23,6 +23,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+      # Known high-severity advisories in what ships (audit R-08): fail before anything else runs.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       # Counts the class patterns the design tokens replace (text-[Npx], [var(--x)], [#hex],
       # outline-none without focus-visible) and fails if any grows past scripts/design-lint-baseline.json.
@@ -51,6 +53,32 @@ jobs:
           CRON_SECRET: placeholder-cron-secret
           SESSION_SECRET: placeholder-session-secret-for-ci-builds-only-000000
           NVIDIA_API_KEY: placeholder-nvidia-key
+
+  # The race-condition suite (src/lib/__tests__/db/concurrency.pg.test.ts) needs real concurrent connections, which
+  # PGlite can't give, so without a Postgres it only ever reported "skipped" (audit R-21). A throwaway server here,
+  # in its own job: the suite creates and drops its own database inside it.
+  race-conditions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - name: Race-condition tests against real Postgres
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: npx tsx --experimental-test-module-mocks --test src/lib/__tests__/db/concurrency.pg.test.ts
 
   # Separate job, not a step in `build`: these are plain-assert Python scripts (no pytest, see
   # their own docstrings) that were previously never run by anything - a real gap, since it's what

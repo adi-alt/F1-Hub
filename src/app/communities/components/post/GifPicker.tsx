@@ -21,12 +21,13 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       fetch(`/api/gifs/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
-        .then((res) => res.json())
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error("failed"))))
         .then((body: { results: GifResult[]; configured: boolean }) => {
           setResults(body.results);
           setConfigured(body.configured);
         })
-        .catch(() => {});
+        // Unavailable reads the same as not set up: no GIFs right now, said plainly.
+        .catch((err: unknown) => (err as Error)?.name !== "AbortError" && setConfigured(false));
     }, 250);
     return () => {
       clearTimeout(timeout);
@@ -73,7 +74,7 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
       />
       <div className="mt-2 max-h-52 overflow-y-auto">
         {!configured ? (
-          <p className="p-3 text-center text-xs text-tertiary">GIF search isn&apos;t configured yet - needs KLIPY_API_KEY set (see gifProvider.ts).</p>
+          <p className="p-3 text-center text-xs text-tertiary">GIFs aren&apos;t available right now.</p>
         ) : results === null ? (
           <p className="p-3 text-center text-xs text-tertiary">Searching…</p>
         ) : results.length === 0 ? (

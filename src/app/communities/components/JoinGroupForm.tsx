@@ -57,13 +57,13 @@ export function JoinGroupForm({ compact = false }: { compact?: boolean }) {
 
   if (compact) {
     return (
-      <form onSubmit={(e) => void submit(e)} className="flex gap-2">
+      <form onSubmit={(e) => void submit(e)} className="flex flex-wrap gap-2">
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Paste invite link or code"
           aria-label="Invite link or community code"
-          className={`flex-1 ${fieldControlClass(status === "error")}`}
+          className={`min-w-0 flex-1 ${fieldControlClass(status === "error")}`}
         />
         <Button type="submit" variant="secondary" size="md" loading={status === "saving"}>
           Join
