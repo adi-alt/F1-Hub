@@ -115,7 +115,9 @@ export async function CommunityView({
   // a non-F1 community fetches no race at all, so it can't be shown one.
   const wantsPredictions = modules.includes("predictions");
   const wantsLeaderboard = modules.includes("leaderboard");
-  const wantsRace = isF1Type(group.communityType);
+  // An F1 type, or any community about Formula 1 (a private circle of friends who follow it): the race weekend, the
+  // race card and Apex belong on its page too.
+  const wantsRace = isF1Type(group.communityType) || group.topic === "Formula 1";
 
   const season = await getCurrentSeason();
   const [feed, leaderboard, predictions, pointsBalance, seasonRaces, pendingRequests, stats, pulse, nextRace, callableRace, weekend, crowdVsModel] = await Promise.all([

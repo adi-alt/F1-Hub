@@ -3,7 +3,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Ellipsis, EllipsisVertical, EyeOff, FileText, Globe, Image as ImageIcon, Images, Lock, LogOut, Settings, Share2, Trash2, UserPlus, Users, type LucideIcon } from "lucide-react";
+import { Camera, Ellipsis, EllipsisVertical, EyeOff, FileText, Globe, Image as ImageIcon, Images, Lock, LogOut, Settings, Share2, Trash2, Users, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
@@ -25,9 +25,9 @@ const WINDOW_ITEMS: { value: CommunityWindow; label: string; icon: LucideIcon }[
 
 /**
  * The community's head, drawn as the circuit page draws its own: the cover full-bleed behind it, fading into the page;
- * a breadcrumb back to Communities; then the avatar, an eyebrow naming the kind of community, the name, who can get in
- * and how many are here, and Invite for everyone allowed to invite - in a private community that's the main thing to
- * do. Everything else - the link, the secondary sections (media, members, about), for an admin the cover, the icon,
+ * a breadcrumb back to Communities; then the avatar, an eyebrow naming the kind of community, the name, and who can get
+ * in and how many are here. Everything else - the link, the secondary sections (media, members - "Manage members",
+ * with inviting, for whoever may invite - about), for an admin the cover, the icon,
  * Manage (a moderator's too, for join requests), your role and Leave - lives in one menu at the top right, and the
  * sections open as windows over the page.
  *
@@ -131,12 +131,6 @@ export function CommunityHeader({
         : { icon: Lock, text: "Private · people ask to join, and admins approve them" };
   const memberCount = group.members.length;
 
-  // Invite is the head's one action: beside the name, and on a phone up beside the menu, where the name has the row to itself.
-  const invite = windows.includes("invite") && (
-    <Button variant="primary" size="sm" iconStart={UserPlus} onClick={() => onOpenWindow("invite")}>
-      Invite
-    </Button>
-  );
 
   return (
     <header className="relative pb-6 pt-6 lg:pt-8">
@@ -163,7 +157,6 @@ export function CommunityHeader({
 
         <div className="relative z-20 flex shrink-0 flex-col items-end gap-1.5">
           <div className="flex items-center gap-2">
-          <div className="sm:hidden">{invite}</div>
           <Popover
             align="end"
             ariaLabel="Community menu"
@@ -231,7 +224,7 @@ export function CommunityHeader({
                 <div className="p-1">
                   {item(copied ? "Link copied" : "Copy link", Share2, () => void share())}
                   <div className="my-1 border-t border-white/10" />
-                  {sections.map((s) => item(s.label, s.icon, () => onOpenWindow(s.value)))}
+                  {sections.map((s) => item(s.value === "members" && windows.includes("invite") ? "Manage members" : s.label, s.icon, () => onOpenWindow(s.value)))}
                   {windows.includes("manage") &&
                     item(
                       isAdmin ? "Manage" : "Join requests",
@@ -282,7 +275,6 @@ export function CommunityHeader({
           <h1 className="break-words text-title-lg text-primary sm:text-display-md">{group.name}</h1>
         </div>
 
-        <div className="hidden shrink-0 sm:block">{invite}</div>
       </div>
 
       {/* Who can get in, said in words, and who's here - one click from the list. */}
