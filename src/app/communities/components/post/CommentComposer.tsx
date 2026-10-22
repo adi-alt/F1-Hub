@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
+import { fieldControlClass } from "@/components/ui/Field";
 import { useRef, useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
@@ -71,14 +73,14 @@ export function CommentComposer({
             autoFocus={autoFocus}
             rows={1}
             maxLength={1000}
-            className="w-full resize-none rounded-xl border border-white/10 bg-black/25 py-2.5 pl-3.5 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+            className={`resize-none pr-11 ${fieldControlClass(false)}`}
           />
           <button
             ref={emojiAnchorRef}
             type="button"
             onClick={() => setShowEmoji((v) => !v)}
             aria-label="Add emoji"
-            className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-tertiary transition hover:bg-white/[0.06] hover:text-white"
+            className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-control text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
             <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
               <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
@@ -88,14 +90,9 @@ export function CommentComposer({
             </svg>
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void submit()}
-          disabled={posting || !content.trim()}
-          className="shrink-0 rounded-xl bg-brand px-5 py-2.5 text-body-sm font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-        >
-          {posting ? "Posting…" : "Post"}
-        </button>
+        <Button variant="primary" size="md" onClick={() => void submit()} disabled={!content.trim()} loading={posting}>
+          Post
+        </Button>
         {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
       </div>
     );
@@ -112,26 +109,21 @@ export function CommentComposer({
         autoFocus={autoFocus}
         rows={1}
         maxLength={1000}
-        className="w-full resize-none rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+        className={`resize-none ${fieldControlClass(false)}`}
       />
       <div className="mt-1.5 flex items-center justify-between">
-        <button type="button" onClick={() => setShowEmoji((v) => !v)} className="rounded p-1 text-sm text-tertiary transition hover:bg-white/[0.06] hover:text-white" aria-label="Add emoji">
+        <button ref={emojiAnchorRef} type="button" onClick={() => setShowEmoji((v) => !v)} className="flex size-8 items-center justify-center rounded-control text-body-sm text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" aria-label="Add emoji">
           🙂
         </button>
         <div className="flex items-center gap-2">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="text-xs text-tertiary hover:text-white">
+            <Button variant="ghost" size="sm" onClick={onCancel}>
               Cancel
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={posting || !content.trim()}
-            className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-          >
-            {posting ? "Posting…" : "Reply"}
-          </button>
+          <Button variant="primary" size="sm" onClick={() => void submit()} disabled={!content.trim()} loading={posting}>
+            Reply
+          </Button>
         </div>
       </div>
       {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}

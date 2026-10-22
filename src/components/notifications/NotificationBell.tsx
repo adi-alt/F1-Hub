@@ -141,7 +141,7 @@ export function NotificationBell() {
                         close();
                         if (n.href) router.push(n.href);
                       }}
-                      className="flex w-full items-start gap-3 px-3.5 py-2.5 text-left transition-colors duration-fast hover:bg-white/[0.05] focus-visible:bg-white/[0.06] focus-visible:outline-none"
+                      className="flex w-full items-start gap-3 px-3.5 py-2.5 text-left transition-colors duration-fast hover:bg-white/[0.05] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
                     >
                       {n.actor ? (
                         <EntityAvatar imageUrl={n.actor.avatarUrl} name={n.actor.name} size={32} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { RetryLine } from "../../components/GroupsFeed";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CallableRace } from "@/lib/supabase/postCalls";
 import { MessageSquare } from "lucide-react";
@@ -210,7 +211,7 @@ export function CommunityFeed({
 
   function refresh() {
     fetch(`/api/groups/${groupId}/posts${queryString(query)}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
       .then((body: { posts: GroupPost[]; nextCursor: string | null }) => {
         setPosts(body.posts);
         setCursor(body.nextCursor);
@@ -360,12 +361,7 @@ export function CommunityFeed({
         {reloading ? (
           Array.from({ length: 3 }).map((_, i) => <PostCardSkeleton key={i} />)
         ) : reloadError ? (
-          <p className="py-6 text-center text-xs text-tertiary">
-            Couldn&apos;t load these posts.{" "}
-            <button type="button" onClick={() => setQuery({ ...query })} className="text-secondary underline-offset-2 hover:text-white hover:underline">
-              Retry
-            </button>
-          </p>
+          <RetryLine message="Couldn't load these posts." onRetry={() => setQuery({ ...query })} />
         ) : (
           <>
             {stream.map((item, i) =>
@@ -437,12 +433,7 @@ export function CommunityFeed({
         <div ref={sentinelRef} className="pt-3">
           {loadingMore && <PostCardSkeleton />}
           {pageError && (
-            <p className="py-2 text-center text-xs text-tertiary">
-              Couldn&apos;t load more discussions.{" "}
-              <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
-                Retry
-              </button>
-            </p>
+            <RetryLine message="Couldn't load more." onRetry={() => void loadMore()} />
           )}
         </div>
       )}

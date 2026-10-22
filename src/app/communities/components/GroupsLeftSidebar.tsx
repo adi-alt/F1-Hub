@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, Compass, Home, MoreHorizontal, Plus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { EYEBROW, PANEL } from "./panel";
 import { LayoutGroup, motion } from "motion/react";
@@ -244,7 +245,21 @@ function NavRow({
  * composition: a horizontally-scrollable chip strip, the idiom a phone screen actually favours for
  * "pick one of a short row of things". Sits above the composer, not below the entire feed.
  */
-export function MobileCommunitySelector({ groups, selectedId, onSelect }: { groups: GroupSummary[]; selectedId: string | null; onSelect: (id: string | null) => void }) {
+/** Below lg the sidebar is hidden, so this row carries what it would: your communities, plus Discover and Create
+ * (otherwise unreachable on a phone once you're in a community). */
+export function MobileCommunitySelector({
+  groups,
+  selectedId,
+  onSelect,
+  onCreate,
+  onDiscover,
+}: {
+  groups: GroupSummary[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onCreate: () => void;
+  onDiscover: () => void;
+}) {
   if (groups.length === 0) return null;
   return (
     <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 scrollbar-hide lg:hidden">
@@ -252,6 +267,13 @@ export function MobileCommunitySelector({ groups, selectedId, onSelect }: { grou
       {groups.map((g) => (
         <Chip key={g.id} label={g.name} seed={g.id} avatarUrl={g.avatarUrl} active={selectedId === g.id} onClick={() => onSelect(g.id)} />
       ))}
+      <span aria-hidden className="mx-0.5 w-px shrink-0 self-stretch bg-white/10" />
+      <Button variant="secondary" size="sm" iconStart={Compass} className="shrink-0" onClick={onDiscover}>
+        Discover
+      </Button>
+      <Button variant="secondary" size="sm" iconStart={Plus} className="shrink-0" onClick={onCreate}>
+        Create
+      </Button>
     </div>
   );
 }
@@ -262,7 +284,7 @@ function Chip({ label, seed, avatarUrl, active, onClick }: { label: string; seed
       type="button"
       onClick={onClick}
       aria-current={active}
-      className={`flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-control border px-3 text-body-sm transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
         active ? "border-white/30 bg-surface-3 font-medium text-primary" : "border-subtle text-secondary hover:border-strong hover:text-primary"
       }`}
     >

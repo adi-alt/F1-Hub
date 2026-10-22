@@ -175,7 +175,7 @@ export function GroupsHomeClient({
               ) : (
                 <WeekendStrip race={nextRace} predictions={predictions} />
               )}
-              <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+              <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
               <GroupsFeed
                 groups={groups}
                 initialPosts={initialPosts}

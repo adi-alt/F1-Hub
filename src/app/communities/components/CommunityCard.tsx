@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
+import { PANEL_INTERACTIVE } from "@/components/ui/panel";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -68,11 +70,13 @@ export function CommunityCard({
       transition={{ duration: 0.22, delay: Math.min(index, 8) * 0.03, ease: "easeOut" }}
       className="h-full"
     >
-      <Link href={href} className="group block h-full focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
+      {/* The card is one link (the name, stretched over it) with Join as its own button on top: a button inside a
+          link is invalid and reads to a screen reader as one long link. */}
+      <div className="group relative h-full">
         {/* Hover lift lives on this inner div, not the motion.div - framer owns the outer element's
             transform for the entrance animation and a Tailwind translate class there would silently
             never apply (inline style wins). */}
-        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-surface-1/60 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-white/20">
+        <div className={`flex h-full flex-col overflow-hidden transition-transform duration-base group-hover:-translate-y-0.5 ${PANEL_INTERACTIVE}`}>
           <GroupBanner bannerUrl={community.bannerUrl} seed={community.id} />
 
           <div className="flex flex-1 flex-col px-4 pb-4">
@@ -81,7 +85,7 @@ export function CommunityCard({
                 <EntityAvatar imageUrl={community.avatarUrl} name={community.name} size={44} />
               </span>
               {community.isMember && (
-                <span className="mb-1 shrink-0 rounded-full border border-white/15 px-2 py-0.5 text-caption font-semibold text-secondary">
+                <span className="mb-1 shrink-0 rounded-control border border-white/15 px-2 py-0.5 text-caption font-semibold text-secondary">
                   Joined
                 </span>
               )}
@@ -89,7 +93,12 @@ export function CommunityCard({
 
             {/* line-clamp, not truncate - an extremely long name should wrap to two lines and stop,
                 not silently lose most of itself to an ellipsis. */}
-            <p className="mt-2.5 line-clamp-2 font-semibold leading-tight text-white">{community.name}</p>
+            <Link
+              href={href}
+              className="mt-2.5 line-clamp-2 rounded-control text-body font-semibold leading-tight text-primary after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-lg focus-visible:after:outline-2 focus-visible:after:outline-focus-ring"
+            >
+              {community.name}
+            </Link>
 
             <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-caption text-tertiary">
               <span>{meta.label}</span>
@@ -106,9 +115,9 @@ export function CommunityCard({
               <span>{visibilityLabel("public")}</span>
             </p>
 
-            {community.description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-tertiary">{community.description}</p>}
+            {community.description && <p className="mt-2 line-clamp-2 text-caption text-tertiary">{community.description}</p>}
 
-            <p className="mt-2.5 text-xs text-secondary">
+            <p className="mt-2.5 text-caption text-secondary">
               {compactCount(community.memberCount)} member{community.memberCount === 1 ? "" : "s"}
             </p>
 
@@ -116,7 +125,7 @@ export function CommunityCard({
               <CommunitySignal community={community} />
 
               {community.isMember ? (
-                <span className="mt-3 flex items-center justify-end gap-1 text-xs font-medium text-secondary transition group-hover:text-white">
+                <span className="mt-3 flex items-center justify-end gap-1 text-caption font-medium text-secondary transition-colors duration-fast group-hover:text-primary">
                   Open
                   <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" aria-hidden>
                     <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -124,21 +133,16 @@ export function CommunityCard({
                 </span>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    onClick={join}
-                    disabled={joining}
-                    className="mt-3 w-full rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-neutral-200 transition hover:border-white/30 hover:bg-white/[0.04] disabled:opacity-60"
-                  >
-                    {joining ? "Joining…" : community.activePredictions > 0 ? "Join & predict" : "Join"}
-                  </button>
-                  {error && <p className="mt-1.5 text-center text-caption text-brand-text">{error}</p>}
+                  <Button variant="secondary" size="sm" className="relative z-10 mt-3 w-full" onClick={join} loading={joining}>
+                    {community.activePredictions > 0 ? "Join and predict" : "Join"}
+                  </Button>
+                  {error && <p role="alert" className="relative z-10 mt-1.5 text-center text-caption text-danger">{error}</p>}
                 </>
               )}
             </div>
           </div>
         </div>
-      </Link>
+      </div>
     </motion.div>
   );
 }
@@ -147,23 +151,23 @@ export function CommunityCard({
 function CommunitySignal({ community }: { community: PublicGroupSummary }) {
   if (community.activePredictions > 0) {
     return (
-      <p className="flex items-center gap-1.5 border-t border-white/10 pt-3 text-xs text-brand-text">
+      <p className="flex items-center gap-1.5 border-t border-white/[0.06] pt-3 text-caption text-primary">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
-        {community.activePredictions} prediction{community.activePredictions === 1 ? "" : "s"} open now
+        {community.activePredictions} {community.activePredictions === 1 ? "round" : "rounds"} open now
       </p>
     );
   }
   if (community.weeklyPosts > 0) {
     return (
-      <p className="flex items-center gap-1.5 border-t border-white/10 pt-3 text-xs text-secondary">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400/80" aria-hidden />
+      <p className="flex items-center gap-1.5 border-t border-white/[0.06] pt-3 text-caption text-secondary">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" aria-hidden />
         {community.weeklyPosts} discussion{community.weeklyPosts === 1 ? "" : "s"} this week
       </p>
     );
   }
   if (community.latestPost) {
     return (
-      <p className="border-t border-white/10 pt-3 text-xs text-tertiary">
+      <p className="border-t border-white/[0.06] pt-3 text-caption text-tertiary">
         <span className="line-clamp-1">&ldquo;{community.latestPost.content}&rdquo;</span>
         <span className="text-tertiary">{timeAgo(community.latestPost.createdAt)}</span>
       </p>
@@ -171,5 +175,5 @@ function CommunitySignal({ community }: { community: PublicGroupSummary }) {
   }
   // Said plainly. A brand-new community with one member is a real state, and pretending otherwise
   // is how fake activity indicators get born.
-  return <p className="border-t border-white/10 pt-3 text-xs text-tertiary">No activity yet - be the first to post</p>;
+  return <p className="border-t border-white/[0.06] pt-3 text-caption text-tertiary">No activity yet - be the first to post</p>;
 }
