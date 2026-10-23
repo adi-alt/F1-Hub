@@ -37,7 +37,7 @@ export async function PATCH(request: Request) {
 // typed confirmation, so a stray request can't do it. Signs them out afterwards.
 export async function DELETE(request: Request) {
   const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const body = (await request.json().catch(() => null)) as { confirm?: unknown } | null;
   if (body?.confirm !== DELETE_CONFIRMATION) return NextResponse.json({ error: `Type ${DELETE_CONFIRMATION} to confirm.` }, { status: 400 });
 
