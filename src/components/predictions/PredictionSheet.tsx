@@ -95,7 +95,7 @@ function Outcome({ score }: { score: CategoryScore | undefined }) {
  * the corner as a short "+3 pts" ("if right" for screen readers and on hover) and the model line keeps two lines'
  * height, so all four controls start on one line
  * whatever the text above them; a note goes under the control. */
-function Category({ title, points, model, done, score, note, compact = false, children }: { title: string; points: string; model: ReactNode; done: boolean; score?: CategoryScore; note?: ReactNode; compact?: boolean; children: ReactNode }) {
+function Category({ title, points, model, done, score, note, compact = false, children }: { title: string; points: string; model?: ReactNode; done: boolean; score?: CategoryScore; note?: ReactNode; compact?: boolean; children: ReactNode }) {
   const result = score && score.earned !== null;
   const chip = result ? (
     <Outcome score={score} />
@@ -114,10 +114,12 @@ function Category({ title, points, model, done, score, note, compact = false, ch
         </h3>
         {chip}
       </div>
-      <p className={`mt-2 flex items-start gap-1.5 text-caption text-secondary ${compact ? "min-h-10" : ""}`}>
-        <Icon icon={Bot} size={16} className="shrink-0 text-tertiary" />
-        <span className="min-w-0">{model}</span>
-      </p>
+      {model && (
+        <p className="mt-2 flex items-start gap-1.5 text-caption text-secondary">
+          <Icon icon={Bot} size={16} className="shrink-0 text-tertiary" />
+          <span className="min-w-0">{model}</span>
+        </p>
+      )}
       <div className="mt-3">{children}</div>
       {note && <p className="mt-2 text-caption text-tertiary">{note}</p>}
     </section>
@@ -265,7 +267,7 @@ export function PredictionSheet({
       const err = (await res?.json().catch(() => null)) as { error?: string } | null;
       return setMessage({ tone: "error", text: err?.error ?? "Couldn't save. Try again." });
     }
-    setMessage({ tone: "ok", text: "Saved. You can change it until the lock." });
+    setMessage(null);
     onSaved?.({ ...body, submittedAt: new Date().toISOString() });
   }
 
@@ -357,7 +359,7 @@ export function PredictionSheet({
             title="Podium" score={scoreOf("podium")}
             points={`Up to ${POINTS.podium} pts · 3 per exact place, 1 if on the podium`}
             done={done.podium}
-            model={model.podium.length ? <>Model: {modelList(model.podium)}{model.winnerChance !== null ? ` · ${Math.round(model.winnerChance * 100)}% to win` : ""}</> : "The model publishes after qualifying."}
+            model={model.podium.length ? <>Model: {modelList(model.podium)}{model.winnerChance !== null ? ` · ${Math.round(model.winnerChance * 100)}% to win` : ""}</> : null}
           >
             <div className="grid gap-3 sm:grid-cols-3 sm:items-start">
               {([1, 2, 3] as const).map((place) => (
@@ -383,18 +385,18 @@ export function PredictionSheet({
               title="Pole position" compact score={scoreOf("pole")}
               points={`+${POINTS.pole} pts`}
               done={done.pole}
-              model={model.pole ? <>Model: {nameOf(model.pole)}</> : "Publishes before qualifying."}
+              model={model.pole ? <>Model: {nameOf(model.pole)}</> : null}
               note={poleLocked && !locked ? "Qualifying has started: locked." : !poleLocked && qualiClose ? <>Locks at qualifying, <span suppressHydrationWarning>{qualiClose}</span>.</> : null}
             >
               <DriverPicker drivers={drivers} value={form.pole} disabled={poleLocked} ariaLabel="Pole position" onChange={(code) => setForm((f) => ({ ...f, pole: code }))} />
             </Category>
-            <Category title="Fastest lap" compact score={scoreOf("fastestLap")} points={`+${POINTS.fastestLap} pts`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : "Publishes after practice."}>
+            <Category title="Fastest lap" compact score={scoreOf("fastestLap")} points={`+${POINTS.fastestLap} pts`} done={done.fastestLap} model={model.fastestLap ? <>Model: {nameOf(model.fastestLap)}, best race pace</> : null}>
               <DriverPicker drivers={drivers} value={form.fastestLap} disabled={locked} ariaLabel="Fastest lap" onChange={(code) => setForm((f) => ({ ...f, fastestLap: code }))} />
             </Category>
-            <Category title="Safety car" compact score={scoreOf("safetyCar")} points={`+${POINTS.safetyCar} pts`} done={done.safetyCar} model={<>History: {Math.round(model.safetyCar * 100)}% of races have one</>}>
+            <Category title="Safety car" compact score={scoreOf("safetyCar")} points={`+${POINTS.safetyCar} pts`} done={done.safetyCar}>
               <YesNo label="Safety car" value={form.safetyCar} disabled={locked} onChange={(v) => setForm((f) => ({ ...f, safetyCar: v }))} />
             </Category>
-            <Category title="Winning margin" compact score={scoreOf("margin")} points={`+${POINTS.margin} pts`} done={done.margin} model="No model pick: your call.">
+            <Category title="Winning margin" compact score={scoreOf("margin")} points={`+${POINTS.margin} pts`} done={done.margin}>
               <Picker
                 ariaLabel="Winning margin"
                 placeholder="Select a gap"
@@ -407,7 +409,7 @@ export function PredictionSheet({
             </Category>
           </div>
 
-          <Category title="Top five" score={scoreOf("top5")} points={`Up to ${POINTS.top5} pts · 1 per driver, any order`} done={done.top5} model={model.top5.length ? <>Model: {modelList(model.top5)}</> : "The model publishes after qualifying."}>
+          <Category title="Top five" score={scoreOf("top5")} points={`Up to ${POINTS.top5} pts · 1 per driver, any order`} done={done.top5} model={model.top5.length ? <>Model: {modelList(model.top5)}</> : null}>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
               {form.top5.map((code, i) => (
                 <DriverPicker key={i} drivers={drivers} value={code} disabled={locked} placeholder={`#${i + 1}`} ariaLabel={`Top five, driver ${i + 1}`} onChange={(c) => setTop5(i, c)} />
