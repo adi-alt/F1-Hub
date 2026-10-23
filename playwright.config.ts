@@ -1,13 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Browser tests (audit R-21): the app, built and started for real, against the STAGING database and its
-// synthetic users (scripts/staging/seed.mjs). A test signs in by minting the app's own session cookie
-// for a seeded user, with a SESSION_SECRET that exists only for this run, so nothing here can sign in to
+// Browser tests (audit R-21): the app, built and started for real, against a database holding the synthetic
+// users (scripts/staging/seed-app.mjs). A test signs in by minting the app's own session cookie for a
+// seeded user, with a SESSION_SECRET that exists only for this run, so nothing here can sign in to
 // anything real. AI routes are blocked in the browser: a test can never trigger a model call.
+//
+// Two backends (e2e/README.md): E2E_LOCAL=1 is a disposable local Postgres + PostgREST behind the
+// Supabase stand-in (scripts/local-db/), which this config starts; otherwise the staging project.
 //
 //   source <staging env>; npx next build; npx playwright test
 const PORT = Number(process.env.E2E_PORT ?? 3100);
+const LOCAL = process.env.E2E_LOCAL === "1";
 process.env.SESSION_SECRET ??= "e2e-session-secret-only-for-this-run-000000";
+const app = { command: `npx next start -p ${PORT}`, url: `http://localhost:${PORT}/`, reuseExistingServer: !process.env.CI, timeout: 120_000 };
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,5 +31,5 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 860 } } },
     { name: "phone", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, hasTouch: true } },
   ],
-  webServer: { command: `npx next start -p ${PORT}`, url: `http://localhost:${PORT}/`, reuseExistingServer: !process.env.CI, timeout: 120_000 },
+  webServer: LOCAL ? [{ command: "node scripts/local-db/supabase.mjs", url: "http://127.0.0.1:54321/", reuseExistingServer: !process.env.CI }, app] : app,
 });
