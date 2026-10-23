@@ -18,10 +18,12 @@ const read =
   };
 
 let sessionUid: string | undefined = "user-1";
+// The season the races read returns; empty except in the payload budget test, which fills it.
+const season: unknown[] = [];
 mockModule("@/lib/session/getSession", { getSession: async () => ({ uid: sessionUid }) });
 // getCurrentSeason never throws (it falls back to the UTC year), so it isn't one of the faults.
 mockModule("@/lib/currentSeason", { getCurrentSeason: async () => 2026 });
-mockModule("@/lib/supabase/races", { getNextUpcomingRace: read("nextRace", null), getRacesByYear: read("races", []) });
+mockModule("@/lib/supabase/races", { getNextUpcomingRace: read("nextRace", null), getRacesByYear: read("races", season) });
 mockModule("@/lib/supabase/archive", { getAllArchiveCircuits: read("archiveCircuits", []) });
 mockModule("@/lib/supabase/media", { getAllCurrentDrivers: read("currentDrivers", []) });
 mockModule("@/lib/supabase/calendar", { getCalendarEntriesByYear: read("calendarEntries", []), getCalendarEntry: read("calendarEntry", null) });
@@ -102,6 +104,25 @@ describe("home page payload (audit R-26)", () => {
     assert.equal(shell.props.serverAuthed, false);
     assert.equal(shell.props.publicData.scope, "landing");
     assert.deepEqual(Object.keys(shell.props.publicData).sort(), ["backdropPhotos", "calendarEntry", "facts", "nextRace", "scope", "season", "trackHistory", "year"]);
+  });
+
+  test("the signed-out payload stays small however big the season is", async () => {
+    // 24 completed rounds shaped like the real ones, each with a full classification and a ~20 KB
+    // prediction blob: the season the landing page used to serialise whole (PERF-01, ~575 KB HTML).
+    const results = Array.from({ length: 20 }, (_, i) => ({ driver: `D${i}`, driverName: `Driver ${i}`, team: `Team ${i % 10}`, grid: i + 1, finishPosition: i + 1, finishGapSec: i * 1.5, status: "finished", points: 0 }));
+    for (let round = 1; round <= 24; round++) {
+      season.push({ id: `2026_r${round}_race-${round}`, year: 2026, round, name: `Race ${round}`, circuit: `Circuit ${round}`, status: "completed", results, prediction: { blob: "x".repeat(20_000) } });
+    }
+    sessionUid = undefined;
+    try {
+      const shell = homeShell(await HomePage());
+      assert.ok(shell);
+      const bytes = Buffer.byteLength(JSON.stringify(shell.props.publicData));
+      // The landing view model, not the HTML (the 60 KB gzipped page budget is Lighthouse's to check).
+      assert.ok(bytes <= 4_000, `landing payload is ${bytes} bytes`);
+    } finally {
+      season.length = 0;
+    }
   });
 
   test("a signed-in visitor still gets the full public data", async () => {
