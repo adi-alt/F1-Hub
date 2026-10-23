@@ -2,7 +2,7 @@ import { HomeShell } from "@/components/home/HomeShell";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { trackShortForm } from "@/lib/format";
 import type { RaceDoc } from "@/lib/types/race";
-import { getPersonalHomeData, type HomeData, type LandingSeason, type PublicHomeData } from "@/lib/homeData";
+import { getPersonalHomeData, type HomeData, type LandingData, type LandingSeason, type PublicHomeData } from "@/lib/homeData";
 import { buildFacts, buildPredictionInsight, buildSeasonRecap, computeSeasonStandings, getRecentCircuitPhotos, getTrackHistory } from "@/lib/personalization";
 import { getAllArchiveCircuits } from "@/lib/supabase/archive";
 import { getCalendarEntriesByYear, getCalendarEntry, type WeatherForecast } from "@/lib/supabase/calendar";
@@ -15,6 +15,7 @@ import { RefreshAlert } from "@/components/ui/RefreshAlert";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import type { Metadata } from "next";
 import { getCircuitDrawing } from "@/lib/supabase/circuitLayouts";
+import type { CircuitDrawing } from "@/lib/circuitLayout";
 
 // The title, description and share card are the root layout's own (the site's); only the canonical is the page's.
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -46,6 +47,11 @@ function landingSeason(races: RaceDoc[], standings: { drivers: { driver: string;
         }
       : null,
   };
+}
+
+/** The next race's line drawing, only what the landing's Strategy chapter draws (its outline). */
+function landingDrawing(drawing: CircuitDrawing | null | undefined): LandingData["drawing"] {
+  return drawing ? { viewBox: drawing.viewBox, path: drawing.path } : null;
 }
 
 export default async function HomePage() {
@@ -210,7 +216,7 @@ export default async function HomePage() {
   // ~575 KB. Signing in refreshes the page (AuthDialog's router.refresh()), which brings the rest.
   const homeData: HomeData = session.uid
     ? { scope: "full", ...publicData, season: landingSeason(races, standings) }
-    : { scope: "landing", year, nextRace, calendarEntry, backdropPhotos, facts, trackHistory: trackHistoryWithFavorites, season: landingSeason(races, standings) };
+    : { scope: "landing", year, nextRace, calendarEntry, backdropPhotos, facts, trackHistory: trackHistoryWithFavorites, season: landingSeason(races, standings), drawing: landingDrawing(nextRace ? drawingByRound?.[nextRace.round] : null) };
 
   return (
     <>

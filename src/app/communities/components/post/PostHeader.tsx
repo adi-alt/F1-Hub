@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import Link from "next/link";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Badge } from "@/components/ui/Badge";
@@ -39,9 +40,9 @@ function SessionTag({ tag }: { tag: NonNullable<SessionPhase> }) {
 }
 
 export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "post" | "showGroup"> & { size?: number }) {
-  const { user } = useAuth();
+  const { user, avatar: myAvatar } = useAuth();
   const isMe = !!user && user.uid === post.userId;
-  const photo = <EntityAvatar imageUrl={post.authorAvatarUrl ?? (isMe ? (user.photoURL ?? null) : null)} name={post.authorName} seed={post.userId} size={size} />;
+  const photo = <PersonAvatar id={post.userId} avatar={post.authorAvatar ?? (isMe ? myAvatar : null)} size={size} />;
   if (!(showGroup && post.groupId)) return photo;
   const badge = Math.round(size * 0.45);
   return (

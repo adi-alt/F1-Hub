@@ -374,6 +374,7 @@
   "problem_reports.screenshot": "text null=YES default=",
   "problem_reports.status": "text null=NO default='open'::text",
   "problem_reports.user_id": "uuid null=YES default=",
+  "profiles.avatar": "jsonb null=YES default=",
   "profiles.avatar_url": "text null=YES default=",
   "profiles.created_at": "timestamp with time zone null=NO default=now()",
   "profiles.display_name": "text null=YES default=",

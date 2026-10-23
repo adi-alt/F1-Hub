@@ -103,6 +103,8 @@ export type LandingSeason = {
 export type LandingData = Pick<PublicHomeData, "year" | "nextRace" | "calendarEntry" | "backdropPhotos" | "facts" | "trackHistory"> & {
   /** Present on a signed-out visit; absent while a signed-in home is still rendering the public view. */
   season?: LandingSeason;
+  /** The next race's circuit outline, for the Strategy chapter; null without a layout. Absent on a signed-in render. */
+  drawing?: { viewBox: string; path: string } | null;
 };
 
 /** HomeShell's data: everything for a signed-in render, the landing subset for a signed-out one. */

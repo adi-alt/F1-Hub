@@ -4,12 +4,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import type { Role } from "@/lib/rbac";
+import type { AvatarConfig } from "@/lib/avatar";
 
 // Deliberately not the Supabase `User` type - just the three fields anything here actually reads
 // (ProfileMenu's avatar/email, PickPanel's uid for its own picks). Sourced from the session
 // (iron-session), not a live Supabase object, so it's available the instant a session exists
 // with no separate client-side Supabase call needed.
-export type SessionUser = { uid: string; email: string | null; photoURL: string | null };
+export type SessionUser = { uid: string; email: string | null };
 
 type AuthContextValue = {
   user: SessionUser | null;
@@ -22,6 +23,9 @@ type AuthContextValue = {
   // OAuth provider supplied: that's only ever set for a Google/GitHub account, so it's null for
   // every email/password account. This is the reliable "what do we call this person" source.
   displayName: string | null;
+  /** The avatar they built, null until they build one (PersonAvatar then draws their default). */
+  avatar: AvatarConfig | null;
+  setAvatar: (avatar: AvatarConfig | null) => void;
   // The group-predictions wallet balance (lib/supabase/points.ts) - unlike role/displayName this
   // isn't session-cached (it changes on every prediction entry/payout, which the session cookie
   // never sees), so it's re-fetched, not just hydrated once - see refreshPointsBalance.
@@ -46,7 +50,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /** The session as the server read it for this request (root layout): `null` for a signed-out visitor. */
-export type InitialAuth = { uid: string; email: string | null; photoURL: string | null; role: Role; displayName: string | null } | null;
+export type InitialAuth = { uid: string; email: string | null; avatar: AvatarConfig | null; role: Role; displayName: string | null } | null;
 
 /** Tells the server this browser's time zone, so emails can give times in it ("Qualifying starts Sat 25 Oct, 23:00").
  * Once per zone per person: a move or a new device with a different zone sends it again. */
@@ -76,9 +80,10 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
   // already knows whether this visitor is signed in: no placeholder in the header that then turns into
   // "Sign in / Sign up", no footer appearing late. Without a seed (undefined), it starts unknown and waits on
   // /api/auth/me as before.
-  const [user, setUser] = useState<SessionUser | null>(initialAuth ? { uid: initialAuth.uid, email: initialAuth.email, photoURL: initialAuth.photoURL } : null);
+  const [user, setUser] = useState<SessionUser | null>(initialAuth ? { uid: initialAuth.uid, email: initialAuth.email } : null);
   const [role, setRole] = useState<Role | null>(initialAuth?.role ?? null);
   const [displayName, setDisplayName] = useState<string | null>(initialAuth?.displayName ?? null);
+  const [avatar, setAvatar] = useState<AvatarConfig | null>(initialAuth?.avatar ?? null);
   const [pointsBalance, setPointsBalance] = useState<number | null>(null);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [sessionChecked, setSessionChecked] = useState(initialAuth !== undefined);
@@ -87,7 +92,7 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
   // Fills in what the session cookie doesn't carry (the points balance, the tour flag) and, without a seed, the
   // session itself. The real sign-in flow (AuthDialog) sets these directly from its own response once OTP +
   // (for new accounts) the profile step finish.
-  type MeResponse = { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; photoURL?: string | null; pointsBalance?: number | null; onboardingDone?: boolean };
+  type MeResponse = { signedIn: boolean; role?: Role; displayName?: string | null; uid?: string; email?: string | null; avatar?: AvatarConfig | null; pointsBalance?: number | null; onboardingDone?: boolean };
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
@@ -96,7 +101,8 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
           setRole(body.role ?? "user");
           setDisplayName(body.displayName ?? null);
           setPointsBalance(body.pointsBalance ?? null);
-          if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
+          if (body.uid) setUser({ uid: body.uid, email: body.email ?? null });
+          setAvatar(body.avatar ?? null);
           setOnboardingDone(body.onboardingDone ?? true);
           if (body.uid) rememberTimeZone(body.uid);
         } else {
@@ -123,7 +129,9 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((body: MeResponse) => {
-        if (body.signedIn) setPointsBalance(body.pointsBalance ?? null);
+        if (!body.signedIn) return;
+        setPointsBalance(body.pointsBalance ?? null);
+        setAvatar(body.avatar ?? null);
       })
       .catch(() => {});
   }, []);
@@ -135,6 +143,7 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
     setDisplayName(null);
     setUser(null);
     setPointsBalance(null);
+    setAvatar(null);
     setOnboardingDone(true);
     // The rest of the current route (everything below the header, which reacts to `role`
     // directly) is Server-Component-rendered from the session cookie at request time — without
@@ -153,6 +162,8 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
       user,
       role,
       displayName,
+      avatar,
+      setAvatar,
       pointsBalance,
       onboardingDone,
       setOnboardingDone,
@@ -165,7 +176,7 @@ export function AuthProvider({ children, initialAuth }: { children: ReactNode; i
       refreshPointsBalance,
       signOut,
     }),
-    [user, role, displayName, pointsBalance, onboardingDone, sessionChecked, detailsChecked, refreshPointsBalance, signOut],
+    [user, role, displayName, avatar, pointsBalance, onboardingDone, sessionChecked, detailsChecked, refreshPointsBalance, signOut],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { ChevronRight, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -133,7 +134,7 @@ function WidgetHeader({ title, action }: { title: string; action?: { label: stri
  * pinned under them, so you always see where you stand. Under it, the crowd against the Apex model this season.
  */
 function LeagueTable({ rows, members, myUserId, crowdVsModel, onOpen }: { rows: LeaderboardRow[]; members: GroupMember[]; myUserId: string; crowdVsModel: CrowdVsModel | null; onOpen: () => void }) {
-  const faces = new Map(members.map((m) => [m.userId, m.avatarUrl ?? null]));
+  const faces = new Map(members.map((m) => [m.userId, m.avatar ?? null]));
   const leader = rows[0]?.totalScore ?? 0;
   const top = rows.slice(0, TABLE_ROWS);
   const me = rows.find((r) => r.userId === myUserId);
@@ -148,7 +149,7 @@ function LeagueTable({ rows, members, myUserId, crowdVsModel, onOpen }: { rows: 
         <span className={`w-5 shrink-0 font-mono text-caption tabular ${r.rank <= 3 ? "font-semibold text-primary" : "text-tertiary"}`}>{r.rank}</span>
         {/* The leader's line carries the one red mark in the widget. */}
         <span aria-hidden className={`h-4 w-0.5 shrink-0 rounded-full ${r.rank === 1 ? "bg-brand" : "bg-white/15"}`} />
-        <EntityAvatar imageUrl={faces.get(r.userId) ?? null} name={name} seed={r.userId} size={24} />
+        <PersonAvatar id={r.userId} avatar={faces.get(r.userId)} size={24} />
         <span className="min-w-0 flex-1 truncate text-body-sm text-primary">
           {name}
           {isMe && <span className="ml-1.5 text-caption text-tertiary">You</span>}
@@ -264,7 +265,7 @@ function People({ members, canInvite, onOpen, onInvite }: { members: GroupMember
       <ul className="mt-3 space-y-2.5">
         {members.slice(0, PEOPLE_ROWS).map((m) => (
           <li key={m.userId} className="flex items-center gap-2.5">
-            <EntityAvatar imageUrl={m.avatarUrl ?? null} name={m.displayName ?? m.username ?? "M"} seed={m.userId} size={28} />
+            <PersonAvatar id={m.userId} avatar={m.avatar} size={28} />
             <span className="min-w-0 flex-1 truncate text-body-sm text-primary">{m.displayName ?? m.username ?? "Member"}</span>
             {m.role !== "member" && <span className="shrink-0 text-caption capitalize text-tertiary">{m.role}</span>}
           </li>

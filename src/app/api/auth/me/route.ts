@@ -30,7 +30,7 @@ export async function GET() {
     displayName: session.displayName ?? null,
     uid: session.uid,
     email: session.email ?? null,
-    photoURL: session.photoURL ?? null,
+    avatar: profile?.avatar ?? null,
     pointsBalance,
     onboardingDone: profile ? profile.onboardingCompletedAt != null : true,
   });

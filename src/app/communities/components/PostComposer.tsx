@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Target, X, type LucideIcon } from "lucide-react";
@@ -97,7 +98,7 @@ export function PostComposer({
   /** False inside a dialog, whose panel is already the container (one container level). */
   framed?: boolean;
 }) {
-  const { user, displayName } = useAuth();
+  const { user, displayName, avatar } = useAuth();
   const [focused, setFocused] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -336,7 +337,7 @@ export function PostComposer({
 
       {mode === "prediction" ? (
         <div className="flex items-start gap-3">
-          <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={32} />
+          <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={32} />
           <div className="min-w-0 flex-1">
             <p className="pr-8 text-body-sm font-semibold text-primary">New prediction round</p>
             <PredictionComposer
@@ -352,7 +353,7 @@ export function PostComposer({
       ) : (
         <>
           <div className="flex items-start gap-3">
-            <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={32} />
+            <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={32} />
             <div className="min-w-0 flex-1 pr-8">
               {isOpen && (
                 <input

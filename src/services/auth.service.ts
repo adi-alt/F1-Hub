@@ -67,7 +67,7 @@ export async function verifyOtpAndLogin(code: string): Promise<OtpLoginResult> {
   const profile = await getUserProfile(user.id);
   if (!profile) return { status: "needs-profile" };
 
-  const role = await createSessionFor(user, profile.firstName ?? null);
+  const role = await createSessionFor(user, profile.firstName ?? null, profile.avatar);
   const photoURL = (user.user_metadata?.avatar_url as string | undefined) ?? null;
   return { status: "logged-in", role, displayName: profile.firstName ?? null, uid: user.id, email: user.email, photoURL };
 }

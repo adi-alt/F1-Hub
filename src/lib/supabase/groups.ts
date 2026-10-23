@@ -1,4 +1,5 @@
 import { singleLine, trustedOrigin } from "@/lib/html";
+import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { unstable_cache } from "next/cache";
 import { expireTag } from "@/lib/cacheTags";
 import {
@@ -122,8 +123,8 @@ export type GroupMember = {
   userId: string;
   displayName: string | null;
   username: string | null;
-  /** Profile photo (profiles.avatar_url), null without one. */
-  avatarUrl?: string | null;
+  /** Built avatar (profiles.avatar), null without one. */
+  avatar?: AvatarConfig | null;
   role: GroupRole;
   joinedAt: string;
   points: number;
@@ -166,22 +167,25 @@ export type RaceScoreRow = {
   breakdown: Record<"p1" | "p2" | "p3", PickSlotResult> | null;
 };
 
-type ProfileLite = { id: string; display_name: string | null; username: string | null; points_balance: number; avatar_url?: string | null };
+type ProfileLite = { id: string; display_name: string | null; username: string | null; points_balance: number; avatar?: AvatarConfig | null };
 
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
   const [{ data, error }, photos] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, points_balance").in("id", userIds)),
-    // Profile photos (20261020_profile_avatar.sql), read on their own: a database without that column yet costs only
-    // the photos, never the members.
-    supabaseAdmin.from("profiles").select("id, avatar_url").in("id", userIds).then(
-      ({ data: rows, error: photoError }) =>
-        new Map(photoError ? [] : (rows ?? []).filter((r) => typeof r.avatar_url === "string" && /^https:\/\//.test(r.avatar_url)).map((r) => [r.id as string, r.avatar_url as string])),
-      () => new Map<string, string>(),
+    // Built avatars (profiles.avatar), read on their own: a database without that column yet costs only the avatars,
+    // never the members.
+    supabaseAdmin.from("profiles").select("id, avatar").in("id", userIds).then(
+      ({ data: rows, error: avatarError }) =>
+        new Map(avatarError ? [] : (rows ?? []).flatMap((r) => {
+          const avatar = parseAvatar(r.avatar);
+          return avatar ? [[r.id as string, avatar] as const] : [];
+        })),
+      () => new Map<string, AvatarConfig>(),
     ),
   ]);
   if (error) throw new Error(`profilesById: ${error.message}`);
-  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar_url: photos.get(p.id as string) ?? null }]));
+  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar: photos.get(p.id as string) ?? null }]));
 }
 
 /** Every group read below needs this first — `supabaseAdmin` bypasses RLS entirely (same trust
@@ -692,7 +696,7 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
       role: m.role as GroupRole,
       joinedAt: m.joined_at as string,
       points: profileById.get(m.user_id as string)?.points_balance ?? 0,
-      avatarUrl: profileById.get(m.user_id as string)?.avatar_url ?? null,
+      avatar: profileById.get(m.user_id as string)?.avatar ?? null,
     })),
   };
 }

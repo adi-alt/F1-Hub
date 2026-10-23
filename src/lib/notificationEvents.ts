@@ -19,9 +19,10 @@ async function community(groupId: string): Promise<Community> {
   return { name: (data?.name as string | undefined) ?? "your community", avatarUrl: (data?.avatar_url as string | null) ?? null, permissions: data?.permissions ?? null };
 }
 
-async function person(uid: string): Promise<{ name: string; avatarUrl: string | null }> {
-  const { data } = await supabaseAdmin.from("profiles").select("first_name, username, avatar_url").eq("id", uid).maybeSingle();
-  return { name: (data?.first_name as string | null) ?? (data?.username as string | null) ?? "Someone", avatarUrl: (data?.avatar_url as string | null) ?? null };
+// People appear in emails by name only: avatars are drawn in the app, and provider photos are no longer used.
+async function person(uid: string): Promise<{ name: string }> {
+  const { data } = await supabaseAdmin.from("profiles").select("first_name, username").eq("id", uid).maybeSingle();
+  return { name: (data?.first_name as string | null) ?? (data?.username as string | null) ?? "Someone" };
 }
 
 const contextOf = (c: Community) => ({ label: c.name, imageUrl: c.avatarUrl });
@@ -142,7 +143,7 @@ export const notifyReply = (groupId: string | null, postId: string, commentId: s
       preheader: quote ?? "",
       context: c ? contextOf(c) : undefined,
       eyebrow: "Reply",
-      who: { name: commenter.name, sub: what, imageUrl: commenter.avatarUrl },
+      who: { name: commenter.name, sub: what },
       quote,
       cta: "Reply",
       reason: c ? `Someone replied to you in ${c.name}.` : "Someone replied to you.",
@@ -177,7 +178,7 @@ export const notifyPostPending = (groupId: string, postId: string, authorId: str
       email: {
         context: contextOf(c),
         eyebrow: "Waiting for approval",
-        who: { name: author.name, sub: "wrote a post", imageUrl: author.avatarUrl },
+        who: { name: author.name, sub: "wrote a post" },
         quote: excerpt([post?.title, post?.content].filter(Boolean).join(". ")),
         cta: "Review the post",
         reason: `You moderate ${c.name}, so posts waiting for approval come to you and the other moderators.`,
@@ -231,7 +232,7 @@ export const notifyJoinRequest = (groupId: string, requesterId: string) =>
         preheader: message ? `"${message}"` : `Approve or decline it in ${c.name}`,
         context: contextOf(c),
         eyebrow: "Join request",
-        who: { name: requester.name, sub: `wants to join ${c.name}`, imageUrl: requester.avatarUrl },
+        who: { name: requester.name, sub: `wants to join ${c.name}` },
         quote: message,
         cta: "Review request",
         reason: `You run ${c.name}, so join requests come to you and the other moderators.`,

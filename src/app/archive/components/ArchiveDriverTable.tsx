@@ -86,7 +86,7 @@ export function ArchiveDriverTable({
       onToggleFavorite={onToggleFavorite}
       favoritesOnly={favoritesOnly}
       itemLabel="driver"
-      emptyMessage="No drivers indexed yet, the driver-index pipeline pass hasn't run over this data yet."
+      emptyMessage="No drivers to show."
       onClearFilters={onClearFilters}
     />
   );

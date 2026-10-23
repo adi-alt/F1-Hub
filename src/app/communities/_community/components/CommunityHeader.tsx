@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -310,7 +311,7 @@ export function CommunityHeader({
           <span className="flex -space-x-1.5">
             {group.members.slice(0, 5).map((m) => (
               <span key={m.userId} className="rounded-full ring-2 ring-surface-0">
-                <EntityAvatar imageUrl={m.avatarUrl ?? null} name={m.displayName ?? m.username ?? "M"} seed={m.userId} size={20} />
+                <PersonAvatar id={m.userId} avatar={m.avatar} size={20} />
               </span>
             ))}
           </span>

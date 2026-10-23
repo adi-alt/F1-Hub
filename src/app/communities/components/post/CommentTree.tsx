@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
@@ -68,7 +69,7 @@ function CommentNode({
   onOpenConversation?: (commentId: string) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${postId}/comments/${comment.id}/vote`, comment.score, comment.myVote);
-  const { user } = useAuth();
+  const { user, avatar: myAvatar } = useAuth();
   const [replying, setReplying] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -92,7 +93,7 @@ function CommentNode({
   // The commenter's profile photo (profiles.avatar_url); for the viewer's own fresh comment, their session photo.
   // Initials only where there's no photo at all.
   const isMe = !!user && !!comment.userId && user.uid === comment.userId;
-  const avatarUrl = comment.authorAvatarUrl ?? (isMe ? (user.photoURL ?? null) : null);
+  const avatar = comment.authorAvatar ?? (isMe ? myAvatar : null);
 
   const children = childrenOf.get(comment.id) ?? [];
   const atDepthLimit = depth >= MAX_VISIBLE_DEPTH;
@@ -120,7 +121,7 @@ function CommentNode({
   return (
     <div className={indent(depth)}>
       <div className={`flex gap-2.5 ${comment.pending ? "opacity-60" : ""}`}>
-        <EntityAvatar imageUrl={avatarUrl} name={comment.authorName} seed={comment.userId || comment.authorName} size={28} />
+        <PersonAvatar id={comment.userId || comment.authorName} avatar={avatar} size={28} />
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-x-1.5 text-xs">
             <span className="font-semibold text-neutral-200">

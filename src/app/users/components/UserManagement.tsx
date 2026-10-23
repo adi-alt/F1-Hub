@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -137,7 +138,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
         return (
           <div className="flex items-center gap-3">
             <span className="shrink-0">
-              <EntityAvatar imageUrl={user.photoURL ?? null} name={name} seed={user.uid} size={32} />
+              <PersonAvatar id={user.uid} avatar={user.avatar} size={32} />
             </span>
             <div className="min-w-0">
               <p className="truncate text-body-sm font-medium text-primary">

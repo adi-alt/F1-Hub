@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { avatarSchema } from "@/lib/avatar";
 
 /** Request schemas with size caps for the profile, sign-up and pick endpoints (audit SEC-25).
  *
@@ -36,6 +37,8 @@ export const preferencesPatchSchema = z.object({
     .optional(),
   firstName: personName.optional(),
   lastName: personName.optional(),
+  // Only known option ids and palette colours (lib/avatar.ts); anything else is a 400.
+  avatar: avatarSchema.optional(),
 });
 
 /** POST /api/auth/complete-signup. The username's own format (3-20 letters, numbers or

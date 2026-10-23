@@ -1,16 +1,8 @@
 "use client";
 
-import { useEffect, useId, useState, type PointerEvent, type ReactNode } from "react";
-import { useAuthDialogStore } from "@/store/useAuthDialogStore";
-import { Button } from "@/components/ui/Button";
-import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "motion/react";
+import { useEffect, useId, useState } from "react";
 import { useRichMotion } from "@/hooks/useRichMotion";
-import { Archive, Bot, Flag, MapPin, Trophy, Users } from "lucide-react";
-import { MiniWindow } from "./MiniWindow";
 import { teamColor } from "@/lib/teamColors";
-import type { LandingData } from "@/lib/homeData";
-
-type Feature = "predict" | "replay" | "apex" | "season" | "circuits" | "archive";
 
 /** One tick every `ms`, for the miniatures' little loops (a pick being made, points ticking up). Desktop only (rich
  * motion); on a phone, or with reduced motion, each miniature stays on its settled frame. */
@@ -23,157 +15,6 @@ function useTick(ms: number): number {
     return () => window.clearInterval(id);
   }, [ms, reduce]);
   return tick;
-}
-
-const FEATURES: { key: Feature; icon: typeof Flag; title: string; text: string }[] = [
-  { key: "predict", icon: Trophy, title: "Predict every race", text: "Pick the winner, the podium and more before each Grand Prix, and score points against everyone else - and against our model." },
-  { key: "replay", icon: Flag, title: "Relive the race", text: "Every car on the real circuit, lights out to the flag, with every lead change and where on the track it happened." },
-  { key: "apex", icon: Bot, title: "Ask Apex", text: "Our AI analyst reads the real results and timing, and explains a race, a season or a circuit in plain words." },
-  { key: "season", icon: Users, title: "Follow the championship", text: "Standings with sprint points, form, head-to-heads and how the title fight moved round by round." },
-  { key: "circuits", icon: MapPin, title: "Know every circuit", text: "Each track as it is raced today, how its layout changed through the years, and who wins there." },
-  { key: "archive", icon: Archive, title: "Every race since 1950", text: "Seasons, drivers, teams and circuits across 76 years of official classifications." },
-];
-
-/**
- * "What you can do here", for a visitor who isn't signed in: the features in a list on the left, and on the right a
- * cluster of small floating app windows, each a live miniature of that feature - a pick being locked in, cars lapping
- * a circuit, Apex typing an answer, the standings growing in. Pointing at a feature lifts its window. Real data where
- * the landing page already has it (the next race, this season's top drivers and their points). On a phone the windows
- * sit in a grid instead of floating.
- */
-export function FeatureShowcase({ landing }: { landing: LandingData }) {
-  const [active, setActive] = useState<Feature | null>(null);
-  const openAuth = useAuthDialogStore((s) => s.open);
-  const rich = useRichMotion();
-  // The pointer over the stage, -1..1 each way, eased by a spring; the stage tilts and each window shifts by its depth.
-  const px = useMotionValue(0);
-  const py = useMotionValue(0);
-  const sx = useSpring(px, { stiffness: 80, damping: 18, mass: 0.6 });
-  const sy = useSpring(py, { stiffness: 80, damping: 18, mass: 0.6 });
-  const rotateY = useTransform(sx, (v) => v * 5);
-  const rotateX = useTransform(sy, (v) => v * -4);
-  // Whether the windows fly in: only if the stage is below the fold when the page arrives (otherwise they're already
-  // being looked at, and hiding them to animate them in would be the flicker).
-  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
-  const [enter, setEnter] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!rich || !stageEl || enter !== null) return;
-    const t = window.setTimeout(() => setEnter(stageEl.getBoundingClientRect().top > window.innerHeight * 0.85), 0);
-    return () => window.clearTimeout(t);
-  }, [rich, stageEl, enter]);
-  const onMove = (e: PointerEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    px.set(((e.clientX - r.left) / r.width) * 2 - 1);
-    py.set(((e.clientY - r.top) / r.height) * 2 - 1);
-  };
-  const top = landing.season?.ticker?.slice(0, 5) ?? landing.season?.top5 ?? [];
-  const raceName = landing.nextRace?.name ?? "the next Grand Prix";
-
-  return (
-    <section aria-labelledby="showcase-heading" className="isolate grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-14">
-      <div className="min-w-0">
-        <p className="text-body-sm text-secondary">What is Apex F1 Hub?</p>
-        <h2 id="showcase-heading" className="mt-1 text-display-md font-semibold text-primary">
-          Everything about the Formula 1 season, in one place.
-        </h2>
-        <p className="mt-3 max-w-xl text-body text-secondary">
-          Live results and timing, predictions you can play with friends, an AI analyst, and every race since 1950. Free, and
-          built for anyone who follows the sport.
-        </p>
-        <ul className="mt-8 space-y-1" onMouseLeave={() => setActive(null)}>
-          {FEATURES.map((f) => (
-            <li key={f.key}>
-              <button
-                type="button"
-                onMouseEnter={() => setActive(f.key)}
-                onFocus={() => setActive(f.key)}
-                onBlur={() => setActive(null)}
-                className={`flex w-full items-start gap-4 rounded-control px-3 py-3 text-left transition-colors duration-fast ${active === f.key ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"}`}
-              >
-                <f.icon aria-hidden size={20} className={`mt-0.5 shrink-0 ${active === f.key ? "text-brand-text" : "text-secondary"}`} />
-                <span className="min-w-0">
-                  <span className="block text-body font-semibold text-primary">{f.title}</span>
-                  <span className="mt-0.5 block text-body-sm text-secondary">{f.text}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Button variant="primary" size="md" onClick={openAuth}>
-            Create a free account
-          </Button>
-          <Button variant="secondary" size="md" onClick={openAuth}>
-            Sign in
-          </Button>
-        </div>
-      </div>
-
-      {/* The floating windows. On desktop: absolutely placed on a stage that tilts with the pointer, each window its
-          own layer. On a phone or tablet: a calm two-column grid. */}
-      <motion.div
-        ref={setStageEl}
-        aria-hidden
-        onPointerMove={rich ? onMove : undefined}
-        onPointerLeave={rich ? () => { px.set(0); py.set(0); } : undefined}
-        style={rich ? { rotateX, rotateY, transformPerspective: 1400 } : undefined}
-        className="relative grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:block lg:h-[620px]"
-      >
-        <Layer px={sx} py={sy} depth={0.9} order={0} rich={rich} enter={enter} className="lg:absolute lg:left-0 lg:top-4 lg:z-20 lg:w-64">
-          <MiniWindow title={`Predict · ${raceName}`} active={active === "predict"} float={{ x: 3, y: 10, dur: 8, delay: 0 }}>
-            <PredictMini drivers={top.slice(0, 3)} />
-          </MiniWindow>
-        </Layer>
-        <Layer px={sx} py={sy} depth={0.5} order={1} rich={rich} enter={enter} className="lg:absolute lg:right-2 lg:top-0 lg:z-10 lg:w-80">
-          <MiniWindow title="Race replay" active={active === "replay"} float={{ x: 5, y: 14, dur: 10, delay: 2 }}>
-            <ReplayMini drivers={top.slice(0, 4)} />
-          </MiniWindow>
-        </Layer>
-        <Layer px={sx} py={sy} depth={1.2} order={2} rich={rich} enter={enter} className="lg:absolute lg:left-24 lg:top-[248px] lg:z-30 lg:w-72">
-          <MiniWindow title="Apex" active={active === "apex"} float={{ x: 4, y: 12, dur: 9, delay: 4 }}>
-            <ApexMini leader={top[0]?.driverName ?? null} />
-          </MiniWindow>
-        </Layer>
-        <Layer px={sx} py={sy} depth={0.8} order={3} rich={rich} enter={enter} className="lg:absolute lg:right-0 lg:top-[268px] lg:z-20 lg:w-64">
-          <MiniWindow title={`${landing.year} championship`} active={active === "season"} float={{ x: 3, y: 16, dur: 11, delay: 1 }}>
-            <SeasonMini drivers={top} />
-          </MiniWindow>
-        </Layer>
-        <Layer px={sx} py={sy} depth={0.4} order={4} rich={rich} enter={enter} className="lg:absolute lg:bottom-6 lg:left-0 lg:z-10 lg:w-56">
-          <MiniWindow title="Circuits" active={active === "circuits"} float={{ x: 4, y: 11, dur: 9.5, delay: 3 }}>
-            <CircuitMini />
-          </MiniWindow>
-        </Layer>
-        <Layer px={sx} py={sy} depth={1} order={5} rich={rich} enter={enter} className="lg:absolute lg:bottom-0 lg:left-[46%] lg:z-20 lg:w-60">
-          <MiniWindow title="Archive · since 1950" active={active === "archive"} float={{ x: 5, y: 13, dur: 10.5, delay: 5 }}>
-            <ArchiveMini />
-          </MiniWindow>
-        </Layer>
-      </motion.div>
-    </section>
-  );
-}
-
-/** A window on the desktop stage: flies in (staggered by `order`) when the stage comes into view, then drifts with the
- * pointer - nearer windows (`depth` higher) move more, so the cluster reads as layers in space. Phones: a plain block. */
-function Layer({ px, py, depth, order, rich, enter, className, children }: { px: MotionValue<number>; py: MotionValue<number>; depth: number; order: number; rich: boolean; enter: boolean | null; className: string; children: ReactNode }) {
-  const x = useTransform(px, (v) => v * depth * 26);
-  const y = useTransform(py, (v) => v * depth * 18);
-  // `enter` is decided once, after the page is in the browser: fly in only if the stage was still off screen then.
-  // Until it's decided - and on a phone - a plain block, exactly as the server sent it, so nothing blinks.
-  if (!rich || enter === null) return <div className={className}>{children}</div>;
-  return (
-    <motion.div
-      className={className}
-      style={{ x, y }}
-      initial={enter ? { opacity: 0, y: 46, scale: 0.9, filter: "blur(6px)" } : false}
-      whileInView={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-      viewport={{ once: true, amount: 0.25 }}
-      transition={{ duration: 0.75, delay: 0.12 * order, ease: [0.2, 0, 0, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
 }
 
 /** A pick being made: the cursor moves down the drivers, one is chosen, then "Locked in". */
@@ -283,24 +124,6 @@ function TypeOut({ text }: { text: string }) {
       {text.slice(0, n)}
       {n < text.length && <span className="ml-0.5 inline-block h-3.5 w-1 translate-y-0.5 animate-pulse bg-secondary" />}
     </>
-  );
-}
-
-/** The standings, bars growing in. */
-export function SeasonMini({ drivers }: { drivers: { driver: string; team: string; points: number }[] }) {
-  const max = Math.max(...drivers.map((d) => d.points), 1);
-  return (
-    <div className="space-y-1.5">
-      {drivers.slice(0, 5).map((d, i) => (
-        <div key={d.driver} className="grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2 text-caption">
-          <span className="font-semibold text-primary">{d.driver}</span>
-          <span className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
-            <span className="mini-bar-x block h-full rounded-full" style={{ width: `${(d.points / max) * 100}%`, background: teamColor(d.team), ["--bar-delay" as string]: `${i * 0.15}s` }} />
-          </span>
-          <span className="text-right tabular text-secondary">{d.points}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 

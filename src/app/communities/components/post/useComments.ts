@@ -111,7 +111,7 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
         postId,
         userId: "",
         authorName: "You",
-        authorAvatarUrl: null,
+        authorAvatar: null,
         content,
         parentCommentId,
         createdAt: new Date().toISOString(),

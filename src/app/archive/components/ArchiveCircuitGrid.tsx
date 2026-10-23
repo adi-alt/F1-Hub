@@ -39,8 +39,7 @@ export function ArchiveCircuitGrid({
   if (circuits.length === 0) {
     return (
       <p className="mt-8 text-sm text-tertiary">
-        No circuits backfilled yet. The circuit/weather enrichment pass is still working through
-        the archive.
+        No circuits to show.
       </p>
     );
   }
