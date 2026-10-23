@@ -79,6 +79,7 @@ export function PostComposer({
   placeholder,
   upcomingRaces = [],
   callableRace = null,
+  framed = true,
 }: {
   groups: ComposerCommunity[];
   onPosted: () => void;
@@ -93,6 +94,8 @@ export function PostComposer({
   upcomingRaces?: RaceOption[];
   /** This weekend's race while calls on it are still open (takes with receipts); null hides "Make a call". */
   callableRace?: CallableRace | null;
+  /** False inside a dialog, whose panel is already the container (one container level). */
+  framed?: boolean;
 }) {
   const { user, displayName } = useAuth();
   const [focused, setFocused] = useState(false);
@@ -306,7 +309,7 @@ export function PostComposer({
     // One unit: your photo, a borderless field and the tools under it on the site's glass panel, so they read as one
     // interaction. Focus anywhere inside lifts the panel's edge. Idle and open are the same panel; opening adds the
     // title line and grows the field.
-    <div className={`relative px-4 py-3 ${PANEL} transition-colors duration-fast focus-within:border-white/[0.16]`}>
+    <div className={framed ? `relative px-4 py-3 ${PANEL} transition-colors duration-fast focus-within:border-white/[0.16]` : "relative"}>
       {(isOpen || mode === "prediction") && (
         <button
           type="button"

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { Download } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
+import { ImageLightbox } from "./ImageLightbox";
 import { attachmentBadge, attachmentKind, attachmentMetaLine, displayName, type AttachmentKind } from "./attachmentMeta";
 
 export type AttachmentView = {
@@ -55,7 +55,7 @@ export function PostAttachment({ attachment, onRemove }: { attachment: Attachmen
           </button>
           {onRemove && <RemoveButton onRemove={onRemove} />}
         </motion.div>
-        {lightbox && <Lightbox url={attachment.url} name={name} onClose={() => setLightbox(false)} />}
+        <ImageLightbox open={lightbox} url={attachment.url} name={name} onClose={() => setLightbox(false)} />
       </>
     );
   }
@@ -160,28 +160,5 @@ function RemoveButton({ onRemove }: { onRemove: () => void }) {
         <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     </button>
-  );
-}
-
-function Lightbox({ url, name, onClose }: { url: string; name: string; onClose: () => void }) {
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        onClick={onClose}
-        role="dialog"
-        aria-modal="true"
-        aria-label={name}
-        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-6 backdrop-blur-sm"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary Storage URL */}
-        <img src={url} alt={name} className="max-h-full max-w-full rounded-lg object-contain" />
-      </motion.div>
-    </AnimatePresence>,
-    document.body,
   );
 }

@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { useAuth } from "@/providers/AuthProvider";
 import { TOUR_STEPS, type TourStep } from "./tourSteps";
 import { useAppLocation } from "@/hooks/useAppLocation";
@@ -133,15 +135,16 @@ export function ProductTourProvider({ children }: { children: React.ReactNode })
     return () => cancelAnimationFrame(frame);
   }, [running, intro, step, reduceMotion]);
 
-  // Escape ends the tour from anywhere, per the accessibility requirement.
+  // Escape ends the tour from anywhere, per the accessibility requirement. The intro is a Dialog,
+  // whose own Escape handling skips it.
   useEffect(() => {
-    if (!running) return;
+    if (!running || intro) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") finish("skipped");
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [running, finish]);
+  }, [running, intro, finish]);
 
   const value = useMemo(() => ({ start }), [start]);
 
@@ -159,10 +162,10 @@ export function ProductTourProvider({ children }: { children: React.ReactNode })
   return (
     <TourContext value={value}>
       {children}
+      <IntroDialog open={running && intro} onStart={() => setIntro(false)} onSkip={() => finish("skipped")} />
       {typeof document !== "undefined" &&
         createPortal(
           <AnimatePresence>
-            {running && intro && <IntroCard key="intro" onStart={() => setIntro(false)} onSkip={() => finish("skipped")} reduceMotion={!!reduceMotion} />}
             {running && !intro && step && rect && (
               <TourLayer
                 key="tour"
@@ -183,43 +186,26 @@ export function ProductTourProvider({ children }: { children: React.ReactNode })
   );
 }
 
-function IntroCard({ onStart, onSkip, reduceMotion }: { onStart: () => void; onSkip: () => void; reduceMotion: boolean }) {
+/** The opening card, in the house Dialog: focus trap, Escape (skips) and focus return. */
+function IntroDialog({ open, onStart, onSkip }: { open: boolean; onStart: () => void; onSkip: () => void }) {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: reduceMotion ? 0 : 0.2 }}
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="tour-intro-title"
-    >
-      <motion.div
-        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: reduceMotion ? 0 : 0.2 }}
-        className="w-full max-w-sm rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/85 p-5 shadow-2xl backdrop-blur-2xl"
-      >
-        <p className="text-caption font-semibold uppercase tracking-[0.16em] text-brand-text">Welcome to Apex F1 Hub</p>
-        <h2 id="tour-intro-title" className="mt-1.5 text-[18px] font-bold leading-snug text-white">
-          Let&apos;s take a quick tour
-        </h2>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-neutral-400">About a minute, so you know where everything lives. You can stop at any point.</p>
-        <div className="mt-4 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onStart}
-            className="rounded-lg bg-[var(--f1-red)] px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-          >
-            Take the tour
-          </button>
-          <button type="button" onClick={onSkip} className="rounded-lg px-3 py-2 text-[13px] font-medium text-neutral-400 transition hover:text-white">
+    <Dialog
+      open={open}
+      onClose={onSkip}
+      size="sm"
+      title="Let's take a quick tour"
+      description="About a minute, so you know where everything lives. You can stop at any point."
+      footer={
+        <>
+          <Button variant="ghost" size="md" onClick={onSkip}>
             Skip for now
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
+          </Button>
+          <Button variant="primary" size="md" onClick={onStart}>
+            Take the tour
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -257,7 +243,7 @@ function TourLayer({
 
       <div
         aria-hidden
-        className="absolute rounded-lg ring-2 ring-[var(--f1-red)]/70"
+        className="absolute rounded-card ring-2 ring-focus-ring"
         style={{ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }}
       />
 
@@ -270,12 +256,12 @@ function TourLayer({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.16 }}
         style={card}
-        className="pointer-events-auto absolute rounded-xl border border-white/[0.09] bg-[var(--f1-carbon)]/85 p-3.5 shadow-2xl backdrop-blur-2xl"
+        className="pointer-events-auto absolute rounded-overlay surface-glass p-4 shadow-overlay"
       >
-        <h3 id="tour-step-title" className="text-[14px] font-semibold text-white">
+        <h3 id="tour-step-title" className="text-title-md text-primary">
           {step.title}
         </h3>
-        <p id="tour-step-body" className="mt-1 text-[12.5px] leading-relaxed text-neutral-400">
+        <p id="tour-step-body" className="mt-1 text-body-sm text-secondary">
           {step.body}
         </p>
 
@@ -283,23 +269,18 @@ function TourLayer({
           <span className="text-caption tabular-nums text-tertiary" aria-live="polite">
             {index + 1} / {total}
           </span>
-          <button type="button" onClick={onSkip} className="text-[11.5px] font-medium text-tertiary transition hover:text-white">
+          <Button variant="ghost" size="sm" onClick={onSkip}>
             Skip tour
-          </button>
-          <div className="ml-auto flex items-center gap-1.5">
+          </Button>
+          <div className="ml-auto flex items-center gap-2">
             {index > 0 && (
-              <button type="button" onClick={onBack} className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-neutral-300 transition hover:bg-white/[0.06] hover:text-white">
+              <Button variant="secondary" size="sm" onClick={onBack}>
                 Back
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              autoFocus
-              onClick={onNext}
-              className="rounded-lg bg-[var(--f1-red)] px-3.5 py-1.5 text-[12px] font-semibold text-white transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-            >
+            <Button variant="primary" size="sm" autoFocus onClick={onNext}>
               {last ? "Finish" : "Next"}
-            </button>
+            </Button>
           </div>
         </div>
       </motion.div>
@@ -308,7 +289,7 @@ function TourLayer({
 }
 
 function Scrim(props: { top?: number; left?: number; right?: number; bottom?: number; width?: number; height?: number }) {
-  return <div aria-hidden className="absolute bg-black/60" style={props} />;
+  return <div aria-hidden className="absolute bg-surface-0/60" style={props} />;
 }
 
 /**

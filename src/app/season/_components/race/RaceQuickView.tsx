@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Dialog } from "@/components/ui/Dialog";
 import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
@@ -14,7 +13,6 @@ import { RaceTimeline } from "./RaceTimeline";
 import { RaceWeather } from "./RaceWeather";
 import { RacePredictionReview } from "./RacePredictionReview";
 import { RaceApexTake } from "./RaceApexTake";
-import { lockDocumentScroll } from "@/lib/scrollLock";
 
 const STATUS_LABEL: Record<RaceWeekendStatus, string> = {
   upcoming: "Upcoming",
@@ -23,8 +21,6 @@ const STATUS_LABEL: Record<RaceWeekendStatus, string> = {
   cancelled: "Cancelled",
   postponed: "Postponed",
 };
-
-const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 /**
  * The race detail window.
@@ -39,164 +35,44 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input, select, textarea, [ta
  * land back on the same window, a shared link open it directly, and browser back close it. Modal
  * state held in a component could do none of those.
  *
- * Focus is trapped while open and restored to the element that opened it on close, and Escape
- * closes it — the three things a dialog has to get right and the previous drawer did none of.
+ * It is the house Dialog (R-34): focus is trapped while open and restored to the element that
+ * opened it on close, and Escape or the scrim closes it.
  */
 export function RaceQuickView({ season, raceSummaries, drivers }: { season: number; raceSummaries: RaceSummary[]; drivers: DriverStandingRow[] }) {
   const { openRaceRound, closeRace } = useSeasonExplorer();
-  const reduceMotion = useReducedMotion();
-  const titleId = useId();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
-  // The modal's own inertial scroll, same primitive the standings table/compare/calendar already
-  // use - without it this region scrolls with the browser's plain (non-Lenis) wheel behaviour
-  // while everything else on the page glides. Keyed by round so switching rounds re-measures
-  // against the new content's real height rather than the previous round's.
-
-  // document.body doesn't exist during SSR, so the portal is gated on a real client commit rather
-  // than a typeof window check inside render.
-  const isClient = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
-
   const race = openRaceRound !== null ? raceSummaries.find((r) => r.round === openRaceRound) : undefined;
-  const isOpen = !!race;
+  // The last race shown stays in the panel while it transitions out after closing.
+  const [shown, setShown] = useState(race);
+  if (race && race !== shown) setShown(race);
 
-  // Remember what had focus BEFORE the window opened, so it can be handed back on close.
-  useEffect(() => {
-    if (!isOpen) return;
-    restoreFocusRef.current = document.activeElement as HTMLElement | null;
-    return () => {
-      restoreFocusRef.current?.focus?.();
-    };
-  }, [isOpen]);
-
-  const onKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        closeRace();
-        return;
+  if (!shown) return null;
+  return (
+    <Dialog
+      open={!!race}
+      onClose={closeRace}
+      title={shown.name}
+      size="xl"
+      description={
+        <>
+          Round {shown.round}
+          {shown.isSprintWeekend && " · Sprint weekend"}
+          {" · "}
+          {[shown.circuit, shown.country].filter(Boolean).join(", ") || "Circuit to be confirmed"}
+          {shown.raceDate && ` · ${parseUtcDateTime(shown.raceDate).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`}
+        </>
       }
-      if (e.key !== "Tab" || !panelRef.current) return;
-      const items = Array.from(panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      // Wrap at both ends, so Tab can never escape the dialog into the page behind it.
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
+      footer={
+        <Link
+          href={raceHref(season, shown.round, shown.name)}
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-control px-4 text-body-sm font-medium text-primary hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          View full race detail
+          <span aria-hidden>→</span>
+        </Link>
       }
-    },
-    [closeRace],
-  );
-
-  useEffect(() => {
-    if (!isOpen) return;
-    document.addEventListener("keydown", onKeyDown, true);
-
-    // The page behind a modal must not scroll under it.
-    const unlockScroll = lockDocumentScroll();
-
-    // Move focus into the dialog on open, so a keyboard user isn't left behind on the page.
-    const timer = window.setTimeout(() => {
-      panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-    }, 0);
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown, true);
-      unlockScroll();
-      window.clearTimeout(timer);
-    };
-  }, [isOpen, onKeyDown]);
-
-  if (!isClient) return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {race && (
-        <div key="race-window" className="fixed inset-0 z-[400] flex items-end justify-center sm:items-center sm:p-6">
-          <motion.div
-            aria-hidden
-            onClick={closeRace}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
-            // Dimmed, not blacked out: keeping the page readable behind the window is the whole
-            // point of it being a window rather than a drawer.
-            className="absolute inset-0 bg-black/35"
-          />
-
-          <motion.div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.99 }}
-            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/70 shadow-2xl backdrop-blur-xl sm:max-h-[78vh] sm:w-[88vw] sm:max-w-4xl sm:rounded-2xl"
-          >
-            {/* Phone-only drag affordance - the sheet reads as grabbable even though dismissal is
-                the sticky close button and the backdrop. */}
-            <div aria-hidden className="flex shrink-0 justify-center pt-2.5 sm:hidden">
-              <span className="h-1 w-9 rounded-full bg-white/20" />
-            </div>
-
-            <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-4 pt-3 sm:px-7 sm:pt-5">
-              <div className="min-w-0">
-                <p className="text-caption font-semibold uppercase tracking-[0.18em] text-tertiary">
-                  Round {race.round}
-                  {race.isSprintWeekend && <span className="ml-2 text-[#eab308]">Sprint weekend</span>}
-                </p>
-                <h2 id={titleId} className="mt-1 truncate text-lg font-semibold tracking-[-0.01em] text-white sm:text-2xl">
-                  {race.name}
-                </h2>
-                <p className="mt-0.5 truncate text-caption text-tertiary">
-                  {[race.circuit, race.country].filter(Boolean).join(", ") || "Circuit to be confirmed"}
-                  {race.raceDate && ` · ${parseUtcDateTime(race.raceDate).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeRace}
-                aria-label="Close race detail"
-                // Matches the auth dialog's own close affordance - one consistent close control
-                // across every modal on the site, not a bespoke larger one here.
-                className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-              >
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
-                  <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                </svg>
-              </button>
-            </header>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 scrollbar-subtle sm:px-7">
-              <RaceQuickViewBody season={season} race={race} drivers={drivers} />
-            </div>
-
-            <footer className="shrink-0 border-t border-white/[0.07] px-5 py-3 sm:px-7">
-              <Link
-                href={raceHref(season, race.round, race.name)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-white/[0.12] px-4 py-2.5 text-xs font-semibold text-neutral-200 transition hover:border-white/25 hover:bg-white/[0.04] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
-              >
-                View full race detail
-                <span aria-hidden>→</span>
-              </Link>
-            </footer>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>,
-    document.body,
+    >
+      <RaceQuickViewBody season={season} race={shown} drivers={drivers} />
+    </Dialog>
   );
 }
 

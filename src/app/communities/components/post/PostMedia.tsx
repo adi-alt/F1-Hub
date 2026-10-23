@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
-import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
+import { useCallback, useState } from "react";
+import { ImageLightbox } from "./ImageLightbox";
 import { fileNameFromUrl, mediaKind } from "@/lib/mediaKind";
 
 const DOC_ICON: Record<string, string> = { pdf: "📄", doc: "📄", docx: "📄", xls: "📊", xlsx: "📊" };
@@ -79,37 +77,7 @@ export function PostMedia({ url }: { url: string }) {
           onError={() => setFailed(true)}
         />
       </button>
-      {open && <Lightbox url={url} onClose={closeLightbox} />}
+      <ImageLightbox open={open} url={url} name="Attached image" onClose={closeLightbox} />
     </>
-  );
-}
-
-/** The full-size view: a modal dialog (it had no role, Escape or focus handling, audit UI-30) with a
- * close button. A click anywhere still closes it; focus goes back to the image that opened it. */
-function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  useModalFocusTrap(panelRef, true, onClose);
-
-  return createPortal(
-    <div
-      ref={panelRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Attached image"
-      onClick={onClose}
-      className="fixed inset-0 z-[200] flex cursor-zoom-out items-center justify-center bg-black/85 p-6"
-    >
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-surface-3 text-primary hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-      >
-        <X aria-hidden size={20} strokeWidth={1.75} />
-      </button>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="Attached image, full size" className="max-h-full max-w-full rounded-lg object-contain" />
-    </div>,
-    document.body,
   );
 }
