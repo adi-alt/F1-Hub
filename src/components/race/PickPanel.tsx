@@ -147,7 +147,7 @@ export function PickPanel({
           </p>
         )}
       </div>
-      <PredictionSheet open={open} onClose={() => setOpen(false)} race={race} entrants={entrants} sessions={sessions} onSaved={setSaved} />
+      <PredictionSheet open={open} onClose={() => setOpen(false)} race={race} entrants={entrants} sessions={sessions} onSaved={(pick) => { setSaved(pick); setOpen(false); }} />
     </div>
   );
 }
