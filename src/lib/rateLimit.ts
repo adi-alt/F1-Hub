@@ -29,6 +29,8 @@ export const POLICIES = {
   usernameCheck: { limit: 30, windowSeconds: 60, by: "ip" },
   linkPreview: { limit: 30, windowSeconds: 60, by: "user" },
   gifSearch: { limit: 60, windowSeconds: 60, by: "user" },
+  // The command palette: one request per settled keystroke.
+  search: { limit: 120, windowSeconds: 60, by: "user" },
   // Writes that fill the feed or send mail: well above what a person does, well below a script.
   postCreate: { limit: 10, windowSeconds: 60, by: "user" },
   commentCreate: { limit: 20, windowSeconds: 60, by: "user" },

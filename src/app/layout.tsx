@@ -8,6 +8,7 @@ import { getCurrentSeason } from "@/lib/currentSeason";
 import { PageFrame } from "@/components/PageFrame";
 import { ScrollMemory } from "@/components/ScrollMemory";
 import { ApexLauncher } from "@/components/apex/ApexLauncher";
+import { CommandPalette } from "@/components/search/CommandPalette";
 import { SectionNav } from "@/components/SectionNav";
 import { ApexScopeProvider } from "@/components/apex/ApexScopeProvider";
 import { AppProviders } from "@/providers/AppProviders";
@@ -85,6 +86,7 @@ export default async function RootLayout({
             <Header season={season} sessions={sessions} />
             <PageFrame season={season}>{children}</PageFrame>
             <ApexLauncher />
+            <CommandPalette />
             <SectionNav />
           </ApexScopeProvider>
           <AuthDialogHost />

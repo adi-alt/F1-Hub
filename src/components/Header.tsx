@@ -9,6 +9,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";
 import { SignInButton } from "@/components/auth/SignInButton";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { SearchButton } from "@/components/search/CommandPalette";
 import { ApexMark } from "@/components/brand/ApexMark";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -163,6 +164,7 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
 
         <div className="ml-auto flex items-center gap-4">
           <SessionStatus sessions={sessions} />
+          {isAuthorized && <SearchButton />}
           {isAuthorized && <NotificationBell />}
           <SignInButton />
           {isAuthorized && <MobileNav season={season} showUsers={showUsers} showModels={showModels} />}
