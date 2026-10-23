@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { notifyPhotosReady } from "@/lib/notificationEvents";
 import { sendRaceWeekendEmails } from "@/lib/raceWeekendEmails";
+import { retryNotificationEmails } from "@/lib/supabase/notifications";
 
 /**
  * Scheduled emails, called by GitHub Actions with the shared CRON_SECRET (as /api/admin/revalidate is):
- *   { job: "race-weekend" } - hourly (.github/workflows/email-jobs.yml): reminders before qualifying, results after the race
+ *   { job: "race-weekend" } - hourly (.github/workflows/email-jobs.yml): reminders before qualifying, results after the race,
+ *                             then a retry of any notification email that failed to send (bounded, with backoff)
  *   { job: "photos-ready" } - after the weekly photo scan (.github/workflows/race-photos.yml): admins, when photos wait
  * Every email is sent once per person (notify's dedupe keys), so a retried or overlapping run sends nothing twice.
  */
@@ -14,7 +16,11 @@ export async function POST(request: Request) {
   if (!secret || secret !== process.env.CRON_SECRET) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { job } = (await request.json().catch(() => ({}))) as { job?: string };
-  if (job === "race-weekend") return NextResponse.json(await sendRaceWeekendEmails());
+  if (job === "race-weekend") {
+    const weekend = await sendRaceWeekendEmails();
+    const retries = await retryNotificationEmails().catch((err) => ({ error: err instanceof Error ? err.message : String(err) }));
+    return NextResponse.json({ ...weekend, retries });
+  }
   if (job === "photos-ready") {
     const { data, error } = await supabaseAdmin.from("race_photo_candidates").select("race_id, races(name)").eq("status", "pending").limit(2000);
     if (error) throw new Error(`photos-ready: ${error.message}`);

@@ -3,7 +3,8 @@ name: Email jobs
 # The race-weekend emails people turn on in Settings › Notifications (src/lib/raceWeekendEmails.ts): every hour,
 # a reminder to whoever still has picks open in the 3 hours before qualifying locks them, and once a race is over
 # and its rounds are settled, how their picks did. The site does the work (/api/cron/emails, behind CRON_SECRET);
-# each email goes once per person per race, so a missed or repeated run sends nothing twice.
+# each email goes once per person per race, so a missed or repeated run sends nothing twice. The same call retries
+# notification emails that failed to send (up to 5 tries, backing off 1h/2h/4h/8h; failures logged on the row).
 on:
   schedule:
     - cron: "17 * * * *"
