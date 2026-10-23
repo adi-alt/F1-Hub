@@ -804,14 +804,3 @@ html::-webkit-scrollbar {
     animation: apex-car 0.7s cubic-bezier(0.2, 0, 0, 1) both;
   }
 }
-
-/* The landing story's chapter statements (noomo-style): huge, all caps, wrapping by word on a 320px phone. */
-.story-statement {
-  font-size: clamp(2.25rem, 10.5vw, 8.5rem);
-  line-height: 0.92;
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  text-transform: uppercase;
-  overflow-wrap: anywhere;
-  color: var(--text-primary, inherit);
-}
