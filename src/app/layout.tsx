@@ -9,6 +9,7 @@ import { PageFrame } from "@/components/PageFrame";
 import { StaleDataNotice } from "@/components/StaleDataNotice";
 import { ScrollMemory } from "@/components/ScrollMemory";
 import { ApexLauncher } from "@/components/apex/ApexLauncher";
+import { CommandPalette } from "@/components/search/CommandPalette";
 import { SectionNav } from "@/components/SectionNav";
 import { ApexScopeProvider } from "@/components/apex/ApexScopeProvider";
 import { AppProviders } from "@/providers/AppProviders";
@@ -88,6 +89,7 @@ export default async function RootLayout({
             <StaleDataNotice />
             <PageFrame season={season}>{children}</PageFrame>
             <ApexLauncher />
+            <CommandPalette />
             <SectionNav />
           </ApexScopeProvider>
           <AuthDialogHost />

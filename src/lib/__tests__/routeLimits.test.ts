@@ -10,6 +10,7 @@ import { POLICIES, type PolicyName } from "../rateLimit";
 const API = path.join(process.cwd(), "src/app/api");
 const ROUTES: Record<string, PolicyName> = {
   "username/check": "usernameCheck",
+  search: "search",
   "auth/start": "otpStart",
   "auth/otp/verify": "otpVerify",
   "auth/complete-signup": "signupComplete",

@@ -1,5 +1,3 @@
-"use client";
-
 import { parseUtcDateTime } from "@/lib/countdown";
 import { sessionKind, type RaceSessionSummary, type SessionKind } from "../../_service/season.pure";
 

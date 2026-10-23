@@ -68,7 +68,8 @@ const ARRIVE = {
 // in-card filter.
 const TAB_ITEMS: TabItem<FeedType>[] = [
   { value: "following", label: "Following" },
-  { value: "forYou", label: "For You" },
+  // Not a personalised ranking (R-74): the communities you joined plus every public one, newest first - named for what it is.
+  { value: "forYou", label: "Joined + public" },
   { value: "latest", label: "Latest" },
 ];
 
@@ -83,7 +84,7 @@ function scrollRootOf(el: Element): Element | null {
  * The center stream. Two real modes, not a client-side filter of one:
  *
  *  - no community selected ("All" in the left rail) - the existing cross-community
- *    Following/For You/Latest feed, unchanged from before this pass.
+ *    Following/Joined + public/Latest feed, unchanged from before this pass.
  *  - a community selected - that community's own real stream, fetched from the exact same
  *    `/api/groups/{id}/posts` endpoint the community's own page uses (`listPosts`, requireMember-
  *    gated). A client-side filter of whatever the aggregate feed happened to have already loaded
@@ -468,7 +469,7 @@ export function GroupsFeed({
             </div>
             {/* Real, not decorative - "Following" is genuinely every community you've joined
                 aggregated together (see listFeedPosts), so this is what the "All" view actually
-                means. For You/Latest widen to public communities and personal posts too, which this
+                means. Joined + public/Latest widen to public communities and personal posts too, which this
                 line would misdescribe, so it only shows for Following. */}
             {feedType === "following" && groups.length > 0 && (
               <p className="hidden shrink-0 text-caption text-secondary sm:block">

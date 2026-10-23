@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
@@ -41,8 +42,7 @@ export function RacePhotoGallery({ photos }: { photos: RacePhoto[] }) {
               className="block w-full rounded-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               aria-label={`Open larger: ${p.altText}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- Wikimedia's own 500px thumbnail, loaded from upload.wikimedia.org on purpose: no Vercel optimisation, no Supabase Storage */}
-              <img
+              <Image unoptimized
                 src={p.thumbnailUrl}
                 alt={p.altText}
                 width={p.width}
@@ -59,8 +59,7 @@ export function RacePhotoGallery({ photos }: { photos: RacePhoto[] }) {
       <Dialog open={open !== null} onClose={() => setOpen(null)} title={open?.altText ?? "Photo"} size="lg">
         {open && (
           <figure>
-            {/* eslint-disable-next-line @next/next/no-img-element -- Wikimedia's own 1280px rendition, loaded from upload.wikimedia.org */}
-            <img src={open.imageUrl} alt={open.altText} width={open.width} height={open.height} decoding="async" className="h-auto w-full rounded-control bg-surface-2" />
+            <Image unoptimized src={open.imageUrl} alt={open.altText} width={open.width} height={open.height} decoding="async" className="h-auto w-full rounded-control bg-surface-2" />
             <Credit photo={open} />
             <a
               href={open.sourceUrl}

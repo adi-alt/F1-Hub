@@ -1,15 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { PracticeSummary } from "@/components/race/PracticeSummary";
 import { QualifyingStages } from "@/components/race/QualifyingStages";
-import { QualifyingGapChart } from "@/components/race/QualifyingGapChart";
 import { RaceClassification } from "@/components/race/RaceClassification";
 import type { QualifyingStageRow } from "@/lib/supabase/races";
 import type { RaceDoc } from "@/lib/types/race";
 import type { SessionKey, WeekendSession } from "@/lib/weekendSessions";
 import { formatTrackTime } from "@/lib/circuitTimeZones";
+
+// Charts load on their own, after the page (audit R-70, PERF-02): recharts stays out of the first bundle.
+const QualifyingGapChart = dynamic(() => import("@/components/race/QualifyingGapChart").then((m) => m.QualifyingGapChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
 
 /**
  * The weekend, session by session, as the calendar lists it: a standard weekend's three practices, qualifying and
@@ -52,7 +55,7 @@ export function WeekendSessions({ race, sessions, initial, stages }: { race: Rac
           <p className="text-body-sm text-secondary">
             {winner ? `${winner.driverName} won. ` : ""}
             The full classification is in{" "}
-            <a href="#results" className="text-primary underline-offset-4 hover:underline">
+            <a href="#results" className="text-primary underline underline-offset-4">
               the result above
             </a>
             .

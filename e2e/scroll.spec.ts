@@ -12,6 +12,8 @@ test.describe("native document scroll", () => {
 
   for (const route of ROUTES) {
     test(`${route}: nothing but the document scrolls`, async ({ page }) => {
+      // A short window, so every page is taller than it whatever data the test database holds.
+      await page.setViewportSize({ width: page.viewportSize()?.width ?? 1280, height: 420 });
       await page.goto(route);
       await settle(page);
       const state = await page.evaluate(() => ({
@@ -59,7 +61,7 @@ test.describe("native document scroll", () => {
     await expect(page).toHaveURL(/localhost:\d+\/$/);
     await settle(page);
     await page.goBack();
-    await expect(page).toHaveURL(/\/season/);
+    await expect(page).toHaveURL(/section=season/);
     await settle(page);
     const after = await page.evaluate(() => window.scrollY);
     expect(Math.abs(after - before), `scrolled to ${before}, came back to ${after}`).toBeLessThan(80);

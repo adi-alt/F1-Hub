@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";
 
 const LINK_CLASS =
@@ -36,8 +37,7 @@ export function TrackMap({
       className={`flex items-center justify-center overflow-hidden rounded-card bg-neutral-50 ${compact ? "p-1.5" : "p-4"} ${className ?? "aspect-[3/2] w-full"}`}
       title={compact ? trackMapCreditText(map) : undefined}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element -- Wikimedia's own 960px rendition, loaded straight from upload.wikimedia.org: next/image would re-host it through the optimiser, and the URL is already a fixed-size thumbnail */}
-      <img
+      <Image unoptimized
         src={map.url}
         alt={compact ? `${alt}. ${trackMapCreditText(map)}` : alt}
         width={960}

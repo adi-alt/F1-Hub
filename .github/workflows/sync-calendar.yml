@@ -1,10 +1,11 @@
 name: Sync season calendar
 
-# Weekly, not every-few-hours like fetch-races — a season's schedule almost never changes once
-# announced, so there's nothing to gain from checking more often.
+# Daily, not every-few-hours like fetch-races. The schedule itself almost never changes once
+# announced; the daily run is for the race-week weather forecast (R-74), which weather_forecast.py
+# only fetches within 5 days of a race, so outside race week a run changes nothing.
 on:
   schedule:
-    - cron: "0 0 * * 1"
+    - cron: "0 5 * * *"
   workflow_dispatch:
 
 # One run at a time (a manual dispatch overlapping the weekly schedule), queued, never cancelled mid-write.

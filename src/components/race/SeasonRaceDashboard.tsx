@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
@@ -38,14 +39,17 @@ import { RaceRail } from "./RaceRail";
 import { RaceReadiness } from "@/components/home/RaceReadiness";
 import { PoleSection } from "./PoleSection";
 import { PracticeSummary } from "./PracticeSummary";
-import { QualifyingGapChart } from "./QualifyingGapChart";
 import { SimulationPanel } from "./SimulationPanel";
 import { TireStintTimeline } from "./TireStintTimeline";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { CalendarEntry } from "@/lib/supabase/calendar";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
-import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
+import type { LapChartResultEntry } from "@/components/raceDetail/LapChart";
 import { useSeasonLaps } from "@/hooks/useSeasonLaps";
+
+// Charts load on their own, after the page (audit R-70, PERF-02): recharts stays out of the first bundle.
+const QualifyingGapChart = dynamic(() => import("./QualifyingGapChart").then((m) => m.QualifyingGapChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
+const LapChart = dynamic(() => import("@/components/raceDetail/LapChart").then((m) => m.LapChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
 
 /** The season race page, as a story that follows the race's phase (spec §3.1). Before the race: the weekend's
  * schedule, what the model expects, the preview, then history. After it: the result first, the analysis, the race story, then history. One rail beside it with at most three blocks

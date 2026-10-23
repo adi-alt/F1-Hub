@@ -1,7 +1,7 @@
 "use client";
 
+import type { UserPick } from "@/lib/types/race";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { HomeLayout } from "./HomeLayout";
 import { HomeVisitBeacon } from "./HomeVisitBeacon";
 import { PredictionSheet } from "@/components/predictions/PredictionSheet";
@@ -44,7 +44,7 @@ export function PersonalHome(props: { publicData: PublicHomeData; personalData: 
 
 function PersonalHomeInner({
   publicData,
-  personalData,
+  personalData: serverData,
   firstName,
 }: {
   publicData: PublicHomeData;
@@ -52,8 +52,10 @@ function PersonalHomeInner({
   firstName: string;
   isReturning: boolean;
 }) {
-  const router = useRouter();
   const [predicting, setPredicting] = useState(false);
+  // A pick saved here shows at once; the rest of the page is left as it is rather than re-rendered from the server.
+  const [savedPick, setSavedPick] = useState<UserPick | null>(null);
+  const personalData = savedPick ? { ...serverData, myPick: savedPick } : serverData;
   const race = publicData.nextRace;
   // The prediction window opens over the home for a race that can still be picked; otherwise the buttons link
   // to the race page instead.
@@ -136,7 +138,10 @@ function PersonalHomeInner({
           race={race}
           entrants={entrants}
           sessions={publicData.calendarEntry?.sessions ?? []}
-          onSaved={() => router.refresh()}
+          onSaved={(pick) => {
+            setSavedPick(pick);
+            setPredicting(false);
+          }}
         />
       )}
 

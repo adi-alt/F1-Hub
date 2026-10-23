@@ -1,5 +1,3 @@
-"use client";
-
 import { TrackMap } from "@/components/ui/TrackMap";
 import type { CircuitDrawing } from "@/lib/circuitLayout";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";

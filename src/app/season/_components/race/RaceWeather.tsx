@@ -1,5 +1,3 @@
-"use client";
-
 import type { RaceSummary } from "../../_service/season.pure";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 

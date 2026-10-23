@@ -1,8 +1,8 @@
+import dynamic from "next/dynamic";
 import { CircuitHero, type HeroAnswer } from "./CircuitHero";
 import { CircuitRecords } from "./CircuitRecords";
 import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import { PastWinnersList } from "./PastWinnersList";
-import { CircuitTrendChart } from "./CircuitTrendChart";
 import { CircuitEras } from "./CircuitEras";
 import { CircuitRaceTabs } from "./CircuitRaceTabs";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
@@ -13,6 +13,9 @@ import { ChevronRight } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { raceHref } from "@/lib/routes";
 import { circuitAvgFieldMovement, type CircuitDetailData } from "../services/circuits.service";
+
+// Charts load on their own, after the page (audit R-70, PERF-02): recharts stays out of the first bundle.
+const CircuitTrendChart = dynamic(() => import("./CircuitTrendChart").then((m) => m.CircuitTrendChart), { loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
 
 /**
  * The individual circuit page, as a story (audit spec: answer first, one container level, no repeats). The header
