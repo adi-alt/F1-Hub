@@ -30,16 +30,20 @@ import {
   type PermissionLevel,
 } from "@/lib/communities";
 import type { GroupDetail, JoinRequest } from "@/lib/supabase/groups";
+import type { OpenReport } from "@/lib/supabase/moderation";
+import type { ModerationAction, ModerationLogEntry } from "@/lib/supabase/moderationLog";
 import { AvatarUpload } from "../../../components/AvatarUpload";
 import { BannerUpload } from "../../../components/BannerUpload";
 import { GroupBanner } from "../../../components/GroupBanner";
 
-type Section = "general" | "appearance" | "requests" | "features" | "permissions" | "delete";
+type Section = "general" | "appearance" | "requests" | "reports" | "log" | "features" | "permissions" | "delete";
 
 const SECTIONS: { value: Section; label: string }[] = [
   { value: "general", label: "General" },
   { value: "appearance", label: "Appearance" },
   { value: "requests", label: "Join requests" },
+  { value: "reports", label: "Reports" },
+  { value: "log", label: "Log" },
   { value: "features", label: "Features" },
   { value: "permissions", label: "Permissions" },
   { value: "delete", label: "Delete" },
@@ -49,8 +53,9 @@ const SECTIONS: { value: Section; label: string }[] = [
  * Running a community, in the site's settings language (Account › Notifications, Profile): underline tabs across the
  * top, eyebrow-labelled fields, and settings as divided rows with the control on the right. No boxes inside the window.
  *
- * Every control here changes something real. There is no "blocked words" or "report queue": neither has a backing
- * table, and switches that quietly do nothing are worse than a short screen that works.
+ * Every control here changes something real. Moderators get the door (join requests), the report queue and the
+ * moderation log; the rest is the admin's. There is no "blocked words": it has no backing table, and a switch that
+ * quietly does nothing is worse than a short screen that works.
  */
 /** Which sections hold unsaved edits, so closing the window can ask first (see CommunityWorkspace). */
 const DirtyContext = createContext<(section: string, dirty: boolean) => void>(() => {});
@@ -78,7 +83,7 @@ export function ManageTab({ group, pendingRequests = 0, onDirtyChange }: { group
   // A moderator's part of running a community is the door: join requests. Requests only exist for a private
   // community (a hidden one is invite-only), unless some are still waiting from before a change.
   const showRequests = group.visibility === "private" || pendingRequests > 0;
-  const sections = SECTIONS.filter((s) => (s.value === "requests" ? showRequests : group.myRole === "admin"));
+  const sections = SECTIONS.filter((s) => (s.value === "requests" ? showRequests : s.value === "reports" || s.value === "log" ? true : group.myRole === "admin"));
   const [section, setSection] = useState<Section>(pendingRequests > 0 && showRequests ? "requests" : (sections[0]?.value ?? "general"));
   // Sections stay mounted once opened, so a half-made edit survives a look at another section.
   const [opened, setOpened] = useState<Set<Section>>(() => new Set([section]));
@@ -101,6 +106,8 @@ export function ManageTab({ group, pendingRequests = 0, onDirtyChange }: { group
         {panel("general", <GeneralSection group={group} />)}
         {panel("appearance", <AppearanceSection group={group} />)}
         {panel("requests", <JoinRequestsSection group={group} pendingRequests={pendingRequests} />)}
+        {panel("reports", <ReportsSection group={group} />)}
+        {panel("log", <ModerationLogSection group={group} />)}
         {panel("features", <FeaturesSection group={group} />)}
         {panel("permissions", <PermissionsSection group={group} />)}
         {panel("delete", <DeleteSection group={group} />)}
@@ -506,6 +513,149 @@ function DeleteSection({ group }: { group: GroupDetail }) {
         <p role="alert" className="mt-3 text-caption text-danger">
           {error}
         </p>
+      )}
+    </section>
+  );
+}
+
+/** Loads one list for a section, with a retry; reloads when `reloadKey` moves. */
+function useSectionList<T>(url: string, pick: (body: Record<string, unknown>) => T[]) {
+  const [items, setItems] = useState<T[] | null | "error">(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const pickRef = useRef(pick);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url)
+      .then((res) => (res.ok ? (res.json() as Promise<Record<string, unknown>>) : Promise.reject(new Error("failed"))))
+      .then((body) => !cancelled && setItems(pickRef.current(body)))
+      .catch(() => !cancelled && setItems("error"));
+    return () => {
+      cancelled = true;
+    };
+  }, [url, reloadKey]);
+  const reload = () => {
+    setItems(null);
+    setReloadKey((k) => k + 1);
+  };
+  return { items, setItems, reload };
+}
+
+function ListState({ what, onRetry }: { what: "loading" | "error"; onRetry: () => void }) {
+  return what === "loading" ? (
+    <div className="space-y-3">
+      <Skeleton shape="block" className="h-12 w-full" />
+      <Skeleton shape="block" className="h-12 w-full" />
+    </div>
+  ) : (
+    <div className="flex items-center gap-3 text-body-sm text-secondary">
+      Couldn&apos;t load this.
+      <Button variant="secondary" size="sm" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+/** The report queue: what members flagged, oldest first. Remove takes it down (and closes every report on it). */
+function ReportsSection({ group }: { group: GroupDetail }) {
+  const { items: reports, setItems, reload } = useSectionList<OpenReport>(`/api/groups/${group.id}/reports`, (body) => body.reports as OpenReport[]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  async function resolve(report: OpenReport, action: "dismiss" | "remove") {
+    setBusy(report.id);
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/reports/${report.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).catch(() => null);
+    setBusy(null);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setError(body?.error ?? "Couldn't save that decision. Check your connection and try again.");
+      if (res?.status === 409) reload();
+      return;
+    }
+    // Removing closes every report on the same post or comment.
+    setItems((prev) =>
+      Array.isArray(prev) ? prev.filter((r) => r.id !== report.id && !(action === "remove" && r.postId === report.postId && r.commentId === report.commentId)) : prev,
+    );
+  }
+
+  return (
+    <section aria-label="Reports">
+      <Intro>Posts and comments members reported. Removing takes it down for everyone; dismissing keeps it up. Both go in the log.</Intro>
+      {reports === null || reports === "error" ? (
+        <ListState what={reports === null ? "loading" : "error"} onRetry={reload} />
+      ) : reports.length === 0 ? (
+        <p className="py-6 text-center text-body-sm text-tertiary">Nothing has been reported.</p>
+      ) : (
+        <ul className="divide-y divide-white/[0.05] border-y border-white/[0.06]">
+          {reports.map((report) => (
+            <li key={report.id} className="py-3">
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="min-w-0 flex-1 basis-56">
+                  <p className="text-caption text-tertiary">
+                    {report.commentId ? "Comment" : "Post"} by {report.authorName} · reported by {report.reporterName} · {shortDate(report.createdAt)}
+                  </p>
+                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-body-sm text-primary">{report.excerpt}</p>
+                  <p className="mt-1.5 border-l-2 border-white/10 pl-3 text-body-sm text-secondary">{report.reason}</p>
+                </div>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Button variant="ghost" size="sm" disabled={busy === report.id} onClick={() => void resolve(report, "dismiss")}>
+                    Dismiss
+                  </Button>
+                  <ConfirmButton onConfirm={() => void resolve(report, "remove")} question="Remove it?" confirmLabel="Remove" pending={busy === report.id}>
+                    Remove
+                  </ConfirmButton>
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && (
+        <p role="alert" className="mt-3 text-caption text-danger">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const LOG_VERB: Record<ModerationAction, string> = {
+  post_approved: "approved a post",
+  post_removed: "removed a post",
+  comment_removed: "removed a comment",
+  report_dismissed: "dismissed a report",
+};
+
+/** Who approved, removed or dismissed what, newest first. */
+function ModerationLogSection({ group }: { group: GroupDetail }) {
+  const { items: entries, reload } = useSectionList<ModerationLogEntry>(`/api/groups/${group.id}/moderation-log`, (body) => body.entries as ModerationLogEntry[]);
+  return (
+    <section aria-label="Moderation log">
+      <Intro>Every moderation decision in this community: who made it, on what, and when. The latest 50.</Intro>
+      {entries === null || entries === "error" ? (
+        <ListState what={entries === null ? "loading" : "error"} onRetry={reload} />
+      ) : entries.length === 0 ? (
+        <p className="py-6 text-center text-body-sm text-tertiary">No moderation decisions yet.</p>
+      ) : (
+        <ul className="divide-y divide-white/[0.05] border-y border-white/[0.06]">
+          {entries.map((entry) => (
+            <li key={entry.id} className="py-3">
+              <p className="text-body-sm text-primary">
+                <span className="font-medium">{entry.actorName}</span> {LOG_VERB[entry.action]}
+                {entry.targetName && <span className="text-secondary"> by {entry.targetName}</span>}
+                <span className="text-tertiary"> · {shortDate(entry.createdAt)}</span>
+              </p>
+              {entry.excerpt && <p className="mt-1 line-clamp-2 text-caption text-tertiary">{entry.excerpt}</p>}
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

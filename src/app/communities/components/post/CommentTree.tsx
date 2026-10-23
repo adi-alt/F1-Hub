@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
+import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { CommentComposer } from "./CommentComposer";
 import { useOptimisticVote } from "./useOptimisticVote";
 import { VoteControl } from "./VoteControl";
@@ -70,6 +71,24 @@ function CommentNode({
   const { user } = useAuth();
   const [replying, setReplying] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(comment.content);
+  const [editedAt, setEditedAt] = useState(comment.editedAt ?? null);
+  const [gone, setGone] = useState(!!comment.deleted);
+
+  async function saveEdit(next: string): Promise<boolean> {
+    const res = await fetch(`/api/posts/${postId}/comments/${comment.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: next }),
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { editedAt?: string } | null;
+    if (!res?.ok || !body?.editedAt) return false;
+    setContent(next.trim());
+    setEditedAt(body.editedAt);
+    setEditing(false);
+    return true;
+  }
   // The commenter's profile photo (profiles.avatar_url); for the viewer's own fresh comment, their session photo.
   // Initials only where there's no photo at all.
   const isMe = !!user && !!comment.userId && user.uid === comment.userId;
@@ -112,7 +131,18 @@ function CommentNode({
             </span>
             <span className="text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
           </p>
-          <p className="mt-1 whitespace-pre-wrap break-words text-body-sm leading-relaxed text-secondary">{comment.content}</p>
+          {gone ? (
+            <p className="mt-1 text-body-sm italic text-tertiary">Comment deleted</p>
+          ) : editing ? (
+            <div className="mt-1.5">
+              <CommentComposer autoFocus initialValue={content} submitLabel="Save" onCancel={() => setEditing(false)} onSubmit={saveEdit} placeholder="Edit your comment..." />
+            </div>
+          ) : (
+            <p className="mt-1 whitespace-pre-wrap break-words text-body-sm leading-relaxed text-secondary">
+              {content}
+              {editedAt && <span className="ml-1.5 text-caption text-tertiary">(edited)</span>}
+            </p>
+          )}
 
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <VoteControl score={score} myVote={myVote} onVote={vote} compact />
@@ -123,6 +153,16 @@ function CommentNode({
                 </svg>
                 Reply
               </button>
+            )}
+            {!comment.pending && !gone && (
+              <CommentActions
+                postId={postId}
+                commentId={comment.id}
+                mine={!!comment.mine}
+                canDelete={!!comment.canDelete}
+                onEdit={() => setEditing(true)}
+                onDeleted={() => setGone(true)}
+              />
             )}
             {!atDepthLimit && children.length > 0 && (
               <button type="button" onClick={() => setCollapsed((v) => !v)} className="rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white">
@@ -180,6 +220,70 @@ function CommentNode({
         </div>
       )}
     </div>
+  );
+}
+
+const ACTION = "rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white";
+
+/** Edit and delete for the author (delete for a moderator too), Report for everyone else. */
+function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted }: { postId: string; commentId: string; mine: boolean; canDelete: boolean; onEdit: () => void; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
+
+  async function remove() {
+    setBusy(true);
+    setError("");
+    const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, { method: "DELETE" }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) onDeleted();
+    else setError("Couldn't delete it.");
+  }
+
+  async function report(reason: string): Promise<boolean> {
+    const res = await fetch(`/api/posts/${postId}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason, commentId }),
+    }).catch(() => null);
+    if (!res?.ok) return false;
+    setReporting(false);
+    setReported(true);
+    return true;
+  }
+
+  return (
+    <>
+      {mine && (
+        <button type="button" onClick={onEdit} className={ACTION}>
+          Edit
+        </button>
+      )}
+      {canDelete && (
+        <ConfirmButton onConfirm={() => void remove()} question={mine ? "Delete?" : "Remove?"} confirmLabel={mine ? "Delete" : "Remove"} pending={busy} className={ACTION}>
+          {mine ? "Delete" : "Remove"}
+        </ConfirmButton>
+      )}
+      {!mine &&
+        (reported ? (
+          <span className="px-2 py-1 text-xs text-tertiary">Reported</span>
+        ) : (
+          <button type="button" onClick={() => setReporting((v) => !v)} className={ACTION}>
+            Report
+          </button>
+        ))}
+      {error && (
+        <span role="alert" className="text-xs text-danger">
+          {error}
+        </span>
+      )}
+      {reporting && (
+        <div className="mt-1.5 w-full">
+          <CommentComposer autoFocus submitLabel="Report" onCancel={() => setReporting(false)} onSubmit={report} placeholder="What's wrong with it? Only moderators see this." />
+        </div>
+      )}
+    </>
   );
 }
 

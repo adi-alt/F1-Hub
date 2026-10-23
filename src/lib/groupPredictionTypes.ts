@@ -65,6 +65,8 @@ export type GroupPrediction = {
   resolvedAt: string | null;
   entryCount: number;
   myEntry: { guess: PredictionGuess; pointsWagered: number; pointsAwarded: number | null } | null;
+  /** What this round can do for the viewer, from predictionCardState when the server built it. */
+  viewerState: PredictionCardState;
 };
 
 export const predictionTypeLabels: Record<PredictionType, string> = {
@@ -89,3 +91,76 @@ export type RaceCommunityCard = {
   isMember: boolean;
   prediction: { id: string; type: PredictionType; status: PredictionStatus; lockAt: string | null; entryCount: number; entryPoints: number } | null;
 };
+
+/** What a prediction card can do for this viewer right now, worked out once from the round, the
+ * clock and the viewer - so the feed, the community tab and the race page never disagree about
+ * whether a round can take an entry, and the card can say exactly why it can't. The server computes
+ * it when it builds a listing (`viewerState`); the card re-runs the same function with its ticking
+ * clock, the live points balance and the race's roster. */
+export type PredictionCardState =
+  | "open"
+  | "locked"
+  /** Closed and the race has run: waiting for an admin to resolve it. */
+  | "awaiting_result"
+  | "resolved"
+  | "void"
+  | "insufficient_points"
+  | "not_member"
+  /** No driver line-up for the race yet (driver rounds only). */
+  | "no_lineup";
+
+export function predictionCardState(
+  round: { status: PredictionStatus; lockAt: string | null; raceStatus: string | null; type: PredictionType; entryPoints: number },
+  viewer: { isMember: boolean; hasEntered: boolean; pointsBalance?: number | null; driverCount?: number },
+  nowMs: number,
+): PredictionCardState {
+  const state = predictionStateAt(round.status, round.lockAt, nowMs);
+  if (state === "void" || state === "resolved") return state;
+  if (state === "locked") return round.raceStatus === "completed" ? "awaiting_result" : "locked";
+  if (!viewer.isMember) return "not_member";
+  if (viewer.driverCount === 0 && round.type !== "dnf_count") return "no_lineup";
+  // Someone who already entered paid for it; changing a pick costs nothing.
+  if (!viewer.hasEntered && typeof viewer.pointsBalance === "number" && viewer.pointsBalance < round.entryPoints) return "insufficient_points";
+  return "open";
+}
+
+/** One aggregated option in a prediction's community trend. `pct` is a real share of `total`,
+ * rounded for display only. */
+export type PredictionTrendOption = { key: string; label: string; count: number; pct: number };
+
+export type PredictionTrend = {
+  /** Real number of entries behind this aggregate. The UI decides what counts as "enough to
+   * show" - this never hides or pads it. */
+  total: number;
+  options: PredictionTrendOption[];
+};
+
+/** How many distinct options a trend lists before the remainder is grouped into "Other". */
+const TREND_TOP_N = 4;
+
+/** The one facet of a guess a trend groups by. A podium guess is three drivers, which has no
+ * single meaningful distribution - the winner pick is the part members actually compare, so that's
+ * what's aggregated, and the card labels it as such rather than implying the whole podium matched. */
+function trendKeyFor(type: PredictionType, guess: PredictionGuess): string | null {
+  if (type === "podium") return Array.isArray(guess) && typeof guess[0] === "string" ? guess[0] : null;
+  if (type === "dnf_count") return typeof guess === "number" ? String(guess) : null;
+  return typeof guess === "string" ? guess : null;
+}
+
+/** Counts real entries into a trend: the top options by count (ties by key), the rest as "Other".
+ * Nothing is sampled or padded - no entries is `{ total: 0, options: [] }`. */
+export function aggregatePredictionTrend(type: PredictionType, guesses: readonly PredictionGuess[], driverNameByCode: ReadonlyMap<string, string>): PredictionTrend {
+  const counts = new Map<string, number>();
+  for (const guess of guesses) {
+    const key = trendKeyFor(type, guess);
+    if (key !== null) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
+  if (total === 0) return { total: 0, options: [] };
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const label = (key: string) => (type === "dnf_count" ? `${key} ${key === "1" ? "retirement" : "retirements"}` : (driverNameByCode.get(key) ?? key));
+  const options: PredictionTrendOption[] = sorted.slice(0, TREND_TOP_N).map(([key, count]) => ({ key, label: label(key), count, pct: Math.round((count / total) * 100) }));
+  const restCount = sorted.slice(TREND_TOP_N).reduce((sum, [, n]) => sum + n, 0);
+  if (restCount > 0) options.push({ key: "__other__", label: "Other", count: restCount, pct: Math.round((restCount / total) * 100) });
+  return { total, options };
+}

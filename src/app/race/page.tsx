@@ -27,6 +27,8 @@ import { getSession } from "@/lib/session/getSession";
 import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
+import { getRacePicks } from "@/lib/supabase/picks";
+import { raceWeekendScores } from "@/lib/raceWeekendScores";
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
  * Archive year) - "the race detail page must be identical regardless of where the user came
@@ -131,7 +133,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext, raceCommunities, photos, trackStory, layout] = await Promise.all([
+    const [ageRecords, personalContext, raceCommunities, photos, trackStory, layout, racePicks] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
       listRaceCommunities(race.id, session.uid),
@@ -141,7 +143,10 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
       race.status === "completed" ? getRaceTrackStory(race.id) : Promise.resolve(null),
       // The track library's layout for this circuit and season, drawn when the race has no story of its own.
       getRaceLayout({ circuitId: matchedCircuit?.circuitId ?? null, circuitName: race.circuit, year: race.year, raceName: race.name }),
+      // After the race: every pick, for your points against the community's average (race-weekend mode, R-64).
+      race.status === "completed" ? getRacePicks(race.id) : Promise.resolve([]),
     ]);
+    const scores = race.status === "completed" ? raceWeekendScores(race, racePicks, racePicks.find((p) => p.userId === session.uid) ?? null) : null;
 
     return (
       <div data-surface="frosted" className="page-wide py-8">
@@ -164,9 +169,6 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
               accuracy={accuracy}
               poleAccuracy={poleAccuracy}
               personal={personalContext}
-              fallbackEntrants={fallbackEntrants}
-              raceSessionDate={raceSessionDate}
-              sessions={calendarEntry?.sessions ?? []}
             />
           }
         />
@@ -184,6 +186,8 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             weekendSessions={weekendSessions}
             initialSession={defaultSession(weekendSessions)}
             qualifyingStages={qualifyingStages}
+            pick={race.status === "completed" ? null : { fallbackEntrants, raceSessionDate, sessions: calendarEntry?.sessions ?? [] }}
+            scores={scores}
           />
         </div>
       </div>
@@ -260,7 +264,7 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
         resultLabel={archiveWinner ? `Winner: ${archiveWinner.driverName}` : undefined}
       />
       )}
-      <div className="mt-8">
+      <div className="mt-12">
         <ArchiveRaceDashboard
           race={race}
           circuit={circuit}

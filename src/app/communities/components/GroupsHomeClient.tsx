@@ -1,5 +1,6 @@
 "use client";
 
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "motion/react";
@@ -137,7 +138,11 @@ export function GroupsHomeClient({
         },
   );
 
-  const rightRail = <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />;
+  const rightRail = (
+    <RegionBoundary label="the race weekend">
+      <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />
+    </RegionBoundary>
+  );
 
   return (
     <div className={groups.length > 0 ? "py-4 lg:h-[calc(100dvh-3.5rem)]" : "py-6"}>
@@ -157,7 +162,9 @@ export function GroupsHomeClient({
         <div className="flex flex-col gap-6 lg:grid lg:h-full lg:grid-cols-[248px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5 xl:grid-cols-[248px_minmax(0,1fr)_320px]">
           {/* Bottom padding keeps the rail clear of the floating Apex launcher in the corner below it. */}
           <aside aria-label="Your communities" className="hidden min-h-0 pb-16 lg:block">
-            <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} pulse={pulse} />
+            <RegionBoundary label="your communities">
+              <GroupsLeftSidebar groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} pulse={pulse} />
+            </RegionBoundary>
           </aside>
 
           {/* The one scrolling column from lg, vertical only: its 12px inner gutter holds the post rows' hover tone (they
@@ -176,6 +183,7 @@ export function GroupsHomeClient({
                 <WeekendStrip race={nextRace} predictions={predictions} />
               )}
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
+              <RegionBoundary label="the feed">
               <GroupsFeed
                 groups={groups}
                 initialPosts={initialPosts}
@@ -190,6 +198,7 @@ export function GroupsHomeClient({
                 onClearSession={() => setSessionFilter(null)}
                 callableRace={callableRace}
               />
+              </RegionBoundary>
             </div>
           </div>
 

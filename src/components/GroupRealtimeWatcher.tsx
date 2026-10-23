@@ -22,6 +22,9 @@ import { groupChannelKey, groupListeners } from "@/lib/realtime/channels";
  * reads the session (cookies()), which forces it fully dynamic regardless, so there's no separate
  * data-layer cache sitting in the way of a plain `router.refresh()`.
  */
+/** The window event CommunityFeed listens for when the community's posts change. */
+export const GROUP_POSTS_CHANGED = "apex:group-posts-changed";
+
 export function GroupRealtimeWatcher({ groupId }: { groupId: string }) {
   const router = useRouter();
   const refresh = () => router.refresh();
@@ -33,7 +36,10 @@ export function GroupRealtimeWatcher({ groupId }: { groupId: string }) {
   // group_posts/group_predictions - previously on the publication with no listener registered at
   // all (see groupListeners()'s own comment), so the Feed/Predictions tabs never actually got the
   // live push a prior migration comment claimed they already had.
-  useRealtimeSubscription(channelKey, listeners, listeners[2], refresh, refresh);
+  // A feed change is announced rather than refreshed: the feed shows a "New posts" button, so a post arriving never
+  // moves what someone is reading (audit R-42).
+  const announcePosts = () => window.dispatchEvent(new CustomEvent(GROUP_POSTS_CHANGED, { detail: { groupId } }));
+  useRealtimeSubscription(channelKey, listeners, listeners[2], announcePosts, announcePosts);
   useRealtimeSubscription(channelKey, listeners, listeners[3], refresh, refresh);
 
   return null;

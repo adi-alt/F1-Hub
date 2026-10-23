@@ -9,7 +9,6 @@
     "lint": "eslint",
     "test": "tsx --experimental-test-module-mocks --test \"src/**/*.test.ts\"",
     "lint:design": "node scripts/design-lint.mjs",
-    "lint:unused": "node scripts/unused-files.mjs",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -20,9 +19,6 @@
     "@tanstack/react-query": "^5.101.4",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "@visx/curve": "^4.0.0",
-    "@visx/group": "^4.0.0",
-    "@visx/shape": "^4.0.0",
     "iron-session": "^8.0.4",
     "lucide-react": "^1.44.0",
     "motion": "^12.43.0",

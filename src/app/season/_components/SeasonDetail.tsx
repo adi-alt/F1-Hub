@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import Link from "next/link";
 import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
@@ -151,13 +152,17 @@ export function SeasonDetail({
         </header>
 
 
-        <Reveal>
-          <ApexSeasonTake personal={personal} />
-        </Reveal>
+        <RegionBoundary label="the Apex take">
+          <Reveal>
+            <ApexSeasonTake personal={personal} />
+          </Reveal>
+        </RegionBoundary>
 
-        <Reveal>
-          <SeasonSnapshot items={snapshot} personal={personal} />
-        </Reveal>
+        <RegionBoundary label="the season snapshot">
+          <Reveal>
+            <SeasonSnapshot items={snapshot} personal={personal} />
+          </Reveal>
+        </RegionBoundary>
 
         {/* ── Standings + what changed ─────────────────────────────────────────
             The two columns share ONE declared row height and each fills it, scrolling internally.
@@ -175,20 +180,25 @@ export function SeasonDetail({
             meaningless. */}
         <Reveal className="mb-8 grid grid-cols-1 items-stretch gap-8 lg:h-[34rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[1fr] lg:gap-10">
           <div className="flex min-h-0 min-w-0 flex-col">
-            <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} personal={personal} />
+            <RegionBoundary label="the standings">
+              <ChampionshipStandings drivers={drivers} constructors={constructors} raceSummaries={raceSummaries} personal={personal} />
+            </RegionBoundary>
           </div>
           <div className="flex min-h-0 min-w-0 flex-col">
-            <WhatChangedRecently
-              drivers={drivers}
-              constructors={constructors}
-              raceSummaries={raceSummaries}
-              progression={progression}
-              personal={personal}
-            />
+            <RegionBoundary label="what changed recently">
+              <WhatChangedRecently
+                drivers={drivers}
+                constructors={constructors}
+                raceSummaries={raceSummaries}
+                progression={progression}
+                personal={personal}
+              />
+            </RegionBoundary>
           </div>
         </Reveal>
 
         <Reveal className="mb-8">
+          <RegionBoundary label="the season analysis">
           <AnalysisWorkspace
             season={year}
             battles={battles}
@@ -199,11 +209,14 @@ export function SeasonDetail({
             raceSummaries={raceSummaries}
             personal={personal}
           />
+          </RegionBoundary>
         </Reveal>
 
-        <Reveal>
-          <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
-        </Reveal>
+        <RegionBoundary label="the calendar">
+          <Reveal>
+            <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
+          </Reveal>
+        </RegionBoundary>
 
         {/* Rendered once, driven by the route. Mounted here (not inside the calendar) so a race can
             be opened from anywhere on the page, and so a direct link with ?race= opens it without

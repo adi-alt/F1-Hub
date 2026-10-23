@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { fieldControlClass } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Picker } from "@/components/ui/Picker";
-import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import {
   COMMUNITY_TOPICS,
   COMMUNITY_TYPES,
@@ -135,16 +134,13 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
 
   const canAdvance = step !== "identity" || (trimmedName.length >= MIN_NAME && !nameError);
 
-  // Tab-trap/restore-on-close/scroll-lock shared with every other floating window (see the hook's
-  // own comment); Escape itself still respects mid-submit the same way the backdrop click below
-  // does. This used to be its own bare Escape-only listener with none of the rest.
-  useModalFocusTrap(panelRef, true, requestClose);
-
-  // Focus moves to the panel on each step change so a screen reader announces the new step rather
-  // than leaving focus on a button that no longer exists. Runs independently of the hook's own
-  // one-time "focus something on open" effect above - this one intentionally re-fires on every
-  // step, not just mount.
+  // Focus moves to the step's body on each step change, so a screen reader announces the new step
+  // rather than leaving focus on a button that no longer exists. Not on open: the Dialog's own focus
+  // trap places focus then, and records the trigger to return to.
+  const shownStep = useRef(step);
   useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
     panelRef.current?.focus();
   }, [step]);
 
@@ -215,7 +211,11 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
     // An address typed but never added counts: leaving it out silently would be the surprise.
     const invitees = EMAIL_RE.test(pendingEmail) ? [...new Set([...emails, pendingEmail])] : emails;
     if (invitees.length > 0) {
-      await followUp("The invitations", `/api/groups/${body.id}/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emails: invitees }) });
+      await followUp("The invitations", `/api/groups/${body.id}/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: invitees }),
+      });
     }
 
     if (problems.length > 0) {
@@ -227,331 +227,15 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
     router.push(groupHref(body.id));
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-[2px] sm:items-center sm:p-6"
-      onClick={requestClose}
-    >
-      <motion.div
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Create a community"
-        initial={{ opacity: 0, y: 24, scale: 0.99 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 24, scale: 0.99 }}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-        onClick={(e) => e.stopPropagation()}
-        // Full-height sheet on mobile, centred panel on desktop - not one squeezed into the other.
-        className="flex h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl focus:outline-none sm:h-auto sm:max-h-[88vh] sm:max-w-xl sm:rounded-2xl"
-      >
-        <header className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-caption font-semibold text-tertiary">{STEP_TITLES[step].eyebrow}</p>
-              <h2 className="mt-0.5 text-lg font-bold text-white">{STEP_TITLES[step].title}</h2>
-            </div>
-            <button
-              onClick={requestClose}
-              disabled={submitting}
-              aria-label="Close"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white disabled:opacity-40"
-            >
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
-                <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          {/* Real progress, not decoration - one segment per step, filled up to where you are. */}
-          <div className="mt-3 flex gap-1" aria-hidden>
-            {STEPS.map((s, i) => (
-              <span key={s} className={`h-0.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-brand" : "bg-white/10"}`} />
-            ))}
-          </div>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          <AnimatePresence mode="wait">
-            <motion.div key={step} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.15 }}>
-              {step === "type" && (
-                <SelectionCardGroup label="Community type" className="grid gap-2.5">
-                  {COMMUNITY_TYPES.map((t) => (
-                    <SelectionCard
-                      key={t.value}
-                      selected={communityType === t.value}
-                      onSelect={() => setCommunityType(t.value)}
-                      title={t.label}
-                      description={t.tagline}
-                      icon={<Icon icon={TYPE_ICONS[t.value]} size={16} />}
-                      footnote={t.examples.join(" · ")}
-                    />
-                  ))}
-                </SelectionCardGroup>
-              )}
-
-              {step === "identity" && (
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="community-name" className="block text-xs font-medium text-secondary">
-                      Community name
-                    </label>
-                    <input
-                      id="community-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      maxLength={MAX_NAME}
-                      autoFocus
-                      placeholder={meta.value === "f1" ? "Ferrari Tifosi India" : "Photography Society"}
-                      aria-invalid={!!nameError}
-                      aria-describedby={nameError ? "community-name-error" : undefined}
-                      className={`mt-1 w-full rounded-lg border bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:outline-none ${
-                        nameError ? "border-brand/60" : "border-white/10 focus:border-white/30"
-                      }`}
-                    />
-                    <div className="mt-1 flex items-start justify-between gap-3 text-caption">
-                      <span id="community-name-error" className={nameError ? "text-brand-text" : "text-tertiary"}>
-                        {nameError ?? "This is how people will find you."}
-                      </span>
-                      {/* Shown only once it's actually relevant, not a permanent 0/40 counter. */}
-                      {trimmedName.length > MAX_NAME - 10 && (
-                        <span className="shrink-0 tabular text-tertiary">
-                          {trimmedName.length}/{MAX_NAME}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="community-description" className="block text-xs font-medium text-secondary">
-                      Description <span className="text-tertiary">(optional)</span>
-                    </label>
-                    <textarea
-                      id="community-description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      maxLength={MAX_DESCRIPTION}
-                      rows={3}
-                      placeholder="What is this community about?"
-                      className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <span className="block text-xs font-medium text-secondary">
-                      Topic <span className="text-tertiary">(optional)</span>
-                    </span>
-                    <Picker
-                      options={COMMUNITY_TOPICS.map((t) => ({ value: t, label: t }))}
-                      value={topic}
-                      onChange={setTopic}
-                      placeholder="Choose or type a topic"
-                      searchPlaceholder="Search topics..."
-                      ariaLabel="Community topic"
-                      allowCustomValue
-                      clearable
-                      className="mt-1"
-                    />
-                    <p className="mt-1 text-caption text-tertiary">Not in the list? Type your own.</p>
-                  </div>
-                </div>
-              )}
-
-              {step === "visual" && (
-                <div className="space-y-5">
-                  <div>
-                    <p className="mb-1.5 text-xs font-medium text-secondary">Banner</p>
-                    <ImageDropzone
-                      file={bannerFile}
-                      onPick={setBannerFile}
-                      onClear={() => setBannerFile(null)}
-                      maxBytes={MAX_BANNER_BYTES}
-                      label="Drop an image, or click to upload"
-                      hint="PNG, JPEG or WEBP · max 3MB"
-                      surfaceClassName="aspect-[16/5] w-full"
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-medium text-secondary">Avatar</p>
-                    <div className="flex items-start gap-4">
-                      <ImageDropzone
-                        file={avatarFile}
-                        onPick={setAvatarFile}
-                        onClear={() => setAvatarFile(null)}
-                        maxBytes={MAX_AVATAR_BYTES}
-                        label="Upload"
-                        hint="max 500KB"
-                        surfaceClassName="h-20 w-20"
-                        rounded
-                      />
-                      <p className="pt-1 text-caption leading-relaxed text-tertiary">
-                        Both are optional. Without them your community gets a generated banner and avatar derived from its name, which looks
-                        deliberate rather than empty.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === "privacy" && (
-                <SelectionCardGroup label="Visibility" className="grid gap-2.5">
-                  {VISIBILITY_OPTIONS.map((v) => {
-                    const blocked = communityType === "private_circle" && v.value === "public";
-                    return (
-                      <SelectionCard
-                        key={v.value}
-                        selected={visibility === v.value}
-                        onSelect={() => setVisibility(v.value)}
-                        title={v.label}
-                        description={v.description}
-                        icon={<Icon icon={VISIBILITY_ICONS[v.value]} size={16} />}
-                        disabled={blocked}
-                        footnote={blocked ? "Not available for a Private Circle." : undefined}
-                      />
-                    );
-                  })}
-                </SelectionCardGroup>
-              )}
-
-              {step === "features" && (
-                <div className="space-y-3">
-                  <p className="text-xs leading-relaxed text-tertiary">
-                    Sensible defaults for a {meta.label.toLowerCase()} are already on. You can change any of this later.
-                  </p>
-                  <div className="space-y-2">
-                    {/* Required modules are shown, not hidden - "why can't I turn off Feed" is a
-                        better question to answer up front than to leave the user hunting for. */}
-                    {enabledModules
-                      .filter((m) => !availableToggles.includes(m))
-                      .map((m) => (
-                        <div key={m} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
-                          <span>
-                            <span className="block text-sm text-secondary">{MODULE_LABELS[m]}</span>
-                            <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
-                          </span>
-                          <span className="shrink-0 text-caption font-semibold text-tertiary">Always on</span>
-                        </div>
-                      ))}
-
-                    {availableToggles.map((m) => {
-                      const on = enabledModules.includes(m);
-                      return (
-                        <button
-                          key={m}
-                          type="button"
-                          role="switch"
-                          aria-checked={on}
-                          onClick={() => setFeatures((prev) => ({ ...prev, [m]: !on }))}
-                          className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
-                            on ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
-                          }`}
-                        >
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
-                            <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
-                          </span>
-                          <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-white/10"}`} aria-hidden>
-                            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {!meta.f1 && (
-                    <p className="text-caption leading-relaxed text-tertiary">
-                      Race predictions and leaderboards are F1-specific, so they aren&apos;t offered here. Switch the type to an F1 Community or
-                      Prediction League if you want them.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {step === "review" && (
-                <div className="space-y-4">
-                  <div className="overflow-hidden rounded-xl border border-white/10">
-                    {bannerPreview ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={bannerPreview} alt="" className="aspect-[16/5] w-full object-cover" />
-                    ) : (
-                      <GroupBanner bannerUrl={null} seed={trimmedName || "preview"} />
-                    )}
-                    <div className="px-4 pb-4">
-                      <div className="-mt-6 flex items-end">
-                        <span className="rounded-full ring-4 ring-zinc-900">
-                          {avatarPreview ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={avatarPreview} alt="" width={48} height={48} className="rounded-full object-cover" style={{ width: 48, height: 48 }} />
-                          ) : (
-                            <EntityAvatar imageUrl={null} name={trimmedName || "?"} size={48} />
-                          )}
-                        </span>
-                      </div>
-                      <p className="mt-2.5 text-base font-semibold text-white">{trimmedName}</p>
-                      <p className="mt-0.5 text-xs text-tertiary">
-                        {meta.label} · {VISIBILITY_OPTIONS.find((v) => v.value === visibility)?.label}
-                        {topic ? ` · ${topic}` : ""}
-                      </p>
-                      {description.trim() && <p className="mt-2 text-xs leading-relaxed text-secondary">{description.trim()}</p>}
-                      <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
-                        {enabledModules.map((m) => (
-                          <span key={m} className="rounded-full border border-white/10 px-2 py-0.5 text-caption text-secondary">
-                            {MODULE_LABELS[m]}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="community-invite" className="block text-xs font-medium text-secondary">
-                      Invite people <span className="text-tertiary">(optional)</span>
-                    </label>
-                    <div className="mt-1 flex gap-2">
-                      <input
-                        id="community-invite"
-                        value={emailInput}
-                        onChange={(e) => setEmailInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === ",") {
-                            e.preventDefault();
-                            addEmail();
-                          }
-                        }}
-                        type="email"
-                        placeholder="person@email.com"
-                        className={`flex-1 ${fieldControlClass(false)}`}
-                      />
-                      <Button variant="secondary" size="md" onClick={addEmail}>
-                        Add
-                      </Button>
-                    </div>
-                    {emailError && <p className="mt-1 text-caption text-brand-text">{emailError}</p>}
-                    {emails.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {emails.map((email) => (
-                          <span key={email} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-caption text-secondary">
-                            {email}
-                            <button type="button" onClick={() => setEmails((prev) => prev.filter((e) => e !== email))} aria-label={`Remove ${email}`} className="text-tertiary hover:text-white">
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-caption text-tertiary">You&apos;ll be the admin. Everything here can be changed later from Manage.</p>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-
-          {error && (
-            <p role="alert" className="mt-4 rounded-lg border border-brand/30 bg-brand/7 px-3 py-2 text-xs text-brand-text">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-5 py-3.5 sm:px-6">
+  return (
+    <Dialog
+      open
+      onClose={requestClose}
+      title={STEP_TITLES[step].title}
+      description={STEP_TITLES[step].eyebrow}
+      size="lg"
+      footer={
+        <div className="flex w-full items-center justify-between gap-3">
           {createdId ? (
             <>
               <span />
@@ -572,25 +256,319 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
               </span>
             </>
           ) : (
-          <>
-          <Button variant="ghost" size="md" onClick={() => (stepIndex === 0 ? requestClose() : go(-1))} disabled={submitting}>
-            {stepIndex === 0 ? "Cancel" : "Back"}
-          </Button>
+            <>
+              <Button variant="ghost" size="md" onClick={() => (stepIndex === 0 ? requestClose() : go(-1))} disabled={submitting}>
+                {stepIndex === 0 ? "Cancel" : "Back"}
+              </Button>
 
-          {step === "review" ? (
-            <Button variant="primary" size="md" onClick={() => void submit()} loading={submitting}>
-              Create community
-            </Button>
-          ) : (
-            <Button variant="primary" size="md" onClick={() => go(1)} disabled={!canAdvance}>
-              Next
-            </Button>
+              {step === "review" ? (
+                <Button variant="primary" size="md" onClick={() => void submit()} loading={submitting}>
+                  Create community
+                </Button>
+              ) : (
+                <Button variant="primary" size="md" onClick={() => go(1)} disabled={!canAdvance}>
+                  Next
+                </Button>
+              )}
+            </>
           )}
-          </>
-          )}
-        </footer>
-      </motion.div>
-    </div>,
-    document.body,
+        </div>
+      }
+    >
+      <div ref={panelRef} tabIndex={-1} className="focus:outline-none">
+        {/* Real progress, not decoration - one segment per step, filled up to where you are. */}
+        <div className="mb-5 flex gap-1" aria-hidden>
+          {STEPS.map((s, i) => (
+            <span key={s} className={`h-0.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-brand" : "bg-surface-3"}`} />
+          ))}
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.div key={step} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.15 }}>
+            {step === "type" && (
+              <SelectionCardGroup label="Community type" className="grid gap-2.5">
+                {COMMUNITY_TYPES.map((t) => (
+                  <SelectionCard
+                    key={t.value}
+                    selected={communityType === t.value}
+                    onSelect={() => setCommunityType(t.value)}
+                    title={t.label}
+                    description={t.tagline}
+                    icon={<Icon icon={TYPE_ICONS[t.value]} size={16} />}
+                    footnote={t.examples.join(" · ")}
+                  />
+                ))}
+              </SelectionCardGroup>
+            )}
+
+            {step === "identity" && (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="community-name" className="block text-xs font-medium text-secondary">
+                    Community name
+                  </label>
+                  <input
+                    id="community-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={MAX_NAME}
+                    autoFocus
+                    placeholder={meta.value === "f1" ? "Ferrari Tifosi India" : "Photography Society"}
+                    aria-invalid={!!nameError}
+                    aria-describedby={nameError ? "community-name-error" : undefined}
+                    className={`mt-1 w-full rounded-lg border bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:outline-none ${
+                      nameError ? "border-brand/60" : "border-white/10 focus:border-white/30"
+                    }`}
+                  />
+                  <div className="mt-1 flex items-start justify-between gap-3 text-caption">
+                    <span id="community-name-error" className={nameError ? "text-brand-text" : "text-tertiary"}>
+                      {nameError ?? "This is how people will find you."}
+                    </span>
+                    {/* Shown only once it's actually relevant, not a permanent 0/40 counter. */}
+                    {trimmedName.length > MAX_NAME - 10 && (
+                      <span className="shrink-0 tabular text-tertiary">
+                        {trimmedName.length}/{MAX_NAME}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="community-description" className="block text-xs font-medium text-secondary">
+                    Description <span className="text-tertiary">(optional)</span>
+                  </label>
+                  <textarea
+                    id="community-description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    maxLength={MAX_DESCRIPTION}
+                    rows={3}
+                    placeholder="What is this community about?"
+                    className="mt-1 w-full resize-none rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <span className="block text-xs font-medium text-secondary">
+                    Topic <span className="text-tertiary">(optional)</span>
+                  </span>
+                  <Picker
+                    options={COMMUNITY_TOPICS.map((t) => ({ value: t, label: t }))}
+                    value={topic}
+                    onChange={setTopic}
+                    placeholder="Choose or type a topic"
+                    searchPlaceholder="Search topics..."
+                    ariaLabel="Community topic"
+                    allowCustomValue
+                    clearable
+                    className="mt-1"
+                  />
+                  <p className="mt-1 text-caption text-tertiary">Not in the list? Type your own.</p>
+                </div>
+              </div>
+            )}
+
+            {step === "visual" && (
+              <div className="space-y-5">
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-secondary">Banner</p>
+                  <ImageDropzone
+                    file={bannerFile}
+                    onPick={setBannerFile}
+                    onClear={() => setBannerFile(null)}
+                    maxBytes={MAX_BANNER_BYTES}
+                    label="Drop an image, or click to upload"
+                    hint="PNG, JPEG or WEBP · max 3MB"
+                    surfaceClassName="aspect-[16/5] w-full"
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-secondary">Avatar</p>
+                  <div className="flex items-start gap-4">
+                    <ImageDropzone
+                      file={avatarFile}
+                      onPick={setAvatarFile}
+                      onClear={() => setAvatarFile(null)}
+                      maxBytes={MAX_AVATAR_BYTES}
+                      label="Upload"
+                      hint="max 500KB"
+                      surfaceClassName="h-20 w-20"
+                      rounded
+                    />
+                    <p className="pt-1 text-caption leading-relaxed text-tertiary">
+                      Both are optional. Without them your community gets a generated banner and avatar derived from its name, which looks deliberate rather
+                      than empty.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === "privacy" && (
+              <SelectionCardGroup label="Visibility" className="grid gap-2.5">
+                {VISIBILITY_OPTIONS.map((v) => {
+                  const blocked = communityType === "private_circle" && v.value === "public";
+                  return (
+                    <SelectionCard
+                      key={v.value}
+                      selected={visibility === v.value}
+                      onSelect={() => setVisibility(v.value)}
+                      title={v.label}
+                      description={v.description}
+                      icon={<Icon icon={VISIBILITY_ICONS[v.value]} size={16} />}
+                      disabled={blocked}
+                      footnote={blocked ? "Not available for a Private Circle." : undefined}
+                    />
+                  );
+                })}
+              </SelectionCardGroup>
+            )}
+
+            {step === "features" && (
+              <div className="space-y-3">
+                <p className="text-xs leading-relaxed text-tertiary">
+                  Sensible defaults for a {meta.label.toLowerCase()} are already on. You can change any of this later.
+                </p>
+                <div className="space-y-2">
+                  {/* Required modules are shown, not hidden - "why can't I turn off Feed" is a
+                        better question to answer up front than to leave the user hunting for. */}
+                  {enabledModules
+                    .filter((m) => !availableToggles.includes(m))
+                    .map((m) => (
+                      <div key={m} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5">
+                        <span>
+                          <span className="block text-sm text-secondary">{MODULE_LABELS[m]}</span>
+                          <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
+                        </span>
+                        <span className="shrink-0 text-caption font-semibold text-tertiary">Always on</span>
+                      </div>
+                    ))}
+
+                  {availableToggles.map((m) => {
+                    const on = enabledModules.includes(m);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        onClick={() => setFeatures((prev) => ({ ...prev, [m]: !on }))}
+                        className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition ${
+                          on ? "border-brand/40 bg-brand/5" : "border-white/10 hover:border-white/20"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-white">{MODULE_LABELS[m]}</span>
+                          <span className="block text-caption text-tertiary">{MODULE_DESCRIPTIONS[m]}</span>
+                        </span>
+                        <span className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-brand" : "bg-white/10"}`} aria-hidden>
+                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!meta.f1 && (
+                  <p className="text-caption leading-relaxed text-tertiary">
+                    Race predictions and leaderboards are F1-specific, so they aren&apos;t offered here. Switch the type to an F1 Community or Prediction League
+                    if you want them.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {step === "review" && (
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-xl border border-white/10">
+                  {bannerPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={bannerPreview} alt="" className="aspect-[16/5] w-full object-cover" />
+                  ) : (
+                    <GroupBanner bannerUrl={null} seed={trimmedName || "preview"} />
+                  )}
+                  <div className="px-4 pb-4">
+                    <div className="-mt-6 flex items-end">
+                      <span className="rounded-full ring-4 ring-zinc-900">
+                        {avatarPreview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatarPreview} alt="" width={48} height={48} className="rounded-full object-cover" style={{ width: 48, height: 48 }} />
+                        ) : (
+                          <EntityAvatar imageUrl={null} name={trimmedName || "?"} size={48} />
+                        )}
+                      </span>
+                    </div>
+                    <p className="mt-2.5 text-base font-semibold text-white">{trimmedName}</p>
+                    <p className="mt-0.5 text-xs text-tertiary">
+                      {meta.label} · {VISIBILITY_OPTIONS.find((v) => v.value === visibility)?.label}
+                      {topic ? ` · ${topic}` : ""}
+                    </p>
+                    {description.trim() && <p className="mt-2 text-xs leading-relaxed text-secondary">{description.trim()}</p>}
+                    <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
+                      {enabledModules.map((m) => (
+                        <span key={m} className="rounded-full border border-white/10 px-2 py-0.5 text-caption text-secondary">
+                          {MODULE_LABELS[m]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="community-invite" className="block text-xs font-medium text-secondary">
+                    Invite people <span className="text-tertiary">(optional)</span>
+                  </label>
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      id="community-invite"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === ",") {
+                          e.preventDefault();
+                          addEmail();
+                        }
+                      }}
+                      type="email"
+                      placeholder="person@email.com"
+                      className={`flex-1 ${fieldControlClass(false)}`}
+                    />
+                    <Button variant="secondary" size="md" onClick={addEmail}>
+                      Add
+                    </Button>
+                  </div>
+                  {emailError && <p className="mt-1 text-caption text-brand-text">{emailError}</p>}
+                  {emails.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {emails.map((email) => (
+                        <span
+                          key={email}
+                          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-caption text-secondary"
+                        >
+                          {email}
+                          <button
+                            type="button"
+                            onClick={() => setEmails((prev) => prev.filter((e) => e !== email))}
+                            aria-label={`Remove ${email}`}
+                            className="text-tertiary hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-caption text-tertiary">You&apos;ll be the admin. Everything here can be changed later from Manage.</p>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {error && (
+          <p role="alert" className="mt-4 text-body-sm text-danger">
+            {error}
+          </p>
+        )}
+      </div>
+    </Dialog>
   );
 }

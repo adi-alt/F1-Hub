@@ -2,10 +2,9 @@
 
 import { Button } from "@/components/ui/Button";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { motion } from "motion/react";
+import { fieldControlClass } from "@/components/ui/Field";
 import { Picker } from "@/components/ui/Picker";
-import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
+import { Dialog } from "@/components/ui/Dialog";
 import { DISCOVER_SORTS, type DiscoverSort } from "@/lib/communities";
 import type { PublicGroupSummary } from "@/lib/supabase/groups";
 import { CommunityCard } from "../CommunityCard";
@@ -19,7 +18,7 @@ type Page = { communities: PublicGroupSummary[]; nextCursor: string | null; tota
 const SEARCH_DEBOUNCE_MS = 250;
 
 /**
- * Discover, as a full-screen sheet on mobile and a large panel on desktop.
+ * Discover, in the house Dialog (focus trap, Escape, focus return), focused on its search field.
  *
  * Request lifecycle is the fiddly part and it's handled explicitly rather than hopefully:
  *
@@ -46,14 +45,9 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
   const [listError, setListError] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
-  // Same focus-trap/scroll-lock/Escape contract every floating window in this app should have -
-  // this sheet previously only had a bare Escape listener, with no focus trap (Tab could reach the
-  // page behind it), no focus restoration on close, and no scroll lock on the real scrolling
-  // element (see the hook's own comment on why `document.body` wouldn't have worked anyway).
-  useModalFocusTrap(panelRef, true, onClose);
 
   const buildUrl = useCallback(
     (nextCursor?: string) => {
@@ -136,150 +130,125 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
 
   const activeFilters = topics.length > 0 || query.trim().length > 0;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/50 backdrop-blur-[2px] sm:items-start sm:p-6 sm:pt-10" onClick={onClose}>
-      <motion.div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Discover communities"
-        initial={{ opacity: 0, y: 20, scale: 0.995 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, scale: 0.995 }}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-        onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full flex-col overflow-hidden border-white/10 bg-zinc-900/95 shadow-2xl backdrop-blur-xl sm:h-auto sm:max-h-[85vh] sm:max-w-5xl sm:rounded-2xl sm:border"
-      >
-        <header className="shrink-0 border-b border-white/10 px-5 pb-4 pt-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-white">Discover communities</h2>
-              <p className="mt-0.5 text-xs text-tertiary">Find people and spaces around what interests you.</p>
-            </div>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/40 text-white/70 transition hover:bg-black/60 hover:text-white"
-            >
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
-                <path d="M5 5 L15 15 M15 5 L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="relative mt-4">
-            <svg viewBox="0 0 20 20" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" fill="none" aria-hidden>
-              <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
-              <path d="m13.5 13.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Discover communities"
+      description="Find people and spaces around what interests you."
+      size="xl"
+      initialFocusRef={searchRef}
+    >
+      <div className="relative">
+        <svg viewBox="0 0 20 20" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" fill="none" aria-hidden>
+          <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" />
+          <path d="m13.5 13.5 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search communities..."
+          aria-label="Search communities"
+          ref={searchRef}
+          className={`${fieldControlClass(false)} pl-10 pr-10`}
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-tertiary transition hover:text-white"
+          >
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search communities..."
-              aria-label="Search communities"
-              autoFocus
-              className="w-full rounded-xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-tertiary focus:border-white/30 focus:outline-none"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-tertiary transition hover:text-white"
-              >
-                <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" aria-hidden>
-                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
-          </div>
+          </button>
+        )}
+      </div>
 
-          {/* Scrolls horizontally on a narrow screen instead of wrapping into a tall stack. */}
-          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
-            <TopicFilter facets={facets} selected={topics} onChange={setTopics} />
-            <Picker
-              options={DISCOVER_SORTS}
-              value={sort}
-              onChange={(next) => setSort(next as DiscoverSort)}
-              ariaLabel="Sort communities"
-              className="w-44 shrink-0"
-            />
-            {activeFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  setTopics([]);
-                }}
-                className="shrink-0 text-xs text-tertiary transition hover:text-white"
-              >
-                Clear all
-              </button>
-            )}
-            {communities !== null && (
-              <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-tertiary tabular">
-                {total} {total === 1 ? "community" : "communities"}
-              </span>
-            )}
-          </div>
-        </header>
+      {/* Scrolls horizontally on a narrow screen instead of wrapping into a tall stack. */}
+      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
+        <TopicFilter facets={facets} selected={topics} onChange={setTopics} />
+        <Picker
+          options={DISCOVER_SORTS}
+          value={sort}
+          onChange={(next) => setSort(next as DiscoverSort)}
+          ariaLabel="Sort communities"
+          className="w-44 shrink-0"
+        />
+        {activeFilters && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setTopics([]);
+            }}
+            className="shrink-0 text-xs text-tertiary transition hover:text-white"
+          >
+            Clear all
+          </button>
+        )}
+        {communities !== null && (
+          <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-tertiary tabular">
+            {total} {total === 1 ? "community" : "communities"}
+          </span>
+        )}
+      </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          {communities === null ? (
+      <div className="mt-5">
+        {communities === null ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <GroupCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : listError ? (
+          <ErrorState onRetry={() => setAttempt((n) => n + 1)} />
+        ) : communities.length === 0 ? (
+          <EmptyState query={query} topics={topics} onClearTopics={() => setTopics([])} />
+        ) : (
+          <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <GroupCardSkeleton key={i} />
+              {communities.map((community, i) => (
+                <CommunityCard
+                  key={community.id}
+                  community={community}
+                  index={i}
+                  onJoined={(id) => setCommunities((prev) => (prev ?? []).map((c) => (c.id === id ? { ...c, isMember: true } : c)))}
+                />
               ))}
             </div>
-          ) : listError ? (
-            <ErrorState onRetry={() => setAttempt((n) => n + 1)} />
-          ) : communities.length === 0 ? (
-            <EmptyState query={query} topics={topics} onClearTopics={() => setTopics([])} />
-          ) : (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {communities.map((community, i) => (
-                  <CommunityCard
-                    key={community.id}
-                    community={community}
-                    index={i}
-                    onJoined={(id) => setCommunities((prev) => (prev ?? []).map((c) => (c.id === id ? { ...c, isMember: true } : c)))}
-                  />
-                ))}
+
+            {cursor && (
+              <div ref={sentinelRef} className="pt-4">
+                {loadingMore && (
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <GroupCardSkeleton key={i} />
+                    ))}
+                  </div>
+                )}
+                {pageError && (
+                  <p className="py-3 text-center text-xs text-tertiary">
+                    Couldn&apos;t load more.{" "}
+                    <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
+                      Retry
+                    </button>
+                  </p>
+                )}
               </div>
+            )}
 
-              {cursor && (
-                <div ref={sentinelRef} className="pt-4">
-                  {loadingMore && (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <GroupCardSkeleton key={i} />
-                      ))}
-                    </div>
-                  )}
-                  {pageError && (
-                    <p className="py-3 text-center text-xs text-tertiary">
-                      Couldn&apos;t load more.{" "}
-                      <button type="button" onClick={() => void loadMore()} className="text-secondary underline-offset-2 hover:text-white hover:underline">
-                        Retry
-                      </button>
-                    </p>
-                  )}
-                </div>
-              )}
+            {!cursor && communities.length > 6 && <p className="pt-6 text-center text-xs text-tertiary">That&apos;s every community matching this.</p>}
+          </>
+        )}
 
-              {!cursor && communities.length > 6 && <p className="pt-6 text-center text-xs text-tertiary">That&apos;s every community matching this.</p>}
-            </>
-          )}
-
-          <div className="mt-8 border-t border-white/10 pt-5">
-            <p className="mb-2 text-xs text-tertiary">Have an invite link to a private community?</p>
-            <JoinGroupForm compact />
-          </div>
+        <div className="mt-8 border-t border-subtle pt-5">
+          <p className="mb-2 text-xs text-tertiary">Have an invite link to a private community?</p>
+          <JoinGroupForm compact />
         </div>
-      </motion.div>
-    </div>,
-    document.body,
+      </div>
+    </Dialog>
   );
 }
 
@@ -288,8 +257,8 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
     <div className="rounded-xl border border-white/10 bg-black/20 p-10 text-center">
       <p className="text-sm font-semibold text-secondary">Something went wrong loading communities.</p>
       <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
-          Retry
-        </Button>
+        Retry
+      </Button>
     </div>
   );
 }

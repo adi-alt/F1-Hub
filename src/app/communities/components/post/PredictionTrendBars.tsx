@@ -1,79 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/Skeleton";
-import type { PredictionTrend } from "@/lib/supabase/groupPredictions";
+import type { PredictionTrend } from "@/lib/groupPredictionTypes";
 
-/** Below this many entries there is no consensus to draw - two entries rendered as bars would read
- * as "the community thinks X" on the strength of two people. */
-export const MIN_ENTRIES_FOR_TREND = 3;
-
-/** One round's community trend, fetched once on mount (when `enabled`): the real entries behind it, never padded. A
- * failed fetch is just "no trend" - nothing around it depends on it. */
-export function usePredictionTrend(groupId: string, predictionId: string, enabled = true): { trend: PredictionTrend | null; failed: boolean } {
-  const [trend, setTrend] = useState<PredictionTrend | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    fetch(`/api/groups/${groupId}/predictions/${predictionId}/trend`, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`trend: ${res.status}`);
-        return res.json() as Promise<PredictionTrend>;
-      })
-      .then(setTrend)
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
-      });
-    return () => controller.abort();
-  }, [groupId, predictionId, enabled]);
-  return { trend, failed };
-}
+import { MIN_ENTRIES_FOR_TREND } from "@/components/predictions/PredictionCard";
 
 /**
- * What the community has actually entered for one prediction round.
- *
- * One implementation, two ways in:
- *  - `trend` supplied: the caller already has the aggregate (a server component that fetched it
- *    alongside the rest of the page), so nothing is fetched here at all.
- *  - `trend` omitted: fetched on mount, per card, so a feed of predictions doesn't block on N
- *    aggregate queries before rendering anything.
- *
- * A failed aggregate renders nothing. The cost, deadline and entry action around this are all still
- * correct and usable without it, so a supporting detail stays silent rather than showing an error.
+ * What the community has actually entered for one prediction round, as bars. The aggregate comes
+ * from the caller (the server, or the batched trend request) - nothing is fetched per round here.
+ * `undefined` is still loading and shows a skeleton; null (unavailable) and a trend below
+ * MIN_ENTRIES_FOR_TREND render nothing, since the round's entry count is already shown beside it.
  */
 export function PredictionTrendBars({
-  groupId,
-  predictionId,
   isPodium,
-  trend: provided,
+  trend,
   compact = false,
 }: {
-  groupId: string;
-  predictionId: string;
-  /** A podium round aggregates on the WINNER pick only - three drivers have no single meaningful
-   * distribution - so the heading says so rather than implying the whole podium matched. */
+  /** A podium round aggregates on the WINNER pick only, so the heading says so. */
   isPodium: boolean;
-  trend?: PredictionTrend | null;
+  trend: PredictionTrend | null | undefined;
   /** Drops the heading row - for a rail card that already names the round above these bars. */
   compact?: boolean;
 }) {
-  const needsFetch = provided === undefined;
-  const { trend: fetched, failed } = usePredictionTrend(groupId, predictionId, needsFetch);
-
-  const trend = needsFetch ? fetched : provided;
-  // Only the fetched path ever has a moment with nothing to show - a server-supplied `trend` is
-  // either there on the very first render or explicitly null (no round to show it for), so there's
-  // never a fetch-shaped gap to fill for it.
-  const isLoading = needsFetch && trend === null && !failed;
-
-  // Below MIN_ENTRIES_FOR_TREND there's no real distribution to draw, and the round's own entry
-  // count already appears elsewhere (the feed card's own metadata row, PredictionCard's "N people
-  // have entered") - restating it here as "not enough responses yet" was a second, less useful
-  // copy of the same number wrapped in an explanation nobody needed. Renders nothing at all below
-  // the threshold, the same as a failed fetch or a round with no aggregate to show.
-  const hasTrend = !failed && !!trend && trend.total >= MIN_ENTRIES_FOR_TREND;
+  const isLoading = trend === undefined;
+  const hasTrend = !!trend && trend.total >= MIN_ENTRIES_FOR_TREND;
 
   // The whole block - skeleton and real bars - lives inside one AnimatePresence that owns its
   // height. This data arrives well after the card is on screen, and appearing from nothing in a

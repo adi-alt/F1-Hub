@@ -34,6 +34,10 @@ export type PostCardData = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  /** When its author last edited it. */
+  editedAt?: string | null;
+  /** Whether the viewer wrote it (they may edit and delete it). */
+  mine?: boolean;
   /** A call on the race weekend, graded against the result (takes with receipts). */
   call?: PostCallView | null;
   /** The author's season record from their calls. */

@@ -22,6 +22,11 @@ import { RaceIntelligenceSection } from "@/components/raceDetail/intelligence/Ra
 import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { raceWeekendPhase } from "@/lib/raceWeekendPhase";
+import type { RaceWeekendScores } from "@/lib/raceWeekendScores";
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
+import { RaceGrid, RaceLiveNow, RacePickSection, RaceWeekendScoresSection, type PickSlot } from "./RaceWeekendLead";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { RaceDoc } from "@/lib/types/race";
@@ -59,7 +64,13 @@ export function SeasonRaceDashboard({
   weekendSessions = [],
   initialSession = null,
   qualifyingStages = [],
+  pick = null,
+  scores = null,
 }: {
+  /** What the pick section needs; null for a race that can't take a pick (no real races row). */
+  pick?: PickSlot | null;
+  /** After the race: your points, the community's average and the model's (raceWeekendScores). */
+  scores?: RaceWeekendScores | null;
   /** The weekend's sessions (buildWeekendSessions) and the one to open on. */
   weekendSessions?: WeekendSession[];
   initialSession?: SessionKey | null;
@@ -99,6 +110,9 @@ export function SeasonRaceDashboard({
   // Custom later doesn't lose the previous picks.
   const [customDriverIds, setCustomDriverIds] = useState<string[]>([]);
   const isCompleted = race.status === "completed" && !!race.results;
+  // Race-weekend mode (R-64): the lead module follows the weekend's phase.
+  const now = useMinuteClock();
+  const weekend = raceWeekendPhase(race, calendarEntry?.sessions ?? [], now);
   const { data: laps, isLoading: lapsLoading, isError: lapsError } = useSeasonLaps(race.year, race.round);
 
   // Same real grid/finish data the old full-width MovementChart plotted, now feeding the full-width
@@ -176,6 +190,7 @@ export function SeasonRaceDashboard({
       : undefined;
 
   const analysis = hasSessionAnalysis && (
+    <RegionBoundary label="the race analysis">
     <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
       <RaceSectionCard
         id="analysis"
@@ -224,16 +239,47 @@ export function SeasonRaceDashboard({
         </DriverSetPanels>
       </RaceSectionCard>
     </DriverSetTabs>
+    </RegionBoundary>
   );
 
   const sessionsSection = sessionsShown && (
+    <RegionBoundary label="the sessions">
     <RaceSectionCard id="sessions" title="Sessions" description="Every session of the weekend: practice, qualifying stage by stage, and the sprint on a sprint weekend.">
       <WeekendSessions race={race} sessions={weekendSessions} initial={initialSession} stages={qualifyingStages} />
     </RaceSectionCard>
+    </RegionBoundary>
   );
 
+  const model = (
+    <RegionBoundary label="the model's outlook">
+      {race.simulation || race.prediction ? (
+        <RaceSectionCard id="prediction" title={weekend.phase === "post-quali" ? "The grid and the model's call" : "What the model expects"}>
+          {weekend.phase === "post-quali" && (
+            <div className="mb-5">
+              <RaceGrid race={race} />
+            </div>
+          )}
+          <ModelOutlook simulation={race.simulation} prediction={race.prediction} nameOf={nameOf} />
+          <div className="mt-5">
+            <ModelInfo />
+          </div>
+        </RaceSectionCard>
+      ) : (
+        race.polePrediction && (
+          <RaceSectionCard id="prediction" title="Who the model expects on pole">
+            <PoleSection polePrediction={race.polePrediction} />
+          </RaceSectionCard>
+        )
+      )}
+    </RegionBoundary>
+  );
+  const pickSection = pick && <RacePickSection race={race} pick={pick} now={now} lead={weekend.phase === "pre-quali"} />;
   const communities = raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />;
-  const history = <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />;
+  const history = (
+    <RegionBoundary label="the race history">
+      <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
+    </RegionBoundary>
+  );
 
   return (
     // The main column tells the race's story; the rail (at most three blocks) sits beside it from lg, and
@@ -244,11 +290,12 @@ export function SeasonRaceDashboard({
 
         {isCompleted ? (
           <>
+            {scores && <RaceWeekendScoresSection scores={scores} />}
             <RaceSectionCard id="results" title="Result" description={resultHeadline} bare>
               <RaceClassification results={race.results!} stints={race.tireStints} preliminary={preliminary} />
             </RaceSectionCard>
 
-      <section aria-label="About this race">
+            <section aria-label="About this race">
               <RaceRail
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
               />
@@ -263,19 +310,26 @@ export function SeasonRaceDashboard({
             )}
 
             {analysis}
-            <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />
+            <RegionBoundary label="the race intelligence">
+              <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} />
+            </RegionBoundary>
 
             {/* The pre-race simulation, kept for comparison with what happened. */}
             {race.simulation && (
+              <RegionBoundary label="the simulation">
               <RaceSectionCard id="simulation" title="What the model expected" description="10,000 simulated races from the grid, race pace and retirement odds, frozen before the start.">
                 <InViewMount><SimulationPanel simulation={race.simulation} /></InViewMount>
               </RaceSectionCard>
+              </RegionBoundary>
             )}
             {communities}
             {history}
           </>
         ) : (
           <>
+            {weekend.phase === "live" && weekend.liveSession && <RaceLiveNow session={weekend.liveSession} />}
+            {weekend.phase === "post-quali" && model}
+            {weekend.phase !== "live" && pickSection}
             {calendarEntry && calendarEntry.sessions.length > 0 && (
               <RaceSectionCard id="weekend" title="This weekend">
                 <RaceReadiness calendarEntry={calendarEntry} race={race} />
@@ -283,31 +337,20 @@ export function SeasonRaceDashboard({
             )}
 
             {sessionsSection}
+            {weekend.phase === "live" && pickSection}
 
-      <section aria-label="About this race">
+            <section aria-label="About this race">
               <RaceRail
                 communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
               />
             </section>
 
-            {race.simulation || race.prediction ? (
-              <RaceSectionCard id="prediction" title="What the model expects">
-                <ModelOutlook simulation={race.simulation} prediction={race.prediction} nameOf={nameOf} />
-                <div className="mt-5">
-                  <ModelInfo />
-                </div>
-              </RaceSectionCard>
-            ) : (
-              race.polePrediction && (
-                <RaceSectionCard id="prediction" title="Who the model expects on pole">
-                  <PoleSection polePrediction={race.polePrediction} />
-                </RaceSectionCard>
-              )
-            )}
-
+            {weekend.phase !== "post-quali" && model}
             {analysis}
 
-            <ApexTrackBriefing location={race.circuit} year={race.year} section={{ id: "preview", title: "Preview" }} />
+            <RegionBoundary label="the preview">
+              <ApexTrackBriefing location={race.circuit} year={race.year} section={{ id: "preview", title: "Preview" }} />
+            </RegionBoundary>
             {communities}
             {history}
           </>

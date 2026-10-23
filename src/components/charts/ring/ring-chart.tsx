@@ -5,7 +5,6 @@
 // centre are stacked with CSS grid rather than a foreignObject (Safari mispositions HTML inside foreignObject).
 
 import NumberFlow from "@number-flow/react";
-import { Group } from "@visx/group";
 import type { Transition } from "motion/react";
 import { Children, isValidElement, type ReactNode, useCallback, useMemo, useState } from "react";
 import { DEFAULT_RING_COLORS, type RingData, RingProvider, useRingHover, useRingStable } from "./ring-context";
@@ -85,9 +84,9 @@ export function RingChart({
     <RingProvider stable={stable} hover={hover}>
       <div role="img" aria-label={ariaLabel} className={`relative grid shrink-0 ${className}`} style={{ width: size, height: size, gridTemplate: "1fr / 1fr" }}>
         <svg aria-hidden width={size} height={size} style={{ gridArea: "1 / 1", overflow: "visible" }}>
-          <Group left={center} top={center}>
+          <g transform={`translate(${center}, ${center})`}>
             {svgChildren}
-          </Group>
+          </g>
         </svg>
         {centerChildren.length > 0 && (
           <div aria-hidden className="pointer-events-none flex items-center justify-center" style={{ gridArea: "1 / 1" }}>

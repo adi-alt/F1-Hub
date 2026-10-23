@@ -77,6 +77,8 @@ export interface HomepageContextData {
   userPrediction?: {
     predictedWinner?: string;
     submitted?: boolean;
+    /** Computed by the route (predictionVerdict), never by the model: the model explains it. */
+    verdict?: "AGREE" | "DISAGREE" | null;
   } | null;
   /** Application-computed (see computePredictionFingerprint) - The model interprets these numbers, it
    * never calculates them. */
@@ -191,6 +193,7 @@ export function buildHomepageContext(data: HomepageContextData): string {
       sections.push(
         `User's Own Prediction For This Race: ${data.userPrediction.submitted ? `Submitted - predicted winner ${data.userPrediction.predictedWinner || "a driver"}` : "Not yet submitted"}.`,
       );
+      if (data.userPrediction.verdict) sections.push(`Prediction Challenge Verdict (computed, use exactly): ${data.userPrediction.verdict}.`);
     }
 
     if (data.predictionFingerprint && data.predictionFingerprint.totalPredictions > 0) {

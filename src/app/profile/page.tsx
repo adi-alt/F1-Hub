@@ -8,7 +8,7 @@ import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { safeRead } from "@/lib/safeRead";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { getUserProfile } from "@/lib/supabase/users";
-import { archiveCircuitHref, archiveDriverHref, archiveTeamHref, groupHref } from "@/lib/routes";
+import { archiveCircuitHref, archiveDriverHref, archiveTeamHref, groupHref, raceHref } from "@/lib/routes";
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
@@ -19,7 +19,9 @@ import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
 import { ProfileOverview, type ProfileOverviewData } from "./components/ProfileOverview";
 import { getPointsBalance, listRecentTransactions } from "@/lib/supabase/points";
 import { getUserGroups } from "@/lib/supabase/groups";
-import { getUserPicksForYear } from "@/lib/supabase/picks";
+import { getSeasonPicks, getUserPicksForYear } from "@/lib/supabase/picks";
+import { buildSeasonScorecard } from "@/lib/seasonScorecard";
+import { SeasonScorecard } from "./components/SeasonScorecard";
 import { computePredictionPerformance } from "@/lib/predictionPerformance";
 import { getNotificationPrefs } from "@/lib/supabase/notifications";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
@@ -156,6 +158,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const section = sectionOf((await searchParams).tab);
   const meta: Record<AccountSection, { title: string; description: string }> = {
     personalisation: { title: "Personalisation", description: "Your favourite drivers, teams and circuits, current and historical." },
+    predictions: { title: "Predictions", description: "Your season scorecard: every race pick against the model, the community and the result." },
     notifications: { title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in." },
     profile: { title: "Profile", description: "Your name on Apex F1 Hub." },
   };
@@ -168,6 +171,7 @@ function sectionOf(value: string | undefined): AccountSection {
 
 const INTRO: Record<AccountSection, string> = {
   personalisation: "Favourite any driver, team or circuit, current or historical. Favourites come first everywhere on the site.",
+  predictions: "Each race you picked this season: your call, the model's, the community's and the result, with the points they scored.",
   notifications: "What Apex F1 Hub tells you about, on the site and by email.",
   profile: "How you appear to everyone else.",
 };
@@ -200,6 +204,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       </div>
       <div className="mt-6">
         {section === "personalisation" && <Personalisation uid={session.uid} tab={tab} />}
+        {section === "predictions" && <Predictions uid={session.uid} />}
         {section === "notifications" && <Notifications uid={session.uid} />}
         {section === "profile" && <ProfileSection uid={session.uid} />}
       </div>
@@ -262,6 +267,27 @@ async function ProfileSection({ uid }: { uid: string }) {
       <ProfileOverview data={data} />
     </div>
   );
+}
+
+/** The season scorecard (R-63). Every read degrades to empty rather than failing the page. */
+async function Predictions({ uid }: { uid: string }) {
+  const season = await getCurrentSeason();
+  const [picks, races, allPicks, entrants] = await Promise.all([
+    safeRead(() => getUserPicksForYear(uid, season), []),
+    safeRead(() => getRacesByYear(season), []),
+    safeRead(() => getSeasonPicks(season), []),
+    safeRead(() => getCurrentEntrants(season), []),
+  ]);
+  const scorecard = buildSeasonScorecard(races, picks, allPicks);
+  const names: Record<string, string> = {};
+  for (const e of entrants) names[e.driver] = e.driverName;
+  for (const r of races) for (const x of r.results ?? []) names[x.driver] ??= x.driverName;
+  const raceById = new Map(races.map((r) => [r.id, r]));
+  const rows = scorecard.rows.map((row) => {
+    const race = raceById.get(row.raceId)!;
+    return { ...row, href: raceHref(race.year, race.round, race.name) };
+  });
+  return <SeasonScorecard season={season} scorecard={scorecard} names={names} rows={rows} />;
 }
 
 async function Notifications({ uid }: { uid: string }) {

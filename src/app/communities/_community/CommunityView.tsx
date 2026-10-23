@@ -18,7 +18,7 @@ import {
 } from "@/lib/supabase/groups";
 import { isUuid } from "@/lib/ids";
 import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/groupStats";
-import { getPredictionTrend, listPredictions } from "@/lib/supabase/groupPredictions";
+import { getPredictionTrends, listPredictions, type PredictionTrend } from "@/lib/supabase/groupPredictions";
 import { listPosts } from "@/lib/supabase/groupPosts";
 import { getPointsBalance } from "@/lib/supabase/points";
 import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
@@ -183,9 +183,12 @@ export async function CommunityView({
       return Date.parse(a.lockAt) - Date.parse(b.lockAt);
     })
     .slice(0, RAIL_PREDICTION_LIMIT);
-  const railPredictions: RailPrediction[] = await Promise.all(
-    openPredictions.map(async (prediction) => ({ prediction, trend: await getPredictionTrend(prediction.id, uid).catch(() => null) })),
-  );
+  // One batched aggregate for every rail card, not one query chain per round.
+  const railTrends = await getPredictionTrends(
+    openPredictions.map((p) => p.id),
+    uid,
+  ).catch(() => ({}) as Record<string, PredictionTrend>);
+  const railPredictions: RailPrediction[] = openPredictions.map((prediction) => ({ prediction, trend: railTrends[prediction.id] ?? null }));
 
   // Posts sitting in the approval queue, for the feed's moderator-only filter. Derived from the
   // page the feed already has rather than a second query: `listPosts` returns pending rows to a

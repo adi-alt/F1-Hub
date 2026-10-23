@@ -75,6 +75,6 @@ export function groupHref(id: string): string {
 }
 
 /** The account: personalisation (the default), notifications or profile. */
-export function profileHref(tab?: "personalisation" | "notifications" | "profile", kind?: string): string {
+export function profileHref(tab?: "personalisation" | "predictions" | "notifications" | "profile", kind?: string): string {
   return sectionHref("profile", { tab, kind });
 }

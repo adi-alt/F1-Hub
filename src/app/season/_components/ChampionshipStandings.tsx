@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { FavoriteButton } from "@/app/archive/components/FavoriteButton";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
-import { isFromNestedControl } from "@/components/ui/Table";
-import { staggerItem } from "@/components/motion/variants";
+import { Table, sortRows, type TableColumn, type TableSort } from "@/components/ui/Table";
 import { tableToCanvas } from "@/lib/export";
 import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
@@ -14,19 +12,11 @@ import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { useSeasonExplorer, type EntityType } from "../_context/SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, RaceSummary } from "../_service/season.pure";
 
-type SortKey = "name" | "wins" | "podiums" | "points";
-
 // Underline: which championship the page is reading is this section's main switch.
 const ENTITY_TABS: TabItem<EntityType>[] = [
   { value: "drivers", label: "Drivers" },
   { value: "constructors", label: "Constructors" },
 ];
-
-const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
-// Sticky headers need real opacity behind that blur, not the table's own near-transparent
-// surface tint — otherwise rows scrolling underneath visibly bleed through. Reuses the same
-// translucent-dark token every other floating/sticky surface on the site already uses.
-const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
 /** Read at call time rather than through a hook: this is consulted inside an effect, where a
  * re-render-triggering hook would be the wrong tool. */
@@ -36,63 +26,6 @@ function prefersReducedMotion(): boolean {
 
 function gapLabel(points: number, leaderPoints: number): string {
   return points >= leaderPoints ? "-" : `-${leaderPoints - points}`;
-}
-
-function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: "asc" | "desc") {
-  if (key !== sortKey) return null;
-  // aria-sort on the header says this; the arrow is for sighted users only.
-  return (
-    <span aria-hidden className="ml-1 text-brand-text">
-      {sortDir === "asc" ? "↑" : "↓"}
-    </span>
-  );
-}
-
-/** The id of a row's details, for the name button's aria-controls. Team names have spaces. */
-function detailsId(entityId: string): string {
-  return `standings-${entityId.replace(/[^A-Za-z0-9_-]/g, "-")}-details`;
-}
-
-const NAME_BUTTON =
-  "flex items-center gap-2.5 rounded-control text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
-
-const SORT_BUTTON = "inline-flex items-center rounded-control font-semibold uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
-
-/** A sortable column header, as in the APG sortable table: a button in the cell (a bare <th onClick>
- * can't be reached by keyboard), and aria-sort on the sorted column only. `fullLabel` names an
- * abbreviated header ("W") for screen readers. */
-function SortHeader({
-  column,
-  sortKey,
-  sortDir,
-  onSort,
-  fullLabel,
-  className,
-  children,
-}: {
-  column: SortKey;
-  sortKey: SortKey;
-  sortDir: "asc" | "desc";
-  onSort: (key: SortKey) => void;
-  fullLabel?: string;
-  className: string;
-  children: ReactNode;
-}) {
-  return (
-    <th scope="col" aria-sort={column === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined} title={fullLabel} className={className}>
-      <button type="button" onClick={() => onSort(column)} className={SORT_BUTTON}>
-        {fullLabel ? (
-          <>
-            <span aria-hidden>{children}</span>
-            <span className="sr-only">{fullLabel}</span>
-          </>
-        ) : (
-          children
-        )}
-        {sortIndicator(column, sortKey, sortDir)}
-      </button>
-    </th>
-  );
 }
 
 /** The one standings table for the whole page — a Drivers/Constructors tab switch swaps
@@ -122,8 +55,7 @@ export function ChampionshipStandings({
   const toggleDriver = (id: string) => toggleFavorite("driver", id);
   const toggleTeam = (id: string) => toggleFavorite("team", id);
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("points");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sort, setSort] = useState<TableSort>({ key: "points", direction: "descending" });
   const [expanded, setExpanded] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const favoriteCodes = new Set<string>(entityType === "drivers" ? personal.driverCodes : personal.teamNames);
@@ -142,39 +74,100 @@ export function ChampionshipStandings({
     ? Math.max(0, ...drivers.map((d) => d.points))
     : Math.max(0, ...constructors.map((c) => c.points));
 
-  const sortedDrivers = useMemo(() => {
-    const list = drivers.filter(
-      (d) =>
-        (!search || d.driverName.toLowerCase().includes(search.toLowerCase()) || d.team.toLowerCase().includes(search.toLowerCase())) &&
-        (!favoritesOnly || favoriteDriverCodes.size === 0 || favoriteDriverCodes.has(d.driver)),
-    );
-    list.sort((a, b) => {
-      const cmp = sortKey === "name" ? a.driverName.localeCompare(b.driverName) : a[sortKey] - b[sortKey];
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [drivers, search, sortKey, sortDir, favoritesOnly, favoriteDriverCodes]);
+  const filteredDrivers = useMemo(
+    () =>
+      drivers.filter(
+        (d) =>
+          (!search || d.driverName.toLowerCase().includes(search.toLowerCase()) || d.team.toLowerCase().includes(search.toLowerCase())) &&
+          (!favoritesOnly || favoriteDriverCodes.size === 0 || favoriteDriverCodes.has(d.driver)),
+      ),
+    [drivers, search, favoritesOnly, favoriteDriverCodes],
+  );
+  const filteredConstructors = useMemo(
+    () => constructors.filter((c) => (!search || c.team.toLowerCase().includes(search.toLowerCase())) && (!favoritesOnly || favoriteTeamNames.size === 0 || favoriteTeamNames.has(c.team))),
+    [constructors, search, favoritesOnly, favoriteTeamNames],
+  );
 
-  const sortedConstructors = useMemo(() => {
-    const list = constructors.filter((c) => (!search || c.team.toLowerCase().includes(search.toLowerCase())) && (!favoritesOnly || favoriteTeamNames.size === 0 || favoriteTeamNames.has(c.team)));
-    list.sort((a, b) => {
-      const cmp = sortKey === "name" ? a.team.localeCompare(b.team) : a[sortKey] - b[sortKey];
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [constructors, search, sortKey, sortDir, favoritesOnly, favoriteTeamNames]);
+  const posColumn = <Row extends { points: number }>(idOf: (row: Row) => string): TableColumn<Row> => ({
+    key: "pos",
+    header: "Pos",
+    numeric: true,
+    align: "start",
+    width: "3.5rem",
+    render: (row) => {
+      const pos = champPos.get(idOf(row)) ?? 0;
+      return <span className={`font-mono ${pos <= 3 ? "font-semibold text-primary" : "text-tertiary"}`}>{pos}</span>;
+    },
+  });
+  const statColumns = <Row extends { wins: number; podiums: number; points: number }>(): TableColumn<Row>[] => [
+    { key: "wins", header: "Wins", numeric: true, sortable: true },
+    { key: "podiums", header: "Podiums", numeric: true, sortable: true },
+    { key: "points", header: "Pts", numeric: true, sortable: true, render: (row) => <span className="font-semibold text-primary">{row.points}</span> },
+    { key: "gap", header: "Gap", numeric: true, render: (row) => <span className="font-mono text-tertiary">{gapLabel(row.points, leaderPoints)}</span> },
+  ];
+  const favColumn = <Row,>(favoriteIdOf: (row: Row) => string | null | undefined, isFav: (id: string) => boolean, toggle: (id: string) => void): TableColumn<Row & object> => ({
+    key: "favorite",
+    header: "Fav",
+    width: "3.5rem",
+    render: (row) => {
+      const id = favoriteIdOf(row);
+      return id ? <FavoriteButton favorited={isFav(id)} onToggle={() => toggle(id)} /> : null;
+    },
+  });
+  // The row's anchor for Snapshot / What-changed focus: the effect below finds it and scrolls to its row.
+  const nameCell = (id: string, avatar: ReactNode, label: ReactNode) => (
+    <span data-entity-id={id} className={`flex items-center gap-2.5 rounded-control transition-colors duration-500 ${marked === id ? "bg-[var(--f1-red)]/[0.14]" : ""}`}>
+      <span className="shrink-0 overflow-hidden rounded-full">{avatar}</span>
+      <span className="font-medium text-primary">{label}</span>
+    </span>
+  );
 
-  function toggleSort(key: SortKey) {
-    if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSortKey(key);
-      setSortDir(key === "name" ? "asc" : "desc");
-    }
-  }
-
-  function toggleExpanded(id: string) {
-    setExpanded((prev) => (prev === id ? null : id));
-  }
+  const driverColumns: TableColumn<DriverStandingRow>[] = [
+    posColumn<DriverStandingRow>((d) => d.driver),
+    {
+      key: "name",
+      header: "Driver",
+      sortable: true,
+      firstSortDirection: "ascending",
+      sortValue: (d) => d.driverName,
+      render: (d) =>
+        nameCell(
+          d.driver,
+          <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />,
+          <>
+            {d.driverName} <span className="font-mono text-caption font-normal text-tertiary">{d.driver}</span>
+          </>,
+        ),
+    },
+    {
+      key: "team",
+      header: "Team",
+      hideBelow: "md",
+      render: (d) => (
+        <span className="flex items-center gap-2 text-secondary">
+          <EntityAvatar imageUrl={d.teamLogoUrl} name={d.team} size={18} shape="square" fit="contain" />
+          {d.team}
+        </span>
+      ),
+    },
+    ...statColumns<DriverStandingRow>(),
+    favColumn<DriverStandingRow>((d) => d.favoriteId, (id) => favDrivers.has(id), toggleDriver),
+  ];
+  const constructorColumns: TableColumn<ConstructorStandingRow>[] = [
+    posColumn<ConstructorStandingRow>((c) => c.team),
+    {
+      key: "name",
+      header: "Team",
+      sortable: true,
+      firstSortDirection: "ascending",
+      sortValue: (c) => c.team,
+      render: (c) => nameCell(c.team, <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />, c.team),
+    },
+    ...statColumns<ConstructorStandingRow>(),
+    favColumn<ConstructorStandingRow>((c) => c.favoriteId, (id) => favTeams.has(id), toggleTeam),
+  ];
+  const sortedDrivers = sortRows(filteredDrivers, driverColumns, sort);
+  const sortedConstructors = sortRows(filteredConstructors, constructorColumns, sort);
 
   function switchEntityType(next: EntityType) {
     setEntityType(next);
@@ -187,7 +180,7 @@ export function ChampionshipStandings({
   useEffect(() => {
     if (!focus || focus.entityType !== entityType) return;
     const container = scrollBodyRef.current;
-    const row = container?.querySelector<HTMLElement>(`[data-entity-id="${CSS.escape(focus.entityId)}"]`);
+    const row = container?.querySelector<HTMLElement>(`[data-entity-id="${CSS.escape(focus.entityId)}"]`)?.closest("tr");
     if (!container || !row) return;
     container.scrollTo({ top: Math.max(0, row.offsetTop - container.clientHeight / 2 + row.clientHeight / 2), behavior: prefersReducedMotion() ? "auto" : "smooth" });
     setMarked(focus.entityId);
@@ -261,150 +254,59 @@ export function ChampionshipStandings({
         </div>
 
         <TabPanels className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-[var(--f1-carbon)]/50">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div ref={scrollBodyRef} className="min-h-0 flex-1 overflow-auto scroll-pt-12 scrollbar-subtle">
-              <table className="w-full min-w-[680px] text-sm">
-                <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
-                  <tr>
-                    <th scope="col" className="px-4 py-3 font-semibold">
-                      <span aria-hidden>Pos</span>
-                      <span className="sr-only">Position</span>
-                    </th>
-                    <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="select-none px-4 py-3">
-                      {isDrivers ? "Driver" : "Team"}
-                    </SortHeader>
-                    {isDrivers && (
-                      <th scope="col" className="px-4 py-3 font-semibold">
-                        Team
-                      </th>
-                    )}
-                    <SortHeader column="wins" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Wins" className="select-none px-4 py-3 text-right">
-                      W
-                    </SortHeader>
-                    <SortHeader column="podiums" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Podiums" className="select-none px-4 py-3 text-right">
-                      P
-                    </SortHeader>
-                    <SortHeader column="points" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} fullLabel="Points" className="select-none px-4 py-3 text-right">
-                      PTS
-                    </SortHeader>
-                    <th scope="col" className="px-4 py-3 text-right font-semibold" title="Gap to leader">
-                      <span aria-hidden>Gap</span>
-                      <span className="sr-only">Gap to leader</span>
-                    </th>
-                    <th scope="col" className="w-10 px-4 py-3 text-center font-semibold" title="Favourite">
-                      <span aria-hidden>Fav</span>
-                      <span className="sr-only">Favourite</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--f1-line)]">
-                  <AnimatePresence initial={false}>
-                    {isDrivers
-                      ? sortedDrivers.map((d, i) => {
-                        const isFavorited = !!d.favoriteId && favDrivers.has(d.favoriteId);
-                        const isExpanded = expanded === d.driver;
-                        return (
-                          <RowGroup
-                            key={d.driver}
-                            entityId={d.driver}
-                            isMarked={marked === d.driver}
-                            isFavorited={isFavorited}
-                            isExpanded={isExpanded}
-                            colSpan={8}
-                            onRowClick={() => toggleExpanded(d.driver)}
-                            cells={
-                              <>
-                                <td className={`px-4 py-3 font-mono tabular-nums ${(champPos.get(d.driver) ?? i + 1) <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{champPos.get(d.driver) ?? i + 1}</td>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                  <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(d.driver)} onClick={() => toggleExpanded(d.driver)} className={NAME_BUTTON}>
-                                    <span className="shrink-0 overflow-hidden rounded-full transition-transform duration-200 group-hover:scale-[1.08]">
-                                      <EntityAvatar imageUrl={d.headshotUrl} name={d.driverName} size={32} fit="cover" />
-                                    </span>
-                                    <span className="font-medium text-white">
-                                      {d.driverName} <span className="font-mono text-xs font-normal text-tertiary">{d.driver}</span>
-                                    </span>
-                                  </button>
-                                </td>
-                                <td className="whitespace-nowrap px-4 py-3 text-neutral-400">
-                                  <div className="flex items-center gap-2">
-                                    <EntityAvatar imageUrl={d.teamLogoUrl} name={d.team} size={18} shape="square" fit="contain" />
-                                    {d.team}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.wins}</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{d.podiums}</td>
-                                <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{d.points}</td>
-                                <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-tertiary">{gapLabel(d.points, leaderPoints)}</td>
-                                <td className="px-4 py-3 text-center">
-                                  {d.favoriteId && (
-                                    <FavoriteButton favorited={isFavorited} onToggle={() => toggleDriver(d.favoriteId!)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
-                                  )}
-                                </td>
-                              </>
-                            }
-                            detail={
-                              isExpanded && (
-                                <DriverDetail
-                                  driver={d}
-                                  rivalCode={sortedDrivers[i === 0 ? 1 : i - 1]?.driver}
-                                  raceSummaries={raceSummaries}
-                                  onCompare={(rivalCode) => openCompare("drivers", d.driver, rivalCode)}
-                                  onProgression={() => setAnalysisTab("progression")}
-                                />
-                              )
-                            }
-                          />
-                        );
-                      })
-                    : sortedConstructors.map((c, i) => {
-                        const isFavorited = favTeams.has(c.favoriteId);
-                        const isExpanded = expanded === c.team;
-                        return (
-                          <RowGroup
-                            key={c.team}
-                            entityId={c.team}
-                            isMarked={marked === c.team}
-                            isFavorited={isFavorited}
-                            isExpanded={isExpanded}
-                            colSpan={7}
-                            onRowClick={() => toggleExpanded(c.team)}
-                            cells={
-                              <>
-                                <td className={`px-4 py-3 font-mono tabular-nums ${(champPos.get(c.team) ?? i + 1) <= 3 ? "font-semibold text-white" : "text-tertiary"}`}>{champPos.get(c.team) ?? i + 1}</td>
-                                <td className="whitespace-nowrap px-4 py-3">
-                                  <button type="button" aria-expanded={isExpanded} aria-controls={detailsId(c.team)} onClick={() => toggleExpanded(c.team)} className={NAME_BUTTON}>
-                                    <span className="shrink-0 transition-transform duration-200 group-hover:scale-[1.08]">
-                                      <EntityAvatar imageUrl={c.logoUrl} name={c.team} size={28} shape="square" fit="contain" />
-                                    </span>
-                                    <span className="font-medium text-white">{c.team}</span>
-                                  </button>
-                                </td>
-                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.wins}</td>
-                                <td className="px-4 py-3 text-right tabular-nums text-neutral-400">{c.podiums}</td>
-                                <td className="px-4 py-3 text-right text-base font-bold tabular-nums text-white">{c.points}</td>
-                                <td className="px-4 py-3 text-right font-mono text-xs tabular-nums text-tertiary">{gapLabel(c.points, leaderPoints)}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <FavoriteButton favorited={isFavorited} onToggle={() => toggleTeam(c.favoriteId)} className={`mx-auto transition-opacity ${isFavorited ? "" : "opacity-40 group-hover:opacity-100"}`} />
-                                </td>
-                              </>
-                            }
-                            detail={
-                              isExpanded && (
-                                <TeamDetail
-                                  team={c}
-                                  rivalId={sortedConstructors[i === 0 ? 1 : i - 1]?.team}
-                                  raceSummaries={raceSummaries}
-                                  onCompare={(rivalId) => openCompare("constructors", c.team, rivalId)}
-                                  onProgression={() => setAnalysisTab("progression")}
-                                />
-                              )
-                            }
-                          />
-                        );
-                      })}
-                  </AnimatePresence>
-                </tbody>
-              </table>
+              {isDrivers ? (
+                <Table
+                  columns={driverColumns}
+                  rows={sortedDrivers}
+                  getRowKey={(d) => d.driver}
+                  caption="Drivers' championship"
+                  rowHeader="name"
+                  sort={sort}
+                  onSortChange={setSort}
+                  expandable
+                  expandedKeys={expanded ? [expanded] : []}
+                  onExpandedChange={(keys) => setExpanded((keys.at(-1) as string | undefined) ?? null)}
+                  renderExpanded={(d) => {
+                    const i = sortedDrivers.indexOf(d);
+                    return (
+                      <DriverDetail
+                        driver={d}
+                        rivalCode={sortedDrivers[i === 0 ? 1 : i - 1]?.driver}
+                        raceSummaries={raceSummaries}
+                        onCompare={(rivalCode) => openCompare("drivers", d.driver, rivalCode)}
+                        onProgression={() => setAnalysisTab("progression")}
+                      />
+                    );
+                  }}
+                />
+              ) : (
+                <Table
+                  columns={constructorColumns}
+                  rows={sortedConstructors}
+                  getRowKey={(c) => c.team}
+                  caption="Constructors' championship"
+                  rowHeader="name"
+                  sort={sort}
+                  onSortChange={setSort}
+                  expandable
+                  expandedKeys={expanded ? [expanded] : []}
+                  onExpandedChange={(keys) => setExpanded((keys.at(-1) as string | undefined) ?? null)}
+                  renderExpanded={(c) => {
+                    const i = sortedConstructors.indexOf(c);
+                    return (
+                      <TeamDetail
+                        team={c}
+                        rivalId={sortedConstructors[i === 0 ? 1 : i - 1]?.team}
+                        raceSummaries={raceSummaries}
+                        onCompare={(rivalId) => openCompare("constructors", c.team, rivalId)}
+                        onProgression={() => setAnalysisTab("progression")}
+                      />
+                    );
+                  }}
+                />
+              )}
               {emptyMessage && (
                 <div className="flex min-h-[140px] items-center justify-center px-6">
                   <p className="text-center text-sm text-tertiary">{emptyMessage}</p>
@@ -415,57 +317,6 @@ export function ChampionshipStandings({
         </TabPanels>
       </Tabs>
     </div>
-  );
-}
-
-function RowGroup({
-  entityId,
-  isMarked,
-  isFavorited,
-  isExpanded,
-  colSpan,
-  onRowClick,
-  cells,
-  detail,
-}: {
-  entityId: string;
-  isMarked: boolean;
-  isFavorited: boolean;
-  isExpanded: boolean;
-  colSpan: number;
-  onRowClick: () => void;
-  cells: ReactNode;
-  detail: ReactNode;
-}) {
-  return (
-    <>
-      <motion.tr
-        layout
-        initial="hidden"
-        animate="show"
-        exit="hidden"
-        variants={staggerItem}
-        transition={{ layout: { duration: 0.3, ease: "easeOut" }, opacity: { duration: 0.15 }, y: { duration: 0.15 } }}
-        // A click anywhere in the row toggles it too, for the pointer; the name button is the
-        // keyboard and screen-reader way in, and its own click (or the favourite's) isn't counted twice.
-        onClick={(event) => {
-          if (!isFromNestedControl(event.target, event.currentTarget)) onRowClick();
-        }}
-        data-entity-id={entityId}
-        className={`group cursor-pointer border-l-2 transition-colors duration-500 hover:bg-white/[0.035] ${
-          isFavorited ? "border-l-[var(--f1-red)] bg-[var(--f1-red)]/[0.045]" : "border-l-transparent"
-        } ${isExpanded ? "bg-white/[0.05]" : ""} ${isMarked ? "bg-[var(--f1-red)]/[0.14]" : ""}`}
-        style={isFavorited ? { backgroundImage: "linear-gradient(90deg, rgba(225,6,0,0.055), transparent 55%)" } : undefined}
-      >
-        {cells}
-      </motion.tr>
-      {/* Always in the DOM, so the name button's aria-controls points at something; hidden while collapsed. */}
-      <tr id={detailsId(entityId)} hidden={!detail}>
-        <td colSpan={colSpan} className="p-2">
-          {detail}
-        </td>
-      </tr>
-    </>
   );
 }
 

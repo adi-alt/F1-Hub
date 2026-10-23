@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Send } from "lucide-react";
+import { ChevronDown, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
+import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { Picker } from "@/components/ui/Picker";
+import { Popover } from "@/components/ui/Popover";
+import { Switch } from "@/components/ui/Switch";
+import { MENU_ITEM } from "@/components/ui/panel";
 import { Dialog, Sheet } from "@/components/ui/Dialog";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { Select, TextInput } from "@/components/ui/Field";
@@ -247,5 +252,83 @@ export function ToastDemo() {
     <ToastProvider>
       <ToastButtons />
     </ToastProvider>
+  );
+}
+
+/** A searchable single-select, the house replacement for a native select. */
+export function PickerDemo() {
+  const [driver, setDriver] = useState("NOR");
+  return (
+    <div className="max-w-xs">
+      <Picker
+        ariaLabel="Driver"
+        value={driver}
+        onChange={setDriver}
+        options={[
+          { value: "NOR", label: "Lando Norris", group: "McLaren" },
+          { value: "PIA", label: "Oscar Piastri", group: "McLaren" },
+          { value: "HAM", label: "Lewis Hamilton", group: "Ferrari" },
+          { value: "LEC", label: "Charles Leclerc", group: "Ferrari" },
+          { value: "VER", label: "Max Verstappen", group: "Red Bull Racing", disabled: true, disabledReason: "Already picked" },
+        ]}
+      />
+    </div>
+  );
+}
+
+/** An anchored menu: Escape and click-outside close it, focus returns to the trigger. */
+export function PopoverDemo() {
+  const [last, setLast] = useState<string | null>(null);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Popover
+        ariaLabel="Post actions"
+        trigger={({ open, toggle, ref }) => (
+          <Button ref={ref} variant="secondary" size="md" iconEnd={ChevronDown} aria-expanded={open} onClick={toggle}>
+            Actions
+          </Button>
+        )}
+      >
+        {({ close }) => (
+          <div className="flex flex-col p-1">
+            {["Edit", "Copy link", "Report"].map((label) => (
+              <button
+                key={label}
+                type="button"
+                className={MENU_ITEM}
+                onClick={() => {
+                  setLast(label);
+                  close();
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </Popover>
+      <p className="text-body-sm text-tertiary" aria-live="polite">
+        {last ? `Chose: ${last}` : "Nothing chosen yet."}
+      </p>
+    </div>
+  );
+}
+
+/** An inline two-step destructive action, and a labelled switch. */
+export function ConfirmAndSwitchDemo() {
+  const [removed, setRemoved] = useState(false);
+  const [emails, setEmails] = useState(true);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <ConfirmButton onConfirm={() => setRemoved(true)} question="Remove this member?" confirmLabel="Remove">
+          Remove member
+        </ConfirmButton>
+        <p className="text-body-sm text-tertiary" aria-live="polite">
+          {removed ? "Removed." : "Asks first, in place."}
+        </p>
+      </div>
+      <Switch checked={emails} onChange={setEmails} label="Email me when results are final" />
+    </div>
   );
 }
