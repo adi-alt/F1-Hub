@@ -32,6 +32,7 @@ export const POLICIES = {
   // Writes that fill the feed or send mail: well above what a person does, well below a script.
   postCreate: { limit: 10, windowSeconds: 60, by: "user" },
   commentCreate: { limit: 20, windowSeconds: 60, by: "user" },
+  report: { limit: 20, windowSeconds: 3_600, by: "user" },
   vote: { limit: 60, windowSeconds: 60, by: "user" },
   groupCreate: { limit: 5, windowSeconds: 3_600, by: "user" },
   groupJoin: { limit: 30, windowSeconds: 3_600, by: "user" },
@@ -40,6 +41,8 @@ export const POLICIES = {
   upload: { limit: 20, windowSeconds: 3_600, by: "user" },
   // A beacon when a community page is left or hidden: a person flips tabs a few times a minute at most.
   groupVisit: { limit: 60, windowSeconds: 3_600, by: "user" },
+  // The same beacon for the home page.
+  homeVisit: { limit: 60, windowSeconds: 3_600, by: "user" },
 } as const satisfies Record<string, Policy>;
 
 export type PolicyName = keyof typeof POLICIES;

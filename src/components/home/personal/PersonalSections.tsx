@@ -6,6 +6,9 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { useHomepageIntelligence } from "@/components/home/ai/HomepageIntelligenceProvider";
 import { LandingHero } from "@/components/home/landing/LandingHero";
 import { ComingUp } from "./ComingUp";
+import { GridAndModelLead, LiveLead, OutcomeLead } from "./WeekendLead";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { homeWeekendMode } from "@/lib/homeWeekendMode";
 import { FavouritesHere, TrackIntelligenceCard } from "./TrackIntelligenceCard";
 import { CountUp } from "@/components/motion/CountUp";
 import { Typewriter } from "@/components/motion/Typewriter";
@@ -42,11 +45,22 @@ const shortName = (race: RaceDoc) => race.name.replace(/ Grand Prix$/, "");
 export function PersonalHero({ publicData, personalData, firstName, onPredict }: Props & { firstName: string; onPredict?: () => void }) {
   const race = publicData.nextRace;
   const nameOf = useNameOf(publicData);
+  const now = useMinuteClock();
   if (!race) return null;
+  // Race-weekend mode (R-64): the module beside the race follows the weekend's phase.
+  const last = personalData.lastRaceScores;
+  const mode = homeWeekendMode({
+    next: { race, sessions: publicData.calendarEntry?.sessions ?? publicData.calendarByRound?.[race.round]?.sessions ?? [] },
+    last: last ? { sessions: publicData.calendarByRound?.[last.round]?.sessions ?? [] } : null,
+    nowMs: now,
+  });
   const pick = personalData.myPick;
+  const showOutcome = mode?.race === "last" && last;
   const completed = race.status === "completed";
   const href = raceHref(race.year, race.round, race.name);
-  const greeting = completed
+  const greeting = showOutcome
+    ? `Welcome back, ${firstName}. The ${last.raceName.replace(/ Grand Prix$/, "")} results are in.`
+    : completed
     ? `Welcome back, ${firstName}. The ${shortName(race)} results are in.`
     : pick
       ? `Welcome back, ${firstName}. Your pick: ${nameOf(pick.predictedWinner)} to win.`
@@ -83,7 +97,17 @@ export function PersonalHero({ publicData, personalData, firstName, onPredict }:
       landing={publicData}
       greeting={greeting}
       actions={action}
-      aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} drawing={publicData.drawingByRound?.[race.round] ?? null} />}
+      aside={
+        showOutcome ? (
+          <OutcomeLead scores={last} />
+        ) : mode?.phase === "live" && mode.liveSession ? (
+          <LiveLead race={race} session={mode.liveSession} />
+        ) : mode?.phase === "post-quali" ? (
+          <GridAndModelLead race={race} />
+        ) : (
+          <TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} drawing={publicData.drawingByRound?.[race.round] ?? null} />
+        )
+      }
       footer={<FavouritesHere circuit={race.circuit} history={publicData.trackHistory} />}
     />
   );
@@ -196,29 +220,34 @@ function ago(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
-/** What happened on your account, from real events only (picks and points), newest first (critique §2.2). */
+/** A real diff since the end of your previous home visit (R-44): standings moves, other people's posts in
+ * your communities, and your own picks and points, newest first. A first visit has nothing to diff against,
+ * so it shows your recent activity under that name instead. */
 export function SinceLastVisitSection({ personalData }: Pick<Props, "personalData">) {
-  const { intelligence } = useHomepageIntelligence();
-  const items = personalData.recentActivity;
-  const summary = intelligence?.sinceLastVisit?.summary;
+  const { since, changes, activity, newCommunityPosts } = personalData.sinceLastVisit;
+  const rows = [
+    ...changes.map((c, i) => ({ key: `change-${i}`, text: c.title, timestamp: null as string | null })),
+    ...(newCommunityPosts > 0
+      ? [{ key: "posts", text: `${newCommunityPosts} new post${newCommunityPosts === 1 ? "" : "s"} in your communities`, timestamp: null as string | null }]
+      : []),
+    ...activity.map((a) => ({ key: a.key, text: a.text, timestamp: a.timestamp as string | null })),
+  ];
   return (
-    <Section id="since-last-visit" level={2} title="Since your last visit">
-      {summary && (
-        <div className="mb-3">
-          <AiLabel />
-          <p className="mt-1 text-body-sm text-secondary">{summary}</p>
-        </div>
-      )}
-      {items.length === 0 ? (
-        <p className="text-body-sm text-secondary">Nothing yet. Your picks and points show here as they happen.</p>
+    <Section id="since-last-visit" level={2} title={since ? "Since your last visit" : "Your recent activity"}>
+      {rows.length === 0 ? (
+        <p className="text-body-sm text-secondary">
+          {since ? "Nothing new since your last visit." :"Nothing yet. Your picks and points show here as they happen."}
+        </p>
       ) : (
         <ul className="divide-y divide-subtle">
-          {items.map((a) => (
+          {rows.map((a) => (
             <li key={a.key} className="flex items-baseline justify-between gap-4 py-3">
               <span className="min-w-0 text-body-sm text-primary">{a.text}</span>
-              <time dateTime={a.timestamp} className="shrink-0 text-caption tabular text-secondary" suppressHydrationWarning>
-                {ago(a.timestamp)}
-              </time>
+              {a.timestamp && (
+                <time dateTime={a.timestamp} className="shrink-0 text-caption tabular text-secondary" suppressHydrationWarning>
+                  {ago(a.timestamp)}
+                </time>
+              )}
             </li>
           ))}
         </ul>

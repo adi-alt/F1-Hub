@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { HomeLayout } from "./HomeLayout";
+import { HomeVisitBeacon } from "./HomeVisitBeacon";
 import { PredictionSheet } from "@/components/predictions/PredictionSheet";
 import { HomepageApexScope } from "./ai/HomepageApexScope";
 import { HomepageIntelligenceProvider } from "./ai/HomepageIntelligenceProvider";
@@ -146,6 +147,7 @@ function PersonalHomeInner({
         favoriteTeamName={personalData.favoriteTeam?.name}
         facts={buildHomeApexFacts(publicData, personalData, Intl.DateTimeFormat().resolvedOptions().timeZone)}
       />
+      <HomeVisitBeacon />
     </>
   );
 }
