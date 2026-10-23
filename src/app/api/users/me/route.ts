@@ -30,6 +30,11 @@ export async function PATCH(request: Request) {
 
   // A body with no recognized keys is just a no-op, not an error.
   if (Object.keys(parsed.data).length > 0) await updateUserPreferences(session.uid, parsed.data);
+  // The header reads the avatar from the session cookie, so keep that copy current.
+  if (parsed.data.avatar) {
+    session.avatar = parsed.data.avatar;
+    await session.save();
+  }
   return NextResponse.json({ ok: true });
 }
 

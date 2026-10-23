@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { expireTag } from "@/lib/cacheTags";
 import { LIMITS } from "@/lib/inputLimits";
 import { ServiceError } from "@/services/errors";
@@ -33,17 +34,14 @@ export type UserProfile = {
   notifyOnResults?: boolean;
   onboardingCompletedAt?: string; // null until the homepage tutorial is dismissed — see OnboardingTour.tsx
   lastHomepageVisitAt?: string; // previous homepage visit — powers the AI layer's "Since Last Visit" (see lib/ai/sinceLastVisit.ts)
-  /** The real OAuth profile picture, from auth.users' own user_metadata — NOT a `profiles` column
-   * (that table has nowhere to store one). Only populated by the reads that explicitly ask for it
-   * (listUsersPage/searchUsers, for the admin Users table); undefined elsewhere means "nobody
-   * looked it up", which is different from `null` ("looked, and this account has no photo"). */
-  photoURL?: string | null;
+  /** The avatar they built (profiles.avatar), null until they build one. */
+  avatar?: AvatarConfig | null;
 };
 
 export type PreferencesPatch = Partial<
   Pick<
     UserProfile,
-    "favoriteDrivers" | "favoriteTeams" | "favoriteTracks" | "notifyBeforeQualifying" | "notifyOnResults" | "firstName" | "lastName"
+    "favoriteDrivers" | "favoriteTeams" | "favoriteTracks" | "notifyBeforeQualifying" | "notifyOnResults" | "firstName" | "lastName" | "avatar"
   >
 > & { timeZone?: string };
 
@@ -74,6 +72,7 @@ type ProfileRow = {
   notify_on_results: boolean;
   onboarding_completed_at: string | null;
   last_homepage_visit_at: string | null;
+  avatar?: unknown;
 };
 
 function fromRow(row: ProfileRow): UserProfile {
@@ -93,6 +92,7 @@ function fromRow(row: ProfileRow): UserProfile {
     notifyOnResults: row.notify_on_results,
     onboardingCompletedAt: row.onboarding_completed_at ?? undefined,
     lastHomepageVisitAt: row.last_homepage_visit_at ?? undefined,
+    avatar: parseAvatar(row.avatar),
   };
 }
 
@@ -156,64 +156,6 @@ export async function suggestUsernames(base: string): Promise<string[]> {
   return suggestions;
 }
 
-/** How many auth users one admin-API page returns. 1000 is that endpoint's own practical ceiling;
- * above it this map goes partial rather than wrong — an account past the first page simply has no
- * photo attached, which renders as EntityAvatar's initials fallback, the same as an account that
- * genuinely has no photo. */
-const AUTH_AVATAR_PAGE_SIZE = 1000;
-
-/**
- * Real OAuth profile pictures, keyed by uid.
- *
- * `profiles` has no avatar column at all (see supabase/schema.sql) - the only real photo this app
- * has for a person is the one their identity provider attached at sign-in, which Supabase keeps in
- * `auth.users.raw_user_meta_data`. That table isn't reachable through PostgREST (it only exposes
- * the `public` schema), so this goes through the service-role Admin Auth API instead, which is
- * also why every caller is already behind a canViewUsers permission check.
- *
- * One call for the whole roster rather than one per row: `getUserById` per user would be 50 round
- * trips for a single 50-row page. Cached for 5 minutes on a plain timer, deliberately NOT on
- * USER_PROFILE_TAG - that tag is busted by `profiles` writes, and this data doesn't live in
- * `profiles`; a photo changes only when someone changes it at Google/GitHub, so a few minutes of
- * staleness on an avatar is invisible in practice.
- *
- * Failures resolve to an empty map, never throw: a missing photo must not take down the whole
- * Users table, and the fallback (initials) is already a first-class rendering path.
- */
-const getAuthAvatars = unstable_cache(
-  async (): Promise<Record<string, string>> => {
-    try {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: AUTH_AVATAR_PAGE_SIZE });
-      if (error) {
-        console.warn(`getAuthAvatars: ${error.message}`);
-        return {};
-      }
-      const byUid: Record<string, string> = {};
-      for (const user of data.users) {
-        // `avatar_url` is what Google/GitHub both write; `picture` is the OIDC-standard spelling
-        // some providers use instead. Whichever is actually present, never a constructed URL.
-        const meta = user.user_metadata as { avatar_url?: unknown; picture?: unknown } | null;
-        const url = typeof meta?.avatar_url === "string" ? meta.avatar_url : typeof meta?.picture === "string" ? meta.picture : null;
-        if (url) byUid[user.id] = url;
-      }
-      return byUid;
-    } catch (err) {
-      console.warn(`getAuthAvatars: ${err instanceof Error ? err.message : String(err)}`);
-      return {};
-    }
-  },
-  ["auth-user-avatars"],
-  { revalidate: 300 },
-);
-
-/** Attaches each row's real photo, resolving to `null` (not undefined) where the account genuinely
- * has none - the caller can then tell "no photo" apart from "never looked". */
-async function withAvatars(users: UserProfile[]): Promise<UserProfile[]> {
-  if (users.length === 0) return users;
-  const avatars = await getAuthAvatars();
-  return users.map((user) => ({ ...user, photoURL: avatars[user.uid] ?? null }));
-}
-
 /** Cursor-paginated, not "fetch everyone" — same reasoning as the Firestore version: this table
  * is expected to grow into the thousands, and loading it all into memory doesn't hold up at that
  * scale. `cursor` is the last page's final row id; pass it back in to get the next page. */
@@ -240,7 +182,7 @@ export async function listUsersPage(
   if (error) throw new Error(`listUsersPage: ${error.message}`);
   const rows = (data ?? []) as ProfileRow[];
   const nextCursor = rows.length === pageSize ? rows[rows.length - 1].id : null;
-  return { users: await withAvatars(rows.map(fromRow)), nextCursor };
+  return { users: rows.map(fromRow), nextCursor };
 }
 
 export type UserCounts = { total: number; admins: number; moderators: number; onboarded: number };
@@ -304,7 +246,7 @@ export async function searchUsers(term: string, limit = 50): Promise<UserProfile
       .limit(limit),
   );
   if (error) throw new Error(`searchUsers(${term}): ${error.message}`);
-  return withAvatars(((data ?? []) as ProfileRow[]).map(fromRow));
+  return ((data ?? []) as ProfileRow[]).map(fromRow);
 }
 
 /** Exact-match lookup, deliberately not substring/prefix search — same v1-not-a-promise framing
@@ -356,6 +298,7 @@ export async function updateUserPreferences(uid: string, patch: PreferencesPatch
   if (patch.firstName !== undefined) update.first_name = patch.firstName;
   if (patch.lastName !== undefined) update.last_name = patch.lastName;
   if (patch.timeZone !== undefined) update.time_zone = patch.timeZone;
+  if (patch.avatar !== undefined) update.avatar = patch.avatar;
   if (Object.keys(update).length === 0) return;
   const { error } = await supabaseAdmin.from("profiles").update(update).eq("id", uid);
   if (error) throw new Error(`updateUserPreferences(${uid}): ${error.message}`);

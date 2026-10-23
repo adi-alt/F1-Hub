@@ -364,6 +364,7 @@
   "post_calls.rival": "text null=YES default=",
   "post_calls.threshold": "smallint null=YES default=",
   "post_calls.user_id": "uuid null=NO default=",
+  "profiles.avatar": "jsonb null=YES default=",
   "profiles.avatar_url": "text null=YES default=",
   "profiles.created_at": "timestamp with time zone null=NO default=now()",
   "profiles.display_name": "text null=YES default=",
