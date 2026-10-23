@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";

@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { useFavDriverIds } from "@/queries/favorites/useFavorites";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";

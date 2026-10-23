@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";

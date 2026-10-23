@@ -4,6 +4,7 @@ import { MENU_ITEM } from "@/components/ui/panel";
 import { Button } from "@/components/ui/Button";
 import { useState } from "react";
 import { MoreHorizontal } from "lucide-react";
+import { fieldControlClass } from "@/components/ui/Field";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
@@ -78,9 +79,17 @@ export function PostCard({
     }
   }
 
-  const [confirmRemove, setConfirmRemove] = useState(false);
+  // What the menu is showing: its actions, or one of the confirmations/forms it opens into.
+  const [menuView, setMenuView] = useState<"actions" | "remove" | "delete" | "report">("actions");
   const [moderating, setModerating] = useState(false);
   const [moderateError, setModerateError] = useState("");
+  const [reportReason, setReportReason] = useState("");
+  const [reported, setReported] = useState(false);
+  // The author's own edits and deletion, applied here once the server has taken them.
+  const [edited, setEdited] = useState<{ title: string | null; content: string; editedAt: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [gone, setGone] = useState(false);
+  const view = edited ? { ...post, ...edited } : post;
 
   /** Only a decision the server took changes the feed; a failure is said, in the menu, and nothing moves. */
   async function moderate(action: "approve" | "reject", close: () => void) {
@@ -99,8 +108,43 @@ export function PostCard({
       return;
     }
     close();
-    setConfirmRemove(false);
+    setMenuView("actions");
     onModerated?.(action);
+  }
+
+  /** The author deletes their own post: gone from this feed at once, and for everyone. */
+  async function deleteOwn(close: () => void) {
+    setModerating(true);
+    setModerateError("");
+    const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" }).catch(() => null);
+    setModerating(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setModerateError(body?.error ?? "Couldn't delete it. Check your connection and try again.");
+      return;
+    }
+    close();
+    setGone(true);
+  }
+
+  async function report(close: () => void) {
+    setModerating(true);
+    setModerateError("");
+    const res = await fetch(`/api/posts/${post.id}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reportReason }),
+    }).catch(() => null);
+    setModerating(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setModerateError(body?.error ?? "Couldn't send the report. Check your connection and try again.");
+      return;
+    }
+    setReported(true);
+    setReportReason("");
+    close();
+    setMenuView("actions");
   }
 
   // The whole card opens the discussion, as on any social feed - except a click that was really meant for something
@@ -112,18 +156,19 @@ export function PostCard({
     setDetailOpen(true);
   }
 
+  const canReport = !!post.groupId && !post.mine && !reported;
   const menu =
-    canModerate && post.groupId ? (
+    variant !== "compact" && ((canModerate && post.groupId) || post.mine || canReport) ? (
       <Popover
         align="end"
         ariaLabel="Post actions"
-        panelClassName="w-44"
+        panelClassName={menuView === "report" ? "w-72" : "w-44"}
         trigger={({ open, toggle, ref }) => (
           <button
             ref={ref}
             type="button"
             onClick={() => {
-              setConfirmRemove(false);
+              setMenuView("actions");
               setModerateError("");
               toggle();
             }}
@@ -136,36 +181,86 @@ export function PostCard({
         )}
       >
         {({ close }) =>
-          confirmRemove ? (
+          menuView === "remove" || menuView === "delete" ? (
             <div className="p-3.5">
-              <p className="text-body-sm font-medium text-primary">Remove this post?</p>
-              <p className="mt-1 text-caption text-tertiary">It disappears from the feed for everyone.</p>
+              <p className="text-body-sm font-medium text-primary">{menuView === "delete" ? "Delete your post?" : "Remove this post?"}</p>
+              <p className="mt-1 text-caption text-tertiary">{menuView === "delete" ? "It and its replies are gone for good." : "It disappears from the feed for everyone."}</p>
               <div className="mt-3 flex gap-2">
-                <Button variant="danger" size="sm" loading={moderating} onClick={() => void moderate("reject", close)}>
-                  Remove
+                <Button variant="danger" size="sm" loading={moderating} onClick={() => void (menuView === "delete" ? deleteOwn(close) : moderate("reject", close))}>
+                  {menuView === "delete" ? "Delete" : "Remove"}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setConfirmRemove(false)}>
+                <Button variant="ghost" size="sm" onClick={() => setMenuView("actions")}>
                   Keep
+                </Button>
+              </div>
+              {moderateError && <p role="alert" className="mt-2 text-caption text-danger">{moderateError}</p>}
+            </div>
+          ) : menuView === "report" ? (
+            <div className="p-3.5">
+              <label htmlFor={`report-${post.id}`} className="text-body-sm font-medium text-primary">
+                What&apos;s wrong with it?
+              </label>
+              <p className="mt-1 text-caption text-tertiary">Only this community&apos;s moderators see reports.</p>
+              <textarea
+                id={`report-${post.id}`}
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                maxLength={500}
+                rows={3}
+                className={`mt-2 resize-none ${fieldControlClass(false)}`}
+              />
+              <div className="mt-3 flex gap-2">
+                <Button variant="primary" size="sm" loading={moderating} disabled={!reportReason.trim()} onClick={() => void report(close)}>
+                  Report
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setMenuView("actions")}>
+                  Cancel
                 </Button>
               </div>
               {moderateError && <p role="alert" className="mt-2 text-caption text-danger">{moderateError}</p>}
             </div>
           ) : (
             <div className="p-1.5">
-              {status === "pending" && (
+              {post.mine && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    setEditing(true);
+                  }}
+                  className={MENU_ITEM}
+                >
+                  Edit post
+                </button>
+              )}
+              {post.mine && (
+                <button type="button" onClick={() => setMenuView("delete")} className={`${MENU_ITEM} hover:text-danger`}>
+                  Delete post
+                </button>
+              )}
+              {!post.mine && canModerate && post.groupId && status === "pending" && (
                 <button type="button" disabled={moderating} onClick={() => void moderate("approve", close)} className={MENU_ITEM}>
                   {moderating ? "Approving…" : "Approve post"}
                 </button>
               )}
-              <button type="button" onClick={() => setConfirmRemove(true)} className={`${MENU_ITEM} hover:text-danger`}>
-                Remove post
-              </button>
+              {!post.mine && canModerate && post.groupId && (
+                <button type="button" onClick={() => setMenuView("remove")} className={`${MENU_ITEM} hover:text-danger`}>
+                  Remove post
+                </button>
+              )}
+              {canReport && (
+                <button type="button" onClick={() => setMenuView("report")} className={MENU_ITEM}>
+                  Report
+                </button>
+              )}
               {moderateError && <p role="alert" className="px-2.5 pb-1 text-caption text-danger">{moderateError}</p>}
             </div>
           )
         }
       </Popover>
     ) : null;
+
+  if (gone) return null;
 
   return (
     <article
@@ -186,13 +281,26 @@ export function PostCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <PostByline post={post} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} sessionTag={sessionTag} />
+              <PostByline post={view} showGroup={showGroup} roleLabel={roleLabel} pending={status === "pending"} sessionTag={sessionTag} />
             </div>
             {menu}
           </div>
 
           <div className="mt-1">
-            <PostContent title={post.title} content={post.content} />
+            {editing ? (
+              <PostEditor
+                postId={post.id}
+                title={view.title}
+                content={view.content}
+                onCancel={() => setEditing(false)}
+                onSaved={(next) => {
+                  setEdited(next);
+                  setEditing(false);
+                }}
+              />
+            ) : (
+              <PostContent title={view.title} content={view.content} />
+            )}
             {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
                 rows uploaded before it existed, which have a URL and nothing else. */}
             {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
@@ -218,7 +326,7 @@ export function PostCard({
 
       {detailOpen && (
         <PostDetailWindow
-          post={post}
+          post={view}
           score={score}
           myVote={myVote}
           onVote={vote}
@@ -230,5 +338,62 @@ export function PostCard({
         />
       )}
     </article>
+  );
+}
+
+/** The author's in-place editor: title and text (the attachment and any call stay as posted). */
+function PostEditor({
+  postId,
+  title,
+  content,
+  onCancel,
+  onSaved,
+}: {
+  postId: string;
+  title: string | null;
+  content: string;
+  onCancel: () => void;
+  onSaved: (next: { title: string | null; content: string; editedAt: string }) => void;
+}) {
+  const [draftTitle, setDraftTitle] = useState(title ?? "");
+  const [draft, setDraft] = useState(content);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    const res = await fetch(`/api/posts/${postId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: draftTitle, content: draft }),
+    }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { editedAt?: string; error?: string } | null;
+    setSaving(false);
+    if (!res?.ok || !body?.editedAt) {
+      setError(body?.error ?? "Couldn't save your edit. Check your connection and try again.");
+      return;
+    }
+    onSaved({ title: draftTitle.trim() || null, content: draft.trim(), editedAt: body.editedAt });
+  }
+
+  return (
+    <div data-no-open className="space-y-2">
+      {title !== null && <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} maxLength={300} aria-label="Title" className={fieldControlClass(false)} />}
+      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={2000} rows={4} aria-label="Post" autoFocus className={`resize-y ${fieldControlClass(!draft.trim())}`} />
+      <div className="flex items-center gap-2">
+        <Button variant="primary" size="sm" loading={saving} disabled={!draft.trim()} onClick={() => void save()}>
+          Save
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        {error && (
+          <p role="alert" className="text-caption text-danger">
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import { CircuitHero, type HeroAnswer } from "./CircuitHero";
 import { CircuitRecords } from "./CircuitRecords";
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import { PastWinnersList } from "./PastWinnersList";
 import { CircuitTrendChart } from "./CircuitTrendChart";
 import { CircuitEras } from "./CircuitEras";
@@ -83,55 +84,67 @@ export function CircuitDetailPage({ location, data }: { location: string; data: 
         {(raceForSimulation || eras.length > 0) && (
           <div className={`grid grid-cols-1 items-stretch gap-8 lg:gap-6 ${raceForSimulation && eras.length > 0 ? "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" : ""}`}>
             {raceForSimulation && (
-              <PanelSection
-                id="race"
-                title={`${raceForSimulation.year} ${raceForSimulation.name}`}
-                fill
-                action={
-                  <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="flex items-center gap-0.5 rounded-control text-caption text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
-                    Full results
-                    <Icon icon={ChevronRight} size={16} className="size-3.5" />
-                  </Link>
-                }
-              >
-                <CircuitRaceTabs replay={replay} laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} />
-              </PanelSection>
+              <RegionBoundary label="the race">
+                <PanelSection
+                  id="race"
+                  title={`${raceForSimulation.year} ${raceForSimulation.name}`}
+                  fill
+                  action={
+                    <Link href={raceHref(raceForSimulation.year, raceForSimulation.round, raceForSimulation.name)} className="flex items-center gap-0.5 rounded-control text-caption text-secondary transition-colors duration-fast hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                      Full results
+                      <Icon icon={ChevronRight} size={16} className="size-3.5" />
+                    </Link>
+                  }
+                >
+                  <CircuitRaceTabs replay={replay} laps={raceLaps} results={raceForSimulation.results ?? []} trackStory={trackStory} layout={raceLayout} />
+                </PanelSection>
+              </RegionBoundary>
             )}
             {eras.length > 0 && (
-              <PanelSection id="eras" title="The track through time" note="Every layout on record" fill>
-                <div className="flex flex-1 flex-col justify-center">
-                  <CircuitEras eras={eras} winners={winners} currentYear={year} />
-                </div>
-              </PanelSection>
+              <RegionBoundary label="the track through time">
+                <PanelSection id="eras" title="The track through time" note="Every layout on record" fill>
+                  <div className="flex flex-1 flex-col justify-center">
+                    <CircuitEras eras={eras} winners={winners} currentYear={year} />
+                  </div>
+                </PanelSection>
+              </RegionBoundary>
             )}
           </div>
         )}
 
         {/* Apex beside the records; the records take the row when Apex has nothing to say. */}
         <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-2 lg:gap-6 lg:[&:has(>*:only-child)]:grid-cols-1">
-          <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
+          <RegionBoundary label="the Apex take">
+            <CircuitApexTake location={location} year={year} status={currentSeasonRace?.state ?? "unscheduled"} />
+          </RegionBoundary>
           {timeline.length > 0 && (
-            <PanelSection id="records" title="Records" fill>
-              <CircuitRecords timeline={timeline} winnerMedia={winnerMedia} />
-            </PanelSection>
+            <RegionBoundary label="the records">
+              <PanelSection id="records" title="Records" fill>
+                <CircuitRecords timeline={timeline} winnerMedia={winnerMedia} />
+              </PanelSection>
+            </RegionBoundary>
           )}
         </div>
 
         {(timeline.length > 0 || trend.length >= 2) && (
           <div className={`grid grid-cols-1 items-stretch gap-8 lg:gap-6 ${timeline.length > 0 && trend.length >= 2 ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]" : ""}`}>
             {timeline.length > 0 && (
-              <PanelSection id="past-winners" title="Past winners" bare>
-                <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
-              </PanelSection>
+              <RegionBoundary label="the past winners">
+                <PanelSection id="past-winners" title="Past winners" bare>
+                  <PastWinnersList timeline={timeline} winnerMedia={winnerMedia} currentTeams={currentTeams} />
+                </PanelSection>
+              </RegionBoundary>
             )}
             {trend.length >= 2 && (
-              <PanelSection id="pole-evolution" title="Pole times" fill>
-                <div className="flex flex-1 flex-col justify-center">
-                  {/* As tall as the winners table beside it (up to its 8-row page), so a circuit with few races
-                      doesn't leave a short table under a tall chart. */}
-                  <CircuitTrendChart data={trend} height={Math.max(180, Math.min(340, Math.min(timeline.length, 8) * 42 - 10))} />
-                </div>
-              </PanelSection>
+              <RegionBoundary label="the pole times">
+                <PanelSection id="pole-evolution" title="Pole times" fill>
+                  <div className="flex flex-1 flex-col justify-center">
+                    {/* As tall as the winners table beside it (up to its 8-row page), so a circuit with few races
+                        doesn't leave a short table under a tall chart. */}
+                    <CircuitTrendChart data={trend} height={Math.max(180, Math.min(340, Math.min(timeline.length, 8) * 42 - 10))} />
+                  </div>
+                </PanelSection>
+              </RegionBoundary>
             )}
           </div>
         )}

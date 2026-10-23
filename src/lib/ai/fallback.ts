@@ -1,6 +1,6 @@
 // Deterministic Fallback Engine.
 // Generates grounded, fully structured HomepageIntelligence purely from application data
-// when the NVIDIA provider rate limit is reached, timeout occurs, or the model is unavailable.
+// when the provider rate limit is reached, timeout occurs, or the model is unavailable.
 // Guarantees the homepage NEVER breaks or crashes due to AI provider state - and, critically,
 // the fallback is ITSELF personalized (real favorite/prediction data is already deterministic;
 // only the model's prose is missing), so a provider outage doesn't mean a guest-looking homepage for a
@@ -8,7 +8,7 @@
 
 import { joinNames } from "@/lib/circuitIntelligence";
 import type { RaceIntelligenceContext } from "./context/raceContext";
-import type { HomepageIntelligence } from "./schemas/homepageIntelligence";
+import type { HomepageIntelligence, PredictionChallengeStatus } from "./schemas/homepageIntelligence";
 import type { RaceInsight, RaceIntelligenceResult } from "./schemas/raceIntelligence";
 import type { SinceLastVisitDiff } from "./sinceLastVisit";
 
@@ -69,6 +69,54 @@ export interface FallbackDataContext {
     hotTopic?: string;
   } | null;
   sinceLastVisit?: SinceLastVisitDiff | null;
+  /** What the AGREE/DISAGREE verdict compares (predictionVerdict): the user's winner and the
+   * model's, as codes. Names can't be compared - a pick stores a code ("VER"), the model context a
+   * name. Without it the verdict falls back to userPrediction against the model's name. */
+  verdict?: PredictionVerdictInput & { modelPickName?: string | null; userPickName?: string | null };
+}
+
+export type PredictionVerdictInput = { userWinnerCode?: string | null; submitted?: boolean; modelPickCode?: string | null };
+
+/** AGREE / DISAGREE / NO_PICK from the facts alone (roadmap R-44, AI-09): the user's submitted
+ * winner against the model's. Null when there is a pick but no model pick to compare it with. */
+export function predictionVerdict(input: PredictionVerdictInput): PredictionChallengeStatus | null {
+  if (!input.submitted || !input.userWinnerCode) return "NO_PICK";
+  if (!input.modelPickCode) return null;
+  return input.userWinnerCode === input.modelPickCode ? "AGREE" : "DISAGREE";
+}
+
+/** The whole challenge block from facts: the computed verdict plus template text. */
+export function deterministicPredictionChallenge(ctx: FallbackDataContext): HomepageIntelligence["predictionChallenge"] {
+  const v: PredictionVerdictInput = ctx.verdict ?? {
+    userWinnerCode: ctx.userPrediction?.predictedWinner,
+    submitted: ctx.userPrediction?.submitted,
+    modelPickCode: ctx.simulation?.topSimulatedDriver || ctx.model?.topPredictedDriver || ctx.standings?.driverLeader?.name,
+  };
+  const status = predictionVerdict(v);
+  if (status === null) return null;
+  if (status === "NO_PICK") return { status, explanation: "You haven't made a prediction for this race yet.", strongestEvidenceForUser: "", strongestEvidenceAgainstUser: "" };
+  const modelPick = ctx.verdict?.modelPickName || v.modelPickCode || "the model's favourite";
+  const userPick = ctx.verdict?.userPickName || v.userWinnerCode || "your driver";
+  const winProbPct = ctx.simulation?.p1Probability != null && ctx.simulation.topSimulatedDriver === modelPick ? Math.round(ctx.simulation.p1Probability * 100) : null;
+  return {
+    status,
+    explanation:
+      status === "AGREE"
+        ? `Your pick matches the model's current favorite, ${modelPick}.`
+        : `You backed ${userPick}, while the model currently favors ${modelPick}${winProbPct != null ? ` at ${winProbPct}% simulated win probability` : ""}.`,
+    strongestEvidenceForUser: ctx.favoriteDriver?.circuit?.wins ? `${userPick} has real history at this circuit.` : "Recent form and qualifying pace remain open questions the model can't fully capture.",
+    strongestEvidenceAgainstUser: winProbPct != null ? `The simulation gives ${modelPick} a ${winProbPct}% win probability.` : "The model currently favors a different driver.",
+  };
+}
+
+/** Puts the computed verdict on a model-written (or cached) response: the model writes only the
+ * explanation, and it is kept only when it argues the verdict the facts give; otherwise the
+ * template's text replaces it. */
+export function applyPredictionVerdict(data: HomepageIntelligence, ctx: FallbackDataContext): HomepageIntelligence {
+  const computed = deterministicPredictionChallenge(ctx);
+  const written = data.predictionChallenge;
+  const keepWritten = computed !== null && computed.status !== "NO_PICK" && written?.status === computed.status;
+  return { ...data, predictionChallenge: keepWritten ? written : computed };
 }
 
 export function generateDeterministicFallback(
@@ -192,22 +240,8 @@ export function generateDeterministicFallback(
     };
   }
 
-  // 10. Prediction Challenge - deterministic AGREE/DISAGREE/NO_PICK, generic explanation text
-  let predictionChallenge: HomepageIntelligence["predictionChallenge"] = null;
-  if (ctx.userPrediction?.submitted && ctx.userPrediction.predictedWinner) {
-    const modelPick = topSimulated || topPredicted;
-    const agrees = ctx.userPrediction.predictedWinner === modelPick;
-    predictionChallenge = {
-      status: agrees ? "AGREE" : "DISAGREE",
-      explanation: agrees
-        ? `Your pick matches the model's current favorite, ${modelPick}.`
-        : `You backed ${ctx.userPrediction.predictedWinner}, while the model currently favors ${modelPick}${winProbPct != null ? ` at ${winProbPct}% simulated win probability` : ""}.`,
-      strongestEvidenceForUser: ctx.favoriteDriver?.circuit?.wins ? `${ctx.userPrediction.predictedWinner} has real history at this circuit.` : "Recent form and qualifying pace remain open questions the model can't fully capture.",
-      strongestEvidenceAgainstUser: winProbPct != null ? `The simulation gives ${modelPick} a ${winProbPct}% win probability.` : "The model's simulation currently favors a different driver.",
-    };
-  } else {
-    predictionChallenge = { status: "NO_PICK", explanation: "You haven't made a prediction for this race yet.", strongestEvidenceForUser: "", strongestEvidenceAgainstUser: "" };
-  }
+  // 10. Prediction Challenge - the verdict is computed (predictionVerdict), never written by a model.
+  const predictionChallenge = deterministicPredictionChallenge(ctx);
 
   // 11. Personal Outlook - only with a favorite driver
   let personalOutlook: HomepageIntelligence["personalOutlook"] = null;

@@ -11,7 +11,7 @@ import { getSession } from "@/lib/session/getSession";
  * be refreshed from the client without a full page reload). */
 export async function GET() {
   const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const profile = await getUserProfile(session.uid);
   return NextResponse.json({
@@ -26,7 +26,7 @@ export async function GET() {
  * session itself too — same defense-in-depth as /api/archive/laps. */
 export async function POST(request: Request) {
   const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   // Shape and id length (SEC-25, see inputLimits.ts); the list-length cap is setArchiveFavorite's.
   const parsed = favoriteToggleSchema.safeParse(await request.json().catch(() => null));

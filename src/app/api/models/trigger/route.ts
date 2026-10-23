@@ -5,6 +5,7 @@ import { ServiceError } from "@/services/errors";
 
 export async function POST(request: Request) {
   const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { workflow } = (await request.json()) as { workflow?: string };
   if (!workflow) return NextResponse.json({ error: "Unknown workflow" }, { status: 400 });
 

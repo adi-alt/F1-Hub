@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPostById } from "@/lib/supabase/groupPosts";
+import { deletePost, editPost } from "@/lib/supabase/moderation";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
 
@@ -21,6 +22,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pos
     const post = await getPostById(postId, session.uid);
     if (!post) return NextResponse.json({ error: "That post doesn't exist." }, { status: 404 });
     return NextResponse.json(post);
+  } catch (err) {
+    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    throw err;
+  }
+}
+
+/** The author edits their post's title and text (attachments and calls stay as posted). */
+export async function PATCH(request: Request, { params }: { params: Promise<{ postId: string }> }) {
+  const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const { postId } = await params;
+  const body = (await request.json().catch(() => ({}))) as { title?: string | null; content?: string };
+  if (typeof body.content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
+  try {
+    return NextResponse.json(await editPost(postId, session.uid, { title: typeof body.title === "string" ? body.title : null, content: body.content }));
+  } catch (err) {
+    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    throw err;
+  }
+}
+
+/** The author deletes their post; a moderator of its community removes it (and the moderation log records who). */
+export async function DELETE(_request: Request, { params }: { params: Promise<{ postId: string }> }) {
+  const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const { postId } = await params;
+  try {
+    return NextResponse.json(await deletePost(postId, session.uid));
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
     throw err;

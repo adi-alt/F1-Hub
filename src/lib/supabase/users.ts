@@ -424,3 +424,13 @@ export async function resetOnboarding(uid: string): Promise<void> {
 export async function touchHomepageVisit(uid: string): Promise<void> {
   await supabaseAdmin.from("profiles").update({ last_homepage_visit_at: new Date().toISOString() }).eq("id", uid);
 }
+
+/** The end of this user's previous home visit, read uncached (the cached profile can lag behind a
+ * stamp written since). Written only when a visit ends (HomeVisitBeacon -> /api/home/visit), never
+ * on render or on an AI request, so a refresh mid-visit keeps the same "since your last visit"
+ * window - the same rule as the communities' group_members.last_visit_at (getGroupPulse). */
+export async function getHomepageVisitStamp(uid: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin.from("profiles").select("last_homepage_visit_at").eq("id", uid).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.last_homepage_visit_at as string | null | undefined) ?? null;
+}

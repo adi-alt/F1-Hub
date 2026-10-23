@@ -8,7 +8,8 @@ import { Trophy } from "lucide-react";
 // anything beyond an erased `import type` (predictionTypeLabels is a real runtime value) - see
 // groupPredictionTypes.ts's own comment.
 import { predictionTypeLabels, type GroupPrediction, type PredictionType } from "@/lib/groupPredictionTypes";
-import { PredictionCard } from "./PredictionCard";
+import { fromGroupPrediction, PredictionCard, type DriverOption } from "@/components/predictions/PredictionCard";
+import { usePredictionTrends } from "@/components/predictions/usePredictionTrends";
 import { RacePicker } from "@/components/ui/F1Pickers";
 import { Picker } from "@/components/ui/Picker";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -22,7 +23,6 @@ const ENTRY_PRESETS = [10, 20, 50, 100];
 const TYPES: PredictionType[] = ["winner", "podium", "fastest_lap", "pole", "dnf_count"];
 
 type RaceOption = { id: string; name: string; round: number; status: string };
-type DriverOption = { code: string; name: string; headshotUrl: string | null };
 
 function NewPredictionForm({ groupId, races, onCreated, onCancel }: { groupId: string; races: RaceOption[]; onCreated: () => void; onCancel: () => void }) {
   const [raceId, setRaceId] = useState(races[0]?.id ?? "");
@@ -128,6 +128,7 @@ export function GroupPredictions({
   races,
   driversByRace,
   pointsBalance,
+  groupName,
 }: {
   groupId: string;
   myRole: GroupRole;
@@ -135,9 +136,12 @@ export function GroupPredictions({
   races: RaceOption[];
   driversByRace: Record<string, DriverOption[]>;
   pointsBalance: number;
+  groupName: string;
 }) {
   const router = useRouter();
   const [showNew, setShowNew] = useState(false);
+  // Every round's community trend in one request, not one per card.
+  const trends = usePredictionTrends(predictions);
 
   return (
     <div>
@@ -163,7 +167,16 @@ export function GroupPredictions({
 
       <div className="space-y-3">
           {predictions.map((p) => (
-            <PredictionCard key={p.id} groupId={groupId} prediction={p} myRole={myRole} drivers={driversByRace[p.raceId] ?? []} pointsBalance={pointsBalance} onChanged={() => router.refresh()} />
+            <PredictionCard
+              key={p.id}
+              variant="community"
+              prediction={fromGroupPrediction(p, groupName)}
+              trend={trends[p.id] ?? null}
+              drivers={driversByRace[p.raceId] ?? []}
+              pointsBalance={pointsBalance}
+              canManage={myRole === "admin"}
+              onChanged={() => router.refresh()}
+            />
           ))}
         {predictions.length === 0 && (
           <EmptyState

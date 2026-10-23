@@ -5,6 +5,7 @@ import { ServiceError } from "@/services/errors";
 
 export async function GET(request: Request) {
   const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { searchParams } = new URL(request.url);
   // `email` is the older spelling of this parameter, from when search was an exact-address
   // lookup only; still honoured so an existing caller/bookmark doesn't 404 into an empty list.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Crown, Flag, TrendingUp } from "lucide-react";
 import { Typewriter } from "@/components/motion/Typewriter";
 import type { Chapter, ChapterKind } from "@/lib/raceMoments";

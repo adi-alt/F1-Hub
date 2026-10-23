@@ -5,6 +5,7 @@ import { ServiceError } from "@/services/errors";
 
 export async function GET() {
   const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   try {
     const runs = await listPipelineRuns(session.uid);
     return NextResponse.json({ runs });

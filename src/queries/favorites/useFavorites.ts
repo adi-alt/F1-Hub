@@ -7,7 +7,7 @@ const EMPTY: FavoriteIds = { drivers: [], teams: [], tracks: [] };
 const FIELD: Record<FavoriteType, keyof FavoriteIds> = { driver: "drivers", team: "teams", track: "tracks" };
 
 /** The signed-in viewer's own favorite driver/team/track ids. staleTime: Infinity — realtime
- * (AppRealtimeSync's `profiles` listener, see syncPolicy.ts) is the actual freshness signal, not
+ * (AppRealtimeSync's `profiles` listener) is the actual freshness signal, not
  * a timer. Seeded synchronously by FavoritesHydrator on every page that already server-fetched
  * these (season, archive), so this never needs a cold client fetch on first paint; `queryFn` is
  * only the resync fallback — a reconnect, an invalidateQueries call after a realtime `profiles`

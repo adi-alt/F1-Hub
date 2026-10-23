@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { teamColor } from "@/lib/teamColors";
 

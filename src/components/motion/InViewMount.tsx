@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, type ReactNode } from "react";
-import { useInView } from "framer-motion";
+import { useInView } from "motion/react";
 
 /**
  * Mounts its children the first time they scroll into view, so a chart's entrance animation (bars growing,

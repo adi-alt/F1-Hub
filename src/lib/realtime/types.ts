@@ -3,7 +3,7 @@ import type { RealtimePostgresChangesPayload, RealtimeChannel } from "@supabase/
 /** Every table this app has ever put on the `supabase_realtime` publication (see
  * supabase/schema.sql's `alter publication` statements — verified live, not just read off the
  * schema file, see the plan's "Live verification" section). Adding an 8th realtime table means
- * adding it here first — everything downstream (channels.ts, syncPolicy.ts) is keyed off this. */
+ * adding it here first — everything downstream (channels.ts) is keyed off this. */
 export type RealtimeTable =
   | "data_version"
   | "races"

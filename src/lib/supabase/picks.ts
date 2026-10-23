@@ -90,3 +90,19 @@ export async function saveUserPick(uid: string, pick: Omit<UserPick, "submittedA
   }
   expireTag(USER_PICKS_TAG);
 }
+
+/** Every reader's pick for one race, for the race page's after-the-race comparison (your points
+ * against the community's average). Not cached: read once, after the result, on a dynamic page. */
+export async function getRacePicks(raceId: string): Promise<(UserPick & { userId: string })[]> {
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("picks").select("*").eq("race_id", raceId));
+  if (error) throw new Error(`getRacePicks(${raceId}): ${error.message}`);
+  return ((data ?? []) as (PickRow & { user_id: string })[]).map((row) => ({ ...fromRow(row), userId: row.user_id }));
+}
+
+/** Every pick of a season, for the profile's season scorecard (community consensus and average per
+ * race). One query by the race-id year prefix, like getUserPicksForYear. Not cached: one dynamic page. */
+export async function getSeasonPicks(year: number): Promise<(UserPick & { userId: string })[]> {
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("picks").select("*").like("race_id", `${year}_%`));
+  if (error) throw new Error(`getSeasonPicks(${year}): ${error.message}`);
+  return ((data ?? []) as (PickRow & { user_id: string })[]).map((row) => ({ ...fromRow(row), userId: row.user_id }));
+}

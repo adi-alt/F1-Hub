@@ -15,6 +15,7 @@ import {
   type PredictionStyleTrait,
 } from "@/lib/predictionPerformance";
 import {
+  computeSeasonStandings,
   getFavoriteDriverCard,
   getFavoriteTeamCard,
   type Fact,
@@ -31,10 +32,14 @@ import { getUserGroups, listPublicGroups, type GroupSummary, type PublicGroupSum
 import type { CurrentDriver } from "@/lib/supabase/media";
 import { listFeedPosts, type FeedPost } from "@/lib/supabase/groupPosts";
 import { listMyPredictions, type FeedPrediction } from "@/lib/supabase/groupPredictions";
-import { getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
+import { getRacePicks, getUserPick, getUserPicksForYear } from "@/lib/supabase/picks";
+import { raceWeekendScores, type RaceWeekendScores } from "@/lib/raceWeekendScores";
 import { listRecentTransactions, type PointsReason } from "@/lib/supabase/points";
 import { getDriverHeadshotsByCode, getRaceById, getRaceRoster } from "@/lib/supabase/races";
-import { getUserProfile, type UserProfile } from "@/lib/supabase/users";
+import { getHomepageVisitStamp, getUserProfile, type UserProfile } from "@/lib/supabase/users";
+import { countNewCommunityPosts } from "@/lib/supabase/homeVisit";
+import { buildHomeSinceLastVisit, type ActivityEntry, type HomeSinceLastVisit } from "@/lib/homeSinceLastVisit";
+import { computeSinceLastVisit } from "@/lib/ai/sinceLastVisit";
 import type { RaceDoc, UserPick } from "@/lib/types/race";
 
 /** The auth-independent half of the homepage — real regardless of whether anyone's signed in,
@@ -151,12 +156,17 @@ export type PersonalHomeData = {
    * minimum sample size, never a fabricated "personality" claim. */
   styleTraits: PredictionStyleTrait[];
   recentActivity: ActivityEntry[];
+  /** A real diff since the end of the previous home visit (see homeSinceLastVisit.ts). */
+  sinceLastVisit: HomeSinceLastVisit;
+  /** The latest completed race's points: yours, the community's average and the model's - the hero's
+   * after-the-race module (race-weekend mode, R-64). Null before the season's first result. */
+  lastRaceScores: (RaceWeekendScores & { raceId: string; raceName: string; year: number; round: number }) | null;
   predictionPolls: PredictionPoll[];
   tier: PersonalizationTier;
   nextAction: NextAction | null;
 };
 
-export type ActivityEntry = { key: string; timestamp: string; text: string };
+export type { ActivityEntry };
 
 const TRANSACTION_LABEL: Record<PointsReason, string> = {
   starting_grant: "your starting points grant",
@@ -220,7 +230,9 @@ function computeNextAction(
 }
 
 export async function getPersonalHomeData(uid: string, year: number, nextRace: RaceDoc | null, races: RaceDoc[]): Promise<PersonalHomeData> {
-  const [profile, groups, feed, groupPredictions, picks, recentTransactions, predictionPolls] = await Promise.all([
+  // The visit stamp degrades to "first visit" (recent activity, no diff) rather than failing the home.
+  const [visitStamp, profile, groups, feed, groupPredictions, picks, recentTransactions, predictionPolls] = await Promise.all([
+    getHomepageVisitStamp(uid).catch(() => null),
     getUserProfile(uid),
     getUserGroups(uid),
     listFeedPosts(uid, { feedType: "following", limit: FEED_POST_LIMIT }),
@@ -247,7 +259,8 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     predictionDriversByRace[p.raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
   });
 
-  const [favoriteDrivers, favoriteTeams, discoverGroups, myPick] = await Promise.all([
+  const lastCompleted = races.filter((r) => r.status === "completed" && r.results?.length).sort((a, b) => b.round - a.round)[0] ?? null;
+  const [favoriteDrivers, favoriteTeams, discoverGroups, myPick, standingsNow, newCommunityPosts, lastRacePicks] = await Promise.all([
     Promise.all((profile?.favoriteDrivers ?? []).map((id) => getFavoriteDriverCard(id).catch(() => null))).then(
       (cards) => cards.filter((c): c is FavoriteDriverCard => c !== null),
     ),
@@ -256,7 +269,21 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     ),
     groups.length === 0 ? listPublicGroups(undefined, uid) : Promise.resolve([]),
     nextRace ? getUserPick(uid, nextRace.id) : Promise.resolve(null),
+    // Cached reads; only needed when there is a previous visit to diff against.
+    visitStamp ? computeSeasonStandings(year).catch(() => null) : Promise.resolve(null),
+    visitStamp ? countNewCommunityPosts(uid, visitStamp).catch(() => 0) : Promise.resolve(0),
+    lastCompleted ? getRacePicks(lastCompleted.id).catch(() => null) : Promise.resolve(null),
   ]);
+  const lastRaceScores =
+    lastCompleted && lastRacePicks
+      ? {
+          ...raceWeekendScores(lastCompleted, lastRacePicks, picks.find((p) => p.raceId === lastCompleted.id) ?? null),
+          raceId: lastCompleted.id,
+          raceName: lastCompleted.name,
+          year: lastCompleted.year,
+          round: lastCompleted.round,
+        }
+      : null;
   const favoriteDriver = favoriteDrivers[0] ?? null;
   const favoriteTeam = favoriteTeams[0] ?? null;
 
@@ -267,6 +294,23 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
   // leader isn't in scope here; classifyPredictionStyle's favorite-driver-bias trait doesn't need
   // it, only the (not built this phase) season-leader-bias trait would.
   const fingerprint = computePredictionFingerprint(picks, races, null);
+  const recentActivity = buildRecentActivity(picks, races, recentTransactions);
+  const sinceLastVisit = buildHomeSinceLastVisit({
+    since: visitStamp,
+    activity: recentActivity,
+    newCommunityPosts,
+    // Standings moves since then; picks and community posts are counted above, not here.
+    changes: standingsNow
+      ? computeSinceLastVisit({
+          lastVisitIso: visitStamp,
+          races,
+          currentStandings: standingsNow,
+          favoriteDriverCode: favoriteDriver?.code ?? null,
+          favoriteDriverName: favoriteDriver?.name ?? null,
+          favoriteTeamName: favoriteTeam?.currentName ?? null,
+        }).changes.filter((c) => c.type !== "PREDICTION" && c.type !== "COMMUNITY")
+      : [],
+  });
 
   return {
     profile,
@@ -280,7 +324,9 @@ export async function getPersonalHomeData(uid: string, year: number, nextRace: R
     predictionPerformance,
     latestPrediction: getLatestPredictionSummary(picks, races),
     styleTraits: classifyPredictionStyle(fingerprint, picks, favoriteDriver?.code ?? null),
-    recentActivity: buildRecentActivity(picks, races, recentTransactions),
+    recentActivity,
+    sinceLastVisit,
+    lastRaceScores,
     predictionPolls,
     feedPosts: feed.posts.filter((p) => Date.now() - new Date(p.createdAt).getTime() <= COMMUNITY_ACTIVITY_WINDOW_DAYS * 86_400_000),
     recentPredictions,

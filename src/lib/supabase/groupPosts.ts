@@ -5,6 +5,7 @@ import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/gro
 import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
 import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
+import { logModeration } from "@/lib/supabase/moderationLog";
 import { notifyPostModerated, notifyPostPending, notifyReply } from "@/lib/notificationEvents";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
@@ -42,6 +43,10 @@ export type GroupPost = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  /** When its author last edited it, null if never. */
+  editedAt?: string | null;
+  /** Whether the viewer wrote it (they may edit and delete it). */
+  mine?: boolean;
   /** A call the post makes about the race weekend, graded against the result (takes with receipts). */
   call?: PostCallView | null;
   /** The author's season record from their calls. */
@@ -59,6 +64,12 @@ export type PostComment = {
   createdAt: string;
   score: number;
   myVote: VoteValue;
+  editedAt?: string | null;
+  mine?: boolean;
+  /** The viewer may delete it: their own, or any in a community they moderate. */
+  canDelete?: boolean;
+  /** Deleted by its author or removed by a moderator: kept so the replies under it keep their thread, with no text. */
+  deleted?: boolean;
 };
 
 export type FeedPost = {
@@ -78,6 +89,10 @@ export type FeedPost = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  /** When its author last edited it, null if never. */
+  editedAt?: string | null;
+  /** Whether the viewer wrote it (they may edit and delete it). */
+  mine?: boolean;
   /** A call the post makes about the race weekend, graded against the result (takes with receipts). */
   call?: PostCallView | null;
   /** The author's season record from their calls. */
@@ -102,9 +117,9 @@ function attachmentFromRow(row: Record<string, unknown>): PostAttachment | null 
   };
 }
 
-const MAX_POST_CHARS = 2000;
-const MAX_TITLE_CHARS = 300;
-const MAX_COMMENT_CHARS = 1000;
+export const MAX_POST_CHARS = 2000;
+export const MAX_TITLE_CHARS = 300;
+export const MAX_COMMENT_CHARS = 1000;
 
 type ProfileLite = { id: string; display_name: string | null; username: string | null; avatar_url?: string | null };
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
@@ -376,6 +391,8 @@ export async function listPosts(
     kind: (p.kind as PostKind | null) ?? "discussion",
     status: p.status as PostStatus,
     createdAt: p.created_at as string,
+    editedAt: (p.edited_at as string | null) ?? null,
+    mine: p.user_id === uid,
     score: scoreByTarget.get(p.id as string) ?? 0,
     myVote: myVoteByTarget.get(p.id as string) ?? 0,
     commentCount: commentCounts.get(p.id as string) ?? 0,
@@ -442,6 +459,8 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     kind: (post.kind as PostKind | null) ?? "discussion",
     status,
     createdAt: post.created_at as string,
+    editedAt: (post.edited_at as string | null) ?? null,
+    mine: isMine,
     score: scoreByTarget.get(postId) ?? 0,
     myVote: myVoteByTarget.get(postId) ?? 0,
     commentCount: (comments ?? []).length,
@@ -601,6 +620,8 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       attachment: attachmentFromRow(p as Record<string, unknown>),
       kind: (p.kind as PostKind | null) ?? "discussion",
       createdAt: p.created_at as string,
+      editedAt: (p.edited_at as string | null) ?? null,
+      mine: p.user_id === uid,
       score: scoreByTarget.get(p.id as string) ?? 0,
       myVote: myVoteByTarget.get(p.id as string) ?? 0,
       commentCount: commentCounts.get(p.id as string) ?? 0,
@@ -647,7 +668,8 @@ export async function setCommentVote(groupId: string | null, postId: string, com
  * comments per post at most, cheap to nest in JS; a recursive CTE would be real complexity for no
  * real benefit at this scale). */
 export async function listComments(groupId: string | null, postId: string, uid: string): Promise<PostComment[]> {
-  await requireMemberIfGrouped(groupId, uid);
+  const role = await requireMemberIfGrouped(groupId, uid);
+  const canModerate = role === "admin" || role === "moderator";
   const { data: comments, error } = await queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).order("created_at"));
   if (error) throw new Error(`listComments(${postId}): ${error.message}`);
   if (!comments?.length) return [];
@@ -668,8 +690,13 @@ export async function listComments(groupId: string | null, postId: string, uid: 
     authorName: nameFor(profileById.get(c.user_id as string), c.user_id as string),
 
     authorAvatarUrl: profileById.get(c.user_id as string)?.avatar_url ?? null,
-    content: c.content as string,
+    // A tombstone keeps its place in the thread, never its text.
+    content: c.deleted_at ? "" : (c.content as string),
     createdAt: c.created_at as string,
+    editedAt: (c.edited_at as string | null) ?? null,
+    deleted: !!c.deleted_at,
+    mine: c.user_id === uid,
+    canDelete: !c.deleted_at && (c.user_id === uid || canModerate),
     score: scoreByTarget.get(c.id as string) ?? 0,
     myVote: myVoteByTarget.get(c.id as string) ?? 0,
   }));
@@ -718,5 +745,6 @@ export async function moderatePost(groupId: string, postId: string, uid: string,
   const status: PostStatus = action === "approve" ? "published" : "rejected";
   const { error } = await supabaseAdmin.from("group_posts").update({ status }).eq("id", postId).eq("group_id", groupId);
   if (error) throw new Error(`moderatePost(${postId}): ${error.message}`);
+  await logModeration({ groupId, actorId: uid, action: action === "approve" ? "post_approved" : "post_removed", postId });
   await notifyPostModerated(groupId, postId, uid, action === "approve");
 }

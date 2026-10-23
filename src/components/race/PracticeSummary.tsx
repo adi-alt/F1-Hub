@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { tooltipStyle } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { PracticeBestLap, PracticeData } from "@/lib/types/race";

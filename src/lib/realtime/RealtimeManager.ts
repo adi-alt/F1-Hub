@@ -26,7 +26,7 @@ const RESYNC_DEBOUNCE_MS = 400;
  * The one place in this app allowed to call `supabase.channel(...)` — see the two hard rules in
  * the realtime/cache refactor plan: components/pages/hooks never own a channel directly, and a
  * realtime event never triggers `router.refresh()` except through a documented sync-policy
- * strategy. Everything else (useRealtimeSubscription, syncPolicy.ts) is a thin layer on top of
+ * strategy. Everything else (useRealtimeSubscription) is a thin layer on top of
  * this registry.
  *
  * Channels are keyed by `channelKey` (one underlying `RealtimeChannel`/WebSocket subscription,

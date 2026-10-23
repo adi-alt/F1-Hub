@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";
@@ -19,6 +19,8 @@ import type { RaceStoryFacts } from "@/components/raceDetail/RaceStory";
 import type { ContextSource } from "@/lib/ai/schemas/raceIntelligence";
 import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import type { StatTile } from "@/components/raceDetail/StatTiles";
+import { Button } from "@/components/ui/Button";
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
 import { layoutToDrawing } from "@/lib/circuitLayout";
@@ -255,51 +257,18 @@ export function ArchiveRaceDashboard({
   };
 
   return (
-    <div id="overview" className="space-y-6">
+    <div id="overview" className="space-y-12">
       <RaceApexScope archiveYear={race.year} archiveRound={race.round} circuit={race.circuitName ?? race.locality ?? race.raceName} year={race.year} name={race.raceName} status="completed" />
-      <RaceStorySection
-        storyFacts={storyFacts}
-        statTiles={statTiles}
-        circuitCard={
-          circuit ? (
-            <CircuitCard circuit={circuit} weather={race.weather} drawing={layout ? layoutToDrawing(layout) : null} />
-          ) : (
-            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-tertiary">
-              No circuit details backfilled for this race yet.
-            </div>
-          )
-        }
-      />
-
-      {/* Only once a real community has actually opened a prediction for THIS race - see
-          SeasonRaceDashboard's own comment on why the general "communities to join" discovery
-          fallback is omitted entirely here rather than shown as a lower-value substitute. */}
-      {raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />}
-      <RaceHistorySection
-        raceName={race.raceName}
-        circuitName={race.circuitName ?? race.locality ?? race.raceName}
-        timeline={circuitTimeline}
-        liveRaces={trackHistory.liveRaces}
-        archiveRaces={trackHistory.archiveRaces}
-        ageRecords={ageRecords}
-      />
-
-      <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} archiveYear={race.year} archiveRound={race.round} />
-
-      <RaceSectionCard id="results" title="Results">
+      <RaceSectionCard id="results" title="Result" description={winner ? `${winner.driverName} won${winningMargin ? ` by ${winningMargin.replace(/^\+/, "")}` : ""}.` : undefined}>
         <motion.div layout className="space-y-3">
           <RacePodium entries={podium} />
           {resultRows.length > 0 && (
             <RaceResultsTable rows={resultRows} renderExpanded={renderExpanded} expandedKey={expandedKey} onToggleExpand={(k) => setExpandedKey((p) => (p === k ? null : k))} />
           )}
           {allResultRows.length > INITIAL_RESULT_ROWS && (
-            <button
-              type="button"
-              onClick={() => setShowAllResults((v) => !v)}
-              className="mx-auto block text-sm text-neutral-400 transition hover:text-white"
-            >
-              {showAllResults ? "Show fewer results ↑" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS}) ↓`}
-            </button>
+            <Button variant="ghost" size="sm" className="mx-auto flex" aria-expanded={showAllResults} onClick={() => setShowAllResults((v) => !v)}>
+              {showAllResults ? "Show fewer results" : `Show all results (+${allResultRows.length - INITIAL_RESULT_ROWS})`}
+            </Button>
           )}
         </motion.div>
       </RaceSectionCard>
@@ -310,12 +279,14 @@ export function ArchiveRaceDashboard({
         </RaceSectionCard>
       )}
 
+      <RegionBoundary label="the race analysis">
       {hasSessionAnalysis && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <DriverSetTabs value={driverSet} onValueChange={setDriverSet}>
             <RaceSectionCard
-              title="Race Analysis"
-              description="Grid position, qualifying pace, race strategy, lap progression and finishing performance."
+              id="analysis"
+              title="Race analysis"
+              description="Qualifying pace, tyre strategy, lap by lap, and who gained or lost places."
               headerRight={
                 driverSetFilterable ? (
                   <DriverSetFilter value={driverSet} customOptions={customSelectOptions} customIds={customDriverIds} onCustomIdsChange={setCustomDriverIds} />
@@ -357,15 +328,15 @@ export function ArchiveRaceDashboard({
                   )}
                 </div>
                 {hasLapChart && (
-                  <div id="analysis" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                    <RaceSubSection label="Lap Progression" description="Race position changes lap by lap." first>
+                  <div id="lap-chart" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
+                    <RaceSubSection label="Lap by lap" description="Race position on every lap." first>
                       <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} layout={layout} />
                     </RaceSubSection>
                   </div>
                 )}
                 {hasPositionChanges && (
                   <div id="race-performance" className={hasQualifying || hasStrategy || hasLapChart ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
-                    <RaceSubSection label="Race Performance" description="Starting grid position compared with finishing position." first>
+                    <RaceSubSection label="Places gained and lost" description="Starting grid compared with the finish." first>
                       <PositionChangesPanel entries={visibleMovementEntries} fieldSize={fieldSize} />
                     </RaceSubSection>
                   </div>
@@ -375,19 +346,57 @@ export function ArchiveRaceDashboard({
           </DriverSetTabs>
         </motion.div>
       )}
+      </RegionBoundary>
 
+      <RegionBoundary label="the race intelligence">
+      <RaceIntelligenceSection raceId={race.id} preCoverage={intelligencePreCoverage} archiveYear={race.year} archiveRound={race.round} />
+      </RegionBoundary>
+
+      <RegionBoundary label="the simulation">
       {simulation && (
         <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
           <RaceSectionCard
             id="simulation"
-            title="Simulation"
-            description="Monte Carlo projection based on grid position, race pace and DNF probability."
-            headerRight={<span className="text-xs text-tertiary">Based on 10,000 simulations</span>}
+            title="What the model expected"
+            description="10,000 simulated races from the grid, race pace and retirement odds, frozen before the start."
           >
             <SimulationPanel simulation={simulation} />
           </RaceSectionCard>
         </motion.div>
       )}
+      </RegionBoundary>
+
+      <RegionBoundary label="the race story">
+      <RaceStorySection
+        storyFacts={storyFacts}
+        statTiles={statTiles}
+        circuitCard={
+          circuit ? (
+            <CircuitCard circuit={circuit} weather={race.weather} drawing={layout ? layoutToDrawing(layout) : null} />
+          ) : (
+            <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-tertiary">
+              No circuit details backfilled for this race yet.
+            </div>
+          )
+        }
+      />
+      </RegionBoundary>
+
+      {/* Only once a real community has actually opened a prediction for THIS race - see
+          SeasonRaceDashboard's own comment on why the general "communities to join" discovery
+          fallback is omitted entirely here rather than shown as a lower-value substitute. */}
+      {raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />}
+      <RegionBoundary label="the race history">
+      <RaceHistorySection
+        raceName={race.raceName}
+        circuitName={race.circuitName ?? race.locality ?? race.raceName}
+        timeline={circuitTimeline}
+        liveRaces={trackHistory.liveRaces}
+        archiveRaces={trackHistory.archiveRaces}
+        ageRecords={ageRecords}
+      />
+      </RegionBoundary>
+
     </div>
   );
 }

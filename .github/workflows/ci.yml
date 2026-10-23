@@ -29,6 +29,8 @@ jobs:
       # Counts the class patterns the design tokens replace (text-[Npx], [var(--x)], [#hex],
       # outline-none without focus-visible) and fails if any grows past scripts/design-lint-baseline.json.
       - run: npm run lint:design
+      # Fails when a file under src/ has no importers (audit R-35); Next's route/entry files and tests are exempt.
+      - run: npm run lint:unused
       # Retried once, with a warning on the run. Node 24 has crashed intermittently inside PGlite's
       # WebAssembly ("Check failed: jit_page_->allocations_.erase" in V8, in the database suites, about one
       # run in a dozen); the crash is not in our code and does not reproduce locally. A real failure fails
@@ -52,7 +54,6 @@ jobs:
           SUPABASE_SECRET_KEY: placeholder-secret-key
           CRON_SECRET: placeholder-cron-secret
           SESSION_SECRET: placeholder-session-secret-for-ci-builds-only-000000
-          NVIDIA_API_KEY: placeholder-nvidia-key
 
   # The race-condition suite (src/lib/__tests__/db/concurrency.pg.test.ts) needs real concurrent connections, which
   # PGlite can't give, so without a Postgres it only ever reported "skipped" (audit R-21). A throwaway server here,

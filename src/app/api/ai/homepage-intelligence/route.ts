@@ -34,7 +34,7 @@ import {
   type FavoriteDriverCard,
   type FavoriteTeamCard,
 } from "@/lib/personalization";
-import { getUserProfile, touchHomepageVisit } from "@/lib/supabase/users";
+import { getHomepageVisitStamp, getUserProfile } from "@/lib/supabase/users";
 import { getUserPicksForYear } from "@/lib/supabase/picks";
 import { computePredictionFingerprint } from "@/lib/predictionPerformance";
 import { getJoinedGroupIds, listFeedPosts } from "@/lib/supabase/groupPosts";
@@ -53,7 +53,7 @@ import {
 import { checkProviderCapacity } from "@/lib/ai/providerRateLimiter";
 import { checkUserRateLimit } from "@/lib/ai/guardrails";
 import { clientIp } from "@/lib/clientIp";
-import { generateDeterministicFallback, type FallbackDataContext } from "@/lib/ai/fallback";
+import { applyPredictionVerdict, generateDeterministicFallback, predictionVerdict, type FallbackDataContext } from "@/lib/ai/fallback";
 import { logAIError, logDeterministicFallback } from "@/lib/ai/telemetry";
 import type { HomepageContextData } from "@/lib/ai/context";
 import { stripPersonalFields, type HomepageIntelligence } from "@/lib/ai/schemas/homepageIntelligence";
@@ -62,7 +62,7 @@ import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
 import { getCurrentSeason } from "@/lib/currentSeason";
 
-// Headroom above the provider's own 90s AbortController timeout (nemotron.ts, single attempt - see
+// Headroom above the provider's own 90s AbortController timeout (single attempt - see
 // orchestrator.ts's own comment on why this task doesn't retry) plus our own data-fetching/
 // processing overhead - Vercel's own default function duration would otherwise kill this route
 // before our own timeout logic ever gets to run its course and return a clean fallback. See
@@ -122,7 +122,6 @@ export async function POST(request: Request) {
       const [p, picks, groupIds] = userBatch;
       joinedGroupIds = groupIds;
       profile = p;
-      lastHomepageVisitAt = profile?.lastHomepageVisitAt ?? null;
       userPick = nextRace ? (picks.find((pick) => pick.raceId === nextRace.id) ?? null) : null;
       fingerprint = computePredictionFingerprint(picks, races, driverLeader?.driver ?? null);
     }
@@ -141,6 +140,18 @@ export async function POST(request: Request) {
           .map(([k]) => k)
       : undefined;
 
+    // The AGREE/DISAGREE verdict is computed here, from codes, on every response path (cached,
+    // fresh and fallback) - the model only writes the explanation (R-44, AI-09). The race model's
+    // finishOrder leads: the simulation's favourite is nearly flat and a weak call to argue with.
+    const modelPickCode = rfTop?.driver ?? simTop?.driver ?? null;
+    const userPickName = userPick?.predictedWinner
+      ? (nextRace?.inputs?.find((i) => i.driver === userPick!.predictedWinner)?.driverName ?? standings?.drivers.find((d) => d.driver === userPick!.predictedWinner)?.driverName ?? userPick.predictedWinner)
+      : null;
+    const verdictContext: FallbackDataContext = {
+      verdict: { userWinnerCode: userPick?.predictedWinner ?? null, submitted: !!userPick?.submittedAt, modelPickCode, modelPickName: rfTop ? rfTopName : simTopName, userPickName },
+      simulation: simTopName ? { topSimulatedDriver: simTopName, p1Probability: simTop?.p1 } : null,
+    };
+
     // 4. Compute independent GLOBAL and PERSONAL data-version hashes.
     // GLOBAL depends only on facts every visitor shares - a user's own prediction must never
     // invalidate the cache entry every other visitor reads.
@@ -150,7 +161,7 @@ export async function POST(request: Request) {
     // runs where nothing the AI actually talks about changed at all (a re-fetch that found the
     // same practice/qualifying data, a preliminary-result retry that didn't yet succeed, etc). With
     // it included, every pipeline tick during a race weekend was busting this cache early - well
-    // before its real 1-hour TTL - forcing a fresh, slow (~10-90s, see nemotron.ts's own timeout)
+    // before its real 1-hour TTL - forcing a fresh, slow (up to the provider's 90s timeout)
     // model call far more often than necessary. simTop/rfTop/raceId already cover every input this
     // response's SHARED content actually depends on.
     //
@@ -170,8 +181,8 @@ export async function POST(request: Request) {
     ]);
     // Deliberately NOT including sinceLastVisit?.changes.length (or anything else derived from
     // lastHomepageVisitAt): that value is a diff against the user's OWN last-visit timestamp, which
-    // touchHomepageVisit() (step 9 below, and in the cache-hit/fallback paths) bumps to "now" at the
-    // end of EVERY request - including this one. The very next request (e.g. an immediate hard
+    // used to be bumped to "now" at the end of EVERY request (it is now stamped only when a visit
+    // ends - HomeVisitBeacon -> /api/home/visit). The very next request (e.g. an immediate hard
     // refresh) would then read a last-visit timestamp only seconds old, almost always producing
     // ZERO diff changes regardless of what the first request found, changing personalDataVersion
     // and forcing a full regeneration even though nothing about the underlying F1 data actually
@@ -231,9 +242,11 @@ export async function POST(request: Request) {
     // exists), so this doesn't change which tier any user lands in.
     const isDefaultUser = !profile?.favoriteDrivers?.length && !profile?.favoriteTeams?.length && !userPick && (!fingerprint || fingerprint.totalPredictions === 0);
 
+    // A guest has no pick to judge; a signed-in user always gets the computed verdict.
+    const withVerdict = (data: HomepageIntelligence) => (userId ? applyPredictionVerdict(data, verdictContext) : data);
+
     async function respondCached(data: HomepageIntelligence, cacheTier: GenerationResult["cacheTier"]) {
-      if (userId) await touchHomepageVisit(userId).catch((err) => logAIError(requestId, "touch_visit_failed", String(err)));
-      return NextResponse.json({ data, cached: true, cacheTier, dataVersion: personalDataVersion ?? globalDataVersion, isFallback: false });
+      return NextResponse.json({ data: withVerdict(data), cached: true, cacheTier, dataVersion: personalDataVersion ?? globalDataVersion, isFallback: false });
     }
 
     if (personalCacheKey) {
@@ -278,7 +291,7 @@ export async function POST(request: Request) {
       // favorite driver/team - getTrackHistory's signature is single-entity by design and isn't
       // being extended here; every OTHER favorite still gets its name/rank/points below, just not
       // this one circuit-specific stat block.
-      const [driverCards, teamCards, history, feed] = await Promise.all([
+      const [driverCards, teamCards, history, feed, visitStamp] = await Promise.all([
         Promise.all(driverIds.map((id) => getFavoriteDriverCard(id).catch(() => null))),
         Promise.all(teamIds.map((id) => getFavoriteTeamCard(id).catch(() => null))),
         resolvedCircuitId
@@ -288,7 +301,10 @@ export async function POST(request: Request) {
             }).catch(() => null)
           : Promise.resolve(null),
         listFeedPosts(userId, { feedType: "following", limit: 10 }).catch(() => ({ posts: [], hasMore: false })),
+        // Uncached: the cached profile can lag behind a visit stamped since.
+        getHomepageVisitStamp(userId).catch(() => null),
       ]);
+      lastHomepageVisitAt = visitStamp;
       favoriteDriverCards = driverCards.filter((c): c is FavoriteDriverCard => c !== null);
       favoriteTeamCards = teamCards.filter((c): c is FavoriteTeamCard => c !== null);
       trackHistory = history;
@@ -379,6 +395,7 @@ export async function POST(request: Request) {
       predictionPerformance: fingerprint && fingerprint.totalPredictions > 0 ? { winnerAccuracy: fingerprint.winnerAccuracy, totalPredictions: fingerprint.totalPredictions, avgPositionError: fingerprint.avgPositionError ?? undefined } : null,
       communitySummary: feedPosts.length > 0 ? { recentPostCount: feedPosts.length, hotTopic: feedPosts[0]?.title || undefined } : null,
       sinceLastVisit,
+      verdict: verdictContext.verdict,
     };
 
     // 7. Both checks below gate ONLY the "about to attempt real generation" path - every cache hit
@@ -395,7 +412,6 @@ export async function POST(request: Request) {
       const userLimit = await checkUserRateLimit(userId ?? `ip:${clientIp(request)}`);
       if (!userLimit.allowed) {
         const fallback = generateDeterministicFallback(fallbackContext, userLimit.reason ?? "USER_RATE_LIMITED");
-        if (userId) await touchHomepageVisit(userId).catch(() => {});
         return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: userLimit.reason ?? "USER_RATE_LIMITED", retryAfterSeconds: userLimit.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
       }
     }
@@ -407,7 +423,6 @@ export async function POST(request: Request) {
     if (!capacity.allowed) {
       logDeterministicFallback(requestId, "PROVIDER_RATE_LIMITED", { currentRPM: capacity.currentRPM, limit: capacity.limit, retryAfterSeconds: capacity.retryAfterSeconds });
       const fallback = generateDeterministicFallback(fallbackContext, "PROVIDER_RATE_LIMITED");
-      if (userId) await touchHomepageVisit(userId).catch(() => {});
       return NextResponse.json({ data: fallback.data, cached: false, isFallback: true, fallbackReason: "PROVIDER_RATE_LIMITED", retryAfterSeconds: capacity.retryAfterSeconds, dataVersion: personalDataVersion ?? globalDataVersion });
     }
 
@@ -435,7 +450,13 @@ export async function POST(request: Request) {
       favoriteDrivers: favoriteDriverFacts,
       favoriteTeams: favoriteTeamFacts,
       favoriteCircuit: isFavoriteCircuit && nextRace ? { isFavorite: true, name: nextRace.circuit } : null,
-      userPrediction: userPick ? { predictedWinner: userPick.predictedWinner || undefined, submitted: !!userPick.submittedAt } : null,
+      userPrediction: userPick
+        ? {
+            predictedWinner: userPickName || undefined,
+            submitted: !!userPick.submittedAt,
+            verdict: ((v) => (v === "AGREE" || v === "DISAGREE" ? v : null))(predictionVerdict(verdictContext.verdict!)),
+          }
+        : null,
       predictionFingerprint: fingerprint && fingerprint.totalPredictions > 0 ? fingerprint : null,
       sinceLastVisit,
     };
@@ -462,9 +483,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (userId) await touchHomepageVisit(userId).catch((err) => logAIError(requestId, "touch_visit_failed", String(err)));
-
-    return NextResponse.json({ data: output.data, cached: false, isFallback: output.isFallback || false, fallbackReason: output.fallbackReason, dataVersion: personalDataVersion ?? globalDataVersion });
+    return NextResponse.json({ data: withVerdict(output.data), cached: false, isFallback: output.isFallback || false, fallbackReason: output.fallbackReason, dataVersion: personalDataVersion ?? globalDataVersion });
   } catch (err) {
     logAIError(requestId, "unhandled_route_exception", String(err));
     // Even on unhandled exception, return deterministic fallback rather than crashing.

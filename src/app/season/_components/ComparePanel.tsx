@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { teamColor } from "@/lib/teamColors";
 import { useFavDriverIds, useFavTeamIds } from "@/queries/favorites/useFavorites";
 import { EntityMultiSelect, type MultiSelectOption } from "./EntityMultiSelect";

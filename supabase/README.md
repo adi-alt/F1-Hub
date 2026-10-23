@@ -1,6 +1,6 @@
 # Database
 
-> **No staging project right now.** Staging (`wmdgbmlpvszyapewygvs`) was deleted on 2026-10-09. Every job that used it (migrate's staging job, e2e, the backup drill, race-photos' staging target) is off behind the repository variable `STAGING_ENABLED`, and production migrations no longer wait for staging: the `production-db` approval and the fingerprint check are the only gate. To bring staging back: create a project, put its secrets in the GitHub `staging` environment, replace the old project ref in the workflows and scripts, rebuild it (below), restore `needs: staging` in migrate.yml, and set `STAGING_ENABLED=true`.
+> **No staging project right now.** Staging (`wmdgbmlpvszyapewygvs`) was deleted on 2026-10-09. Migrate's staging job, the staging variant of the browser tests and race-photos' staging target are off behind the repository variable `STAGING_ENABLED`, and production migrations no longer wait for staging (the browser tests and the backup drill now run against a disposable local Postgres instead): the `production-db` approval and the fingerprint check are the only gate. To bring staging back: create a project, put its secrets in the GitHub `staging` environment, replace the old project ref in the workflows and scripts, rebuild it (below), restore `needs: staging` in migrate.yml, and set `STAGING_ENABLED=true`.
 
 Two Supabase projects, and migrations reach both through CI (`.github/workflows/migrate.yml`):
 
@@ -37,12 +37,11 @@ Production is only ever read. No personal data is copied: the seed creates synth
 - **Encrypted to a public key.** `supabase/backup-recipient.txt` is the public key. The private key is never in the repo, GitHub or CI, so a leaked artifact is unreadable. Only the owner can open it.
 - **Keep the private key safe.** Copy `~/.apex-backup/age-identity.txt` into a password manager. Lose it and every backup is unreadable. To rotate: generate a new key, replace `backup-recipient.txt`, and keep the old private key for as long as old backups matter.
 - **Every table is classified** in `scripts/lib/backup-tables.mjs` as irreplaceable (backed up), rebuildable (the pipeline refills it) or ephemeral (one-time codes). A new table fails `backup.test.ts` until it is classified, so one can't be silently left out.
-- **The drill** (`node scripts/restore-drill.mjs`, run by the `drill` job against staging on every change to the backup code) dumps, encrypts, decrypts, restores into a throwaway `drill_*` schema, compares order-independent md5 fingerprints per table, and drops the schema. It never writes to `public`.
+- **The drill** (`node scripts/restore-drill.mjs`, run by the `drill` job against a disposable Postgres service loaded by `scripts/local-db/load.ts` on every change to the backup code or the schema, and by `npm test` on PGlite) dumps, encrypts, decrypts, restores into a throwaway `drill_*` schema, compares order-independent md5 fingerprints per table, and drops the schema. It never writes to `public`.
 
 To restore, download the artifact, then decrypt and inspect with the private key:
 ```sh
-DATABASE_URL=<a scratch or staging database> EXPECTED_PROJECT_REF=<its ref> \
-  node scripts/restore-drill.mjs --in backup.json.gz.age --identity ~/.apex-backup/age-identity.txt
+DATABASE_URL=<a scratch database> node scripts/restore-drill.mjs --in backup.json.gz.age --identity ~/.apex-backup/age-identity.txt
 ```
 This restores into a throwaway `drill_*` schema and checks it against the backup's own fingerprints.
 Restoring into a real project is a deliberate manual step, done into a scratch schema first and checked against the manifest's row counts.

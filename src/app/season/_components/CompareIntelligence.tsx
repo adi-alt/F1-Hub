@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SeasonInsight, SeasonInsightSkeleton } from "./ai/SeasonInsight";
 import type { SeasonCompareInsight, CompareIdentity } from "@/lib/ai/schemas/seasonIntelligence";
 import type { EntityType } from "../_service/season.pure";

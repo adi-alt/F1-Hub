@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 /** A prose summary over the exact same facts HighlightsPanel/StatTiles already show as tiles - no
  * new data, just templated sentences instead of stat cards. Each line is only included when its

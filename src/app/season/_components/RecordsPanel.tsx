@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { AnalysisEmptyState } from "./AnalysisEmptyState";
 import { SeasonInsight, SeasonInsightSkeleton } from "./ai/SeasonInsight";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { PanelSection } from "@/components/ui/PanelSection";

@@ -3,7 +3,7 @@
 import type { FocusEvent, MouseEvent } from "react";
 import { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { staggerContainer } from "@/components/motion/variants";
 import { constructorChampionOverride, groupYearsByEra, isVerifiedChampionYear } from "@/lib/eras";
 import type { ArchiveYearStats, CurrentLeader } from "@/lib/supabase/archive";

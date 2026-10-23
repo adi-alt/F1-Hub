@@ -10,6 +10,8 @@ export const IRREPLACEABLE = [
   "group_members",
   "group_posts",
   "group_post_comments",
+  "group_post_reports",
+  "group_moderation_log",
   "group_post_votes",
   "group_comment_votes",
   "group_join_requests",

@@ -1,7 +1,7 @@
 "use client";
 
 import type { FocusEvent, MouseEvent } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { staggerContainer } from "@/components/motion/variants";
 import { SeasonCard } from "./SeasonCard";
 import type { Era } from "@/lib/eras";

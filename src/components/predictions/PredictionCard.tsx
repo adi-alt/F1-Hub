@@ -6,23 +6,55 @@ import { LayoutGroup, motion } from "motion/react";
 import { Check, Clock, Lock, Sparkles, Users, X } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Button } from "@/components/ui/Button";
+import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { DriverPicker } from "@/components/ui/F1Pickers";
 import { ensureVisible } from "@/lib/colorContrast";
 import { teamColor } from "@/lib/teamColors";
 import { Icon } from "@/components/ui/Icon";
 import { RollingNumber } from "@/components/ui/RollingNumber";
-import { PANEL } from "../panel";
+import { PANEL } from "@/components/ui/panel";
 import { comparableDriver, type ModelPick } from "@/lib/communityWeekend";
-import { predictionStateAt, type PredictionGuess, type PredictionType } from "@/lib/groupPredictionTypes";
-import type { FeedPrediction, PredictionTrend } from "@/lib/supabase/groupPredictions";
+import {
+  predictionCardState,
+  type GroupPrediction,
+  type PredictionCardState,
+  type PredictionGuess,
+  type PredictionTrend,
+  type PredictionType,
+} from "@/lib/groupPredictionTypes";
 import { groupHref } from "@/lib/routes";
 import { formatCountdown } from "@/lib/countdown";
 import { timeAgo } from "@/lib/format";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { useAuth } from "@/providers/AuthProvider";
 import { askApex } from "@/components/apex/askApex";
-import { usePredictionTrend, MIN_ENTRIES_FOR_TREND } from "./PredictionTrendBars";
-import { CLOSED_MESSAGE, DEADLINE_UNKNOWN_MESSAGE, type DriverOption } from "./PredictionEntry";
+
+/** A driver a round can be entered on; `team` colours the identity's team bar. */
+export type DriverOption = { code: string; name: string; headshotUrl: string | null; team?: string };
+
+/** Below this many entries there is no consensus to draw - two entries would read as "the
+ * community thinks X" on the strength of two people. */
+export const MIN_ENTRIES_FOR_TREND = 3;
+
+/** Everything a card renders. The feed's listing (FeedPrediction) is exactly this; a community's
+ * Predictions tab converts its rows with fromGroupPrediction. */
+export type PredictionCardData = Omit<GroupPrediction, "myEntry"> & {
+  groupName: string;
+  hasEntered: boolean;
+  myGuess: PredictionGuess | null;
+  myGuessLabel: string | null;
+  myPointsAwarded: number | null;
+  correctAnswerLabel: string | null;
+};
+
+export function fromGroupPrediction(p: GroupPrediction, groupName: string): PredictionCardData {
+  const { myEntry, ...round } = p;
+  return { ...round, groupName, hasEntered: myEntry !== null, myGuess: myEntry?.guess ?? null, myGuessLabel: null, myPointsAwarded: myEntry?.pointsAwarded ?? null, correctAnswerLabel: null };
+}
+
+/** Where a card is shown, which decides what its context line repeats: the feed names the
+ * community and the race; a community's own tab only the race; the race page only the community. */
+export type PredictionCardVariant = "feed" | "community" | "race";
 
 /** The question each round asks, from its real type. */
 const QUESTION: Record<PredictionType, string> = {
@@ -42,6 +74,26 @@ const APEX_QUESTION: Record<PredictionType, (race: string) => string> = {
   dnf_count: (race) => `How many retirements should we expect at the ${race}?`,
 };
 
+/** What a closed or blocked round says, per card state (open and resolved say nothing here). */
+function stateMessage(state: PredictionCardState, p: PredictionCardData, pointsBalance: number | null): string | null {
+  switch (state) {
+    case "locked":
+      return p.lockAt === null ? "This round's deadline isn't available yet, so it can't take entries right now." : "Predictions closed when qualifying began.";
+    case "awaiting_result":
+      return "This race has run. Waiting for an admin to settle the round.";
+    case "void":
+      return p.hasEntered ? "This round was voided. Your entry points were refunded." : "This round was voided.";
+    case "insufficient_points":
+      return `You need ${p.entryPoints} points to enter. You have ${pointsBalance ?? 0}.`;
+    case "not_member":
+      return "Join this community to enter its rounds.";
+    case "no_lineup":
+      return "No driver line-up is available yet for this race.";
+    default:
+      return null;
+  }
+}
+
 /** How many option tiles a single-driver round shows before "Someone else" (the full grid is one picker away). */
 const TILES = 6;
 const DNF_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -49,51 +101,75 @@ const DNF_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7];
 const sameGuess = (a: PredictionGuess | null | undefined, b: PredictionGuess | null | undefined) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /**
- * A prediction round in the feed, laid out like a market on a prediction site: a header strip with the community,
- * the round and its countdown; the question; the options as tiles, each showing how much of the community has
- * picked it; and a slip-style footer with what it costs, what a right pick wins (a correct pick pays double, the
- * resolve function's own rule) and the one action.
+ * One prediction round, wherever it's shown (the feed, a community's Predictions tab, the race
+ * page), laid out like a market: the context, the question, the options as tiles with the
+ * community's share of each, and a slip-style footer with the cost, what a right pick pays (double,
+ * the resolve function's rule) and the one action.
  *
- * Picking is a tap on a tile (or "Someone else" for any driver), then Confirm - the same endpoint and checks the
- * community's Predictions tab uses (`POST .../enter`: membership, the wallet, the deadline). After entering, the
- * tile you picked stays marked and Change reopens the choice until qualifying; after the result, the right answer
- * is marked and the card says what you won. Wording stays clear of betting language: these are points, not money.
+ * What the card can do comes from predictionCardState - computed by the server when it built the
+ * listing (`viewerState`) and re-run here with the minute clock, the live points balance and the
+ * roster, so a round closes at its deadline without a refresh. The server stays the authority: a
+ * refusal it sends back as closed closes the card. Admins get Resolve and Void on unsettled rounds.
+ *
+ * The community trend comes in as a prop, fetched once for every card on screen
+ * (usePredictionTrends), never per card. Wording stays clear of betting language: these are
+ * points, not money.
  */
-export function PredictionFeedCard({
+export function PredictionCard({
+  variant,
   prediction,
-  showGroup,
+  trend = null,
   drivers = [],
   groupAvatarUrl = null,
   modelPick = null,
+  isMember = true,
+  canManage = false,
+  pointsBalance: serverBalance,
+  onChanged,
 }: {
-  prediction: FeedPrediction;
-  /** Position in the feed (kept for callers; the feed no longer staggers entrances). */
-  index?: number;
-  showGroup: boolean;
+  variant: PredictionCardVariant;
+  prediction: PredictionCardData;
+  /** The community's split of picks, from the batched trend request; null while loading or unavailable. */
+  trend?: PredictionTrend | null;
   /** Real roster for THIS round's race. Empty is a real state, and the card says so. */
   drivers?: DriverOption[];
   /** The community's own picture, for the header. */
   groupAvatarUrl?: string | null;
   /** The Apex model's pick for this round, where its model has run for the race (see modelPickFor). */
   modelPick?: ModelPick | null;
+  isMember?: boolean;
+  /** A community admin: may resolve (pay out) or void (refund) an unsettled round. */
+  canManage?: boolean;
+  /** The viewer's balance as the server rendered it; the live header balance when not given. */
+  pointsBalance?: number | null;
+  /** After an entry, resolve or void, so the page can refresh what it shows around the card. */
+  onChanged?: () => void;
 }) {
   const now = useMinuteClock();
-  const { pointsBalance, refreshPointsBalance } = useAuth();
+  const { pointsBalance: liveBalance, refreshPointsBalance } = useAuth();
+  const pointsBalance = serverBalance ?? liveBalance;
   const [entered, setEntered] = useState<{ guess: PredictionGuess | null; label: string | null } | null>(prediction.hasEntered ? { guess: prediction.myGuess, label: prediction.myGuessLabel } : null);
   const [editing, setEditing] = useState(false);
   const [choice, setChoice] = useState<PredictionGuess | null>(null);
   const [podium, setPodium] = useState<[string, string, string]>(Array.isArray(prediction.myGuess) ? (prediction.myGuess as [string, string, string]) : ["", "", ""]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  // The server's deadline (start of qualifying, prediction.lockAt); `serverClosed` covers the up-to-a-minute the
-  // clock can lag behind it.
+  // The server's refusal as closed covers the up-to-a-minute the clock can lag the deadline.
   const [serverClosed, setServerClosed] = useState(false);
-  const state = predictionStateAt(prediction.status, prediction.lockAt, now);
-  const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
-  const closed = serverClosed || state !== "open";
+
+  const computed = predictionCardState(
+    prediction,
+    { isMember, hasEntered: entered !== null, pointsBalance, driverCount: drivers.length },
+    now,
+  );
+  // The server's own verdict can only make a round more closed than the client clock thinks.
+  const serverSettled = prediction.viewerState === "resolved" || prediction.viewerState === "void" ? prediction.viewerState : null;
+  const state: PredictionCardState = serverSettled ?? (serverClosed && computed === "open" ? "locked" : computed);
   const resolved = state === "resolved";
+  const settled = resolved || state === "void";
+  const closed = state === "locked" || state === "awaiting_result" || settled;
+  const lockMs = prediction.lockAt ? Date.parse(prediction.lockAt) : null;
   const countdown = !closed && lockMs !== null ? formatCountdown(lockMs, now) : null;
-  const { trend } = usePredictionTrend(prediction.groupId, prediction.id, prediction.entryCount > 0);
   const shownTrend = trend && trend.total >= MIN_ENTRIES_FOR_TREND ? trend : null;
 
   const picking = !closed && (!entered || editing);
@@ -101,13 +177,8 @@ export function PredictionFeedCard({
   const winPoints = prediction.entryPoints * 2;
   const pending: PredictionGuess | null = isPodium ? (podium.every(Boolean) && new Set(podium).size === 3 && picking ? podium : null) : picking ? choice : null;
   const changed = pending !== null && !sameGuess(pending, entered?.guess);
-  const blocker = !picking
-    ? null
-    : prediction.type !== "dnf_count" && drivers.length === 0
-      ? "No driver line-up is available yet for this race."
-      : !entered && pointsBalance !== null && pointsBalance < prediction.entryPoints
-        ? `You need ${prediction.entryPoints} points to enter. You have ${pointsBalance}.`
-        : null;
+  const blocked = state === "insufficient_points" || state === "not_member" || state === "no_lineup";
+  const message = stateMessage(state, prediction, pointsBalance);
 
   const nameOf = (code: string) => drivers.find((d) => d.code === code)?.name ?? code;
   const labelFor = (g: PredictionGuess) => (typeof g === "number" ? `${g} ${g === 1 ? "retirement" : "retirements"}` : Array.isArray(g) ? g.map(nameOf).join(", ") : nameOf(g));
@@ -133,6 +204,22 @@ export function PredictionFeedCard({
     setEntered({ guess: pending, label: labelFor(pending) });
     setEditing(false);
     setChoice(null);
+    onChanged?.();
+  }
+
+  /** Resolve (pay out) or void (refund everyone): both move points, so both refresh the balance. */
+  async function settle(action: "resolve" | "void") {
+    setSaving(true);
+    setError("");
+    const res = await fetch(`/api/groups/${prediction.groupId}/predictions/${prediction.id}/${action}`, { method: "POST" }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    setSaving(false);
+    if (!res?.ok) {
+      setError(body?.error ?? (action === "resolve" ? "Couldn't resolve this round yet." : "Couldn't void this round. Try again."));
+      return;
+    }
+    refreshPointsBalance();
+    onChanged?.();
   }
 
   const lastName = (code: string) => {
@@ -141,6 +228,8 @@ export function PredictionFeedCard({
   };
   // Under three hours left is when "when" stops being background information (the critique's warning threshold).
   const closingSoon = !closed && lockMs !== null && lockMs - now < 3 * 3600 * 1000;
+  const showGroup = variant !== "community";
+  const showRace = variant !== "race";
 
   return (
     // The site's glass panel, like every card in the feed; no inner borders (critique §4.2).
@@ -153,8 +242,8 @@ export function PredictionFeedCard({
             <span className="truncate">{prediction.groupName}</span>
           </Link>
         )}
-        {showGroup && <Dot tight />}
-        <span className="truncate">{prediction.raceName}</span>
+        {showGroup && showRace && <Dot tight />}
+        {showRace && <span className="truncate">{prediction.raceName}</span>}
         <Dot tight />
         <span suppressHydrationWarning className="shrink-0 whitespace-nowrap">
           {timeAgo(prediction.createdAt)}
@@ -172,6 +261,11 @@ export function PredictionFeedCard({
             <Icon icon={Check} size={16} className="size-3.5 text-tertiary" />
             Settled on the official result
           </span>
+        ) : state === "void" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon={X} size={16} className="size-3.5 text-tertiary" />
+            Voided
+          </span>
         ) : countdown ? (
           <span suppressHydrationWarning className={`inline-flex items-center gap-1.5 tabular ${closingSoon ? "text-warning" : ""}`}>
             <Icon icon={Clock} size={16} className={`size-3.5 ${closingSoon ? "" : "text-tertiary"}`} />
@@ -187,7 +281,7 @@ export function PredictionFeedCard({
         <span className="tabular">
           Entry <span className="font-medium text-primary">{prediction.entryPoints} pts</span>
         </span>
-        {!resolved && (
+        {!settled && (
           <>
             <Dot />
             <span className="tabular">
@@ -202,7 +296,7 @@ export function PredictionFeedCard({
         {isPodium ? (
           <PodiumMarket
             drivers={drivers}
-            picking={picking}
+            picking={picking && !blocked}
             podium={picking ? podium : ((entered?.guess as [string, string, string] | null) ?? podium)}
             onChange={setPodium}
             entered={entered?.guess as [string, string, string] | null}
@@ -214,7 +308,7 @@ export function PredictionFeedCard({
             type={prediction.type}
             drivers={drivers}
             trend={shownTrend}
-            picking={picking}
+            picking={picking && !blocked}
             selected={picking ? (choice ?? entered?.guess ?? null) : null}
             entered={entered?.guess ?? null}
             correct={resolved ? prediction.correctAnswer : null}
@@ -236,7 +330,7 @@ export function PredictionFeedCard({
             ) : (
               "You didn't enter this round"
             )
-          ) : entered && !editing ? (
+          ) : entered && !editing && !settled ? (
             <span className="inline-flex min-w-0 items-center gap-1.5">
               <Icon icon={Check} size={16} className="shrink-0 text-success" />
               <span className="truncate">
@@ -244,7 +338,7 @@ export function PredictionFeedCard({
               </span>
             </span>
           ) : closed ? (
-            prediction.lockAt === null ? DEADLINE_UNKNOWN_MESSAGE : CLOSED_MESSAGE
+            message
           ) : (
             <span className="tabular">
               {pending !== null && changed && (
@@ -265,29 +359,31 @@ export function PredictionFeedCard({
             </span>
           )}
         </p>
-        {!resolved && picking && (
+        {picking && !blocked && (
           <div className="flex items-center gap-2">
             {editing && (
               <Button variant="ghost" size="sm" onClick={() => (setEditing(false), setChoice(null))}>
                 Cancel
               </Button>
             )}
-            <Button variant="primary" size="sm" loading={saving} disabled={!changed || !!blocker} onClick={() => void confirm()}>
+            <Button variant="primary" size="sm" loading={saving} disabled={!changed} onClick={() => void confirm()}>
               {entered ? "Save change" : `Enter · ${prediction.entryPoints} pts`}
             </Button>
           </div>
         )}
-        {!resolved && !picking && entered && !closed && (
+        {!picking && entered && !closed && (
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             Change
           </Button>
         )}
       </div>
-      {(blocker || error) && <p role="alert" className="mt-2 text-body-sm text-warning">{blocker ?? error}</p>}
+      {((picking && blocked && message) || error) && (
+        <p role="alert" className="mt-2 text-body-sm text-warning">
+          {error || message}
+        </p>
+      )}
       {/* Crowd vs Apex, after the task and quieter than it: where this community leans against the Apex model's pick,
-          each marked right or wrong once the round is settled. The model's race picks come from after qualifying (the
-          simulation needs the grid), which the line says while the round is still open. Retirement rounds have no
-          model, so they show the crowd only. */}
+          each marked right or wrong once the round is settled. Retirement rounds have no model. */}
       <CrowdVsApex
         type={prediction.type}
         trend={shownTrend}
@@ -298,6 +394,17 @@ export function PredictionFeedCard({
         nameOf={lastName}
         onAsk={() => askApex(APEX_QUESTION[prediction.type](prediction.raceName), "everything")}
       />
+      {/* Resolving pays points out and voiding refunds them, so both stay admin-only. */}
+      {canManage && !settled && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ConfirmButton onConfirm={() => void settle("resolve")} question="Resolve and pay out?" confirmLabel="Resolve" pending={saving}>
+            Resolve this round
+          </ConfirmButton>
+          <ConfirmButton onConfirm={() => void settle("void")} question="Void it and refund every entry?" confirmLabel="Void" pending={saving}>
+            Void
+          </ConfirmButton>
+        </div>
+      )}
     </article>
   );
 }

@@ -2,7 +2,7 @@
 
 import type { FocusEvent, MouseEvent } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { staggerItem } from "@/components/motion/variants";
 import { archiveSeasonHref } from "@/lib/routes";
 

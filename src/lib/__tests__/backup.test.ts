@@ -72,10 +72,10 @@ describe("backup.yml", () => {
     assert.match(backup, /EXPECTED_PROJECT_REF: opnfquuowxkabtqxxraa/);
   });
 
-  it("the drill touches staging only, and never for a fork", () => {
-    assert.match(drill, /environment: staging/);
-    assert.match(drill, /EXPECTED_PROJECT_REF: wmdgbmlpvszyapewygvs/);
-    assert.match(drill, /head\.repo\.full_name == github\.repository/);
+  it("the drill runs against a disposable Postgres service, with no secrets", () => {
+    assert.match(drill, /image: postgres:16/);
+    assert.match(drill, /DATABASE_URL: postgres:\/\/postgres:postgres@127\.0\.0\.1:5432\/postgres/);
+    assert.doesNotMatch(drill, /secrets\.|environment:/);
   });
 
   it("keeps the artifact for 30 days and has a read-only token", () => {

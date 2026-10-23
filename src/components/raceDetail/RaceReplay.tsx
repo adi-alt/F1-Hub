@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "motion/react";
 import { Pause, Play } from "lucide-react";
 import { lapAt, leadChanges, standingsAt, statusAt, type Replay } from "@/lib/raceReplay";
 import { projectTrack, smoothClosedPath, TRACK_STORY_VERSION, type RaceTrackStory } from "@/lib/raceTrackStory";

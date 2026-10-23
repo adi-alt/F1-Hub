@@ -1,9 +1,7 @@
 // Core AI type definitions — the foundation every other module in src/lib/ai/ depends on.
-// Designed around the NVIDIA NIM / OpenAI-compatible chat completions API the configured model
-// (Muse Glimmer 30B, formerly Nemotron 3.5 Lightning, DeepSeek V4 Flash, and Kimi K3 before that)
-// uses, but deliberately abstract enough that swapping providers later means implementing one new
-// provider file, not rewriting the orchestrator or tools - which is exactly what's happened four
-// times now. See museGlimmer.ts and docs/AGENTIC_AI.md for the bake-off behind the current choice.
+// Designed around the OpenAI-compatible chat completions API both providers speak (Groq, with
+// OpenRouter as the fallback - see provider.ts), but abstract enough that swapping providers means
+// implementing one new provider file, not rewriting the orchestrator or tools. See docs/AGENTIC_AI.md.
 
 // ─── Messages ──────────────────────────────────────────────────────────────────
 
@@ -52,24 +50,13 @@ export type AIProviderConfig = {
   model: string;
   maxTokens: number;
   temperature: number;
-  /** Nucleus sampling cutoff. Optional - omitted entirely for older providers (Kimi/DeepSeek/
-   * Nemotron never sent it), but Muse Glimmer's own bake-off-verified config (see museGlimmer.ts)
-   * uses 0.95, matching NVIDIA's own reference example for this model. */
+  /** Nucleus sampling cutoff. Optional: omitted unless a caller sets it. */
   topP?: number;
   /** Provider-level timeout in milliseconds. */
   timeoutMs: number;
-  /** Kimi K3 and DeepSeek (both tried, both replaced - see types.ts's own history below and the
-   * docs addendum) controlled reasoning depth via this enum, under different shapes each time.
-   * Unused by the current provider (Nemotron, see nemotron.ts), which uses reasoningBudget below
-   * instead. Kept only so the type doesn't need to change again if a future provider uses this
-   * same enum-style control. */
+  /** Reasoning depth for gpt-oss models: sent as `reasoning_effort` to Groq and `reasoning.effort`
+   * to OpenRouter (low/medium/high only; other values are not sent). */
   reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
-  /** Nemotron's reasoning control - a token budget for the hidden "thinking" pass specifically,
-   * separate from `maxTokens` (the combined reasoning+content cap). Keep this notably smaller than
-   * maxTokens: DeepSeek's own diagnostic run demonstrated live what happens when reasoning is
-   * allowed to consume the *entire* token budget - finish_reason "length" with real content still
-   * null. */
-  reasoningBudget?: number;
   /** Per-call API key override - lets one provider class (GroqProvider) be shared across multiple
    * accounts/keys (one per real AI feature, for genuine isolation - see providerFallback.ts's own
    * comment) without needing a separate registered provider instance per key. Falls back to the
@@ -218,7 +205,7 @@ export type OrchestratorConfig = {
 };
 
 export function getProviderRPMLimit(): number {
-  const envVal = process.env.AI_PROVIDER_RPM_LIMIT || process.env.NVIDIA_RPM_LIMIT;
+  const envVal = process.env.AI_PROVIDER_RPM_LIMIT;
   const parsed = envVal ? parseInt(envVal, 10) : 40;
   return isNaN(parsed) || parsed <= 0 ? 40 : parsed;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { describeWeatherCode } from "@/lib/weatherCodes";
 import { archiveCircuitHref } from "@/lib/routes";
 import { CircuitThumb } from "@/components/circuit/CircuitThumb";

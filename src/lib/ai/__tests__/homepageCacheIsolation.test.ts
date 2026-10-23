@@ -64,7 +64,7 @@ mockModule("@/lib/personalization", {
 });
 mockModule("@/lib/supabase/users", {
   getUserProfile: async (uid: string) => profiles[uid] ?? null,
-  touchHomepageVisit: async () => {},
+  getHomepageVisitStamp: async () => null,
 });
 mockModule("@/lib/supabase/picks", { getUserPicksForYear: async (uid: string) => picks[uid] ?? [] });
 mockModule("@/lib/supabase/groupPosts", {

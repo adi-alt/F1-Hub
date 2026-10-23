@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { ExportMenu } from "@/components/export/ExportMenu";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Table, sortRows, type TableColumn, type TableSort } from "@/components/ui/Table";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { InviteDialog } from "./InviteUsers";
 import { tableToCanvas } from "@/lib/export";
@@ -24,13 +24,6 @@ type Props = {
 };
 
 type RoleFilter = "all" | "admin" | "moderator" | "member";
-type SortKey = "name" | "role" | "joined";
-type SortDir = "asc" | "desc";
-
-const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-white/[0.08]";
-// A sticky header needs real opacity behind its blur or rows scrolling underneath bleed through.
-// Same token every other sticky/floating surface in the app already uses.
-const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
 
 /** Sort weight for the role column: most-privileged first on `asc`, so "sort by role" puts
  * admins at the top, which is the only ordering anyone actually wants from this column. */
@@ -70,62 +63,25 @@ function StatusBadge({ onboarded }: { onboarded: boolean }) {
   );
 }
 
-function sortIndicator(key: SortKey, sortKey: SortKey, sortDir: SortDir) {
-  if (key !== sortKey) return null;
-  // aria-sort on the header says this; the arrow is for sighted users only.
-  return (
-    <span aria-hidden className="ml-1 text-brand-text">
-      {sortDir === "asc" ? "↑" : "↓"}
-    </span>
-  );
-}
-
-/** A sortable column header, as in the APG sortable table: a button in the cell (a bare <th onClick>
- * can't be reached by keyboard), and aria-sort on the sorted column only. */
-function SortHeader({ column, sortKey, sortDir, onSort, children }: { column: SortKey; sortKey: SortKey; sortDir: SortDir; onSort: (key: SortKey) => void; children: ReactNode }) {
-  return (
-    <th scope="col" aria-sort={column === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined} className="select-none px-4 py-3">
-      <button
-        type="button"
-        onClick={() => onSort(column)}
-        className="inline-flex items-center rounded-control uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-      >
-        {children}
-        {sortIndicator(column, sortKey, sortDir)}
-      </button>
-    </th>
-  );
-}
-
 function RowsSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <tbody className="divide-y divide-[var(--f1-line)]">
+    <div className="space-y-3" aria-hidden>
       {Array.from({ length: rows }).map((_, i) => (
-        <tr key={i}>
-          <td className="px-4 py-3">
-            <div className="flex items-center gap-3">
-              <Skeleton shape="circle" className="h-8 w-8 shrink-0" />
-              <div className="space-y-1.5">
-                <Skeleton shape="block" className="h-3.5 w-32" />
-                <Skeleton shape="block" className="h-3 w-20" />
-              </div>
-            </div>
-          </td>
-          <td className="px-4 py-3"><Skeleton shape="block" className="h-3.5 w-40" /></td>
-          <td className="px-4 py-3"><Skeleton shape="block" className="h-5 w-24" /></td>
-          <td className="px-4 py-3"><Skeleton shape="block" className="h-8 w-32" /></td>
-          <td className="px-4 py-3"><Skeleton shape="block" className="h-3.5 w-24" /></td>
-        </tr>
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton shape="circle" className="h-8 w-8 shrink-0" />
+          <Skeleton shape="block" className="h-3.5 w-32" />
+          <Skeleton shape="block" className="h-3.5 w-40" />
+          <Skeleton shape="block" className="h-5 w-24" />
+        </div>
       ))}
-    </tbody>
+    </div>
   );
 }
 
 export function UserManagement({ initialUsers, initialCursor, currentUid, canManageRoles, counts }: Props) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("joined");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sort, setSort] = useState<TableSort>({ key: "joined", direction: "descending" });
   const [pending, setPending] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -160,29 +116,73 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
 
   const matched = usedServer ? serverSearch.data! : localMatches;
 
-  const rows = useMemo(() => {
-    const filtered = matched.filter((u) => {
-      if (roleFilter === "all") return true;
-      if (roleFilter === "member") return !u.role;
-      return u.role === roleFilter;
-    });
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      if (sortKey === "name") return dir * displayNameFor(a).localeCompare(displayNameFor(b));
-      if (sortKey === "role") return dir * (ROLE_RANK[a.role ?? "member"] - ROLE_RANK[b.role ?? "member"]);
-      return dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    });
-  }, [matched, roleFilter, sortKey, sortDir]);
+  const filtered = useMemo(
+    () =>
+      matched.filter((u) => {
+        if (roleFilter === "all") return true;
+        if (roleFilter === "member") return !u.role;
+        return u.role === roleFilter;
+      }),
+    [matched, roleFilter],
+  );
 
-  function toggleSort(key: SortKey) {
-    if (key === sortKey) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortKey(key);
-    // Names read naturally A→Z; dates and privilege read best with the most notable end first.
-    setSortDir(key === "name" ? "asc" : "desc");
-  }
+  const columns: TableColumn<UserProfile>[] = [
+    {
+      key: "name",
+      header: "User",
+      sortable: true,
+      sortValue: displayNameFor,
+      render: (user) => {
+        const name = displayNameFor(user);
+        return (
+          <div className="flex items-center gap-3">
+            <span className="shrink-0">
+              <EntityAvatar imageUrl={user.photoURL ?? null} name={name} seed={user.uid} size={32} />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-body-sm font-medium text-primary">
+                {name}
+                {user.uid === currentUid && <span className="ml-2 text-caption font-normal text-tertiary">You</span>}
+              </p>
+              {user.username && <p className="truncate text-caption font-normal text-tertiary">@{user.username}</p>}
+            </div>
+          </div>
+        );
+      },
+    },
+    { key: "email", header: "Email", hideBelow: "md", render: (user) => <span className="text-secondary">{user.email ?? "—"}</span> },
+    { key: "status", header: "Status", render: (user) => <StatusBadge onboarded={isOnboarded(user)} /> },
+    {
+      key: "role",
+      header: "Role",
+      sortable: true,
+      // Most-privileged first on the first click.
+      firstSortDirection: "ascending",
+      sortValue: (user) => ROLE_RANK[user.role ?? "member"],
+      render: (user) =>
+        canManageRoles ? (
+          <RoleSelect
+            value={user.role ?? null}
+            onChange={(role) => void changeRole(user.uid, role)}
+            pending={pending === user.uid}
+            disabled={user.uid === currentUid}
+            disabledReason="You can't change your own role — ask another admin."
+          />
+        ) : (
+          <span className="text-secondary">{roleLabel(user.role ?? null)}</span>
+        ),
+    },
+    {
+      key: "joined",
+      header: "Joined",
+      sortable: true,
+      firstSortDirection: "descending",
+      sortValue: (user) => new Date(user.createdAt).getTime(),
+      render: (user) => <span className="tabular text-secondary">{joinedLabel(user.createdAt)}</span>,
+    },
+  ];
+  // Sorted here too (not only inside Table) so the export follows the on-screen order.
+  const rows = sortRows(filtered, columns, sort);
 
   async function changeRole(uid: string, role: RoleValue) {
     setPending(uid);
@@ -287,94 +287,15 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
           )}
 
           <TabPanels className="max-h-[520px] overflow-auto scrollbar-subtle">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className={`sticky top-0 z-10 ${HEADER_CLASS}`} style={HEADER_STYLE}>
-                <tr>
-                  <SortHeader column="name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                    User
-                  </SortHeader>
-                  <th scope="col" className="px-4 py-3">
-                    Email
-                  </th>
-                  <th scope="col" className="px-4 py-3">
-                    Status
-                  </th>
-                  <SortHeader column="role" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                    Role
-                  </SortHeader>
-                  <SortHeader column="joined" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                    Joined
-                  </SortHeader>
-                </tr>
-              </thead>
-
-              {showSkeleton ? (
+            {showSkeleton ? (
+              <div className="p-4">
                 <RowsSkeleton />
-              ) : (
-                <tbody className="divide-y divide-[var(--f1-line)]">
-                  <AnimatePresence initial={false}>
-                    {rows.map((user, i) => {
-                      const isSelf = user.uid === currentUid;
-                      const name = displayNameFor(user);
-                      return (
-                        <motion.tr
-                          key={user.uid}
-                          layout
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          // Capped stagger: the first rows land in sequence so a filter change reads
-                          // as the table rebuilding, but a long list never turns that into a wait -
-                          // past the cap every remaining row arrives together.
-                          transition={{ duration: 0.2, ease: "easeOut", delay: Math.min(i, 8) * 0.025 }}
-                          className="group transition hover:bg-white/[0.03]"
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <span className="shrink-0">
-                                {/* The person's real OAuth profile picture where their provider gave
-                                    us one (see getAuthAvatars in lib/supabase/users.ts) - initials
-                                    only when there genuinely isn't one. */}
-                                <EntityAvatar imageUrl={user.photoURL ?? null} name={name} seed={user.uid} size={32} />
-                              </span>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-white">
-                                  {name}
-                                  {isSelf && <span className="ml-2 text-caption font-normal text-tertiary">You</span>}
-                                </p>
-                                {user.username && <p className="truncate text-xs text-tertiary">@{user.username}</p>}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-sm text-neutral-400">{user.email ?? "—"}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <StatusBadge onboarded={isOnboarded(user)} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {canManageRoles ? (
-                              <RoleSelect
-                                value={user.role ?? null}
-                                onChange={(role) => void changeRole(user.uid, role)}
-                                pending={pending === user.uid}
-                                disabled={isSelf}
-                                disabledReason="You can't change your own role — ask another admin."
-                              />
-                            ) : (
-                              <span className="text-sm text-neutral-400">{roleLabel(user.role ?? null)}</span>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-neutral-400">
-                            {joinedLabel(user.createdAt)}
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </AnimatePresence>
-                </tbody>
-              )}
-            </table>
+              </div>
+            ) : (
+              rows.length > 0 && (
+                <Table columns={columns} rows={rows} getRowKey={(user) => user.uid} caption="Users" sort={sort} onSortChange={setSort} />
+              )
+            )}
 
             {!showSkeleton && rows.length === 0 && (
               <EmptyState

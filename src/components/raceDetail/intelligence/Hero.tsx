@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Typewriter } from "@/components/motion/Typewriter";
 
 /** Level 1 - What Happened: the headline + one-paragraph summary, always the first thing shown

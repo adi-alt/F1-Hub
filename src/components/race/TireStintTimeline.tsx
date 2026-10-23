@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { SESSION_ROW_HEIGHT } from "@/components/charts/chartTheme";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import type { RaceResultEntry, TireStint } from "@/lib/types/race";
