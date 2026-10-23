@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { notFound, redirect, unstable_rethrow } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArchiveExplorer } from "./components/ArchiveExplorer";
 import { ArchiveYearView } from "./components/ArchiveYearView";
 import { RetryBanner } from "./components/RetryBanner";
@@ -265,43 +265,6 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
   );
 }
 
-/** Renders the real error inline instead of letting it fall through to the app's generic
- * "Something went wrong" boundary - but ONLY for a signed-in admin (this app's own owner), and
- * never for anything that isn't a genuine unexpected error. `unstable_rethrow` is called first and
- * unconditionally: notFound()/redirect() are themselves implemented as thrown errors carrying a
- * special digest Next's own framework recognizes, and swallowing those into a diagnostic panel
- * (even an admin-only one) would break real 404s/redirects on these pages, not just suppress a
- * genuine bug. A non-admin (or a session lookup failure) always rethrows too - this exists to let
- * the one person who can act on it read the real message directly off the page instead of us
- * blindly guessing at production-only failures with no server-log access. Temporary - remove once
- * the underlying archive.ts bug is confirmed fixed and stable in production. */
-async function renderDiagnosticIfAdmin(err: unknown) {
-  unstable_rethrow(err);
-  const session = await getSession().catch(() => null);
-  // session.role alone is cached from whenever this account's profile was created (see
-  // createUserProfile's own bootstrap-admin comment) - checking the same ADMIN_EMAILS allowlist
-  // directly against the session's own email is the more reliable of the two, independent of
-  // whether that role field ever got backfilled for an existing account.
-  const adminEmails = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = session?.role === "admin" || (!!session?.email && adminEmails.includes(session.email.toLowerCase()));
-  if (!isAdmin) throw err;
-
-  const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? err.stack : undefined;
-  const digest = (err as { digest?: string } | null)?.digest;
-
-  return (
-    <div className="page-narrow py-10">
-      <div className="rounded-2xl border border-[var(--f1-red)]/40 bg-[var(--f1-carbon)] p-6">
-        <p className="text-xs font-semibold text-brand-text">Admin-only diagnostic — this page threw</p>
-        <p className="mt-3 whitespace-pre-wrap text-sm text-primary">{message}</p>
-        {digest && <p className="mt-2 text-xs text-tertiary">digest: {digest}</p>}
-        {stack && <pre className="mt-4 overflow-x-auto whitespace-pre-wrap text-xs text-tertiary">{stack}</pre>}
-      </div>
-    </div>
-  );
-}
-
 /** A driver's whole career as a real explorer, not 400 stacked cards - search/decade/result-type
  * filters, a dense table, a persistent focused panel for the selected race, real computed stats,
  * and a real team-era timeline (contiguous stints, not a fabricated grouping). */
@@ -343,12 +306,9 @@ async function ArchiveDriverHead({ driverId }: { driverId: string }) {
   );
 }
 
-async function ArchiveDriverBody({ driverId }: { driverId: string }) {
-  try {
-    return await ArchiveDriverHistoryInner(driverId);
-  } catch (err) {
-    return renderDiagnosticIfAdmin(err);
-  }
+// A failure falls through to archive/error.tsx.
+function ArchiveDriverBody({ driverId }: { driverId: string }) {
+  return ArchiveDriverHistoryInner(driverId);
 }
 
 async function ArchiveDriverHistoryInner(driverId: string) {
@@ -487,12 +447,9 @@ async function ArchiveTeamHead({ teamId }: { teamId: string }) {
   );
 }
 
-async function ArchiveTeamBody({ teamId }: { teamId: string }) {
-  try {
-    return await ArchiveTeamHistoryInner(teamId);
-  } catch (err) {
-    return renderDiagnosticIfAdmin(err);
-  }
+// A failure falls through to archive/error.tsx.
+function ArchiveTeamBody({ teamId }: { teamId: string }) {
+  return ArchiveTeamHistoryInner(teamId);
 }
 
 async function ArchiveTeamHistoryInner(teamId: string) {

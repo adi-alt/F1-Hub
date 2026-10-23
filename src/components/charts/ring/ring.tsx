@@ -3,14 +3,40 @@
 // Adapted from Bklit UI (MIT, see LICENSE.md): one ring of a ring chart. It grows in, then draws its progress arc;
 // once both are done it renders plain paths (no per-frame motion values). Hovering lifts it and fades the others.
 
-import { arc as arcGenerator } from "@visx/shape";
 import { type MotionValue, motion, useTransform } from "motion/react";
 import { memo, useCallback } from "react";
 import { getRingHitRadii, RING_TRACK, useRingHover, useRingStable } from "./ring-context";
 import { useEnterComplete, useMountProgress } from "./motion";
 
+const TAU = Math.PI * 2;
+
+/** A point at `radius` and `angle` (radians clockwise from 12 o'clock, the d3 arc convention). */
+function polar(radius: number, angle: number): string {
+  return `${radius * Math.sin(angle)} ${-radius * Math.cos(angle)}`;
+}
+
+/** An annular sector from startAngle to endAngle. A cornerRadius rounds both ends with a semicircle
+ * the ring's thickness wide, kept inside the angle span (the same look d3's arc gives a ring whose
+ * cornerRadius is at least half its width). */
 function arcPath(innerRadius: number, outerRadius: number, startAngle: number, endAngle: number, cornerRadius: number): string {
-  return arcGenerator<unknown>({ innerRadius, outerRadius, cornerRadius })({ startAngle, endAngle } as unknown as null) || "";
+  const span = endAngle - startAngle;
+  if (span <= 0 || outerRadius <= innerRadius) return "";
+  if (span >= TAU - 1e-6) {
+    // A full ring: two circles, the inner one cut out by the nonzero fill rule by its opposite winding.
+    return `M 0 ${-outerRadius} A ${outerRadius} ${outerRadius} 0 1 1 0 ${outerRadius} A ${outerRadius} ${outerRadius} 0 1 1 0 ${-outerRadius} Z M 0 ${-innerRadius} A ${innerRadius} ${innerRadius} 0 1 0 0 ${innerRadius} A ${innerRadius} ${innerRadius} 0 1 0 0 ${-innerRadius} Z`;
+  }
+  const half = (outerRadius - innerRadius) / 2;
+  const mid = innerRadius + half;
+  if (cornerRadius <= 0) {
+    const large = span > Math.PI ? 1 : 0;
+    return `M ${polar(outerRadius, startAngle)} A ${outerRadius} ${outerRadius} 0 ${large} 1 ${polar(outerRadius, endAngle)} L ${polar(innerRadius, endAngle)} A ${innerRadius} ${innerRadius} 0 ${large} 0 ${polar(innerRadius, startAngle)} Z`;
+  }
+  const inset = Math.min(half / mid, span / 2);
+  const a0 = startAngle + inset;
+  const a1 = endAngle - inset;
+  const capRadius = Math.min(half, mid * Math.sin(span / 2));
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${polar(mid + capRadius, a0)} A ${mid + capRadius} ${mid + capRadius} 0 ${large} 1 ${polar(mid + capRadius, a1)} A ${capRadius} ${capRadius} 0 0 1 ${polar(mid - capRadius, a1)} A ${mid - capRadius} ${mid - capRadius} 0 ${large} 0 ${polar(mid - capRadius, a0)} A ${capRadius} ${capRadius} 0 0 1 ${polar(mid + capRadius, a0)} Z`;
 }
 
 function ProgressPath({ complete, path, animatedPath, color }: { complete: boolean; path: string; animatedPath: MotionValue<string>; color: string }) {
