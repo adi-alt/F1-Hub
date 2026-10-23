@@ -11,6 +11,7 @@ import { tableToCanvas } from "@/lib/export";
 import { useFavDriverIds, useFavTeamIds, useToggleFavorite } from "@/queries/favorites/useFavorites";
 import { averageFinish, driverResults, recentForm, teamResults } from "../_utils/seasonStats";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
+import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { useSeasonExplorer, type EntityType } from "../_context/SeasonExplorerContext";
 import type { ConstructorStandingRow, DriverStandingRow, PersonalSeasonContext, RaceSummary } from "../_service/season.pure";
 
@@ -130,6 +131,8 @@ export function ChampionshipStandings({
   const canFilterFavorites = favoriteCodes.size > 0;
 
   const isDrivers = entityType === "drivers";
+  // The newest round whose result is in these standings: what the provenance line names.
+  const lastScored = [...raceSummaries].sort((a, b) => b.round - a.round).find((r) => r.results.length > 0 || (r.sprintResults?.length ?? 0) > 0) ?? null;
   // The championship position (the standings' own points order), never the row index, which changed with sorting
   // and filtering (a search for one driver showed them as 1st).
   const champPos = useMemo(
@@ -414,6 +417,9 @@ export function ChampionshipStandings({
           </div>
         </TabPanels>
       </Tabs>
+      {lastScored && (
+        <ProvenanceLine className="mt-3 shrink-0" source="Official classification" status={`after R${lastScored.round} ${lastScored.name}${lastScored.sprintSource === "openf1_preliminary" ? " · sprint preliminary" : ""}`} />
+      )}
     </div>
   );
 }

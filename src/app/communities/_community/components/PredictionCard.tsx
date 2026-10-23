@@ -1,5 +1,6 @@
 "use client";
 
+import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Button } from "@/components/ui/Button";
 import { useState } from "react";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
@@ -70,6 +71,13 @@ function blockerFor(prediction: GroupPrediction, state: PredictionState, drivers
  * The countdown ticks once a minute off the shared useMinuteClock rather than its own interval, and
  * only renders when there's a real `race_date` to count to.
  */
+/** "23 Oct", UTC + en-GB so the server and every browser print the same string. */
+function dayLabel(iso: string | null): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 export function PredictionCard({
   groupId,
   prediction,
@@ -238,6 +246,7 @@ export function PredictionCard({
             ) : (
               <p className="text-xs text-tertiary">You didn&apos;t enter this round.</p>
             )}
+            <ProvenanceLine source="Official classification" status="settled from the race result" updated={dayLabel(prediction.resolvedAt)} />
           </div>
         )}
 

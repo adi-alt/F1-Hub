@@ -61,3 +61,23 @@ export function evaluateHealth(rows: readonly PipelineRunRow[], database: "ok" |
   }
   return { status: problems.length ? "degraded" : "ok", checkedAt: now.toISOString(), database, pipeline, problems };
 }
+
+/** The jobs whose output readers see on the site (results, predictions, the calendar, league tables). */
+export const USER_FACING_JOBS: Record<string, string> = {
+  "fetch-races": "race results",
+  "train-predict": "model predictions",
+  "group-scores": "community league tables",
+  "sync-calendar": "the race calendar",
+};
+
+/**
+ * What the site-wide stale-data notice names (audit R-52): user-facing jobs whose last success is older than their
+ * limit. Only actual staleness: a failure streak whose data is still within its limit, a database blip, or a job with
+ * no runs recorded yet shows nothing - the notice must never cry wolf.
+ */
+export function staleData(health: Health): { job: string; label: string; ageHours: number }[] {
+  if (!health.pipeline) return [];
+  return Object.entries(health.pipeline)
+    .filter(([job, h]) => USER_FACING_JOBS[job] && h.lastSuccessAgeMinutes !== null && h.lastSuccessAgeMinutes > (STALE_AFTER_MINUTES[job] ?? DEFAULT_STALE_MINUTES))
+    .map(([job, h]) => ({ job, label: USER_FACING_JOBS[job], ageHours: Math.round((h.lastSuccessAgeMinutes ?? 0) / 60) }));
+}
