@@ -51,7 +51,7 @@ export function WeekendSessions({ race, sessions, initial, stages }: { race: Rac
           <p className="text-body-sm text-secondary">
             {winner ? `${winner.driverName} won. ` : ""}
             The full classification is in{" "}
-            <a href="#results" className="text-primary underline-offset-4 hover:underline">
+            <a href="#results" className="text-primary underline underline-offset-4">
               the result above
             </a>
             .
