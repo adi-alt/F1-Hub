@@ -121,3 +121,4 @@ jobs:
           python test_lap_positions.py
           python test_race_photos.py
           python test_circuit_track_maps.py
+          python test_model_provenance.py

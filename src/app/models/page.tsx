@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { BenchmarksTable } from "./components/BenchmarksTable";
 import { PipelineOpsPanel } from "./components/PipelineOpsPanel";
+import { PipelineFreshness } from "./components/PipelineFreshness";
+import { readHealth } from "@/lib/observability/readHealth";
 import { getModelsPageData } from "./services/models.service";
 import { NotAuthorized } from "@/components/NotAuthorized";
 import { SignInGate } from "@/components/auth/SignInGate";
@@ -39,6 +41,12 @@ export default async function ModelsPage() {
       <div className="mt-8">
         <BenchmarksTable benchmarks={benchmarks} />
       </div>
+      {permissions.canTriggerPipelineRuns && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold text-white">Data freshness</h2>
+          <PipelineFreshness health={await readHealth()} />
+        </div>
+      )}
       {permissions.canTriggerPipelineRuns && (
         <div className="mt-10">
           <h2 className="mb-3 text-lg font-semibold text-white">Pipeline runs</h2>

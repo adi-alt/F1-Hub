@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 
 from ergast_utils import init_postgres, trigger_revalidation
 from ml.calibrate_probabilities import (
@@ -40,6 +40,7 @@ from ml.predict_pace import predict_pace_gaps
 from ml.predict_pole import MODEL_VERSION as POLE_MODEL_VERSION
 from ml.predict_pole import predict_pole_order
 from run_ledger import ledgered
+from model_provenance import build_provenance, data_cutoff_label
 from ml.simulate_race import simulate_race
 from ml.tyre_features import (
     GLOBAL_DEGRADATION_DEFAULT,
@@ -247,6 +248,7 @@ def compute_race_simulation(
     prior_pace_rows: list[PaceResultRow],
     prior_dnf_rows: list[DnfResultRow],
     calibration_pool: tuple[list, list, list, list],
+    data_cutoff: str | None = None,
 ) -> dict:
     """entrants: [{"driver","team","grid","qualifyingGapSec", 4 tyre-trait keys}, ...] — same shape
     `inputs` already takes for predict_pace_gaps/predict_finish_order. `prior_pace_rows`/
@@ -267,9 +269,11 @@ def compute_race_simulation(
     cal_p1s = apply_p1_calibrator(p1_model, raw_p1s)
     cal_podiums = apply_podium_calibrator(podium_model, raw_podiums)
 
+    provenance = build_provenance(SIMULATION_MODEL_VERSION, data_cutoff)
     return {
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "generatedAt": provenance["generatedAt"],
         "modelVersion": SIMULATION_MODEL_VERSION,
+        "provenance": provenance,
         "drivers": [
             {
                 "driver": e["driver"],
@@ -292,13 +296,16 @@ def build_pole_prediction(
     entrants: list[dict],
     practice_by_round: dict[int, dict | None],
     current_practice: dict | None,
+    data_cutoff: str | None = None,
 ) -> dict | None:
     if not entrants:
         return None
     pole = predict_pole_order(training_rows, entrants, practice_by_round, current_practice)
+    provenance = build_provenance(POLE_MODEL_VERSION, data_cutoff)
     return {
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "generatedAt": provenance["generatedAt"],
         "modelVersion": POLE_MODEL_VERSION,
+        "provenance": provenance,
         "order": pole["order"],
         "featureImportance": pole["featureImportance"],
     }
@@ -464,6 +471,7 @@ def process_year(conn, year: int):
                         prior_pace_rows=pace_rows,
                         prior_dnf_rows=dnf_rows_other_seasons + dnf_rows_this_season,
                         calibration_pool=(p1_probs, p1_actuals, podium_probs, podium_actuals),
+                        data_cutoff=data_cutoff_label(completed_docs),
                     )
                     update_race(cur, race_id, {"simulation": simulation})
                     data["simulation"] = simulation
@@ -495,7 +503,7 @@ def process_year(conn, year: int):
             current_practice = data.get("practice")
 
             if not qualifying:
-                pole_prediction = build_pole_prediction(training_rows, entrants, practice_by_round, current_practice)
+                pole_prediction = build_pole_prediction(training_rows, entrants, practice_by_round, current_practice, data_cutoff_label(completed_docs))
                 if pole_prediction:
                     update_race(cur, race_id, {"polePrediction": pole_prediction})
                     print(f"  round {round_num}: polePrediction updated (live, {len(training_rows)} training rows)")
@@ -506,7 +514,7 @@ def process_year(conn, year: int):
             # Qualifying just became available (or already was) — freeze whatever pole prediction
             # exists right now; from this point there's nothing left to guess about pole.
             pole_prediction = data.get("polePrediction") or build_pole_prediction(
-                training_rows, entrants, practice_by_round, current_practice
+                training_rows, entrants, practice_by_round, current_practice, data_cutoff_label(completed_docs)
             )
 
             if data.get("prediction"):
@@ -543,9 +551,11 @@ def process_year(conn, year: int):
             ]
             finish = predict_finish_order(training_rows, inputs)
 
+            provenance = build_provenance(FINISH_MODEL_VERSION, data_cutoff_label(completed_docs))
             update["prediction"] = {
-                "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "generatedAt": provenance["generatedAt"],
                 "modelVersion": FINISH_MODEL_VERSION,
+                "provenance": provenance,
                 "finishOrder": finish["order"],
                 "finishFeatureImportance": finish["featureImportance"],
                 "predictedPaceGapSec": predict_pace_gaps(pace_rows, inputs),
@@ -560,6 +570,7 @@ def process_year(conn, year: int):
                     prior_pace_rows=pace_rows,
                     prior_dnf_rows=dnf_rows_other_seasons + dnf_rows_this_season,
                     calibration_pool=(p1_probs, p1_actuals, podium_probs, podium_actuals),
+                    data_cutoff=data_cutoff_label(completed_docs),
                 )
             update_race(cur, race_id, update)
             print(f"  round {round_num}: prediction frozen ({len(training_rows)} training rows)")

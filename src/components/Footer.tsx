@@ -66,7 +66,16 @@ export function Footer({ season }: { season: number }) {
         </div>
 
         <div className="mt-10 flex flex-col gap-2 border-t border-[var(--f1-line)] pt-6 text-xs text-tertiary sm:flex-row sm:items-center sm:justify-between">
-          <p>&copy; {new Date().getFullYear()} Apex F1 Hub. Not affiliated with Formula 1 or the FIA.</p>
+          <p>
+            &copy; {new Date().getFullYear()} Apex F1 Hub. Not affiliated with Formula 1 or the FIA. ·{" "}
+            <Link href="/privacy" className="transition hover:text-white">
+              Privacy
+            </Link>{" "}
+            ·{" "}
+            <Link href="/terms" className="transition hover:text-white">
+              Terms
+            </Link>
+          </p>
           <p>Predictions are a model&apos;s best estimate, not a promise of what happens on Sunday.</p>
         </div>
       </div>

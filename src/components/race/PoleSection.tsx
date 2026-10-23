@@ -1,4 +1,6 @@
 import type { PolePrediction } from "@/lib/types/race";
+import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
+import { modelProvenanceLine } from "@/lib/modelProvenance";
 
 export function PoleSection({ polePrediction }: { polePrediction: PolePrediction }) {
   return (
@@ -23,6 +25,7 @@ export function PoleSection({ polePrediction }: { polePrediction: PolePrediction
           </li>
         ))}
       </ol>
+      <ProvenanceLine className="mt-3" {...modelProvenanceLine(polePrediction, "pole model")} />
     </div>
   );
 }

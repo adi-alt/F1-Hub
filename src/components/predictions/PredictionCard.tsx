@@ -1,5 +1,6 @@
 "use client";
 
+import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import Link from "next/link";
 import { useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
@@ -316,6 +317,8 @@ export function PredictionCard({
           />
         )}
       </div>
+
+      {resolved && <ProvenanceLine source="Official classification" status="settled from the race result" updated={dayLabel(prediction.resolvedAt)} />}
 
       {/* Your row: where you stand on the left, the one action on the right. */}
       <div className="mt-3 flex min-h-8 flex-wrap items-center gap-x-4 gap-y-2">
@@ -713,4 +716,10 @@ function PodiumMarket({
       })}
     </ol>
   );
+}
+
+function dayLabel(iso: string | null): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
