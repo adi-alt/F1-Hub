@@ -17,7 +17,9 @@ import { ProbabilityMeter } from "@/components/ui/ProbabilityMeter";
 import { AiSummary } from "@/components/ui/AiSummary";
 import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { Surface } from "@/components/ui/Surface";
-import { ChipDemo, FieldDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
+import { PanelSection } from "@/components/ui/PanelSection";
+import { RefreshAlert } from "@/components/ui/RefreshAlert";
+import { ChipDemo, ConfirmAndSwitchDemo, FieldDemo, PickerDemo, PopoverDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({ title: "UI primitives", description: "The design system's primitives.", path: "/dev/ui", index: false });
@@ -218,6 +220,28 @@ export default function UiPreviewPage() {
 
       <Section id="fields" title="Field" level={2} description="Label, hint and error wired to the control; 40px tall; body-size text so iOS doesn't zoom.">
         <FieldDemo />
+      </Section>
+
+      <Section id="pickers" title="Picker" level={2} description="The searchable select. Native selects are never used; grouped, disabled-with-reason and keyboard-navigable options.">
+        <PickerDemo />
+      </Section>
+
+      <Section id="popovers" title="Popover" level={2} description="An anchored panel for menus and filters; focus moves in, Escape and click-outside close it.">
+        <PopoverDemo />
+      </Section>
+
+      <Section id="confirm-switch" title="ConfirmButton and Switch" level={2} description="Destructive actions ask in place instead of window.confirm; settings toggle with a labelled switch.">
+        <ConfirmAndSwitchDemo />
+      </Section>
+
+      <Section id="panel-sections" title="PanelSection" level={2} description="Season's section style: a tracked eyebrow over a fading hairline, a note or action, and the content on the panel.">
+        <PanelSection id="panel-section-demo" title="Season snapshot" note="After round 18">
+          <p className="text-body-sm text-secondary">Antonelli leads by 66 points with six rounds to go.</p>
+        </PanelSection>
+      </Section>
+
+      <Section id="refresh-alerts" title="RefreshAlert" level={2} description="A page that rendered with some data missing: what loaded stays, Try again refetches the rest.">
+        <RefreshAlert />
       </Section>
 
       <Section id="overlays" title="Dialog and Sheet" level={2} description="Every overlay traps focus, closes on Escape and returns focus to its trigger.">
