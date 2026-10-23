@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getTransporter } from "@/lib/otp";
 import { singleLine } from "@/lib/html";
+import { MAX_EMAIL_ATTEMPTS, emailErrorText, nextEmailAttempt } from "@/lib/emailRetry";
 import { formatWhen, renderEmail, type EmailContent } from "@/lib/email/layout";
 import { unsubscribeUrl } from "@/lib/email/unsubscribe";
 import { channelsFor, cleanPrefsPatch, type NotificationKind, type NotificationPrefs } from "@/lib/notificationKinds";
@@ -68,6 +69,8 @@ export async function notify(userIds: readonly string[], event: NotificationEven
       group_id: event.groupId ?? null,
       dedupe_key: event.dedupeKey ?? null,
       read_at: site.some((p) => p.id === id) ? null : new Date().toISOString(),
+      // Marks the row as owed an email (and keeps what it shows), so the cron job can retry a failed send.
+      email_payload: process.env.MAIL_FROM && email.some((p) => p.id === id) ? (event.email ?? {}) : null,
     }));
     if (rows.length === 0) return;
     const { data: inserted, error: insertError } = await supabaseAdmin
@@ -80,7 +83,13 @@ export async function notify(userIds: readonly string[], event: NotificationEven
     const fresh = new Set((inserted ?? []).map((r) => r.user_id as string));
     const toEmail = email.filter((p) => fresh.has(p.id as string));
     if (toEmail.length === 0 || !process.env.MAIL_FROM) return;
-    const send = () => sendEmails(toEmail.map((p) => ({ id: p.id as string, email: p.email as string })), event, inserted ?? []);
+    const send = () =>
+      sendEmails(
+        toEmail.map((p) => ({ id: p.id as string, email: p.email as string })),
+        event,
+        inserted ?? [],
+        new Map(toEmail.map((p) => [p.id as string, 0])),
+      );
     try {
       after(send);
     } catch {
@@ -92,10 +101,14 @@ export async function notify(userIds: readonly string[], event: NotificationEven
   }
 }
 
-/** Each person's email, in the shared design (lib/email/layout), with their own one-click way to stop this kind. */
-async function sendEmails(to: { id: string; email: string }[], event: NotificationEvent, rows: { id: string; user_id: string }[]) {
+/** Each person's email, in the shared design (lib/email/layout), with their own one-click way to stop this kind.
+ * A send that succeeds stamps emailed_at; one that fails records the attempt, the error and when to try again
+ * (lib/emailRetry), for retryNotificationEmails. `attempts` is how many sends each person's row has had before. */
+async function sendEmails(to: { id: string; email: string }[], event: NotificationEvent, rows: { id: string; user_id: string }[], attempts: Map<string, number>): Promise<{ sent: number; failed: number }> {
   const transporter = getTransporter();
   const e = event.email ?? {};
+  let sent = 0;
+  let failed = 0;
   // Read on its own and allowed to fail: a missing zone (or column) only means the time is given in UTC.
   const zones = new Map<string, string | null>();
   if (e.times?.length) {
@@ -104,6 +117,7 @@ async function sendEmails(to: { id: string; email: string }[], event: Notificati
   }
   await Promise.all(
     to.map(async (person) => {
+      const row = rows.find((r) => r.user_id === person.id);
       try {
         const mail = renderEmail({
           subject: e.subject ?? event.title,
@@ -122,13 +136,69 @@ async function sendEmails(to: { id: string; email: string }[], event: Notificati
           settingsLink: true,
         });
         await transporter.sendMail({ from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`, to: person.email, subject: mail.subject, html: mail.html, text: mail.text, headers: mail.headers });
-        const row = rows.find((r) => r.user_id === person.id);
-        if (row) await supabaseAdmin.from("notifications").update({ emailed_at: new Date().toISOString() }).eq("id", row.id);
+        sent++;
+        if (row) await supabaseAdmin.from("notifications").update({ emailed_at: new Date().toISOString(), email_next_attempt_at: null }).eq("id", row.id);
       } catch (err) {
+        failed++;
         console.error(`notification email to ${person.id} failed:`, err instanceof Error ? err.message : err);
+        if (!row) return;
+        const made = (attempts.get(person.id) ?? 0) + 1;
+        const next = nextEmailAttempt(made, new Date());
+        const { error } = await supabaseAdmin
+          .from("notifications")
+          .update({ email_attempts: made, email_last_error: emailErrorText(err), email_next_attempt_at: next?.toISOString() ?? null })
+          .eq("id", row.id);
+        if (error) console.error(`recording the failed email ${row.id}:`, error.message);
       }
     }),
   );
+  return { sent, failed };
+}
+
+/**
+ * Retries notification emails that never went out (audit R-51), from the hourly /api/cron/emails job: rows owed an
+ * email (email_payload set) with no emailed_at, fewer than MAX_EMAIL_ATTEMPTS tries, and due by their backoff. Rows
+ * younger than 15 minutes are left to the send that `notify` scheduled itself. A person who has since turned that
+ * kind of email off (or has no address) is not emailed, and the row stops being owed one.
+ */
+export async function retryNotificationEmails(now = new Date()): Promise<{ due: number; sent: number; failed: number; dropped: number }> {
+  const result = { due: 0, sent: 0, failed: 0, dropped: 0 };
+  if (!process.env.MAIL_FROM) return result;
+  const settled = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("notifications")
+    .select("id, user_id, kind, title, body, href, email_payload, email_attempts")
+    .not("email_payload", "is", null)
+    .is("emailed_at", null)
+    .lt("email_attempts", MAX_EMAIL_ATTEMPTS)
+    .lt("created_at", settled)
+    .or(`email_next_attempt_at.is.null,email_next_attempt_at.lte.${now.toISOString()}`)
+    .order("created_at")
+    .limit(200);
+  if (missingTable(error)) return result;
+  if (error) throw new Error(`retryNotificationEmails: ${error.message}`);
+  const due = data ?? [];
+  result.due = due.length;
+  if (due.length === 0) return result;
+
+  const { data: people, error: peopleError } = await supabaseAdmin.from("profiles").select("id, email, notification_prefs").in("id", [...new Set(due.map((r) => r.user_id as string))]);
+  if (peopleError) throw new Error(`retryNotificationEmails: ${peopleError.message}`);
+  const byId = new Map((people ?? []).map((p) => [p.id as string, p]));
+
+  for (const row of due) {
+    const person = byId.get(row.user_id as string);
+    const kind = row.kind as NotificationKind;
+    if (!person || typeof person.email !== "string" || !person.email || !channelsFor(person.notification_prefs, kind).email) {
+      result.dropped++;
+      await supabaseAdmin.from("notifications").update({ email_payload: null, email_next_attempt_at: null }).eq("id", row.id);
+      continue;
+    }
+    const event: NotificationEvent = { kind, title: row.title as string, body: (row.body as string | null) ?? null, href: (row.href as string | null) ?? null, email: (row.email_payload as NotificationEvent["email"]) ?? {} };
+    const outcome = await sendEmails([{ id: person.id as string, email: person.email }], event, [{ id: row.id as string, user_id: person.id as string }], new Map([[person.id as string, row.email_attempts as number]]));
+    result.sent += outcome.sent;
+    result.failed += outcome.failed;
+  }
+  return result;
 }
 
 /** The people who run a community (its admins and moderators): who hears about join requests and pending posts. */

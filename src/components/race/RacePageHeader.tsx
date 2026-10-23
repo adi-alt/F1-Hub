@@ -8,6 +8,8 @@ import { StateLabel, type DomainState } from "@/components/ui/Badge";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatLocalDateTime } from "@/lib/countdown";
 import { seasonHref } from "@/lib/routes";
+import { formatTrackTime } from "@/lib/circuitTimeZones";
+import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 
 export type RacePageHeaderProps = {
   year: number;
@@ -53,6 +55,8 @@ export function RacePageHeader({
   const timeZone = useViewerTimeZone();
   const where = [circuit, country].filter(Boolean).join(", ");
   const when = raceStart ? formatLocalDateTime(raceStart, timeZone) : null;
+  // The same moment on the track's own clock (audit R-54), with that place's daylight-saving rules for the date.
+  const trackTime = raceStart && state === "upcoming" ? formatTrackTime(raceStart, circuit) : null;
 
   return (
     <div className="relative isolate overflow-hidden rounded-overlay bg-surface-1">
@@ -93,11 +97,13 @@ export function RacePageHeader({
               <>
                 {where}
                 {where && when && " · "}
-                {when}
+                {when && <span suppressHydrationWarning>{when}</span>}
+                {trackTime && <span className="text-tertiary">{` (${trackTime} at the track)`}</span>}
               </>
             }
             className="min-w-0"
           />
+          {state === "upcoming" && <AddToCalendarButton year={year} round={round} className="mt-4" />}
         </div>
         {keyFact && <div className={`shrink-0 lg:text-end ${actions ? "lg:pr-12" : ""}`}>{keyFact}</div>}
       </div>

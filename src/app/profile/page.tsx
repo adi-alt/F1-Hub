@@ -16,6 +16,7 @@ import { EYEBROW } from "@/components/ui/panel";
 import { NotificationsForm } from "@/components/profile/NotificationsForm";
 import { ACCOUNT_SECTIONS, AccountNav, accountHref, type AccountSection } from "./components/AccountNav";
 import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
+import { AccountData } from "./components/AccountData";
 import { ProfileOverview, type ProfileOverviewData } from "./components/ProfileOverview";
 import { getPointsBalance, listRecentTransactions } from "@/lib/supabase/points";
 import { getUserGroups } from "@/lib/supabase/groups";
@@ -161,6 +162,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     predictions: { title: "Predictions", description: "Your season scorecard: every race pick against the model, the community and the result." },
     notifications: { title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in." },
     profile: { title: "Profile", description: "Your name on Apex F1 Hub." },
+    account: { title: "Account", description: "Download your data or delete your Apex F1 Hub account." },
   };
   return pageMetadata({ ...meta[section], path: accountHref(section), index: false });
 }
@@ -174,6 +176,7 @@ const INTRO: Record<AccountSection, string> = {
   predictions: "Each race you picked this season: your call, the model's, the community's and the result, with the points they scored.",
   notifications: "What Apex F1 Hub tells you about, on the site and by email.",
   profile: "How you appear to everyone else.",
+  account: "Your data: a copy of it, how it's used, and deleting your account.",
 };
 
 /**
@@ -207,6 +210,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         {section === "predictions" && <Predictions uid={session.uid} />}
         {section === "notifications" && <Notifications uid={session.uid} />}
         {section === "profile" && <ProfileSection uid={session.uid} />}
+        {section === "account" && <AccountData />}
       </div>
     </div>
   );

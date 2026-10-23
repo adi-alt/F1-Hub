@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateHealth, STALE_AFTER_MINUTES, type PipelineRunRow } from "../observability/health";
+import { evaluateHealth, staleData, STALE_AFTER_MINUTES, type PipelineRunRow } from "../observability/health";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
 const run = (job: string, status: PipelineRunRow["status"], startedAt: string, finishedAt: string | null = startedAt): PipelineRunRow => ({ job, status, started_at: startedAt, finished_at: finishedAt });
@@ -54,5 +54,27 @@ describe("evaluateHealth (audit R-13)", () => {
     // sync-calendar ran last Monday 00:00; on Sunday evening that is ~6.8 days ago: still healthy
     const h = evaluateHealth([run("sync-calendar", "success", "2026-09-28T00:00:00Z")], "ok", new Date("2026-10-04T20:00:00Z"));
     assert.deepEqual(h.problems, []);
+  });
+});
+
+describe("staleData (audit R-52)", () => {
+  it("names only user-facing jobs past their limit", () => {
+    const h = evaluateHealth(
+      [run("fetch-races", "success", "2026-10-04T01:00:00Z"), run("train-predict", "success", "2026-10-04T11:00:00Z"), run("data-audit", "success", "2026-10-01T00:00:00Z")],
+      "ok",
+      NOW,
+    );
+    assert.deepEqual(staleData(h), [{ job: "fetch-races", label: "race results", ageHours: 11 }]);
+  });
+
+  it("shows nothing for failures within the limit, a database error, or no runs", () => {
+    const failing = evaluateHealth(
+      [run("fetch-races", "success", "2026-10-04T09:00:00Z"), run("fetch-races", "failed", "2026-10-04T10:00:00Z"), run("fetch-races", "failed", "2026-10-04T11:00:00Z"), run("fetch-races", "failed", "2026-10-04T11:30:00Z")],
+      "ok",
+      NOW,
+    );
+    assert.equal(failing.status, "degraded");
+    assert.deepEqual(staleData(failing), []);
+    assert.deepEqual(staleData(evaluateHealth([], "error", NOW)), []);
   });
 });

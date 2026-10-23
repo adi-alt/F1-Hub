@@ -9,6 +9,7 @@ import { RaceClassification } from "@/components/race/RaceClassification";
 import type { QualifyingStageRow } from "@/lib/supabase/races";
 import type { RaceDoc } from "@/lib/types/race";
 import type { SessionKey, WeekendSession } from "@/lib/weekendSessions";
+import { formatTrackTime } from "@/lib/circuitTimeZones";
 
 /**
  * The weekend, session by session, as the calendar lists it: a standard weekend's three practices, qualifying and
@@ -25,18 +26,18 @@ export function WeekendSessions({ race, sessions, initial, stages }: { race: Rac
   const grid = race.status === "completed" && race.results ? new Map(race.results.map((r) => [r.driver, r.grid])) : undefined;
 
   const panel = () => {
-    if (current.state !== "completed") return <NotYet session={current} />;
+    if (current.state !== "completed") return <NotYet session={current} circuit={race.circuit} />;
     switch (current.key) {
       case "FP1":
       case "FP2":
       case "FP3":
-        return race.practice?.[current.key] ? <PracticeSummary practice={{ [current.key]: race.practice[current.key] }} roster={roster} /> : <NotYet session={current} />;
+        return race.practice?.[current.key] ? <PracticeSummary practice={{ [current.key]: race.practice[current.key] }} roster={roster} /> : <NotYet session={current} circuit={race.circuit} />;
       case "SQ":
       case "Q": {
         const rows = stages.filter((r) => r.session === current.key);
         if (rows.length) return <QualifyingStages rows={rows} session={current.key} grid={current.key === "Q" ? grid : undefined} />;
         // Rounds stored before stage-by-stage qualifying: the order and gap to pole we had.
-        return current.key === "Q" && race.inputs?.length ? <QualifyingGapChart inputs={race.inputs} driverSet="all" customIds={[]} /> : <NotYet session={current} />;
+        return current.key === "Q" && race.inputs?.length ? <QualifyingGapChart inputs={race.inputs} driverSet="all" customIds={[]} /> : <NotYet session={current} circuit={race.circuit} />;
       }
       case "S":
         return (
@@ -69,15 +70,16 @@ export function WeekendSessions({ race, sessions, initial, stages }: { race: Rac
   );
 }
 
-function NotYet({ session }: { session: WeekendSession }) {
+function NotYet({ session, circuit }: { session: WeekendSession; circuit: string }) {
   const when = session.startsAt
     ? new Date(session.startsAt.endsWith("Z") ? session.startsAt : `${session.startsAt}Z`).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
     : null;
+  const track = session.startsAt ? formatTrackTime(session.startsAt, circuit) : null;
   const text =
     session.state === "live"
       ? `${session.label} is under way. Its results appear here once the session ends and the timing data is published.`
       : session.state === "awaiting"
         ? `${session.label} has finished. Its results appear here as soon as they're published.`
-        : `${session.label}${when ? ` starts ${when} (your time)` : " hasn't run yet"}.`;
-  return <p className="text-body-sm text-secondary">{text}</p>;
+        : `${session.label}${when ? ` starts ${when} (your time)${track ? `, ${track} at the track` : ""}` : " hasn't run yet"}.`;
+  return <p suppressHydrationWarning className="text-body-sm text-secondary">{text}</p>;
 }

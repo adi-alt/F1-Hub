@@ -1,6 +1,13 @@
 "use client";
 
 import type { RaceSummary } from "../../_service/season.pure";
+import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
+
+/** "23 Oct", UTC + en-GB so the server and every browser print the same string. */
+const day = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? undefined : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+};
 
 /**
  * Weather, matched to the state the weekend is actually in.
@@ -26,6 +33,7 @@ export function RaceWeather({ race }: { race: RaceSummary }) {
             { label: "Rain", value: w.rainfall ? "Yes" : "Dry" },
           ]}
         />
+        <ProvenanceLine className="mt-2" source="Official timing data" status="race-session averages" />
       </Section>
     );
   }
@@ -47,6 +55,7 @@ export function RaceWeather({ race }: { race: RaceSummary }) {
             historical average when a real forecast isn't yet available for the date. */}
         {f.source === "openweathermap" ? "Forecast snapshot taken ahead of the weekend." : "Based on historical conditions at this circuit — no live forecast available yet."}
       </p>
+      <ProvenanceLine className="mt-1" source={f.source === "openweathermap" ? "OpenWeatherMap" : "Historical average"} status="snapshot" updated={day(f.fetchedAt)} />
     </Section>
   );
 }

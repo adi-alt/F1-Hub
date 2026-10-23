@@ -6,6 +6,7 @@ import { AuthDialogHost } from "@/components/auth/AuthDialogHost";
 import { Header } from "@/components/Header";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { PageFrame } from "@/components/PageFrame";
+import { StaleDataNotice } from "@/components/StaleDataNotice";
 import { ScrollMemory } from "@/components/ScrollMemory";
 import { ApexLauncher } from "@/components/apex/ApexLauncher";
 import { SectionNav } from "@/components/SectionNav";
@@ -83,6 +84,8 @@ export default async function RootLayout({
               registered none, so it never offers to answer questions about a page it can't see. */}
           <ApexScopeProvider>
             <Header season={season} sessions={sessions} />
+            {/* Only while the data readers see is actually stale (audit R-52); nothing otherwise. */}
+            <StaleDataNotice />
             <PageFrame season={season}>{children}</PageFrame>
             <ApexLauncher />
             <SectionNav />
