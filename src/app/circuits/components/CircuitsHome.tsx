@@ -9,7 +9,7 @@ import { teamColor } from "@/lib/teamColors";
 import { nodeStatus } from "./nodeStatus";
 import { CircuitApexScope } from "./ai/CircuitApexScope";
 import { CircuitApexTake } from "./ai/CircuitApexTake";
-import { TabList, Tabs } from "@/components/ui/Tabs";
+import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import type { CircuitExplorerEntry } from "../services/circuits.service";
 
 type Filter = "all" | "raced" | "to-come" | "favourites";
@@ -121,6 +121,8 @@ function NextUp({ entry, year }: { entry: CircuitExplorerEntry; year: number }) 
   return (
     <section aria-label="Next race" className="grid grid-cols-1 items-center gap-8 rounded-card bg-surface-1 p-5 sm:p-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2fr)] lg:gap-10">
       <div className="min-w-0">{drawing ? <CircuitCanvas drawing={drawing} className="max-h-64" caption={false} lapColor={BRAND} lapSeconds={6} /> : null}</div>
+      {/* The tabs wrap the panel too, so each tab's aria-controls names a real panel. */}
+      <Tabs variant="segmented" value={tab} onValueChange={(v) => setTab(v as "weekend" | "apex")} items={[{ value: "weekend", label: "The weekend" }, { value: "apex", label: "Apex's take" }]}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -130,11 +132,9 @@ function NextUp({ entry, year }: { entry: CircuitExplorerEntry; year: number }) 
             <h2 className="mt-1 text-display-md font-semibold text-primary">{race.name}</h2>
             <p className="mt-1 text-body text-secondary">{[facts?.venueName ?? race.circuit, race.country].filter(Boolean).join(", ")}</p>
           </div>
-          <Tabs variant="segmented" value={tab} onValueChange={(v) => setTab(v as "weekend" | "apex")} items={[{ value: "weekend", label: "The weekend" }, { value: "apex", label: "Apex's take" }]}>
-            <TabList aria-label="About the next race" />
-          </Tabs>
+          <TabList aria-label="About the next race" />
         </div>
-        <div className="mt-6 min-h-40">
+        <TabPanels className="mt-6 min-h-40">
           {tab === "weekend" ? (
             <div className="grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
               <div>
@@ -165,8 +165,9 @@ function NextUp({ entry, year }: { entry: CircuitExplorerEntry; year: number }) 
           ) : (
             <CircuitApexTake location={race.circuit ?? race.name} year={year} status={race.state} bare />
           )}
-        </div>
+        </TabPanels>
       </div>
+      </Tabs>
     </section>
   );
 }
