@@ -1,5 +1,6 @@
 "use client";
 
+import { AddToCalendarButton } from "@/components/AddToCalendarButton";
 import { useMemo } from "react";
 import Link from "next/link";
 import { CountUp } from "@/components/motion/CountUp";
@@ -120,6 +121,7 @@ export function SeasonDetail({
               <span className="text-caption font-semibold uppercase tracking-[0.24em] text-tertiary">Season</span>
             </h1>
 
+            {status === "ongoing" && !backHref && <AddToCalendarButton year={year} label="Season calendar" />}
             {currentRound && (
               <p className="flex items-center gap-2 text-xs text-neutral-400">
                 <span aria-hidden className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
