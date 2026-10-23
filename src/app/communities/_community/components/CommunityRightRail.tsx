@@ -238,7 +238,7 @@ function OpenRounds({ predictions, onOpen }: { predictions: RailPrediction[]; on
                   <span className={`tabular ${urgent ? "text-warning" : ""}`}>{countdown ? `closes in ${countdown}` : "awaiting result"}</span>
                   {prediction.myEntry && <span className="text-success"> · Entered</span>}
                 </p>
-                <PredictionTrendBars groupId={prediction.groupId} predictionId={prediction.id} isPodium={prediction.type === "podium"} trend={trend} compact />
+                <PredictionTrendBars isPodium={prediction.type === "podium"} trend={trend} compact />
               </li>
             );
           })}

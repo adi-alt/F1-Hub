@@ -14,7 +14,8 @@ import type { FeedPost, FeedType, GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import { PostCard } from "./post/PostCard";
 import { PostCardSkeleton } from "./post/PostCardSkeleton";
-import { PredictionFeedCard } from "./post/PredictionFeedCard";
+import { PredictionCard } from "@/components/predictions/PredictionCard";
+import { usePredictionTrends } from "@/components/predictions/usePredictionTrends";
 import { PostComposer } from "./PostComposer";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
 import type { RaceOption } from "./post/PredictionComposer";
@@ -133,6 +134,8 @@ export function GroupsFeed({
   // Each community's picture, for the prediction cards (a round carries its community's name, not its picture).
   const avatarById = new Map(groups.map((g) => [g.id, g.avatarUrl]));
   const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;
+  // Every round's community trend in one request, not one per card.
+  const trends = usePredictionTrends(predictions);
 
   // Race-weekend mode. A minute clock keeps the composer's prompt and the live tags current.
   const now = useMinuteClock();
@@ -159,10 +162,10 @@ export function GroupsFeed({
     ) : item.kind === "result" ? (
       weekend && <SessionResultCard session={item.session} lines={item.lines} calledIt={weekend.calledIt[item.session.key]} race={{ year: weekend.year, round: weekend.round, name: weekend.raceName }} />
     ) : (
-      <PredictionFeedCard
+      <PredictionCard
+        variant={showGroup ? "feed" : "community"}
         prediction={item.prediction}
-        index={i}
-        showGroup={showGroup}
+        trend={trends[item.prediction.id] ?? null}
         drivers={driversByRace[item.prediction.raceId] ?? []}
         modelPick={modelByRace[item.prediction.raceId]?.[item.prediction.type] ?? null}
         groupAvatarUrl={avatarById.get(item.prediction.groupId) ?? null}

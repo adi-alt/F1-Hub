@@ -10,10 +10,10 @@ import type { RaceDoc } from "@/lib/types/race";
 // file's own comment for why a client component importing them from *this* module (which reaches
 // otp.ts's nodemailer import through groups.ts) crashed the production build. Re-exported so every
 // existing server-side import of `@/lib/supabase/groupPredictions` keeps working unchanged.
-export type { GroupPrediction, PredictionGuess, PredictionState, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
+export type { GroupPrediction, PredictionCardState, PredictionGuess, PredictionState, PredictionStatus, PredictionTrend, PredictionTrendOption, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
 export { predictionTypeLabels } from "@/lib/groupPredictionTypes";
-import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
-import { predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTypes";
+import type { GroupPrediction, PredictionGuess, PredictionStatus, PredictionTrend, PredictionType, RaceCommunityCard } from "@/lib/groupPredictionTypes";
+import { aggregatePredictionTrend, predictionCardState, predictionStateAt, predictionTypeLabels } from "@/lib/groupPredictionTypes";
 import { notifyNewRound, notifyPredictionSettled } from "@/lib/notificationEvents";
 
 export type FeedPrediction = Omit<GroupPrediction, "myEntry"> & {
@@ -82,90 +82,51 @@ export function describeGuess(type: PredictionType, guess: PredictionGuess, driv
   return typeof guess === "string" ? (driverNameByCode.get(guess) ?? guess) : String(guess);
 }
 
-/** One aggregated option in a prediction's community trend. `pct` is a real share of `total`,
- * rounded for display only. */
-export type PredictionTrendOption = { key: string; label: string; count: number; pct: number };
-
-export type PredictionTrend = {
-  /** Real number of entries behind this aggregate. The UI decides what counts as "enough to
-   * show" - this never hides or pads it. */
-  total: number;
-  options: PredictionTrendOption[];
-};
-
-/** How many distinct options a trend lists before the remainder is grouped into "Other". */
-const TREND_TOP_N = 4;
+/** The most ids one batched trend request may ask for - a feed page, with room to spare. */
+export const MAX_TREND_BATCH = 50;
 
 /**
- * What the community has actually entered for one prediction round, aggregated server-side.
+ * What the community has actually entered, aggregated server-side, for many prediction rounds at
+ * once (a feed, a community's Predictions tab, its rail): four queries however many cards there
+ * are, instead of one request per card.
  *
- * Every number comes from real `group_prediction_entries` rows - there is no sampling, no
- * estimate, and no fallback that invents a distribution when nobody has entered yet (`total: 0`
- * with no options is a real, representable answer, and the card says so rather than drawing empty
- * bars).
- *
- * Individual entries are never returned, only counts: a member should be able to see which way the
- * community is leaning without seeing who picked what, which would leak other members' picks while
- * the round is still open. Membership is required to see even the aggregate.
+ * Every number comes from real `group_prediction_entries` rows - no sampling, no padding (`total: 0`
+ * with no options is a real answer). Individual entries are never returned, only counts, so a
+ * member sees which way the community leans without seeing who picked what. Membership gates every
+ * aggregate: rounds in a community the viewer doesn't belong to (or that don't exist) are left out
+ * rather than failing the batch.
  */
-export async function getPredictionTrend(predictionId: string, uid: string): Promise<PredictionTrend> {
-  const { data: prediction, error: predictionError } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_predictions").select("id, group_id, type").eq("id", predictionId).maybeSingle(),
+export async function getPredictionTrends(predictionIds: string[], uid: string): Promise<Record<string, PredictionTrend>> {
+  const ids = [...new Set(predictionIds)].slice(0, MAX_TREND_BATCH);
+  if (ids.length === 0) return {};
+  const { data: predictions, error } = await queryWithRetry(() => supabaseAdmin.from("group_predictions").select("id, group_id, type").in("id", ids));
+  if (error) throw new Error(`getPredictionTrends: ${error.message}`);
+  const groupIds = [...new Set((predictions ?? []).map((p) => p.group_id as string))];
+  if (groupIds.length === 0) return {};
+  const { data: memberships, error: membershipError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid).in("group_id", groupIds));
+  if (membershipError) throw new Error(`getPredictionTrends: ${membershipError.message}`);
+  const memberOf = new Set((memberships ?? []).map((m) => m.group_id as string));
+  const allowed = (predictions ?? []).filter((p) => memberOf.has(p.group_id as string));
+  if (allowed.length === 0) return {};
+  const { data: entries, error: entriesError } = await queryWithRetry(() =>
+    supabaseAdmin
+      .from("group_prediction_entries")
+      .select("prediction_id, guess")
+      .in(
+        "prediction_id",
+        allowed.map((p) => p.id as string),
+      ),
   );
-  if (predictionError) throw new Error(`getPredictionTrend(${predictionId}): ${predictionError.message}`);
-  if (!prediction) throw new ServiceError("That prediction doesn't exist.", 404);
-
-  await requireMember(prediction.group_id as string, uid);
-
-  const { data: entries, error } = await queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("guess").eq("prediction_id", predictionId));
-  if (error) throw new Error(`getPredictionTrend(${predictionId}): ${error.message}`);
-
-  const rows = entries ?? [];
-  if (rows.length === 0) return { total: 0, options: [] };
-
-  const type = prediction.type as PredictionType;
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = trendKeyFor(type, row.guess as PredictionGuess);
-    if (key === null) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+  if (entriesError) throw new Error(`getPredictionTrends: ${entriesError.message}`);
+  const guessesById = new Map<string, PredictionGuess[]>();
+  for (const e of entries ?? []) {
+    const list = guessesById.get(e.prediction_id as string) ?? [];
+    list.push(e.guess as PredictionGuess);
+    guessesById.set(e.prediction_id as string, list);
   }
-
-  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
-  if (total === 0) return { total: 0, options: [] };
-
-  // Driver names only matter for the types whose key IS a driver code - a DNF-count trend's keys
-  // are numbers, and looking up a roster for them would be a wasted query.
-  const needsDriverNames = type === "winner" || type === "podium" || type === "fastest_lap" || type === "pole";
-  const driverNameByCode = needsDriverNames ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
-
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const top = sorted.slice(0, TREND_TOP_N);
-  const restCount = sorted.slice(TREND_TOP_N).reduce((sum, [, n]) => sum + n, 0);
-
-  const options: PredictionTrendOption[] = top.map(([key, count]) => ({
-    key,
-    label: labelForTrendKey(type, key, driverNameByCode),
-    count,
-    pct: Math.round((count / total) * 100),
-  }));
-  if (restCount > 0) options.push({ key: "__other__", label: "Other", count: restCount, pct: Math.round((restCount / total) * 100) });
-
-  return { total, options };
-}
-
-/** The one facet of a guess a trend groups by. A podium guess is three drivers, which has no
- * single meaningful distribution - the winner pick is the part members actually compare, so that's
- * what's aggregated, and the card labels it as such rather than implying the whole podium matched. */
-function trendKeyFor(type: PredictionType, guess: PredictionGuess): string | null {
-  if (type === "podium") return Array.isArray(guess) && typeof guess[0] === "string" ? guess[0] : null;
-  if (type === "dnf_count") return typeof guess === "number" ? String(guess) : null;
-  return typeof guess === "string" ? guess : null;
-}
-
-function labelForTrendKey(type: PredictionType, key: string, driverNameByCode: Map<string, string>): string {
-  if (type === "dnf_count") return `${key} ${key === "1" ? "retirement" : "retirements"}`;
-  return driverNameByCode.get(key) ?? key;
+  const needsNames = allowed.some((p) => p.type !== "dnf_count" && guessesById.has(p.id as string));
+  const driverNameByCode = needsNames ? new Map((await getAllCurrentDrivers()).map((d) => [d.code, d.name])) : new Map<string, string>();
+  return Object.fromEntries(allowed.map((p) => [p.id as string, aggregatePredictionTrend(p.type as PredictionType, guessesById.get(p.id as string) ?? [], driverNameByCode)]));
 }
 
 /** A resolved round still worth seeing in the feed - a viewer who entered wants to know they won
@@ -261,6 +222,12 @@ export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPre
       myGuess: myGuessByPrediction.get(p.id as string) ?? null,
       myGuessLabel: resolveMyGuessLabel(type, myGuessByPrediction.get(p.id as string) ?? null, driverNameByCode),
       myPointsAwarded: myPointsAwardedByPrediction.get(p.id as string) ?? null,
+      // Listed only from the viewer's own communities, so always a member here.
+      viewerState: predictionCardState(
+        { status: p.status as PredictionStatus, lockAt, raceStatus: (raceById.get(p.race_id as string)?.status as string | null | undefined) ?? null, type, entryPoints: p.entry_points as number },
+        { isMember: true, hasEntered: myGuessByPrediction.has(p.id as string) },
+        nowMs,
+      ),
     };
   });
 }
@@ -474,6 +441,12 @@ export async function listPredictions(groupId: string, uid: string): Promise<Gro
     resolvedAt: (p.resolved_at as string | null) ?? null,
     entryCount: entryCountByPrediction.get(p.id as string) ?? 0,
     myEntry: myEntryByPrediction.get(p.id as string) ?? null,
+    // requireMember above: the viewer is a member.
+    viewerState: predictionCardState(
+      { status: p.status as PredictionStatus, lockAt, raceStatus: (raceById.get(p.race_id as string)?.status as string | null | undefined) ?? null, type: p.type as PredictionType, entryPoints: p.entry_points as number },
+      { isMember: true, hasEntered: myEntryByPrediction.has(p.id as string) },
+      nowMs,
+    ),
     };
   });
 }
