@@ -112,7 +112,7 @@ export function FavoriteEntityList({
   }
 
   if (items.length === 0) {
-    return <p className="text-body-sm text-tertiary">Nothing indexed yet, check back once the archive catches up.</p>;
+    return <p className="text-body-sm text-tertiary">Nothing to show yet.</p>;
   }
   if (sorted.length === 0) {
     return <p className="text-body-sm text-tertiary">No matches for &ldquo;{search}&rdquo;.</p>;

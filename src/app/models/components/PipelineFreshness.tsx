@@ -13,7 +13,7 @@ function ageLabel(minutes: number): string {
  * stale-data notice use: how long since its last success, against its limit, and any failure streak.
  */
 export function PipelineFreshness({ health }: { health: Health }) {
-  if (health.database === "error") return <p className="text-sm text-tertiary">Couldn&apos;t read pipeline_runs.</p>;
+  if (health.database === "error") return <p className="text-sm text-tertiary">Couldn&apos;t load run history.</p>;
   if (!health.pipeline) return <p className="text-sm text-tertiary">No pipeline runs recorded yet.</p>;
   const jobs = Object.entries(health.pipeline).sort(([a], [b]) => a.localeCompare(b));
   return (
@@ -35,7 +35,7 @@ export function PipelineFreshness({ health }: { health: Health }) {
           );
         })}
       </ul>
-      <p className="text-caption text-tertiary">pipeline_runs · checked {health.checkedAt.slice(11, 16)} UTC</p>
+      <p className="text-caption text-tertiary">Checked {health.checkedAt.slice(11, 16)} UTC</p>
     </div>
   );
 }

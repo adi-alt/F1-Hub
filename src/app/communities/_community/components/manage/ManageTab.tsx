@@ -356,7 +356,7 @@ function PermissionsSection({ group }: { group: GroupDetail }) {
 
   return (
     <section aria-label="Permissions">
-      <Intro>Who can do what. Every one of these is checked on the server, not only hidden on the page.</Intro>
+      <Intro>Who can do what.</Intro>
       <ul className="divide-y divide-white/[0.05] border-y border-white/[0.06]">
         {PERMISSION_ACTIONS.map((action) => (
           <SettingRow key={action.value} title={action.label} description={action.description}>

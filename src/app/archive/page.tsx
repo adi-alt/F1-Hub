@@ -103,7 +103,7 @@ async function ArchiveIndex({ section, uid }: { section: Facet; uid: string }) {
           Every Formula 1 season since {ARCHIVE_EARLIEST_YEAR}: {Object.keys(yearStats).length} seasons and {Object.values(yearStats).reduce((sum, y) => sum + y.raceCount, 0).toLocaleString("en-GB")} Grands Prix, with every
           driver, team and circuit.
         </p>
-        <p className="mt-2 text-caption text-tertiary">Official classifications, from the Ergast/Jolpica historical database.</p>
+        <p className="mt-2 text-caption text-tertiary">Official classifications.</p>
       </header>
       <div className="flex flex-col">
         {hasLoadError && <RetryBanner />}

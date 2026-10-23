@@ -34,7 +34,7 @@ export async function ArchiveYearView({ year, uid }: { year: number; uid: string
           ← Archive
         </Link>
         <h1 className="mt-2 text-3xl font-bold text-primary">{year}</h1>
-        <p className="mt-4 text-sm text-tertiary">No results backfilled for this season yet.</p>
+        <p className="mt-4 text-sm text-tertiary">No results for this season.</p>
       </div>
     );
   }
