@@ -117,6 +117,8 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
         createdAt: new Date().toISOString(),
         score: 0,
         myVote: 0,
+        mine: true,
+        canDelete: true,
         pending: true,
       };
       setComments((prev) => [...(prev ?? []), optimistic]);

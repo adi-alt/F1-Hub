@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { POST_KIND_LABELS, type PostKind } from "@/lib/communities";
-import { createPost, listPosts, type PostSort } from "@/lib/supabase/groupPosts";
+import { listPosts, type PostSort } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
-import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError } from "@/services/errors";
 
 const SORTS: PostSort[] = ["new", "old", "top", "discussed"];
@@ -18,6 +17,8 @@ function parseKind(raw: string | null): PostKind | undefined {
   return raw && raw in POST_KIND_LABELS ? (raw as PostKind) : undefined;
 }
 
+// Posts are created through /api/posts only (with a groupId for a community post), so there is one creation path:
+// one set of checks, one rate limit, calls and attachments everywhere.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -37,32 +38,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       pendingOnly: searchParams.get("pending") === "1",
     });
     return NextResponse.json(page);
-  } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
-    throw err;
-  }
-}
-
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const limited = await limitRequest(request, "postCreate", session.uid);
-  if (limited) return limited;
-  const { id } = await params;
-  // `kind` is re-validated against the community's own enabled modules AND the poster's real role
-  // inside createPost - a kind this community doesn't offer, or an Announcement from an ordinary
-  // member, is a 400 there, not something this route has to know about.
-  const { title, content, mediaUrl, kind } = (await request.json().catch(() => ({}))) as {
-    title?: string;
-    content?: string;
-    mediaUrl?: string | null;
-    kind?: PostKind;
-  };
-  if (typeof content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
-
-  try {
-    const post = await createPost(id, session.uid, { title, content, mediaUrl, kind });
-    return NextResponse.json(post);
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
     throw err;

@@ -15,8 +15,9 @@ import { useOptimisticVote } from "../../components/post/useOptimisticVote";
 import { PostCardSkeleton } from "../../components/post/PostCardSkeleton";
 import { PostComposer, type ComposerCommunity } from "../../components/PostComposer";
 import type { RaceOption } from "../../components/post/PredictionComposer";
-import { CreatePostModal, type DraftResult } from "../../components/post/CreatePostModal";
+import { CreatePostModal } from "../../components/post/CreatePostModal";
 import { DEFAULT_FEED_QUERY, FeedControls, isFiltered, type FeedQuery } from "./FeedControls";
+import { GROUP_POSTS_CHANGED } from "@/components/GroupRealtimeWatcher";
 import { WeekendBar } from "../../components/weekend/WeekendBar";
 import { SessionResultCard } from "../../components/weekend/SessionResultCard";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
@@ -27,6 +28,7 @@ import type { CommunityWeekendData } from "@/lib/supabase/communityWeekend";
  * `failed` keeps it visible with a retry rather than silently dropping what the user wrote. */
 type OptimisticPost = GroupPost & { pending?: boolean; failed?: boolean; draft?: Draft };
 type Draft = { kind: PostKind; title: string | null; content: string; mediaUrl: string | null };
+type DraftResult = { ok: true } | { ok: false; error: string };
 
 /** Turns the control row's state into the query string listPosts actually understands. Kept next to
  * the fetches so there is one definition of "what this feed is currently asking for". */
@@ -210,6 +212,31 @@ export function CommunityFeed({
     return () => observer.disconnect();
   }, [cursor, loadMore]);
 
+  // Realtime says the feed changed (GroupRealtimeWatcher): offer the new posts instead of moving what's being read.
+  const [newPosts, setNewPosts] = useState(false);
+  // Our own post comes back through realtime too; it is already on screen, so it isn't news.
+  const postedAt = useRef(0);
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onChange = (event: Event) => {
+      if ((event as CustomEvent<{ groupId: string }>).detail?.groupId === groupId && Date.now() - postedAt.current > 5000) setNewPosts(true);
+    };
+    window.addEventListener(GROUP_POSTS_CHANGED, onChange);
+    return () => window.removeEventListener(GROUP_POSTS_CHANGED, onChange);
+  }, [groupId]);
+
+  function showNewPosts() {
+    setNewPosts(false);
+    refresh();
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function afterPost() {
+    postedAt.current = Date.now();
+    setNewPosts(false);
+    refresh();
+  }
+
   function refresh() {
     fetch(`/api/groups/${groupId}/posts${queryString(query)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
@@ -220,24 +247,18 @@ export function CommunityFeed({
       .catch(() => {});
   }
 
-  /** Whether a just-written post belongs in what's currently on screen. A discussion posted while
-   * the Announcements chip is active is real and was saved - it just isn't in this view, so it is
-   * not faked into it; the feed refetches instead and the post is where it actually is. */
-  function matchesCurrentView(draft: Draft): boolean {
-    if (query.pendingOnly && !(moderationEnabled && myRole === "member")) return false;
-    if (query.mediaOnly && !draft.mediaUrl) return false;
-    if (query.kind && query.kind !== draft.kind) return false;
-    if (query.query.trim()) return false;
-    // A ranked sort has no defined "top" position for a post with no votes yet.
-    return query.sort === "new";
+  /** Every post goes through /api/posts, the one creation path; groupId pins it to this community. */
+  function createPostRequest(draft: Draft) {
+    postedAt.current = Date.now();
+    return fetch("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...draft, groupId }),
+    });
   }
 
   async function send(draft: Draft, tempId: string): Promise<DraftResult> {
-    const res = await fetch(`/api/groups/${groupId}/posts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
-    }).catch(() => null);
+    const res = await createPostRequest(draft).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { id?: string; status?: string; error?: string } | null;
 
     if (!res?.ok || !body?.id) {
@@ -251,52 +272,6 @@ export function CommunityFeed({
       prev.map((p) => (p.id === tempId ? { ...p, id: body.id as string, status: (body.status as GroupPost["status"]) ?? "published", pending: false, failed: false, draft: undefined } : p)),
     );
     return { ok: true };
-  }
-
-  function submit(draft: Draft): Promise<DraftResult> {
-    if (!matchesCurrentView(draft)) {
-      return fetch(`/api/groups/${groupId}/posts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
-      })
-        .then(async (res) => {
-          const body = (await res.json().catch(() => null)) as { id?: string; error?: string } | null;
-          if (!res.ok || !body?.id) return { ok: false as const, error: body?.error ?? "Couldn't post. Check your connection and try again." };
-          // Back to the plain latest view, where the new post genuinely is.
-          setQuery({ ...DEFAULT_FEED_QUERY });
-          return { ok: true as const };
-        })
-        .catch(() => ({ ok: false as const, error: "Couldn't post. Check your connection and try again." }));
-    }
-
-    const tempId = `temp-${Date.now()}`;
-    setPosts((prev) => [
-      {
-        id: tempId,
-        groupId,
-        userId: "",
-        authorName: "You",
-        authorAvatarUrl: null,
-        authorRole: myRole,
-        title: draft.title,
-        content: draft.content,
-        mediaUrl: draft.mediaUrl,
-        // The optimistic row has no server metadata yet - it fills in on the refetch that
-        // follows. Null is the honest placeholder; the attachment renders its typed card until
-        // the real name and size arrive.
-        attachment: null,
-        kind: draft.kind,
-        status: moderationEnabled && myRole === "member" ? "pending" : "published",
-        createdAt: new Date().toISOString(),
-        score: 0,
-        myVote: 0,
-        commentCount: 0,
-        pending: true,
-      },
-      ...prev,
-    ]);
-    return send(draft, tempId);
   }
 
   function retry(post: OptimisticPost) {
@@ -339,7 +314,7 @@ export function CommunityFeed({
           placeholder={`Share your thoughts with ${communityName}...`}
           upcomingRaces={upcomingRaces}
           callableRace={callableRace}
-          onPosted={refresh}
+          onPosted={afterPost}
         />
       ) : (
         <p className="rounded-lg border border-white/[0.06] bg-white/[0.012] px-4 py-3 text-body-sm text-tertiary">
@@ -356,6 +331,15 @@ export function CommunityFeed({
       <div className="mt-4">
         <FeedControls kinds={kinds} value={query} onChange={setQuery} canModerate={canModerate} moderationEnabled={moderationEnabled} pendingCount={canModerate ? pendingCount : undefined} />
       </div>
+
+      <div ref={topRef} className="scroll-mt-24" />
+      {newPosts && (
+        <div className="sticky top-20 z-sticky mt-3 flex justify-center">
+          <Button variant="secondary" size="sm" onClick={showNewPosts}>
+            New posts
+          </Button>
+        </div>
+      )}
 
       {/* Posts as cards in the site's glass panel, 12px apart, as on the Communities home. */}
       <div className="mt-3 space-y-3">
@@ -439,14 +423,15 @@ export function CommunityFeed({
 
       {focusPostId && <PermalinkPost key={focusPostId} postId={focusPostId} />}
 
-      {composerOpen && (
+      {canPost && (
         <CreatePostModal
-          communityName={communityName}
-          communityAvatarUrl={communityAvatarUrl}
-          kinds={kinds}
+          open={composerOpen}
+          community={community}
+          upcomingRaces={upcomingRaces}
+          callableRace={callableRace}
           moderationNotice={moderationEnabled && myRole === "member"}
           onClose={() => onComposerOpenChange(false)}
-          onSubmit={submit}
+          onPosted={afterPost}
         />
       )}
     </div>

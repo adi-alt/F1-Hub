@@ -8,10 +8,9 @@ import { getSession } from "@/lib/session/getSession";
 import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError } from "@/services/errors";
 
-/** Group-agnostic post creation - the Groups home composer's own endpoint, where a group is
- * optional (see createPost's own comment on personal/no-group posts). The per-group composer on a
- * group's own page still posts through /api/groups/[id]/posts - that one's genuinely group-scoped
- * (it also needs group-scoped listPosts right after), this one never assumes a group at all. */
+/** The one way a post is created, from every composer: the Communities home, a community's own feed and its
+ * full-post window. `groupId` names the community (createPost checks membership, permissions and moderation), or is
+ * null for a personal post (see createPost's own comment on personal/no-group posts). */
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });

@@ -21,15 +21,21 @@ export function CommentComposer({
   autoFocus = false,
   onCancel,
   variant = "default",
+  initialValue = "",
+  submitLabel = "Reply",
 }: {
   onSubmit: (content: string) => Promise<boolean>;
   placeholder?: string;
   autoFocus?: boolean;
   onCancel?: () => void;
   variant?: "default" | "inline";
+  /** Starts filled in (editing a comment). */
+  initialValue?: string;
+  /** The stacked form's button: Reply, or Save / Report where it's reused. */
+  submitLabel?: string;
 }) {
   const { user, displayName } = useAuth();
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState(initialValue);
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -122,7 +128,7 @@ export function CommentComposer({
             </Button>
           )}
           <Button variant="primary" size="sm" onClick={() => void submit()} disabled={!content.trim()} loading={posting}>
-            Reply
+            {submitLabel}
           </Button>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
+import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import { canDo, MODULE_LABELS, resolveModules, type CommunityModule } from "@/lib/communities";
 import type { GroupPost } from "@/lib/supabase/groupPosts";
 import type { GroupPrediction } from "@/lib/groupPredictionTypes";
@@ -266,6 +267,7 @@ export function CommunityWorkspace({
             {/* Each panel mounts fresh when its tab is chosen, so this fades the new one in. */}
             <TabPanels className={tabItems.length > 1 ? "mt-5" : ""}>
               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}>
+                <RegionBoundary label={tab === "feed" ? "the feed" : tab === "predictions" ? "the predictions" : "the leaderboard"}>
                 {tab === "feed" && (
                   <CommunityFeed
                     groupId={group.id}
@@ -296,15 +298,18 @@ export function CommunityWorkspace({
                     races={races}
                     driversByRace={driversByRace}
                     pointsBalance={pointsBalance}
+                    groupName={group.name}
                   />
                 )}
                 {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatarUrl ?? null]))} />}
+                </RegionBoundary>
               </motion.div>
             </TabPanels>
           </Tabs>
         </div>
 
         <aside className="mt-6 lg:sticky lg:top-20 lg:mt-0">
+          <RegionBoundary label="the community rail">
             <CommunityRightRail
               stats={stats}
               pulse={pulse}
@@ -320,6 +325,7 @@ export function CommunityWorkspace({
               canInvite={canInvite}
               onOpenTab={openTab}
             />
+          </RegionBoundary>
           </aside>
       </div>
 

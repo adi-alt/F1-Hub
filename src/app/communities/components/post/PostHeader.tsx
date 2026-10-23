@@ -82,6 +82,11 @@ export function PostByline({ post, showGroup, roleLabel, pending, sessionTag }: 
       <time suppressHydrationWarning dateTime={post.createdAt} title={new Date(post.createdAt).toLocaleString()} className="shrink-0 whitespace-nowrap text-tertiary">
         {timeAgo(post.createdAt)}
       </time>
+      {post.editedAt && (
+        <span title={`Edited ${new Date(post.editedAt).toLocaleString()}`} className="shrink-0 text-tertiary">
+          (edited)
+        </span>
+      )}
       {sessionTag && (
         <>
           <span aria-hidden className="hidden text-tertiary sm:inline">
