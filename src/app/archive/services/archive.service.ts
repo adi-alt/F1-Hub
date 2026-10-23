@@ -18,7 +18,7 @@ import {
 } from "@/lib/supabase/archive";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getAllCurrentTeams } from "@/lib/supabase/media";
-import { getRacesByYear } from "@/lib/supabase/races";
+import { getRaceListByYear } from "@/lib/supabase/races";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import { getCurrentSeason } from "@/lib/currentSeason";
@@ -101,7 +101,7 @@ export async function getActiveIds(circuits: ArchiveCircuit[]): Promise<{ circui
   const empty = { circuitIds: [], teamIds: [], currentLeader: { driver: null, team: null } };
   try {
     const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
-    const [races, currentTeams] = await Promise.all([getRacesByYear(year), getAllCurrentTeams()]);
+    const [races, currentTeams] = await Promise.all([getRaceListByYear(year), getAllCurrentTeams()]);
     const circuitLocalities = new Map(circuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
     const circuitIdsByName = new Map(circuits.map((c) => [(c.name ?? c.circuitId).trim().toLowerCase(), c.circuitId]));
 

@@ -345,6 +345,26 @@ export const getRacesByYear = unstable_cache(
   { revalidate: false, tags: ["races", "calendar"] },
 );
 
+// Per-view select for season lists (audit R-70, PERF-03): everything a list reads - identity, status,
+// results, sprint results, the frozen predictions - without the per-race detail only a race page uses
+// (practice laps, tyre stints, compound pace, traffic, qualifying inputs), which is most of a row's bytes.
+const RACE_LIST_SELECT =
+  "id, year, round, name, circuit, country, status, race_date, pole_sitter, pole_time_sec, weather, prediction, pole_prediction, simulation, photo_url, photo_urls, updated_at, safety_car_periods, results_source, data_completeness, race_results(*), sprint_results(*)";
+const LIST_ROW_DEFAULTS = { race_inputs: [], tire_stints: [], practice: null, tire_compound_pace: null, traffic_stats: null } satisfies Partial<RaceRow>;
+
+/** getRacesByYear for list views (profile, communities, archive, signup): the same RaceDocs, minus the
+ * race-page-only detail (`inputs`, `tireStints`, `practice`, `tireCompoundPace`, `trafficStats` are absent). */
+export const getRaceListByYear = unstable_cache(
+  async (year: number): Promise<RaceDoc[]> => {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select(RACE_LIST_SELECT).eq("year", year).order("round"));
+    if (error) throw new Error(`getRaceListByYear(${year}): ${error.message}`);
+    const races = ((data ?? []) as unknown as Omit<RaceRow, keyof typeof LIST_ROW_DEFAULTS>[]).map((row) => toRaceDoc({ ...LIST_ROW_DEFAULTS, ...row }));
+    return withCalendarPlaceholders(year, races);
+  },
+  ["get-race-list-by-year"],
+  { revalidate: false, tags: ["races", "calendar"] },
+);
+
 /**
  * A circuit's full history across seasons, oldest first. Queries FastF1's `circuit` field
  * (e.g. "Budapest") rather than a derived slug — event names can and do change across eras for

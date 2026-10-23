@@ -8,7 +8,7 @@ import { getUserGroups, discoverCommunities, getGroupPreview } from "@/lib/supab
 import { isUuid } from "@/lib/ids";
 import { listFeedPosts } from "@/lib/supabase/groupPosts";
 import { listMyPredictions } from "@/lib/supabase/groupPredictions";
-import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
+import { getDriverHeadshotsByCode, getRaceById, getRaceListByYear, getRaceRoster } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getCommunityPulse } from "@/lib/supabase/communityPulse";
 import { getSession } from "@/lib/session/getSession";
@@ -24,7 +24,7 @@ import { getCallableRace } from "@/lib/supabase/postCalls";
  * getNextRace itself now lives in lib/supabase/nextRace.ts - a single community's own context rail
  * renders the same widget, and a copied photo-fallback chain is how two callers drift apart. */
 async function getRaceContext() {
-  const races = await getRacesByYear(await getCurrentSeason());
+  const races = await getRaceListByYear(await getCurrentSeason());
   const upcomingRaces = races
     .filter((r) => r.status !== "completed")
     .sort((a, b) => a.round - b.round)

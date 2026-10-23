@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
+import { getCurrentEntrants, getRaceListByYear } from "@/lib/supabase/races";
 import { getCurrentSeason } from "@/lib/currentSeason";
 
 /** Public (no session needed — this is shown on the signup form before anyone's authenticated
@@ -7,7 +7,7 @@ import { getCurrentSeason } from "@/lib/currentSeason";
  * from the same real, always-current list rather than a hardcoded roster. */
 export async function GET() {
   const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
-  const [entrants, races] = await Promise.all([getCurrentEntrants(year), getRacesByYear(year)]);
+  const [entrants, races] = await Promise.all([getCurrentEntrants(year), getRaceListByYear(year)]);
 
   const drivers = entrants.map((e) => ({ code: e.driver, name: e.driverName, team: e.team }));
   const teams = [...new Set(entrants.map((e) => e.team))].sort();

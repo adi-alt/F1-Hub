@@ -3,7 +3,7 @@ import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
 import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/supabase/archive";
-import { getCurrentEntrants, getRacesByYear } from "@/lib/supabase/races";
+import { getCurrentEntrants, getRaceListByYear } from "@/lib/supabase/races";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { safeRead } from "@/lib/safeRead";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
@@ -47,7 +47,7 @@ async function mergeCurrentSeason(
   circuitLocalities: Map<string, string>,
 ) {
   const year = await getCurrentSeason(); // from the calendar, not the clock (R-22)
-  const [races, entrants] = await Promise.all([getRacesByYear(year), getCurrentEntrants(year)]);
+  const [races, entrants] = await Promise.all([getRaceListByYear(year), getCurrentEntrants(year)]);
   const completed = races.filter((r) => r.status === "completed");
 
   const driverStats = new Map<string, { name: string; raceCount: number; teams: Set<string> }>();
@@ -224,7 +224,7 @@ async function ProfileSection({ uid }: { uid: string }) {
     safeRead(() => listRecentTransactions(uid, 5), []),
     safeRead(() => getUserGroups(uid), []),
     safeRead(() => getUserPicksForYear(uid, season), []),
-    safeRead(() => getRacesByYear(season), []),
+    safeRead(() => getRaceListByYear(season), []),
     safeRead(() => getAllArchiveDrivers(), []),
     safeRead(() => getAllArchiveTeams(), []),
     safeRead(() => getAllArchiveCircuits(), []),
