@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session/getSession";
 import { limitRequest } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { quotaError } from "@/lib/uploadQuota";
+import { listPostMediaObjects } from "@/lib/supabase/postMediaStorage";
+
 
 const IMAGE_MAX_BYTES = 500 * 1024;
 const OTHER_MAX_BYTES = 2 * 1024 * 1024;
@@ -68,6 +71,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `This file type is limited to ${limitLabel}.` }, { status: 400 });
   }
 
+  // The per-person total (audit R-14), counting the optional thumbnail too. Fails closed: if the folder can't be
+  // read, nothing is uploaded.
+  const thumbField = form.get("thumbnail");
+  const incoming = file.size + (thumbField instanceof File ? thumbField.size : 0);
+  let used: number;
+  try {
+    used = (await listPostMediaObjects(session.uid)).reduce((n, o) => n + o.size, 0);
+  } catch {
+    return NextResponse.json({ error: "Upload failed." }, { status: 500 });
+  }
+  const overQuota = quotaError(used, incoming);
+  if (overQuota) return NextResponse.json({ error: overQuota, code: "quota_exceeded" }, { status: 413 });
+
   const path = `${session.uid}/${randomUUID()}.${spec.ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   const { error: uploadError } = await supabaseAdmin.storage.from("post-media").upload(path, buffer, { contentType: file.type });
@@ -80,7 +96,7 @@ export async function POST(request: Request) {
   // never rasterise fifty PDFs. A thumbnail that fails to upload is simply absent: the post still
   // publishes and the attachment falls back to its typed card.
   let thumbUrl: string | null = null;
-  const thumb = form.get("thumbnail");
+  const thumb = thumbField;
   if (thumb instanceof File && thumb.size > 0 && thumb.size <= IMAGE_MAX_BYTES && thumb.type === "image/png") {
     const thumbPath = `${session.uid}/${randomUUID()}.png`;
     const { error: thumbError } = await supabaseAdmin.storage
