@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-export type AccountSection = "personalisation" | "notifications" | "profile";
+export type AccountSection = "personalisation" | "notifications" | "profile" | "account";
 
 export const ACCOUNT_SECTIONS: { value: AccountSection; label: string }[] = [
   { value: "personalisation", label: "Personalisation" },
   { value: "notifications", label: "Notifications" },
   { value: "profile", label: "Profile" },
+  { value: "account", label: "Account" },
 ];
 
 export const accountHref = (section: AccountSection) => `/?section=profile&tab=${section}`;

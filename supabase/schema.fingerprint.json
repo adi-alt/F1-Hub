@@ -877,6 +877,7 @@
  "functions": {
   "cast_comment_vote(uuid,uuid,uuid,smallint)": "92e02bb0653704d1a08330a0dc0d1932",
   "current_user_is_admin()": "bad4060b43aae1dd7eccf02cddadf0ae",
+  "delete_account(uuid)": "c9f18585e44346eabc2ee99da09d836f",
   "dispatch_fetch_races()": "cb926007465972f3b1b9671f97536426",
   "enforce_comment_parent_same_post()": "8bb166c739f947bac022424c1ad907d6",
   "enter_prediction(uuid,uuid,uuid,jsonb,timestamp with time zone)": "33dc17b4e2be66d89ae4a20b3eed300a",

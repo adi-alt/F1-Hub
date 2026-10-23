@@ -16,6 +16,7 @@ import { EYEBROW } from "@/components/ui/panel";
 import { NotificationsForm } from "@/components/profile/NotificationsForm";
 import { ACCOUNT_SECTIONS, AccountNav, accountHref, type AccountSection } from "./components/AccountNav";
 import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
+import { AccountData } from "./components/AccountData";
 import { ProfileOverview, type ProfileOverviewData } from "./components/ProfileOverview";
 import { getPointsBalance, listRecentTransactions } from "@/lib/supabase/points";
 import { getUserGroups } from "@/lib/supabase/groups";
@@ -158,6 +159,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     personalisation: { title: "Personalisation", description: "Your favourite drivers, teams and circuits, current and historical." },
     notifications: { title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in." },
     profile: { title: "Profile", description: "Your name on Apex F1 Hub." },
+    account: { title: "Account", description: "Download your data or delete your Apex F1 Hub account." },
   };
   return pageMetadata({ ...meta[section], path: accountHref(section), index: false });
 }
@@ -170,6 +172,7 @@ const INTRO: Record<AccountSection, string> = {
   personalisation: "Favourite any driver, team or circuit, current or historical. Favourites come first everywhere on the site.",
   notifications: "What Apex F1 Hub tells you about, on the site and by email.",
   profile: "How you appear to everyone else.",
+  account: "Your data: a copy of it, how it's used, and deleting your account.",
 };
 
 /**
@@ -202,6 +205,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         {section === "personalisation" && <Personalisation uid={session.uid} tab={tab} />}
         {section === "notifications" && <Notifications uid={session.uid} />}
         {section === "profile" && <ProfileSection uid={session.uid} />}
+        {section === "account" && <AccountData />}
       </div>
     </div>
   );
