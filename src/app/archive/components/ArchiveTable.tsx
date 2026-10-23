@@ -1,25 +1,24 @@
 "use client";
 
-import { useMemo, useRef, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
-import { staggerItem } from "@/components/motion/variants";
+import { Table, type TableColumn } from "@/components/ui/Table";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { useUrlParam } from "@/hooks/useUrlParam";
 import { useFitRows } from "@/hooks/useFitRows";
 import { FavoriteButton } from "./FavoriteButton";
 import { Pagination } from "./Pagination";
 
-// The exact same sticky-header treatment ChampionshipStandings.tsx uses (Season's own reference
-// table), not a re-derived version - real opacity behind the blur so rows scrolling underneath
-// don't bleed through, same translucent-dark token every sticky/floating surface in the app uses.
 /** A row's height as rendered (a 28px face, 2 x 10px padding, line box and divider), and what surrounds the rows inside the
  * screen: the header row, the pagination under the table, and the page's bottom margin. Rows per page is however
  * many fit between the two (useFitRows), so the list fills the screen and pages instead of scrolling. */
-const ROW_HEIGHT = 53;
-const TABLE_CHROME = 41 + 64 + 24;
-const HEADER_CLASS = "text-left text-caption font-semibold uppercase tracking-wider text-tertiary backdrop-blur-md border-b border-subtle";
-const HEADER_STYLE = { background: "var(--tooltip-surface-strong)" };
+const ROW_HEIGHT = 45;
+const TABLE_CHROME = 37 + 64 + 24;
+/** A Tailwind w-N class as a CSS length (N/4 rem), for ui/Table's column width. */
+function widthOf(className: string | undefined): string | undefined {
+  const n = className?.match(/^w-(\d+)$/)?.[1];
+  return n ? `${Number(n) / 4}rem` : undefined;
+}
 
 export type ArchiveTableColumn<T> = {
   key: string;
@@ -120,13 +119,6 @@ export function ArchiveTable<T>({
   const pageStart = (pageSafe - 1) * pageSize;
   const pageItems = sorted.slice(pageStart, pageStart + pageSize);
 
-  function toggleSort(key: string) {
-    const col = columns.find((c) => c.key === key);
-    if (!col?.sortable) return;
-    setSortParam(key === sortKey ? `${key}:${sortDir === "asc" ? "desc" : "asc"}` : `${key}:${col.defaultDir ?? "desc"}`);
-    setPage(1);
-  }
-
   if (rows.length === 0) {
     return <p className="text-sm text-tertiary">{emptyMessage}</p>;
   }
@@ -146,128 +138,49 @@ export function ArchiveTable<T>({
     );
   }
 
+  type Item = { row: T; index: number };
+  const tableColumns: TableColumn<Item>[] = [
+    { key: "index", header: "#", numeric: true, width: "3rem", render: (item) => <span className="text-tertiary">{item.index}</span> },
+    ...columns.map(
+      (col): TableColumn<Item> => ({
+        key: col.key,
+        header: col.label,
+        align: col.align === "right" ? "end" : "start",
+        sortable: col.sortable,
+        firstSortDirection: col.defaultDir === "asc" ? "ascending" : "descending",
+        sortValue: col.sortValue ? (item) => col.sortValue!(item.row) : undefined,
+        width: widthOf(col.widthClassName),
+        hideBelow: col.hideOnMobile ? "md" : undefined,
+        render: (item) => col.render(item.row),
+      }),
+    ),
+    {
+      key: "favorite",
+      header: "Fav",
+      width: "4rem",
+      render: (item) => {
+        const id = getId(item.row);
+        return <FavoriteButton favorited={favoriteIds.has(id)} onToggle={() => onToggleFavorite(id)} />;
+      },
+    },
+  ];
+
   return (
     <div className="flex flex-col">
-      <div ref={tableRef} className="scrollbar-hide overflow-x-auto rounded-lg border border-white/[0.06] bg-white/[0.012]">
-        {/* No min-w here - table-fixed's real minimum is already the sum of each column's own
-            declared width (see ArchiveDriverTable/ArchiveTeamTable), and an extra floor on top of
-            that was one more way to force horizontal scroll at a viewport narrower than the floor
-            for no benefit. overflow-x-auto above is the genuine-mobile fallback. */}
-        <table className="w-full table-fixed text-left text-sm">
-          {/* Column widths declared here, not just as classes on <th> - a <colgroup> is the one
-              CSS-spec-guaranteed way to fix column widths under table-layout:fixed regardless of
-              <thead>/<tbody> content, rather than leaning on whichever row a given browser happens
-              to measure. This is what was actually forcing the horizontal scroll: the bold,
-              uppercase, letter-spaced header *labels* ("FAVORITE" at only 3rem) don't fit their
-              column at that width, and a <th> without an authoritative <col> width can still push
-              the whole table wider to accommodate that overflow even under table-fixed. */}
-          <colgroup>
-            <col className="w-12" />
-            {columns.map((col) => (
-              <col key={col.key} className={col.widthClassName} />
-            ))}
-            <col className="w-16" />
-          </colgroup>
-          <thead className={HEADER_CLASS} style={HEADER_STYLE}>
-            <tr>
-              {/* "#" not "S.No" - the row-index column is only 3rem wide (just enough for a 3-digit
-                  number plus padding), and "S.No" at 11px bold+uppercase+tracked never actually fit
-                  that - truncate above stops it from forcing table overflow, but a label short
-                  enough to actually render in full is the real fix, not just a safety net. */}
-              <th scope="col" title="Row number" className="overflow-hidden truncate whitespace-nowrap px-4 py-2.5">
-                #
-              </th>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  scope="col"
-                  // On the sorted column only, as in the APG sortable table; the other sortable
-                  // headers are still buttons.
-                  aria-sort={col.sortable && col.key === sortKey ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
-                  className={`overflow-hidden truncate whitespace-nowrap px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                    col.sortable ? "select-none" : ""
-                  } ${col.hideOnMobile ? "hidden lg:table-cell" : ""}`}
-                >
-                  {col.sortable ? (
-                    // A button, so the sort is reachable by keyboard (a bare <th onClick> isn't).
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(col.key)}
-                      className="inline-flex max-w-full items-center rounded-control uppercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-                    >
-                      <span className="truncate">{col.label}</span>
-                      {col.key === sortKey && (
-                        <span aria-hidden className="ml-1 text-brand-text">
-                          {sortDir === "asc" ? "↑" : "↓"}
-                        </span>
-                      )}
-                    </button>
-                  ) : (
-                    col.label
-                  )}
-                </th>
-              ))}
-              {/* "Fav" not "Favourite" - same reasoning as "#" above; title= keeps the full word
-                  available on hover for anyone unsure what the abbreviation means. */}
-              <th scope="col" title="Favourite" className="overflow-hidden truncate whitespace-nowrap px-4 py-2.5 text-center">
-                Fav
-              </th>
-            </tr>
-          </thead>
-          {/* AnimatePresence (not a remounting key) so rows keep their own identity across a sort/
-              search/page change - `layout` on each row animates it sliding to a new position when
-              the same row stays visible but its rank changes (a sort), while rows that actually
-              leave/enter the visible page still get a real exit/enter transition - one mechanism
-              instead of a full stagger-replay on every kind of change. */}
-          <tbody className="divide-y divide-subtle">
-            <AnimatePresence initial={false}>
-              {pageItems.map((row, i) => {
-                const id = getId(row);
-                return (
-                  <motion.tr
-                    key={id}
-                    layout
-                    initial="hidden"
-                    animate="show"
-                    exit="hidden"
-                    variants={staggerItem}
-                    // layout's own transition, separate from the enter/exit variants' transition
-                    // above - the default spring overshoots/bounces, fine for a card lifting on
-                    // hover but "floppy" for table rows snapping into a new sort order. A tween
-                    // reads as a controlled slide instead.
-                    transition={{ layout: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
-                    onClick={
-                      rowHref
-                        ? (e: MouseEvent<HTMLTableRowElement>) => {
-                            if ((e.target as HTMLElement).closest("a, button")) return;
-                            router.push(rowHref(row));
-                          }
-                        : undefined
-                    }
-                    // Fetching the page on hover means it's usually on its way, or there, by the time of the click.
-                    onMouseEnter={rowHref ? () => router.prefetch(rowHref(row)) : undefined}
-                    className={`transition-colors duration-fast hover:bg-white/[0.04] ${rowHref ? "cursor-pointer" : ""}`}
-                  >
-                    <td className="px-4 py-2.5 text-tertiary">{pageStart + i + 1}</td>
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={`truncate px-4 py-2.5 ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : ""} ${
-                          col.hideOnMobile ? "hidden lg:table-cell" : ""
-                        }`}
-                      >
-                        {col.render(row)}
-                      </td>
-                    ))}
-                    <td className="px-4 py-2.5 text-center">
-                      <FavoriteButton favorited={favoriteIds.has(id)} onToggle={() => onToggleFavorite(id)} className="mx-auto" />
-                    </td>
-                  </motion.tr>
-                );
-              })}
-            </AnimatePresence>
-          </tbody>
-        </table>
+      <div ref={tableRef}>
+        <Table
+          columns={tableColumns}
+          rows={pageItems.map((row, i) => ({ row, index: pageStart + i + 1 }))}
+          getRowKey={(item) => getId(item.row)}
+          caption={`${itemLabel[0].toUpperCase()}${itemLabel.slice(1)}s`}
+          rowHeader={columns[0]?.key}
+          sort={{ key: sortKey, direction: sortDir === "asc" ? "ascending" : "descending" }}
+          onSortChange={(next) => {
+            setSortParam(`${next.key}:${next.direction === "ascending" ? "asc" : "desc"}`);
+            setPage(1);
+          }}
+          onRowActivate={rowHref ? (item) => router.push(rowHref(item.row)) : undefined}
+        />
       </div>
       <div>
         <Pagination page={pageSafe} totalPages={totalPages} totalItems={sorted.length} itemLabel={itemLabel} onPageChange={setPage} />
