@@ -5,6 +5,7 @@ import { ServiceError } from "@/services/errors";
 
 export async function POST(request: Request, { params }: { params: Promise<{ uid: string }> }) {
   const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { uid } = await params;
   const { role: newRole } = (await request.json()) as { role: "admin" | "moderator" | null };
   if (newRole !== "admin" && newRole !== "moderator" && newRole !== null) {

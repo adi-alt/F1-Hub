@@ -5,7 +5,7 @@ import { preferencesPatchSchema } from "@/lib/inputLimits";
 
 export async function GET() {
   const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   const profile = await getUserProfile(session.uid);
   return NextResponse.json({ profile });
@@ -17,7 +17,7 @@ export async function GET() {
 // toggle used everywhere favoriting actually happens now (Personalization, archive heart icons).
 export async function PATCH(request: Request) {
   const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
 
   // Unknown keys are dropped; a known key with the wrong type or over its size cap is refused
   // (SEC-25, see inputLimits.ts).

@@ -6,7 +6,7 @@ import { updateNotificationPrefs } from "@/lib/supabase/notifications";
  * non-boolean values are refused. */
 export async function PATCH(request: Request) {
   const session = await getSession();
-  if (!session.uid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const merged = await updateNotificationPrefs(session.uid, await request.json().catch(() => null));
   if (!merged) return NextResponse.json({ error: "Nothing valid to change." }, { status: 400 });
   return NextResponse.json({ prefs: merged });
