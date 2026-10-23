@@ -7,8 +7,8 @@ import { groupChannelKey, groupListeners } from "@/lib/realtime/channels";
 /**
  * Renders nothing — refreshes the group page the moment pipeline/compute_group_scores.py writes a
  * new score or another member joins via the invite link, instead of waiting for a manual reload.
- * Built on the shared `useRealtimeSubscription`/RealtimeManager infra (see syncPolicy.ts:
- * `group_race_scores`/`group_members` both resolve to "refresh" — a group's leaderboard is a
+ * Built on the shared `useRealtimeSubscription`/RealtimeManager infra (`group_race_scores`/
+ * `group_members` both resolve to "refresh" — a group's leaderboard is a
  * server-only computed rank/total, the same "can't safely patch a client cache" reasoning
  * races/calendar/drivers/teams get) rather than opening its own raw Supabase channel directly,
  * same as every other realtime consumer in this app now.

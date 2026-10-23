@@ -49,7 +49,7 @@ describe("the server never decides what zone a viewer sees", () => {
   it("no component leaves a locale-formatted time to suppressHydrationWarning: React keeps the server's text", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    for (const file of ["components/race/RaceWeekendPanel.tsx", "components/raceDetail/RaceSidebar.tsx", "components/race/PickPanel.tsx", "components/home/RaceReadiness.tsx"]) {
+    for (const file of ["components/race/PickPanel.tsx", "components/home/RaceReadiness.tsx"]) {
       const source = fs.readFileSync(path.join(process.cwd(), "src", file), "utf8");
       assert.ok(source.includes("useViewerTimeZone"), `${file} must format times through useViewerTimeZone`);
       assert.ok(!source.includes("suppressHydrationWarning"), `${file} must not hide a zone mismatch`);

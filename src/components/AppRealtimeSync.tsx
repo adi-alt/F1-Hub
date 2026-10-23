@@ -23,8 +23,7 @@ import { refreshOnce } from "@/lib/refreshGuard";
  *
  * Owns the app's two always-on channels (see channels.ts): GLOBAL (`data_version` — public, no
  * auth needed, mounted regardless of sign-in state) and USER (per-uid `profiles`, only
- * while signed in). Every table's actual sync strategy is documented in syncPolicy.ts, not decided
- * here — data_version resolves to "refresh" (its consumers are server-only derived computations —
+ * while signed in). data_version resolves to "refresh" (its consumers are server-only derived computations —
  * standings, battles, progression — that can't safely be patched into a client cache), `profiles`
  * resolves to "invalidate" against the two query-cache resources that actually exist for it
  * (Favorites, Users).
