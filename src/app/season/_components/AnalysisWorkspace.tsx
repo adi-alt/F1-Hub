@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import { TabList, TabPanels, Tabs, type TabItem } from "@/components/ui/Tabs";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { useSeasonExplorer, type AnalysisTab } from "../_context/SeasonExplorerContext";

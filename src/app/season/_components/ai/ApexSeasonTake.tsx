@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Typewriter } from "@/components/motion/Typewriter";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
 import { Eyebrow } from "./SeasonInsight";

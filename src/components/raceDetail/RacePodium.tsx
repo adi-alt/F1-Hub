@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { teamColor } from "@/lib/teamColors";
 
 export type PodiumEntry = { position: 1 | 2 | 3; driverName: string; team: string; gapOrTime: string | null; points?: number };

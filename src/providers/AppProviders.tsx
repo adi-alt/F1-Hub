@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { MotionConfig } from "framer-motion";
+import { MotionConfig } from "motion/react";
 import { AuthProvider, type InitialAuth } from "@/providers/AuthProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppRealtimeSync } from "@/components/AppRealtimeSync";

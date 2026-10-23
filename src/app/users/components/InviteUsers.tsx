@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { extractEmails, IMPORT_ACCEPT_ATTR, isPdf } from "@/lib/emailImport";
 import { extractTextFromZip, isZipContainer } from "@/lib/zipText";
 import { extractEmailsFromPdf } from "./pdfEmails";

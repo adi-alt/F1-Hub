@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 // Controlled, not self-fetching: ArchiveExplorer owns the favorited Sets and persistence so
 // state survives a tab switch (this button would otherwise re-mount with stale props every time

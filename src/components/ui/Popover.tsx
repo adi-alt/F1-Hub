@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 
 type Rect = { top?: number; bottom?: number; left: number; minWidth: number; maxHeight: number };

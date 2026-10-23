@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 /** Rank + name + proportional bar + real count - the same visual language SimulationPanel's own
  * ProbabilityBars uses for win/podium probability, just for a raw count instead of a percentage

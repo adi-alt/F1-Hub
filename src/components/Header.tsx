@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Timer } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { MobileNav } from "@/components/MobileNav";

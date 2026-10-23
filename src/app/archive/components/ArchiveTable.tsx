@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { staggerItem } from "@/components/motion/variants";
 import { useUrlPage } from "@/hooks/useUrlPage";
 import { useUrlParam } from "@/hooks/useUrlParam";

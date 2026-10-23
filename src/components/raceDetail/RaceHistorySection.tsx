@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { WinnersBarList } from "./WinnersBarList";

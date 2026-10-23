@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { AnalysisCoverage } from "@/components/ai/AnalysisCoverage";
 import { IntelligenceLoadingState } from "@/components/ai/IntelligenceLoadingState";

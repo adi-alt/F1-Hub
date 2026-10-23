@@ -3,7 +3,7 @@
 import { useEffect, useId, useState, type PointerEvent, type ReactNode } from "react";
 import { useAuthDialogStore } from "@/store/useAuthDialogStore";
 import { Button } from "@/components/ui/Button";
-import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "motion/react";
 import { useRichMotion } from "@/hooks/useRichMotion";
 import { Archive, Bot, Flag, MapPin, Trophy, Users } from "lucide-react";
 import { MiniWindow } from "./MiniWindow";

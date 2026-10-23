@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { InsightSkeleton, LoadingRegion } from "@/components/ui/Skeletons";
 import { Eyebrow } from "../ai/SeasonInsight";
 import type { RaceEventTake } from "@/lib/ai/schemas/seasonIntelligence";

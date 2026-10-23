@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
 import { DriverSetFilter, DriverSetPanels, DriverSetTabs } from "@/components/race/DriverSetTabs";
 import { RacePodium, type PodiumEntry } from "@/components/raceDetail/RacePodium";

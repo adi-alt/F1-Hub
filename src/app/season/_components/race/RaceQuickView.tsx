@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";

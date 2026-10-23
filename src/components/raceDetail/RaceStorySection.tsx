@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { RaceStory, type RaceStoryFacts } from "./RaceStory";

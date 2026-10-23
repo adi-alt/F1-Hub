@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import { LoadingRegion, TextSkeleton } from "@/components/ui/Skeletons";
 import { Sparkline, type SparkPoint } from "@/components/ui/Sparkline";
 import { useSeasonExplorer } from "../_context/SeasonExplorerContext";

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { TableFooterSkeleton, TableRowsSkeleton } from "@/components/ui/TableSkeleton";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
 import { useUrlParam } from "@/hooks/useUrlParam";

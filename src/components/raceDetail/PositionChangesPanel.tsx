@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { chart } from "@/components/charts/chartTheme";
 
 // driverId is real (Ergast's own id for Archive, the 3-letter code for Season) - used only for

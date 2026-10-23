@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import type { CircuitDrawing } from "@/lib/circuitLayout";
 import { useRichMotion } from "@/hooks/useRichMotion";
 

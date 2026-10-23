@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import type { Chapter } from "@/lib/raceMoments";
 import { projectTrack, smoothClosedPath, stretchAround, type RaceTrackStory, type TrackLeadChange } from "@/lib/raceTrackStory";
 

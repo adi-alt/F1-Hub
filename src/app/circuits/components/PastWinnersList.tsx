@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { WinnerMedia } from "../services/circuits.service";

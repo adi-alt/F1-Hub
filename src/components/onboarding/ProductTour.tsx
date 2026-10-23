@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useAuth } from "@/providers/AuthProvider";
 import { TOUR_STEPS, type TourStep } from "./tourSteps";
 import { useAppLocation } from "@/hooks/useAppLocation";
