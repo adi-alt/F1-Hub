@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, LogOut, Pencil, SlidersHorizontal, Sparkles, Star } from "lucide-react";
+import { Bell, LogOut, Pencil, SlidersHorizontal, Sparkles, Star, Trophy } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 
 const ITEMS = [
   { href: "/?section=profile&tab=personalisation", label: "Personalisation", icon: SlidersHorizontal },
+  { href: "/?section=profile&tab=predictions", label: "Predictions", icon: Trophy },
   { href: "/?section=profile&tab=notifications", label: "Notifications", icon: Bell },
   { href: "/?section=profile&tab=profile", label: "Profile", icon: Pencil },
 ];
