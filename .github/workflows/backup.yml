@@ -5,8 +5,9 @@ name: Backups
 # key in supabase/backup-recipient.txt, so the artifact is safe to hold anywhere: only the owner's private
 # key (never in the repo, GitHub or CI) opens it. Kept as a workflow artifact for 30 days.
 #
-# The `drill` job proves dump and restore work against staging on every change to the backup code, and
-# refuses a table that isn't classified (scripts/lib/backup-tables.mjs), so a new table can't be missed.
+# The `drill` job proves dump and restore work on every change to the backup code (against a disposable
+# Postgres holding today's schema and synthetic data), and refuses a table that isn't classified
+# (scripts/lib/backup-tables.mjs), so a new table can't be missed: it also runs on every new migration.
 on:
   schedule:
     - cron: "30 2 * * *"
@@ -16,6 +17,9 @@ on:
       - "scripts/restore-drill.mjs"
       - "scripts/lib/backup*.mjs"
       - "supabase/backup-recipient.txt"
+      - "supabase/schema.sql"
+      - "supabase/migrations/**"
+      - "scripts/local-db/**"
       - ".github/workflows/backup.yml"
   workflow_dispatch:
 
@@ -24,14 +28,22 @@ permissions:
 
 jobs:
   drill:
-    # Restores into staging, so off while there is none (see migrate.yml, STAGING_ENABLED).
-    if: vars.STAGING_ENABLED == 'true' && github.event_name != 'schedule' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    # A disposable Postgres service, loaded with the real schema, migrations and the synthetic seed
+    # (scripts/local-db/load.ts): no secrets, so it runs for every change to the backup code, forks included.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: staging
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      EXPECTED_PROJECT_REF: wmdgbmlpvszyapewygvs
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      LOCAL_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,7 +51,9 @@ jobs:
           node-version: lts/*
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Dump and restore staging into a scratch schema, and verify
+      - name: Load the disposable database
+        run: npx tsx scripts/local-db/load.ts
+      - name: Dump and restore it into a scratch schema, and verify
         run: node scripts/restore-drill.mjs
 
   backup:

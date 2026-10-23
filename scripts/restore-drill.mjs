@@ -2,13 +2,14 @@
 // A restore drill (audit R-27). Two modes, both restore into a throwaway `drill_*` schema and drop it
 // afterwards: nothing in `public` is ever written.
 //
-//   self-test (CI, staging): dumps the database with a throwaway key, restores that dump, and checks every
-//     table's rows against the fingerprint taken at dump time. Proves dump and restore work on today's
-//     schema, and (through dump's own check) that no table is unclassified.
-//       DATABASE_URL=<staging> EXPECTED_PROJECT_REF=wmdgbmlpvszyapewygvs node scripts/restore-drill.mjs
+//   self-test (CI): dumps the database with a throwaway key, restores that dump, and checks every table's
+//     rows against the fingerprint taken at dump time. Proves dump and restore work on today's schema, and
+//     (through dump's own check) that no table is unclassified. CI runs it against a disposable Postgres
+//     service loaded by scripts/local-db/load.ts (backup.yml):
+//       DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres node scripts/restore-drill.mjs
 //
 //   from a real backup: restores that file with the owner's private key into a scratch schema and verifies it.
-//       DATABASE_URL=<staging> EXPECTED_PROJECT_REF=... node scripts/restore-drill.mjs --in backup.json.gz.age --identity ~/.apex-backup/age-identity.txt
+//       DATABASE_URL=<a disposable or staging database> node scripts/restore-drill.mjs --in backup.json.gz.age --identity ~/.apex-backup/age-identity.txt
 import fs from "node:fs";
 import { generateIdentity, identityToRecipient } from "age-encryption";
 import { connect } from "./lib/db.mjs";

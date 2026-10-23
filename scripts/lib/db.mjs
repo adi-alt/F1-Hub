@@ -13,7 +13,9 @@ export async function connect(connectionString = process.env.DATABASE_URL) {
   const expected = process.env.EXPECTED_PROJECT_REF;
   if (expected && ref !== expected) throw new Error(`refusing to run: DATABASE_URL is project ${ref}, expected ${expected}`);
   console.log(`target project: ${ref}${expected ? " (matches EXPECTED_PROJECT_REF)" : ""}`);
-  const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false } });
+  // A local or CI service-container Postgres (the restore drill's) has no TLS; Supabase always does.
+  const local = ["localhost", "127.0.0.1"].includes(new URL(connectionString).hostname);
+  const client = new pg.Client({ connectionString, ssl: local ? false : { rejectUnauthorized: false } });
   await client.connect();
   return client;
 }
