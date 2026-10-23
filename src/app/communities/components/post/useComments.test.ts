@@ -8,7 +8,7 @@ function comment(id: string, parentCommentId: string | null, over: Partial<Local
     postId: "p1",
     userId: "u1",
     authorName: "A",
-    authorAvatarUrl: null,
+    authorAvatar: null,
     content: id,
     parentCommentId,
     createdAt: "2026-01-01T00:00:00Z",

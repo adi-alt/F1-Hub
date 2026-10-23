@@ -21,6 +21,9 @@ import { PanelSection } from "@/components/ui/PanelSection";
 import { RefreshAlert } from "@/components/ui/RefreshAlert";
 import { ChipDemo, ConfirmAndSwitchDemo, FieldDemo, PickerDemo, PopoverDemo, LoadingButtonDemo, OverlayDemo, TableDemo, TabsDemo, ToastDemo } from "./InteractiveDemos";
 import { pageMetadata } from "@/lib/seo";
+import { AvatarBuilder } from "@/components/avatar/AvatarBuilder";
+import { AvatarSvg } from "@/components/avatar/AvatarSvg";
+import { defaultAvatar } from "@/lib/avatar";
 
 export const metadata: Metadata = pageMetadata({ title: "UI primitives", description: "The design system's primitives.", path: "/dev/ui", index: false });
 
@@ -306,6 +309,20 @@ export default function UiPreviewPage() {
               </Button>
             }
           />
+        </div>
+      </Section>
+
+      <Section id="avatars" title="Avatars" level={2} description="People are drawn, never photographed: a helmet or a face from a few option ids. Without one, the id picks a default helmet.">
+        <div className="flex flex-wrap gap-3">
+          {["ada", "bo", "cy", "di", "ed", "fi"].map((id) => (
+            <AvatarSvg key={`h-${id}`} avatar={defaultAvatar(id)} size={56} />
+          ))}
+          {["ada", "bo", "cy", "di", "ed", "fi"].map((id) => (
+            <AvatarSvg key={`f-${id}`} avatar={defaultAvatar(id, "face")} size={56} />
+          ))}
+        </div>
+        <div className="mt-6 max-w-lg">
+          <AvatarBuilder />
         </div>
       </Section>
     </div>

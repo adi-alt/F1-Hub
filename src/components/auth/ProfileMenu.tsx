@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Bell, LogOut, Pencil, SlidersHorizontal, Sparkles, Star, Trophy } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { Icon } from "@/components/ui/Icon";
@@ -34,7 +34,7 @@ const FROSTED_STYLE = {
 type Rect = { top: number; right: number };
 
 export function ProfileMenu() {
-  const { user, displayName, isAuthorized, signOut, pointsBalance, detailsPending } = useAuth();
+  const { user, displayName, avatar, isAuthorized, signOut, pointsBalance, detailsPending } = useAuth();
   const { start: startTour } = useProductTour();
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -109,13 +109,7 @@ export function ProfileMenu() {
         aria-controls={open ? panelId : undefined}
         className="flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1.5 text-body-sm text-primary transition hover:border-white/20 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
-        {user.photoURL ? (
-          <Image src={user.photoURL} alt="" width={28} height={28} className="rounded-full" unoptimized />
-        ) : (
-          <span aria-hidden className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--f1-red)] text-xs font-bold">
-            {name.charAt(0).toUpperCase()}
-          </span>
-        )}
+        <PersonAvatar id={user.uid} avatar={avatar} size={28} />
         {/* Visually hidden below 400px so the pill fits a 320px header beside the logo and the menu button; the
             name stays in the button's accessible name. */}
         <span className="sr-only min-[400px]:not-sr-only min-[400px]:max-w-[9rem] min-[400px]:truncate font-medium text-white">{name}</span>
@@ -169,13 +163,7 @@ export function ProfileMenu() {
                   <div className="relative overflow-hidden rounded-xl">
                     {/* Who's signed in, at the top of the menu, as account menus everywhere open. */}
                     <div className="flex items-center gap-3 border-b border-white/10 px-3.5 py-3">
-                      {user.photoURL ? (
-                        <Image src={user.photoURL} alt="" width={36} height={36} className="rounded-full" unoptimized />
-                      ) : (
-                        <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand text-body-sm font-bold text-white">
-                          {name.charAt(0).toUpperCase()}
-                        </span>
-                      )}
+                      <PersonAvatar id={user.uid} avatar={avatar} size={36} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-body-sm font-semibold text-primary">{name}</p>
                         {user.email && user.email !== name && <p className="truncate text-caption text-tertiary">{user.email}</p>}

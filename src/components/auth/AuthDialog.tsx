@@ -15,11 +15,12 @@ import { useSignupOptions } from "@/queries/useSignupOptions";
 import { useUsernameAvailability } from "@/queries/useUsernameAvailability";
 import type { Role } from "@/lib/rbac";
 import { ApexMark } from "@/components/brand/ApexMark";
+import { AvatarBuilder } from "@/components/avatar/AvatarBuilder";
 
 /** Where a same-tab OAuth round trip returns to (read by /auth/popup-closed). */
 const OAUTH_RETURN_KEY = "f1hub-oauth-return";
 
-type Step = "method" | "otp" | "profile";
+type Step = "method" | "otp" | "profile" | "avatar";
 type OAuthProvider = "google" | "github" | "discord" | "gitlab";
 
 // Matches the backend's own resend cooldown (otp_issue, 20261001_otp_hardening.sql) so the button's countdown never
@@ -283,6 +284,7 @@ const STEP_TITLES: Record<Step, string> = {
   method: "Sign in or sign up",
   otp: "Check your email",
   profile: "Tell us a bit about you",
+  avatar: "Build your avatar",
 };
 
 // The caller mounts this only while it should be open (`{open && <AuthDialog .../>}`) rather
@@ -485,7 +487,6 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
         displayName?: string | null;
         uid?: string;
         email?: string;
-        photoURL?: string | null;
         error?: string;
       };
       if (!res.ok) {
@@ -497,7 +498,7 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
       } else {
         setRole(body.role ?? "user");
         setDisplayName(body.displayName ?? null);
-        if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
+        if (body.uid) setUser({ uid: body.uid, email: body.email ?? null });
         refreshPointsBalance();
         // Every Server Component below the header reads the session cookie at request time —
         // without this, signed-in content stays stuck on the signed-out render until a hard
@@ -539,7 +540,6 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
         displayName?: string | null;
         uid?: string;
         email?: string;
-        photoURL?: string | null;
         error?: string;
       };
       if (!res.ok) {
@@ -548,10 +548,11 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
       }
       setRole(body.role ?? "user");
       setDisplayName(body.displayName ?? null);
-      if (body.uid) setUser({ uid: body.uid, email: body.email ?? null, photoURL: body.photoURL ?? null });
+      if (body.uid) setUser({ uid: body.uid, email: body.email ?? null });
       refreshPointsBalance();
       router.refresh();
-      onClose();
+      // The account exists now; the avatar is the last, optional step (Skip keeps the default one).
+      setStep("avatar");
     } finally {
       setBusy(false);
     }
@@ -709,6 +710,17 @@ export function AuthDialog({ onClose, resumeAtOtp = false }: { onClose: () => vo
           </Button>
           <Messages error={error} />
         </form>
+      )}
+
+      {step === "avatar" && (
+        <AvatarBuilder
+          onDone={onClose}
+          secondary={
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Skip
+            </Button>
+          }
+        />
       )}
     </Dialog>
   );

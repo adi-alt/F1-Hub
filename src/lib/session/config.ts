@@ -1,11 +1,13 @@
 import type { SessionOptions } from "iron-session";
 import type { Role } from "@/lib/rbac";
+import type { AvatarConfig } from "@/lib/avatar";
 
 export type SessionData = {
   uid?: string;
   email?: string | null;
   displayName?: string | null;
   photoURL?: string | null;
+  avatar?: AvatarConfig | null;
   // Cached for instant client-side UI reactivity (nav links, dropdown) only — never trusted for
   // an actual permission decision. Every real check re-reads Firestore via getUserRole, so a
   // demotion takes effect immediately server-side even though this cached copy may lag until the
