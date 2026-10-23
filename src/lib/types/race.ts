@@ -44,9 +44,19 @@ export type BacktestRow = { round: number; positionMAE: number; gridBaselineMAE:
  * Needs this race's own qualifying data (grid + quali gap) as input, so it can only exist once
  * that's published. Locked in once computed — never recomputed once inputs exist.
  */
+/** Stamped on each model output by pipeline/train_predict.py (model_provenance.py, audit R-41). Absent on outputs
+ * written before it existed. */
+export type ModelProvenance = {
+  modelVersion: string;
+  /** The newest race in the training data, e.g. "2026 R13 Dutch Grand Prix"; null before any race was completed. */
+  dataCutoff: string | null;
+  generatedAt: string;
+};
+
 export type RacePrediction = {
   generatedAt: string; // ISO timestamp
   modelVersion: string;
+  provenance?: ModelProvenance;
   finishOrder: PredictedOrderEntry[];
   finishFeatureImportance: Record<string, number>;
   // Gap to that race's (unknown) fastest lap, not an absolute lap time — see predictPace.ts.
@@ -74,6 +84,7 @@ export type RacePrediction = {
 export type PolePrediction = {
   generatedAt: string;
   modelVersion: string;
+  provenance?: ModelProvenance;
   order: PredictedPoleEntry[];
   featureImportance: Record<string, number>;
 };
@@ -96,6 +107,7 @@ export type SimulatedDriverEntry = {
 export type RaceSimulation = {
   generatedAt: string;
   modelVersion: string;
+  provenance?: ModelProvenance;
   drivers: SimulatedDriverEntry[];
 };
 

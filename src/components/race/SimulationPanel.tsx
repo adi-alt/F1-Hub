@@ -9,6 +9,8 @@ import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { staggerContainer, staggerItem } from "@/components/motion/variants";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import type { RaceSimulation, SimulatedDriverEntry } from "@/lib/types/race";
+import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
+import { modelProvenanceLine } from "@/lib/modelProvenance";
 
 // Compact default (a 20-driver field's full Win/Podium/Expected-finish lists is exactly the
 // "~80 rows total" density complaint) - each block shows this many, with its own "View all" below.
@@ -273,6 +275,7 @@ export function SimulationPanel({ simulation }: { simulation: RaceSimulation }) 
           </RaceSubSection>
         </DriverSetTabs>
       </motion.div>
+      <ProvenanceLine className="mt-4" {...modelProvenanceLine(simulation, "10,000 simulated races")} />
     </motion.div>
   );
 }
