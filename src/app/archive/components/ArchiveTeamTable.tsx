@@ -96,7 +96,7 @@ export function ArchiveTeamTable({
       onToggleFavorite={onToggleFavorite}
       favoritesOnly={favoritesOnly}
       itemLabel="team"
-      emptyMessage="No teams indexed yet, the entity-index pipeline pass hasn't run over this data yet."
+      emptyMessage="No teams to show."
       onClearFilters={onClearFilters}
     />
   );

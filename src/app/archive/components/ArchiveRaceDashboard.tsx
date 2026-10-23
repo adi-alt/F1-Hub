@@ -379,7 +379,7 @@ export function ArchiveRaceDashboard({
             <CircuitCard circuit={circuit} weather={race.weather} drawing={layout ? layoutToDrawing(layout) : null} />
           ) : (
             <div className="surface-inset rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/60 p-4 text-sm text-tertiary">
-              No circuit details backfilled for this race yet.
+              No circuit details for this race.
             </div>
           )
         }

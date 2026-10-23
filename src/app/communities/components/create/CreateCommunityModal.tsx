@@ -396,8 +396,7 @@ export function CreateCommunityModal({ onClose }: { onClose: () => void }) {
                       rounded
                     />
                     <p className="pt-1 text-caption leading-relaxed text-tertiary">
-                      Both are optional. Without them your community gets a generated banner and avatar derived from its name, which looks deliberate rather
-                      than empty.
+                      Both are optional.
                     </p>
                   </div>
                 </div>
