@@ -21,6 +21,7 @@ import { getTransporter } from "@/lib/otp";
 import { signInviteToken, verifyInviteToken } from "@/lib/inviteTokens";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { computeLeagueTable } from "@/lib/leagueTable";
 import { ServiceError } from "@/services/errors";
 import { groupHref } from "@/lib/routes";
 import { notifyCommunityDeleted, notifyInvited, notifyJoinDecision, notifyJoinRequest, notifyRemoved, notifyRoleChanged } from "@/lib/notificationEvents";
@@ -212,31 +213,12 @@ export async function requireAdmin(groupId: string, uid: string): Promise<void> 
   if (role !== "admin") throw new ServiceError("Only a group admin can do that.", 403);
 }
 
-// Per-group rank/leader for the group cards on the main Groups page - the same ranking logic
-// getGroupLeaderboard uses, just computed for every one of a user's groups in one batched query
-// instead of N separate calls (one per card).
-function rankWithinGroups(scores: { group_id: string; user_id: string; score: number }[]): Map<string, { userId: string; totalScore: number; rank: number }[]> {
-  const byGroup = new Map<string, Map<string, number>>();
-  for (const row of scores) {
-    const totals = byGroup.get(row.group_id) ?? new Map<string, number>();
-    totals.set(row.user_id, (totals.get(row.user_id) ?? 0) + row.score);
-    byGroup.set(row.group_id, totals);
-  }
-  const result = new Map<string, { userId: string; totalScore: number; rank: number }[]>();
-  for (const [groupId, totals] of byGroup) {
-    const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
-    let rank = 0;
-    let prevScore: number | null = null;
-    result.set(
-      groupId,
-      sorted.map(([userId, totalScore], index) => {
-        if (totalScore !== prevScore) rank = index + 1;
-        prevScore = totalScore;
-        return { userId, totalScore, rank };
-      }),
-    );
-  }
-  return result;
+/** Race dates for league-table scoping (computeLeagueTable counts a race only from a member's join day). */
+async function raceDatesFor(raceIds: string[]): Promise<Map<string, string | null>> {
+  if (raceIds.length === 0) return new Map();
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select("id, race_date").in("id", [...new Set(raceIds)]));
+  if (error) throw new Error(`raceDatesFor: ${error.message}`);
+  return new Map((data ?? []).map((r) => [r.id as string, (r.race_date as string | null) ?? null]));
 }
 
 // The real "why open this group" signal for a card - the most recent published post per group
@@ -284,8 +266,8 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
     activitySignals,
   ] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, visibility, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).in("id", groupIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, user_id, score").in("group_id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id, user_id, joined_at").in("group_id", groupIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, race_id, user_id, score").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
     groupActivitySignals(groupIds),
   ]);
@@ -299,7 +281,17 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
   const roleByGroup = new Map(memberships.map((m) => [m.group_id as string, m.role as GroupRole]));
   const activePredictionCounts = new Map<string, number>();
   for (const p of predictions ?? []) activePredictionCounts.set(p.group_id as string, (activePredictionCounts.get(p.group_id as string) ?? 0) + 1);
-  const ranksByGroup = rankWithinGroups((scores ?? []) as { group_id: string; user_id: string; score: number }[]);
+  const raceDates = await raceDatesFor((scores ?? []).map((r) => r.race_id as string));
+  const ranksByGroup = new Map(
+    groupIds.map((groupId) => [
+      groupId,
+      computeLeagueTable(
+        (scores ?? []).filter((r) => r.group_id === groupId).map((r) => ({ userId: r.user_id as string, raceId: r.race_id as string, score: Number(r.score) })),
+        (allMembers ?? []).filter((m) => m.group_id === groupId).map((m) => ({ userId: m.user_id as string, joinedAt: m.joined_at as string })),
+        raceDates,
+      ),
+    ]),
+  );
 
   const leaderIds = [...ranksByGroup.values()].map((rows) => rows[0]?.userId).filter((id): id is string => !!id);
   const leaderProfiles = await profilesById(leaderIds);
@@ -705,46 +697,32 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
   };
 }
 
-/** Aggregates `group_race_scores` (pipeline/compute_group_scores.py) client-side rather than a
- * SQL `sum()`/`rank()` view — this table stays tiny (members x races a group's existed for), so
- * there's no real cost, and it keeps the ranking logic in one place (identical tie handling to
- * the per-race rank the pipeline script already computes) instead of writing it twice, once in
- * SQL and once here. */
+/** The community's league table: `group_race_scores` (pipeline/compute_group_scores.py) for current
+ * members only, from the day each joined (computeLeagueTable, the one shared ranking). The rail's
+ * LeagueTable and the leaderboard tab both render these rows. */
 export async function getGroupLeaderboard(groupId: string, uid: string): Promise<LeaderboardRow[]> {
   await requireMember(groupId, uid);
 
-  const { data: scores, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_race_scores").select("user_id, score").eq("group_id", groupId),
-  );
+  const [{ data: scores, error }, { data: members, error: membersError }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("user_id, race_id, score").eq("group_id", groupId)),
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, joined_at").eq("group_id", groupId)),
+  ]);
   if (error) throw new Error(`getGroupLeaderboard(${groupId}): ${error.message}`);
+  if (membersError) throw new Error(`getGroupLeaderboard(${groupId}): ${membersError.message}`);
   if (!scores?.length) return [];
 
-  const totals = new Map<string, { totalScore: number; racesScored: number }>();
-  for (const row of scores) {
-    const userId = row.user_id as string;
-    const entry = totals.get(userId) ?? { totalScore: 0, racesScored: 0 };
-    entry.totalScore += row.score as number;
-    entry.racesScored += 1;
-    totals.set(userId, entry);
-  }
-
-  const profileById = await profilesById([...totals.keys()]);
-  const sorted = [...totals.entries()].sort((a, b) => b[1].totalScore - a[1].totalScore);
-
-  let rank = 0;
-  let prevScore: number | null = null;
-  return sorted.map(([userId, totalsRow], index) => {
-    if (totalsRow.totalScore !== prevScore) rank = index + 1;
-    prevScore = totalsRow.totalScore;
-    return {
-      userId,
-      displayName: profileById.get(userId)?.display_name ?? null,
-      username: profileById.get(userId)?.username ?? null,
-      totalScore: totalsRow.totalScore,
-      racesScored: totalsRow.racesScored,
-      rank,
-    };
-  });
+  const raceDates = await raceDatesFor(scores.map((r) => r.race_id as string));
+  const table = computeLeagueTable(
+    scores.map((r) => ({ userId: r.user_id as string, raceId: r.race_id as string, score: Number(r.score) })),
+    (members ?? []).map((m) => ({ userId: m.user_id as string, joinedAt: m.joined_at as string })),
+    raceDates,
+  );
+  const profileById = await profilesById(table.map((r) => r.userId));
+  return table.map((r) => ({
+    ...r,
+    displayName: profileById.get(r.userId)?.display_name ?? null,
+    username: profileById.get(r.userId)?.username ?? null,
+  }));
 }
 
 export async function getGroupRaceScores(groupId: string, raceId: string, uid: string): Promise<RaceScoreRow[]> {
