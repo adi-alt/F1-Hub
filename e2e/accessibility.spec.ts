@@ -11,7 +11,7 @@ async function seriousViolations(page: import("@playwright/test").Page, include?
   const builder = new AxeBuilder({ page: page as unknown as ConstructorParameters<typeof AxeBuilder>[0]["page"] }).withTags(TAGS);
   if (include) builder.include(include);
   const { violations } = await builder.analyze();
-  return violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.impact} ${v.id} x${v.nodes.length}: ${v.help}`);
+  return violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.impact} ${v.id} x${v.nodes.length}: ${v.help} [${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}]`);
 }
 
 test.describe("signed out", () => {
