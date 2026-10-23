@@ -87,7 +87,8 @@ function WeekendTimeline({ sessions: raw, tz, now }: { sessions: WeekendSession[
   const sessions = raw.map((s) => (s.startsAt && parseUtcDateTime(s.startsAt).getTime() > now ? { ...s, state: "upcoming" as const } : s));
   const nextIndex = sessions.findIndex((s) => s.state === "upcoming" || s.state === "live");
   return (
-    <div className="overflow-x-auto pb-1">
+    // Focusable so keyboard users can scroll it sideways.
+    <div tabIndex={0} role="region" aria-label="Weekend sessions" className="overflow-x-auto pb-1 focus-visible:outline-2 focus-visible:outline-focus-ring">
       <ol className="relative grid min-w-[34rem] auto-cols-fr grid-flow-col" aria-label="This weekend's sessions">
         <span aria-hidden className="absolute inset-x-6 top-[7px] h-px bg-white/10" />
         {sessions.map((s, i) => {
@@ -263,16 +264,15 @@ export function YourWeekendSection({ publicData, personalData, onPredict }: Prop
                 { label: "Winners", correct: perf.winner.correct, total: perf.winner.total },
                 { label: "Podium places", correct: perf.podiumSlots.correct, total: perf.podiumSlots.total },
               ].map((m) => (
-                <div key={m.label}>
-                  <div className="flex items-baseline justify-between text-body-sm">
-                    <dt className="text-secondary">{m.label}</dt>
-                    <dd className="tabular text-primary">
-                      {m.correct}/{m.total}
-                    </dd>
-                  </div>
-                  <div aria-hidden className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                // dt and dd directly in the row's div, as a <dl> requires; the bar is drawn under them by the grid.
+                <div key={m.label} className="grid grid-cols-[1fr_auto] items-baseline gap-y-1.5 text-body-sm">
+                  <dt className="text-secondary">{m.label}</dt>
+                  <dd className="tabular text-primary">
+                    {m.correct}/{m.total}
+                  </dd>
+                  <dd aria-hidden className="col-span-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
                     <div className="h-full rounded-full bg-primary/80" style={{ width: `${m.total ? Math.max(3, (m.correct / m.total) * 100) : 0}%` }} />
-                  </div>
+                  </dd>
                 </div>
               ))}
               {perf.avgPositionError !== null && (
