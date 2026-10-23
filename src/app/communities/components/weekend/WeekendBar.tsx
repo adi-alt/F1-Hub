@@ -69,7 +69,7 @@ export function WeekendBar({
         )}
       </div>
 
-      <div className="-mx-1 mt-2 overflow-x-auto px-1 scrollbar-hide">
+      <div tabIndex={0} role="region" aria-label="Sessions" className="-mx-1 mt-2 overflow-x-auto px-1 scrollbar-hide focus-visible:outline-2 focus-visible:outline-focus-ring">
         <ol className="relative grid min-w-[30rem] auto-cols-fr grid-flow-col" aria-label="Sessions: choose one to see what was said during and after it">
           <span aria-hidden className="absolute inset-x-6 top-[15px] h-px bg-white/10" />
           {sessions.map((s, i) => {
