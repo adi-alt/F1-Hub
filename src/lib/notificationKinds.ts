@@ -1,7 +1,7 @@
 /** What can notify someone, how it's described in settings, and how it's delivered unless they choose otherwise.
  * Pure: shared by the server (deciding delivery) and the settings page (drawing the choices). */
 
-export type NotificationKind = "prediction_result" | "new_round" | "reply" | "join_request" | "join_decision" | "post_pending" | "post_moderated" | "role_changed" | "invite" | "membership" | "photos_ready" | "race_reminder" | "race_results";
+export type NotificationKind = "prediction_result" | "new_round" | "reply" | "join_request" | "join_decision" | "post_pending" | "post_moderated" | "role_changed" | "invite" | "membership" | "photos_ready" | "race_reminder" | "race_results" | "problem_report";
 
 export type Channel = "site" | "email";
 export type ChannelPrefs = Record<Channel, boolean>;
@@ -34,6 +34,7 @@ export const NOTIFICATION_KINDS: KindMeta[] = [
   { kind: "race_reminder", group: "Predictions", label: "Before qualifying locks", description: "Picks and rounds still open.", defaults: { site: true, email: true }, hidden: true },
   { kind: "race_results", group: "Predictions", label: "When results land", description: "How your picks did.", defaults: { site: true, email: true }, hidden: true },
   { kind: "photos_ready", group: "Your communities", label: "Race photos are ready to choose", description: "Site admins only.", defaults: { site: true, email: true }, hidden: true },
+  { kind: "problem_report", group: "Your communities", label: "Someone reports a problem", description: "Site admins only.", defaults: { site: true, email: true }, hidden: true },
   { kind: "post_pending", group: "Your communities", label: "A post is waiting for approval", description: "In a community you moderate.", defaults: { site: true, email: true }, moderatorsOnly: true },
 ];
 

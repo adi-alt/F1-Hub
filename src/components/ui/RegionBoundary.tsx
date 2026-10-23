@@ -4,6 +4,7 @@ import { catchError, type ErrorInfo } from "next/error";
 import * as Sentry from "@sentry/nextjs";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
+import { ReportProblemButton, errorSummary, recordClientError } from "@/components/ReportProblem";
 
 // Distinct errors seen per region in this tab, so a region that keeps failing says so instead of
 // offering the same Try again as if nothing were wrong (spec §9.3: a support hint after three).
@@ -23,6 +24,7 @@ export function recordRegionFailure(label: string, error: unknown): number {
     // Reported once per distinct failure, tagged with the region: a region that fails is exactly the
     // partial outage the page was built to survive, and nobody would otherwise hear about it.
     Sentry.captureException(error, { tags: { region: label } });
+    recordClientError(error);
   }
   failures.set(label, entry);
   return entry.count;
@@ -37,9 +39,14 @@ export function RegionErrorFallback({ label }: { label: string }, { error, retry
       tone="danger"
       title={`Couldn't load ${label}`}
       action={
-        <Button variant="secondary" size="sm" onClick={() => retry()}>
-          Try again
-        </Button>
+        <span className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => retry()}>
+            Try again
+          </Button>
+          <ReportProblemButton error={errorSummary(error)} className="h-8 rounded-control px-3 text-body-sm text-secondary transition-colors hover:text-primary">
+            Report this problem
+          </ReportProblemButton>
+        </span>
       }
     >
       {failed >= 3 ? "This keeps failing. Try again in a few minutes, or reload the page." : "The rest of the page still works."}

@@ -12,6 +12,8 @@ export const IRREPLACEABLE = [
   "group_post_comments",
   "group_post_reports",
   "group_moderation_log",
+  // What people reported going wrong, and whether an admin has dealt with it.
+  "problem_reports",
   "group_post_votes",
   "group_comment_votes",
   "group_join_requests",
