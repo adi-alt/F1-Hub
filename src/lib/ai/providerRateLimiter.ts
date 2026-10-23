@@ -1,5 +1,5 @@
 // Provider-level rate limiter — enforces strict RPM ceiling across the application.
-// Specifically addresses NVIDIA's 40 RPM quota on the configured model, ensuring that concurrent requests
+// Keeps the app under the provider's per-minute quota (AI_PROVIDER_RPM_LIMIT, default 40), ensuring that concurrent requests
 // across users or homepage loads do NOT exceed provider capacity.
 //
 // If the provider limit is reached, callers receive { allowed: false } and immediately fall back
@@ -37,7 +37,7 @@ function pruneBucket(bucket: ProviderBucket, now: number): void {
 /**
  * Check if the provider has remaining RPM capacity without consuming a token.
  */
-export function checkProviderCapacity(provider = "nvidia"): ProviderCapacityStatus {
+export function checkProviderCapacity(provider = "groq"): ProviderCapacityStatus {
   const now = Date.now();
   const limit = getProviderRPMLimit();
   const bucket = getBucket(provider);
@@ -65,7 +65,7 @@ export function checkProviderCapacity(provider = "nvidia"): ProviderCapacityStat
  * Acquire provider capacity for 1 request. If capacity is available, records the timestamp
  * and returns allowed: true. If capacity is exhausted, returns allowed: false without recording.
  */
-export function acquireProviderCapacity(provider = "nvidia"): ProviderCapacityStatus {
+export function acquireProviderCapacity(provider = "groq"): ProviderCapacityStatus {
   const now = Date.now();
   const limit = getProviderRPMLimit();
   const bucket = getBucket(provider);
@@ -98,7 +98,7 @@ export function acquireProviderCapacity(provider = "nvidia"): ProviderCapacitySt
 /**
  * Get current rolling RPM for the provider.
  */
-export function getProviderRPM(provider = "nvidia"): number {
+export function getProviderRPM(provider = "groq"): number {
   const now = Date.now();
   const bucket = getBucket(provider);
   pruneBucket(bucket, now);

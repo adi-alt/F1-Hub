@@ -92,7 +92,7 @@ function toFallbackContext(data: HomepageContextData): FallbackDataContext {
 /** Clean potential markdown code blocks from LLM output */
 /** Extracts the actual JSON object from a raw model response. Handles two real, observed failure
  * modes, not just the markdown-fence case this originally covered: confirmed live in production
- * that Nemotron (despite the system prompt's explicit "output raw JSON only" instruction) can
+ * that a model (Nemotron, an earlier provider, despite the system prompt's explicit "output raw JSON only" instruction) can
  * preface its answer with plain prose narrating its own process ("Let me analyze the data and
  * construct...") before ever reaching the JSON object - `JSON.parse` on the raw string then fails
  * immediately on that leading text. Taking the substring between the first "{" and the last "}"

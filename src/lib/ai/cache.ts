@@ -1,5 +1,5 @@
 // Server-side AI Caching Layer — Two-Tier Architecture (Global vs Personal).
-// Prevents unnecessary calls to NVIDIA and guarantees sub-100ms response times for repeat visits.
+// Prevents unnecessary model calls and guarantees sub-100ms response times for repeat visits.
 // Stores in Supabase `ai_cache` table with an in-memory L1 cache for instant retrieval.
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -214,7 +214,7 @@ export function resetMemoryCache(): void {
 // distributed single-flight across every instance. A real distributed lock would need a shared
 // primitive (a Postgres advisory lock, a Redis SETNX) this app doesn't have yet; the 40 RPM
 // provider-capacity ceiling (providerRateLimiter.ts) is the actual cross-instance backstop that
-// keeps a genuine multi-instance stampede from ever reaching NVIDIA's real rate limit.
+// keeps a genuine multi-instance stampede from ever reaching the provider's real rate limit.
 const inFlight = new Map<string, Promise<unknown>>();
 
 /** Runs `generate()` for `key`, but coalesces concurrent callers onto the same in-flight promise -

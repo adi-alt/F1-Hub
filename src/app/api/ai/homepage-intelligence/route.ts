@@ -62,7 +62,7 @@ import type { AgentContext } from "@/lib/ai/types";
 import crypto from "crypto";
 import { getCurrentSeason } from "@/lib/currentSeason";
 
-// Headroom above the provider's own 90s AbortController timeout (nemotron.ts, single attempt - see
+// Headroom above the provider's own 90s AbortController timeout (single attempt - see
 // orchestrator.ts's own comment on why this task doesn't retry) plus our own data-fetching/
 // processing overhead - Vercel's own default function duration would otherwise kill this route
 // before our own timeout logic ever gets to run its course and return a clean fallback. See
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     // runs where nothing the AI actually talks about changed at all (a re-fetch that found the
     // same practice/qualifying data, a preliminary-result retry that didn't yet succeed, etc). With
     // it included, every pipeline tick during a race weekend was busting this cache early - well
-    // before its real 1-hour TTL - forcing a fresh, slow (~10-90s, see nemotron.ts's own timeout)
+    // before its real 1-hour TTL - forcing a fresh, slow (up to the provider's 90s timeout)
     // model call far more often than necessary. simTop/rfTop/raceId already cover every input this
     // response's SHARED content actually depends on.
     //

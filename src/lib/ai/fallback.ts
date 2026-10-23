@@ -1,6 +1,6 @@
 // Deterministic Fallback Engine.
 // Generates grounded, fully structured HomepageIntelligence purely from application data
-// when the NVIDIA provider rate limit is reached, timeout occurs, or the model is unavailable.
+// when the provider rate limit is reached, timeout occurs, or the model is unavailable.
 // Guarantees the homepage NEVER breaks or crashes due to AI provider state - and, critically,
 // the fallback is ITSELF personalized (real favorite/prediction data is already deterministic;
 // only the model's prose is missing), so a provider outage doesn't mean a guest-looking homepage for a

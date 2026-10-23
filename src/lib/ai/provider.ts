@@ -1,7 +1,6 @@
-// Abstract AI provider interface — the contract every provider (Nemotron, DeepSeek, Kimi, OpenAI,
-// Gemini, local) must implement. The orchestrator depends on this interface, never on a concrete
-// provider. This is what made swapping Kimi for DeepSeek, then DeepSeek for Nemotron, a one-file
-// change each time, not a rewrite.
+// Abstract AI provider interface — the contract every provider (today Groq and OpenRouter) must
+// implement. The orchestrator depends on this interface, never on a concrete provider, so a
+// provider swap is a one-file change, not a rewrite.
 
 import type { AIMessage, AIProviderConfig, AIProviderToolDef, AIResponse } from "./types";
 
@@ -54,9 +53,7 @@ export function getProvider(name: string): AIProvider {
  * confirmed-live 90s production timeout. See src/lib/ai/groq.ts's own header comment and the
  * conversation history around 2026-09-10 for the full multi-provider comparison (Cerebras,
  * OpenRouter's free tiers, and OpenRouter's own paid gpt-oss-120b/20b were all tested live too -
- * none beat Groq). Lazily initialized so the module can be imported without side effects.
- * MuseGlimmerProvider/NemotronProvider are still registered (see museGlimmer.ts/nemotron.ts) but
- * no longer the default - kept, not deleted, as "previously current" candidates. */
+ * none beat Groq). Lazily initialized so the module can be imported without side effects. */
 export function getDefaultProvider(): AIProvider {
   if (!providers.has("groq")) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports

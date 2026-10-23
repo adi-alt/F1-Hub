@@ -2,14 +2,13 @@
 // API (https://api.groq.com/openai/v1/chat/completions). The default provider (see provider.ts's
 // getDefaultProvider) as of 2026-09-10 - chosen via a real, live benchmark against this app's own
 // race-intelligence-shaped structured-JSON workload, not a guess: 5/5 runs at 1.65s-1.87s (median
-// ~1.70s), vs. Muse Glimmer 30B's own bake-off median of 14.0s and a real, confirmed-live 90s
-// production timeout (see museGlimmer.ts's own header comment). Cerebras (billing not set up on
+// ~1.70s), vs. Muse Glimmer 30B's (the NVIDIA-hosted provider it replaced) bake-off median of 14.0s
+// and a confirmed-live 90s production timeout. Cerebras (billing not set up on
 // the available key), OpenRouter's free-tier models (all either congested/rate-limited or slow-
 // and-unreliable), and OpenRouter's own paid gpt-oss-120b (~22s, >10x slower than Groq for the
 // exact same model) were all tested live too - none came close.
 //
-// Same OpenAI-compatible request/response shape as MuseGlimmerProvider - no reasoning_budget/
-// chat_template_kwargs, plain messages/tools/tool_choice.
+// Plain OpenAI-compatible request/response shape: messages/tools/tool_choice.
 //
 // One shared provider class, multiple accounts: config.apiKey (AIProviderConfig, see types.ts)
 // lets each real AI feature use its own Groq account (GROQ_HOMEPAGE_API_KEY/
