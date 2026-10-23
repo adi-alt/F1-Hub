@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
 import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
@@ -31,8 +32,8 @@ export type GroupPost = {
   groupId: string;
   userId: string;
   authorName: string;
-  /** The author's profile photo (profiles.avatar_url), null without one. */
-  authorAvatarUrl: string | null;
+  /** The author's built avatar (profiles.avatar), null without one. */
+  authorAvatar: AvatarConfig | null;
   authorRole: GroupRole;
   title: string | null;
   content: string;
@@ -59,7 +60,7 @@ export type PostComment = {
   parentCommentId: string | null;
   userId: string;
   authorName: string;
-  authorAvatarUrl: string | null;
+  authorAvatar: AvatarConfig | null;
   content: string;
   createdAt: string;
   score: number;
@@ -80,7 +81,7 @@ export type FeedPost = {
   groupAvatarUrl: string | null;
   userId: string;
   authorName: string;
-  authorAvatarUrl: string | null;
+  authorAvatar: AvatarConfig | null;
   title: string | null;
   content: string;
   mediaUrl: string | null;
@@ -121,23 +122,26 @@ export const MAX_POST_CHARS = 2000;
 export const MAX_TITLE_CHARS = 300;
 export const MAX_COMMENT_CHARS = 1000;
 
-type ProfileLite = { id: string; display_name: string | null; username: string | null; avatar_url?: string | null };
+type ProfileLite = { id: string; display_name: string | null; username: string | null; avatar?: AvatarConfig | null };
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
   const [{ data, error }, photos] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds)),
-    profilePhotos(userIds),
+    profileAvatars(userIds),
   ]);
   if (error) throw new Error(`profilesById: ${error.message}`);
-  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar_url: photos.get(p.id as string) ?? null }]));
+  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar: photos.get(p.id as string) ?? null }]));
 }
 
-/** Profile photos (20261020_profile_avatar.sql), read on their own so a database without that column yet - or any
- * failure here - costs only the photos (initials show instead), never the posts. */
-async function profilePhotos(userIds: string[]): Promise<Map<string, string>> {
-  const { data, error } = await supabaseAdmin.from("profiles").select("id, avatar_url").in("id", userIds);
+/** Built avatars (profiles.avatar, 20261030_profile_avatar_config.sql), read on their own so a database without that
+ * column yet - or any failure here - costs only the avatars (the default ones show instead), never the posts. */
+async function profileAvatars(userIds: string[]): Promise<Map<string, AvatarConfig>> {
+  const { data, error } = await supabaseAdmin.from("profiles").select("id, avatar").in("id", userIds);
   if (error) return new Map();
-  return new Map((data ?? []).filter((p) => typeof p.avatar_url === "string" && /^https:\/\//.test(p.avatar_url)).map((p) => [p.id as string, p.avatar_url as string]));
+  return new Map((data ?? []).flatMap((p) => {
+    const avatar = parseAvatar(p.avatar);
+    return avatar ? [[p.id as string, avatar] as const] : [];
+  }));
 }
 function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
@@ -382,7 +386,7 @@ export async function listPosts(
     userId: p.user_id as string,
     authorName: nameFor(profileById.get(p.user_id as string), p.user_id as string),
 
-    authorAvatarUrl: profileById.get(p.user_id as string)?.avatar_url ?? null,
+    authorAvatar: profileById.get(p.user_id as string)?.avatar ?? null,
     authorRole: roleByAuthor.get(p.user_id as string) ?? "member",
     title: (p.title as string | null) ?? null,
     content: p.content as string,
@@ -450,7 +454,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     userId: post.user_id as string,
     authorName: nameFor(profileById.get(post.user_id as string), post.user_id as string),
 
-    authorAvatarUrl: profileById.get(post.user_id as string)?.avatar_url ?? null,
+    authorAvatar: profileById.get(post.user_id as string)?.avatar ?? null,
     authorRole,
     title: (post.title as string | null) ?? null,
     content: post.content as string,
@@ -613,7 +617,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       userId: p.user_id as string,
       authorName: nameFor(profileById.get(p.user_id as string), p.user_id as string),
 
-      authorAvatarUrl: profileById.get(p.user_id as string)?.avatar_url ?? null,
+      authorAvatar: profileById.get(p.user_id as string)?.avatar ?? null,
       title: (p.title as string | null) ?? null,
       content: p.content as string,
       mediaUrl: allowedMediaUrl(p.media_url),
@@ -689,7 +693,7 @@ export async function listComments(groupId: string | null, postId: string, uid: 
     userId: c.user_id as string,
     authorName: nameFor(profileById.get(c.user_id as string), c.user_id as string),
 
-    authorAvatarUrl: profileById.get(c.user_id as string)?.avatar_url ?? null,
+    authorAvatar: profileById.get(c.user_id as string)?.avatar ?? null,
     // A tombstone keeps its place in the thread, never its text.
     content: c.deleted_at ? "" : (c.content as string),
     createdAt: c.created_at as string,

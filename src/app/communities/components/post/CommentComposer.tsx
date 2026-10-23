@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Button } from "@/components/ui/Button";
 import { fieldControlClass } from "@/components/ui/Field";
 import { useRef, useState } from "react";
@@ -34,7 +35,7 @@ export function CommentComposer({
   /** The stacked form's button: Reply, or Save / Report where it's reused. */
   submitLabel?: string;
 }) {
-  const { user, displayName } = useAuth();
+  const { user, displayName, avatar } = useAuth();
   const [content, setContent] = useState(initialValue);
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -68,7 +69,7 @@ export function CommentComposer({
   if (variant === "inline") {
     return (
       <div className="relative flex items-center gap-2.5">
-        <EntityAvatar imageUrl={user?.photoURL ?? null} name={displayName ?? "You"} seed={user?.uid} size={32} />
+        <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={32} />
         <div className="relative min-w-0 flex-1">
           <textarea
             ref={inputRef}

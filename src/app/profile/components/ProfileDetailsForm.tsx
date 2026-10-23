@@ -1,9 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut, Pencil, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
+import { AvatarBuilder } from "@/components/avatar/AvatarBuilder";
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { useProductTour } from "@/components/onboarding/ProductTour";
@@ -18,7 +20,8 @@ const INPUT =
  * account's actions. Saving sends only what changed.
  */
 export function ProfileDetailsForm({ initial }: { initial: { firstName: string; lastName: string; username: string | null; memberSince: string; role: string | null } }) {
-  const { user, setDisplayName, signOut } = useAuth();
+  const { user, avatar, setDisplayName, signOut } = useAuth();
+  const [editingAvatar, setEditingAvatar] = useState(false);
   const { start: startTour } = useProductTour();
   const [first, setFirst] = useState(initial.firstName);
   const [last, setLast] = useState(initial.lastName);
@@ -51,6 +54,18 @@ export function ProfileDetailsForm({ initial }: { initial: { firstName: string; 
 
   return (
     <div className="space-y-6">
+      <Dialog open={editingAvatar} onClose={() => setEditingAvatar(false)} title="Edit avatar" size="lg">
+        {editingAvatar && (
+          <AvatarBuilder
+            onDone={() => setEditingAvatar(false)}
+            secondary={
+              <Button variant="ghost" size="sm" onClick={() => setEditingAvatar(false)}>
+                Cancel
+              </Button>
+            }
+          />
+        )}
+      </Dialog>
       <form
         className={`p-5 ${PANEL}`}
         onSubmit={(e) => {
@@ -59,13 +74,7 @@ export function ProfileDetailsForm({ initial }: { initial: { firstName: string; 
         }}
       >
         <div className="flex items-center gap-4">
-          {user.photoURL ? (
-            <Image src={user.photoURL} alt="" width={64} height={64} className="rounded-full" unoptimized />
-          ) : (
-            <span aria-hidden className="flex size-16 shrink-0 items-center justify-center rounded-full bg-brand text-title-lg font-bold text-white">
-              {(first || user.email || "?").charAt(0).toUpperCase()}
-            </span>
-          )}
+          <PersonAvatar id={user.uid} avatar={avatar} size={64} />
           <div className="min-w-0">
             <p className="truncate text-title-md text-primary">{[saved.first, saved.last].filter(Boolean).join(" ") || user.email}</p>
             {initial.username && <p className="truncate text-body-sm text-secondary">@{initial.username}</p>}
@@ -75,7 +84,11 @@ export function ProfileDetailsForm({ initial }: { initial: { firstName: string; 
             </p>
           </div>
         </div>
-        <p className="mt-2 text-caption text-tertiary">Your photo comes from the account you sign in with.</p>
+        <div className="mt-3">
+          <Button variant="secondary" size="sm" iconStart={Pencil} onClick={() => setEditingAvatar(true)}>
+            Edit avatar
+          </Button>
+        </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="block">

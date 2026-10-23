@@ -1,5 +1,7 @@
 "use client";
 
+import type { AvatarConfig } from "@/lib/avatar";
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { motion } from "motion/react";
 import { Trophy } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -21,7 +23,7 @@ const PODIUM_TONE: Record<number, string> = { 1: "text-[#e8c866]", 2: "text-seco
  * either be fabricated or need a new schema column to track - skipped rather than faked. Avatars
  * are the same EntityAvatar/initials-fallback treatment the Members tab's rows already use - this
  * table lists the same kind of entity and had been the one place in Communities that didn't. */
-export function GroupLeaderboardTab({ rows, myUserId, avatars }: { rows: LeaderboardRow[]; myUserId: string; avatars?: Record<string, string | null> }) {
+export function GroupLeaderboardTab({ rows, myUserId, avatars }: { rows: LeaderboardRow[]; myUserId: string; avatars?: Record<string, AvatarConfig | null> }) {
   if (rows.length === 0) {
     return <EmptyState icon={Trophy} message="No scored races yet: scores land here once a race a member picked finishes." />;
   }
@@ -39,7 +41,7 @@ export function GroupLeaderboardTab({ rows, myUserId, avatars }: { rows: Leaderb
           >
             <div className="flex min-w-0 items-center gap-3">
               <span className={`w-5 shrink-0 text-right font-mono text-body-sm font-bold tabular ${PODIUM_TONE[row.rank] ?? "text-tertiary"}`}>{row.rank}</span>
-              <EntityAvatar imageUrl={avatars?.[row.userId] ?? null} name={name} seed={row.userId} size={30} />
+              <PersonAvatar id={row.userId} avatar={avatars?.[row.userId]} size={30} />
               <span className={`min-w-0 truncate font-medium ${isMe ? "text-primary" : "text-secondary"}`}>{name}</span>
               {isMe && <span className="shrink-0 text-caption font-semibold text-brand-text">You</span>}
             </div>

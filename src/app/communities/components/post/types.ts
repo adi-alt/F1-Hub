@@ -1,3 +1,4 @@
+import type { AvatarConfig } from "@/lib/avatar";
 import type { PostKind } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { PostAttachment, PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
@@ -19,8 +20,8 @@ export type PostCardData = {
   groupAvatarUrl?: string | null;
   userId: string;
   authorName: string;
-  /** The author's profile photo, when they have one (profiles.avatar_url). */
-  authorAvatarUrl?: string | null;
+  /** The author's built avatar, when they have one (profiles.avatar). */
+  authorAvatar?: AvatarConfig | null;
   authorRole?: GroupRole;
   title: string | null;
   content: string;

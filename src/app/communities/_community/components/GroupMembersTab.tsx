@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users } from "lucide-react";
@@ -126,7 +127,7 @@ function MemberRow({ groupId, member, myRole, myUserId, onBanned }: { groupId: s
     <li className="py-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
-          <EntityAvatar imageUrl={member.avatarUrl ?? null} name={name} seed={member.userId} size={36} />
+          <PersonAvatar id={member.userId} avatar={member.avatar} size={36} />
           <div className="min-w-0">
             <p className="truncate text-body-sm font-medium text-primary">{name}</p>
             <p className="text-caption text-tertiary">{member.points} pts</p>

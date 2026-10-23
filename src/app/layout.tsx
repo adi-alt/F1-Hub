@@ -59,7 +59,7 @@ export default async function RootLayout({
   // The header's race-weekend status: the next few sessions from the cached calendar.
   const sessions = await getHeaderSessions(season);
   const initialAuth: InitialAuth = session.uid
-    ? { uid: session.uid, email: session.email ?? null, photoURL: session.photoURL ?? null, role: session.role ?? "user", displayName: session.displayName ?? null }
+    ? { uid: session.uid, email: session.email ?? null, avatar: session.avatar ?? null, role: session.role ?? "user", displayName: session.displayName ?? null }
     : null;
   return (
     <html

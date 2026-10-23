@@ -301,7 +301,7 @@ export function CommunityWorkspace({
                     groupName={group.name}
                   />
                 )}
-                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatarUrl ?? null]))} />}
+                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatar ?? null]))} />}
                 </RegionBoundary>
               </motion.div>
             </TabPanels>

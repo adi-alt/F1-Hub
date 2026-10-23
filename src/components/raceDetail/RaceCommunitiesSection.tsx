@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { groupHref } from "@/lib/routes";
@@ -14,7 +15,7 @@ function MemberStack({ members, total }: { members: { id: string; name: string }
     <div className="flex items-center">
       {members.map((m, i) => (
         <div key={m.id} className={i > 0 ? "-ml-2" : ""} style={{ zIndex: members.length - i }}>
-          <EntityAvatar imageUrl={null} name={m.name} seed={m.id} size={22} />
+          <PersonAvatar id={m.id} size={22} />
         </div>
       ))}
       {overflow > 0 && (

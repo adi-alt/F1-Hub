@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getTransporter } from "@/lib/otp";
@@ -35,7 +36,7 @@ export type NotificationItem = {
   href: string | null;
   createdAt: string;
   readAt: string | null;
-  actor: { name: string; avatarUrl: string | null } | null;
+  actor: { id: string; name: string; avatar: AvatarConfig | null } | null;
 };
 
 /** PostgREST's "no such table": the notifications migration isn't applied yet, which reads as an empty centre. */
@@ -223,10 +224,10 @@ export async function listNotifications(uid: string, { before, limit = 20 }: { b
   if (missingTable(error)) return { items: [], unread: 0 };
   if (error) throw new Error(`listNotifications(${uid}): ${error.message}`);
   const actorIds = [...new Set((data ?? []).map((r) => r.actor_id as string | null).filter((x): x is string => !!x))];
-  const actors = new Map<string, { name: string; avatarUrl: string | null }>();
+  const actors = new Map<string, NonNullable<NotificationItem["actor"]>>();
   if (actorIds.length) {
-    const { data: people } = await supabaseAdmin.from("profiles").select("id, first_name, username, avatar_url").in("id", actorIds);
-    for (const p of people ?? []) actors.set(p.id as string, { name: (p.first_name as string | null) ?? (p.username as string | null) ?? "Someone", avatarUrl: (p.avatar_url as string | null) ?? null });
+    const { data: people } = await supabaseAdmin.from("profiles").select("id, first_name, username, avatar").in("id", actorIds);
+    for (const p of people ?? []) actors.set(p.id as string, { id: p.id as string, name: (p.first_name as string | null) ?? (p.username as string | null) ?? "Someone", avatar: parseAvatar(p.avatar) });
   }
   return {
     unread,

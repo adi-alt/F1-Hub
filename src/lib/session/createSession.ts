@@ -1,7 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { getSession } from "@/lib/session/getSession";
 import { getUserRole } from "@/lib/session/getUserRole";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { AvatarConfig } from "@/lib/avatar";
 
 /** The one place the real iron-session cookie gets minted, used by both otp/verify (returning
  * user) and complete-signup (brand new one) - after this point Server Components can read who's
@@ -12,28 +12,15 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
  * DecodedIdToken had it), so it's null for every email/password account, which is most of them.
  * `firstName` is the profile's own field, collected at signup and always present, so it's the
  * reliable "what do we call this person" source. */
-export async function createSessionFor(user: User, firstName?: string | null) {
+export async function createSessionFor(user: User, firstName?: string | null, avatar?: AvatarConfig | null) {
   const role = await getUserRole(user.id);
   const session = await getSession();
   session.uid = user.id;
   session.email = user.email ?? null;
   session.displayName = firstName ?? (user.user_metadata?.full_name as string | undefined) ?? (user.user_metadata?.name as string | undefined) ?? null;
-  session.photoURL = (user.user_metadata?.avatar_url as string | undefined) ?? null;
+  // The avatar they built, so the header draws it on the first paint. Provider photos are no longer used.
+  session.avatar = avatar ?? null;
   session.role = role;
   await session.save();
-  await rememberProfilePhoto(user.id, session.photoURL);
   return role;
-}
-
-/** Keeps the member's profile photo current (profiles.avatar_url, 20261020_profile_avatar.sql), so their posts and
- * comments show it to everyone, not only to themselves. https only, and best effort: a failure here (or a database
- * that hasn't had that migration yet) never stops anyone signing in. */
-async function rememberProfilePhoto(uid: string, photoURL: string | null) {
-  if (!photoURL || !/^https:\/\//.test(photoURL)) return;
-  try {
-    const { error } = await supabaseAdmin.from("profiles").update({ avatar_url: photoURL }).eq("id", uid);
-    if (error) console.error(`rememberProfilePhoto: ${error.message}`);
-  } catch (err) {
-    console.error("rememberProfilePhoto:", err);
-  }
 }
