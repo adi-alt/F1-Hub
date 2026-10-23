@@ -3,7 +3,7 @@ import type { FavoriteEntity } from "@/components/profile/FavoriteEntityList";
 import { PersonalizationTabs, type Tab } from "@/components/profile/PersonalizationTabs";
 import { SignInGate } from "@/components/auth/SignInGate";
 import { getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveTeamHomeCircuits } from "@/lib/supabase/archive";
-import { getCurrentEntrants, getRaceListByYear } from "@/lib/supabase/races";
+import { getCurrentEntrants, getRaceListByYear, getRacesByYear } from "@/lib/supabase/races";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { safeRead } from "@/lib/safeRead";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
