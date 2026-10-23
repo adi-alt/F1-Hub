@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { ChevronRight, Flag } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";

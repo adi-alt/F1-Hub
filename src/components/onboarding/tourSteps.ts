@@ -88,8 +88,8 @@ export const TOUR_STEPS: TourStep[] = [
     id: "feed-tabs",
     target: "feed-tabs",
     scope: "communities",
-    title: "Following, For You, Latest",
-    body: "Following is the communities you've joined. For You and Latest widen to public communities and personal posts as well.",
+    title: "Following, Joined + public, Latest",
+    body: "Following is the communities you've joined. Joined + public adds every public community and personal posts, and Latest leaves out private communities; all three are newest first.",
   },
   {
     id: "post",

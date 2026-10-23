@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { motion } from "motion/react";
 import type { MultiSelectOption } from "@/app/season/_components/EntityMultiSelect";
@@ -24,12 +25,10 @@ import { RegionBoundary } from "@/components/ui/RegionBoundary";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { CircuitCard } from "./CircuitCard";
 import { layoutToDrawing } from "@/lib/circuitLayout";
-import { QualifyingBarChart } from "./QualifyingBarChart";
-import { PitStopsTimeline } from "./PitStopsTimeline";
 import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
-import { LapChart, type LapChartResultEntry } from "@/components/raceDetail/LapChart";
+import type { LapChartResultEntry } from "@/components/raceDetail/LapChart";
 import type { RaceTrackStory } from "@/lib/raceTrackStory";
 import type { CircuitLayout } from "@/lib/circuitLayout";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
@@ -37,9 +36,14 @@ import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { PracticeData, RaceDoc, RaceInputEntry, RaceSimulation } from "@/lib/types/race";
 import { PracticeSummary } from "@/components/race/PracticeSummary";
-import { QualifyingGapChart } from "@/components/race/QualifyingGapChart";
 import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
+
+// Charts load on their own, after the page (audit R-70, PERF-02): recharts stays out of the first bundle.
+const PitStopsTimeline = dynamic(() => import("./PitStopsTimeline").then((m) => m.PitStopsTimeline), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
+const QualifyingBarChart = dynamic(() => import("./QualifyingBarChart").then((m) => m.QualifyingBarChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
+const QualifyingGapChart = dynamic(() => import("@/components/race/QualifyingGapChart").then((m) => m.QualifyingGapChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
+const LapChart = dynamic(() => import("@/components/raceDetail/LapChart").then((m) => m.LapChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
 
 // Podium (3) + this many more visible by default - "Show all results" reveals the rest, so a
 // 20+ car historical field doesn't turn Results into a wall-length scroll inside its own card.

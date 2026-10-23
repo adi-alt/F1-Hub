@@ -1,5 +1,3 @@
-"use client";
-
 import type { PredictionReview, PredictionVerdict, RaceSummary } from "../../_service/season.pure";
 
 const VERDICT: Record<PredictionVerdict, { label: string; className: string }> = {

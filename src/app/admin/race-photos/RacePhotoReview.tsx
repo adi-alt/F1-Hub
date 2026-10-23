@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
@@ -46,8 +47,7 @@ function Credit({ photo }: { photo: Pick<RacePhoto, "photographer" | "license" |
 /** A Wikimedia thumbnail at its own aspect ratio: never cropped. */
 function Thumb({ photo, className }: { photo: Pick<RacePhoto, "thumbnailUrl" | "altText" | "width" | "height">; className?: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- Wikimedia's own thumbnail, loaded straight from upload.wikimedia.org on purpose (no Vercel optimisation, no Supabase Storage)
-    <img
+    <Image unoptimized
       src={photo.thumbnailUrl}
       alt={photo.altText}
       width={photo.width}
