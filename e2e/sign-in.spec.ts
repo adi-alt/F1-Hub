@@ -58,6 +58,8 @@ test.describe("the sign-in dialog, by keyboard", () => {
   });
 
   test("the panel is frosted, and the code step is exactly as tall as the first step", async ({ page }) => {
+    // Settles on the home page more than once, and it can take most of the network-idle wait on CI.
+    test.slow();
     await page.goto("/");
     await settle(page);
     await page.getByRole("button", { name: /^sign in$/i }).first().click();

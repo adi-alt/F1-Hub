@@ -10,7 +10,6 @@ import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { Icon } from "@/components/ui/Icon";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { ReportProblemDialog } from "@/components/ReportProblem";
 
 const ITEMS = [
@@ -35,7 +34,7 @@ const FROSTED_STYLE = {
 type Rect = { top: number; right: number };
 
 export function ProfileMenu() {
-  const { user, displayName, avatar, isAuthorized, signOut, pointsBalance, detailsPending } = useAuth();
+  const { user, displayName, avatar, isAuthorized, signOut, pointsBalance } = useAuth();
   const { start: startTour } = useProductTour();
   const [open, setOpen] = useState(false);
   // Outside the menu, so it stays open once the menu closes.
@@ -105,31 +104,16 @@ export function ProfileMenu() {
     <div ref={rootRef} className="relative">
       {/* Named by what it shows (the name and points) plus "account menu", so the accessible name
           contains the visible label (WCAG 2.5.3) rather than replacing it. */}
+      {/* Just the avatar: name and points are at the top of the menu it opens. Named for screen readers. */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className="flex items-center gap-2 rounded-lg border border-white/10 px-2 py-1.5 text-body-sm text-primary transition hover:border-white/20 hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        aria-label={`${name}, account menu${pointsBalance !== null ? `, ${pointsBalance} points` : ""}`}
+        className="flex size-9 items-center justify-center rounded-full ring-1 ring-white/10 transition hover:ring-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
-        <PersonAvatar id={user.uid} avatar={avatar} size={28} />
-        {/* Visually hidden below 400px so the pill fits a 320px header beside the logo and the menu button; the
-            name stays in the button's accessible name. */}
-        <span className="sr-only min-[400px]:not-sr-only min-[400px]:max-w-[9rem] min-[400px]:truncate font-medium text-white">{name}</span>
-        {/* The balance comes from /api/auth/me after the first paint: hold its place meanwhile, so the pill
-            doesn't grow when it lands. */}
-        {pointsBalance === null && detailsPending && (
-          <span aria-hidden className="border-l border-white/10 pl-2">
-            <Skeleton shape="block" className="h-3.5 w-10" />
-          </span>
-        )}
-        {pointsBalance !== null && (
-          <span className="flex items-center gap-1 border-l border-white/10 pl-2 text-xs font-semibold text-neutral-300">
-            <Icon icon={Star} size={16} className="text-tertiary" />
-            <span className="font-mono">{pointsBalance}</span> pts
-          </span>
-        )}
-        <span className="sr-only">, account menu</span>
+        <PersonAvatar id={user.uid} avatar={avatar} size={32} />
       </button>
 
       {rect &&
