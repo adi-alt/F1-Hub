@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
+import type { AvatarConfig } from "@/lib/avatar";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { groupHref } from "@/lib/routes";
@@ -8,14 +9,14 @@ import { predictionTypeLabels, type RaceCommunityCard } from "@/lib/groupPredict
 /** A small stack of real members' own identity-color avatars (this app's own EntityAvatar
  * convention - initial + a stable hash-derived color, not a fabricated photo this schema has
  * nowhere to store per-member) - "the community feels like people," without inventing any. */
-function MemberStack({ members, total }: { members: { id: string; name: string }[]; total: number }) {
+function MemberStack({ members, total }: { members: { id: string; name: string; avatar: AvatarConfig | null }[]; total: number }) {
   if (members.length === 0) return null;
   const overflow = total - members.length;
   return (
     <div className="flex items-center">
       {members.map((m, i) => (
         <div key={m.id} className={i > 0 ? "-ml-2" : ""} style={{ zIndex: members.length - i }}>
-          <PersonAvatar id={m.id} size={22} />
+          <PersonAvatar id={m.id} avatar={m.avatar} size={22} />
         </div>
       ))}
       {overflow > 0 && (
