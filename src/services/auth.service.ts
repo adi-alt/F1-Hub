@@ -40,7 +40,7 @@ export function otpThrottled(retryAfterSeconds: number): ServiceError {
 }
 
 export type OtpLoginResult =
-  | { status: "logged-in"; role: Role; displayName: string | null; uid: string; email: string; photoURL: string | null }
+  | { status: "logged-in"; role: Role; displayName: string | null; uid: string; email: string }
   | { status: "needs-profile" };
 
 /** Step 2: checks the code against what startSignIn sent. On success, branches on whether this
@@ -68,8 +68,7 @@ export async function verifyOtpAndLogin(code: string): Promise<OtpLoginResult> {
   if (!profile) return { status: "needs-profile" };
 
   const role = await createSessionFor(user, profile.firstName ?? null, profile.avatar);
-  const photoURL = (user.user_metadata?.avatar_url as string | undefined) ?? null;
-  return { status: "logged-in", role, displayName: profile.firstName ?? null, uid: user.id, email: user.email, photoURL };
+  return { status: "logged-in", role, displayName: profile.firstName ?? null, uid: user.id, email: user.email };
 }
 
 export type CompleteSignupInput = {
@@ -87,7 +86,7 @@ export type CompleteSignupInput = {
  * wrong code would be. */
 export async function completeSignup(
   input: CompleteSignupInput,
-): Promise<{ status: "logged-in"; role: Role; displayName: string | null; uid: string; email: string; photoURL: string | null }> {
+): Promise<{ status: "logged-in"; role: Role; displayName: string | null; uid: string; email: string }> {
   if (!input.firstName.trim()) throw new ServiceError("First name is required.", 400);
   if (!input.lastName.trim()) throw new ServiceError("Last name is required.", 400);
   if (!USERNAME_RE.test(input.username)) {
@@ -130,6 +129,5 @@ export async function completeSignup(
 
   const firstName = input.firstName.trim();
   const role = await createSessionFor(user, firstName);
-  const photoURL = (user.user_metadata?.avatar_url as string | undefined) ?? null;
-  return { status: "logged-in", role, displayName: firstName, uid: user.id, email: user.email, photoURL };
+  return { status: "logged-in", role, displayName: firstName, uid: user.id, email: user.email };
 }

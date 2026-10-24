@@ -92,7 +92,20 @@ export function ManageTab({ group, pendingRequests = 0, onDirtyChange }: { group
     setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
   };
   const panel = (value: Section, node: React.ReactNode) => opened.has(value) && <div hidden={section !== value}>{node}</div>;
-  const items: TabItem<Section>[] = sections.map((s) => ({ ...s, count: s.value === "requests" && pendingRequests > 0 ? pendingRequests : undefined }));
+  // How many reports wait, for the tab's count; the Reports section loads the list itself when opened.
+  const [openReports, setOpenReports] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/groups/${group.id}/reports`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ reports: unknown[] }>) : null))
+      .then((body) => !cancelled && body && setOpenReports(body.reports.length))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [group.id]);
+  const countFor = (value: Section) => (value === "requests" && pendingRequests > 0 ? pendingRequests : value === "reports" && openReports > 0 ? openReports : undefined);
+  const items: TabItem<Section>[] = sections.map((s) => ({ ...s, count: countFor(s.value) }));
 
   return (
     <DirtyContext.Provider value={report}>
