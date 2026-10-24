@@ -1,3 +1,4 @@
+import { parseAvatar } from "@/lib/avatar";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
@@ -333,9 +334,10 @@ async function hydrateCommunityCards(
   }
   const allPreviewIds = [...new Set([...memberIdsByGroup.values()].flat())];
   const { data: profileRows, error: profileError } = allPreviewIds.length
-    ? await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, first_name").in("id", allPreviewIds))
+    ? await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, first_name, avatar").in("id", allPreviewIds))
     : { data: [], error: null };
   if (profileError) throw new Error(`hydrateCommunityCards: ${profileError.message}`);
+  const avatarById = new Map((profileRows ?? []).map((p) => [p.id as string, parseAvatar(p.avatar)]));
   const nameById = new Map((profileRows ?? []).map((p) => [p.id as string, (p.display_name as string | null) ?? (p.username as string | null) ?? (p.first_name as string | null) ?? "Member"]));
 
   return groups.map((g) => ({
@@ -343,7 +345,7 @@ async function hydrateCommunityCards(
     name: g.name,
     avatarUrl: g.avatarUrl,
     memberCount: countByGroup.get(g.id) ?? 0,
-    memberPreview: (memberIdsByGroup.get(g.id) ?? []).map((id) => ({ id, name: nameById.get(id) ?? "Member" })),
+    memberPreview: (memberIdsByGroup.get(g.id) ?? []).map((id) => ({ id, name: nameById.get(id) ?? "Member", avatar: avatarById.get(id) ?? null })),
     isMember: g.isMember,
     prediction: predictionByGroup.get(g.id) ?? null,
   }));

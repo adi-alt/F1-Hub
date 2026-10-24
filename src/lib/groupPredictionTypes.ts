@@ -1,3 +1,4 @@
+import type { AvatarConfig } from "@/lib/avatar";
 // A pure, dependency-free module - the same reason sessionCode.ts exists on its own (see that
 // file's own comment). groupPredictions.ts (the real service, server-only) imports groups.ts for
 // its requireMember/requireAdmin checks, which imports otp.ts for its SMTP transporter, which
@@ -87,7 +88,7 @@ export type RaceCommunityCard = {
   name: string;
   avatarUrl: string | null;
   memberCount: number;
-  memberPreview: { id: string; name: string }[];
+  memberPreview: { id: string; name: string; avatar: AvatarConfig | null }[];
   isMember: boolean;
   prediction: { id: string; type: PredictionType; status: PredictionStatus; lockAt: string | null; entryCount: number; entryPoints: number } | null;
 };
