@@ -2,7 +2,8 @@
 // a sprint weekend (FP1, Sprint Qualifying, Sprint, Qualifying, Grand Prix) alike, and any other format the calendar
 // lists. Pure apart from weekendSessionsFor, which reads the clock: the race page builds its session selector from it.
 import type { QualifyingStageRow } from "./supabase/races";
-import type { RaceDoc } from "./types/race";
+import type { ArchiveResultEntry } from "./supabase/archive";
+import type { RaceDoc, SprintResultEntry } from "./types/race";
 
 export type SessionKey = "FP1" | "FP2" | "FP3" | "SQ" | "S" | "Q" | "R";
 
@@ -77,4 +78,23 @@ export function weekendSessionsFor(calendar: { label: string; date: string }[], 
     },
     nowMs,
   );
+}
+
+/** A past season's race for its session tabs: the `races` row, with the sprint taken from the archive
+ * (archive_sprint_results) when sprint_results has none - sprint_results only covers the current season. */
+export function withArchiveSprint(race: RaceDoc, archiveSprint: ArchiveResultEntry[] | undefined): RaceDoc {
+  if (race.sprintResults?.length || !archiveSprint?.length) return race;
+  const sprintResults: SprintResultEntry[] = archiveSprint
+    .filter((r) => r.position > 0)
+    .map((r) => ({
+      driver: r.driverCode ?? r.driverId,
+      driverName: r.driverName,
+      team: r.constructor,
+      grid: r.grid,
+      finishPosition: r.position,
+      finishGapSec: null,
+      status: r.status === "Finished" ? "finished" : /^\+\d+ Lap/.test(r.status) ? "lapped" : "dnf",
+      points: r.points,
+    }));
+  return { ...race, sprintResults, sprintSource: "official" };
 }
