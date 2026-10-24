@@ -245,7 +245,9 @@ export type RaceEventContext = {
 
 export function formatRaceEventContext(ctx: RaceEventContext): string {
   const r = ctx.race;
-  const sessionLines = r.sessions.map((s) => `  ${s.label} - ${s.date} UTC - ${s.state}${s.result ? ` - ${s.result.label}: ${s.result.value}` : ""}`);
+  // Spelled out so the model can't read "current" (next to start) as a session already running.
+  const stateWords = { completed: "completed", live: "running now", current: "next, not started yet", upcoming: "not started yet" } as const;
+  const sessionLines = r.sessions.map((s) => `  ${s.label} - ${s.date} UTC - ${stateWords[s.state]}${s.result ? ` - ${s.result.label}: ${s.result.value}` : ""}`);
   const weather = r.weekendStatus === "completed"
     ? r.raceWeather
       ? `  air ${r.raceWeather.airTempC}C, track ${r.raceWeather.trackTempC}C, humidity ${r.raceWeather.humidityPct}%, rainfall during the session: ${r.raceWeather.rainfall ? "yes" : "no"}`

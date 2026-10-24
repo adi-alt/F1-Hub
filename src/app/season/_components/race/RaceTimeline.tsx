@@ -49,7 +49,7 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
           const color = KIND_COLOR[kind];
           const date = parseUtcDateTime(s.date);
           const done = s.state === "completed";
-          const current = s.state === "current";
+          const current = s.state === "current" || s.state === "live";
 
           return (
             <li key={`${s.label}-${s.date}`} className="relative flex min-w-0 flex-1 flex-col items-center px-1 text-center">
@@ -81,7 +81,7 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
           const color = KIND_COLOR[kind];
           const date = parseUtcDateTime(s.date);
           const done = s.state === "completed";
-          const current = s.state === "current";
+          const current = s.state === "current" || s.state === "live";
 
           return (
             <li key={`${s.label}-${s.date}`} className="relative pb-4 pl-5 last:pb-0">

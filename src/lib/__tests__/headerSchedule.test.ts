@@ -1,6 +1,8 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
-import { headerStatus, shortRaceName, upcomingSessions } from "../headerSchedule";
+import { headerStatus, roundStatus, shortRaceName, upcomingSessions } from "../headerSchedule";
+import { placeTurnLabels } from "../circuitLayout";
+import { internalPathFor } from "../sectionRoutes";
 
 const japan = {
   year: 2026,
@@ -39,4 +41,33 @@ it("says live during a session, else the next one with a countdown, else nothing
 it("shortens a Grand Prix name", () => {
   assert.equal(shortRaceName("Japanese Grand Prix"), "Japanese GP");
   assert.equal(shortRaceName("Pre-Season Testing"), "Pre-Season Testing");
+});
+
+it("tells the race window what the header says: qualifying 16 minutes out is next, not live", () => {
+  const now = at("2026-10-17T05:44:00Z");
+  const status = roundStatus(japan, now);
+  assert.equal(status?.kind, "next");
+  assert.equal(status?.session.label, "Qualifying");
+  assert.equal(status?.countdown, headerStatus(upcomingSessions([japan], now), now)?.countdown);
+  assert.equal(roundStatus(japan, at("2026-10-17T06:10:00Z"))?.kind, "live");
+});
+
+it("places turn numbers so no two overlap", () => {
+  const font = 10;
+  // Corners 13/14 and 3/4 a few units apart: drawn naively, their numbers print on top of each other.
+  const turns = [
+    { label: "13", x: 100, y: 0 },
+    { label: "14", x: 103, y: 2 },
+    { label: "3", x: -100, y: 0 },
+    { label: "4", x: -100, y: 4 },
+  ];
+  const placed = placeTurnLabels(turns, 0, 0, font);
+  for (const [i, a] of placed.entries()) {
+    for (const b of placed.slice(i + 1)) assert.ok(Math.abs(a.x - b.x) >= font * 0.9 || Math.abs(a.y - b.y) >= font * 1.3, `${a.label} and ${b.label} overlap`);
+  }
+});
+
+it("sends a race slug to the race page and an old numeric race link to the season page's window", () => {
+  assert.equal(internalPathFor(new URLSearchParams("section=season&year=2026&race=united-states-grand-prix")), "/race");
+  assert.equal(internalPathFor(new URLSearchParams("section=season&year=2026&race=18")), "/season");
 });

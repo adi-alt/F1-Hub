@@ -1,5 +1,5 @@
 import { TrackMap } from "@/components/ui/TrackMap";
-import type { CircuitDrawing } from "@/lib/circuitLayout";
+import { placeTurnLabels, type CircuitDrawing } from "@/lib/circuitLayout";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";
 
 /**
@@ -37,21 +37,18 @@ export function CircuitThumb({
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label={`${name} circuit layout`}
+      // Visible overflow: a turn number pushed clear of its neighbour may sit just past the fitted view.
+      overflow="visible"
       className={`block ${className}`}
     >
       <path d={drawing.path} fill="none" stroke="rgb(255 255 255 / 0.07)" strokeWidth={12} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       <path ref={fitToPath(turns ? 0.06 : 0.03)} d={drawing.path} fill="none" stroke="rgb(255 255 255 / 0.6)" strokeWidth={1.75} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       {turns &&
-        drawing.turns.map((t) => {
-          const dx = t.x - cx;
-          const dy = t.y - cy;
-          const d = Math.hypot(dx, dy) || 1;
-          return (
-            <text key={t.label} x={t.x + (dx / d) * font * 1.6} y={t.y + (dy / d) * font * 1.6} fontSize={font} fill="rgb(255 255 255 / 0.45)" textAnchor="middle" dominantBaseline="middle" aria-hidden>
-              {t.label}
-            </text>
-          );
-        })}
+        placeTurnLabels(drawing.turns, cx, cy, font).map((t) => (
+          <text key={t.label} x={t.x} y={t.y} fontSize={font} fill="rgb(255 255 255 / 0.45)" textAnchor="middle" dominantBaseline="middle" aria-hidden>
+            {t.label}
+          </text>
+        ))}
     </svg>
   );
 }

@@ -39,6 +39,12 @@ export function headerStatus(sessions: readonly HeaderSession[], nowMs: number):
   return null;
 }
 
+/** headerStatus for one round's own sessions: what the header says about this weekend while it is the one on. The
+ * race window reads its current session from this, so it can never disagree with the header. */
+export function roundStatus(round: { round: number; name: string; sessions: { label: string; date: string }[] }, nowMs: number): HeaderStatus {
+  return headerStatus(upcomingSessions([{ year: 0, round: round.round, name: round.name, status: null, sessions: round.sessions }], nowMs, Infinity), nowMs);
+}
+
 /** "Japanese Grand Prix" -> "Japanese GP": the header has room for a short name only. */
 export function shortRaceName(name: string): string {
   return name.replace(/\s*Grand Prix$/i, " GP").trim();
