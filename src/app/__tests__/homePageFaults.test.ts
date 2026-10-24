@@ -103,7 +103,7 @@ describe("home page payload (audit R-26)", () => {
     assert.ok(shell);
     assert.equal(shell.props.serverAuthed, false);
     assert.equal(shell.props.publicData.scope, "landing");
-    assert.deepEqual(Object.keys(shell.props.publicData).sort(), ["backdropPhotos", "calendarEntry", "drawing", "facts", "nextRace", "scope", "season", "trackHistory", "year"]);
+    assert.deepEqual(Object.keys(shell.props.publicData).sort(), ["backdropPhotos", "calendarEntry", "facts", "nextRace", "scope", "season", "trackHistory", "year"]);
   });
 
   test("the signed-out payload stays small however big the season is", async () => {
