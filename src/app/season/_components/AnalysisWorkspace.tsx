@@ -66,6 +66,7 @@ export function AnalysisWorkspace({
 
   return (
     <section
+      id="analysis"
       aria-label="Season analysis"
       className="overflow-hidden rounded-lg border border-white/[0.06] bg-white/[0.012] backdrop-blur-[2px]"
     >
