@@ -50,6 +50,7 @@ import { computeStandings } from "@/lib/standings";
 import { raceTitle } from "@/lib/format";
 import { buildSeasonTimeline, computeMomentum, computeTeamTrends, findMomentumShift } from "@/app/season/_service/seasonAnalytics";
 import type { AgentContext } from "@/lib/ai/types";
+import { entitiesNamedIn } from "@/lib/search";
 import crypto from "crypto";
 import { getCurrentSeason } from "@/lib/currentSeason";
 
@@ -603,7 +604,11 @@ async function buildArchiveGroundingContext(userId: string, clientContext: Recor
   if (!entityId) return null;
 
   if (entityType === "driver") {
-    const [driver, races] = await Promise.all([getArchiveDriverData(entityId), getArchiveDriverHistoryData(entityId)]);
+    const [driver, races, yearStats] = await Promise.all([
+      getArchiveDriverData(entityId),
+      getArchiveDriverHistoryData(entityId),
+      getArchiveYearStatsData().catch(() => ({}) as Awaited<ReturnType<typeof getArchiveYearStatsData>>),
+    ]);
     if (races.length === 0) return null;
     type Entry = { race: ArchiveRaceDoc; result: ArchiveResultEntry };
     const entries: Entry[] = races
@@ -620,13 +625,25 @@ async function buildArchiveGroundingContext(userId: string, clientContext: Recor
     const stints: { from: number; to: number; team: string }[] = [];
     for (const e of [...entries].sort((a, b) => a.race.year - b.race.year)) {
       const last = stints[stints.length - 1];
-      if (last && last.team === e.result.constructor && last.to === e.race.year - 1) last.to = e.race.year;
+      if (last && last.team === e.result.constructor && last.to >= e.race.year - 1) last.to = e.race.year;
       else stints.push({ from: e.race.year, to: e.race.year, team: e.result.constructor });
     }
+    // Seasons they led on points: titles from 1991 (the sum is the real champion), "most points" before.
+    const ledYears = Object.entries(yearStats)
+      .filter(([, s]) => s.driverLeader?.driverId === entityId)
+      .map(([y]) => Number(y));
     return {
       page: "archive",
       entity: { type: "driver", name, firstYear: driver?.firstYear ?? Math.min(...races.map((r) => r.year)), lastYear: driver?.lastYear ?? Math.max(...races.map((r) => r.year)) },
-      stats: { races: entries.length, wins, podiums },
+      stats: {
+        seasons: new Set(entries.map((e) => e.race.year)).size,
+        races: entries.length,
+        wins,
+        podiums,
+        startsFromPole: entries.filter((e) => e.result.grid === 1).length,
+        championships: ledYears.filter(isVerifiedChampionYear),
+        mostPointsSeasonsBefore1991: ledYears.filter((y) => !isVerifiedChampionYear(y)),
+      },
       teamStints: stints.map((s) => `${s.from === s.to ? s.from : `${s.from}-${s.to}`}: ${s.team}`),
       recentResults: entries
         .slice(-15)
@@ -841,6 +858,27 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** The ⌘K palette's ask: site-wide, never one page's. It sends no page context at all; the drivers, teams and
+ * circuits the question names are resolved here and each gets the same archive summary its own page would. */
+async function buildSearchGroundingContext(userId: string, question: string): Promise<Record<string, unknown>> {
+  const named = await entitiesNamedIn(question).catch(() => ({ drivers: [], teams: [], circuits: [] }));
+  const lookups = [
+    ...named.drivers.slice(0, 2).map((entityId) => ({ entityType: "driver", entityId })),
+    ...named.teams.slice(0, 2).map((entityId) => ({ entityType: "team", entityId })),
+    ...named.circuits.slice(0, 1).map((entityId) => ({ entityType: "circuit", entityId })),
+  ];
+  const [entities, currentSeason] = await Promise.all([
+    Promise.all(lookups.map((snapshot) => buildArchiveGroundingContext(userId, { snapshot }).catch(() => null))),
+    getCurrentSeasonLeaderSummary(),
+  ]);
+  return {
+    page: "search",
+    reach: "The whole site, not any one page: answer from these records and general F1 knowledge.",
+    entities: entities.filter((e): e is Record<string, unknown> => e !== null).map(({ page: _page, ...rest }) => rest),
+    currentSeason,
+  };
+}
+
 export async function POST(req: Request) {
   const requestId = `req_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   const deadlineAt = Date.now() + AI_DEADLINE_MS;
@@ -921,6 +959,10 @@ export async function POST(req: Request) {
     // data, or echoed from the client - they get different size budgets, and only the latter is
     // untrusted.
     let serverBuilt = false;
+    if (context.page === "search") {
+      context = await buildSearchGroundingContext(userId, question);
+      serverBuilt = true;
+    }
     if (context.page === "season") {
       const seasonContext = await buildSeasonGroundingContext(userId, context);
       if (seasonContext) {
