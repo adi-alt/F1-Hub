@@ -35,6 +35,8 @@ export const POLICIES = {
   postCreate: { limit: 10, windowSeconds: 60, by: "user" },
   commentCreate: { limit: 20, windowSeconds: 60, by: "user" },
   report: { limit: 20, windowSeconds: 3_600, by: "user" },
+  // "Report a problem" (with an optional 1 MB screenshot): a person reports a few things at most.
+  problemReport: { limit: 10, windowSeconds: 3_600, by: "user" },
   vote: { limit: 60, windowSeconds: 60, by: "user" },
   groupCreate: { limit: 5, windowSeconds: 3_600, by: "user" },
   groupJoin: { limit: 30, windowSeconds: 3_600, by: "user" },

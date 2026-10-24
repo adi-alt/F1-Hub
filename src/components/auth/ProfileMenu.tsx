@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, LogOut, Pencil, SlidersHorizontal, Sparkles, Star, Trophy } from "lucide-react";
+import { Bell, LifeBuoy, LogOut, Pencil, SlidersHorizontal, Sparkles, Star, Trophy } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useProductTour } from "@/components/onboarding/ProductTour";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 import { Icon } from "@/components/ui/Icon";
+import { ReportProblemDialog } from "@/components/ReportProblem";
 
 const ITEMS = [
   { href: "/?section=profile&tab=personalisation", label: "Personalisation", icon: SlidersHorizontal },
@@ -36,6 +37,8 @@ export function ProfileMenu() {
   const { user, displayName, avatar, isAuthorized, signOut, pointsBalance } = useAuth();
   const { start: startTour } = useProductTour();
   const [open, setOpen] = useState(false);
+  // Outside the menu, so it stays open once the menu closes.
+  const [reporting, setReporting] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -191,6 +194,17 @@ export function ProfileMenu() {
                         type="button"
                         onClick={() => {
                           setOpen(false);
+                          setReporting(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.08] hover:text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+                      >
+                        <Icon icon={LifeBuoy} size={16} className="text-tertiary" />
+                        Report a problem
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false);
                           void signOut();
                         }}
                         className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-left text-body-sm text-secondary transition-colors duration-fast hover:bg-white/[0.08] hover:text-primary focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
@@ -206,6 +220,7 @@ export function ProfileMenu() {
           </AnimatePresence>,
           document.body,
         )}
+      <ReportProblemDialog open={reporting} onClose={() => setReporting(false)} />
     </div>
   );
 }

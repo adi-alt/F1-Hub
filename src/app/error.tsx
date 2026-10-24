@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import * as Sentry from "@sentry/nextjs";
+import { ReportProblemButton, errorSummary, recordClientError } from "@/components/ReportProblem";
 
 /**
  * Catches a render/data error anywhere under the root layout — Header/nav still render around
@@ -21,6 +22,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     // in Vercel's function logs.
     console.error(error);
     Sentry.captureException(error);
+    recordClientError(error);
   }, [error]);
 
   // Most of what lands here is transient rather than a broken page: a request that went out while
@@ -69,6 +71,12 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           >
             Go home
           </Link>
+          <ReportProblemButton
+            error={errorSummary(error)}
+            className="rounded-full border border-[var(--f1-line)] px-5 py-2 text-sm text-neutral-200 transition hover:border-white/30"
+          >
+            Report this problem
+          </ReportProblemButton>
         </div>
       </div>
     </div>

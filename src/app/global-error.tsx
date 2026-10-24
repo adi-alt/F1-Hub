@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
+import { ReportProblemButton, errorSummary } from "@/components/ReportProblem";
 
 /**
  * The one error boundary above the root layout itself — triggers only if RootLayout (or
@@ -40,6 +41,12 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           >
             Reload
           </button>
+          <ReportProblemButton
+            error={errorSummary(error)}
+            className="ml-3"
+          >
+            Report this problem
+          </ReportProblemButton>
         </div>
       </body>
     </html>

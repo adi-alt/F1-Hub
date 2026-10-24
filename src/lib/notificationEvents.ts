@@ -352,3 +352,23 @@ export const notifyPhotosReady = (pending: { raceName: string; count: number }[]
       },
     });
   });
+
+/** Someone reported a problem: the site's admins. */
+export const notifyProblemReport = (report: { id: string; kindLabel: string; description: string; page: string | null }, reporterId: string) =>
+  safely(async () => {
+    const { data: admins } = await supabaseAdmin.from("profiles").select("id").eq("role", "admin");
+    await notify((admins ?? []).map((a) => a.id as string), {
+      kind: "problem_report",
+      title: `New problem report: ${report.kindLabel}`,
+      body: report.description.slice(0, 200),
+      href: "/?section=models#problem-reports",
+      actorId: reporterId,
+      dedupeKey: `problem_report:${report.id}`,
+      email: {
+        eyebrow: "Problem report",
+        rows: report.page ? [{ label: "Page", value: report.page }] : undefined,
+        cta: "Open reports",
+        reason: "You're an admin of Apex F1 Hub.",
+      },
+    });
+  });

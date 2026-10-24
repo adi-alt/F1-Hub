@@ -22,6 +22,7 @@ const ROUTES: Record<string, PolicyName> = {
   "posts/[postId]/comments": "commentCreate",
   "posts/[postId]/vote": "vote",
   "posts/[postId]/report": "report",
+  "problem-reports": "problemReport",
   "posts/[postId]/comments/[commentId]/vote": "vote",
   groups: "groupCreate",
   "groups/[id]/join": "groupJoin",
