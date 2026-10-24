@@ -15,7 +15,7 @@ import { SignInGate } from "@/components/auth/SignInGate";
 import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
 import { getCurrentEntrants, getQualifyingStages, getRace, getRacesByCircuit, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
-import { defaultSession, weekendSessionsFor } from "@/lib/weekendSessions";
+import { defaultSession, weekendSessionsFor, withArchiveSprint } from "@/lib/weekendSessions";
 import { computeHighlights } from "@/lib/highlights";
 import { buildCircuitTimeline } from "@/lib/circuitIntelligence";
 import { computeAgeRecords } from "@/lib/circuitRecords";
@@ -217,14 +217,19 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   // The season pipeline's own row for this race (2018 on): practice, qualifying with gaps, the photo and the race
   // stats the archive tables don't have. Null before 2018 - the page is then the archive's alone.
   const liveRace = year >= 2018 ? await getRace(year, race.round) : null;
-  const [ageRecords, raceCommunities, trackStory, layout, photos] = await Promise.all([
+  const [ageRecords, raceCommunities, trackStory, layout, photos, pastStages] = await Promise.all([
     computeAgeRecords(circuitTimeline),
     listRaceCommunities(race.id, session.uid),
     // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
     getRaceTrackStoryByRound(year, race.round),
     getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }),
     liveRace ? getApprovedRacePhotos(liveRace.id) : Promise.resolve([]),
+    liveRace ? getQualifyingStages(liveRace.id) : Promise.resolve([]),
   ]);
+  // The weekend session by session, like the current season's races: there's no calendar for a past year, so the
+  // tabs are the sessions with stored results (practice, qualifying, the archive's sprint, the race).
+  const weekendRace = liveRace ? withArchiveSprint(liveRace, race.sprintResults) : null;
+  const pastSessions = weekendRace ? weekendSessionsFor([], weekendRace, pastStages) : [];
   const archivePhoto = race.photoUrls?.[0] ?? race.photoUrl ?? liveRace?.photoUrls?.[0] ?? liveRace?.photoUrl ?? null;
 
   return (
@@ -275,9 +280,11 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           raceCommunities={raceCommunities}
           trackStory={trackStory}
           layout={layout}
-          practice={liveRace?.practice ?? null}
+          // Practice has its own tabs in Sessions once those show.
+          practice={pastSessions.length ? null : (liveRace?.practice ?? null)}
           liveQualifying={liveRace?.inputs ?? []}
           photos={photos}
+          weekend={weekendRace ? { race: weekendRace, sessions: pastSessions, initial: defaultSession(pastSessions), stages: pastStages } : null}
         />
       </div>
     </div>
