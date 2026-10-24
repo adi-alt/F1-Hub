@@ -99,7 +99,7 @@ export function SeasonDetail({
   const currentRound = status === "ongoing" ? raceSummaries.find((r) => r.state === "next") : undefined;
 
   return (
-    <SeasonExplorerProvider defaultCompare={defaultCompare}>
+    <SeasonExplorerProvider defaultCompare={defaultCompare} races={raceSummaries}>
       {/* Season sends only the year. Everything the model sees is fetched server-side from the
           same authoritative source this page renders from. */}
       <SeasonIntelligenceProvider season={year}>

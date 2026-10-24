@@ -176,3 +176,28 @@ export function seasonLabel(seasons: number[]): string {
   const ys = [...seasons].sort((a, b) => a - b);
   return `${ys[0]}–${ys[ys.length - 1]}`;
 }
+
+/** Where each turn number goes: pushed outward from the circuit's centre, then turned or pushed further until its
+ * box clears every number already placed, so neighbouring corners (13/14, 17/18) never print on top of each other. */
+export function placeTurnLabels(turns: CircuitDrawing["turns"], cx: number, cy: number, font: number): { label: string; x: number; y: number }[] {
+  const placed: { label: string; x: number; y: number }[] = [];
+  const halfW = (label: string) => (label.length * font * 0.62) / 2 + font * 0.15;
+  const halfH = font * 0.65;
+  const clear = (label: string, x: number, y: number) => placed.every((p) => Math.abs(p.x - x) >= halfW(p.label) + halfW(label) || Math.abs(p.y - y) >= halfH * 2);
+  for (const t of turns) {
+    const base = Math.atan2(t.y - cy, t.x - cx);
+    let spot = { x: t.x + Math.cos(base) * font * 1.6, y: t.y + Math.sin(base) * font * 1.6 };
+    search: for (let r = 1.6; r <= 6; r += 0.8) {
+      for (const turn of [0, 0.5, -0.5, 1, -1]) {
+        const x = t.x + Math.cos(base + turn) * font * r;
+        const y = t.y + Math.sin(base + turn) * font * r;
+        if (clear(t.label, x, y)) {
+          spot = { x, y };
+          break search;
+        }
+      }
+    }
+    placed.push({ label: t.label, ...spot });
+  }
+  return placed;
+}

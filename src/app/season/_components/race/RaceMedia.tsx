@@ -9,6 +9,9 @@ import type { CircuitTrackMap } from "@/lib/supabase/archive";
 
 type State = "loading" | "loaded" | "error";
 
+/** Every state's box: a wide strip on phones, where it sits above the details, and a compact block beside them from md up. */
+const BOX = "w-full aspect-[16/9] md:aspect-[4/3]";
+
 /**
  * Race photography for the event window: a hero image, plus a thumbnail strip when more than one
  * photo is available.
@@ -46,7 +49,7 @@ export function RaceMedia({
   const mark = (url: string, next: State) => setStates((prev) => (prev[url] === next ? prev : { ...prev, [url]: next }));
 
   if (usable.length === 0) {
-    if (circuitDrawing || circuitTrackMap) return <CircuitThumb drawing={circuitDrawing} map={circuitTrackMap} name={circuit ?? raceName} turns className="aspect-[16/7] w-full" />;
+    if (circuitDrawing || circuitTrackMap) return <CircuitThumb drawing={circuitDrawing} map={circuitTrackMap} name={circuit ?? raceName} turns className={BOX} />;
     return (
       <MediaPlaceholder label={circuit ? `No imagery available yet for ${circuit}.` : "No race imagery available for this round yet."} />
     );
@@ -57,7 +60,7 @@ export function RaceMedia({
 
   return (
     <div>
-      <div className="relative w-full overflow-hidden rounded-md bg-white/[0.02]" style={{ aspectRatio: "16 / 7" }}>
+      <div className={`relative overflow-hidden rounded-md bg-white/[0.02] ${BOX}`}>
         {state !== "loaded" && <MediaSkeleton fill rounded="rounded-md" />}
         {state !== "error" && (
           <Image
@@ -116,10 +119,7 @@ export function RaceMedia({
  * the layout or leave a hole. Branded rather than blank. */
 function MediaPlaceholder({ label }: { label: string }) {
   return (
-    <div
-      className="flex w-full items-center justify-center overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.015]"
-      style={{ aspectRatio: "16 / 7" }}
-    >
+    <div className={`flex items-center justify-center overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.015] ${BOX}`}>
       <div className="text-center">
         <span aria-hidden className="text-lg text-brand-text/50">
           ✦

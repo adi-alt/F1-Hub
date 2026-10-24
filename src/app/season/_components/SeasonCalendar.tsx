@@ -25,7 +25,7 @@ type DaySession = {
   label: string;
   code: string;
   date: Date;
-  state: "completed" | "current" | "upcoming";
+  state: "completed" | "live" | "current" | "upcoming";
 };
 
 const GAP = 3; // px, fixed - only the cell itself scales
@@ -427,7 +427,7 @@ function SessionSlice({ session }: { session: DaySession }) {
   const upcoming = session.state === "upcoming";
   return (
     <span
-      className={`flex-1 ${session.state === "current" ? "pulse-ring" : ""}`}
+      className={`flex-1 ${session.state === "live" || session.state === "current" ? "pulse-ring" : ""}`}
       style={upcoming ? { border: `1px solid ${color}`, opacity: 0.7 } : { background: color }}
     />
   );

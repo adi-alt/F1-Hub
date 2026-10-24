@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import { slugifyRaceName } from "@/lib/routes";
 import type { EntityType } from "../_service/season.pure";
 
 export type { EntityType };
@@ -62,12 +63,15 @@ const COMPARE_PARAM = "compare";
  */
 export function SeasonExplorerProvider({
   defaultCompare,
+  races,
   children,
 }: {
   /** A default pair per championship. Switching between the two tables then lands on a sensible
    * comparison instead of an empty picker - a driver-code selection genuinely doesn't apply in the
    * constructors' table, but "nothing selected" is the wrong answer to that. */
   defaultCompare: Record<EntityType, { a: string; b: string }>;
+  /** The season's rounds, to read and write `?race=` as a slug. */
+  races: readonly { round: number; name: string }[];
   children: ReactNode;
 }) {
   const searchParams = useSearchParams();
@@ -100,21 +104,22 @@ export function SeasonExplorerProvider({
   const [highlightRound, setHighlightRound] = useState<number | null>(null);
   const [focus, setFocus] = useState<EntityFocus>(null);
 
+  // `?race=` is the race's slug, the form raceHref writes; an older numeric round (`?race=18`) still opens it. A
+  // hand-edited or stale value simply opens nothing, rather than rendering a window for a round that doesn't exist.
   const rawRace = searchParams.get(RACE_PARAM);
-  const parsedRace = rawRace === null ? null : Number(rawRace);
-  // A hand-edited or stale `?race=` value simply opens nothing, rather than rendering a window
-  // for a round that doesn't exist.
-  const openRaceRound = parsedRace !== null && Number.isInteger(parsedRace) && parsedRace > 0 ? parsedRace : null;
+  const parsedRace = rawRace === null ? null : /^\d+$/.test(rawRace) ? Number(rawRace) : (races.find((r) => slugifyRaceName(r.name) === rawRace)?.round ?? null);
+  const openRaceRound = parsedRace !== null && parsedRace > 0 ? parsedRace : null;
 
   const writeRaceParam = useCallback(
     (round: number | null) => {
       const params = new URLSearchParams(Array.from(searchParams.entries()));
+      const name = races.find((r) => r.round === round)?.name;
       if (round === null) params.delete(RACE_PARAM);
-      else params.set(RACE_PARAM, String(round));
+      else params.set(RACE_PARAM, name ? slugifyRaceName(name) : String(round));
       const query = params.toString();
       window.history.pushState(null, "", query ? `?${query}` : window.location.pathname);
     },
-    [searchParams],
+    [searchParams, races],
   );
 
   const openRace = useCallback((round: number) => writeRaceParam(round), [writeRaceParam]);

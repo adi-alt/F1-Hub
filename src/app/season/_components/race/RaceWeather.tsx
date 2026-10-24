@@ -69,10 +69,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Readings({ items }: { items: { label: string; value: string }[] }) {
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-4">
+    // One line per label, so every value sits on the same baseline ("RAIN CHANCE" used to wrap and drop its value).
+    <dl className={`grid grid-cols-2 gap-x-4 gap-y-2.5 ${items.length > 2 ? "sm:grid-cols-4" : ""}`}>
       {items.map((item) => (
-        <div key={item.label}>
-          <dt className="text-caption uppercase tracking-[0.12em] text-tertiary">{item.label}</dt>
+        <div key={item.label} className="min-w-0">
+          <dt className="truncate whitespace-nowrap text-caption uppercase tracking-[0.12em] text-tertiary">{item.label}</dt>
           <dd className="mt-0.5 font-mono text-sm tabular-nums text-neutral-200">{item.value}</dd>
         </div>
       ))}

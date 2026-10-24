@@ -22,11 +22,12 @@ export type Section = keyof typeof SECTION_PATHS;
 
 const isSection = (value: string | null | undefined): value is Section => !!value && Object.hasOwn(SECTION_PATHS, value);
 
-/** Where a public URL's page lives: `?section=season` with a `race` is a race's page, which belongs to Season. */
+/** Where a public URL's page lives: `?section=season` with a race slug is a race's page, which belongs to Season. */
 export function internalPathFor(params: URLSearchParams): string | null {
   const section = params.get("section");
   if (!isSection(section)) return null;
-  if (section === "season" && params.has("race")) return "/race";
+  // An old numeric link (`race=18`) is the season page's race window, not a race page; it still opens there.
+  if (section === "season" && params.has("race") && !/^\d+$/.test(params.get("race") ?? "")) return "/race";
   return SECTION_PATHS[section];
 }
 
