@@ -25,7 +25,10 @@ test.describe("native document scroll", () => {
       expect(state.appScroll, "no inner scroll container").toBe(false);
       expect(state.bodyOverflow).not.toBe("hidden");
       expect(state.htmlOverflow).not.toBe("hidden");
-      expect(state.scrolls, "the page is taller than the window, so the document scrolls").toBe(true);
+      // The communities home on a wide window is the social layout: a fixed-height three-column grid whose feed
+      // column scrolls on its own, by design. Its page-level checks above still apply.
+      const ownScroller = route.includes("section=communities") && (page.viewportSize()?.width ?? 0) >= 1024;
+      if (!ownScroller) expect(state.scrolls, "the page is taller than the window, so the document scrolls").toBe(true);
     });
   }
 
@@ -47,6 +50,8 @@ test.describe("native document scroll", () => {
   });
 
   test("Back returns to where you were on the page", async ({ page }) => {
+    // Settles on the home page more than once, and it can take most of the network-idle wait on CI.
+    test.slow();
     await page.goto("/?section=season&year=2026");
     await settle(page);
     await page.evaluate(() => window.scrollTo(0, 700));
