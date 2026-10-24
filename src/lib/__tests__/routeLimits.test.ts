@@ -11,6 +11,7 @@ const API = path.join(process.cwd(), "src/app/api");
 const ROUTES: Record<string, PolicyName> = {
   "username/check": "usernameCheck",
   search: "search",
+  "ai/search-intent": "search",
   "auth/start": "otpStart",
   "auth/otp/verify": "otpVerify",
   "auth/complete-signup": "signupComplete",

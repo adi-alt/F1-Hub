@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { matchScore, rankMatches, seasonResults } from "./search";
+import { seasonResults } from "./search";
+import { matchScore, rankMatches } from "./searchQuery";
 
 describe("search matching", () => {
   it("prefers a prefix, then a word start, then a substring, ignoring accents and case", () => {

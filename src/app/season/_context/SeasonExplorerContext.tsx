@@ -45,6 +45,7 @@ type ExplorerState = {
 const SeasonExplorerContext = createContext<ExplorerState | null>(null);
 
 const RACE_PARAM = "race";
+const COMPARE_PARAM = "compare";
 
 /**
  * The race window's open/closed state is THE URL, not component state.
@@ -71,14 +72,17 @@ export function SeasonExplorerProvider({
 }) {
   const searchParams = useSearchParams();
   const [entityType, setEntityType] = useState<EntityType>("drivers");
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>("battles");
+  // `?compare=VER-NOR` (the command palette's "Compare A vs B") opens on the Compare tab with that pair; a bare
+  // `?compare=open` just opens the tab. Read once, at mount: after that the tab and the pair are the reader's.
+  const comparePair = /^([A-Z]{3})-([A-Z]{3})$/.exec(searchParams.get(COMPARE_PARAM) ?? "");
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>(searchParams.has(COMPARE_PARAM) ? "compare" : "battles");
   // The compare selection carries the entity type it belongs to, rather than being two loose
   // strings. Driver codes mean nothing in the constructors' table, so a selection made in one
   // space must not be read as a selection in the other - and tagging it is what makes that safe
   // WITHOUT a reset-on-switch effect. A reset would have been actively wrong here: openCompare
   // sets the type and the pair in the same call, so a "type changed, clear the pair" rule would
   // wipe the very selection that triggered it.
-  const [selection, setSelection] = useState<CompareSelection>({ type: "drivers", a: defaultCompare.drivers.a, b: defaultCompare.drivers.b });
+  const [selection, setSelection] = useState<CompareSelection>({ type: "drivers", a: comparePair?.[1] ?? defaultCompare.drivers.a, b: comparePair?.[2] ?? defaultCompare.drivers.b });
   const active = selection.type === entityType;
   const compareA = active ? selection.a : defaultCompare[entityType].a;
   const compareB = active ? selection.b : defaultCompare[entityType].b;

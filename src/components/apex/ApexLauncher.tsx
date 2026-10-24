@@ -73,8 +73,9 @@ export function ApexLauncher() {
   });
   useEffect(() => {
     const onAsk = (e: Event) => {
-      const { question, reach: reachFor } = (e as CustomEvent<{ question?: string; reach?: Reach }>).detail ?? {};
+      const { question, reach: reachFor, transcript } = (e as CustomEvent<{ question?: string; reach?: Reach; transcript?: ChatMessage[] }>).detail ?? {};
       setOpen(true);
+      if (transcript) setMessages(transcript.map(({ role, content }) => ({ role, content })));
       if (reachFor) setReach(reachFor);
       if (question) askRef.current?.(question, reachFor);
     };

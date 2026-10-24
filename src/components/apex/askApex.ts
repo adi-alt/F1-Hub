@@ -7,3 +7,9 @@ export const APEX_ASK_EVENT = "apex:ask";
 export function askApex(question?: string, reach?: "page" | "everything") {
   window.dispatchEvent(new CustomEvent(APEX_ASK_EVENT, { detail: { question, reach } }));
 }
+
+/** Opens Apex on a conversation already had elsewhere (the command palette's "Continue in Apex"), asked across the
+ * whole site, so the next question follows on from it. */
+export function continueInApex(transcript: { role: "user" | "assistant"; content: string }[]) {
+  window.dispatchEvent(new CustomEvent(APEX_ASK_EVENT, { detail: { transcript, reach: "everything" } }));
+}
