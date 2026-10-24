@@ -1,5 +1,6 @@
 "use client";
 
+import { PANEL } from "@/components/ui/panel";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useMemo, useState } from "react";
 import { Users } from "lucide-react";
@@ -225,7 +226,7 @@ export function UserManagement({ initialUsers, initialCursor, currentUid, canMan
   return (
     <div className="space-y-5">
       <Tabs variant="segmented" value={roleFilter} onValueChange={setRoleFilter} items={roleTabs}>
-        <div className="overflow-hidden rounded-xl border border-[var(--f1-line)] bg-[var(--f1-carbon)]/50">
+        <div className={`overflow-hidden ${PANEL}`}>
           <div className="flex flex-col gap-4 border-b border-[var(--f1-line)] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-2">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden className="h-5 w-5 text-tertiary">
