@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog, Sheet } from "@/components/ui/Dialog";
 import { Icon } from "@/components/ui/Icon";
 import { EYEBROW } from "@/components/ui/panel";
+import { Skeleton, SkeletonGroup } from "@/components/ui/Skeleton";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { continueInApex } from "@/components/apex/askApex";
@@ -128,8 +129,9 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
     const body = await getJson<{ answer?: string; isFallback?: boolean; fallbackReason?: string }>("/api/ai/ask-apex", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // The whole site's facts, not one page's: the palette is the same everywhere.
-      body: JSON.stringify({ question: q, history: [], context: { page: "home", snapshot: {} }, scope: { key: "search", label: "Search", reach: "everything" } }),
+      // Site-wide, never the page behind the palette: no page context goes up, and the route grounds the
+      // answer in the records of whatever the question names.
+      body: JSON.stringify({ question: q, history: [], context: { page: "search" } }),
       signal: controller.signal,
     });
     if (controller.signal.aborted) return;
@@ -171,11 +173,13 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
   const showRecent = parsed.mode === "empty" && recent.length > 0;
   const groups = useMemo(() => {
     const g = groupResults(results);
-    return [...(showRecent ? [{ kind: "recent", heading: "Recent", items: recent }] : []), ...(intent.length ? [{ kind: "intent", heading: "Apex found", items: intent }] : []), ...g];
+    return [...(showRecent ? [{ kind: "recent", heading: "Recent", items: recent }] : []), ...(intent.length ? [{ kind: "intent", heading: "Closest matches", items: intent }] : []), ...g];
   }, [results, intent, recent, showRecent]);
   const canAsk = parsed.mode === "search" && query.trim().length >= 3;
   const rows: Row[] = [...(canAsk && parsed.question ? [{ type: "ask" } as const] : []), ...groups.flatMap((g) => g.items.map((result) => ({ type: "result", result }) as const)), ...(canAsk && !parsed.question ? [{ type: "ask" } as const] : [])];
   const activeIndex = Math.min(active, Math.max(rows.length - 1, 0));
+  // A source chip for a page the list already shows would say the same thing twice.
+  const listed = new Set(groups.flatMap((g) => g.items.map((r) => r.href)));
 
   const choose = (row: Row | undefined) => {
     if (!row) return;
@@ -267,13 +271,19 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
                 <Icon icon={Sparkles} size={16} /> Apex
               </p>
               <div aria-live="polite" aria-busy={answer.status === "loading"} className="mt-2 text-body-sm text-secondary">
-                {answer.status === "loading" && <p className="animate-pulse text-tertiary">Thinking about “{answer.question}”…</p>}
+                {answer.status === "loading" && (
+                  <SkeletonGroup label={`Apex is thinking about “${answer.question}”`} delay={false}>
+                    <Skeleton />
+                    <Skeleton className="w-11/12" />
+                    <Skeleton className="w-2/3" />
+                  </SkeletonGroup>
+                )}
                 {answer.status === "unavailable" && <p className="text-tertiary">{answer.message}</p>}
                 {answer.status === "done" && <p className="whitespace-pre-line text-primary">{answer.answer}</p>}
               </div>
               {answer.status === "done" && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {answer.sources.map((s) => (
+                  {answer.sources.filter((s) => !listed.has(s.href)).map((s) => (
                     <Link key={s.href} href={s.href} onClick={close} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.1] px-2.5 text-caption text-secondary transition-colors duration-fast hover:border-white/[0.2] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
                       <Icon icon={KIND_ICON[s.kind]} size={16} />
                       {s.label}
@@ -303,11 +313,20 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
 
         <div id={listId} role="listbox" aria-label="Results" className={`-mx-1 overflow-y-auto px-1 ${isPhone ? "min-h-0 flex-1" : "max-h-[min(60vh,520px)]"}`}>
           {askFirst === 1 && renderRow(rows[0], 0)}
+          {loading && groups.length === 0 && (
+            <SkeletonGroup label="Searching…" className="flex flex-col gap-1 px-3 pt-2">
+              {[0, 1, 2, 3].map((i) => (
+                <span key={i} className="flex min-h-11 items-center gap-3">
+                  <Skeleton shape="circle" className="size-8 shrink-0" />
+                  <Skeleton className="w-1/2" />
+                </span>
+              ))}
+            </SkeletonGroup>
+          )}
           {groups.map((g, gi) => (
             <div key={g.kind} role="group" aria-labelledby={`${listId}-h-${g.kind}`} className="pt-2 first:pt-0">
               <div id={`${listId}-h-${g.kind}`} role="presentation" className={`${EYEBROW} flex items-center gap-1.5 px-3 pb-1 pt-2`}>
                 {g.kind === "recent" && <Icon icon={Clock} size={16} />}
-                {g.kind === "intent" && <Icon icon={Sparkles} size={16} />}
                 {g.heading}
               </div>
               {g.items.map((result, j) => renderRow({ type: "result", result }, groupStart[gi] + j))}
@@ -317,7 +336,7 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
           {parsed.mode !== "empty" && !loading && rows.length === 0 && <p className="px-3 py-6 text-center text-body-sm text-tertiary">Nothing found.</p>}
         </div>
       </div>
-      <p className="hidden text-caption text-tertiary md:block">↑ ↓ move · Enter open · Tab ask Apex · &gt; commands · Esc close</p>
+      <p className="hidden pb-5 pt-3 text-caption text-tertiary md:block">↑ ↓ move · Enter open · Tab ask Apex · &gt; commands · Esc close</p>
       <p className="sr-only" aria-live="polite">
         {parsed.mode !== "empty" && !loading ? `${rows.length} result${rows.length === 1 ? "" : "s"}` : ""}
       </p>
@@ -345,8 +364,11 @@ function ResultRow({ result: r }: { result: SearchResult }) {
       <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-control bg-white/[0.04] text-secondary">
         {r.person ? (
           <PersonAvatar id={r.person.id} avatar={r.person.avatar} size={32} />
-        ) : r.image ? (
-          <EntityAvatar imageUrl={r.image} name={r.label} size={32} shape={r.kind === "team" ? "square" : "circle"} fit={r.kind === "team" ? "contain" : "cover"} />
+        ) : r.image || r.kind === "driver" ? (
+          // A driver with no headshot gets their initials, ringed in their team's colour, not a generic person icon.
+          <span className="rounded-full" style={!r.image && r.color ? { boxShadow: `0 0 0 2px ${r.color}` } : undefined}>
+            <EntityAvatar imageUrl={r.image ?? null} name={r.label.replace(/ in \d{4}$/, "")} size={r.image ? 32 : 28} shape={r.kind === "team" ? "square" : "circle"} fit={r.kind === "team" ? "contain" : "cover"} />
+          </span>
         ) : r.shape ? (
           <svg viewBox={r.shape.viewBox} className="size-6" aria-hidden>
             <path d={r.shape.path} fill="none" stroke="currentColor" strokeWidth={36} strokeLinejoin="round" />
