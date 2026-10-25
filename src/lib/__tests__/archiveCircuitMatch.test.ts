@@ -38,4 +38,19 @@ describe("findArchiveCircuitByLocation", () => {
   it("finds nothing for a locality the archive doesn't have", () => {
     assert.equal(find(circuits, "Las Vegas", "United States"), null);
   });
+
+  it("never matches a venue retired decades ago: the 2026 Spanish GP in Madrid is not Jarama", () => {
+    const dated = [{ ...circuit("jarama", "Madrid", "Spain"), lastYear: 1981 }, { ...circuit("monza", "Monza", "Italy"), lastYear: 2025 }] as ArchiveCircuit[];
+    assert.equal(find(dated, "Madrid", "Spain"), null);
+    assert.equal(find(dated, "Monza", "Italy")?.circuitId, "monza");
+  });
+
+  it("settles a city with old and current venues on the current one", () => {
+    const dated = [
+      { ...circuit("pedralbes", "Barcelona", "Spain"), lastYear: 1954 },
+      { ...circuit("montjuic", "Barcelona", "Spain"), lastYear: 2010 },
+      { ...circuit("catalunya", "Barcelona", "Spain"), lastYear: 2025 },
+    ] as ArchiveCircuit[];
+    assert.equal(find(dated, "Barcelona", "Spain")?.circuitId, "catalunya");
+  });
 });

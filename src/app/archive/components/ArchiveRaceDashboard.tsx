@@ -10,6 +10,7 @@ import { RaceResultsTable, type RaceResultRow } from "@/components/raceDetail/Ra
 import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
+import type { WinnerMediaByYear } from "@/components/raceDetail/GrandPrixHistorySection";
 import { RaceCommunitiesSection } from "@/components/raceDetail/RaceCommunitiesSection";
 import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import { RaceStorySection } from "@/components/raceDetail/RaceStorySection";
@@ -29,7 +30,6 @@ import { useArchiveLaps } from "../_hooks/useArchiveLaps";
 import { SimulationPanel } from "@/components/race/SimulationPanel";
 import { PositionChangesPanel, type PositionChangeEntry } from "@/components/raceDetail/PositionChangesPanel";
 import type { LapChartResultEntry } from "@/components/raceDetail/LapChart";
-import type { RaceTrackStory } from "@/lib/raceTrackStory";
 import type { CircuitLayout } from "@/lib/circuitLayout";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
@@ -92,9 +92,9 @@ export function ArchiveRaceDashboard({
   simulation,
   trackHistory,
   circuitTimeline,
+  eventHistory,
   ageRecords,
   raceCommunities,
-  trackStory = null,
   layout = null,
   practice = null,
   liveQualifying = [],
@@ -109,11 +109,11 @@ export function ArchiveRaceDashboard({
   // keeps the winner per year - see circuitIntelligence.ts's own comment on computeMostPodiums).
   trackHistory: { liveRaces: RaceDoc[]; archiveRaces: ArchiveRaceDoc[] };
   circuitTimeline: CircuitYearRecord[];
+  /** Every running of this Grand Prix by name, across its venues, and the winners' headshots by year. */
+  eventHistory?: { timeline: CircuitYearRecord[]; media: WinnerMediaByYear };
   ageRecords: AgeRecords;
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
-  // The real circuit and where the lead changed (race_track_stories); null -> the storyline's fallback route.
-  trackStory?: RaceTrackStory | null;
-  // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
+  // The track library's layout for this circuit and season (circuit_layouts), drawn on the circuit card.
   layout?: CircuitLayout | null;
   // From the season pipeline's `races` row (2018 on): the archive tables have no practice at all, and a few
   // races' archive qualifying has no times (2025 Miami). Absent before 2018.
@@ -348,7 +348,7 @@ export function ArchiveRaceDashboard({
                 {hasLapChart && (
                   <div id="lap-chart" className={hasQualifying || hasStrategy ? "mt-6 border-t border-[var(--f1-line)] pt-6" : ""}>
                     <RaceSubSection label="Lap by lap" description="Race position on every lap." first>
-                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} layout={layout} />
+                      <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
                     </RaceSubSection>
                   </div>
                 )}
@@ -403,12 +403,14 @@ export function ArchiveRaceDashboard({
       {/* Only once a real community has actually opened a prediction for THIS race - see
           SeasonRaceDashboard's own comment on why the general "communities to join" discovery
           fallback is omitted entirely here rather than shown as a lower-value substitute. */}
-      {raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} />}
+      {raceCommunities.mode === "predicting" && <RaceCommunitiesSection communities={raceCommunities.communities} completed />}
       <RegionBoundary label="the race history">
       <RaceHistorySection
         raceName={race.raceName}
         circuitName={race.circuitName ?? race.locality ?? race.raceName}
         timeline={circuitTimeline}
+        eventTimeline={eventHistory?.timeline}
+        winnerMedia={eventHistory?.media}
         liveRaces={trackHistory.liveRaces}
         archiveRaces={trackHistory.archiveRaces}
         ageRecords={ageRecords}

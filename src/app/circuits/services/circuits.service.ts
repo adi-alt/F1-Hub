@@ -123,7 +123,7 @@ export type WinnerMedia = { photoUrl: string | null; href: string | null };
  * winner regardless of era, not two different link targets. Prefers the current roster's own
  * headshot over the archive photo when both exist (more likely to be current), falls back to the
  * archive one otherwise - null, never a broken image, when neither source has one. */
-async function buildWinnerMedia(timeline: CircuitYearRecord[]): Promise<Map<number, WinnerMedia>> {
+export async function buildWinnerMedia(timeline: CircuitYearRecord[]): Promise<Map<number, WinnerMedia>> {
   const withWinner = timeline.filter((r) => r.winnerDriver);
   if (withWinner.length === 0) return new Map();
 

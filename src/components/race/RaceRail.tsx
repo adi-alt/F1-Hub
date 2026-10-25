@@ -1,10 +1,7 @@
 import Link from "next/link";
-import { EntityAvatar } from "@/components/EntityAvatar";
 import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Surface } from "@/components/ui/Surface";
 import { tiltProps } from "@/components/motion/useTilt";
-import { groupHref } from "@/lib/routes";
-import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import type { PredictionAccuracy } from "@/lib/predictionAccuracy";
 
@@ -73,47 +70,5 @@ export function ModelVerdict({ accuracy, nameOf }: { accuracy: PredictionAccurac
       <Row label="Average position error" value={accuracy.positionMAE.toFixed(1)} />
       {accuracy.reconstructed && <ProvenanceLine className="mt-2" source="Prediction rebuilt after the race" status="not frozen beforehand" />}
     </Block>
-  );
-}
-
-function Communities({ communities }: { communities: RaceCommunityCard[] }) {
-  if (communities.length === 0) return null;
-  return (
-    <Block title="Communities on this race">
-      <ul className="space-y-1">
-        {communities.slice(0, 3).map((c) => (
-          <li key={c.groupId}>
-            <Link
-              href={c.prediction ? `${groupHref(c.groupId)}&tab=predictions` : groupHref(c.groupId)}
-              className="-mx-2 flex items-center gap-3 rounded-control px-2 py-2 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              <EntityAvatar imageUrl={c.avatarUrl} name={c.name} seed={c.groupId} size={28} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-body-sm font-medium text-primary">{c.name}</span>
-                <span className="block text-caption text-secondary">
-                  {c.prediction ? `${c.prediction.entryCount} ${c.prediction.entryCount === 1 ? "entry" : "entries"}` : `${c.memberCount} members`}
-                </span>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Block>
-  );
-}
-
-/**
- * The race page's rail (spec §3.4): the communities predicting the race. Conditions sit in the banner
- * (RaceBannerStats). Your record here and how
- * the model did live in the race banner's ⋯ menu (RaceMoreMenu); the countdown and the winner in the header.
- */
-export function RaceRail({ communities }: { communities: RaceCommunityCard[] }) {
-  if (communities.length === 0) return null;
-  return (
-    // One compact row in the page's own column (the owner asked for no right-hand rail): up to three short
-    // blocks side by side from sm, stacked on a phone.
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <Communities communities={communities} />
-    </div>
   );
 }

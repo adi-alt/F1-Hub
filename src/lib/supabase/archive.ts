@@ -590,10 +590,20 @@ export const getAllArchiveCircuits = unstable_cache(
  * "Australia" -> albert_park, "Shanghai"/"China" -> shanghai. Returns null (no image, not a
  * fabricated guess) for anything that doesn't confidently match - a new or renamed venue the
  * archive hasn't reached yet, for example. */
+const RETIRED_AFTER_YEARS = 20;
+
 export function findArchiveCircuitByLocation(circuits: ArchiveCircuit[], locality: string, country?: string | null): ArchiveCircuit | null {
   const loc = locality.trim().toLowerCase();
   const ctry = country?.trim().toLowerCase();
-  const sameLocality = circuits.filter((c) => c.locality?.trim().toLowerCase() === loc);
+  // A venue retired decades ago is not today's race in the same city: the 2026 Spanish Grand Prix runs at the new
+  // Madrid street circuit, and matching Jarama (Madrid, last used 1981) gave it Jarama's map and history. A circuit
+  // whose last race is more than RETIRED_AFTER_YEARS before the archive's latest is never a match.
+  const latest = Math.max(0, ...circuits.map((c) => c.lastYear ?? 0));
+  const sameLocality = circuits
+    .filter((c) => c.locality?.trim().toLowerCase() === loc)
+    .filter((c) => c.lastYear == null || latest - c.lastYear <= RETIRED_AFTER_YEARS)
+    // Most recently used first, so a city with an old and a current venue settles on the current one.
+    .sort((a, b) => (b.lastYear ?? 0) - (a.lastYear ?? 0));
   const exact = sameLocality.find((c) => !ctry || c.country?.trim().toLowerCase() === ctry);
   if (exact) return exact;
   // The event's country is not always the venue's: the 2026 Bahrain Grand Prix was run at Sepang, so the race
@@ -613,6 +623,18 @@ export const getArchiveRacesByCircuitId = unstable_cache(
     return withSprints(((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc));
   },
   ["get-archive-races-by-circuit"],
+  { revalidate: false, tags: [ARCHIVE_TAG] },
+);
+
+/** Every running of one Grand Prix by its name, across every circuit it has used (the Spanish Grand Prix at
+ * Pedralbes, Jarama, Montjuic, Jerez and Barcelona), oldest first: an event's history follows the event. */
+export const getArchiveRacesByName = unstable_cache(
+  async (raceName: string): Promise<ArchiveRaceDoc[]> => {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("archive_races").select(ARCHIVE_RACE_SELECT).eq("race_name", raceName).order("year"));
+    if (error) throw new Error(`getArchiveRacesByName(${raceName}): ${error.message}`);
+    return withSprints(((data ?? []) as ArchiveRaceRow[]).map(toArchiveRaceDoc));
+  },
+  ["get-archive-races-by-name"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 

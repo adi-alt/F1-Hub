@@ -28,7 +28,7 @@ export function RacePredictionReview({ review, race }: { review: PredictionRevie
         <p className="text-caption font-semibold uppercase tracking-[0.16em] text-tertiary">Predicted vs actual</p>
         <p className="text-caption text-tertiary">
           from the {review.source === "simulation" ? "race simulation" : "finishing-order model"}, frozen before the race ·{" "}
-          <span className="text-neutral-400">
+          <span className="text-secondary">
             {correctCount} of {review.lines.length} correct
           </span>
         </p>
@@ -63,12 +63,12 @@ export function RacePredictionReview({ review, race }: { review: PredictionRevie
           const v = VERDICT[line.verdict];
           return (
             <div key={line.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
-              <p className="text-xs font-medium text-neutral-300">{line.label}</p>
+              <p className="text-caption font-medium text-primary">{line.label}</p>
               <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-end gap-x-4 gap-y-0.5 text-caption">
                 <p className="truncate text-tertiary">
                   <span className="text-tertiary">predicted</span> {line.predicted}
                 </p>
-                <p className="truncate text-neutral-300">
+                <p className="truncate text-primary">
                   <span className="text-tertiary">actual</span> {line.actual}
                 </p>
                 <p className={`shrink-0 font-semibold ${v.className}`}>
@@ -98,9 +98,9 @@ function Column({
       <p className="text-caption font-semibold uppercase tracking-[0.14em] text-tertiary">{heading}</p>
       <ol className="mt-1.5 space-y-1">
         {rows.map((r) => (
-          <li key={`${r.position}-${r.name}`} className="flex items-baseline gap-2 text-sm">
+          <li key={`${r.position}-${r.name}`} className="flex items-baseline gap-2 text-body-sm">
             <span className="w-5 shrink-0 font-mono text-caption tabular-nums text-tertiary">P{r.position}</span>
-            <span className={`min-w-0 truncate ${muted ? "text-neutral-400" : "text-neutral-200"}`}>{r.name}</span>
+            <span className={`min-w-0 truncate ${muted ? "text-secondary" : "text-primary"}`}>{r.name}</span>
             {/* A tick marks a driver who appears on both sides. It is never the only signal -
                 the two columns are labelled, and the verdict rows below state the outcome. */}
             {r.hit && (

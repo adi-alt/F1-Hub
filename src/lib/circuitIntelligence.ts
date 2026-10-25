@@ -59,6 +59,9 @@ export type CircuitYearRecord = {
    * history" apart instead of silently crediting one event's record to a different one that just
    * happens to share a track. */
   raceName: string | null;
+  /** Where this year's race was run: the archive's circuit name, or the live row's locality for a year the archive
+   * doesn't have yet. What an event's history needs when the event has moved between venues. */
+  venue?: string | null;
   /** This year's own real race date (ISO) - what an age-on-race-day calculation (youngest/oldest
    * winner or pole-sitter) needs; a birth year and a race year alone are off by up to a full year
    * either way. */
@@ -119,6 +122,7 @@ function fromLiveRace(race: RaceDoc): CircuitYearRecord | null {
     dryRace: race.weather ? !race.weather.rainfall : null,
     avgTempC: race.weather?.airTempC ?? null,
     raceName: race.name,
+    venue: race.circuit,
     raceDateIso: race.raceDate ?? null,
     fastestLapSec: fastestLapRow?.fastestLapSec ?? null,
     fastestLapDriver: fastestLapRow?.driverName ?? null,
@@ -160,6 +164,7 @@ function fromArchiveRace(race: ArchiveRaceDoc): CircuitYearRecord | null {
     dryRace: race.weather ? race.weather.precipitationMm <= 0 : null,
     avgTempC: race.weather ? (race.weather.tempMaxC + race.weather.tempMinC) / 2 : null,
     raceName: race.raceName,
+    venue: race.circuitName ?? null,
     raceDateIso: race.raceDate,
     fastestLapSec,
     fastestLapDriver: fastestLapRow?.driverName ?? null,
@@ -189,7 +194,8 @@ export function buildCircuitTimeline(liveRaces: RaceDoc[], archiveRaces: Archive
   }
   for (const race of liveRaces) {
     const record = fromLiveRace(race);
-    if (record) byYear.set(record.year, record);
+    // The archive's full circuit name reads better than the live row's locality for the same year.
+    if (record) byYear.set(record.year, { ...record, venue: byYear.get(record.year)?.venue ?? record.venue });
   }
   return [...byYear.values()].sort((a, b) => b.year - a.year);
 }

@@ -64,8 +64,8 @@ export function RaceApexTake({ season, round }: { season: number; round: number 
   return (
     <motion.section initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}>
       <Eyebrow>Apex event take</Eyebrow>
-      <p className="mt-1.5 text-[15px] font-semibold leading-snug text-white">{take.headline}</p>
-      <p className="mt-1 text-sm leading-relaxed text-neutral-400">{take.summary}</p>
+      <p className="mt-3 text-body font-semibold text-primary">{take.headline}</p>
+      <p className="mt-1 text-body-sm text-secondary">{take.summary}</p>
     </motion.section>
   );
 }

@@ -10,11 +10,10 @@ import type { QualifyingStageRow } from "@/lib/supabase/races";
 import type { SessionKey, WeekendSession } from "@/lib/weekendSessions";
 import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
-import type { RaceTrackStory } from "@/lib/raceTrackStory";
-import type { CircuitLayout } from "@/lib/circuitLayout";
 import { ApexTrackBriefing } from "@/components/raceDetail/ApexTrackBriefing";
 import { RaceApexScope } from "@/components/raceDetail/RaceApexScope";
 import { RaceHistorySection } from "@/components/raceDetail/RaceHistorySection";
+import type { WinnerMediaByYear } from "@/components/raceDetail/GrandPrixHistorySection";
 import { RaceCommunitiesSection } from "@/components/raceDetail/RaceCommunitiesSection";
 import type { RaceCommunityCard } from "@/lib/groupPredictionTypes";
 import type { CircuitYearRecord } from "@/lib/circuitIntelligence";
@@ -25,9 +24,9 @@ import { RaceSubSection } from "@/components/raceDetail/RaceSubSection";
 import { useScrollToSection } from "@/hooks/useScrollToSection";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { raceWeekendPhase } from "@/lib/raceWeekendPhase";
-import type { RaceWeekendScores } from "@/lib/raceWeekendScores";
+import type { podiumCalls, RaceWeekendScores } from "@/lib/raceWeekendScores";
 import { RegionBoundary } from "@/components/ui/RegionBoundary";
-import { RaceGrid, RaceLiveNow, RacePickSection, RaceWeekendScoresSection, type PickSlot } from "./RaceWeekendLead";
+import { RaceGrid, RaceLiveNow, RacePickSection, YourPickResult, type PickSlot } from "./RaceWeekendLead";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
 import { teamColor } from "@/lib/teamColors";
 import type { RaceDoc } from "@/lib/types/race";
@@ -35,7 +34,6 @@ import { InViewMount } from "@/components/motion/InViewMount";
 import { ModelInfo } from "./ModelInfo";
 import { ModelOutlook } from "./ModelOutlook";
 import { RaceClassification } from "./RaceClassification";
-import { RaceRail } from "./RaceRail";
 import { RaceReadiness } from "@/components/home/RaceReadiness";
 import { PoleSection } from "./PoleSection";
 import { PracticeSummary } from "./PracticeSummary";
@@ -52,19 +50,18 @@ const QualifyingGapChart = dynamic(() => import("./QualifyingGapChart").then((m)
 const LapChart = dynamic(() => import("@/components/raceDetail/LapChart").then((m) => m.LapChart), { ssr: false, loading: () => <div className="skeleton-shimmer h-64 w-full rounded-card bg-surface-2" /> });
 
 /** The season race page, as a story that follows the race's phase (spec §3.1). Before the race: the weekend's
- * schedule, what the model expects, the preview, then history. After it: the result first, the analysis, the race story, then history. One rail beside it with at most three blocks
- * (RaceRail); the countdown or the winner sits in the page header. Every section still appears only when its
+ * schedule, your pick, the communities predicting it, what the model expects, the preview, then history. After it: your
+ * pick against the result, the result, the analysis, then history. The countdown or the winner sits in the page header. Every section still appears only when its
  * data is real. */
 export function SeasonRaceDashboard({
   race,
   calendarEntry,
   trackHistory,
   circuitTimeline,
+  eventHistory,
   ageRecords,
   raceCommunities,
   photos = [],
-  trackStory = null,
-  layout = null,
   weekendSessions = [],
   initialSession = null,
   qualifyingStages = [],
@@ -73,8 +70,8 @@ export function SeasonRaceDashboard({
 }: {
   /** What the pick section needs; null for a race that can't take a pick (no real races row). */
   pick?: PickSlot | null;
-  /** After the race: your points, the community's average and the model's (raceWeekendScores). */
-  scores?: RaceWeekendScores | null;
+  /** After the race: your podium and the model's against the result, and the community's average. */
+  scores?: (RaceWeekendScores & ReturnType<typeof podiumCalls>) | null;
   /** The weekend's sessions (buildWeekendSessions) and the one to open on. */
   weekendSessions?: WeekendSession[];
   initialSession?: SessionKey | null;
@@ -92,16 +89,14 @@ export function SeasonRaceDashboard({
   // buildCircuitTimeline(trackHistory), already computed once by the caller (which also needs it
   // for ageRecords below) - not rebuilt here a second time.
   circuitTimeline: CircuitYearRecord[];
+  /** Every running of this Grand Prix by name, across its venues, and the winners' headshots by year. */
+  eventHistory?: { timeline: CircuitYearRecord[]; media: WinnerMediaByYear };
   // Real ages, resolved server-side - see circuitRecords.ts's own top comment for why (Supabase
   // access this page's other client components can't have).
   ageRecords: AgeRecords;
   raceCommunities: { mode: "predicting" | "discover"; communities: RaceCommunityCard[] };
   // Approved Wikimedia photos of this weekend (/admin/race-photos), up to four; empty -> no photo section.
   photos?: RacePhoto[];
-  // The real circuit and where the lead changed (race_track_stories); null -> the storyline's fallback route.
-  trackStory?: RaceTrackStory | null;
-  // The track library's layout for this circuit and season (circuit_layouts); drawn when there's no trackStory.
-  layout?: CircuitLayout | null;
 }) {
   const { liveRaces: trackLiveRaces = [], archiveRaces: trackArchiveRaces = [] } = trackHistory ?? {};
   useScrollToSection();
@@ -229,7 +224,7 @@ export function SeasonRaceDashboard({
           {hasLapChart && (
             <div id="lap-chart">
               <RaceSubSection label="Lap by lap" description="Race position on every lap." first={!showPracticeSlot && !showQualifyingStrategyRow}>
-                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} trackStory={trackStory} layout={layout} />
+                <LapChart laps={laps} isLoading={lapsLoading} isError={lapsError} results={lapChartResults} driverSet={driverSet} customIds={customDriverIds} />
               </RaceSubSection>
             </div>
           )}
@@ -278,10 +273,10 @@ export function SeasonRaceDashboard({
     </RegionBoundary>
   );
   const pickSection = pick && <RacePickSection race={race} pick={pick} now={now} lead={weekend.phase === "pre-quali"} />;
-  const communities = raceCommunities.mode === "predicting" && <RaceCommunitiesSection mode={raceCommunities.mode} communities={raceCommunities.communities} id="communities" />;
+  const communities = raceCommunities.mode === "predicting" && <RaceCommunitiesSection communities={raceCommunities.communities} completed={isCompleted} />;
   const history = (
     <RegionBoundary label="the race history">
-      <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
+      <RaceHistorySection raceName={race.name} circuitName={race.circuit} timeline={circuitTimeline} eventTimeline={eventHistory?.timeline} winnerMedia={eventHistory?.media} liveRaces={trackLiveRaces} archiveRaces={trackArchiveRaces} ageRecords={ageRecords} />
     </RegionBoundary>
   );
 
@@ -294,16 +289,10 @@ export function SeasonRaceDashboard({
 
         {isCompleted ? (
           <>
-            {scores && <RaceWeekendScoresSection scores={scores} />}
+            {scores && <YourPickResult race={race} yours={scores.yourCall} model={scores.modelCall} community={{ average: scores.communityAverage, count: scores.communityCount }} />}
             <RaceSectionCard id="results" title="Result" description={resultHeadline} bare>
               <RaceClassification results={race.results!} stints={race.tireStints} preliminary={preliminary} />
             </RaceSectionCard>
-
-            <section aria-label="About this race">
-              <RaceRail
-                communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
-              />
-            </section>
 
             {sessionsSection}
 
@@ -342,12 +331,7 @@ export function SeasonRaceDashboard({
 
             {sessionsSection}
             {weekend.phase === "live" && pickSection}
-
-            <section aria-label="About this race">
-              <RaceRail
-                communities={raceCommunities.mode === "predicting" ? raceCommunities.communities : []}
-              />
-            </section>
+            {communities}
 
             {weekend.phase !== "post-quali" && model}
             {analysis}
@@ -355,7 +339,6 @@ export function SeasonRaceDashboard({
             <RegionBoundary label="the preview">
               <ApexTrackBriefing location={race.circuit} year={race.year} section={{ id: "preview", title: "Preview" }} />
             </RegionBoundary>
-            {communities}
             {history}
           </>
         )}

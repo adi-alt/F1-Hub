@@ -105,7 +105,8 @@ export function RacePageHeader({
           />
           {state === "upcoming" && <AddToCalendarButton year={year} round={round} className="mt-4" />}
         </div>
-        {keyFact && <div className={`shrink-0 lg:text-end ${actions ? "lg:pr-12" : ""}`}>{keyFact}</div>}
+        {/* Clear of the ⋯ menu in the top-right corner: on a wide screen the fact sits bottom-right, under it. */}
+        {keyFact && <div className={`shrink-0 lg:text-end ${actions ? "lg:mt-14" : ""}`}>{keyFact}</div>}
       </div>
       {stats && <div className="border-t border-white/[0.08] px-5 py-5 sm:px-8">{stats}</div>}
     </div>

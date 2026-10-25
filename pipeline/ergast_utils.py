@@ -429,9 +429,11 @@ def _downscale_if_huge(content: bytes, content_type: str):
     try:
         from io import BytesIO
 
-        from PIL import Image
+        from PIL import Image, ImageOps
 
-        img = Image.open(BytesIO(content))
+        # Re-encoding drops the EXIF orientation tag, so apply it to the pixels first (a phone photo shot
+        # upright is stored sideways with a tag; without this it came out rotated 90 degrees).
+        img = ImageOps.exif_transpose(Image.open(BytesIO(content)))
         img.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
         buf = BytesIO()
         img.convert("RGB").save(buf, format="JPEG", quality=85)
@@ -594,9 +596,11 @@ def _resize_photo(content: bytes) -> bytes:
     were thousands of them. At this target, a typical photo lands in the 150-400KB range instead."""
     from io import BytesIO
 
-    from PIL import Image
+    from PIL import Image, ImageOps
 
-    img = Image.open(BytesIO(content))
+    # Honour the EXIF orientation before re-encoding: the JPEG written below carries no EXIF, so a sideways-stored
+    # phone photo (the 2026 Singapore GP's) would otherwise stay sideways.
+    img = ImageOps.exif_transpose(Image.open(BytesIO(content)))
     img.thumbnail((PHOTO_MAX_DIMENSION, PHOTO_MAX_DIMENSION))
     buf = BytesIO()
     img.convert("RGB").save(buf, format="JPEG", quality=PHOTO_JPEG_QUALITY)

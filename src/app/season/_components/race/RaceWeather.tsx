@@ -74,7 +74,7 @@ function Readings({ items }: { items: { label: string; value: string }[] }) {
       {items.map((item) => (
         <div key={item.label} className="min-w-0">
           <dt className="truncate whitespace-nowrap text-caption uppercase tracking-[0.12em] text-tertiary">{item.label}</dt>
-          <dd className="mt-0.5 font-mono text-sm tabular-nums text-neutral-200">{item.value}</dd>
+          <dd className="mt-0.5 font-mono text-body-sm tabular-nums text-primary">{item.value}</dd>
         </div>
       ))}
     </dl>

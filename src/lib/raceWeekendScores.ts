@@ -37,3 +37,13 @@ export function raceWeekendScores(race: RaceDoc, picks: readonly UserPick[], you
     max: MAX_PICK_POINTS,
   };
 }
+
+/** Your podium and the model's, each with what it scored (race page's "Your pick"). Yours is null without a pick. */
+export function podiumCalls(race: RaceDoc, yours: UserPick | null) {
+  const call = (p: Partial<UserPick> & { predictedPodium: readonly string[] }) => {
+    const s = scorePick(p, race);
+    return s.scored ? { codes: p.predictedPodium, earned: s.earned, possible: s.possible } : null;
+  };
+  const model = modelPick(race);
+  return { yourCall: yours ? call(yours) : null, modelCall: model ? call(model) : null };
+}

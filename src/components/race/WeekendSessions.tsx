@@ -17,7 +17,7 @@ const QualifyingGapChart = dynamic(() => import("@/components/race/QualifyingGap
 /**
  * The weekend, session by session, as the calendar lists it: a standard weekend's three practices, qualifying and
  * the Grand Prix, or a sprint weekend's one practice, sprint qualifying, sprint, qualifying and Grand Prix - only the
- * sessions this event actually has. It opens on the most recent session with results (see defaultSession), so after
+ * sessions this event actually has, less the Grand Prix itself, which the page's result table already covers. It opens on the most recent session with results (see defaultSession), so after
  * qualifying the page leads with qualifying. A session without results says why: still to come, under way, or run
  * with its results not in yet.
  */
@@ -49,19 +49,8 @@ export function WeekendSessions({ race, sessions, initial, stages }: { race: Rac
             preliminary={race.sprintSource === "openf1_preliminary"}
           />
         );
-      case "R": {
-        const winner = race.results?.find((r) => r.finishPosition === 1);
-        return (
-          <p className="text-body-sm text-secondary">
-            {winner ? `${winner.driverName} won. ` : ""}
-            The full classification is in{" "}
-            <a href="#results" className="text-primary underline underline-offset-4">
-              the result above
-            </a>
-            .
-          </p>
-        );
-      }
+      case "R":
+        return null;
     }
   };
 

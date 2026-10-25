@@ -27,7 +27,7 @@ test("a past race with no calendar gets tabs for every session it has results fo
   assert.equal(race.sprintResults?.[1].status, "lapped");
   assert.equal(race.sprintResults?.[0].driver, "PER");
   const sessions = weekendSessionsFor([], race, []);
-  assert.deepEqual(sessions.map((s) => s.key), ["FP1", "S", "Q", "R"]);
+  assert.deepEqual(sessions.map((s) => s.key), ["FP1", "S", "Q"]);
   assert.ok(sessions.every((s) => s.state === "completed"));
 });
 

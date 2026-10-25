@@ -41,10 +41,16 @@ export type DialogProps = {
    * more room still grows the panel.
    */
   minHeight?: string;
+  /**
+   * Caps the panel below the viewport (a CSS length, e.g. "44rem"; never taller than the viewport allows): the
+   * header and footer stay put and the body scrolls inside, with the subtle scrollbar, instead of the panel growing
+   * with its content. For a rich window like Season's race view.
+   */
+  maxHeight?: string;
 };
 
 /** A sheet has no room for an aside, and fills its edge of the screen anyway. */
-export type SheetProps = Omit<DialogProps, "aside" | "minHeight">;
+export type SheetProps = Omit<DialogProps, "aside" | "minHeight" | "maxHeight">;
 
 type Variant = "dialog" | "sheet";
 
@@ -199,6 +205,7 @@ export function DialogLayer({
   size = "md",
   aside,
   minHeight,
+  maxHeight,
 }: Omit<DialogProps, "open" | "initialFocusRef"> & { variant?: Variant; open?: boolean; panelRef?: Ref<HTMLDivElement> }) {
   const id = useId();
   const titleId = `${id}-title`;
@@ -209,6 +216,7 @@ export function DialogLayer({
   // A steady-height dialog: centred content, pinned close button. `safe` centring falls back to the
   // top when the content is taller than the panel, so nothing is pushed out of reach.
   const steady = variant === "dialog" && Boolean(minHeight);
+  const capped = variant === "dialog" && Boolean(maxHeight);
 
   const closeButton = dismissible && (
     <button type="button" aria-label="Close" onClick={() => onClose()} className={steady ? CLOSE_BUTTON_PINNED : CLOSE_BUTTON}>
@@ -235,7 +243,7 @@ export function DialogLayer({
       {/* -my-1 py-1 keeps the 16px gap but gives focus rings at the scroll edges room to show. In a
           steady dialog the body doesn't stretch, so the header and body centre together. */}
       {hasContent(children) &&
-        (variant === "dialog" && !steady && !withAside ? (
+        (variant === "dialog" && !steady && !withAside && !capped ? (
           <SmoothBody>{children}</SmoothBody>
         ) : (
           <div className={cx("scrollbar-subtle -my-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary", steady ? "flex-initial" : "flex-1")}>{children}</div>
@@ -254,7 +262,10 @@ export function DialogLayer({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         // Capped like the panel's own max height, so a short phone still gets a scrolling dialog.
-        style={steady ? { minHeight: `min(${minHeight}, calc(100dvh - 32px))` } : undefined}
+        style={{
+          ...(steady ? { minHeight: `min(${minHeight}, calc(100dvh - 32px))` } : {}),
+          ...(capped ? { maxHeight: `min(${maxHeight}, calc(100dvh - 32px))` } : {}),
+        }}
         className={cx(
           PANEL,
           withAside && PANEL_WITH_ASIDE,

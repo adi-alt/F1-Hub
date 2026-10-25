@@ -262,9 +262,10 @@ export function buildBattles(drivers: DriverStandingRow[], constructors: Constru
       h2h: raceSummaries.length > 0 ? computeHeadToHead(constructors[i].team, constructors[i + 1].team, raceSummaries, true, false) : undefined,
     });
   }
-  // Two pointless entries level on 0 aren't a battle; they would otherwise top the list with a 0 gap.
+  // A battle needs points on both sides: a scoreless driver (Bottas on 0) is not contesting anything, and two
+  // scoreless entries level on 0 would otherwise top the list with a 0 gap.
   return battles
-    .filter((b) => b.aValue > 0 || b.bValue > 0)
+    .filter((b) => b.aValue > 0 && b.bValue > 0)
     .sort((a, b) => a.gap - b.gap)
     .slice(0, 6);
 }

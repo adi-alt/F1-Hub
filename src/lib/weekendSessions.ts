@@ -63,9 +63,10 @@ export function defaultSession(sessions: WeekendSession[]): SessionKey | null {
   return (sessions.find((s) => s.state === "live") ?? sessions.find((s) => s.state === "upcoming") ?? sessions[0])?.key ?? null;
 }
 
-/** The race page's sessions, now: which have results stored decides "completed". */
+/** The race page's sessions, now: which have results stored decides "completed". The Grand Prix itself has no
+ * tab: the page's own result table (or, before the race, the weekend schedule) already covers it. */
 export function weekendSessionsFor(calendar: { label: string; date: string }[], race: RaceDoc, stages: QualifyingStageRow[], nowMs = Date.now()): WeekendSession[] {
-  return buildWeekendSessions(
+  const sessions = buildWeekendSessions(
     calendar,
     {
       FP1: !!race.practice?.FP1,
@@ -74,10 +75,10 @@ export function weekendSessionsFor(calendar: { label: string; date: string }[], 
       SQ: stages.some((r) => r.session === "SQ"),
       S: !!race.sprintResults?.length,
       Q: stages.some((r) => r.session === "Q") || !!race.inputs?.length,
-      R: race.status === "completed" && !!race.results?.length,
     },
     nowMs,
   );
+  return sessions.filter((s) => s.key !== "R");
 }
 
 /** A past season's race for its session tabs: the `races` row, with the sprint taken from the archive
