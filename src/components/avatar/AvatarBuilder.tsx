@@ -46,10 +46,11 @@ const titleCase = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
 /** One category: a labelled row of tiles, each a toggle button showing what it would look like. */
 function Row<T extends string>({ label, options, value, onPick, render, name }: { label: string; options: readonly T[]; value: T; onPick: (v: T) => void; render: (v: T) => ReactNode; name: (v: T) => string }) {
   return (
-    <fieldset>
+    <fieldset className="min-w-0">
       <legend className={EYEBROW}>{label}</legend>
-      {/* One line per category that scrolls sideways (no visible bar), so the builder stays short enough to fit a dialog. p-1 leaves room for the selected ring. */}
-      <div className="scrollbar-hide -mx-1 mt-1 flex gap-2 overflow-x-auto p-1">
+      {/* One line per category that scrolls sideways (no visible bar), so the builder stays short enough to fit a dialog;
+          in the wide layout the tiles are smaller and wrap instead. p-1 leaves room for the selected ring. */}
+      <div className="scrollbar-hide -mx-1 mt-1 flex gap-2 overflow-x-auto p-1 group-data-[wide]/builder:flex-wrap group-data-[wide]/builder:gap-1.5 group-data-[wide]/builder:overflow-visible">
         {options.map((option) => (
           <button key={option} type="button" aria-pressed={option === value} aria-label={name(option)} title={name(option)} onClick={() => onPick(option)} className={`${TILE} ${option === value ? SELECTED : IDLE}`}>
             {render(option)}
@@ -60,21 +61,23 @@ function Row<T extends string>({ label, options, value, onPick, render, name }: 
   );
 }
 
-const swatch = (colour: string) => <span className="block size-8 rounded-full" style={{ background: colour }} />;
+const swatch = (colour: string) => <span className="block size-8 rounded-full group-data-[wide]/builder:size-7" style={{ background: colour }} />;
+/** Option previews: 48px in the stacked builder, 40px in the wide one. */
+const tile = (node: ReactNode) => <span className="block size-12 group-data-[wide]/builder:size-10 [&>svg]:size-full">{node}</span>;
 
 function HelmetRows({ h, set }: { h: HelmetAvatar; set: (next: HelmetAvatar) => void }) {
-  const preview = (patch: Partial<HelmetAvatar>) => <AvatarSvg avatar={{ ...h, ...patch }} size={48} />;
+  const preview = (patch: Partial<HelmetAvatar>) => tile(<AvatarSvg avatar={{ ...h, ...patch }} size={48} />);
   return (
     <>
       <Row label="Shape" options={HELMET_SHAPES} value={h.shape} onPick={(shape) => set({ ...h, shape })} render={(shape) => preview({ shape })} name={titleCase} />
+      <Row label="Pattern" options={HELMET_PATTERNS} value={h.pattern} onPick={(pattern) => set({ ...h, pattern })} render={(pattern) => preview({ pattern })} name={titleCase} />
       <Row label="Base colour" options={PALETTE} value={h.base} onPick={(base) => set({ ...h, base })} render={swatch} name={(c) => `Base ${c}`} />
       <Row label="Accent one" options={PALETTE} value={h.accent1} onPick={(accent1) => set({ ...h, accent1 })} render={swatch} name={(c) => `Accent one ${c}`} />
       <Row label="Accent two" options={PALETTE} value={h.accent2} onPick={(accent2) => set({ ...h, accent2 })} render={swatch} name={(c) => `Accent two ${c}`} />
-      <Row label="Pattern" options={HELMET_PATTERNS} value={h.pattern} onPick={(pattern) => set({ ...h, pattern })} render={(pattern) => preview({ pattern })} name={titleCase} />
       <Row label="Visor" options={VISORS} value={h.visor} onPick={(visor) => set({ ...h, visor })} render={swatch} name={(c) => `Visor ${c}`} />
       <TextInput
-        label="Racing number"
-        hint="0 to 99."
+        label="Racing number (0 to 99)"
+        className="w-44"
         type="number"
         inputMode="numeric"
         min={0}
@@ -90,7 +93,7 @@ function HelmetRows({ h, set }: { h: HelmetAvatar; set: (next: HelmetAvatar) => 
 }
 
 function FaceRows({ f, set }: { f: FaceAvatar; set: (next: FaceAvatar) => void }) {
-  const preview = (patch: Partial<FaceAvatar>) => <AvatarSvg avatar={{ ...f, ...patch }} size={48} />;
+  const preview = (patch: Partial<FaceAvatar>) => tile(<AvatarSvg avatar={{ ...f, ...patch }} size={48} />);
   return (
     <>
       <Row label="Face" options={FACE_SHAPES} value={f.face} onPick={(face) => set({ ...f, face })} render={(face) => preview({ face })} name={titleCase} />
@@ -112,7 +115,19 @@ function FaceRows({ f, set }: { f: FaceAvatar; set: (next: FaceAvatar) => void }
  * Saves to PATCH /api/users/me and updates the header's copy; `onDone` runs after a save. `secondary` sits beside
  * Save (Skip during sign-up, Cancel in Settings).
  */
-export function AvatarBuilder({ onDone, secondary, saveLabel = "Save avatar" }: { onDone?: () => void; secondary?: ReactNode; saveLabel?: string }) {
+export function AvatarBuilder({
+  onDone,
+  secondary,
+  saveLabel = "Save avatar",
+  layout = "stacked",
+}: {
+  onDone?: () => void;
+  secondary?: ReactNode;
+  saveLabel?: string;
+  /** "wide": preview and Randomise on the left, every option on the right in two columns, so the whole editor fits a
+   * 900px-tall screen without scrolling (Settings' dialog). Below md it falls back to the stacked layout. */
+  layout?: "stacked" | "wide";
+}) {
   const { user, avatar, setAvatar } = useAuth();
   const uid = user?.uid ?? "";
   const start = avatar ?? defaultAvatar(uid);
@@ -138,37 +153,69 @@ export function AvatarBuilder({ onDone, secondary, saveLabel = "Save avatar" }: 
     }
   }
 
+  const wide = layout === "wide";
+  const randomise = () => (style === "helmet" ? setHelmet(randomAvatar("helmet") as HelmetAvatar) : setFace(randomAvatar("face") as FaceAvatar));
+  const preview = (
+    <motion.div key={JSON.stringify(current)} initial={{ scale: 0.96, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.18 }}>
+      {wide ? (
+        <span className="block size-28 md:size-40 [&>svg]:size-full">
+          <AvatarSvg avatar={current} size={160} />
+        </span>
+      ) : (
+        <AvatarSvg avatar={current} size={96} />
+      )}
+    </motion.div>
+  );
+  const footer = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {error && (
+        <p role="alert" className="mr-auto text-caption text-danger">
+          {error}
+        </p>
+      )}
+      {secondary}
+      <Button variant="primary" size="sm" loading={saving} onClick={() => void save()}>
+        {saveLabel}
+      </Button>
+    </div>
+  );
+  const rows = style === "helmet" ? <HelmetRows h={helmet} set={setHelmet} /> : <FaceRows f={face} set={setFace} />;
+
+  if (wide) {
+    return (
+      <div data-wide="" className="group/builder space-y-5">
+        <Tabs variant="segmented" value={style} onValueChange={setStyle} items={STYLES}>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8">
+            <div className="flex flex-col items-center gap-4 md:border-r md:border-white/[0.06] md:pr-8">
+              <TabList aria-label="Avatar style" className="flex w-fit" />
+              {preview}
+              <Button variant="secondary" size="sm" iconStart={Shuffle} onClick={randomise}>
+                Randomise
+              </Button>
+              <p className="text-center text-caption text-tertiary">Every option is free. You can change it any time.</p>
+            </div>
+            <TabPanels className="grid grid-cols-1 content-start gap-x-8 gap-y-4 lg:grid-cols-2">{rows}</TabPanels>
+          </div>
+        </Tabs>
+        {footer}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-center gap-4">
-        <motion.div key={JSON.stringify(current)} initial={{ scale: 0.96, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.18 }}>
-          <AvatarSvg avatar={current} size={96} />
-        </motion.div>
-        <Button
-          variant="ghost"
-          size="sm"
-          iconStart={Shuffle}
-          onClick={() => (style === "helmet" ? setHelmet(randomAvatar("helmet") as HelmetAvatar) : setFace(randomAvatar("face") as FaceAvatar))}
-        >
+        {preview}
+        <Button variant="ghost" size="sm" iconStart={Shuffle} onClick={randomise}>
           Randomise
         </Button>
       </div>
       <Tabs variant="segmented" value={style} onValueChange={setStyle} items={STYLES}>
         <TabList aria-label="Avatar style" className="mx-auto flex w-fit" />
-        <TabPanels className="mt-4 space-y-3">{style === "helmet" ? <HelmetRows h={helmet} set={setHelmet} /> : <FaceRows f={face} set={setFace} />}</TabPanels>
+        <TabPanels className="mt-4 space-y-3">{rows}</TabPanels>
       </Tabs>
       <p className="text-caption text-tertiary">Every option is free. You can change it any time in Settings.</p>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {error && (
-          <p role="alert" className="mr-auto text-caption text-danger">
-            {error}
-          </p>
-        )}
-        {secondary}
-        <Button variant="primary" size="sm" loading={saving} onClick={() => void save()}>
-          {saveLabel}
-        </Button>
-      </div>
+      {footer}
     </div>
   );
 }

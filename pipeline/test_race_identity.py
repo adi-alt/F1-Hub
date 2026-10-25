@@ -125,6 +125,10 @@ assert all(set(v) >= {"location", "reason"} for v in VENUE_OVERRIDES.values())
 assert all(set(v) >= {"location", "previous", "kind", "reason"} for v in REVIEWED_VENUE_CHANGES.values())
 # A reviewed change and a correction for the same event would contradict each other.
 assert not set(REVIEWED_VENUE_CHANGES) & set(VENUE_OVERRIDES)
+from race_identity import venue_country
+assert venue_country(2026, "Bahrain Grand Prix", "Bahrain") == "Malaysia"
+assert venue_country(2025, "Bahrain Grand Prix", "Bahrain") == "Bahrain"
+assert venue_country(2026, "United States Grand Prix", "United States") == "United States"
 print("corrected_location: all checks passed")
 
 

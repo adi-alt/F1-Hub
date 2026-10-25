@@ -50,7 +50,7 @@ import jolpica
 from openf1_fallback import fetch_practice_openf1, fetch_qualifying_openf1, fetch_race_openf1, fetch_sprint_openf1
 from run_ledger import ledgered
 from qualifying_sessions import qualifying_result_rows, stages_for_round
-from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify
+from race_identity import RaceIdentityConflict, corrected_location, resolve_race_id, slugify, venue_country
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -799,7 +799,7 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
         # Same reviewed override sync_calendar.py applies (race_identity.VENUE_OVERRIDES), so a
         # races row can never be written with a location known to be wrong upstream.
         "circuit": corrected_location(year, event_name, str(calendar_event["Location"])),
-        "country": str(calendar_event["Country"]),
+        "country": venue_country(year, event_name, str(calendar_event["Country"])),
         "race_date": calendar_event["EventDate"].strftime("%Y-%m-%d"),
         "status": "completed" if (race or keep_old_race) else ("upcoming" if qualifying else "scheduled"),
         "practice": json.dumps(merged_practice) if merged_practice else None,

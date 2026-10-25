@@ -13,7 +13,7 @@ import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 
 // The panel's frosted look - a real translucent dark glass (~50% tint, not glass-surface's ~93-95% opaque gradient,
 // which reads as a flat zinc slab at this size) plus a strong blur+saturate so blurred page colour shows through. The
-// caret copies every one of these through CSS `inherit`, so panel and caret always read as one surface.
+// caret uses this same style object, so panel and caret always read as one surface.
 const FROSTED_STYLE = {
   backgroundColor: "rgba(22, 22, 26, 0.5)",
   backdropFilter: "blur(32px) saturate(160%)",
@@ -121,20 +121,6 @@ export function HeaderPanel({
             className="relative rounded-xl border shadow-2xl shadow-black/50"
             style={FROSTED_STYLE}
           >
-            {/* A rotated square with only its outer two edges bordered, clipped to the half above the panel (plus a
-                sliver that covers the panel's own top edge), so no border runs inside the caret. */}
-            <div
-              aria-hidden
-              className="absolute -top-[7px] size-3.5 rotate-45 rounded-tl-[2px] border-l border-t"
-              style={{
-                right: place.caretRight,
-                clipPath: "polygon(0 0, 100% 0, 100% 15%, 15% 100%, 0 100%)",
-                backgroundColor: "inherit",
-                backdropFilter: "inherit",
-                WebkitBackdropFilter: "inherit",
-                borderColor: "inherit",
-              }}
-            />
             <div
               className="relative flex flex-col overflow-hidden rounded-xl"
               style={{ maxHeight: `calc(100dvh - ${place.top + GAP}px)` }}
@@ -142,6 +128,20 @@ export function HeaderPanel({
               {children}
             </div>
           </div>
+          {/* A rotated square with only its outer two edges bordered, clipped to the half above the panel (plus a
+              sliver over the panel's top border, so that line doesn't run through the caret's base). A sibling of the
+              panel, not its child: an element with a backdrop-filter is a backdrop root, so a caret inside the panel
+              could only blur the panel itself and would show the page above it unfrosted. Same fill, blur and edge. */}
+          <div
+            aria-hidden
+            className="absolute -top-[7px] size-3.5 rotate-45 rounded-tl-[2px] border-l border-t"
+            style={{
+              // +1: measured from the panel's outer edge now, not inside its 1px border.
+              right: place.caretRight + 1,
+              clipPath: "polygon(0 0, 100% 0, 100% 15%, 15% 100%, 0 100%)",
+              ...FROSTED_STYLE,
+            }}
+          />
         </motion.div>
       )}
     </AnimatePresence>,

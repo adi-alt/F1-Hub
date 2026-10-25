@@ -9,10 +9,10 @@ type Stat = { label: string; value: React.ReactNode; detail?: string };
 
 /**
  * The race in a handful of figures, along the bottom of the race banner: pole, fastest lap, biggest climb,
- * retirements and the conditions after the race; the forecast before it. Each figure appears only when it is
- * real, and the strip is not rendered at all when none is.
+ * retirements and the conditions after the race. Each figure appears only when it is real, and the strip is not
+ * rendered at all when none is. Before the race the forecast sits beside the countdown instead (RaceForecastChips).
  */
-export function RaceBannerStats({ race, highlights, forecast }: { race: RaceDoc; highlights: RaceHighlights | null; forecast?: WeatherForecast | null }) {
+export function RaceBannerStats({ race, highlights }: { race: RaceDoc; highlights: RaceHighlights | null }) {
   const names = new Map([...(race.inputs ?? []), ...(race.results ?? [])].map((d) => [d.driver, d.driverName]));
   const nameOf = (code: string) => names.get(code) ?? code;
   const completed = race.status === "completed" && !!race.results;
@@ -36,17 +36,6 @@ export function RaceBannerStats({ race, highlights, forecast }: { race: RaceDoc;
       ),
       detail: `Track ${Math.round(w.trackTempC)}°C · Humidity ${Math.round(w.humidityPct)}%`,
     });
-  } else if (!completed && forecast) {
-    stats.push({
-      label: forecast.source === "openweathermap" ? "Race-day forecast" : "Typical weather",
-      value: (
-        <span className="inline-flex items-center gap-1.5">
-          <Icon icon={forecast.rainProbability >= 0.4 ? CloudRain : Sun} size={16} className="text-secondary" />
-          {Math.round(forecast.airTempC)}°C
-        </span>
-      ),
-      detail: `${Math.round(forecast.rainProbability * 100)}% chance of rain`,
-    });
   }
   if (stats.length === 0) return null;
 
@@ -60,5 +49,22 @@ export function RaceBannerStats({ race, highlights, forecast }: { race: RaceDoc;
         </div>
       ))}
     </dl>
+  );
+}
+
+const CHIP = "inline-flex h-7 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 text-caption tabular text-secondary";
+
+/** Race-day weather as a compact chip row, under the countdown in the race header (before the race only). */
+export function RaceForecastChips({ forecast, className }: { forecast: WeatherForecast; className?: string }) {
+  const wet = forecast.rainProbability >= 0.4;
+  return (
+    <div className={`flex flex-wrap items-center gap-2 lg:justify-end ${className ?? ""}`}>
+      <span className="text-caption text-tertiary">{forecast.source === "openweathermap" ? "Race-day forecast" : "Typical weather"}</span>
+      <span className={CHIP}>
+        <Icon icon={wet ? CloudRain : Sun} size={16} className="text-secondary" />
+        <span className="text-primary">{Math.round(forecast.airTempC)}°C</span>
+      </span>
+      <span className={CHIP}>{Math.round(forecast.rainProbability * 100)}% chance of rain</span>
+    </div>
   );
 }
