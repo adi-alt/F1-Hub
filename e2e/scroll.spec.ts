@@ -27,7 +27,7 @@ test.describe("native document scroll", () => {
       expect(state.htmlOverflow).not.toBe("hidden");
       // The communities home on a wide window is the social layout: a fixed-height three-column grid whose feed
       // column scrolls on its own, by design. Its page-level checks above still apply.
-      const ownScroller = route.includes("section=communities") && (page.viewportSize()?.width ?? 0) >= 1024;
+      const ownScroller = route.startsWith("/communities") && (page.viewportSize()?.width ?? 0) >= 1024;
       if (!ownScroller) expect(state.scrolls, "the page is taller than the window, so the document scrolls").toBe(true);
     });
   }
@@ -66,7 +66,7 @@ test.describe("native document scroll", () => {
     await expect(page).toHaveURL(/localhost:\d+\/$/);
     await settle(page);
     await page.goBack();
-    await expect(page).toHaveURL(/section=season/);
+    await expect(page).toHaveURL(/\/season\/2026/);
     await settle(page);
     const after = await page.evaluate(() => window.scrollY);
     expect(Math.abs(after - before), `scrolled to ${before}, came back to ${after}`).toBeLessThan(80);
