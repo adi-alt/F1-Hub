@@ -44,7 +44,7 @@ export default function TermsPage() {
       <section>
         <h2>Leaving</h2>
         <p>
-          You can delete your account at any time in <Link href="/?section=profile&tab=account" className="text-primary underline-offset-4 hover:underline">Settings › Account</Link>.
+          You can delete your account at any time in <Link href="/profile/account" className="text-primary underline-offset-4 hover:underline">Settings › Account</Link>.
           How we handle your data is in the <Link href="/privacy" className="text-primary underline-offset-4 hover:underline">privacy notice</Link>.
         </p>
       </section>

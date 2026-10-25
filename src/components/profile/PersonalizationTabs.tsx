@@ -42,7 +42,7 @@ export function PersonalizationTabs({
   function switchTo(next: Tab) {
     setTabState(next);
     setSearch("");
-    window.history.replaceState(window.history.state, "", `/?section=profile&tab=personalisation&kind=${next}`);
+    window.history.replaceState(window.history.state, "", `/profile/personalisation?kind=${next}`);
   }
 
   return (

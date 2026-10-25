@@ -29,7 +29,7 @@ export type EmailContent = {
   quote?: string;
   rows?: { label: string; value: string }[];
   warning?: string;
-  /** A path on the site ("/?section=...") or a full URL. */
+  /** A path on the site ("/communities") or a full URL. */
   cta?: { label: string; href: string };
   /** Why this person got it, in one line. */
   reason: string;
@@ -46,7 +46,7 @@ export function emailOrigin(): string {
   return trustedOrigin("https://www.apexf1hub.com");
 }
 
-export const SETTINGS_PATH = "/?section=profile&tab=notifications";
+export const SETTINGS_PATH = "/profile/notifications";
 
 /** A moment in the reader's own time zone, the way a person says it: "Sat 25 Oct, 23:00 GMT+5:30". UTC (and says
  * so) while their zone isn't known or isn't valid. */

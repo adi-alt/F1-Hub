@@ -39,7 +39,7 @@ function form(fields: Record<string, string | File>) {
   for (const [k, v] of Object.entries(fields)) body.set(k, v);
   return new Request("http://x/api/problem-reports", { method: "POST", body });
 }
-const valid = { kind: "data", description: "The standings show the wrong points", context: JSON.stringify({ url: "https://apex.test/?section=season", viewport: "390x844", junk: "x" }) };
+const valid = { kind: "data", description: "The standings show the wrong points", context: JSON.stringify({ url: "https://apex.test/season", viewport: "390x844", junk: "x" }) };
 const params = { params: Promise.resolve({ id: "report-1" }) };
 const patch = (status: unknown) => new Request("http://x", { method: "PATCH", body: JSON.stringify({ status }) });
 
@@ -76,10 +76,10 @@ describe("problem report routes", () => {
     const row = fake.rows("problem_reports")[0];
     assert.equal(row.user_id, "user");
     assert.equal(row.kind, "data");
-    assert.equal(row.page, "/?section=season");
-    assert.deepEqual(row.context, { url: "https://apex.test/?section=season", viewport: "390x844" });
+    assert.equal(row.page, "/season");
+    assert.deepEqual(row.context, { url: "https://apex.test/season", viewport: "390x844" });
     assert.equal(row.screenshot, "data:image/png;base64,AQID");
-    assert.deepEqual(notified, [{ id: "report-1", kindLabel: "Wrong data", description: valid.description, page: "/?section=season" }]);
+    assert.deepEqual(notified, [{ id: "report-1", kindLabel: "Wrong data", description: valid.description, page: "/season" }]);
   });
 
   test("an invalid report is refused and nobody is told", async () => {

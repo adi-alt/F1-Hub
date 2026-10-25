@@ -181,7 +181,7 @@ const INTRO: Record<AccountSection, string> = {
 
 /**
  * The account, in one place: personalisation, notifications and the profile, as sections of one page
- * (`/?section=profile&tab=`), each with the site's eyebrow title and its content on the glass panel. Every link into the
+ * (`/profile/`), each with the site's eyebrow title and its content on the glass panel. Every link into the
  * account (the header menu, old `/profile/edit` and `/profile/notifications` links) lands here.
  */
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string; kind?: string }> }) {

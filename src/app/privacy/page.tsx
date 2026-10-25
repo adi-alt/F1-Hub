@@ -51,7 +51,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Your copy, and deleting it</h2>
         <p>
-          In <Link href="/?section=profile&tab=account" className="text-primary underline-offset-4 hover:underline">Settings › Account</Link> you can download everything we hold about
+          In <Link href="/profile/account" className="text-primary underline-offset-4 hover:underline">Settings › Account</Link> you can download everything we hold about
           you as a JSON file, and delete your account. Deleting it removes your account, profile, picks, entries, points, notifications, memberships, posts, comments and
           uploaded files immediately; it can&apos;t be undone. Copies in database backups expire with those backups.
         </p>

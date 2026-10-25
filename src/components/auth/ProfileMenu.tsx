@@ -11,10 +11,10 @@ import { HeaderPanel } from "@/components/ui/HeaderPanel";
 import { ReportProblemDialog } from "@/components/ReportProblem";
 
 const ITEMS = [
-  { href: "/?section=profile&tab=personalisation", label: "Personalisation", icon: SlidersHorizontal },
-  { href: "/?section=profile&tab=predictions", label: "Predictions", icon: Trophy },
-  { href: "/?section=profile&tab=notifications", label: "Notifications", icon: Bell },
-  { href: "/?section=profile&tab=profile", label: "Profile", icon: Pencil },
+  { href: "/profile/personalisation", label: "Personalisation", icon: SlidersHorizontal },
+  { href: "/profile/predictions", label: "Predictions", icon: Trophy },
+  { href: "/profile/notifications", label: "Notifications", icon: Bell },
+  { href: "/profile/profile", label: "Profile", icon: Pencil },
 ];
 
 export function ProfileMenu() {

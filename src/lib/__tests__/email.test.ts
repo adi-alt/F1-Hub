@@ -30,10 +30,10 @@ describe("renderEmail", () => {
   });
 
   test("there is always a plain-text twin carrying the content and the button's link", () => {
-    const mail = renderEmail({ ...base, rows: [{ label: "Your pick", value: "VER" }], cta: { label: "See the round", href: "/?section=communities" } });
+    const mail = renderEmail({ ...base, rows: [{ label: "Your pick", value: "VER" }], cta: { label: "See the round", href: "/communities" } });
     assert.match(mail.text, /Title/);
     assert.match(mail.text, /Your pick: VER/);
-    assert.match(mail.text, new RegExp(`See the round: ${emailOrigin().replace(/\./g, "\\.")}/\\?section=communities`));
+    assert.match(mail.text, new RegExp(`See the round: ${emailOrigin().replace(/\./g, "\\.")}/communities`));
   });
 
   test("links go to the www address (the bare domain redirects), and site paths become full links", () => {

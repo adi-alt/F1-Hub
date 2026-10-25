@@ -10,7 +10,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata: Metadata = pageMetadata({
   title: "Users",
   description: "Manage Apex F1 Hub accounts and roles.",
-  path: "/?section=users",
+  path: "/users",
   index: false,
 });
 

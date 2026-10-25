@@ -71,7 +71,7 @@ export async function generateMetadata({ searchParams }: { searchParams: GroupsS
   return pageMetadata({
     title: "Communities",
     description: "Prediction leagues and F1 communities: pick the podium every Grand Prix with friends and see who reads the sport best.",
-    path: "/?section=communities",
+    path: "/communities",
   });
 }
 

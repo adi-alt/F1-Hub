@@ -504,7 +504,7 @@ function DeleteSection({ group }: { group: GroupDetail }) {
       setDeleting(false);
       return;
     }
-    router.push("/?section=communities");
+    router.push("/communities");
     router.refresh();
   }
 

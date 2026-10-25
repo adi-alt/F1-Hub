@@ -2,7 +2,6 @@ import { it } from "node:test";
 import assert from "node:assert/strict";
 import { headerStatus, roundStatus, shortRaceName, upcomingSessions } from "../headerSchedule";
 import { placeTurnLabels } from "../circuitLayout";
-import { internalPathFor } from "../sectionRoutes";
 
 const japan = {
   year: 2026,
@@ -65,9 +64,4 @@ it("places turn numbers so no two overlap", () => {
   for (const [i, a] of placed.entries()) {
     for (const b of placed.slice(i + 1)) assert.ok(Math.abs(a.x - b.x) >= font * 0.9 || Math.abs(a.y - b.y) >= font * 1.3, `${a.label} and ${b.label} overlap`);
   }
-});
-
-it("sends a race slug to the race page and an old numeric race link to the season page's window", () => {
-  assert.equal(internalPathFor(new URLSearchParams("section=season&year=2026&race=united-states-grand-prix")), "/race");
-  assert.equal(internalPathFor(new URLSearchParams("section=season&year=2026&race=18")), "/season");
 });

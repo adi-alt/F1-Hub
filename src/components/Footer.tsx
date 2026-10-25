@@ -8,8 +8,8 @@ import { ApexMark } from "@/components/brand/ApexMark";
 
 const exploreLinks = (season: number) => [
   { href: seasonHref(season), label: `${season} Season` },
-  { href: "/?section=circuits", label: "Circuits" },
-  { href: "/?section=archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${archiveLatestYear(season)}` },
+  { href: "/circuits", label: "Circuits" },
+  { href: "/archive", label: `Archive, ${ARCHIVE_EARLIEST_YEAR}-${archiveLatestYear(season)}` },
   { href: "/races/simulation", label: "Race simulator" },
 ];
 

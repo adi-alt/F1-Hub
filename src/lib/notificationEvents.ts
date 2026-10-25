@@ -136,7 +136,7 @@ export const notifyReply = (groupId: string | null, postId: string, commentId: s
       person(commenterId),
       groupId ? community(groupId) : Promise.resolve(null),
     ]);
-    const href = groupId ? `${groupHref(groupId)}&post=${postId}` : "/?section=communities";
+    const href = groupId ? `${groupHref(groupId)}&post=${postId}` : "/communities";
     const quote = excerpt(comment?.content);
     const email = (what: string) => ({
       subject: quote ? `${commenter.name} ${what}: "${excerpt(quote, 50)}"` : `${commenter.name} ${what}`,
@@ -248,7 +248,7 @@ export const notifyJoinDecision = (groupId: string, targetId: string, moderatorI
       kind: "join_decision",
       title: approved ? `You're in: ${c.name}` : `${c.name} declined your request`,
       body: approved ? "You can post, predict and see the league now." : "You can still join with an invitation from a member.",
-      href: approved ? groupHref(groupId) : "/?section=communities",
+      href: approved ? groupHref(groupId) : "/communities",
       actorId: moderatorId,
       groupId,
       dedupeKey: `join_decision:${groupId}:${targetId}:${new Date().toISOString().slice(0, 16)}`,
@@ -305,7 +305,7 @@ export const notifyRemoved = (groupId: string, targetId: string, actorId: string
       body: banned
         ? "You can't see its posts or league any more, or join it again. Your points elsewhere aren't affected."
         : "You can't see its posts or league any more, and invitation links you made there stopped working. You can join again with a new invitation.",
-      href: "/?section=communities",
+      href: "/communities",
       actorId,
       dedupeKey: `membership:${groupId}:${new Date().toISOString().slice(0, 16)}`,
       email: {
@@ -325,7 +325,7 @@ export const notifyCommunityDeleted = (name: string, memberIds: string[], actorI
       kind: "membership",
       title: `${name} was deleted`,
       body: "Its posts, prediction rounds and league are gone. Points you won there stay yours.",
-      href: "/?section=communities",
+      href: "/communities",
       actorId,
       dedupeKey: `deleted:${name}:${new Date().toISOString().slice(0, 16)}`,
       email: { subject: `${name} was deleted`, context: { label: name }, eyebrow: "Membership", cta: "Find other communities", reason: `You were a member of ${name}.` },
@@ -342,7 +342,7 @@ export const notifyPhotosReady = (pending: { raceName: string; count: number }[]
       kind: "photos_ready",
       title: `${total} race ${total === 1 ? "photo is" : "photos are"} waiting for you`,
       body: "Choose the ones the race pages show.",
-      href: "/?section=photos",
+      href: "/admin/race-photos",
       dedupeKey: `photos_ready:${new Date().toISOString().slice(0, 10)}`,
       email: {
         eyebrow: "Race photos",
@@ -361,7 +361,7 @@ export const notifyProblemReport = (report: { id: string; kindLabel: string; des
       kind: "problem_report",
       title: `New problem report: ${report.kindLabel}`,
       body: report.description.slice(0, 200),
-      href: "/?section=models#problem-reports",
+      href: "/models#problem-reports",
       actorId: reporterId,
       dedupeKey: `problem_report:${report.id}`,
       email: {

@@ -39,7 +39,7 @@ export function YourRecord({ circuit, personal }: { circuit: string; personal: P
     return (
       <Block title="Make it yours">
         <p className="text-body-sm text-secondary">Pick favourite drivers and teams, and this page shows how they have done at {circuit}.</p>
-        <Link href="/?section=profile&tab=personalisation" className="mt-3 inline-block rounded-control text-body-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+        <Link href="/profile/personalisation" className="mt-3 inline-block rounded-control text-body-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           Set favourites
         </Link>
       </Block>

@@ -48,7 +48,7 @@ export function SeasonCard({
   return (
     <motion.div layout variants={staggerItem} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}>
       <Link
-        href={isLive ? "/?section=season" : archiveSeasonHref(year)}
+        href={isLive ? "/season" : archiveSeasonHref(year)}
         onMouseEnter={(e) => onHoverStart(e, year)}
         onMouseLeave={() => onHoverEnd(year)}
         onFocus={(e) => onHoverStart(e, year)}
