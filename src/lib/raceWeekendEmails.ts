@@ -14,7 +14,9 @@ import { raceHref } from "@/lib/routes";
  */
 
 /** How far ahead of the qualifying lock the reminder goes out. */
-const REMIND_WITHIN_MS = 3 * 3_600_000;
+// Wider than the hourly schedule needs: GitHub delays scheduled runs, often by hours (runs land 3-5 hours apart), and a
+// narrower window can fall between two runs and send nothing. The dedupe key still sends it once.
+const REMIND_WITHIN_MS = 6 * 3_600_000;
 /** How long after a race its results email may still go: long enough for late settling, short enough to stay news. */
 const RESULTS_WITHIN_DAYS = 4;
 

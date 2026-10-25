@@ -3,12 +3,13 @@
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, CheckCheck, Settings } from "lucide-react";
-import { EntityAvatar } from "@/components/EntityAvatar";
+import { Button } from "@/components/ui/Button";
+import { HeaderPanel } from "@/components/ui/HeaderPanel";
 import { Icon } from "@/components/ui/Icon";
-import { Popover } from "@/components/ui/Popover";
 import { timeAgo } from "@/lib/format";
+import { notificationActions, type NotificationAction } from "@/lib/notificationKinds";
 import type { NotificationItem } from "@/lib/supabase/notifications";
 
 /** How often the badge re-checks while the tab is open; it also re-checks when the tab regains focus. */
@@ -18,7 +19,9 @@ const SETTINGS_HREF = "/?section=profile&tab=notifications";
 /**
  * The notification centre: a bell in the header with the unread count, opening the latest notifications - what
  * happened, who did it, when - newest first. Opening one marks it read and goes where it points; "Mark all read"
- * clears the badge. The count is polled (and refreshed on focus) rather than pushed: notifications are about
+ * clears the badge. A notification that asks for a decision (a post to review, a join request, an invitation) carries
+ * its kind's inline actions (lib/notificationKinds): they call the same API routes the community pages use, then show
+ * the outcome in place and mark the notification read. The count is polled (and refreshed on focus) rather than pushed: notifications are about
  * settled rounds and replies, nothing that needs to arrive within the second.
  */
 export function NotificationBell() {
@@ -26,6 +29,11 @@ export function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
+  /** Per notification: the action being sent, or what came of it. */
+  const [acted, setActed] = useState<Record<string, { busy?: string; done?: string; error?: string }>>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   const refreshCount = useCallback(() => {
     fetch("/api/notifications?count=1")
@@ -64,35 +72,44 @@ export function NotificationBell() {
     await fetch("/api/notifications/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ids ? { ids } : {}) }).catch(() => {});
   }
 
+  async function act(n: NotificationItem, action: NotificationAction) {
+    setActed((a) => ({ ...a, [n.id]: { busy: action.label } }));
+    let error: string | undefined;
+    if (action.request) {
+      try {
+        const res = await fetch(action.request.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action.request.body) });
+        if (!res.ok) error = ((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "That didn't work. Try again.";
+      } catch {
+        error = "That didn't work. Try again.";
+      }
+    }
+    setActed((a) => ({ ...a, [n.id]: error ? { error } : { done: action.done } }));
+    if (!error && !n.readAt) void markRead([n.id]);
+  }
+
   return (
-    <Popover
-      align="end"
-      ariaLabel="Notifications"
-      panelClassName="w-[min(24rem,calc(100vw-2rem))]"
-      trigger={({ open, toggle, ref }) => (
-        <button
-          ref={ref}
-          type="button"
-          onClick={() => {
-            if (!open) void load();
-            toggle();
-          }}
-          aria-expanded={open}
-          aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
-          className={`relative flex size-9 items-center justify-center rounded-lg border transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${open ? "border-white/25 bg-white/[0.08] text-primary" : "border-white/10 text-secondary hover:border-white/20 hover:text-primary"}`}
-        >
-          <Icon icon={Bell} size={16} />
-          {unread > 0 && (
-            <span aria-hidden className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-caption font-semibold leading-none tabular text-white">
-              {unread > 9 ? "9+" : unread}
-            </span>
-          )}
-        </button>
-      )}
-    >
-      {({ close }) => (
-        <div className="flex max-h-[min(32rem,calc(100dvh-6rem))] flex-col">
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3.5 py-2.5">
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          if (!open) void load();
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+        aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+        className={`relative flex size-9 items-center justify-center rounded-lg border transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${open ? "border-white/25 bg-white/[0.08] text-primary" : "border-white/10 text-secondary hover:border-white/20 hover:text-primary"}`}
+      >
+        <Icon icon={Bell} size={16} />
+        {unread > 0 && (
+          <span aria-hidden className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-caption font-semibold leading-none tabular text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+      <HeaderPanel open={open} onClose={close} anchorRef={triggerRef} label="Notifications">
+        <div className="flex max-h-[32rem] min-h-0 flex-col">
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3.5 py-3">
             <p className="text-body-sm font-semibold text-primary">Notifications</p>
             <div className="flex items-center gap-1">
               {unread > 0 && (
@@ -133,40 +150,60 @@ export function NotificationBell() {
               </div>
             ) : (
               <ul className="py-1">
-                {items.map((n) => (
-                  <li key={n.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!n.readAt) void markRead([n.id]);
-                        close();
-                        if (n.href) router.push(n.href);
-                      }}
-                      className="flex w-full items-start gap-3 px-3.5 py-2.5 text-left transition-colors duration-fast hover:bg-white/[0.05] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
-                    >
-                      {n.actor ? (
-                        <PersonAvatar id={n.actor.id} avatar={n.actor.avatar} size={32} />
-                      ) : (
-                        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-tertiary">
-                          <Icon icon={Bell} size={16} className="size-3.5" />
+                {items.map((n) => {
+                  const actions = notificationActions(n);
+                  const state = acted[n.id];
+                  return (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!n.readAt) void markRead([n.id]);
+                          close();
+                          if (n.href) router.push(n.href);
+                        }}
+                        className="flex w-full items-start gap-3 px-3.5 py-2.5 text-left transition-colors duration-fast hover:bg-white/[0.05] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+                      >
+                        {n.actor ? (
+                          <PersonAvatar id={n.actor.id} avatar={n.actor.avatar} size={32} />
+                        ) : (
+                          <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-tertiary">
+                            <Icon icon={Bell} size={16} className="size-3.5" />
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className={`block text-body-sm ${n.readAt ? "text-secondary" : "font-medium text-primary"}`}>{n.title}</span>
+                          {n.body && <span className="mt-0.5 block text-caption text-secondary">{n.body}</span>}
+                          <span suppressHydrationWarning className="mt-0.5 block text-caption text-tertiary">
+                            {timeAgo(n.createdAt)}
+                          </span>
                         </span>
+                        {!n.readAt && <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" />}
+                      </button>
+                      {actions.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 pb-2.5 pl-[3.75rem] pr-3.5" aria-live="polite">
+                          {state?.done ? (
+                            <span className="text-caption font-medium text-secondary">{state.done}</span>
+                          ) : (
+                            <>
+                              {actions.map((a) => (
+                                <Button key={a.label} variant={a.primary ? "secondary" : "ghost"} size="sm" loading={state?.busy === a.label} disabled={!!state?.busy} onClick={() => void act(n, a)}>
+                                  {a.label}
+                                </Button>
+                              ))}
+                              {state?.error && <span className="w-full text-caption text-secondary">{state.error}</span>}
+                            </>
+                          )}
+                        </div>
                       )}
-                      <span className="min-w-0 flex-1">
-                        <span className={`block text-body-sm ${n.readAt ? "text-secondary" : "font-medium text-primary"}`}>{n.title}</span>
-                        {n.body && <span className="mt-0.5 block text-caption text-secondary">{n.body}</span>}
-                        <span suppressHydrationWarning className="mt-0.5 block text-caption text-tertiary">
-                          {timeAgo(n.createdAt)}
-                        </span>
-                      </span>
-                      {!n.readAt && <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-brand" />}
-                    </button>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
         </div>
-      )}
-    </Popover>
+      </HeaderPanel>
+    </>
   );
 }

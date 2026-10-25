@@ -65,3 +65,47 @@ export function cleanPrefsPatch(input: unknown): NotificationPrefs | null {
   }
   return Object.keys(out).length ? out : null;
 }
+
+/** What a notification needs for its inline actions: the row, as the notification centre lists it. */
+export type ActionableNotification = { kind: NotificationKind; href: string | null; groupId: string | null; actor: { id: string } | null };
+
+/** One inline button on a notification. With a `request`, pressing it calls that existing API route (which makes its
+ * own permission checks); without one it only dismisses. `done` is what the notification says afterwards. */
+export type NotificationAction = { label: string; done: string; primary?: boolean; request?: { url: string; body: Record<string, unknown> } };
+
+const hrefParam = (href: string | null, name: string) => (href ? new URLSearchParams(href.split("?")[1] ?? "").get(name) : null);
+const seg = encodeURIComponent;
+
+/** Each kind's inline actions, worked out from its row. Another kind gets actions by adding an entry here. */
+const ACTIONS: Partial<Record<NotificationKind, (n: ActionableNotification) => NotificationAction[] | null>> = {
+  post_pending: ({ groupId, href }) => {
+    const postId = hrefParam(href, "post");
+    if (!groupId || !postId) return null;
+    const url = `/api/groups/${seg(groupId)}/posts/${seg(postId)}/moderate`;
+    return [
+      { label: "Approve", done: "Approved", primary: true, request: { url, body: { action: "approve" } } },
+      { label: "Decline", done: "Declined", request: { url, body: { action: "reject" } } },
+    ];
+  },
+  join_request: ({ groupId, actor }) => {
+    if (!groupId || !actor) return null;
+    const url = `/api/groups/${seg(groupId)}/join-requests/${seg(actor.id)}`;
+    return [
+      { label: "Approve", done: "Approved", primary: true, request: { url, body: { decision: "approve" } } },
+      { label: "Decline", done: "Declined", request: { url, body: { decision: "reject" } } },
+    ];
+  },
+  // Declining an invitation needs no call: it simply goes unused and expires.
+  invite: ({ groupId, href }) => {
+    if (!groupId) return null;
+    const token = hrefParam(href, "invite");
+    return [
+      { label: "Accept", done: "Joined", primary: true, request: { url: `/api/groups/${seg(groupId)}/join`, body: token ? { inviteToken: token } : {} } },
+      { label: "Decline", done: "Declined" },
+    ];
+  },
+};
+
+export function notificationActions(n: ActionableNotification): NotificationAction[] {
+  return ACTIONS[n.kind]?.(n) ?? [];
+}
