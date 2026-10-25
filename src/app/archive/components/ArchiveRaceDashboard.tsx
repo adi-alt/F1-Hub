@@ -36,6 +36,9 @@ import { teamColor } from "@/lib/teamColors";
 import type { ArchiveCircuit, ArchiveRaceDoc } from "@/lib/supabase/archive";
 import type { PracticeData, RaceDoc, RaceInputEntry, RaceSimulation } from "@/lib/types/race";
 import { PracticeSummary } from "@/components/race/PracticeSummary";
+import { WeekendSessions } from "@/components/race/WeekendSessions";
+import type { QualifyingStageRow } from "@/lib/supabase/races";
+import type { SessionKey, WeekendSession } from "@/lib/weekendSessions";
 import { RacePhotoGallery } from "@/components/race/RacePhotoGallery";
 import type { RacePhoto } from "@/lib/racePhotos";
 
@@ -96,6 +99,7 @@ export function ArchiveRaceDashboard({
   practice = null,
   liveQualifying = [],
   photos = [],
+  weekend = null,
 }: {
   race: ArchiveRaceDoc;
   circuit: ArchiveCircuit | null;
@@ -117,6 +121,8 @@ export function ArchiveRaceDashboard({
   liveQualifying?: RaceInputEntry[];
   // Approved photos of this weekend (/admin/race-photos); empty -> no photo section.
   photos?: RacePhoto[];
+  // 2018 on: the weekend session by session (practice, qualifying, the sprint), as the current season's races show it.
+  weekend?: { race: RaceDoc; sessions: WeekendSession[]; initial: SessionKey | null; stages: QualifyingStageRow[] } | null;
 }) {
   useScrollToSection();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -276,6 +282,14 @@ export function ArchiveRaceDashboard({
           )}
         </motion.div>
       </RaceSectionCard>
+
+      {weekend && weekend.sessions.length > 0 && (
+        <RegionBoundary label="the sessions">
+          <RaceSectionCard id="sessions" title="Sessions" description="Every session of the weekend: practice, qualifying and the sprint on a sprint weekend.">
+            <WeekendSessions race={weekend.race} sessions={weekend.sessions} initial={weekend.initial} stages={weekend.stages} />
+          </RaceSectionCard>
+        </RegionBoundary>
+      )}
 
       {photos.length > 0 && (
         <RaceSectionCard id="photos" title="Photos from the weekend" bare>

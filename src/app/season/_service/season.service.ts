@@ -382,7 +382,7 @@ async function getArchiveSeasonDetailData(year: number, uid: string) {
       circuit: r.circuitName ?? null,
       country: r.country ?? null,
       eventFormat: null,
-      isSprintWeekend: false,
+      isSprintWeekend: sprintResults.length > 0,
       weekendStatus: "completed" as const,
       photoUrls: r.photoUrls ?? (r.photoUrl ? [r.photoUrl] : []),
       circuitTrackMap: r.locality ? (findArchiveCircuitByLocation(circuits, r.locality, r.country)?.trackMap ?? null) : null,
