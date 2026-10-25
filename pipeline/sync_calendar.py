@@ -30,7 +30,7 @@ import fastf1
 from ergast_utils import fetch_completed_race_docs, init_postgres, trigger_revalidation, upsert
 from ml.circuit_stats import build_circuit_records
 from run_ledger import ledgered
-from race_identity import calendar_row_id, calendar_rows_to_retire, corrected_location, id_slug, slugify
+from race_identity import calendar_row_id, calendar_rows_to_retire, corrected_location, id_slug, slugify, venue_country
 from weather_forecast import fetch_weather_forecast
 
 CACHE_DIR = Path(__file__).resolve().parent / "f1_cache"
@@ -116,7 +116,7 @@ def plan_calendar_sync(year, events, existing, race_ids, now, forecast=None):
                 "round": round_num,
                 "name": event_name,
                 "circuit": location,
-                "country": str(row["Country"]),
+                "country": venue_country(year, event_name, str(row["Country"])),
                 "event_format": str(row["EventFormat"]),
                 "sessions": json.dumps(sessions),
                 # Convenience copy of the one session every weekend definitely has, so "next race

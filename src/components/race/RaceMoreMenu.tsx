@@ -7,9 +7,8 @@ import { Popover } from "@/components/ui/Popover";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
 import type { PolePredictionAccuracy, PredictionAccuracy } from "@/lib/predictionAccuracy";
 import type { RaceDoc } from "@/lib/types/race";
-import { PolePredictionComparison } from "./PolePredictionComparison";
-import { PredictionComparison } from "./PredictionComparison";
-import { hasYourRecord, ModelVerdict, YourRecord } from "./RaceRail";
+import { PredictionReview } from "./PredictionReview";
+import { hasYourRecord, YourRecord } from "./RaceRail";
 
 type Panel = "predictions" | "you";
 
@@ -89,11 +88,7 @@ export function RaceMoreMenu({
 
       <Sheet open={panel !== null} onClose={close} title={title} size="lg">
         {panel === "predictions" && (
-          <div className="space-y-4">
-            {accuracy && <ModelVerdict accuracy={accuracy} nameOf={nameOf} />}
-            {accuracy && <PredictionComparison accuracy={accuracy} />}
-            {poleAccuracy && <PolePredictionComparison accuracy={poleAccuracy} />}
-          </div>
+          <PredictionReview accuracy={accuracy} poleAccuracy={poleAccuracy} race={race} nameOf={nameOf} />
         )}
         {panel === "you" && <YourRecord circuit={race.circuit} personal={personal} />}
       </Sheet>

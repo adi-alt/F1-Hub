@@ -13,7 +13,7 @@ User-Agent with contact details, one request at a time with a pause between them
 and a 429/503 waits for its Retry-After instead of retrying quickly.
 
 Run:
-  python pipeline/race_photos.py                        # races from the last 5 weeks (the weekly job)
+  python pipeline/race_photos.py                        # this weekend's race and those from the last 5 weeks
   python pipeline/race_photos.py --race 2026_r01_australian_grand_prix
   python pipeline/race_photos.py --race <id> --dry-run  # print what it would store, write nothing
   python pipeline/race_photos.py --recheck              # re-verify every approved photo against Commons
@@ -50,7 +50,8 @@ MIN_WIDTH = IMAGE_WIDTH        # a 1280px rendition must exist without upscaling
 MAX_GROUPS = 8                 # candidates offered for review
 MAX_FRAMES_PER_GROUP = 6       # alternates the reviewer can swap in from the same burst
 SEQUENCE_GAP = 25              # frame numbers this close, same photographer and camera = one burst
-SCAN_WINDOW_DAYS = 35          # the weekly job revisits a race for five weeks: uploads keep arriving
+SCAN_WINDOW_DAYS = 35          # the job revisits a race for five weeks: uploads keep arriving
+LOOKAHEAD_DAYS = 2             # a Saturday-night run already scans this weekend's race (practice, qualifying)
 
 # Licences we may show on a commercial website with attribution. Anything else - NC, ND, fair use,
 # "all rights reserved", unknown - is rejected. The database enforces the same rule (CHECK constraint).
@@ -456,7 +457,7 @@ def races_to_scan(cur, race_id: str | None, today: date) -> list[Race]:
     else:
         cur.execute(
             "select id, year, name, race_date from races where race_date between %s and %s order by race_date",
-            (today - timedelta(days=SCAN_WINDOW_DAYS), today),
+            (today - timedelta(days=SCAN_WINDOW_DAYS), today + timedelta(days=LOOKAHEAD_DAYS)),
         )
     return [Race(id=r[0], year=r[1], name=r[2], race_date=r[3]) for r in cur.fetchall() if r[3]]
 

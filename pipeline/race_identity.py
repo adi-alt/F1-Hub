@@ -87,6 +87,19 @@ REVIEWED_VENUE_CHANGES: dict[tuple[int, str], dict[str, str]] = {
 }
 
 
+# (season, event slug) -> the venue's country, where FastF1's "Country" is the event's nominal host rather than where
+# the race is run. The 2026 Bahrain Grand Prix at Sepang came through as "Kuala Lumpur, Bahrain"; the page reads
+# "where", so it must say Malaysia. Same reviewed-only rule as VENUE_OVERRIDES.
+VENUE_COUNTRY: dict[tuple[int, str], str] = {
+    (2026, "bahrain-grand-prix"): "Malaysia",
+}
+
+
+def venue_country(year: int, event_name: str, upstream_country: str) -> str:
+    """The country to store for this event: where the race is actually run."""
+    return VENUE_COUNTRY.get((year, slugify(event_name)), upstream_country)
+
+
 def corrected_location(year: int, event_name: str, upstream_location: str) -> str:
     """The location to store for this event: the reviewed override when one exists, else upstream's."""
     override = VENUE_OVERRIDES.get((year, slugify(event_name)))

@@ -5,6 +5,9 @@ export type PredictionAccuracy = {
   podiumHits: number;
   predictedWinner: string;
   actualWinner: string;
+  /** The model's podium and the real one, in order (driver codes). */
+  predictedPodium: string[];
+  actualPodium: string[];
   /** True only for the handful of races pipeline/reconstruct_prediction.py backfilled by hand -
    * see RacePrediction.source's own comment. The UI must label these, never show them identically
    * to a prediction that was genuinely frozen before the race ran. */
@@ -35,6 +38,8 @@ export function comparePrediction(race: RaceDoc): PredictionAccuracy | null {
     podiumHits,
     predictedWinner: predicted.find((p) => p.predictedPosition === 1)?.driver ?? "",
     actualWinner: race.results.find((r) => r.finishPosition === 1)?.driver ?? "",
+    predictedPodium: [...predicted].filter((p) => p.predictedPosition <= 3).sort((a, b) => a.predictedPosition - b.predictedPosition).map((p) => p.driver),
+    actualPodium: race.results.filter((r) => r.finishPosition <= 3).sort((a, b) => a.finishPosition - b.finishPosition).map((r) => r.driver),
     reconstructed: race.prediction.source === "reconstructed",
   };
 }

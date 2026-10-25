@@ -54,9 +54,10 @@ export function ProfileDetailsForm({ initial }: { initial: { firstName: string; 
 
   return (
     <div className="space-y-6">
-      <Dialog open={editingAvatar} onClose={() => setEditingAvatar(false)} title="Edit avatar" size="lg">
+      <Dialog open={editingAvatar} onClose={() => setEditingAvatar(false)} title="Edit avatar" size="2xl">
         {editingAvatar && (
           <AvatarBuilder
+            layout="wide"
             onDone={() => setEditingAvatar(false)}
             secondary={
               <Button variant="ghost" size="sm" onClick={() => setEditingAvatar(false)}>

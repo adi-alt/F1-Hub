@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { ProvenanceLine } from "@/components/ui/ProvenanceLine";
 import { Surface } from "@/components/ui/Surface";
 import { tiltProps } from "@/components/motion/useTilt";
 import type { PersonalRaceContext } from "@/lib/personalRaceBriefing";
-import type { PredictionAccuracy } from "@/lib/predictionAccuracy";
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -55,20 +53,6 @@ export function YourRecord({ circuit, personal }: { circuit: string; personal: P
           <Row key={r.label} label={r.label} value={r.value} />
         ))}
       </div>
-    </Block>
-  );
-}
-
-export function ModelVerdict({ accuracy, nameOf }: { accuracy: PredictionAccuracy; nameOf: (code: string) => string }) {
-  const right = accuracy.predictedWinner === accuracy.actualWinner;
-  return (
-    <Block title="How the model did">
-      <p className="text-body-sm text-primary">
-        {right ? `Called it: ${nameOf(accuracy.actualWinner)} to win.` : `Picked ${nameOf(accuracy.predictedWinner)}; ${nameOf(accuracy.actualWinner)} won.`}
-      </p>
-      <Row label="Podium places right" value={`${accuracy.podiumHits} of 3`} />
-      <Row label="Average position error" value={accuracy.positionMAE.toFixed(1)} />
-      {accuracy.reconstructed && <ProvenanceLine className="mt-2" source="Prediction rebuilt after the race" status="not frozen beforehand" />}
     </Block>
   );
 }

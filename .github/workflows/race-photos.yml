@@ -3,16 +3,20 @@ name: Race photos
 # Finds Wikimedia Commons photo candidates for recent races and re-checks the approved ones (pipeline/
 # race_photos.py). It never publishes a photo: candidates wait for a person on /admin/race-photos.
 #
-# Weekly, the Tuesday after a race weekend, because uploads to Commons trickle in for days; a race is revisited
-# for five weeks. The weekly re-check removes any approved photo that was deleted from Commons or whose licence
-# no longer passes the allow-list.
+# Three times a week: Saturday 22:00 UTC (after qualifying, for practice and qualifying photos of this weekend's
+# race), Monday 06:00 (race-day uploads) and Thursday 06:00 (the late trickle). A race is revisited for five
+# weeks. The re-check removes any approved photo that was deleted from Commons or whose licence no longer passes
+# the allow-list.
 #
-# Production is opt-in: the schedule only touches production once the repository variable
-# RACE_PHOTOS_PRODUCTION is "true". A manual run can target staging (the staging environment's database) or
-# production (main only). The staging target only works while a staging project exists (STAGING_ENABLED).
+# Production is on by default: set the repository variable RACE_PHOTOS_PRODUCTION to "false" to pause the
+# schedule. (It used to be opt-in, the variable was never set, and every scheduled run was skipped.) A manual
+# run can target staging (the staging environment's database) or production (main only). The staging target
+# only works while a staging project exists (STAGING_ENABLED).
 on:
   schedule:
-    - cron: "0 6 * * 2"
+    - cron: "0 22 * * 6"
+    - cron: "0 6 * * 1"
+    - cron: "0 6 * * 4"
   workflow_dispatch:
     inputs:
       target:
@@ -21,7 +25,7 @@ on:
         options: [staging, production]
         default: staging
       race:
-        description: "One race: its id or title, e.g. 2026 Australian Grand Prix (empty = races from the last 5 weeks)"
+        description: "One race: its id or title, e.g. 2026 Australian Grand Prix (empty = this weekend and the last 5 weeks)"
         type: string
         default: ""
       mode:
@@ -77,7 +81,7 @@ jobs:
 
   production:
     if: >-
-      (github.event_name == 'schedule' && vars.RACE_PHOTOS_PRODUCTION == 'true') ||
+      (github.event_name == 'schedule' && vars.RACE_PHOTOS_PRODUCTION != 'false') ||
       (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 30

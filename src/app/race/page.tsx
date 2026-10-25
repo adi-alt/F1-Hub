@@ -7,11 +7,12 @@ import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
 import { getRaceLayout } from "@/lib/supabase/circuitLayouts";
-import { RaceBannerStats } from "@/components/race/RaceBannerStats";
+import { RaceBannerStats, RaceForecastChips } from "@/components/race/RaceBannerStats";
 import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId, getArchiveRacesByName } from "@/lib/supabase/archive";
+import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId, getArchiveRacesByName, type ArchiveRaceDoc } from "@/lib/supabase/archive";
+import type { RaceDoc } from "@/lib/types/race";
 import { buildWinnerMedia } from "@/app/circuits/services/circuits.service";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
 import { getCurrentEntrants, getQualifyingStages, getRace, getRacesByCircuit, getRacesByName, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
@@ -33,6 +34,15 @@ import { softFail } from "@/lib/softFail";
 
 // Non-essential sections fail soft (softFail): one failing load drops its section, never the whole page.
 const NO_COMMUNITIES = { mode: "discover" as const, communities: [] };
+
+/** The most recent earlier race at this circuit that has a photo (the season pipeline's, then the archive's), so an
+ * upcoming race's header isn't bare. Null when the circuit has never had a photographed race. */
+function circuitPhotoFallback(year: number, live: readonly RaceDoc[], archive: readonly ArchiveRaceDoc[]): string | null {
+  const photoOf = (r: { photoUrls?: string[] | null; photoUrl?: string | null }) => r.photoUrls?.[0] ?? r.photoUrl ?? null;
+  const fromLive = [...live].filter((r) => r.year < year).sort((a, b) => b.year - a.year).map(photoOf).find(Boolean);
+  if (fromLive) return fromLive;
+  return [...archive].filter((r) => r.year < year).sort((a, b) => b.year - a.year).map(photoOf).find(Boolean) ?? null;
+}
 
 /** The Grand Prix's own history by its name, across every circuit it has used, with the winners' headshots. Fails
  * soft to nothing: the history section then falls back to the circuit's own timeline. */
@@ -169,10 +179,17 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           country={race.country}
           raceStart={raceSessionDate}
           state={race.status === "completed" ? (race.resultsSource === "openf1_preliminary" ? "preliminary" : "final") : "upcoming"}
-          // The race's own photos only: no circuit photo stands in for a race that has none.
-          photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? null}
-          keyFact={<RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />}
-          stats={<RaceBannerStats race={race} highlights={highlights} forecast={calendarEntry?.weatherForecast} />}
+          // The race's own photo; before the race has one, the latest earlier race's photo at this circuit.
+          photoUrl={race.photoUrls?.[0] ?? race.photoUrl ?? circuitPhotoFallback(race.year, liveRaces, archiveRaces)}
+          keyFact={
+            <>
+              <RaceKeyFact sessions={calendarEntry?.sessions ?? []} results={race.status === "completed" ? race.results : null} />
+              {race.status !== "completed" && !race.weather && calendarEntry?.weatherForecast && (
+                <RaceForecastChips forecast={calendarEntry.weatherForecast} className="mt-3" />
+              )}
+            </>
+          }
+          stats={<RaceBannerStats race={race} highlights={highlights} />}
           actions={
             <RaceMoreMenu
               race={race}

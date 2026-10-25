@@ -125,6 +125,10 @@ assert all(set(v) >= {"location", "reason"} for v in VENUE_OVERRIDES.values())
 assert all(set(v) >= {"location", "previous", "kind", "reason"} for v in REVIEWED_VENUE_CHANGES.values())
 # A reviewed change and a correction for the same event would contradict each other.
 assert not set(REVIEWED_VENUE_CHANGES) & set(VENUE_OVERRIDES)
+from race_identity import venue_country
+assert venue_country(2026, "Bahrain Grand Prix", "Bahrain") == "Malaysia"
+assert venue_country(2025, "Bahrain Grand Prix", "Bahrain") == "Bahrain"
+assert venue_country(2026, "United States Grand Prix", "United States") == "United States"
 print("corrected_location: all checks passed")
 
 
@@ -159,10 +163,10 @@ def forecast(event_name, location, round_num, race_date):
 rows, retire, warnings = plan_calendar_sync(2026, upstream, [], [], NOW, forecast)
 by_id = {r["id"]: r for r in rows}
 assert sorted(by_id) == ["2026_r15_azerbaijan-grand-prix", "2026_r16_bahrain-grand-prix", "2026_r17_singapore-grand-prix"]
-# Bahrain at Sepang: stored as upstream says, and the live-forecast lookup geocodes Kuala Lumpur, not
+# Bahrain at Sepang: stored as Malaysia (VENUE_COUNTRY), and the live-forecast lookup geocodes Kuala Lumpur, not
 # Bahrain. No correction warning is emitted.
 assert by_id["2026_r16_bahrain-grand-prix"]["circuit"] == "Kuala Lumpur"
-assert by_id["2026_r16_bahrain-grand-prix"]["country"] == "X"  # passed through from upstream as-is
+assert by_id["2026_r16_bahrain-grand-prix"]["country"] == "Malaysia"  # where it is run, not the nominal host
 assert ("Bahrain Grand Prix", "Kuala Lumpur") in forecasts and all(loc != "Sakhir" for _, loc in forecasts)
 assert not any("overridden" in w for w in warnings), warnings
 # Past races get no forecast lookup; status follows the race date.
@@ -193,7 +197,7 @@ import json as _json
 live_like = [("2026_r16_bahrain-grand-prix", 16, "upcoming")]  # the live calendar row
 bahrain_rows, bahrain_retire, bahrain_warn = plan_calendar_sync(2026, [real_bahrain()], live_like, [], NOW, forecast)
 assert [(r["id"], r["round"], r["circuit"], r["country"], r["status"], r["race_date"]) for r in bahrain_rows] == [
-    ("2026_r16_bahrain-grand-prix", 16, "Kuala Lumpur", "Bahrain", "upcoming", "2026-10-04T07:00:00")
+    ("2026_r16_bahrain-grand-prix", 16, "Kuala Lumpur", "Malaysia", "upcoming", "2026-10-04T07:00:00")
 ]
 assert [s["date"] for s in _json.loads(bahrain_rows[0]["sessions"])] == ["2026-10-02T04:30:00", "2026-10-02T08:00:00", "2026-10-03T04:30:00", "2026-10-03T08:00:00", "2026-10-04T07:00:00"]
 assert bahrain_retire == [] and bahrain_warn == []

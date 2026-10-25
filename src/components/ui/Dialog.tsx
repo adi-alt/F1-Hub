@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useModalFocusTrap } from "@/hooks/useModalFocusTrap";
 
-export type DialogSize = "sm" | "md" | "lg" | "xl";
+export type DialogSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 export type DialogProps = {
   open: boolean;
@@ -18,7 +18,7 @@ export type DialogProps = {
   children?: ReactNode;
   /** Actions, right-aligned under the body. They stay in view while the body scrolls. */
   footer?: ReactNode;
-  /** Max width. Dialog: sm 384px, md 512px (default), lg 672px. Sheet from md up: sm 320px, md 384px, lg 512px. */
+  /** Max width. Dialog: sm 384px, md 512px (default), lg 672px, xl 896px, 2xl 1184px. Sheet from md up: sm 320px, md 384px, lg 512px. */
   size?: DialogSize;
   /** Default true. When false, Escape and the scrim do nothing and there is no close button, so the footer must offer the way out. */
   dismissible?: boolean;
@@ -70,7 +70,7 @@ const PANEL =
 const PANEL_WITH_ASIDE = "md:flex-row md:gap-0 md:py-0";
 const ASIDE = "hidden md:block md:w-1/2 md:shrink-0";
 const CONTENT_COLUMN = "flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:py-6";
-const ASIDE_WIDTH: Record<DialogSize, string> = { sm: "max-w-sm md:max-w-3xl", md: "max-w-lg md:max-w-4xl", lg: "max-w-2xl md:max-w-5xl", xl: "max-w-4xl md:max-w-6xl" };
+const ASIDE_WIDTH: Record<DialogSize, string> = { sm: "max-w-sm md:max-w-3xl", md: "max-w-lg md:max-w-4xl", lg: "max-w-2xl md:max-w-5xl", xl: "max-w-4xl md:max-w-6xl", "2xl": "max-w-4xl md:max-w-6xl" };
 const CLOSE_BUTTON_LOOK =
   "flex size-8 shrink-0 items-center justify-center rounded-control text-secondary hover:bg-primary/8 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 const CLOSE_BUTTON = `-mr-2 -mt-1 ${CLOSE_BUTTON_LOOK}`;
@@ -83,14 +83,14 @@ const VARIANTS: Record<Variant, { root: string; panel: string; closed: string; w
     root: "fixed inset-0 z-dialog flex items-center justify-center p-4",
     panel: "max-h-[calc(100dvh-32px)] rounded-overlay starting:translate-y-2 starting:opacity-0",
     closed: "translate-y-2 opacity-0",
-    width: { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" },
+    width: { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl", "2xl": "max-w-[74rem]" },
   },
   sheet: {
     root: "fixed inset-0 z-dialog flex items-end md:items-stretch md:justify-end",
     panel:
       "max-h-[calc(100dvh-32px)] rounded-t-overlay md:max-h-none md:rounded-tr-none md:rounded-l-overlay starting:translate-y-full md:starting:translate-x-full md:starting:translate-y-0",
     closed: "translate-y-full md:translate-x-full md:translate-y-0",
-    width: { sm: "md:max-w-xs", md: "md:max-w-sm", lg: "md:max-w-lg", xl: "md:max-w-2xl" },
+    width: { sm: "md:max-w-xs", md: "md:max-w-sm", lg: "md:max-w-lg", xl: "md:max-w-2xl", "2xl": "md:max-w-3xl" },
   },
 };
 
