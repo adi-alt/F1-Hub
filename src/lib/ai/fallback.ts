@@ -561,7 +561,8 @@ export function generateRaceEventFallback(race: RaceSummary): RaceEventTake {
   const nextSession = race.sessions.find((s) => s.state === "current" || s.state === "upcoming");
   if (race.weekendStatus === "live") {
     return {
-      headline: running ? `${running.label} is running at ${race.name}` : `${race.name} is under way`,
+      // Between sessions nothing is running, so the weekend is not called "under way" (the same rule the LLM take follows).
+      headline: running ? `${running.label} is running at ${race.name}` : nextSession ? `${race.name}: ${nextSession.label} next` : `${race.name} weekend`,
       summary: `The weekend has started at ${race.circuit ?? race.name}.${!running && nextSession ? ` ${nextSession.label} is next on the schedule.` : ""} Session results appear below as each one is classified.`,
     };
   }

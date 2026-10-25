@@ -20,7 +20,7 @@ function MemberStack({ members, total }: { members: { id: string; name: string; 
         </div>
       ))}
       {overflow > 0 && (
-        <span className="-ml-2 flex h-[22px] w-[22px] items-center justify-center rounded-full border border-[var(--f1-carbon)] bg-white/[0.08] text-caption font-semibold text-neutral-300">
+        <span className="-ml-2 flex h-[22px] w-[22px] items-center justify-center rounded-full border border-subtle bg-surface-2 text-caption font-semibold text-secondary">
           +{overflow}
         </span>
       )}
@@ -28,63 +28,54 @@ function MemberStack({ members, total }: { members: { id: string; name: string; 
   );
 }
 
-function CommunityRow({ card }: { card: RaceCommunityCard }) {
+const STATUS_AFTER: Record<string, string> = { resolved: "Scored", void: "Voided", locked: "Awaiting the result", open: "Awaiting the result" };
+
+function CommunityRow({ card, completed }: { card: RaceCommunityCard; completed: boolean }) {
   const href = card.prediction ? `${groupHref(card.groupId)}&tab=predictions` : groupHref(card.groupId);
-  const actionLabel = card.prediction ? (card.isMember ? "View predictions" : "Join & predict") : card.isMember ? "Open" : "Explore";
+  const actionLabel = completed ? "See results" : card.prediction ? (card.isMember ? "View predictions" : "Join & predict") : card.isMember ? "Open" : "Explore";
+  const entries = card.prediction ? `${card.prediction.entryCount} ${card.prediction.entryCount === 1 ? "entry" : "entries"}` : null;
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-white/20 hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--f1-red)]"
+      className="flex items-center gap-3 rounded-control px-2 py-3 transition-colors duration-fast hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
     >
-      <EntityAvatar imageUrl={card.avatarUrl} name={card.name} seed={card.groupId} size={38} />
+      <EntityAvatar imageUrl={card.avatarUrl} name={card.name} seed={card.groupId} size={36} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-white">{card.name}</p>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-tertiary">
-          <span>
-            {card.memberCount} {card.memberCount === 1 ? "member" : "members"}
-          </span>
-          {card.prediction && (
-            <>
-              <span aria-hidden>·</span>
-              <span>
-                {predictionTypeLabels[card.prediction.type]} · {card.prediction.entryCount} {card.prediction.entryCount === 1 ? "entry" : "entries"}
-              </span>
-            </>
-          )}
-        </div>
+        <p className="truncate text-body-sm font-semibold text-primary">{card.name}</p>
+        <p className="mt-0.5 truncate text-caption text-secondary">
+          {completed && card.prediction
+            ? `${entries} · ${STATUS_AFTER[card.prediction.status]}`
+            : [`${card.memberCount} ${card.memberCount === 1 ? "member" : "members"}`, card.prediction && `${predictionTypeLabels[card.prediction.type]} · ${entries}`].filter(Boolean).join(" · ")}
+        </p>
       </div>
       <MemberStack members={card.memberPreview} total={card.memberCount} />
-      <span className="hidden shrink-0 text-xs font-medium text-neutral-400 sm:block">{actionLabel} →</span>
+      <span className="hidden shrink-0 text-caption font-medium text-secondary sm:block">{actionLabel} →</span>
     </Link>
   );
 }
 
 /**
- * Real communities, tied to this exact race where any exist - never an invented "trending"
- * signal, never a fabricated member/activity count (see listRaceCommunities' own comment). Shown
- * on every race page regardless of phase; it degrades to general discovery (not an empty section)
- * when literally no group has opened a prediction for this specific race yet - true for most races
- * most of the time, since not every public group predicts every round.
- *
- * Renders nothing at all only on a genuine fetch failure or a truly empty discovery result (no
- * public groups exist at all) - both real, rare states, never papered over with placeholder cards.
+ * The communities with a prediction on this exact race (listRaceCommunities), the one place the race page lists
+ * them. Before the race: the open predictions to join. After it: only the ones people actually entered, as where
+ * to see how each community called it; a prediction nobody entered is left out, and with none the section is too.
  */
-export function RaceCommunitiesSection({ mode, communities, id }: { mode: "predicting" | "discover"; communities: RaceCommunityCard[]; id?: string }) {
-  if (communities.length === 0) return null;
+export function RaceCommunitiesSection({ communities, completed = false, id = "communities" }: { communities: RaceCommunityCard[]; completed?: boolean; id?: string }) {
+  const shown = completed ? communities.filter((c) => (c.prediction?.entryCount ?? 0) > 0) : communities;
+  if (shown.length === 0) return null;
   return (
     <RaceSectionCard
       id={id}
-      title={mode === "predicting" ? "Communities predicting this race" : "Communities to join"}
-      description={mode === "predicting" ? "Real groups with an open prediction for this exact race, most active first." : "No group has opened a prediction for this race yet - here's where people are talking F1."}
+      title={completed ? "How communities called it" : "Communities predicting this race"}
+      description={completed ? "Groups that ran a prediction on this race. Open one for its entries and scores." : "Groups with an open prediction for this race, most active first."}
       headerRight={
-        <Link href="/communities" className="text-xs font-medium text-neutral-400 transition hover:text-white">
-          Discover more →
+        <Link href="/communities" className="rounded-control text-caption font-medium text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+          All communities →
         </Link>
       }
     >
-      <div className="space-y-2">
-        {communities.map((c) => (
-          <CommunityRow key={c.groupId} card={c} />
+      <div className="-mx-2 divide-y divide-subtle">
+        {shown.map((c) => (
+          <CommunityRow key={c.groupId} card={c} completed={completed} />
         ))}
       </div>
     </RaceSectionCard>

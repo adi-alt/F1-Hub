@@ -4,7 +4,6 @@ import { RaceSectionCard } from "@/components/raceDetail/RaceSectionCard";
 import { useViewerTimeZone } from "@/hooks/useViewerTimeZone";
 import { formatCountdown, formatLocalTime, parseUtcDateTime } from "@/lib/countdown";
 import type { PhaseSession } from "@/lib/raceWeekendPhase";
-import type { RaceWeekendScores } from "@/lib/raceWeekendScores";
 import { teamColor } from "@/lib/teamColors";
 import type { RaceDoc } from "@/lib/types/race";
 import { PickPanel } from "./PickPanel";
@@ -64,32 +63,56 @@ export function RaceLiveNow({ session }: { session: PhaseSession }) {
   );
 }
 
-function Figure({ label, value, max }: { label: string; value: number | null; max: number }) {
+export type PodiumCall = { codes: readonly string[]; earned: number; possible: number };
+
+function finishOf(race: RaceDoc, code: string): string {
+  const r = race.results?.find((x) => x.driver === code);
+  if (!r) return "Not classified";
+  return r.status === "dnf" ? "Retired" : `Finished P${r.finishPosition}`;
+}
+
+function PodiumColumn({ label, call, race }: { label: string; call: PodiumCall; race: RaceDoc }) {
+  const byCode = new Map((race.results ?? []).map((r) => [r.driver, r]));
   return (
-    <div>
-      <dt className="text-caption text-secondary">{label}</dt>
-      <dd className="mt-1 text-title-md tabular text-primary">
-        {value === null ? "–" : value}
-        {value !== null && <span className="text-body-sm text-secondary"> / {max}</span>}
-      </dd>
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-body-sm font-semibold text-primary">{label}</h3>
+        <p className="tabular text-body-sm text-secondary">
+          <span className="text-title-md text-primary">{call.earned}</span> / {call.possible} pts
+        </p>
+      </div>
+      <ol className="mt-3 divide-y divide-subtle">
+        {call.codes.map((code, i) => {
+          const r = byCode.get(code);
+          const exact = r?.finishPosition === i + 1 && r.status !== "dnf";
+          return (
+            <li key={`${i}-${code}`} className="flex items-center gap-3 py-2 text-body-sm">
+              <span className="w-6 shrink-0 tabular text-secondary">P{i + 1}</span>
+              <span aria-hidden className="h-3 w-0.5 shrink-0 rounded-full" style={{ backgroundColor: teamColor(r?.team ?? "") }} />
+              <span className="min-w-0 flex-1 truncate text-primary">{r?.driverName ?? code}</span>
+              <span className={`shrink-0 tabular ${exact ? "font-semibold text-primary" : "text-secondary"}`}>
+                {exact ? `Exact, P${i + 1}` : finishOf(race, code)}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
 
-/** After the race: your points, the community's average and the model's, scored the same way. */
-export function RaceWeekendScoresSection({ scores }: { scores: RaceWeekendScores }) {
-  if (scores.you === null && scores.communityAverage === null && scores.model === null) return null;
+/** After the race: your podium against what actually happened, beside the model's own call. Hidden when you made no pick. */
+export function YourPickResult({ race, yours, model, community }: { race: RaceDoc; yours: PodiumCall | null; model: PodiumCall | null; community: { average: number | null; count: number } }) {
+  if (!yours) return null;
+  const verdict =
+    model === null ? `You scored ${yours.earned} of ${yours.possible} points.` : yours.earned > model.earned ? `You beat the model by ${yours.earned - model.earned} ${yours.earned - model.earned === 1 ? "point" : "points"}.` : yours.earned === model.earned ? "You matched the model." : `The model beat you by ${model.earned - yours.earned} ${model.earned - yours.earned === 1 ? "point" : "points"}.`;
+  const crowd = community.average !== null && community.count > 1 ? ` The ${community.count} picks for this race averaged ${community.average} points.` : "";
   return (
-    <RaceSectionCard
-      id="your-weekend"
-      title="Your weekend"
-      description={scores.you === null ? "You didn't make a pick for this race." : scores.communityCount > 0 ? `Against ${scores.communityCount} ${scores.communityCount === 1 ? "pick" : "picks"} from the community.` : undefined}
-    >
-      <dl className="grid grid-cols-3 gap-5">
-        <Figure label="Your points" value={scores.you} max={scores.max} />
-        <Figure label="Community average" value={scores.communityAverage} max={scores.max} />
-        <Figure label="The model" value={scores.model} max={scores.max} />
-      </dl>
+    <RaceSectionCard id="your-pick" title="Your pick" description={`${verdict}${crowd}`}>
+      <div className={`grid gap-8 ${model ? "sm:grid-cols-2" : ""}`}>
+        <PodiumColumn label="You" call={yours} race={race} />
+        {model && <PodiumColumn label="The model" call={model} race={race} />}
+      </div>
     </RaceSectionCard>
   );
 }

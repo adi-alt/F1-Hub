@@ -2,15 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useReducedMotion } from "motion/react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { CurveFactory, CurveGenerator } from "victory-vendor/d3-shape";
 import { chart, tooltipStyle } from "@/components/charts/chartTheme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { filterDriverSet, type DriverSet } from "@/lib/driverSet";
-import { computeStoryline, type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
-import { RaceStoryline } from "./RaceStoryline";
-import type { RaceTrackStory } from "@/lib/raceTrackStory";
-import type { CircuitLayout } from "@/lib/circuitLayout";
+import { type LapEntry, type LapTiming, type Moment } from "@/lib/raceMoments";
 
 export type { LapEntry, LapTiming, Moment };
 export type LapChartResultEntry = { driverId: string; driverName: string; position: number };
@@ -121,8 +118,6 @@ export function LapChart({
   results,
   driverSet,
   customIds,
-  trackStory = null,
-  layout = null,
 }: {
   laps: LapEntry[] | undefined;
   isLoading: boolean;
@@ -130,10 +125,6 @@ export function LapChart({
   results: LapChartResultEntry[];
   driverSet: DriverSet;
   customIds: string[];
-  /** This race's real circuit and lead-change locations, when validated; the storyline falls back without. */
-  trackStory?: RaceTrackStory | null;
-  /** The track library's layout for this race's circuit and season, drawn when there's no trackStory. */
-  layout?: CircuitLayout | null;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [locked, setLocked] = useState<string | null>(null);
@@ -205,15 +196,6 @@ export function LapChart({
     return out;
   }, [chartData, driverIds]);
 
-  const chapters = useMemo(() => (laps ? computeStoryline(laps, nameFor) : []), [laps]); // eslint-disable-line react-hooks/exhaustive-deps -- nameFor is derived from the same `results` prop each render, not its own changing input
-  // The storyline's selected chapter: marks its lap on the chart and follows its driver's line.
-  const [chapterIndex, setChapterIndex] = useState<number | null>(null);
-  const storyLap = chapterIndex !== null ? chapters[chapterIndex]?.lap : undefined;
-  function selectChapter(i: number | null) {
-    setChapterIndex(i);
-    setLocked(i === null ? null : (chapters[i]?.driverId ?? null));
-  }
-
   if (isLoading) return <LapChartSkeleton />;
   if (isError || chartData.length === 0) {
     return <p className="text-sm text-tertiary">No lap data available for this race.</p>;
@@ -281,7 +263,6 @@ export function LapChart({
               width={32}
               label={{ value: "Position", angle: -90, position: "insideLeft", fill: chart.mutedInk, fontSize: 12 }}
             />
-            {storyLap !== undefined && <ReferenceLine x={storyLap} stroke="rgb(255 255 255 / 0.45)" strokeDasharray="3 4" label={{ value: `Lap ${storyLap}`, position: "top", fill: "rgb(255 255 255 / 0.7)", fontSize: 11 }} />}
             <Tooltip cursor={{ stroke: "rgba(255,255,255,0.15)", strokeDasharray: "3 3" }} content={LapTooltip} />
             {/* The lines draw in left to right, lap by lap, once the chart scrolls into view - staggered a beat
                 per driver so the field fans out rather than appearing at once. */}
@@ -342,20 +323,6 @@ export function LapChart({
         })}
       </div>
 
-      {chapters.length > 0 && (
-        <div className="mt-6 border-t border-white/10 pt-5">
-          <RaceStoryline
-            chapters={chapters}
-            totalLaps={chartData[chartData.length - 1]?.lap ?? 1}
-            colorFor={(id) => driverColor(driverIds.indexOf(id), driverIds.length)}
-            selected={chapterIndex}
-            onSelect={selectChapter}
-            track={trackStory}
-            layout={layout}
-            nameFor={nameFor}
-          />
-        </div>
-      )}
     </div>
   );
 }

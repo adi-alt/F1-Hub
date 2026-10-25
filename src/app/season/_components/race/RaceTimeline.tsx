@@ -24,7 +24,7 @@ const KIND_COLOR: Record<SessionKind, string> = {
  */
 export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
   if (sessions.length === 0) {
-    return <p className="text-sm text-tertiary">No session schedule published for this round yet.</p>;
+    return <p className="text-body-sm text-tertiary">No session schedule published for this round yet.</p>;
   }
 
   const ordered = [...sessions].sort((a, b) => parseUtcDateTime(a.date).getTime() - parseUtcDateTime(b.date).getTime());
@@ -58,7 +58,7 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
                 className={`mb-2.5 block h-[11px] w-[11px] shrink-0 rounded-full ${current ? "pulse-ring" : ""}`}
                 style={done || current ? { background: color } : { border: `1px solid ${color}`, background: "var(--background)" }}
               />
-              <span className={`w-full truncate text-caption font-medium ${done || current ? "text-white" : "text-neutral-400"}`}>{s.label}</span>
+              <span className={`w-full truncate text-caption font-medium ${done || current ? "text-primary" : "text-secondary"}`}>{s.label}</span>
               <time dateTime={date.toISOString()} className="mt-0.5 w-full truncate font-mono text-caption tabular-nums text-tertiary">
                 {date.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
               </time>
@@ -92,7 +92,7 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
                 style={done || current ? { background: color } : { border: `1px solid ${color}`, background: "var(--background)" }}
               />
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                <p className={`text-sm font-medium ${done || current ? "text-white" : "text-neutral-400"}`}>
+                <p className={`text-body-sm font-medium ${done || current ? "text-primary" : "text-secondary"}`}>
                   {s.label}
                   {current && <span className="ml-2 align-middle text-caption font-semibold uppercase tracking-[0.14em] text-brand-text">Next up</span>}
                 </p>
@@ -102,7 +102,7 @@ export function RaceTimeline({ sessions }: { sessions: RaceSessionSummary[] }) {
               </div>
               {s.result && (
                 <p className="mt-0.5 text-caption text-tertiary">
-                  <span className="text-tertiary">{s.result.label}:</span> <span className="text-neutral-300">{s.result.value}</span>
+                  <span className="text-tertiary">{s.result.label}:</span> <span className="text-primary">{s.result.value}</span>
                 </p>
               )}
             </li>

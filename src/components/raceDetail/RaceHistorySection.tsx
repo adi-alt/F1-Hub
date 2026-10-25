@@ -1,44 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "motion/react";
 import { TabList, TabPanels, Tabs } from "@/components/ui/Tabs";
+import { EYEBROW } from "@/components/ui/panel";
 import { RaceSectionCard } from "./RaceSectionCard";
 import { WinnersBarList } from "./WinnersBarList";
-import { GrandPrixHistoryContent, hasGrandPrixHistory } from "./GrandPrixHistorySection";
+import { GrandPrixHistoryContent, hasGrandPrixHistory, type WinnerMediaByYear } from "./GrandPrixHistorySection";
 import { CircuitRecordsContent, hasCircuitRecords } from "./CircuitRecordsSection";
 import { TrackTrendsContent, hasTrackTrends } from "@/components/race/TrackIntelligence";
 import { computeTopWinners, computeTopWinningTeams, filterByRaceName, type CircuitYearRecord } from "@/lib/circuitIntelligence";
 import type { AgeRecords } from "@/lib/circuitRecords";
+import { teamColor } from "@/lib/teamColors";
 import type { RaceDoc } from "@/lib/types/race";
 import type { ArchiveRaceDoc } from "@/lib/supabase/archive";
 
-type Tab = "winners" | "drivers" | "teams" | "trends" | "records";
+type Tab = "winners" | "most" | "trends" | "records";
 
 /**
- * One explorer with up to five tabs, not five back-to-back cards repeating the same "circuit
- * stats" shape: Winners (this exact Grand Prix's own year-by-year history), Drivers and Teams
- * (the same win tally as Winners, ranked instead of chronological), Trends (this circuit's own
- * windowed history - what used to be a separate standalone "Track Intelligence" section, folded
- * in here because it was showing much of the same shape of information one scroll away), and
- * Records (this circuit's genuine all-time milestones - lap record, podiums, youngest/oldest -
- * never affected by Trends' own time-range filter). Winners/Drivers/Teams all share the same
- * Grand-Prix-scoped timeline (filterByRaceName) - never the circuit's combined history under a
- * different event's name; Trends and Records are deliberately circuit-wide instead, since a
- * physical track's own history and all-time records aren't scoped to one event's identity the
- * way a win tally is.
- *
- * Shown for every race phase, not gated on completion - "who's won this race before" and "the
- * circuit's all-time records" are exactly as true and exactly as useful before a race weekend as
- * after one.
- *
- * Whichever tab has nothing real to show is simply not offered - never an empty tab a click reveals
- * nothing behind. The whole section disappears only when NONE of the five have anything at all.
+ * The race's history in one section with up to four tabs. Winners and Most wins follow the EVENT (eventTimeline:
+ * every running of this Grand Prix by name, across every circuit it has used); Trends and Records follow the
+ * physical track (timeline), since a lap record or a weather trend belongs to a circuit, not an event. A tab with
+ * nothing real behind it is not offered; with none, the section is gone.
  */
 export function RaceHistorySection({
   raceName,
   circuitName,
   timeline,
+  eventTimeline = timeline,
+  winnerMedia,
   liveRaces,
   archiveRaces,
   ageRecords,
@@ -46,25 +35,25 @@ export function RaceHistorySection({
   raceName: string;
   circuitName: string;
   timeline: CircuitYearRecord[];
+  /** Every running of this Grand Prix by name, wherever it was held. Defaults to the circuit's own timeline. */
+  eventTimeline?: CircuitYearRecord[];
+  winnerMedia?: WinnerMediaByYear;
   liveRaces: RaceDoc[];
   archiveRaces: ArchiveRaceDoc[];
   ageRecords: AgeRecords;
 }) {
-  // Drivers/Teams are scoped to THIS Grand Prix specifically, the same identity Winners already
-  // filters to (filterByRaceName) - never the circuit's combined history under a name change.
-  const gpTimeline = filterByRaceName(timeline, raceName);
+  const gpTimeline = filterByRaceName(eventTimeline, raceName);
   const topDrivers = computeTopWinners(gpTimeline, 5);
   const topTeams = computeTopWinningTeams(gpTimeline, 5);
+  // A driver's bar takes the colour of the team they last won this race with.
+  const lastTeamOf = new Map<string, string>();
+  for (const r of [...gpTimeline].reverse()) if (r.winnerDriver && r.winnerTeam) lastTeamOf.set(r.winnerDriver, r.winnerTeam);
 
-  const winnersAvailable = hasGrandPrixHistory(raceName, timeline);
-  const trendsAvailable = hasTrackTrends(liveRaces, archiveRaces);
-  const recordsAvailable = hasCircuitRecords(timeline, liveRaces, archiveRaces, ageRecords);
   const availableTabs: { value: Tab; label: string }[] = [
-    winnersAvailable ? { value: "winners" as const, label: "Winners" } : null,
-    topDrivers.length > 0 ? { value: "drivers" as const, label: "Drivers" } : null,
-    topTeams.length > 0 ? { value: "teams" as const, label: "Teams" } : null,
-    trendsAvailable ? { value: "trends" as const, label: "Trends" } : null,
-    recordsAvailable ? { value: "records" as const, label: "Records" } : null,
+    hasGrandPrixHistory(raceName, eventTimeline) ? { value: "winners" as const, label: "Winners" } : null,
+    topDrivers.length > 1 ? { value: "most" as const, label: "Most wins" } : null,
+    hasTrackTrends(liveRaces, archiveRaces) ? { value: "trends" as const, label: "Trends" } : null,
+    hasCircuitRecords(timeline, liveRaces, archiveRaces, ageRecords) ? { value: "records" as const, label: "Track records" } : null,
   ].filter((t): t is { value: Tab; label: string } => t !== null);
 
   const [tab, setTab] = useState<Tab | null>(availableTabs[0]?.value ?? null);
@@ -72,18 +61,33 @@ export function RaceHistorySection({
   const activeTab = tab && availableTabs.some((t) => t.value === tab) ? tab : availableTabs[0].value;
 
   const descriptionByTab: Record<Tab, string> = {
-    winners: `${raceName}'s own past winners, year by year.`,
-    drivers: `Most wins at ${raceName}, by driver.`,
-    teams: `Most wins at ${raceName}, by constructor.`,
-    trends: `Historical trends at ${circuitName}, by time range.`,
-    records: `All-time milestones at ${circuitName}.`,
+    winners: `Every ${raceName} winner, most recent first.`,
+    most: `The most successful drivers and teams at the ${raceName}.`,
+    trends: `How races at ${circuitName} tend to go.`,
+    records: `All-time records at ${circuitName}.`,
   };
 
   const content = (
     <>
-      {activeTab === "winners" && <GrandPrixHistoryContent raceName={raceName} timeline={timeline} />}
-      {activeTab === "drivers" && <WinnersBarList entries={topDrivers.map((d) => ({ name: d.driver, count: d.wins }))} unit="win" />}
-      {activeTab === "teams" && <WinnersBarList entries={topTeams.map((t) => ({ name: t.team, count: t.wins }))} unit="win" />}
+      {activeTab === "winners" && <GrandPrixHistoryContent raceName={raceName} timeline={eventTimeline} venue={circuitName} media={winnerMedia} />}
+      {activeTab === "most" && (
+        <div className="grid gap-8 lg:grid-cols-2">
+          <div>
+            <h3 className={EYEBROW}>Drivers</h3>
+            <div className="mt-3">
+              <WinnersBarList entries={topDrivers.map((d) => ({ name: d.driver, count: d.wins, color: lastTeamOf.has(d.driver) ? teamColor(lastTeamOf.get(d.driver)!) : undefined }))} unit="win" />
+            </div>
+          </div>
+          {topTeams.length > 0 && (
+            <div>
+              <h3 className={EYEBROW}>Teams</h3>
+              <div className="mt-3">
+                <WinnersBarList entries={topTeams.map((t) => ({ name: t.team, count: t.wins, color: teamColor(t.team) }))} unit="win" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {activeTab === "trends" && <TrackTrendsContent liveRaces={liveRaces} archiveRaces={archiveRaces} circuitName={circuitName} />}
       {activeTab === "records" && <CircuitRecordsContent timeline={timeline} liveRaces={liveRaces} archiveRaces={archiveRaces} ageRecords={ageRecords} />}
     </>
@@ -92,12 +96,10 @@ export function RaceHistorySection({
   const tabbed = availableTabs.length > 1;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.3, ease: "easeOut" }}>
-      <Tabs value={activeTab} onValueChange={setTab} items={availableTabs}>
-        <RaceSectionCard title="Race History & Records" description={descriptionByTab[activeTab]} headerRight={tabbed ? <TabList aria-label="Race history" /> : undefined}>
-          {tabbed ? <TabPanels>{content}</TabPanels> : content}
-        </RaceSectionCard>
-      </Tabs>
-    </motion.div>
+    <Tabs value={activeTab} onValueChange={setTab} items={availableTabs}>
+      <RaceSectionCard id="history" title="Race history" description={descriptionByTab[activeTab]} headerRight={tabbed ? <TabList aria-label="Race history" /> : undefined}>
+        {tabbed ? <TabPanels>{content}</TabPanels> : content}
+      </RaceSectionCard>
+    </Tabs>
   );
 }

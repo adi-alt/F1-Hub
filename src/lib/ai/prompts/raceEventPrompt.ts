@@ -3,7 +3,16 @@ import type { AIMessage } from "../types";
 // The compact "Apex event take" inside the season page's race window - deliberately a much
 // smaller job than raceIntelligencePrompt.ts (which powers the full race page). One headline and
 // two or three sentences, scoped to whatever state the weekend is actually in.
-export const RACE_EVENT_PROMPT_VERSION = "race_event_v2";
+// v3: takes cached under v2 could call a weekend "live" before its race had started ("US Grand Prix live: grid
+// set"); the version is in the cache key, so bumping it retires every one of them.
+export const RACE_EVENT_PROMPT_VERSION = "race_event_v3";
+
+/** Whether a take calls something live or under way while no session is actually running: the one state error
+ * the route checks for itself, on a cached take as well as a fresh one, before showing it. */
+export function claimsLiveWithoutSession(take: { headline: string; summary: string }, sessionRunning: boolean): boolean {
+  if (sessionRunning) return false;
+  return /\blive\b|under ?way|unfolding|in progress/i.test(`${take.headline} ${take.summary}`);
+}
 
 const SYSTEM_PROMPT = `You are Apex, the F1 HUB analyst, writing a short preview or review of ONE race weekend.
 
@@ -11,7 +20,7 @@ HARD CONSTRAINTS
 1. FACTS ONLY: every fact must appear verbatim in the context. Never invent results, times, weather or entrants.
 2. STATE DISCIPLINE: the context states whether the weekend is upcoming, live, completed, cancelled or postponed.
    - upcoming: preview it. Never describe a result, and never imply the race has been run.
-   - live: describe only the sessions the context marks completed, and what comes next. A session is under way only if the context marks it "running now"; never call one marked "not started yet" live or unfolding.
+   - live: describe only the sessions the context marks completed, and what comes next. A session is under way only if the context marks it "running now"; never call one marked "not started yet" live or unfolding. Unless a session is "running now", never use the words "live", "under way" or "unfolding" anywhere, the headline included: a weekend between sessions is not live.
    - completed: review what happened and what it changed. Never forecast it.
    - cancelled or postponed: state that plainly and do not preview or review a race that did not happen.
 3. NO ACCURACY SCORING: never state whether a prediction was right or wrong. That is computed elsewhere and given to the reader separately.

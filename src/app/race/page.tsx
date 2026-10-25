@@ -6,15 +6,15 @@ import { seasonStatus } from "@/app/season/_service/season.pure";
 import { SeasonRaceDashboard } from "@/components/race/SeasonRaceDashboard";
 import { RaceHeader } from "@/components/raceDetail/RaceHeader";
 import { RaceKeyFact } from "@/components/race/RaceKeyFact";
-import { getRaceTrackStory, getRaceTrackStoryByRound } from "@/lib/supabase/raceTrackStories";
 import { getRaceLayout } from "@/lib/supabase/circuitLayouts";
 import { RaceBannerStats } from "@/components/race/RaceBannerStats";
 import { RaceMoreMenu } from "@/components/race/RaceMoreMenu";
 import { RacePageHeader } from "@/components/race/RacePageHeader";
 import { SignInGate } from "@/components/auth/SignInGate";
-import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId } from "@/lib/supabase/archive";
+import { findArchiveCircuitByLocation, getArchiveRacesByCircuitId, getArchiveRacesByName } from "@/lib/supabase/archive";
+import { buildWinnerMedia } from "@/app/circuits/services/circuits.service";
 import { getCalendarEntry } from "@/lib/supabase/calendar";
-import { getCurrentEntrants, getQualifyingStages, getRace, getRacesByCircuit, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
+import { getCurrentEntrants, getQualifyingStages, getRace, getRacesByCircuit, getRacesByName, getRacesByYear, getRaceSimulation } from "@/lib/supabase/races";
 import { defaultSession, weekendSessionsFor, withArchiveSprint } from "@/lib/weekendSessions";
 import { computeHighlights } from "@/lib/highlights";
 import { buildCircuitTimeline } from "@/lib/circuitIntelligence";
@@ -28,11 +28,20 @@ import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
 import { getRacePicks } from "@/lib/supabase/picks";
-import { raceWeekendScores } from "@/lib/raceWeekendScores";
+import { podiumCalls, raceWeekendScores } from "@/lib/raceWeekendScores";
 import { softFail } from "@/lib/softFail";
 
 // Non-essential sections fail soft (softFail): one failing load drops its section, never the whole page.
 const NO_COMMUNITIES = { mode: "discover" as const, communities: [] };
+
+/** The Grand Prix's own history by its name, across every circuit it has used, with the winners' headshots. Fails
+ * soft to nothing: the history section then falls back to the circuit's own timeline. */
+const loadEventHistory = async (raceName: string) => {
+  const [live, archive] = await Promise.all([getRacesByName(raceName), getArchiveRacesByName(raceName)]);
+  const timeline = buildCircuitTimeline(live, archive);
+  const media = Object.fromEntries(await buildWinnerMedia(timeline));
+  return { timeline, media };
+};
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
  * Archive year) - "the race detail page must be identical regardless of where the user came
@@ -137,20 +146,18 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     // Real ages, resolved server-side (needs Supabase - see circuitRecords.ts's own top comment
     // for why this can't live in the client-safe circuitIntelligence.ts module it builds on).
     const circuitTimeline = buildCircuitTimeline(liveRaces, archiveRaces);
-    const [ageRecords, personalContext, raceCommunities, photos, trackStory, layout, racePicks] = await Promise.all([
+    const [ageRecords, personalContext, raceCommunities, photos, racePicks, eventHistory] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
       softFail("race communities", listRaceCommunities(race.id, session.uid), NO_COMMUNITIES),
       // Approved Wikimedia photos only (pipeline/race_photos.py, /admin/race-photos); none -> no section.
       softFail("race photos", getApprovedRacePhotos(race.id), []),
-      // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
-      race.status === "completed" ? softFail("track story", getRaceTrackStory(race.id), null) : Promise.resolve(null),
-      // The track library's layout for this circuit and season, drawn when the race has no story of its own.
-      softFail("race layout", getRaceLayout({ circuitId: matchedCircuit?.circuitId ?? null, circuitName: race.circuit, year: race.year, raceName: race.name }), null),
       // After the race: every pick, for your points against the community's average (race-weekend mode, R-64).
       race.status === "completed" ? softFail("race picks", getRacePicks(race.id), []) : Promise.resolve([]),
+      softFail("event history", loadEventHistory(race.name), undefined),
     ]);
-    const scores = race.status === "completed" ? raceWeekendScores(race, racePicks, racePicks.find((p) => p.userId === session.uid) ?? null) : null;
+    const yourPick = racePicks.find((p) => p.userId === session.uid) ?? null;
+    const scores = race.status === "completed" ? { ...raceWeekendScores(race, racePicks, yourPick), ...podiumCalls(race, yourPick) } : null;
 
     return (
       <div data-surface="frosted" className="page-wide py-8">
@@ -182,11 +189,10 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
             calendarEntry={calendarEntry}
             trackHistory={trackHistory}
             circuitTimeline={circuitTimeline}
+            eventHistory={eventHistory}
             raceCommunities={raceCommunities}
             ageRecords={ageRecords}
             photos={photos}
-            trackStory={trackStory}
-            layout={layout}
             weekendSessions={weekendSessions}
             initialSession={defaultSession(weekendSessions)}
             qualifyingStages={qualifyingStages}
@@ -221,14 +227,13 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   // The season pipeline's own row for this race (2018 on): practice, qualifying with gaps, the photo and the race
   // stats the archive tables don't have. Null before 2018 - the page is then the archive's alone.
   const liveRace = year >= 2018 ? await getRace(year, race.round) : null;
-  const [ageRecords, raceCommunities, trackStory, layout, photos, pastStages] = await Promise.all([
+  const [ageRecords, raceCommunities, layout, photos, pastStages, eventHistory] = await Promise.all([
     computeAgeRecords(circuitTimeline),
     softFail("race communities", listRaceCommunities(race.id, session.uid), NO_COMMUNITIES),
-    // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
-    softFail("track story", getRaceTrackStoryByRound(year, race.round), null),
     softFail("race layout", getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }), null),
     liveRace ? softFail("race photos", getApprovedRacePhotos(liveRace.id), []) : Promise.resolve([]),
     liveRace ? getQualifyingStages(liveRace.id) : Promise.resolve([]),
+    softFail("event history", loadEventHistory(race.raceName), undefined),
   ]);
   // The weekend session by session, like the current season's races: there's no calendar for a past year, so the
   // tabs are the sessions with stored results (practice, qualifying, the archive's sprint, the race).
@@ -280,9 +285,9 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
           simulation={simulation}
           trackHistory={{ liveRaces: circuitLiveRaces, archiveRaces: circuitArchiveRaces }}
           circuitTimeline={circuitTimeline}
+          eventHistory={eventHistory}
           ageRecords={ageRecords}
           raceCommunities={raceCommunities}
-          trackStory={trackStory}
           layout={layout}
           // Practice has its own tabs in Sessions once those show.
           practice={pastSessions.length ? null : (liveRace?.practice ?? null)}

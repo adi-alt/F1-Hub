@@ -76,7 +76,7 @@ export function RaceMedia({
         )}
         {state === "error" && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-xs text-tertiary">Race imagery unavailable.</p>
+            <p className="text-caption text-tertiary">Race imagery unavailable.</p>
           </div>
         )}
         {/* Softens the foot of the image so the metadata beneath it doesn't butt against a hard edge. */}
@@ -124,7 +124,7 @@ function MediaPlaceholder({ label }: { label: string }) {
         <span aria-hidden className="text-lg text-brand-text/50">
           ✦
         </span>
-        <p className="mt-1 max-w-[24ch] text-xs text-tertiary">{label}</p>
+        <p className="mt-1 max-w-[24ch] text-caption text-tertiary">{label}</p>
       </div>
     </div>
   );

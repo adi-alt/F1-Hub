@@ -381,6 +381,17 @@ export const getRacesByCircuit = unstable_cache(
   { revalidate: false, tags: ["races"] },
 );
 
+/** Every season-pipeline running of one Grand Prix by its name, wherever it was held (see getArchiveRacesByName). */
+export const getRacesByName = unstable_cache(
+  async (name: string): Promise<RaceDoc[]> => {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select(RACE_SELECT).eq("name", name).order("year"));
+    if (error) throw new Error(`getRacesByName(${name}): ${error.message}`);
+    return ((data ?? []) as RaceRow[]).map(toRaceDoc);
+  },
+  ["get-races-by-name"],
+  { revalidate: false, tags: ["races"] },
+);
+
 /** The next race on the calendar that isn't marked completed yet, for the home page's hero card —
  * built on the same merged (`races` + `calendar` placeholder) list `getRacesByYear` returns, so
  * this doesn't go blank just because the immediate next round hasn't had a session yet. */

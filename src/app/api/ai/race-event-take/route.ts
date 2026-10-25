@@ -16,7 +16,7 @@ import { generateRaceEventTake } from "@/lib/ai/orchestrator";
 import { logAIError } from "@/lib/ai/telemetry";
 import { buildRaceEventCacheKey, computeDataVersion, getCachedIntelligence, setCachedIntelligence, withSingleFlight } from "@/lib/ai/cache";
 import { SEASON_CONTEXT_VERSION, formatRaceEventContext, type RaceEventContext } from "@/lib/ai/context/seasonContext";
-import { RACE_EVENT_PROMPT_VERSION } from "@/lib/ai/prompts/raceEventPrompt";
+import { RACE_EVENT_PROMPT_VERSION, claimsLiveWithoutSession } from "@/lib/ai/prompts/raceEventPrompt";
 import { generateRaceEventFallback } from "@/lib/ai/fallback";
 import { getSeasonDetailData } from "@/app/season/_service/season.service";
 import { completedRaces } from "@/app/season/_service/season.pure";
@@ -81,8 +81,10 @@ export async function POST(req: Request) {
     const contextHash = computeDataVersion([formatRaceEventContext(context)]);
     const cacheKey = buildRaceEventCacheKey(season, round, contextHash, CACHE_VERSION);
 
+    // "Never call an unstarted session live" holds for a cached take too: one that breaks it is regenerated.
+    const sessionRunning = race.sessions.some((s) => s.state === "live");
     const cached = await getCachedIntelligence<Envelope>(cacheKey, requestId);
-    if (cached) return NextResponse.json(cached);
+    if (cached && !claimsLiveWithoutSession(cached.content, sessionRunning)) return NextResponse.json(cached);
 
     const guard = await guardAIExecution(userId, req);
     if (!guard.allowed) {
@@ -93,6 +95,10 @@ export async function POST(req: Request) {
 
     const envelope = await withSingleFlight(cacheKey, async () => {
       const result = await generateRaceEventTake(context, ctx);
+      // A fresh take that still calls the weekend live is not shown or cached: the rule-based take stands in.
+      if (claimsLiveWithoutSession(result.data, sessionRunning)) {
+        return { content: generateRaceEventFallback(race), source: "fallback", generatedAt: new Date().toISOString(), round } satisfies Envelope;
+      }
       const out: Envelope = { content: result.data, source: result.source, generatedAt: new Date().toISOString(), round };
       if (result.source === "llm") {
         await setCachedIntelligence(cacheKey, out, contextHash, race.weekendStatus === "completed" ? COMPLETED_TTL_SECONDS : ACTIVE_TTL_SECONDS, {

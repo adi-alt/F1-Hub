@@ -1,3 +1,4 @@
+import { EYEBROW } from "@/components/ui/panel";
 import { computeLapRecord, computeMostPodiums, type CircuitYearRecord } from "@/lib/circuitIntelligence";
 import { formatLapTime } from "@/lib/format";
 import type { AgeRecords } from "@/lib/circuitRecords";
@@ -8,10 +9,10 @@ type Tile = { label: string; value: string; sub?: string };
 
 function Tile({ tile }: { tile: Tile }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-      <p className="text-caption uppercase tracking-wide text-tertiary">{tile.label}</p>
-      <p className="mt-0.5 truncate text-sm font-semibold text-white">{tile.value}</p>
-      {tile.sub && <p className="text-caption text-tertiary">{tile.sub}</p>}
+    <div className="min-w-0">
+      <dt className={EYEBROW}>{tile.label}</dt>
+      <dd className="mt-1 truncate text-body font-semibold text-primary">{tile.value}</dd>
+      {tile.sub && <dd className="truncate text-caption text-secondary">{tile.sub}</dd>}
     </div>
   );
 }
@@ -60,11 +61,11 @@ export function CircuitRecordsContent({
   if (tiles.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+    <dl className="grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-3">
       {tiles.map((t) => (
         <Tile key={t.label} tile={t} />
       ))}
-    </div>
+    </dl>
   );
 }
 
