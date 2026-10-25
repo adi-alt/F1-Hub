@@ -36,11 +36,14 @@ export type NotificationItem = {
   href: string | null;
   createdAt: string;
   readAt: string | null;
+  groupId: string | null;
   actor: { id: string; name: string; avatar: AvatarConfig | null } | null;
 };
 
 /** PostgREST's "no such table": the notifications migration isn't applied yet, which reads as an empty centre. */
 const missingTable = (error: { code?: string } | null) => error?.code === "PGRST205" || error?.code === "42P01";
+/** "No such column" (PostgREST's on a write, Postgres's on a read): a later notifications migration isn't applied yet. */
+const missingColumn = (error: { code?: string } | null) => error?.code === "PGRST204" || error?.code === "42703";
 
 /**
  * Tells people something happened, the way each of them chose for this kind (site, email, both or neither):
@@ -74,10 +77,11 @@ export async function notify(userIds: readonly string[], event: NotificationEven
       email_payload: process.env.MAIL_FROM && email.some((p) => p.id === id) ? (event.email ?? {}) : null,
     }));
     if (rows.length === 0) return;
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from("notifications")
-      .upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true })
-      .select("id, user_id");
+    const write = (batch: Record<string, unknown>[]) => supabaseAdmin.from("notifications").upsert(batch, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true }).select("id, user_id");
+    let { data: inserted, error: insertError } = await write(rows);
+    // Before 20261028_notification_email_retries is applied there is no email_payload column, and writing it would
+    // fail every notification (site and email alike). Write the row without it: the email still goes now, unretried.
+    if (missingColumn(insertError)) ({ data: inserted, error: insertError } = await write(rows.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => key !== "email_payload")))));
     if (insertError) throw new Error(insertError.message);
 
     // Only people whose row is new this time are emailed: a duplicate event inserts nothing and emails no one.
@@ -138,7 +142,7 @@ async function sendEmails(to: { id: string; email: string }[], event: Notificati
         });
         await transporter.sendMail({ from: `"Apex F1 Hub" <${process.env.MAIL_FROM}>`, to: person.email, subject: mail.subject, html: mail.html, text: mail.text, headers: mail.headers });
         sent++;
-        if (row) await supabaseAdmin.from("notifications").update({ emailed_at: new Date().toISOString(), email_next_attempt_at: null }).eq("id", row.id);
+        if (row) await supabaseAdmin.from("notifications").update({ emailed_at: new Date().toISOString() }).eq("id", row.id);
       } catch (err) {
         failed++;
         console.error(`notification email to ${person.id} failed:`, err instanceof Error ? err.message : err);
@@ -176,7 +180,7 @@ export async function retryNotificationEmails(now = new Date()): Promise<{ due: 
     .or(`email_next_attempt_at.is.null,email_next_attempt_at.lte.${now.toISOString()}`)
     .order("created_at")
     .limit(200);
-  if (missingTable(error)) return result;
+  if (missingTable(error) || missingColumn(error)) return result;
   if (error) throw new Error(`retryNotificationEmails: ${error.message}`);
   const due = data ?? [];
   result.due = due.length;
@@ -218,7 +222,7 @@ export async function communityMembers(groupId: string): Promise<string[]> {
 
 /** A person's notification centre, newest first, a page at a time (`before` is the last item's createdAt). */
 export async function listNotifications(uid: string, { before, limit = 20 }: { before?: string | null; limit?: number } = {}): Promise<{ items: NotificationItem[]; unread: number }> {
-  let query = supabaseAdmin.from("notifications").select("id, kind, title, body, href, created_at, read_at, actor_id").eq("user_id", uid).order("created_at", { ascending: false }).limit(limit);
+  let query = supabaseAdmin.from("notifications").select("id, kind, title, body, href, created_at, read_at, actor_id, group_id").eq("user_id", uid).order("created_at", { ascending: false }).limit(limit);
   if (before) query = query.lt("created_at", before);
   const [{ data, error }, unread] = await Promise.all([query, unreadCount(uid)]);
   if (missingTable(error)) return { items: [], unread: 0 };
@@ -239,6 +243,7 @@ export async function listNotifications(uid: string, { before, limit = 20 }: { b
       href: (r.href as string | null) ?? null,
       createdAt: r.created_at as string,
       readAt: (r.read_at as string | null) ?? null,
+      groupId: (r.group_id as string | null) ?? null,
       actor: r.actor_id ? (actors.get(r.actor_id as string) ?? null) : null,
     })),
   };
