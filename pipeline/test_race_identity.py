@@ -197,7 +197,7 @@ import json as _json
 live_like = [("2026_r16_bahrain-grand-prix", 16, "upcoming")]  # the live calendar row
 bahrain_rows, bahrain_retire, bahrain_warn = plan_calendar_sync(2026, [real_bahrain()], live_like, [], NOW, forecast)
 assert [(r["id"], r["round"], r["circuit"], r["country"], r["status"], r["race_date"]) for r in bahrain_rows] == [
-    ("2026_r16_bahrain-grand-prix", 16, "Kuala Lumpur", "Bahrain", "upcoming", "2026-10-04T07:00:00")
+    ("2026_r16_bahrain-grand-prix", 16, "Kuala Lumpur", "Malaysia", "upcoming", "2026-10-04T07:00:00")
 ]
 assert [s["date"] for s in _json.loads(bahrain_rows[0]["sessions"])] == ["2026-10-02T04:30:00", "2026-10-02T08:00:00", "2026-10-03T04:30:00", "2026-10-03T08:00:00", "2026-10-04T07:00:00"]
 assert bahrain_retire == [] and bahrain_warn == []
