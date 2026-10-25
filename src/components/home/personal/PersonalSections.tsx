@@ -6,7 +6,6 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { useHomepageIntelligence } from "@/components/home/ai/HomepageIntelligenceProvider";
 import { LandingHero } from "@/components/home/landing/LandingHero";
 import { ComingUp } from "./ComingUp";
-import { GridAndModelLead, LiveLead, OutcomeLead } from "./WeekendLead";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { homeWeekendMode } from "@/lib/homeWeekendMode";
 import { FavouritesHere, TrackIntelligenceCard } from "./TrackIntelligenceCard";
@@ -97,17 +96,7 @@ export function PersonalHero({ publicData, personalData, firstName, onPredict }:
       landing={publicData}
       greeting={greeting}
       actions={action}
-      aside={
-        showOutcome ? (
-          <OutcomeLead scores={last} />
-        ) : mode?.phase === "live" && mode.liveSession ? (
-          <LiveLead race={race} session={mode.liveSession} />
-        ) : mode?.phase === "post-quali" ? (
-          <GridAndModelLead race={race} />
-        ) : (
-          <TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} drawing={publicData.drawingByRound?.[race.round] ?? null} />
-        )
-      }
+      aside={<TrackIntelligenceCard circuit={race.circuit} history={publicData.trackHistory} drawing={publicData.drawingByRound?.[race.round] ?? null} />}
       footer={<FavouritesHere circuit={race.circuit} history={publicData.trackHistory} />}
     />
   );
@@ -225,6 +214,7 @@ function ago(iso: string): string {
  * so it shows your recent activity under that name instead. */
 export function SinceLastVisitSection({ personalData }: Pick<Props, "personalData">) {
   const { since, changes, activity, newCommunityPosts } = personalData.sinceLastVisit;
+  const summary = useHomepageIntelligence().intelligence?.sinceLastVisit?.summary;
   const rows = [
     ...changes.map((c, i) => ({ key: `change-${i}`, text: c.title, timestamp: null as string | null })),
     ...(newCommunityPosts > 0
@@ -234,6 +224,12 @@ export function SinceLastVisitSection({ personalData }: Pick<Props, "personalDat
   ];
   return (
     <Section id="since-last-visit" level={2} title={since ? "Since your last visit" : "Your recent activity"}>
+      {summary && (
+        <div className="mb-3">
+          <AiLabel />
+          <p className="mt-1 text-body-sm text-secondary">{summary}</p>
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="text-body-sm text-secondary">
           {since ? "Nothing new since your last visit." :"Nothing yet. Your picks and points show here as they happen."}
