@@ -4,7 +4,7 @@
 // costs the communities/people queries and nothing else.
 import { parseAvatar } from "@/lib/avatar";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { findArchiveCircuitByLocation, getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveSeason, type ArchiveCircuit } from "@/lib/supabase/archive";
+import { findArchiveCircuitByLocation, getAllArchiveCircuits, getAllArchiveDrivers, getAllArchiveTeams, getArchiveEntityRaces, getArchiveSeason, type ArchiveCircuit, type ArchiveRaceDoc } from "@/lib/supabase/archive";
 import { getRaceListByYear } from "@/lib/supabase/races";
 import { getAllCurrentDrivers, getAllCurrentTeams } from "@/lib/supabase/media";
 import { getUserProfile } from "@/lib/supabase/users";
@@ -106,13 +106,15 @@ function driverResult(ix: Index, d: Index["drivers"][number]): SearchResult {
   const current = d.code && d.lastYear >= ix.season - 1 ? ix.currentByCode.get(d.code) : undefined;
   const standing = d.code ? ix.driverRank.get(d.code) : undefined;
   const team = standing?.team ?? current?.team;
+  // A past driver's colour is their last team's, for the initials fallback when there's no headshot.
+  const lastTeam = team ?? d.constructors?.at(-1);
   return {
     kind: "driver",
     label: d.name,
     detail: team ? `${d.code ? `${d.code} · ` : ""}${team}` : `${d.firstYear}–${d.lastYear}`,
     meta: standing ? `P${standing.rank} · ${standing.points} pts` : undefined,
     image: current?.headshotUrl ?? d.photoUrl ?? null,
-    color: team ? teamColor(team) : null,
+    color: lastTeam ? teamColor(lastTeam) : null,
     href: archiveDriverHref(d.driverId),
   };
 }
@@ -144,6 +146,11 @@ function circuitResult(ix: Index, c: ArchiveCircuit): SearchResult {
   };
 }
 
+function archiveRaceResult(r: ArchiveRaceDoc): SearchResult {
+  const winner = r.results.find((x) => x.position === 1);
+  return { kind: "race", label: `${r.year} ${r.raceName}`, detail: winner ? `Won by ${winner.driverName}` : (r.circuitName ?? undefined), meta: shortDate(r.raceDate) ?? undefined, shape: circuitShape(r.locality, r.circuitName), href: sectionHref("archive", { year: r.year, round: r.round }) };
+}
+
 /** "<circuit> <year>" and "<driver> <year>": that race, or that driver's season. Past seasons come from the archive. */
 async function yearResults(ix: Index, text: string, year: number): Promise<SearchResult[]> {
   if (year < ARCHIVE_EARLIEST_YEAR || year > ix.season) return [];
@@ -155,10 +162,7 @@ async function yearResults(ix: Index, text: string, year: number): Promise<Searc
     text,
     races,
     (r) => [r.raceName, r.circuitName, r.locality, r.country],
-    (r) => {
-      const winner = r.results.find((x) => x.position === 1);
-      return { kind: "race", label: `${r.year} ${r.raceName}`, detail: winner ? `Won by ${winner.driverName}` : (r.circuitName ?? undefined), meta: shortDate(r.raceDate) ?? undefined, shape: circuitShape(r.locality, r.circuitName), href: sectionHref("archive", { year: r.year, round: r.round }) };
-    },
+    archiveRaceResult,
     3,
   );
   // A driver's season: their points and wins that year, from the same archive read.
@@ -174,7 +178,10 @@ async function yearResults(ix: Index, text: string, year: number): Promise<Searc
     text,
     [...totals.entries()],
     ([, t]) => [t.name],
-    ([id, t]) => ({ kind: "driver", label: `${t.name} in ${year}`, detail: `${t.wins} win${t.wins === 1 ? "" : "s"}`, meta: `${Math.round(t.points * 10) / 10} pts`, href: archiveDriverHref(id) }),
+    ([id, t]) => {
+      const d = ix.drivers.find((x) => x.driverId === id);
+      return { ...(d ? driverResult(ix, d) : {}), kind: "driver", label: `${t.name} in ${year}`, detail: `${t.wins} win${t.wins === 1 ? "" : "s"}`, meta: `${Math.round(t.points * 10) / 10} pts`, href: archiveDriverHref(id) };
+    },
     2,
   );
   return [...raceHits, ...driverHits, season];
@@ -267,7 +274,7 @@ export async function searchSite(uid: string, rawQuery: string): Promise<SearchR
   // A driver code ("VER") goes straight to its driver, ahead of name matches.
   const codeHits = code ? ix.drivers.filter((d) => d.code === code).sort((a, b) => b.lastYear - a.lastYear).slice(0, 1).map((d) => driverResult(ix, d)) : [];
   const drivers = rankMatches(text, ix.drivers, (d) => [d.name, d.code], (d) => driverResult(ix, d)).filter((r) => !codeHits.some((c) => c.href === r.href));
-  return [
+  const results = [
     ...actions,
     ...rankMatches(text, ix.races, (r) => [r.name, r.circuit, r.country], currentRaceResult, 4),
     ...codeHits,
@@ -278,6 +285,41 @@ export async function searchSite(uid: string, rawQuery: string): Promise<SearchR
     ...people,
     ...rankMatches(text, SECTIONS, (s) => [s.label, s.detail], (s) => s),
   ];
+  // A sentence ("everything about lewis hamilton") matches no name whole: answer with what it names instead.
+  if (text.split(/\s+/).length >= 3 && !results.some((r) => r.kind !== "action" && r.kind !== "section")) return [...actions, ...(await sentenceResults(ix, text))];
+  return results;
+}
+
+/** What a sentence names, grouped: the driver, the teams they drove for and their races (wins first); teams and circuits. */
+async function sentenceResults(ix: Index, text: string): Promise<SearchResult[]> {
+  const named = namedIn(ix, text);
+  const driver = named.drivers[0];
+  const history = driver ? await getArchiveEntityRaces("driver", driver.driverId).catch(() => [] as ArchiveRaceDoc[]) : [];
+  const recentFirst = [...history].sort((a, b) => b.year - a.year || b.round - a.round);
+  const wins = recentFirst.filter((r) => r.results.some((x) => x.driverId === driver?.driverId && x.position === 1));
+  const races = (wins.length ? wins : recentFirst).slice(0, 4).map(archiveRaceResult);
+  const driverTeams = (driver?.constructors ?? []).flatMap((name) => ix.teams.filter((t) => normalise(t.name) === normalise(name)));
+  const teams = [...new Map([...named.teams, ...driverTeams].map((t) => [t.teamId, t])).values()].slice(0, 5);
+  return [...races, ...named.drivers.slice(0, 3).map((d) => driverResult(ix, d)), ...teams.map((t) => teamResult(ix, t)), ...named.circuits.slice(0, 3).map((c) => circuitResult(ix, c))];
+}
+
+/** The drivers (full name, or surname for a recent one), teams and circuits a text names, as whole words. */
+function namedIn(ix: Index, text: string) {
+  const t = ` ${normalise(text).replace(/[^a-z0-9 ]+/g, " ")} `;
+  const has = (name: string | null | undefined) => !!name && name.length >= 3 && t.includes(` ${normalise(name).replace(/[^a-z0-9 ]+/g, " ")} `);
+  const lastName = (name: string) => name.split(" ").slice(-1)[0];
+  return {
+    has,
+    drivers: [...ix.drivers.filter((d) => has(d.name)), ...ix.drivers.filter((d) => d.lastYear >= ix.season - 1 && !has(d.name) && has(lastName(d.name)))],
+    teams: ix.teams.filter((tm) => has(tm.name) || has(ix.currentTeamBySlug.get(tm.teamId)?.name)),
+    circuits: ix.circuits.filter((c) => has(c.name)),
+  };
+}
+
+/** The archive drivers, teams and circuits a question names, for Ask Apex's whole-site context. */
+export async function entitiesNamedIn(text: string): Promise<{ drivers: string[]; teams: string[]; circuits: string[] }> {
+  const named = namedIn(await loadIndex(), text);
+  return { drivers: named.drivers.map((d) => d.driverId), teams: named.teams.map((t) => t.teamId), circuits: named.circuits.map((c) => c.circuitId) };
 }
 
 async function suggestions(uid: string, ix: Index): Promise<SearchResult[]> {
@@ -300,8 +342,7 @@ async function suggestions(uid: string, ix: Index): Promise<SearchResult[]> {
  */
 export async function mentionedIn(text: string, limit = 5): Promise<SearchResult[]> {
   const ix = await loadIndex();
-  const t = ` ${normalise(text).replace(/[^a-z0-9 ]+/g, " ")} `;
-  const has = (name: string | null | undefined) => !!name && name.length >= 3 && t.includes(` ${normalise(name).replace(/[^a-z0-9 ]+/g, " ")} `);
+  const { has } = namedIn(ix, text);
   const lastName = (name: string) => name.split(" ").slice(-1)[0];
   const out: SearchResult[] = [];
   for (const r of ix.races) if (has(r.name)) out.push(currentRaceResult(r));

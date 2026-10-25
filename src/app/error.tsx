@@ -56,7 +56,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-10 text-center">
         <p className="text-lg font-semibold text-white">Something went wrong</p>
         <p className="mt-2 text-sm text-neutral-400">
-          This page hit an unexpected error. It&apos;s been logged — try again, or head back home.
+          This page hit an unexpected error. It&apos;s been logged. Try again, or head back home.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <button
