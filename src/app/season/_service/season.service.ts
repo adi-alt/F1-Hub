@@ -7,6 +7,7 @@ import { parseUtcDateTime } from "@/lib/countdown";
 import { formatLapTime, trackShortForm } from "@/lib/format";
 import { computeChampionshipProgression } from "@/lib/personalization";
 import { sessionCode } from "@/lib/sessionCode";
+import { headerStatus, upcomingSessions } from "@/lib/headerSchedule";
 import { computeStandings } from "@/lib/standings";
 import { archiveSlugForCurrentTeam, teamSlug } from "@/lib/teamSlug";
 import { buildBattles, buildRecords, completedRoundCount, fastestPracticeLap, seasonStatus } from "./season.pure";
@@ -69,14 +70,9 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], 
   // this happens to run in (the exact bug already fixed for RaceHero/RaceWeekendPanel/PickPanel).
   const nextRound = sorted.find((e) => e.raceDate && parseUtcDateTime(e.raceDate).getTime() > now)?.round;
 
-  // The single "what's happening next" pointer, but at session granularity instead of race
-  // granularity — every session across the whole season, chronologically, so each weekend's
-  // sessions can be marked completed/current/upcoming individually instead of the whole weekend
-  // switching state at once.
-  const allSessions = sorted
-    .flatMap((e) => e.sessions.map((s) => ({ ...s, round: e.round })))
-    .sort((a, b) => parseUtcDateTime(a.date).getTime() - parseUtcDateTime(b.date).getTime());
-  const currentSession = allSessions.find((s) => parseUtcDateTime(s.date).getTime() > now);
+  // The header's own status (the session running now, else the next to start), so each weekend's
+  // sessions are marked live/current by exactly the rule the header countdown uses.
+  const status = headerStatus(upcomingSessions(sorted, now, Infinity), now);
 
   return sorted.map((entry) => {
     const race = raceByRound.get(entry.round);
@@ -131,10 +127,12 @@ function buildRaceSummaries(races: RaceDoc[], calendarEntries: CalendarEntry[], 
           code,
           date: sx.date,
           state:
-            parseUtcDateTime(sx.date).getTime() <= now
-              ? "completed"
-              : currentSession && currentSession.round === entry.round && currentSession.label === sx.label
-                ? "current"
+            status && status.session.round === entry.round && status.session.startsAt === sx.date
+              ? status.kind === "live"
+                ? "live"
+                : "current"
+              : parseUtcDateTime(sx.date).getTime() <= now
+                ? "completed"
                 : "upcoming",
           result: parseUtcDateTime(sx.date).getTime() <= now ? sessionResultFor(code, race, winner?.driverName ?? null) : null,
         };

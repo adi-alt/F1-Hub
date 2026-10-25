@@ -36,6 +36,10 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           # Failures go to Sentry; unset means they just stay in the job log and the pipeline_runs ledger.
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          # The race-week forecast (weather_forecast.py). Without it every round gets the historical
+          # average, so a race weekend showed "no live forecast available yet" and the circuit's
+          # average rain chance. Unset still falls back safely.
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
           # Same gap as fetch-races.yml: sync_calendar.py calls
           # ergast_utils.trigger_revalidation("calendar"), which silently no-ops without this.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -557,18 +557,19 @@ export function generateRaceEventFallback(race: RaceSummary): RaceEventTake {
         .join(" "),
     };
   }
+  const running = race.sessions.find((s) => s.state === "live");
   const nextSession = race.sessions.find((s) => s.state === "current" || s.state === "upcoming");
   if (race.weekendStatus === "live") {
     return {
-      headline: `${race.name} is under way`,
-      summary: `The weekend has started at ${race.circuit ?? race.name}.${nextSession ? ` ${nextSession.label} is next on the schedule.` : ""} Session results appear below as each one is classified.`,
+      headline: running ? `${running.label} is running at ${race.name}` : `${race.name} is under way`,
+      summary: `The weekend has started at ${race.circuit ?? race.name}.${!running && nextSession ? ` ${nextSession.label} is next on the schedule.` : ""} Session results appear below as each one is classified.`,
     };
   }
   return {
     headline: `Round ${race.round}: ${race.name}`,
     summary: [
       `${race.name}${race.circuit ? ` at ${race.circuit}` : ""} is round ${race.round} of the season${race.isSprintWeekend ? ", run to the sprint format" : ""}.`,
-      race.forecast ? `The current forecast puts air temperature near ${Math.round(race.forecast.airTempC)}C with a ${Math.round(race.forecast.rainProbability * 100)}% chance of rain.` : null,
+      race.forecast ? `The current forecast puts air temperature near ${Math.round(race.forecast.airTempC)}°C with a ${Math.round(race.forecast.rainProbability * 100)}% chance of rain.` : null,
       nextSession ? `${nextSession.label} opens the weekend's running.` : null,
     ]
       .filter(Boolean)

@@ -275,15 +275,17 @@ export function buildRaceInsights(race: RaceSummary, drivers: DriverStandingRow[
   if (race.forecast) {
     const rain = Math.round(race.forecast.rainProbability * 100);
     if (rain >= 40) out.push({ text: `Rain probability is ${rain}%, enough to put strategy in play.`, tone: "warning" });
-    else if (race.forecast.airTempC >= 28) out.push({ text: `Air temperature near ${Math.round(race.forecast.airTempC)}C should stress tyre degradation.`, tone: "warning" });
+    else if (race.forecast.airTempC >= 28) out.push({ text: `Air temperature near ${Math.round(race.forecast.airTempC)}°C should stress tyre degradation.`, tone: "warning" });
     else out.push({ text: `Conditions look settled, with a ${rain}% chance of rain.`, tone: "neutral" });
   }
 
   if (race.isSprintWeekend) {
     out.push({ text: "Sprint format puts points on offer twice this weekend.", tone: "neutral" });
   } else if (race.weekendStatus === "live") {
+    const running = race.sessions.find((s) => s.state === "live");
     const next = race.sessions.find((s) => s.state === "current" || s.state === "upcoming");
-    if (next) out.push({ text: `${next.label} is the next session to run.`, tone: "neutral" });
+    if (running) out.push({ text: `${running.label} is running now.`, tone: "neutral" });
+    else if (next) out.push({ text: `${next.label} is the next session to run.`, tone: "neutral" });
   }
 
   return out.slice(0, 3);

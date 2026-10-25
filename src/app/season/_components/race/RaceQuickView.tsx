@@ -5,6 +5,9 @@ import Link from "next/link";
 import { Dialog } from "@/components/ui/Dialog";
 import { raceHref } from "@/lib/routes";
 import { parseUtcDateTime } from "@/lib/countdown";
+import { roundStatus, type HeaderStatus } from "@/lib/headerSchedule";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
+import { EYEBROW } from "@/components/ui/panel";
 import { useSeasonExplorer } from "../../_context/SeasonExplorerContext";
 import { buildPredictionReview, type DriverStandingRow, type RaceSummary, type RaceWeekendStatus } from "../../_service/season.pure";
 import { buildRaceInsights } from "../../_service/seasonAnalytics";
@@ -79,43 +82,61 @@ export function RaceQuickView({ season, raceSummaries, drivers }: { season: numb
 /** Body content, keyed off the weekend's real state. Each state shows only what is genuinely
  * knowable for it - no results for a race that hasn't run, no forecast for one that has.
  *
- * The layout is two columns on desktop (editorial and insight on the left, conditions and result
- * on the right) with the timeline and prediction review spanning the full width beneath, because
- * both of those are horizontal by nature. Everything collapses to one column below `lg`. */
-function RaceQuickViewBody({ season, race, drivers }: { season: number; race: RaceSummary; drivers: DriverStandingRow[] }) {
+ * From md up: a compact map beside the status, take and insights; conditions and progress in two
+ * columns beneath; then the timeline and prediction review at full width, being horizontal by
+ * nature. Phones stack it all in one column and scroll. */
+function RaceQuickViewBody({ season, race: loaded, drivers }: { season: number; race: RaceSummary; drivers: DriverStandingRow[] }) {
+  const now = useMinuteClock();
+  // The page's data was built when it loaded; re-read the weekend's sessions on the header's own clock and rule, so
+  // the badge, insights and progress say what the header says this minute.
+  const status = loaded.weekendStatus === "live" ? roundStatus(loaded, now) : null;
+  const race: RaceSummary =
+    loaded.weekendStatus !== "live"
+      ? loaded
+      : {
+          ...loaded,
+          sessions: loaded.sessions.map((s) => ({
+            ...s,
+            state: status?.session.startsAt === s.date ? (status.kind === "live" ? "live" : "current") : parseUtcDateTime(s.date).getTime() <= now ? "completed" : "upcoming",
+          })),
+        };
   const review = buildPredictionReview(race);
   const insights = buildRaceInsights(race, drivers);
   const isOff = race.weekendStatus === "cancelled" || race.weekendStatus === "postponed";
 
   return (
-    <div className="flex flex-col gap-7">
-      <div className="flex items-center gap-2">
-        <StatusPill status={race.weekendStatus} />
+    <div className="flex flex-col gap-6">
+      {/* The map is a compact block beside the details from md up (above them on phones), so everything that matters
+          fits a laptop screen without scrolling. */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+        <RaceMedia photoUrls={race.photoUrls} circuitTrackMap={race.circuitTrackMap} circuitDrawing={race.circuitDrawing ?? null} raceName={race.name} circuit={race.circuit} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <StatusPill status={race.weekendStatus} session={status} />
+          </div>
+          {isOff ? (
+            <p className="max-w-2xl text-sm leading-relaxed text-neutral-400">
+              This round is currently marked {STATUS_LABEL[race.weekendStatus].toLowerCase()}. The schedule below is the last published version; any replacement date will appear here once it is confirmed.
+            </p>
+          ) : (
+            <>
+              <RaceApexTake season={season} round={race.round} />
+              {insights.length > 0 && <QuickInsights insights={insights} />}
+            </>
+          )}
+        </div>
       </div>
 
-      <RaceMedia photoUrls={race.photoUrls} circuitTrackMap={race.circuitTrackMap} circuitDrawing={race.circuitDrawing ?? null} raceName={race.name} circuit={race.circuit} />
-
-      {isOff ? (
-        <p className="max-w-2xl text-sm leading-relaxed text-neutral-400">
-          This round is currently marked {STATUS_LABEL[race.weekendStatus].toLowerCase()}. The schedule below is the last published version; any replacement date will appear here once it is confirmed.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-7 lg:grid-cols-2 lg:gap-10">
-          <div className="flex min-w-0 flex-col gap-6">
-            <RaceApexTake season={season} round={race.round} />
-            {insights.length > 0 && <QuickInsights insights={insights} />}
-          </div>
-          <div className="flex min-w-0 flex-col gap-6">
-            <RaceWeather race={race} />
-            {race.weekendStatus === "completed" && <QuickResults race={race} />}
-            {race.weekendStatus !== "completed" && <UpcomingFacts race={race} />}
-          </div>
+      {!isOff && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-10">
+          <RaceWeather race={race} />
+          {race.weekendStatus === "completed" ? <QuickResults race={race} /> : <UpcomingFacts race={race} />}
         </div>
       )}
 
       <section>
-        <p className="text-caption font-semibold uppercase tracking-[0.16em] text-tertiary">Weekend timeline</p>
-        <div className="mt-4">
+        <p className={EYEBROW}>Weekend timeline</p>
+        <div className="mt-3">
           <RaceTimeline sessions={race.sessions} />
         </div>
       </section>
@@ -126,19 +147,15 @@ function RaceQuickViewBody({ season, race, drivers }: { season: number; race: Ra
 }
 
 /** Three short, computed observations. Not model output - see buildRaceInsights for why. */
-function QuickInsights({ insights }: { insights: { text: string; tone: "neutral" | "positive" | "warning" }[] }) {
-  const dot: Record<string, string> = {
-    positive: "bg-emerald-400/70",
-    warning: "bg-amber-400/70",
-    neutral: "bg-neutral-500/70",
-  };
+function QuickInsights({ insights }: { insights: { text: string }[] }) {
+  // One neutral bullet for every line: the tone was a colour with no legend, so it read as noise.
   return (
     <section>
-      <p className="text-caption font-semibold uppercase tracking-[0.16em] text-tertiary">Quick insights</p>
+      <p className={EYEBROW}>Quick insights</p>
       <ul className="mt-2.5 space-y-1.5">
         {insights.map((insight) => (
           <li key={insight.text} className="flex items-baseline gap-2.5 text-sm leading-relaxed text-neutral-300">
-            <span aria-hidden className={`mt-1.5 h-1 w-1 shrink-0 rounded-full ${dot[insight.tone]}`} />
+            <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-neutral-500/70" />
             <span className="min-w-0">{insight.text}</span>
           </li>
         ))}
@@ -150,6 +167,7 @@ function QuickInsights({ insights }: { insights: { text: string; tone: "neutral"
 /** What is actually known about a round that hasn't run. Never a predicted result presented as
  * fact - the prediction review only ever appears after the event. */
 function UpcomingFacts({ race }: { race: RaceSummary }) {
+  const running = race.sessions.find((s) => s.state === "live");
   const nextSession = race.sessions.find((s) => s.state === "current" || s.state === "upcoming");
   const completedSessions = race.sessions.filter((s) => s.state === "completed").length;
 
@@ -161,7 +179,7 @@ function UpcomingFacts({ race }: { race: RaceSummary }) {
       <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-3">
         <Fact label="Format" value={race.isSprintWeekend ? "Sprint weekend" : "Conventional"} />
         <Fact label="Sessions" value={`${completedSessions} of ${race.sessions.length} run`} />
-        {nextSession && <Fact label="Next session" value={nextSession.label} />}
+        {running ? <Fact label="Running now" value={running.label} /> : nextSession && <Fact label="Next session" value={nextSession.label} />}
         {race.circuit && <Fact label="Circuit" value={race.circuit} />}
       </dl>
       {race.predicted && race.predicted.winner && (
@@ -222,19 +240,22 @@ function QuickResults({ race }: { race: RaceSummary }) {
   );
 }
 
-function StatusPill({ status }: { status: RaceWeekendStatus }) {
+/** During a weekend it names the session exactly as the header does: "Live · Qualifying", or "Qualifying in 16m". */
+function StatusPill({ status, session }: { status: RaceWeekendStatus; session: HeaderStatus }) {
+  const running = status === "live" && session?.kind === "live";
+  const label = session ? (running ? `Live · ${session.session.label}` : `${session.session.label} in ${session.countdown}`) : STATUS_LABEL[status];
   const tone =
     status === "completed"
       ? "text-neutral-400 border-white/[0.12]"
-      : status === "live"
+      : status === "live" && (running || !session)
         ? "text-brand-text border-[var(--f1-red)]/40"
         : status === "cancelled" || status === "postponed"
           ? "text-amber-400 border-amber-400/35"
           : "text-neutral-300 border-white/[0.16]";
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em] ${tone}`}>
-      {status === "live" && <span aria-hidden className="pulse-ring h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />}
-      {STATUS_LABEL[status]}
+      {running && <span aria-hidden className="pulse-ring h-1.5 w-1.5 rounded-full bg-[var(--f1-red)]" />}
+      {label}
     </span>
   );
 }

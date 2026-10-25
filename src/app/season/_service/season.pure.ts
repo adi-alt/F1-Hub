@@ -38,7 +38,8 @@ export type RaceSessionSummary = {
   label: string;
   code: string;
   date: string;
-  state: "completed" | "current" | "upcoming";
+  /** "live" is the session running now, "current" the next to start: the one the header names (headerStatus). */
+  state: "completed" | "live" | "current" | "upcoming";
   /** A real, already-known outcome for a session that has run ("Winner", "Pole", "Fastest"), or
    * null. Never a placeholder - a session whose result this app genuinely doesn't have (a sprint
    * race, which the pipeline stores no separate classification for) shows nothing rather than an
@@ -261,7 +262,11 @@ export function buildBattles(drivers: DriverStandingRow[], constructors: Constru
       h2h: raceSummaries.length > 0 ? computeHeadToHead(constructors[i].team, constructors[i + 1].team, raceSummaries, true, false) : undefined,
     });
   }
-  return battles.sort((a, b) => a.gap - b.gap).slice(0, 6);
+  // Two pointless entries level on 0 aren't a battle; they would otherwise top the list with a 0 gap.
+  return battles
+    .filter((b) => b.aValue > 0 || b.bValue > 0)
+    .sort((a, b) => a.gap - b.gap)
+    .slice(0, 6);
 }
 
 /** `id` is what the AI layer's highlightedRecordIds validate against - without it the model had
