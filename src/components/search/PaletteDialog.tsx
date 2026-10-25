@@ -69,7 +69,8 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
   const isPhone = useIsPhone();
   const [query, setQuery] = useState("");
   // The last answered query's results, shown while the next one loads, so the list doesn't blink empty.
-  const [fetched, setFetched] = useState<{ key: string; results: SearchResult[] }>({ key: "", results: [] });
+  // `key: null` until the first answer, so the empty query on first open counts as loading too.
+  const [fetched, setFetched] = useState<{ key: string | null; results: SearchResult[] }>({ key: null, results: [] });
   const [, setIntentVersion] = useState(0);
   const [active, setActive] = useState(0);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -80,8 +81,10 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
   const parsed = parseQuery(query);
   const key = query.trim().toLowerCase();
   const cachedResults = resultCache.get(key);
-  const results = cachedResults ?? fetched.results;
   const loading = !cachedResults && fetched.key !== key;
+  // While the settled query loads, the previous query's results are stale: they'd flash a partial list
+  // before the real one lands, so the skeleton stands in for the whole grouped list instead.
+  const results = cachedResults ?? (loading ? [] : fetched.results);
   const intent = intentCache.get(key) ?? [];
 
   // Results: from the cache at once, else debounced with the previous request aborted, so only the settled query is answered.
@@ -118,6 +121,7 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
       controller.abort();
     };
   }, [wantsIntent, key, query]);
+  const intentPending = wantsIntent && !intentCache.has(key);
 
   async function ask(question: string) {
     const q = question.trim();
@@ -170,7 +174,7 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
     onClose();
   };
 
-  const showRecent = parsed.mode === "empty" && recent.length > 0;
+  const showRecent = parsed.mode === "empty" && recent.length > 0 && !loading;
   const groups = useMemo(() => {
     const g = groupResults(results);
     return [...(showRecent ? [{ kind: "recent", heading: "Recent", items: recent }] : []), ...(intent.length ? [{ kind: "intent", heading: "Closest matches", items: intent }] : []), ...g];
@@ -272,7 +276,8 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
               </p>
               <div aria-live="polite" aria-busy={answer.status === "loading"} className="mt-2 text-body-sm text-secondary">
                 {answer.status === "loading" && (
-                  <SkeletonGroup label={`Apex is thinking about “${answer.question}”`} delay={false}>
+                  <SkeletonGroup label={`Apex is thinking about “${answer.question}”`} delay={false} className="flex flex-col gap-1">
+                    <span aria-hidden className="text-caption text-tertiary">Apex is searching…</span>
                     <Skeleton />
                     <Skeleton className="w-11/12" />
                     <Skeleton className="w-2/3" />
@@ -311,18 +316,10 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
           )}
         </AnimatePresence>
 
-        <div id={listId} role="listbox" aria-label="Results" className={`-mx-1 overflow-y-auto px-1 ${isPhone ? "min-h-0 flex-1" : "max-h-[min(60vh,520px)]"}`}>
+        <div id={listId} role="listbox" aria-label="Results" className={`scrollbar-subtle -mx-1 overflow-y-auto px-1 ${isPhone ? "min-h-0 flex-1" : "max-h-[min(60vh,520px)]"}`}>
           {askFirst === 1 && renderRow(rows[0], 0)}
-          {loading && groups.length === 0 && (
-            <SkeletonGroup label="Searching…" className="flex flex-col gap-1 px-3 pt-2">
-              {[0, 1, 2, 3].map((i) => (
-                <span key={i} className="flex min-h-11 items-center gap-3">
-                  <Skeleton shape="circle" className="size-8 shrink-0" />
-                  <Skeleton className="w-1/2" />
-                </span>
-              ))}
-            </SkeletonGroup>
-          )}
+          {loading && <ResultsSkeleton label="Searching…" groups={[3, 2]} />}
+          {intentPending && <ResultsSkeleton label="Apex is searching…" heading="Apex is searching…" groups={[3]} />}
           {groups.map((g, gi) => (
             <div key={g.kind} role="group" aria-labelledby={`${listId}-h-${g.kind}`} className="pt-2 first:pt-0">
               <div id={`${listId}-h-${g.kind}`} role="presentation" className={`${EYEBROW} flex items-center gap-1.5 px-3 pb-1 pt-2`}>
@@ -333,7 +330,7 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
             </div>
           ))}
           {askFirst === 0 && rows.at(-1)?.type === "ask" && renderRow({ type: "ask" }, rows.length - 1)}
-          {parsed.mode !== "empty" && !loading && rows.length === 0 && <p className="px-3 py-6 text-center text-body-sm text-tertiary">Nothing found.</p>}
+          {parsed.mode !== "empty" && !loading && !intentPending && rows.length === 0 && <p className="px-3 py-6 text-center text-body-sm text-tertiary">Nothing found.</p>}
         </div>
       </div>
       <p className="hidden pb-5 pt-3 text-caption text-tertiary md:block">↑ ↓ move · Enter open · Tab ask Apex · &gt; commands · Esc close</p>
@@ -341,6 +338,39 @@ export function PaletteDialog({ open, onClose, uid }: { open: boolean; onClose: 
         {parsed.mode !== "empty" && !loading ? `${rows.length} result${rows.length === 1 ? "" : "s"}` : ""}
       </p>
     </Overlay>
+  );
+}
+
+/**
+ * The grouped list's shape (eyebrow, then rows of icon + two lines) shown with no delay from the first
+ * keystroke, so the first paint is the layout the results will fill rather than a blank or partial list.
+ */
+function ResultsSkeleton({ label, heading, groups }: { label: string; heading?: string; groups: number[] }) {
+  return (
+    <SkeletonGroup label={label} delay={false} className="flex flex-col">
+      {groups.map((n, gi) => (
+        <div key={gi} className="pt-2 first:pt-0">
+          <div className="px-3 pb-1 pt-2">
+            {heading && gi === 0 ? (
+              <span aria-hidden className={`${EYEBROW} flex items-center gap-1.5`}>
+                <Icon icon={Sparkles} size={16} /> {heading}
+              </span>
+            ) : (
+              <Skeleton className="w-20" />
+            )}
+          </div>
+          {Array.from({ length: n }, (_, i) => (
+            <span key={i} className="flex min-h-11 items-center gap-3 px-3 py-1.5">
+              <Skeleton shape="block" className="size-8 shrink-0" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <Skeleton style={{ width: `${60 - i * 10}%` }} />
+                <Skeleton className="w-1/3" />
+              </span>
+            </span>
+          ))}
+        </div>
+      ))}
+    </SkeletonGroup>
   );
 }
 

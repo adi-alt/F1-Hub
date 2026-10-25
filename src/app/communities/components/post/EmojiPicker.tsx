@@ -137,7 +137,7 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji
             </div>
           </>
         )}
-        <div className="mt-2 grid max-h-40 grid-cols-8 gap-0.5 overflow-y-auto">
+        <div className="mt-2 grid max-h-40 grid-cols-8 gap-0.5 overflow-y-auto scrollbar-subtle">
           {filtered.map((e) => (
             <button key={e.char} type="button" onClick={() => pick(e.char)} title={e.keywords.split(" ")[0]} className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-white/[0.06]">
               {e.char}

@@ -12,12 +12,12 @@ import { archiveCircuitHref, archiveDriverHref, archiveTeamHref, groupHref, race
 import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
-import { EYEBROW } from "@/components/ui/panel";
 import { NotificationsForm } from "@/components/profile/NotificationsForm";
 import { ACCOUNT_SECTIONS, AccountNav, accountHref, type AccountSection } from "./components/AccountNav";
 import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
 import { AccountData } from "./components/AccountData";
 import { ProfileOverview, type ProfileOverviewData } from "./components/ProfileOverview";
+import { ProfileIdentity, type ProfileIdentityData } from "./components/ProfileIdentity";
 import { getPointsBalance, listRecentTransactions } from "@/lib/supabase/points";
 import { getUserGroups } from "@/lib/supabase/groups";
 import { getSeasonPicks, getUserPicksForYear } from "@/lib/supabase/picks";
@@ -196,15 +196,16 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const { tab: rawSection, kind: tab } = await searchParams;
   const section = sectionOf(rawSection);
   const title = ACCOUNT_SECTIONS.find((s) => s.value === section)!.label;
+  const identity = await loadIdentity(session.uid);
 
   return (
     <div className="page-content py-8">
-      <p className={EYEBROW}>Account</p>
-      <h1 className="mt-1 text-display-md text-primary">{title}</h1>
-      <p className="mt-2 max-w-2xl text-body-sm text-secondary">{INTRO[section]}</p>
-      <div className="mt-6">
+      <ProfileIdentity data={identity} />
+      <div className="mt-8">
         <AccountNav current={section} />
       </div>
+      <h2 className="mt-8 text-title-lg font-semibold text-primary">{title}</h2>
+      <p className="mt-1 max-w-2xl text-body-sm text-secondary">{INTRO[section]}</p>
       <div className="mt-6">
         {section === "personalisation" && <Personalisation uid={session.uid} tab={tab} />}
         {section === "predictions" && <Predictions uid={session.uid} />}
@@ -214,6 +215,35 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       </div>
     </div>
   );
+}
+
+/** The masthead's reads: who you are, your balance and this season's record. Each degrades to empty, never failing the page. */
+async function loadIdentity(uid: string): Promise<ProfileIdentityData> {
+  const season = await getCurrentSeason();
+  const [profile, points, groups, picks, races] = await Promise.all([
+    safeRead(() => getUserProfile(uid), null),
+    safeRead(() => getPointsBalance(uid), null),
+    safeRead(() => getUserGroups(uid), []),
+    safeRead(() => getUserPicksForYear(uid, season), []),
+    safeRead(() => getRaceListByYear(season), []),
+  ]);
+  const perf = computePredictionPerformance(picks, races);
+  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.displayName || profile?.username || profile?.email || "Your account";
+  return {
+    uid,
+    name,
+    username: profile?.username ?? null,
+    avatar: profile?.avatar ?? null,
+    memberSince: profile?.createdAt ?? null,
+    points,
+    season,
+    stats: [
+      { label: `${season} pick points`, value: String(perf.points.earned) },
+      { label: "Races scored", value: String(perf.points.races) },
+      { label: "Winners called", value: `${perf.winner.correct}/${perf.winner.total}` },
+      { label: "Communities", value: String(groups.length) },
+    ],
+  };
 }
 
 const POINTS_REASON: Record<string, string> = {

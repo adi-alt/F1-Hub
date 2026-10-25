@@ -72,7 +72,7 @@ export function GifPicker({ onSelect, onClose, anchorRef }: { onSelect: (url: st
         placeholder="Search GIFs..."
         className="w-full rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white placeholder:text-tertiary focus:outline-none"
       />
-      <div className="mt-2 max-h-52 overflow-y-auto">
+      <div className="scrollbar-subtle mt-2 max-h-52 overflow-y-auto">
         {!configured ? (
           <p className="p-3 text-center text-xs text-tertiary">GIFs aren&apos;t available right now.</p>
         ) : results === null ? (

@@ -173,7 +173,7 @@ function SmoothBody({ children }: { children: ReactNode }) {
     <div
       // + 8: the body's own py-1, inside its border box.
       style={height === undefined ? undefined : { height: height + 8 }}
-      className="-my-1 min-h-0 flex-initial overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary transition-[height] duration-base ease-standard motion-reduce:transition-none"
+      className="-my-1 scrollbar-subtle min-h-0 flex-initial overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary transition-[height] duration-base ease-standard motion-reduce:transition-none"
     >
       <div ref={inner}>{children}</div>
     </div>
@@ -238,7 +238,7 @@ export function DialogLayer({
         (variant === "dialog" && !steady && !withAside ? (
           <SmoothBody>{children}</SmoothBody>
         ) : (
-          <div className={cx("-my-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary", steady ? "flex-initial" : "flex-1")}>{children}</div>
+          <div className={cx("scrollbar-subtle -my-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-1 text-body-sm text-primary", steady ? "flex-initial" : "flex-1")}>{children}</div>
         ))}
       {hasContent(footer) && <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 px-6 pt-2">{footer}</div>}
     </>

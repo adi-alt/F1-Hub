@@ -167,7 +167,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Scrolls horizontally on a narrow screen instead of wrapping into a tall stack. */}
-      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
+      <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
         <TopicFilter facets={facets} selected={topics} onChange={setTopics} />
         <Picker
           options={DISCOVER_SORTS}

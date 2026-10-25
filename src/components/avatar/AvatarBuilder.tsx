@@ -48,7 +48,8 @@ function Row<T extends string>({ label, options, value, onPick, render, name }: 
   return (
     <fieldset>
       <legend className={EYEBROW}>{label}</legend>
-      <div className="mt-2 flex flex-wrap gap-2">
+      {/* One line per category that scrolls sideways (no visible bar), so the builder stays short enough to fit a dialog. p-1 leaves room for the selected ring. */}
+      <div className="scrollbar-hide -mx-1 mt-1 flex gap-2 overflow-x-auto p-1">
         {options.map((option) => (
           <button key={option} type="button" aria-pressed={option === value} aria-label={name(option)} title={name(option)} onClick={() => onPick(option)} className={`${TILE} ${option === value ? SELECTED : IDLE}`}>
             {render(option)}
@@ -107,7 +108,7 @@ function FaceRows({ f, set }: { f: FaceAvatar; set: (next: FaceAvatar) => void }
 }
 
 /**
- * The avatar "store": a big live preview, Helmet / Face tabs and a row of tiles per category. Everything is free.
+ * The avatar "store": a compact live preview, Helmet / Face tabs and a row of tiles per category. Everything is free.
  * Saves to PATCH /api/users/me and updates the header's copy; `onDone` runs after a save. `secondary` sits beside
  * Save (Skip during sign-up, Cancel in Settings).
  */
@@ -139,9 +140,9 @@ export function AvatarBuilder({ onDone, secondary, saveLabel = "Save avatar" }: 
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center justify-center gap-4">
         <motion.div key={JSON.stringify(current)} initial={{ scale: 0.96, opacity: 0.6 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.18 }}>
-          <AvatarSvg avatar={current} size={144} />
+          <AvatarSvg avatar={current} size={96} />
         </motion.div>
         <Button
           variant="ghost"
@@ -154,7 +155,7 @@ export function AvatarBuilder({ onDone, secondary, saveLabel = "Save avatar" }: 
       </div>
       <Tabs variant="segmented" value={style} onValueChange={setStyle} items={STYLES}>
         <TabList aria-label="Avatar style" className="mx-auto flex w-fit" />
-        <TabPanels className="mt-4 space-y-4">{style === "helmet" ? <HelmetRows h={helmet} set={setHelmet} /> : <FaceRows f={face} set={setFace} />}</TabPanels>
+        <TabPanels className="mt-4 space-y-3">{style === "helmet" ? <HelmetRows h={helmet} set={setHelmet} /> : <FaceRows f={face} set={setFace} />}</TabPanels>
       </Tabs>
       <p className="text-caption text-tertiary">Every option is free. You can change it any time in Settings.</p>
       <div className="flex flex-wrap items-center justify-end gap-2">

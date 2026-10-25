@@ -11,10 +11,22 @@ export default function ProfileLoading() {
   return (
     <div role="status" className="page-content skeleton-delay py-8">
       <span className="sr-only">Loading your account</span>
-      <Skeleton shape="block" className="h-3 w-16" />
-      <Skeleton shape="block" className="mt-2 h-9 w-56" />
-      <Skeleton shape="block" className="mt-3 h-4 w-full max-w-lg" />
-      <div className="mt-6 flex gap-6 border-b border-white/[0.06] pb-3">
+      <div className={`p-5 sm:p-6 ${PANEL}`}>
+        <div className="flex items-center gap-5">
+          <Skeleton shape="circle" className="size-[88px] shrink-0" />
+          <div className="flex-1">
+            <Skeleton shape="block" className="h-3 w-16" />
+            <Skeleton shape="block" className="mt-2 h-9 w-56" />
+            <Skeleton shape="block" className="mt-2 h-4 w-40" />
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-white/[0.06] pt-5 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} shape="block" className="h-10" />
+          ))}
+        </div>
+      </div>
+      <div className="mt-8 flex gap-6 border-b border-white/[0.06] pb-3">
         {[112, 96, 56].map((w) => (
           <Skeleton key={w} shape="block" className="h-4" style={{ width: w }} />
         ))}

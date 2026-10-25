@@ -61,8 +61,8 @@ const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus
 const LIST_CLASS: Record<TabsVariant, string> = {
   // The list scrolls sideways on narrow screens. Its 4px padding keeps each tab's focus ring inside
   // the scroll area, which would otherwise clip it; -mx-1 puts the first label back on the edge.
-  underline: "-mx-1 flex gap-6 overflow-x-auto px-1 py-1",
-  segmented: "inline-flex max-w-full gap-1 overflow-x-auto rounded-control bg-surface-1 p-1",
+  underline: "-mx-1 flex gap-6 overflow-x-auto scrollbar-hide px-1 py-1",
+  segmented: "inline-flex max-w-full gap-1 overflow-x-auto scrollbar-hide rounded-control bg-surface-1 p-1",
 };
 
 const TAB_BASE = `inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-control text-body-sm font-medium transition-colors duration-fast ease-standard motion-reduce:transition-none ${FOCUS_RING}`;

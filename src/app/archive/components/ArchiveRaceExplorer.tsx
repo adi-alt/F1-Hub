@@ -143,7 +143,7 @@ export function ArchiveRaceExplorer({ rows, entityColumnLabel, resultFilterKeys 
       {paged.length === 0 ? (
         <p className="py-10 text-center text-body-sm text-secondary">No races match this filter.</p>
       ) : (
-        <div className={`overflow-x-auto ${PANEL}`}>
+        <div className={`scrollbar-hide overflow-x-auto ${PANEL}`}>
           <table className="w-full min-w-[34rem] text-left text-body-sm">
             <caption className="sr-only">Races</caption>
             <thead className={`border-b border-white/[0.06] ${EYEBROW}`}>

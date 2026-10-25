@@ -203,7 +203,7 @@ export function Table<Row extends object>({
       role={caption ? "region" : undefined}
       aria-label={caption}
       tabIndex={caption ? 0 : undefined}
-      className={`overflow-x-auto rounded-card bg-surface-1 ${caption ? FOCUS_RING : ""} ${className}`}
+      className={`scrollbar-subtle overflow-x-auto rounded-card bg-surface-1 ${caption ? FOCUS_RING : ""} ${className}`}
     >
       <table className="w-full border-separate border-spacing-0 text-body-sm text-primary">
         {caption && <caption className="sr-only">{caption}</caption>}

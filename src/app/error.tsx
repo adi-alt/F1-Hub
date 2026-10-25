@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef } from "react";
 import * as Sentry from "@sentry/nextjs";
-import { ReportProblemButton, errorSummary, recordClientError } from "@/components/ReportProblem";
+import { ErrorScreen } from "@/components/ErrorScreen";
+import { recordClientError } from "@/components/ReportProblem";
 
 /**
  * Catches a render/data error anywhere under the root layout — Header/nav still render around
@@ -51,34 +51,5 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     };
   }, [reset]);
 
-  return (
-    <div className="page-content py-10">
-      <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-10 text-center">
-        <p className="text-lg font-semibold text-white">Something went wrong</p>
-        <p className="mt-2 text-sm text-neutral-400">
-          This page hit an unexpected error. It&apos;s been logged. Try again, or head back home.
-        </p>
-        <div className="mt-6 flex justify-center gap-3">
-          <button
-            onClick={() => reset()}
-            className="rounded-full bg-[var(--f1-red)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110"
-          >
-            Try again
-          </button>
-          <Link
-            href="/"
-            className="rounded-full border border-[var(--f1-line)] px-5 py-2 text-sm text-neutral-200 transition hover:border-white/30"
-          >
-            Go home
-          </Link>
-          <ReportProblemButton
-            error={errorSummary(error)}
-            className="rounded-full border border-[var(--f1-line)] px-5 py-2 text-sm text-neutral-200 transition hover:border-white/30"
-          >
-            Report this problem
-          </ReportProblemButton>
-        </div>
-      </div>
-    </div>
-  );
+  return <ErrorScreen error={error} reset={reset} />;
 }

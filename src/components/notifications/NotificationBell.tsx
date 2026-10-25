@@ -106,7 +106,7 @@ export function NotificationBell() {
               </Link>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {failed ? (
               <p className="px-3.5 py-6 text-center text-body-sm text-secondary">
                 Couldn&apos;t load notifications.{" "}
