@@ -163,10 +163,10 @@ def forecast(event_name, location, round_num, race_date):
 rows, retire, warnings = plan_calendar_sync(2026, upstream, [], [], NOW, forecast)
 by_id = {r["id"]: r for r in rows}
 assert sorted(by_id) == ["2026_r15_azerbaijan-grand-prix", "2026_r16_bahrain-grand-prix", "2026_r17_singapore-grand-prix"]
-# Bahrain at Sepang: stored as upstream says, and the live-forecast lookup geocodes Kuala Lumpur, not
+# Bahrain at Sepang: stored as Malaysia (VENUE_COUNTRY), and the live-forecast lookup geocodes Kuala Lumpur, not
 # Bahrain. No correction warning is emitted.
 assert by_id["2026_r16_bahrain-grand-prix"]["circuit"] == "Kuala Lumpur"
-assert by_id["2026_r16_bahrain-grand-prix"]["country"] == "X"  # passed through from upstream as-is
+assert by_id["2026_r16_bahrain-grand-prix"]["country"] == "Malaysia"  # where it is run, not the nominal host
 assert ("Bahrain Grand Prix", "Kuala Lumpur") in forecasts and all(loc != "Sakhir" for _, loc in forecasts)
 assert not any("overridden" in w for w in warnings), warnings
 # Past races get no forecast lookup; status follows the race date.
