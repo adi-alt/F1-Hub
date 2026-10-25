@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ErrorScreen } from "@/components/ErrorScreen";
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 import { useAuth } from "@/providers/AuthProvider";
@@ -32,27 +32,15 @@ export default function ArchiveError({ error, reset }: { error: Error & { digest
   }, [error]);
 
   return (
-    <div className="page-content py-10">
-      <div className="rounded-2xl border border-[var(--f1-line)] bg-[var(--f1-carbon)] p-10 text-center">
-        <p className="text-lg font-semibold text-white">Something went wrong</p>
-        <p className="mt-2 text-sm text-neutral-400">This page hit an unexpected error. It&apos;s been logged — try again, or head back home.</p>
-        {isAdmin && (
-          <div className="mt-6 rounded-xl border border-[var(--f1-red)]/40 bg-black/30 p-4 text-left">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-text">Admin-only diagnostic (client boundary)</p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-white">{error.message || "(empty message - likely a redacted server render error; check the digest below against server logs)"}</p>
-            {error.digest && <p className="mt-2 text-xs text-tertiary">digest: {error.digest}</p>}
-            {error.stack && <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-tertiary">{error.stack}</pre>}
-          </div>
-        )}
-        <div className="mt-6 flex justify-center gap-3">
-          <button onClick={() => reset()} className="rounded-full bg-[var(--f1-red)] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110">
-            Try again
-          </button>
-          <Link href="/" className="rounded-full border border-[var(--f1-line)] px-5 py-2 text-sm text-neutral-200 transition hover:border-white/30">
-            Go home
-          </Link>
+    <ErrorScreen error={error} reset={reset}>
+      {isAdmin && (
+        <div className="mt-6 rounded-card border border-white/[0.08] bg-black/30 p-4 text-left">
+          <p className="text-caption font-semibold uppercase tracking-[0.14em] text-tertiary">Admin-only diagnostic (client boundary)</p>
+          <p className="mt-2 whitespace-pre-wrap text-body-sm text-primary">{error.message || "(empty message - likely a redacted server render error; check the digest below against server logs)"}</p>
+          {error.digest && <p className="mt-2 text-caption text-tertiary">digest: {error.digest}</p>}
+          {error.stack && <pre className="scrollbar-subtle mt-3 max-h-64 overflow-auto whitespace-pre-wrap text-caption text-tertiary">{error.stack}</pre>}
         </div>
-      </div>
-    </div>
+      )}
+    </ErrorScreen>
   );
 }

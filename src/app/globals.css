@@ -401,23 +401,24 @@ html::-webkit-scrollbar {
   animation: skeleton-appear 0s 300ms forwards;
 }
 
-/* Subtle thin scrollbar for internal panel scrolling */
-.scrollbar-subtle::-webkit-scrollbar {
-  width: 4px;
-}
-.scrollbar-subtle::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollbar-subtle::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 2px;
-}
-.scrollbar-subtle::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-.scrollbar-subtle {
+/* Subtle thin scrollbar for internal panel scrolling. An @utility (like scrollbar-hide) so Tailwind knows it. */
+@utility scrollbar-subtle {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
 }
 
 

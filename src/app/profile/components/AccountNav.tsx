@@ -16,7 +16,7 @@ export const accountHref = (section: AccountSection) => `/?section=profile&tab=$
  * server render (`/?section=profile&tab=`), so Back and a shared link land on the right one. */
 export function AccountNav({ current }: { current: AccountSection }) {
   return (
-    <nav aria-label="Account sections" className="-mx-1 flex gap-6 overflow-x-auto border-b border-white/[0.06] px-1">
+    <nav aria-label="Account sections" className="-mx-1 flex gap-6 overflow-x-auto scrollbar-hide border-b border-white/[0.06] px-1">
       {ACCOUNT_SECTIONS.map((s) => {
         const on = s.value === current;
         return (

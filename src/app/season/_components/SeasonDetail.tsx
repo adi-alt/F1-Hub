@@ -122,7 +122,6 @@ export function SeasonDetail({
               <span className="text-caption font-semibold uppercase tracking-[0.24em] text-tertiary">Season</span>
             </h1>
 
-            {status === "ongoing" && !backHref && <AddToCalendarButton year={year} label="Season calendar" />}
             {currentRound && (
               <p className="flex items-center gap-2 text-xs text-neutral-400">
                 <span aria-hidden className="pulse-ring h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--f1-red)]" />
@@ -216,7 +215,12 @@ export function SeasonDetail({
 
         <RegionBoundary label="the calendar">
           <Reveal>
-            <SeasonCalendar year={year} drivers={drivers} raceSummaries={raceSummaries} />
+            <SeasonCalendar
+              year={year}
+              drivers={drivers}
+              raceSummaries={raceSummaries}
+              action={status === "ongoing" && !backHref ? <AddToCalendarButton year={year} label="Season calendar" /> : undefined}
+            />
           </Reveal>
         </RegionBoundary>
 

@@ -120,7 +120,7 @@ export function FavoriteEntityList({
 
   return (
     <div className="flex flex-col">
-      <div ref={tableRef} className={`overflow-x-auto ${PANEL}`}>
+      <div ref={tableRef} className={`scrollbar-hide overflow-x-auto ${PANEL}`}>
         <table className="w-full text-left text-body-sm">
           <thead className={`border-b border-white/[0.06] ${EYEBROW}`}>
             <tr>

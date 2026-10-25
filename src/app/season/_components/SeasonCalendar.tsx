@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { parseUtcDateTime } from "@/lib/countdown";
@@ -79,7 +79,8 @@ function useMeasuredWidth<T extends HTMLElement>() {
  * tooltip (not hundreds of individual ones); clicking navigates straight to that race's own
  * dedicated page - this calendar doesn't expand anything inline anymore (every race opens on its
  * own route now, current season included, same as Archive). */
-export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[] }) {
+/** `action` sits at the right of the section heading (the season's add-to-calendar button). */
+export function SeasonCalendar({ year, drivers, raceSummaries, action }: { year: number; drivers: DriverStandingRow[]; raceSummaries: RaceSummary[]; action?: ReactNode }) {
   const favDrivers = useFavDriverIds();
   const [hover, setHover] = useState<{ key: string; date: Date; sessions: DaySession[]; top: number; left: number; flipBelow: boolean } | null>(null);
   // Opening a race is a route change, not component state - see SeasonExplorerProvider. That's
@@ -202,7 +203,10 @@ export function SeasonCalendar({ year, drivers, raceSummaries }: { year: number;
 
   return (
     <div>
-      <p className="mb-3 text-caption font-semibold uppercase tracking-[0.18em] text-tertiary">Season calendar</p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-caption font-semibold uppercase tracking-[0.18em] text-tertiary">Season calendar</p>
+        {action}
+      </div>
 
       {/* Same solid, bordered treatment (and full page width) as the standings table above it —
           the grid's own natural content width is much narrower than that, so without an explicit

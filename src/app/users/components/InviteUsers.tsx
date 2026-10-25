@@ -234,7 +234,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
               {candidates.length} {candidates.length === 1 ? "recipient" : "recipients"}
               {overCap && <span className="text-brand-text"> — {MAX_PER_BATCH} at a time is the limit</span>}
             </p>
-            <div className="mt-1.5 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+            <div className="mt-1.5 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto scrollbar-subtle">
               {candidates.map((email) => (
                 <span key={email} className="inline-flex items-center gap-1 rounded-control bg-surface-2 py-0.5 pl-2 pr-1 text-caption text-secondary">
                   {email}

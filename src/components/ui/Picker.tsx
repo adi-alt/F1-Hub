@@ -370,7 +370,7 @@ export function Picker({
                   </div>
                 )}
 
-                <div id={listboxId} role="listbox" aria-label={ariaLabel} className="min-h-0 flex-1 overflow-y-auto p-1">
+                <div id={listboxId} role="listbox" aria-label={ariaLabel} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto p-1">
                   {loading ? (
                     <div className="space-y-1 p-1">
                       {Array.from({ length: 4 }).map((_, i) => (

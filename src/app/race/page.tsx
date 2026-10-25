@@ -29,6 +29,10 @@ import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
 import { getRacePicks } from "@/lib/supabase/picks";
 import { raceWeekendScores } from "@/lib/raceWeekendScores";
+import { softFail } from "@/lib/softFail";
+
+// Non-essential sections fail soft (softFail): one failing load drops its section, never the whole page.
+const NO_COMMUNITIES = { mode: "discover" as const, communities: [] };
 
 /** The one race-detail route, regardless of where the user came from (Season's calendar or an
  * Archive year) - "the race detail page must be identical regardless of where the user came
@@ -136,15 +140,15 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
     const [ageRecords, personalContext, raceCommunities, photos, trackStory, layout, racePicks] = await Promise.all([
       computeAgeRecords(circuitTimeline),
       getPersonalRaceContext(session.uid, circuitTimeline, liveRaces),
-      listRaceCommunities(race.id, session.uid),
+      softFail("race communities", listRaceCommunities(race.id, session.uid), NO_COMMUNITIES),
       // Approved Wikimedia photos only (pipeline/race_photos.py, /admin/race-photos); none -> no section.
-      getApprovedRacePhotos(race.id),
+      softFail("race photos", getApprovedRacePhotos(race.id), []),
       // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
-      race.status === "completed" ? getRaceTrackStory(race.id) : Promise.resolve(null),
+      race.status === "completed" ? softFail("track story", getRaceTrackStory(race.id), null) : Promise.resolve(null),
       // The track library's layout for this circuit and season, drawn when the race has no story of its own.
-      getRaceLayout({ circuitId: matchedCircuit?.circuitId ?? null, circuitName: race.circuit, year: race.year, raceName: race.name }),
+      softFail("race layout", getRaceLayout({ circuitId: matchedCircuit?.circuitId ?? null, circuitName: race.circuit, year: race.year, raceName: race.name }), null),
       // After the race: every pick, for your points against the community's average (race-weekend mode, R-64).
-      race.status === "completed" ? getRacePicks(race.id) : Promise.resolve([]),
+      race.status === "completed" ? softFail("race picks", getRacePicks(race.id), []) : Promise.resolve([]),
     ]);
     const scores = race.status === "completed" ? raceWeekendScores(race, racePicks, racePicks.find((p) => p.userId === session.uid) ?? null) : null;
 
@@ -219,11 +223,11 @@ export default async function RacePage({ searchParams }: { searchParams: Promise
   const liveRace = year >= 2018 ? await getRace(year, race.round) : null;
   const [ageRecords, raceCommunities, trackStory, layout, photos, pastStages] = await Promise.all([
     computeAgeRecords(circuitTimeline),
-    listRaceCommunities(race.id, session.uid),
+    softFail("race communities", listRaceCommunities(race.id, session.uid), NO_COMMUNITIES),
     // The real circuit and where the lead changed (pipeline/race_track_story.py); null -> fallback route.
-    getRaceTrackStoryByRound(year, race.round),
-    getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }),
-    liveRace ? getApprovedRacePhotos(liveRace.id) : Promise.resolve([]),
+    softFail("track story", getRaceTrackStoryByRound(year, race.round), null),
+    softFail("race layout", getRaceLayout({ circuitId: race.circuitId ?? null, circuitName: null, year, raceName: race.raceName }), null),
+    liveRace ? softFail("race photos", getApprovedRacePhotos(liveRace.id), []) : Promise.resolve([]),
     liveRace ? getQualifyingStages(liveRace.id) : Promise.resolve([]),
   ]);
   // The weekend session by session, like the current season's races: there's no calendar for a past year, so the

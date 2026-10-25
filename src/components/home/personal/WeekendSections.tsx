@@ -88,7 +88,7 @@ function WeekendTimeline({ sessions: raw, tz, now }: { sessions: WeekendSession[
   const nextIndex = sessions.findIndex((s) => s.state === "upcoming" || s.state === "live");
   return (
     // Focusable so keyboard users can scroll it sideways.
-    <div tabIndex={0} role="region" aria-label="Weekend sessions" className="overflow-x-auto pb-1 focus-visible:outline-2 focus-visible:outline-focus-ring">
+    <div tabIndex={0} role="region" aria-label="Weekend sessions" className="scrollbar-hide overflow-x-auto pb-1 focus-visible:outline-2 focus-visible:outline-focus-ring">
       <ol className="relative grid min-w-[34rem] auto-cols-fr grid-flow-col" aria-label="This weekend's sessions">
         <span aria-hidden className="absolute inset-x-6 top-[7px] h-px bg-white/10" />
         {sessions.map((s, i) => {
