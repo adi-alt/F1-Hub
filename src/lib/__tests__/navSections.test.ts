@@ -5,7 +5,9 @@ import { navSectionFor } from "../navSections";
 test("each page maps to its nav section", () => {
   const cases: [string, ReturnType<typeof navSectionFor>][] = [
     ["/season", "season"],
-    ["/season/2026/race/bahrain-grand-prix", "season"],
+    ["/season/2026", "season"],
+    ["/season/2026/bahrain-grand-prix", "season"],
+    ["/archive/drivers/hamilton", "archive"],
     ["/race", "season"],
     ["/race/2026/bahrain-grand-prix", "season"],
     ["/races/simulation", "season"],
@@ -21,17 +23,8 @@ test("each page maps to its nav section", () => {
   for (const [path, section] of cases) assert.equal(navSectionFor(path), section, path);
 });
 
-test("the public URLs map by their section, a race's page to Season", () => {
-  const q = (s: string) => new URLSearchParams(s);
-  assert.equal(navSectionFor("/", q("section=archive&team=ferrari")), "archive");
-  assert.equal(navSectionFor("/", q("section=season&year=2026&race=bahrain-grand-prix")), "season");
-  assert.equal(navSectionFor("/", q("section=communities&id=x")), "communities");
-  assert.equal(navSectionFor("/", q("section=profile&tab=notifications")), null);
-  assert.equal(navSectionFor("/", q("")), null);
-});
-
 test("pages outside every section, and look-alike paths, have none", () => {
-  for (const path of ["/", "/profile", "/profile/edit", "/racecar", "/seasons", "/groupsx", "", null, undefined]) {
+  for (const path of ["/", "/profile", "/profile/notifications", "/racecar", "/seasons", "/groupsx", "", null, undefined]) {
     assert.equal(navSectionFor(path), null, String(path));
   }
 });

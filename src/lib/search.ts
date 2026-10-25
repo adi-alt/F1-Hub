@@ -34,7 +34,7 @@ const SECTIONS: SearchResult[] = [
   { kind: "section", label: "Favourites", detail: "Settings · drivers, teams and circuits you follow", href: profileHref("personalisation") },
   { kind: "section", label: "Notifications", detail: "Settings · race reminder emails", href: profileHref("notifications") },
   { kind: "section", label: "Predictions", detail: "Your season scorecard", href: profileHref("predictions") },
-  { kind: "section", label: "Account", detail: "Settings · download your data, delete your account", href: "/?section=profile&tab=account" },
+  { kind: "section", label: "Account", detail: "Settings · download your data, delete your account", href: "/profile/account" },
 ];
 
 const SHAPES = (circuitShapesData as { shapes: Record<string, { path: string; viewBox?: string }> }).shapes;
@@ -248,7 +248,7 @@ function actionContext(ix: Index, mine: GroupRow[]): ActionContext {
       profile: sectionHref("profile"),
       notifications: profileHref("notifications"),
       predictions: profileHref("predictions"),
-      account: "/?section=profile&tab=account",
+      account: "/profile/account",
       reportProblem: REPORT_PROBLEM_URL,
       compare: compareHref(ix.season),
     },

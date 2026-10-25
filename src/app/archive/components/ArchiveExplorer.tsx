@@ -119,7 +119,7 @@ export function ArchiveExplorer({
     setCountry("");
     setFavParam("");
     // A clean URL for the new tab (no search or filters carried over), without a server round trip.
-    window.history.replaceState(window.history.state, "", `/?section=archive&tab=${next}`);
+    window.history.replaceState(window.history.state, "", `/archive?tab=${next}`);
   }
 
   const filteredYears = years.filter((y) => {

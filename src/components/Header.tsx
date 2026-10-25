@@ -88,8 +88,8 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
   const permissions = role ? permissionsForRole(role) : null;
   const showUsers = !!permissions?.canViewUsers;
   const showModels = !!permissions?.canAccessAdmin;
-  const { pathname, params, key: locationKey } = useAppLocation();
-  const activeSection = navSectionFor(pathname, params);
+  const { pathname, key: locationKey } = useAppLocation();
+  const activeSection = navSectionFor(pathname);
   // The section just clicked, until the route catches up with it: the underline goes there at once. Cleared on the
   // next route change (React's "adjust state when a prop changes" pattern), after which the route decides again.
   const [picked, setPicked] = useState<{ section: NavSection; from: string } | null>(null);
@@ -124,27 +124,27 @@ export function Header({ season, sessions = [] }: { season: number; sessions?: H
             <NavLink href={seasonHref(season)} section="season" active={activeSection} marked={marked} onPick={pick} tour="nav-season">
               Season
             </NavLink>
-            <NavLink href="/?section=circuits" section="circuits" active={activeSection} marked={marked} onPick={pick} tour="nav-circuits">
+            <NavLink href="/circuits" section="circuits" active={activeSection} marked={marked} onPick={pick} tour="nav-circuits">
               Circuits
             </NavLink>
-            <NavLink href="/?section=archive" section="archive" active={activeSection} marked={marked} onPick={pick} tour="nav-archive">
+            <NavLink href="/archive" section="archive" active={activeSection} marked={marked} onPick={pick} tour="nav-archive">
               Archive
             </NavLink>
-            <NavLink href="/?section=communities" section="communities" active={activeSection} marked={marked} onPick={pick} tour="nav-communities">
+            <NavLink href="/communities" section="communities" active={activeSection} marked={marked} onPick={pick} tour="nav-communities">
               Communities
             </NavLink>
             {showUsers && (
-              <NavLink href="/?section=users" section="users" active={activeSection} marked={marked} onPick={pick} tour="nav-users">
+              <NavLink href="/users" section="users" active={activeSection} marked={marked} onPick={pick} tour="nav-users">
                 Users
               </NavLink>
             )}
             {showModels && (
-              <NavLink href="/?section=models" section="models" active={activeSection} marked={marked} onPick={pick} tour="nav-models">
+              <NavLink href="/models" section="models" active={activeSection} marked={marked} onPick={pick} tour="nav-models">
                 Models
               </NavLink>
             )}
             {showModels && (
-              <NavLink href="/?section=photos" section="photos" active={activeSection} marked={marked} onPick={pick} tour="nav-photos">
+              <NavLink href="/admin/race-photos" section="photos" active={activeSection} marked={marked} onPick={pick} tour="nav-photos">
                 Photos
               </NavLink>
             )}

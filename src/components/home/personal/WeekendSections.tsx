@@ -379,7 +379,7 @@ export function YourDriversSection({ publicData, personalData }: Props) {
       {cards.length === 0 ? (
         <p className="text-body-sm text-secondary">
           Choose favourite drivers and teams to follow them here.{" "}
-          <Link href="/?section=profile&tab=personalisation" className="font-medium text-primary underline-offset-4 hover:underline">
+          <Link href="/profile/personalisation" className="font-medium text-primary underline-offset-4 hover:underline">
             Choose favourites
           </Link>
         </p>

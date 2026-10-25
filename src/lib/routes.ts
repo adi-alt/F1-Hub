@@ -30,7 +30,7 @@ export function raceHref(year: number, round: number, raceName: string, section?
   return sectionHref("season", { year, race: slugifyRaceName(raceName), tab: section });
 }
 
-// Every page is `/?section=<header name>&...` (lib/sectionRoutes.ts); these build each entity's URL in that shape.
+// Every section is a path and an entity a path under it (lib/sectionRoutes.ts); these build each entity's URL.
 // Old path-style links (/archive?team=, /groups?id=, /circuits/<slug>, /race/<year>/<slug>, ...) redirect to them.
 export function seasonHref(year: number): string {
   return sectionHref("season", { year });

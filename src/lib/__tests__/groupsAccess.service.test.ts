@@ -437,19 +437,19 @@ describe("invitation emails", () => {
       const check = verifyInviteToken(token, PRIVATE);
       assert.ok(check.ok && rows.some((r) => r.id === check.inviteId));
     }
-    assert.ok(sent.every((m) => linkIn(m).startsWith(`https://preview.example/?section=communities&id=${PRIVATE}&invite=`)));
+    assert.ok(sent.every((m) => linkIn(m).startsWith(`https://preview.example/communities?id=${PRIVATE}&invite=`)));
   });
 
   test("a public community gets its plain link and creates no invitation rows", async () => {
     await groups.inviteByEmail(PUBLIC, ADMIN, ["a@test.invalid"], "https://preview.example");
-    assert.equal(linkIn(sent[0]), `https://preview.example/?section=communities&id=${PUBLIC}`);
+    assert.equal(linkIn(sent[0]), `https://preview.example/communities?id=${PUBLIC}`);
     assert.equal(fake.rows("group_invites").length, 0);
   });
 
   test("APP_BASE_URL wins over the request's own origin (a spoofable Host header)", async () => {
     process.env.APP_BASE_URL = "https://apexf1hub.com";
     await groups.inviteByEmail(PRIVATE, ADMIN, ["a@test.invalid"], "https://attacker.example");
-    assert.ok(linkIn(sent[0]).startsWith(`https://apexf1hub.com/?section=communities&id=${PRIVATE}&invite=`));
+    assert.ok(linkIn(sent[0]).startsWith(`https://apexf1hub.com/communities?id=${PRIVATE}&invite=`));
   });
 
   test("user-controlled names are escaped in the HTML and cannot inject subject headers", async () => {
@@ -571,7 +571,7 @@ describe("inviting people who already have an account", () => {
     assert.deepEqual(sent.map((m) => m.to).sort(), ["new@test.invalid", "otto@test.invalid"]);
     const notices = fake.rows("notifications");
     assert.deepEqual(notices.map((n) => [n.user_id, n.kind]), [[OUTSIDER, "invite"]]);
-    assert.match(String(notices[0].href), new RegExp(`^/\\?section=communities&id=${PRIVATE}&invite=`), "the same personal link, as a site path");
+    assert.match(String(notices[0].href), new RegExp(`^/communities\\?id=${PRIVATE}&invite=`), "the same personal link, as a site path");
   });
 });
 

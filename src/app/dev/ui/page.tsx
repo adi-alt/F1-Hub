@@ -84,7 +84,7 @@ export default function UiPreviewPage() {
             </Button>
             <LoadingButtonDemo />
             <Button variant="secondary" size="md" asChild>
-              <Link href="/?section=season">Season (a link)</Link>
+              <Link href="/season">Season (a link)</Link>
             </Button>
           </div>
         </div>
@@ -183,7 +183,7 @@ export default function UiPreviewPage() {
               </Surface>
             </Surface>
           </Surface>
-          <Surface level={1} interactive href="/?section=season" linkLabel="Season standings">
+          <Surface level={1} interactive href="/season" linkLabel="Season standings">
             <p className="text-title-md">Season standings</p>
             <p className="mt-1 text-body-sm text-secondary">The whole card is one link; the button inside still works on its own.</p>
             <Button variant="ghost" size="sm" className="mt-3" iconStart={Bell}>

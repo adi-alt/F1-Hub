@@ -211,7 +211,7 @@ async function ArchiveCircuitHistory({ circuitId }: { circuitId: string }) {
     <div data-surface="frosted" className="page-wide py-8">
       <ArchiveApexScope entityType="circuit" entityId={circuitId} name={circuit.name ?? circuit.circuitId} />
       <ArchiveEntityHeader
-        backHref="/?section=archive&tab=track"
+        backHref="/archive?tab=track"
         backLabel="Archive"
         kind="Circuit"
         name={circuit.name ?? circuit.circuitId}
@@ -294,7 +294,7 @@ async function ArchiveDriverHead({ driverId }: { driverId: string }) {
     <>
       <ArchiveApexScope entityType="driver" entityId={driverId} name={name} />
       <ArchiveEntityHeader
-        backHref="/?section=archive&tab=driver"
+        backHref="/archive?tab=driver"
         backLabel="Archive"
         kind="Driver"
         name={name}
@@ -433,7 +433,7 @@ async function ArchiveTeamHead({ teamId }: { teamId: string }) {
     <>
       <ArchiveApexScope entityType="team" entityId={teamId} name={team.name} />
       <ArchiveEntityHeader
-        backHref="/?section=archive&tab=team"
+        backHref="/archive?tab=team"
         backLabel="Archive"
         kind="Constructor"
         name={team.name}
@@ -600,7 +600,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     title: "Archive",
     // No end year: the archive's newest season follows the calendar (R-22).
     description: `Every Formula 1 season since ${ARCHIVE_EARLIEST_YEAR}: results, qualifying, pit stops and the championship, round by round.`,
-    path: "/?section=archive",
+    path: "/archive",
   });
 }
 

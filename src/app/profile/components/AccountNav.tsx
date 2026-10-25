@@ -10,10 +10,10 @@ export const ACCOUNT_SECTIONS: { value: AccountSection; label: string }[] = [
   { value: "account", label: "Account" },
 ];
 
-export const accountHref = (section: AccountSection) => `/?section=profile&tab=${section}`;
+export const accountHref = (section: AccountSection) => `/profile/${section}`;
 
 /** The account's sections as the site's underline tabs. They're links, not in-page tabs: each section is its own
- * server render (`/?section=profile&tab=`), so Back and a shared link land on the right one. */
+ * server render (`/profile/`), so Back and a shared link land on the right one. */
 export function AccountNav({ current }: { current: AccountSection }) {
   return (
     <nav aria-label="Account sections" className="-mx-1 flex gap-6 overflow-x-auto border-b border-white/[0.06] px-1">

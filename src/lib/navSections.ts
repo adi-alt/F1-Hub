@@ -1,5 +1,3 @@
-import { internalPathFor } from "@/lib/sectionRoutes";
-
 /** The top-level sections the header and the mobile nav link to. */
 export type NavSection = "season" | "circuits" | "archive" | "communities" | "users" | "models" | "photos";
 
@@ -16,12 +14,11 @@ const SECTION_ROOTS: [NavSection, string[]][] = [
 
 /**
  * The section a page is in, for the active nav item (aria-current="page"), or null for pages outside every section
- * (the home page, the account). Reads the public URL (`/?section=archive&...`): pass its query as `params`. A plain
- * path (an old link, the race simulator) is still recognised.
+ * (the home page, the account).
  */
-export function navSectionFor(pathname: string | null | undefined, params?: URLSearchParams | null): NavSection | null {
+export function navSectionFor(pathname: string | null | undefined): NavSection | null {
   if (!pathname) return null;
-  const path = pathname === "/" && params ? (internalPathFor(params) ?? "/") : pathname;
+  const path = pathname;
   for (const [section, roots] of SECTION_ROOTS) {
     if (roots.some((root) => path === root || path.startsWith(`${root}/`))) return section;
   }

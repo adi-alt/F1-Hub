@@ -13,7 +13,7 @@ import type { NotificationItem } from "@/lib/supabase/notifications";
 
 /** How often the badge re-checks while the tab is open; it also re-checks when the tab regains focus. */
 const POLL_MS = 60_000;
-const SETTINGS_HREF = "/?section=profile&tab=notifications";
+const SETTINGS_HREF = "/profile/notifications";
 
 /**
  * The notification centre: a bell in the header with the unread count, opening the latest notifications - what

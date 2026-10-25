@@ -7,7 +7,7 @@ type Seeded = { id: string; email: string; role: string | null };
 export type SeedUser = "alex" | "blair" | "casey" | "dana";
 
 /** The routes the audit's acceptance criteria name, with a seeded 2026 race page and a community. */
-export const ROUTES = ["/", "/?section=season&year=2026", "/?section=season&year=2026&race=bahrain-grand-prix", "/?section=communities", "/?section=circuits", "/?section=archive", "/?section=profile"];
+export const ROUTES = ["/", "/season/2026", "/season/2026/bahrain-grand-prix", "/communities", "/circuits", "/archive", "/profile"];
 
 /** A browser context that is signed in as a seeded user: the app's own iron-session cookie, sealed with
  * this run's SESSION_SECRET. */

@@ -16,7 +16,7 @@ export default function CommunityNotFound() {
       <p className="mx-auto mt-3 max-w-md text-body text-secondary">It may have been deleted, or the link is mistyped. Any invitation to it no longer works.</p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button variant="primary" size="md" asChild>
-          <Link href="/?section=communities">Back to Communities</Link>
+          <Link href="/communities">Back to Communities</Link>
         </Button>
       </div>
     </div>

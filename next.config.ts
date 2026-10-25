@@ -67,18 +67,16 @@ export function cspReportOnly(dsn: string | undefined): string {
 }
 
 const nextConfig: NextConfig = {
-  // Every entity is query-routed (lib/routes.ts). The old path-style URLs answer with a real permanent redirect,
+  // Every section is a path (lib/sectionRoutes.ts). The older path-style URLs answer with a real permanent redirect,
   // before anything renders; the request's own query string (an invite token, a post, a tab) is carried across.
+  // `/?section=` links and the bare old paths (/race?..., /groups) are redirected by src/proxy.ts.
   async redirects() {
     return [
-      { source: "/circuits/:circuit", destination: "/?section=circuits&circuit=:circuit", permanent: true },
-      { source: "/groups/:id", destination: "/?section=communities&id=:id", permanent: true },
-      { source: "/profile/edit", destination: "/?section=profile&tab=profile", permanent: true },
-      { source: "/profile/notifications", destination: "/?section=profile&tab=notifications", permanent: true },
-      { source: "/race/:year/:slug", destination: "/?section=season&year=:year&race=:slug", permanent: true },
-      { source: "/season/:year/race/:slug", destination: "/?section=season&year=:year&race=:slug", permanent: true },
-      { source: "/archive/:year/:slug", destination: "/?section=season&year=:year&race=:slug", permanent: true },
-      { source: "/archive/:year", destination: "/?section=archive&year=:year", permanent: true },
+      { source: "/groups/:id", destination: "/communities?id=:id", permanent: true },
+      { source: "/profile/edit", destination: "/profile/profile", permanent: true },
+      { source: "/race/:year/:slug", destination: "/season/:year/:slug", permanent: true },
+      { source: "/season/:year/race/:slug", destination: "/season/:year/:slug", permanent: true },
+      { source: "/archive/:year(\\d{4})/:slug", destination: "/season/:year/:slug", permanent: true },
     ];
   },
   async headers() {

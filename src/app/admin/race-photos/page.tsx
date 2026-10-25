@@ -7,7 +7,7 @@ import { getReview, listReviewRaces } from "@/lib/supabase/racePhotos";
 import { RacePhotoReview } from "./RacePhotoReview";
 import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = pageMetadata({ title: "Race photos", description: "Approve race photos.", path: "/?section=photos", index: false });
+export const metadata: Metadata = pageMetadata({ title: "Race photos", description: "Approve race photos.", path: "/admin/race-photos", index: false });
 
 /**
  * Where a site admin approves race photos (pipeline/race_photos.py finds the candidates; nothing reaches a race
@@ -37,7 +37,7 @@ export default async function RacePhotosAdminPage({ searchParams }: { searchPara
               {races.map((r) => (
                 <li key={r.id}>
                   <Link
-                    href={`/?section=photos&race=${encodeURIComponent(r.id)}`}
+                    href={`/admin/race-photos?race=${encodeURIComponent(r.id)}`}
                     aria-current={r.id === current?.id ? "page" : undefined}
                     className={`flex items-baseline justify-between gap-3 rounded-control px-3 py-2 text-body-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${r.id === current?.id ? "bg-surface-2 text-primary" : "text-secondary hover:bg-surface-1 hover:text-primary"}`}
                   >

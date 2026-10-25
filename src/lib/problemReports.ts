@@ -38,7 +38,7 @@ export function cleanContext(input: unknown): ProblemContext {
   return out;
 }
 
-/** The page as a site path ("/?section=season"), from the context's URL; null when it isn't one of ours. */
+/** The page as a site path ("/season"), from the context's URL; null when it isn't one of ours. */
 export function pageFromUrl(url: string | undefined): string | null {
   if (!url) return null;
   try {

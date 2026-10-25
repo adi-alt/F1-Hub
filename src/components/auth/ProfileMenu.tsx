@@ -13,10 +13,10 @@ import { Icon } from "@/components/ui/Icon";
 import { ReportProblemDialog } from "@/components/ReportProblem";
 
 const ITEMS = [
-  { href: "/?section=profile&tab=personalisation", label: "Personalisation", icon: SlidersHorizontal },
-  { href: "/?section=profile&tab=predictions", label: "Predictions", icon: Trophy },
-  { href: "/?section=profile&tab=notifications", label: "Notifications", icon: Bell },
-  { href: "/?section=profile&tab=profile", label: "Profile", icon: Pencil },
+  { href: "/profile/personalisation", label: "Personalisation", icon: SlidersHorizontal },
+  { href: "/profile/predictions", label: "Predictions", icon: Trophy },
+  { href: "/profile/notifications", label: "Notifications", icon: Bell },
+  { href: "/profile/profile", label: "Profile", icon: Pencil },
 ];
 
 // The panel's actual frosted look - a real translucent dark glass (~50% tint, not glass-surface's

@@ -67,7 +67,7 @@ export function CircuitHero({
       <div className="grid grid-cols-1 items-center gap-8 pt-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-12 lg:pt-10">
         <div className="min-w-0">
           <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1.5 text-body-sm">
-            <Link href="/?section=circuits" className="text-secondary transition-colors hover:text-primary">
+            <Link href="/circuits" className="text-secondary transition-colors hover:text-primary">
               Circuits
             </Link>
             <span aria-hidden className="text-tertiary">

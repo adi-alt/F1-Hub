@@ -17,7 +17,7 @@ type PageMeta = {
   /** The page's own title, without the site name: the root layout's template adds " | Apex F1 Hub". */
   title: string;
   description: string;
-  /** The page's canonical path, e.g. "/?section=circuits". */
+  /** The page's canonical path, e.g. "/circuits". */
   path?: string;
   /** False for pages that shouldn't be in search results (admin, previews). */
   index?: boolean;

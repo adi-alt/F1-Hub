@@ -41,9 +41,9 @@ import { raceWeekendScores } from "@/lib/raceWeekendScores";
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ year?: string; race?: string }> }): Promise<Metadata> {
   const { year: yearParam, race: raceParam } = await searchParams;
   const year = Number(yearParam);
-  const fallback = pageMetadata({ title: "Race", description: "A Formula 1 race weekend: results, qualifying, the race replay and the model's simulation.", path: "/?section=season" });
+  const fallback = pageMetadata({ title: "Race", description: "A Formula 1 race weekend: results, qualifying, the race replay and the model's simulation.", path: "/season" });
   if (!yearParam || !raceParam || Number.isNaN(year)) return fallback;
-  const path = `/?section=season&year=${year}&race=${raceParam}`;
+  const path = `/season/${year}/${raceParam}`;
 
   if (seasonStatus(year, await getCurrentSeason()) === "ongoing") {
     const match = (await getRacesByYear(year)).find((r) => slugifyRaceName(r.name) === raceParam);

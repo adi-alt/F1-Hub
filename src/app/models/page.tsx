@@ -15,7 +15,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata: Metadata = pageMetadata({
   title: "Models",
   description: "Benchmark runs and pipeline operations for Apex F1 Hub's prediction models.",
-  path: "/?section=models",
+  path: "/models",
   index: false,
 });
 
