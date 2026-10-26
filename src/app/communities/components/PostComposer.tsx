@@ -1,7 +1,7 @@
 "use client";
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Target, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -40,6 +40,35 @@ const MEDIA_MAX_BYTES: Record<string, number> = {
 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": OTHER_MAX_BYTES,
 };
 const FILE_ACCEPT = Object.keys(MEDIA_MAX_BYTES).join(",");
+const DRAFT_PREFIX = "f1hub_post_draft:";
+
+type SavedPostDraft = {
+  title: string;
+  content: string;
+  groupId: string;
+};
+
+function readSavedDraft(key: string): SavedPostDraft | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SavedPostDraft>;
+    if (typeof parsed.title !== "string" || typeof parsed.content !== "string" || typeof parsed.groupId !== "string") return null;
+    if (!parsed.title && !parsed.content) return null;
+    return { title: parsed.title, content: parsed.content, groupId: parsed.groupId };
+  } catch {
+    return null;
+  }
+}
+
+function clearSavedDraft(key: string | null) {
+  if (!key) return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Draft persistence is best-effort; a blocked or full browser store must not affect posting.
+  }
+}
 
 /**
  * The feed's own composer: avatar, one real input, and a row of the attachments/post-type controls
@@ -99,6 +128,7 @@ export function PostComposer({
   framed?: boolean;
 }) {
   const { user, displayName, avatar } = useAuth();
+  const draftKey = user?.uid ? `${DRAFT_PREFIX}${user.uid}:${fixedGroupId ?? "any-community"}` : null;
   const [focused, setFocused] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -148,6 +178,47 @@ export function PostComposer({
   // centre column's scroll container would otherwise clip them), so they measure a real element.
   const gifRef = useRef<HTMLButtonElement>(null);
   const emojiRef = useRef<HTMLButtonElement>(null);
+  const draftLoaded = useRef(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Restore text only after hydration, so localStorage never changes the server's first render.
+  // Attachments, calls and prediction-round state intentionally stay out of this lightweight draft:
+  // their server-side resources can expire or become invalid while a browser is closed.
+  useEffect(() => {
+    if (!draftKey || draftLoaded.current) return;
+    const saved = readSavedDraft(draftKey);
+    if (!saved) {
+      draftLoaded.current = true;
+      return;
+    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      draftLoaded.current = true;
+      setTitle(saved.title);
+      setContent(saved.content);
+      if (!fixedGroupId && groups.some((group) => group.id === saved.groupId)) setGroupId(saved.groupId);
+      setFocused(true);
+      setDraftRestored(true);
+      window.setTimeout(() => setDraftRestored(false), 2500);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftKey, fixedGroupId, groups]);
+
+  useEffect(() => {
+    if (!draftKey || !draftLoaded.current) return;
+    if (!title.trim() && !content.trim()) {
+      clearSavedDraft(draftKey);
+      return;
+    }
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ title, content, groupId: fixedGroupId ?? groupId } satisfies SavedPostDraft));
+    } catch {
+      // Draft persistence is best-effort; a blocked or full browser store must not affect posting.
+    }
+  }, [content, draftKey, fixedGroupId, groupId, title]);
 
   const targetGroupId = fixedGroupId ?? groupId;
   const targetGroup = targetGroupId ? groups.find((g) => g.id === targetGroupId) : undefined;
@@ -166,6 +237,7 @@ export function PostComposer({
   }
 
   function reset() {
+    clearSavedDraft(draftKey);
     releasePreview();
     setFocused(false);
     setTitle("");
@@ -181,6 +253,7 @@ export function PostComposer({
     setScheduledAt("");
     setCallOpen(false);
     setCallDraft(null);
+    setDraftRestored(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
@@ -448,6 +521,7 @@ export function PostComposer({
 
             <div className="ml-auto flex items-center gap-2">
               {notice && <span role="alert" className="text-caption text-danger">{notice}</span>}
+              {draftRestored && <span className="text-caption text-secondary">Draft restored</span>}
               {fixedGroupId
                 ? isOpen &&
                   fixedCommunity && (

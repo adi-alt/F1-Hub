@@ -379,7 +379,7 @@ export async function listPosts(
   const authorIds = [...new Set(enriching.map((p) => p.user_id as string))];
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: members, error: membersError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null)),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role").eq("group_id", groupId).in("user_id", authorIds)),
     profilesById(authorIds),
   ]);
@@ -452,7 +452,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
 
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").eq("post_id", postId)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").eq("post_id", postId)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").eq("post_id", postId).is("deleted_at", null)),
     profilesById([post.user_id as string]),
   ]);
   if (votesError) throw new Error(`getPostById(${postId}): ${votesError.message}`);
@@ -607,7 +607,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
 
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: groupsData, error: groupsError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null)),
     postGroupIds.length > 0 ? queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", postGroupIds)) : Promise.resolve({ data: [], error: null }),
     profilesById(authorIds),
   ]);
@@ -689,7 +689,7 @@ export async function setCommentVote(groupId: string | null, postId: string, com
 export async function listComments(groupId: string | null, postId: string, uid: string): Promise<PostComment[]> {
   const role = await requireCanViewPost(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
-  const { data: comments, error } = await queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).order("created_at"));
+  const { data: comments, error } = await queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).is("deleted_at", null).order("created_at"));
   if (error) throw new Error(`listComments(${postId}): ${error.message}`);
   if (!comments?.length) return [];
 

@@ -22,6 +22,7 @@ export function CommentTree({
   onReply,
   onDiscard,
   commentsLocked,
+  onShareComment,
   /** Called when a deep thread wants to open in the side panel, focused on that comment. Absent in
    * the drawer itself, where there's nowhere further to escalate to - it flattens instead. */
   onOpenConversation,
@@ -32,6 +33,7 @@ export function CommentTree({
   onReply: (content: string, parentCommentId: string | null) => Promise<boolean>;
   onDiscard: (id: string) => void;
   commentsLocked: boolean;
+  onShareComment?: (id: string) => Promise<boolean>;
   onOpenConversation?: (commentId: string) => void;
 }) {
   return (
@@ -46,6 +48,7 @@ export function CommentTree({
           onReply={onReply}
           onDiscard={onDiscard}
           commentsLocked={commentsLocked}
+          onShareComment={onShareComment}
           onOpenConversation={onOpenConversation}
         />
       ))}
@@ -61,6 +64,7 @@ function CommentNode({
   onReply,
   onDiscard,
   commentsLocked,
+  onShareComment,
   onOpenConversation,
 }: {
   comment: LocalComment;
@@ -70,6 +74,7 @@ function CommentNode({
   onReply: (content: string, parentCommentId: string | null) => Promise<boolean>;
   onDiscard: (id: string) => void;
   commentsLocked: boolean;
+  onShareComment?: (id: string) => Promise<boolean>;
   onOpenConversation?: (commentId: string) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${postId}/comments/${comment.id}/vote`, comment.score, comment.myVote);
@@ -79,7 +84,6 @@ function CommentNode({
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(comment.content);
   const [editedAt, setEditedAt] = useState(comment.editedAt ?? null);
-  const [gone, setGone] = useState(!!comment.deleted);
 
   async function saveEdit(next: string): Promise<boolean> {
     const res = await fetch(`/api/posts/${postId}/comments/${comment.id}`, {
@@ -136,9 +140,7 @@ function CommentNode({
             </span>
             <span className="text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
           </p>
-          {gone ? (
-            <p className="mt-1 text-body-sm italic text-tertiary">Comment deleted</p>
-          ) : editing ? (
+          {editing ? (
             <div className="mt-1.5">
               <CommentComposer autoFocus initialValue={content} submitLabel="Save" onCancel={() => setEditing(false)} onSubmit={saveEdit} placeholder="Edit your comment..." />
             </div>
@@ -159,14 +161,15 @@ function CommentNode({
                 Reply
               </button>
             )}
-            {!comment.pending && !gone && (
+            {!comment.pending && (
               <CommentActions
                 postId={postId}
                 commentId={comment.id}
                 mine={!!comment.mine}
                 canDelete={!!comment.canDelete}
                 onEdit={() => setEditing(true)}
-                onDeleted={() => setGone(true)}
+                onDeleted={() => onDiscard(comment.id)}
+                onShare={onShareComment ? () => onShareComment(comment.id) : undefined}
               />
             )}
             {!atDepthLimit && children.length > 0 && (
@@ -182,6 +185,7 @@ function CommentNode({
         <div className="ml-[38px] mt-2">
           <CommentComposer
             autoFocus
+            draftKey={`reply:${postId}:${comment.id}`}
             onCancel={() => setReplying(false)}
             onSubmit={async (content) => {
               const ok = await onReply(content, comment.id);
@@ -220,6 +224,7 @@ function CommentNode({
               onReply={onReply}
               onDiscard={onDiscard}
               commentsLocked={commentsLocked}
+              onShareComment={onShareComment}
               onOpenConversation={onOpenConversation}
             />
           ))}
@@ -232,11 +237,12 @@ function CommentNode({
 const ACTION = "rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white";
 
 /** Edit and delete for the author (delete for a moderator too), Report for everyone else. */
-function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted }: { postId: string; commentId: string; mine: boolean; canDelete: boolean; onEdit: () => void; onDeleted: () => void }) {
+function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted, onShare }: { postId: string; commentId: string; mine: boolean; canDelete: boolean; onEdit: () => void; onDeleted: () => void; onShare?: () => Promise<boolean> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  const [shared, setShared] = useState(false);
 
   async function remove() {
     setBusy(true);
@@ -259,6 +265,15 @@ function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted 
     return true;
   }
 
+  async function share() {
+    if (!onShare) return;
+    const ok = await onShare();
+    if (ok) {
+      setShared(true);
+      window.setTimeout(() => setShared(false), 2000);
+    }
+  }
+
   return (
     <>
       {mine && (
@@ -279,6 +294,11 @@ function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted 
             Report
           </button>
         ))}
+      {onShare && (
+        <button type="button" onClick={() => void share()} className={ACTION}>
+          {shared ? "Link copied" : "Share"}
+        </button>
+      )}
       {error && (
         <span role="alert" className="text-xs text-danger">
           {error}

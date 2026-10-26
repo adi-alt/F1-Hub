@@ -69,9 +69,17 @@ export function communitiesHref(): string {
   return sectionHref("communities");
 }
 
-/** A community. Further parameters (`tab`, `post`, `invite`) are appended with `&`. */
+/** A community. Further parameters (`tab`, `post`, `comment`, `invite`) are appended with `&`. */
 export function groupHref(id: string): string {
   return sectionHref("communities", { id });
+}
+
+/** A direct link to a post comment. Kept here so the feed and comment actions share one URL shape. */
+export function commentHref(groupId: string, postId: string, commentId: string): string {
+  const url = new URL(groupHref(groupId), "https://apex-f1-hub.invalid");
+  url.searchParams.set("post", postId);
+  url.searchParams.set("comment", commentId);
+  return `${url.pathname}${url.search}`;
 }
 
 /** The account: personalisation (the default), notifications or profile. */
