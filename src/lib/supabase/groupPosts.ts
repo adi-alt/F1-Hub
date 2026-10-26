@@ -147,15 +147,6 @@ function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
 }
 
-/** group_id null means a personal/global post - no group to enforce membership against, so this
- * is a no-op in that case. Every other call in this file that touches a specific group_id routes
- * through this instead of calling requireMember directly, so "personal posts skip group checks
- * entirely" stays true in exactly one place. */
-async function requireMemberIfGrouped(groupId: string | null, uid: string): Promise<GroupRole | null> {
-  if (groupId === null) return null;
-  return requireMember(groupId, uid);
-}
-
 /**
  * Resolves whether the user can view or interact with a post (comments, votes, details).
  * - groupId null (personal post): allowed for any signed-in user, returns null role.

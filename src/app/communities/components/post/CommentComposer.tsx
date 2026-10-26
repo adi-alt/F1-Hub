@@ -4,7 +4,6 @@ import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Button } from "@/components/ui/Button";
 import { fieldControlClass } from "@/components/ui/Field";
 import { useRef, useState } from "react";
-import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
 import { EmojiPicker } from "./EmojiPicker";
 
@@ -35,7 +34,7 @@ export function CommentComposer({
   /** The stacked form's button: Reply, or Save / Report where it's reused. */
   submitLabel?: string;
 }) {
-  const { user, displayName, avatar } = useAuth();
+  const { user, avatar } = useAuth();
   const [content, setContent] = useState(initialValue);
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
