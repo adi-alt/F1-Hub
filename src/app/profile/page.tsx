@@ -27,6 +27,8 @@ import { computePredictionPerformance } from "@/lib/predictionPerformance";
 import { getNotificationPrefs } from "@/lib/supabase/notifications";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { parseUtcDateTime } from "@/lib/countdown";
+import { listSavedPosts } from "@/lib/supabase/groupPosts";
+import { SavedPostsList } from "./components/SavedPostsList";
 
 const VALID_TABS: Tab[] = ["players", "teams", "circuits"];
 
@@ -160,6 +162,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const meta: Record<AccountSection, { title: string; description: string }> = {
     personalisation: { title: "Personalisation", description: "Your favourite drivers, teams and circuits, current and historical." },
     predictions: { title: "Predictions", description: "Your season scorecard: every race pick against the model, the community and the result." },
+    saved: { title: "Saved", description: "Posts you bookmarked to read again." },
     notifications: { title: "Notifications", description: "Choose when Apex F1 Hub emails you: before qualifying, and when results are in." },
     profile: { title: "Profile", description: "Your name on Apex F1 Hub." },
     account: { title: "Account", description: "Download your data or delete your Apex F1 Hub account." },
@@ -174,6 +177,7 @@ function sectionOf(value: string | undefined): AccountSection {
 const INTRO: Record<AccountSection, string> = {
   personalisation: "Favourite any driver, team or circuit, current or historical. Favourites come first everywhere on the site.",
   predictions: "Each race you picked this season: your call, the model's, the community's and the result, with the points they scored.",
+  saved: "Posts you bookmarked to read again.",
   notifications: "What Apex F1 Hub tells you about, on the site and by email.",
   profile: "How you appear to everyone else.",
   account: "Your data: a copy of it, how it's used, and deleting your account.",
@@ -209,12 +213,18 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <div className="mt-6">
         {section === "personalisation" && <Personalisation uid={session.uid} tab={tab} />}
         {section === "predictions" && <Predictions uid={session.uid} />}
+        {section === "saved" && <Saved uid={session.uid} />}
         {section === "notifications" && <Notifications uid={session.uid} />}
         {section === "profile" && <ProfileSection uid={session.uid} />}
         {section === "account" && <AccountData />}
       </div>
     </div>
   );
+}
+
+async function Saved({ uid }: { uid: string }) {
+  const posts = await safeRead(() => listSavedPosts(uid), []);
+  return <SavedPostsList initialPosts={posts} />;
 }
 
 /** The masthead's reads: who you are, your balance and this season's record. Each degrades to empty, never failing the page. */

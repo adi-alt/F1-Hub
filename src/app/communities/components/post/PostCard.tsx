@@ -17,6 +17,7 @@ import { PostMedia } from "./PostMedia";
 import { PostAttachment } from "./PostAttachment";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
+import { useOptimisticSave } from "./useOptimisticSave";
 import { PANEL_INTERACTIVE } from "../panel";
 import { CallChip } from "./CallChip";
 import type { SessionPhase } from "@/lib/communityWeekend";
@@ -42,6 +43,7 @@ export function PostCard({
   onModerated,
   variant = "default",
   sessionTag,
+  onSavedChange,
 }: {
   post: PostCardData;
   index?: number;
@@ -51,8 +53,11 @@ export function PostCard({
   variant?: "default" | "compact";
   /** Where in the race weekend it was written (Communities' weekend mode). */
   sessionTag?: SessionPhase;
+  /** Used by the saved-posts page to remove a card as soon as it is unsaved. */
+  onSavedChange?: (saved: boolean) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
+  const { saved, saving, toggle } = useOptimisticSave(`/api/posts/${post.id}/save`, post.saved ?? false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [shareLabel, setShareLabel] = useState("Share");
@@ -61,6 +66,11 @@ export function PostCard({
   // "discussion" is the default every post gets when nothing more specific was chosen - chipping
   // it would label every single post with the word "Discussion" for no information gained.
   const kindChip = post.kind && post.kind !== "discussion" ? POST_KIND_LABELS[post.kind] : null;
+
+  async function toggleSaved() {
+    const next = await toggle();
+    if (next !== null) onSavedChange?.(next);
+  }
 
   /** Copies the post's real permalink. The community page reads `?post=` and opens exactly this
    * post's discussion window - see CommunityFeed. A personal post has no community page to open on,
@@ -320,6 +330,9 @@ export function PostCard({
             onOpenComments={() => setDetailOpen(true)}
             onShare={post.groupId ? () => void share() : undefined}
             shareLabel={shareLabel}
+            saved={saved}
+            onSave={() => void toggleSaved()}
+            savePending={saving}
           />
         </div>
       </div>
@@ -330,6 +343,9 @@ export function PostCard({
           score={score}
           myVote={myVote}
           onVote={vote}
+          saved={saved}
+          onSave={() => void toggleSaved()}
+          savePending={saving}
           roleLabel={roleLabel}
           pending={status === "pending"}
           focusCommentId={null}
