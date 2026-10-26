@@ -11,6 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pos
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { postId } = await params;
+  if (!isUuid(postId)) return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
   try {
     const groupId = await getPostGroupId(postId);
     const comments = await listComments(groupId, postId, session.uid);
@@ -27,6 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
   const limited = await limitRequest(request, "commentCreate", session.uid);
   if (limited) return limited;
   const { postId } = await params;
+  if (!isUuid(postId)) return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
   const { content, parentCommentId } = (await request.json().catch(() => ({}))) as { content?: string; parentCommentId?: string | null };
   if (typeof content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
   if (parentCommentId != null && !isUuid(parentCommentId)) return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });

@@ -18,10 +18,9 @@ import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "r
  * Measured when the panel opens and followed while it stays open, so scrolling, resizing and the composer
  * growing underneath all keep it attached.
  */
-/** Below the app header's own z-50 on purpose: an anchored panel is attached to content, so it
- * should slide UNDER the sticky header as the page scrolls rather than float over the site's
- * primary navigation. Still far above normal flow, so it covers the feed as intended. */
-const PANEL_Z = 40;
+/** Floats above sheets and dialogs (z-dialog is 40) so composers inside modal sheets (like
+ * PostDetailWindow) can open pickers without being occluded. */
+const PANEL_Z = 50;
 
 export function useAnchoredPanel(
   anchorRef: RefObject<HTMLElement | null>,

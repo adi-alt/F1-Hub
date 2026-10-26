@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPostGroupId, setVote } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
 import { limitRequest } from "@/lib/rateLimit";
+import { isUuid } from "@/lib/ids";
 import { ServiceError } from "@/services/errors";
 
 /** Group-agnostic - PostVoteControl calls this the same way whether the post is in a group or
@@ -13,6 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
   const limited = await limitRequest(request, "vote", session.uid);
   if (limited) return limited;
   const { postId } = await params;
+  if (!isUuid(postId)) return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
   const { direction } = (await request.json().catch(() => ({}))) as { direction?: 1 | -1 };
   if (direction !== 1 && direction !== -1) return NextResponse.json({ error: "Invalid direction" }, { status: 400 });
 

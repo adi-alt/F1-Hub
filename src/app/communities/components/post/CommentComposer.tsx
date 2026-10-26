@@ -54,9 +54,20 @@ export function CommentComposer({
   }
 
   function insertEmoji(emoji: string) {
-    setContent((prev) => prev + emoji);
-    setShowEmoji(false);
-    inputRef.current?.focus();
+    const el = inputRef.current;
+    if (el) {
+      const val = el.value;
+      const start = el.selectionStart ?? val.length;
+      const end = el.selectionEnd ?? val.length;
+      const next = val.slice(0, start) + emoji + val.slice(end);
+      el.value = next;
+      setContent(next);
+      const newPos = start + emoji.length;
+      el.setSelectionRange(newPos, newPos);
+      el.focus();
+    } else {
+      setContent((prev) => prev + emoji);
+    }
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -69,7 +80,9 @@ export function CommentComposer({
   if (variant === "inline") {
     return (
       <div className="relative flex items-center gap-2.5">
-        <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={32} />
+        <div className="shrink-0">
+          <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={36} />
+        </div>
         <div className="relative min-w-0 flex-1">
           <textarea
             ref={inputRef}
@@ -80,7 +93,7 @@ export function CommentComposer({
             autoFocus={autoFocus}
             rows={1}
             maxLength={1000}
-            className={`resize-none pr-11 ${fieldControlClass(false)}`}
+            className={`h-10 py-2 leading-5 resize-none pr-11 ${fieldControlClass(false)}`}
           />
           <button
             ref={emojiAnchorRef}
@@ -97,7 +110,7 @@ export function CommentComposer({
             </svg>
           </button>
         </div>
-        <Button variant="primary" size="md" onClick={() => void submit()} disabled={!content.trim()} loading={posting}>
+        <Button variant="primary" size="md" className="shrink-0" onClick={() => void submit()} disabled={!content.trim()} loading={posting}>
           Post
         </Button>
         {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
@@ -119,8 +132,19 @@ export function CommentComposer({
         className={`resize-none ${fieldControlClass(false)}`}
       />
       <div className="mt-1.5 flex items-center justify-between">
-        <button ref={emojiAnchorRef} type="button" onClick={() => setShowEmoji((v) => !v)} className="flex size-8 items-center justify-center rounded-control text-body-sm text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring" aria-label="Add emoji">
-          🙂
+        <button
+          ref={emojiAnchorRef}
+          type="button"
+          onClick={() => setShowEmoji((v) => !v)}
+          className="flex size-8 items-center justify-center rounded-control text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          aria-label="Add emoji"
+        >
+          <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
+            <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M6.4 10.4a3.1 3.1 0 0 0 5.2 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            <circle cx="6.8" cy="7.2" r=".85" fill="currentColor" />
+            <circle cx="11.2" cy="7.2" r=".85" fill="currentColor" />
+          </svg>
         </button>
         <div className="flex items-center gap-2">
           {onCancel && (

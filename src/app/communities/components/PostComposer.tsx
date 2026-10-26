@@ -261,13 +261,15 @@ export function PostComposer({
       setContent((prev) => prev + text);
       return;
     }
-    const start = el.selectionStart ?? content.length;
-    const end = el.selectionEnd ?? content.length;
-    setContent(content.slice(0, start) + text + content.slice(end));
-    requestAnimationFrame(() => {
-      el.focus();
-      el.selectionStart = el.selectionEnd = start + text.length;
-    });
+    const val = el.value;
+    const start = el.selectionStart ?? val.length;
+    const end = el.selectionEnd ?? val.length;
+    const next = val.slice(0, start) + text + val.slice(end);
+    el.value = next;
+    setContent(next);
+    const newPos = start + text.length;
+    el.setSelectionRange(newPos, newPos);
+    el.focus();
   }
 
   async function submit() {

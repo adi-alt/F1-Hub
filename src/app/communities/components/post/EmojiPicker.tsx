@@ -130,7 +130,13 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji
             <p className="mb-1 mt-2 px-0.5 text-caption font-semibold text-tertiary">Recent</p>
             <div className="grid grid-cols-8 gap-0.5">
               {recent.map((char) => (
-                <button key={char} type="button" onClick={() => pick(char)} className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-white/[0.06]">
+                <button
+                  key={char}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pick(char)}
+                  className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-white/[0.06]"
+                >
                   {char}
                 </button>
               ))}
@@ -139,7 +145,14 @@ export function EmojiPicker({ onSelect, onClose, anchorRef }: { onSelect: (emoji
         )}
         <div className="mt-2 grid max-h-40 grid-cols-8 gap-0.5 overflow-y-auto scrollbar-subtle">
           {filtered.map((e) => (
-            <button key={e.char} type="button" onClick={() => pick(e.char)} title={e.keywords.split(" ")[0]} className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-white/[0.06]">
+            <button
+              key={e.char}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(e.char)}
+              title={e.keywords.split(" ")[0]}
+              className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-white/[0.06]"
+            >
               {e.char}
             </button>
           ))}
