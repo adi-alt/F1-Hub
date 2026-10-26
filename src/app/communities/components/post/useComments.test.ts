@@ -63,6 +63,13 @@ test("buildTree promotes an orphan rather than silently dropping it", () => {
   assert.ok(ids(roots).includes("orphan"));
 });
 
+test("buildTree removes deleted comments while keeping their replies visible", () => {
+  const list = [comment("deleted", null, { deleted: true }), comment("reply", "deleted")];
+  const { roots, childrenOf } = buildTree(list, "top");
+  assert.deepEqual(ids(roots), ["reply"]);
+  assert.deepEqual(ids(childrenOf.get("deleted") ?? []), ["reply"]);
+});
+
 test("countDescendants counts the whole subtree, not just direct children", () => {
   const list = [
     comment("root", null),

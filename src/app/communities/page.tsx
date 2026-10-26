@@ -61,7 +61,7 @@ async function getDriversByRace(raceIds: string[]): Promise<Record<string, { cod
  * rather than failing this whole page (an empty predictions/next-race list already reads fine as
  * "nothing right now" - Promise.all only needs to not fully reject, and none of these four throws
  * for "no data", only for a real query error, so any real failure still surfaces normally). */
-type GroupsSearchParams = Promise<{ id?: string; tab?: string; post?: string; invite?: string }>;
+type GroupsSearchParams = Promise<{ id?: string; tab?: string; post?: string; comment?: string; invite?: string }>;
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
@@ -102,7 +102,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Group
         key={id}
         fallback={<CommunityDetailSkeleton />}
       >
-        <CommunityView id={id} tab={one(params.tab)} post={one(params.post)} invite={one(params.invite)} />
+        <CommunityView id={id} tab={one(params.tab)} post={one(params.post)} comment={one(params.comment)} invite={one(params.invite)} />
       </Suspense>
     );
   }

@@ -26,8 +26,11 @@ export function sortComments<T extends { score: number; createdAt: string }>(com
 export function buildTree(comments: LocalComment[], sort: CommentSort): { roots: LocalComment[]; childrenOf: Map<string, LocalComment[]> } {
   const childrenOf = new Map<string, LocalComment[]>();
   const roots: LocalComment[] = [];
+  // Deleted comments are omitted from the conversation. Replies whose parent was deleted remain
+  // visible and are promoted to the nearest visible level by the orphan handling below.
+  const visibleComments = comments.filter((comment) => !comment.deleted);
 
-  for (const comment of comments) {
+  for (const comment of visibleComments) {
     if (comment.parentCommentId === null) {
       roots.push(comment);
       continue;
@@ -39,8 +42,8 @@ export function buildTree(comments: LocalComment[], sort: CommentSort): { roots:
 
   // An orphan (its parent was deleted while this page was open) would otherwise vanish silently -
   // it's promoted to a root so the text someone wrote is still readable.
-  for (const comment of comments) {
-    if (comment.parentCommentId !== null && !comments.some((c) => c.id === comment.parentCommentId)) {
+  for (const comment of visibleComments) {
+    if (comment.parentCommentId !== null && !visibleComments.some((c) => c.id === comment.parentCommentId)) {
       roots.push(comment);
     }
   }
@@ -74,9 +77,13 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
   // `comments` was permanently the initial `null`. A ref sidesteps that - always read at call time,
   // never captured.
   const commentsRef = useRef<LocalComment[] | null>(null);
+  const onCountChangeRef = useRef(onCountChange);
   useEffect(() => {
     commentsRef.current = comments;
   }, [comments]);
+  useEffect(() => {
+    onCountChangeRef.current = onCountChange;
+  }, [onCountChange]);
 
   // No synchronous setState anywhere in here: every write happens in a promise callback. The old
   // `setError(false)` reset at the top meant calling load() from an effect body WAS a synchronous
@@ -101,12 +108,9 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
         commentsRef.current = merged;
         setComments(merged);
         setError(false);
-        onCountChange?.(merged.length);
+        onCountChangeRef.current?.(merged.length);
       })
       .catch(() => setError(true));
-    // onCountChange is a fresh closure each render from the caller's own setState; including it
-    // would refetch on every render for nothing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId]);
 
   const loadRequestId = useRef(0);
@@ -136,7 +140,7 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
       const nextComments = [...(commentsRef.current ?? []), optimistic];
       commentsRef.current = nextComments;
       setComments(nextComments);
-      onCountChange?.(nextComments.length);
+      onCountChangeRef.current?.(nextComments.length);
 
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST",
@@ -161,14 +165,15 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
       });
       return true;
     },
-    // Deliberately just [postId] - onCountChange is a fresh closure every render from the caller's
-    // own setState, and the count itself now comes from commentsRef (always current, see above),
-    // not from `comments` directly - neither belongs in this dependency list.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [postId],
   );
 
-  const discard = useCallback((id: string) => setComments((prev) => (prev ?? []).filter((c) => c.id !== id)), []);
+  const discard = useCallback((id: string) => {
+    const next = (commentsRef.current ?? []).filter((comment) => comment.id !== id);
+    commentsRef.current = next;
+    setComments(next);
+    onCountChangeRef.current?.(next.length);
+  }, []);
 
   const tree = useMemo(() => buildTree(comments ?? [], sort), [comments, sort]);
 
