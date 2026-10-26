@@ -32,6 +32,9 @@ export function PostDetailWindow({
   score,
   myVote,
   onVote,
+  saved,
+  onSave,
+  savePending,
   roleLabel,
   pending,
   focusCommentId,
@@ -42,6 +45,9 @@ export function PostDetailWindow({
   score: number;
   myVote: VoteValue;
   onVote: (direction: 1 | -1) => void;
+  saved: boolean;
+  onSave: () => void;
+  savePending: boolean;
   roleLabel?: string;
   pending?: boolean;
   /** When set, only this comment's own sub-thread renders, with the same "this IS the conversation
@@ -129,9 +135,13 @@ export function PostDetailWindow({
         )}
 
         <div className="mt-2.5 flex items-center gap-2">
-          <div className="rounded-full border border-white/10 bg-white/[0.03] px-1 py-0.5">
-            <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
-          </div>
+            <div className="rounded-full border border-white/10 bg-white/[0.03] px-1 py-0.5">
+              <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
+            </div>
+            <button type="button" onClick={onSave} disabled={savePending} aria-pressed={saved} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-secondary transition hover:bg-white/[0.06] hover:text-primary">
+              <span aria-hidden>{saved ? "★" : "☆"}</span>
+              {saved ? "Saved" : "Save"}
+            </button>
           <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-secondary">
             <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
               <path

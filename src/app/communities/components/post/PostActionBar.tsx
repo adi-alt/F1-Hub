@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { MessageSquare, Share2 } from "lucide-react";
+import { Bookmark, MessageSquare, Share2 } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { VoteControl } from "./VoteControl";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
@@ -29,6 +29,9 @@ export function PostActionBar({
   onOpenComments,
   onShare,
   shareLabel,
+  saved,
+  onSave,
+  savePending,
   trailing,
 }: {
   score: number;
@@ -41,6 +44,9 @@ export function PostActionBar({
   onShare?: () => void;
   /** "Share", or "Link copied" for the couple of seconds after a successful copy. */
   shareLabel?: string;
+  saved: boolean;
+  onSave: () => void;
+  savePending: boolean;
   trailing?: ReactNode;
 }) {
   return (
@@ -51,6 +57,10 @@ export function PostActionBar({
       <button type="button" onClick={onOpenComments} aria-label={`Open discussion, ${commentCount} comment${commentCount === 1 ? "" : "s"}`} className={ACTION}>
         <Icon icon={MessageSquare} size={16} />
         <span className="tabular">{commentCount === 0 ? "Reply" : commentCount}</span>
+      </button>
+      <button type="button" onClick={onSave} disabled={savePending} aria-pressed={saved} aria-label={saved ? "Remove saved post" : "Save post"} className={ACTION}>
+        <Bookmark size={16} fill={saved ? "currentColor" : "none"} />
+        <span>{saved ? "Saved" : "Save"}</span>
       </button>
       {onShare && (
         <button type="button" onClick={onShare} className={ACTION}>

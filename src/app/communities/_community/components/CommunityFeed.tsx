@@ -12,6 +12,7 @@ import type { GroupRole } from "@/lib/supabase/groups";
 import { PostCard } from "../../components/post/PostCard";
 import { PostDetailWindow } from "../../components/post/PostDetailWindow";
 import { useOptimisticVote } from "../../components/post/useOptimisticVote";
+import { useOptimisticSave } from "../../components/post/useOptimisticSave";
 import { PostCardSkeleton } from "../../components/post/PostCardSkeleton";
 import { PostComposer, type ComposerCommunity } from "../../components/PostComposer";
 import type { RaceOption } from "../../components/post/PredictionComposer";
@@ -503,6 +504,7 @@ function PermalinkPost({ postId }: { postId: string }) {
  * behind it reconciles on its own next load rather than sharing state across a fetch boundary. */
 function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => void }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
+  const { saved, saving, toggle } = useOptimisticSave(`/api/posts/${post.id}/save`, post.saved);
   const roleLabel = post.authorRole && post.authorRole !== "member" ? post.authorRole[0].toUpperCase() + post.authorRole.slice(1) : undefined;
 
   return (
@@ -511,6 +513,9 @@ function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => vo
       score={score}
       myVote={myVote}
       onVote={vote}
+      saved={saved}
+      onSave={() => void toggle()}
+      savePending={saving}
       roleLabel={roleLabel}
       pending={post.status === "pending"}
       focusCommentId={null}

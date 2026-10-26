@@ -16,6 +16,7 @@ export const IRREPLACEABLE = [
   "problem_reports",
   "group_post_votes",
   "group_comment_votes",
+  "group_post_saves",
   "group_join_requests",
   "group_invites",
   "group_invite_redemptions",

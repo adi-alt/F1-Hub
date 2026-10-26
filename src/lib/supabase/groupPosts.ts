@@ -43,6 +43,7 @@ export type GroupPost = {
   createdAt: string;
   score: number;
   myVote: VoteValue;
+  saved: boolean;
   commentCount: number;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
@@ -89,6 +90,7 @@ export type FeedPost = {
   createdAt: string;
   score: number;
   myVote: VoteValue;
+  saved: boolean;
   commentCount: number;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
@@ -375,18 +377,21 @@ export async function listPosts(
 
   const postIds = enriching.map((p) => p.id as string);
   const authorIds = [...new Set(enriching.map((p) => p.user_id as string))];
-  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: members, error: membersError }, profileById] = await Promise.all([
+  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: members, error: membersError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
     queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds)),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role").eq("group_id", groupId).in("user_id", authorIds)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).in("post_id", postIds)),
     profilesById(authorIds),
   ]);
   if (votesError) throw new Error(`listPosts(${groupId}): ${votesError.message}`);
   if (commentsError) throw new Error(`listPosts(${groupId}): ${commentsError.message}`);
   if (membersError) throw new Error(`listPosts(${groupId}): ${membersError.message}`);
+  if (savesError) throw new Error(`listPosts(${groupId}): ${savesError.message}`);
 
   const roleByAuthor = new Map((members ?? []).map((m) => [m.user_id as string, m.role as GroupRole]));
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
+  const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
   const commentCounts = new Map<string, number>();
   for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
 
@@ -409,6 +414,7 @@ export async function listPosts(
     mine: p.user_id === uid,
     score: scoreByTarget.get(p.id as string) ?? 0,
     myVote: myVoteByTarget.get(p.id as string) ?? 0,
+    saved: savedPostIds.has(p.id as string),
     commentCount: commentCounts.get(p.id as string) ?? 0,
   }));
 
@@ -447,13 +453,15 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
   const isMine = (post.user_id as string) === uid;
   if (status !== "published" && !isMine && !canModerate) return null;
 
-  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, profileById] = await Promise.all([
+  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").eq("post_id", postId)),
     queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").eq("post_id", postId)),
+    queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("post_id", postId).eq("user_id", uid)),
     profilesById([post.user_id as string]),
   ]);
   if (votesError) throw new Error(`getPostById(${postId}): ${votesError.message}`);
   if (commentsError) throw new Error(`getPostById(${postId}): ${commentsError.message}`);
+  if (savesError) throw new Error(`getPostById(${postId}): ${savesError.message}`);
 
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const authorRole = groupId ? ((await getMemberRole(groupId, post.user_id as string)) ?? "member") : "member";
@@ -477,9 +485,35 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     mine: isMine,
     score: scoreByTarget.get(postId) ?? 0,
     myVote: myVoteByTarget.get(postId) ?? 0,
+    saved: (saves ?? []).length > 0,
     commentCount: (comments ?? []).length,
   };
   return (await withCalls([view]))[0];
+}
+
+/** Saves belong to the viewer, but the post's normal visibility rules still apply on every write.
+ * A post that disappears from a private community is simply omitted from the saved list. */
+export async function setSaved(postId: string, uid: string, saved: boolean): Promise<{ saved: boolean }> {
+  const post = await getPostById(postId, uid);
+  if (!post) throw new ServiceError("Post not found.", 404);
+
+  if (saved) {
+    const { error } = await supabaseAdmin.from("group_post_saves").upsert({ post_id: postId, user_id: uid }, { onConflict: "post_id,user_id" });
+    if (error) throw new Error(`setSaved(${postId}): ${error.message}`);
+  } else {
+    const { error } = await supabaseAdmin.from("group_post_saves").delete().eq("post_id", postId).eq("user_id", uid);
+    if (error) throw new Error(`setSaved(${postId}): ${error.message}`);
+  }
+  return { saved };
+}
+
+/** Saved posts retain bookmark order. Visibility is rechecked through getPostById, so leaving a
+ * private community does not leak its content through a personal saved-posts page. */
+export async function listSavedPosts(uid: string, limit = 100): Promise<GroupPost[]> {
+  const { data: saves, error } = await queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).order("created_at", { ascending: false }).limit(limit));
+  if (error) throw new Error(`listSavedPosts: ${error.message}`);
+  const posts = await Promise.all((saves ?? []).map((save) => getPostById(save.post_id as string, uid).catch(() => null)));
+  return posts.filter((post): post is GroupPost => post !== null).map((post) => ({ ...post, saved: true }));
 }
 
 /** How a community's feed is ordered. Every one of these is computed from data that really exists:
@@ -601,18 +635,21 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
   const authorIds = [...new Set(page.map((p) => p.user_id as string))];
   const postGroupIds = [...new Set(page.map((p) => p.group_id as string).filter((id): id is string => !!id))];
 
-  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: groupsData, error: groupsError }, profileById] = await Promise.all([
+  const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: groupsData, error: groupsError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
     queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds)),
     postGroupIds.length > 0 ? queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", postGroupIds)) : Promise.resolve({ data: [], error: null }),
+    queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).in("post_id", postIds)),
     profilesById(authorIds),
   ]);
   if (votesError) throw new Error(`listFeedPosts: ${votesError.message}`);
   if (commentsError) throw new Error(`listFeedPosts: ${commentsError.message}`);
   if (groupsError) throw new Error(`listFeedPosts: ${groupsError.message}`);
+  if (savesError) throw new Error(`listFeedPosts: ${savesError.message}`);
 
   const groupById = new Map((groupsData ?? []).map((g) => [g.id as string, g]));
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
+  const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
   const commentCounts = new Map<string, number>();
   for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
 
@@ -638,6 +675,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       mine: p.user_id === uid,
       score: scoreByTarget.get(p.id as string) ?? 0,
       myVote: myVoteByTarget.get(p.id as string) ?? 0,
+      saved: savedPostIds.has(p.id as string),
       commentCount: commentCounts.get(p.id as string) ?? 0,
     };
   });
