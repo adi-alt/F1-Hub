@@ -80,8 +80,9 @@ export function PostDetailWindow({
       footer={
         <div className="w-full">
           <CommentComposer
-            variant="inline"
-            onSubmit={(content) => add(content, focused ? focused.id : null)}
+              variant="inline"
+              draftKey={`comment:${post.id}:${focused?.id ?? "root"}`}
+              onSubmit={(content) => add(content, focused ? focused.id : null)}
             placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."}
           />
         </div>

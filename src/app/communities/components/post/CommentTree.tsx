@@ -2,7 +2,6 @@
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useState } from "react";
-import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
@@ -178,6 +177,7 @@ function CommentNode({
         <div className="ml-[38px] mt-2">
           <CommentComposer
             autoFocus
+            draftKey={`reply:${postId}:${comment.id}`}
             onCancel={() => setReplying(false)}
             onSubmit={async (content) => {
               const ok = await onReply(content, comment.id);
