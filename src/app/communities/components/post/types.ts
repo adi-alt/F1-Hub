@@ -36,6 +36,7 @@ export type PostCardData = {
   myVote: VoteValue;
   saved?: boolean;
   commentCount: number;
+  commentsLocked?: boolean;
   /** When its author last edited it. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */

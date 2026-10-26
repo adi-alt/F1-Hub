@@ -522,6 +522,7 @@ function PermalinkWindow({ post, commentId, onClose }: { post: GroupPost; commen
       savePending={saving}
       roleLabel={roleLabel}
       pending={post.status === "pending"}
+      commentsLocked={post.commentsLocked}
       focusCommentId={commentId}
       onClose={onClose}
     />

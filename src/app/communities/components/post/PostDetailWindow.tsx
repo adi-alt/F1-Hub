@@ -40,6 +40,7 @@ export function PostDetailWindow({
   savePending,
   roleLabel,
   pending,
+  commentsLocked,
   focusCommentId,
   onClose,
   onCountChange,
@@ -53,6 +54,7 @@ export function PostDetailWindow({
   savePending: boolean;
   roleLabel?: string;
   pending?: boolean;
+  commentsLocked: boolean;
   /** When set, only this comment's own sub-thread renders, with the same "this IS the conversation
    * view" framing - CommentTree flattens at its depth limit here rather than offering to open a
    * second window on top of this one. */
@@ -103,12 +105,16 @@ export function PostDetailWindow({
       size="lg"
       footer={
         <div className="w-full">
-          <CommentComposer
+          {commentsLocked ? (
+            <p className="rounded-control border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-caption text-tertiary">Comments are locked on this post.</p>
+          ) : (
+            <CommentComposer
               variant="inline"
               draftKey={`comment:${post.id}:${focused?.id ?? "root"}`}
               onSubmit={(content) => add(content, focused ? focused.id : null)}
-            placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."}
-          />
+              placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."}
+            />
+          )}
         </div>
       }
     >
@@ -209,6 +215,7 @@ export function PostDetailWindow({
                 postId={post.id}
                 onReply={add}
                 onDiscard={discard}
+                commentsLocked={commentsLocked}
                 onShareComment={post.groupId ? shareComment : undefined}
               />
               {remaining > 0 && (

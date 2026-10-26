@@ -90,7 +90,7 @@ export function PostCard({
   }
 
   // What the menu is showing: its actions, or one of the confirmations/forms it opens into.
-  const [menuView, setMenuView] = useState<"actions" | "remove" | "delete" | "report">("actions");
+  const [menuView, setMenuView] = useState<"actions" | "remove" | "delete" | "lock" | "report">("actions");
   const [moderating, setModerating] = useState(false);
   const [moderateError, setModerateError] = useState("");
   const [reportReason, setReportReason] = useState("");
@@ -99,6 +99,7 @@ export function PostCard({
   const [edited, setEdited] = useState<{ title: string | null; content: string; editedAt: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [gone, setGone] = useState(false);
+  const [commentsLocked, setCommentsLocked] = useState(!!post.commentsLocked);
   const view = edited ? { ...post, ...edited } : post;
 
   /** Only a decision the server took changes the feed; a failure is said, in the menu, and nothing moves. */
@@ -157,6 +158,26 @@ export function PostCard({
     setMenuView("actions");
   }
 
+  async function toggleCommentsLocked(close: () => void) {
+    const next = !commentsLocked;
+    setModerating(true);
+    setModerateError("");
+    const res = await fetch(`/api/posts/${post.id}/comments-lock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locked: next }),
+    }).catch(() => null);
+    setModerating(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setModerateError(body?.error ?? "Couldn't change the discussion lock.");
+      return;
+    }
+    setCommentsLocked(next);
+    close();
+    setMenuView("actions");
+  }
+
   // The whole card opens the discussion, as on any social feed - except a click that was really meant for something
   // inside it (a link, a button, the vote control, a video, a menu) or that ends a text selection.
   function openFromCard(e: React.MouseEvent) {
@@ -191,13 +212,17 @@ export function PostCard({
         )}
       >
         {({ close }) =>
-          menuView === "remove" || menuView === "delete" ? (
+          menuView === "remove" || menuView === "delete" || menuView === "lock" ? (
             <div className="p-3.5">
-              <p className="text-body-sm font-medium text-primary">{menuView === "delete" ? "Delete your post?" : "Remove this post?"}</p>
-              <p className="mt-1 text-caption text-tertiary">{menuView === "delete" ? "It and its replies are gone for good." : "It disappears from the feed for everyone."}</p>
+              <p className="text-body-sm font-medium text-primary">
+                {menuView === "delete" ? "Delete your post?" : menuView === "lock" ? `${commentsLocked ? "Unlock" : "Lock"} comments?` : "Remove this post?"}
+              </p>
+              <p className="mt-1 text-caption text-tertiary">
+                {menuView === "delete" ? "It and its replies are gone for good." : menuView === "lock" ? (commentsLocked ? "Members can reply again." : "Members will no longer be able to reply.") : "It disappears from the feed for everyone."}
+              </p>
               <div className="mt-3 flex gap-2">
-                <Button variant="danger" size="sm" loading={moderating} onClick={() => void (menuView === "delete" ? deleteOwn(close) : moderate("reject", close))}>
-                  {menuView === "delete" ? "Delete" : "Remove"}
+                <Button variant={menuView === "lock" && commentsLocked ? "primary" : "danger"} size="sm" loading={moderating} onClick={() => void (menuView === "delete" ? deleteOwn(close) : menuView === "lock" ? toggleCommentsLocked(close) : moderate("reject", close))}>
+                  {menuView === "delete" ? "Delete" : menuView === "lock" ? (commentsLocked ? "Unlock" : "Lock") : "Remove"}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setMenuView("actions")}>
                   Keep
@@ -256,6 +281,11 @@ export function PostCard({
               {!post.mine && canModerate && post.groupId && (
                 <button type="button" onClick={() => setMenuView("remove")} className={`${MENU_ITEM} hover:text-danger`}>
                   Remove post
+                </button>
+              )}
+              {canModerate && post.groupId && status === "published" && (
+                <button type="button" onClick={() => setMenuView("lock")} className={MENU_ITEM}>
+                  {commentsLocked ? "Unlock comments" : "Lock comments"}
                 </button>
               )}
               {canReport && (
@@ -348,6 +378,7 @@ export function PostCard({
           savePending={saving}
           roleLabel={roleLabel}
           pending={status === "pending"}
+          commentsLocked={commentsLocked}
           focusCommentId={null}
           onClose={() => setDetailOpen(false)}
           onCountChange={setCommentCount}
