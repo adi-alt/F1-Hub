@@ -51,6 +51,17 @@ export function userListeners(uid: string, isAdmin: boolean): ListenerIdentity[]
 export function groupChannelKey(groupId: string): string {
   return `group:${groupId}`;
 }
+
+/** One post discussion gets its own filtered channel, because comments carry post_id rather than
+ * group_id. The filter keeps an open discussion from refreshing for activity in another post. */
+export function postCommentsChannelKey(postId: string): string {
+  return `post-comments:${postId}`;
+}
+
+export function postCommentListeners(postId: string): ListenerIdentity[] {
+  return [{ table: "group_post_comments", event: "*", filter: `post_id=eq.${postId}`, authContext: postId }];
+}
+
 export function groupListeners(groupId: string): ListenerIdentity[] {
   return [
     { table: "group_race_scores", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },

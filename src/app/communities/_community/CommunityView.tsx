@@ -60,11 +60,13 @@ export async function CommunityView({
   id,
   tab: requestedTab,
   post: requestedPost,
+  comment: requestedComment,
   invite: inviteToken,
 }: {
   id: string;
   tab?: string;
   post?: string;
+  comment?: string;
   invite?: string;
 }) {
   const session = await getSession();
@@ -231,6 +233,7 @@ export async function CommunityView({
           // Leaderboard would show the discussion window over a panel it has nothing to do with.
           initialTab={requestedPost ? "feed" : (requestedTab ?? null)}
           focusPostId={requestedPost ?? null}
+          focusCommentId={requestedComment ?? null}
           isF1={wantsRace}
           weekend={weekend}
           crowdVsModel={crowdVsModel}

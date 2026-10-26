@@ -14,6 +14,7 @@ export type RealtimeTable =
   | "group_race_scores"
   | "group_members"
   | "group_posts"
+  | "group_post_comments"
   | "group_predictions";
 
 /** Supabase's own channel subscribe callback status, re-exported under one name so nothing in
