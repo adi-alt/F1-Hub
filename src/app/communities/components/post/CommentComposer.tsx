@@ -3,9 +3,29 @@
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Button } from "@/components/ui/Button";
 import { fieldControlClass } from "@/components/ui/Field";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { EmojiPicker } from "./EmojiPicker";
+
+const DRAFT_PREFIX = "f1hub_comment_draft:";
+
+function readDraft(key: string): string | null {
+  try {
+    const value = localStorage.getItem(key);
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft(key: string | null) {
+  if (!key) return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Draft persistence is best-effort only.
+  }
+}
 
 /**
  * Compact composer shared by top-level comments and replies - text + emoji, matching what was
@@ -23,6 +43,7 @@ export function CommentComposer({
   variant = "default",
   initialValue = "",
   submitLabel = "Reply",
+  draftKey,
 }: {
   onSubmit: (content: string) => Promise<boolean>;
   placeholder?: string;
@@ -33,23 +54,66 @@ export function CommentComposer({
   initialValue?: string;
   /** The stacked form's button: Reply, or Save / Report where it's reused. */
   submitLabel?: string;
+  /** Stable identity for a top-level comment or reply draft. Omitted for edit/report forms. */
+  draftKey?: string;
 }) {
   const { user, avatar } = useAuth();
+  const storageKey = user?.uid && draftKey ? `${DRAFT_PREFIX}${user.uid}:${draftKey}` : null;
   const [content, setContent] = useState(initialValue);
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const draftLoaded = useRef(false);
   // The emoji panel is portaled to document.body, so it anchors to this button's real viewport
   // rect - which is also what lets it work inside the floating post-detail window's own scroller.
   const emojiAnchorRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!storageKey || draftLoaded.current) return;
+    const saved = readDraft(storageKey);
+    if (!saved) {
+      draftLoaded.current = true;
+      return;
+    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      draftLoaded.current = true;
+      setContent(saved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || !draftLoaded.current) return;
+    if (!content.trim()) {
+      clearDraft(storageKey);
+      return;
+    }
+    try {
+      localStorage.setItem(storageKey, content);
+    } catch {
+      // Draft persistence is best-effort only.
+    }
+  }, [content, storageKey]);
 
   async function submit() {
     const trimmed = content.trim();
     if (!trimmed || posting) return;
     setPosting(true);
     const ok = await onSubmit(trimmed);
-    if (ok) setContent("");
+    if (ok) {
+      clearDraft(storageKey);
+      setContent("");
+    }
     setPosting(false);
+  }
+
+  function cancel() {
+    clearDraft(storageKey);
+    onCancel?.();
   }
 
   function insertEmoji(emoji: string) {
@@ -147,7 +211,7 @@ export function CommentComposer({
         </button>
         <div className="flex items-center gap-2">
           {onCancel && (
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            <Button variant="ghost" size="sm" onClick={cancel}>
               Cancel
             </Button>
           )}

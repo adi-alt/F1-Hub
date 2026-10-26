@@ -180,6 +180,7 @@ function CommentNode({
         <div className="ml-[38px] mt-2">
           <CommentComposer
             autoFocus
+            draftKey={`reply:${postId}:${comment.id}`}
             onCancel={() => setReplying(false)}
             onSubmit={async (content) => {
               const ok = await onReply(content, comment.id);
