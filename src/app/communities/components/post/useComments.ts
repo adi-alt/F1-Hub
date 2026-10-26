@@ -83,21 +83,33 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
   // state update, which cascades an extra render on every mount. Clearing the error on success
   // instead is equivalent and keeps this callable from anywhere.
   const load = useCallback(() => {
+    const requestId = loadRequestId.current + 1;
+    loadRequestId.current = requestId;
     return fetch(`/api/posts/${postId}/comments`)
       .then((res) => {
         if (!res.ok) throw new Error("failed");
         return res.json() as Promise<{ comments: PostComment[] }>;
       })
       .then((body) => {
-        setComments(body.comments);
+        // A person can submit from the footer while the initial thread is still loading. Keep
+        // those local rows until the server response contains their real ids; otherwise the GET
+        // response silently erases the text they just submitted.
+        if (requestId !== loadRequestId.current) return;
+        const local = (commentsRef.current ?? []).filter((comment) => comment.id.startsWith("temp-") && (comment.pending || comment.failed));
+        const serverIds = new Set(body.comments.map((comment) => comment.id));
+        const merged = [...body.comments, ...local.filter((comment) => !serverIds.has(comment.id))];
+        commentsRef.current = merged;
+        setComments(merged);
         setError(false);
-        onCountChange?.(body.comments.length);
+        onCountChange?.(merged.length);
       })
       .catch(() => setError(true));
     // onCountChange is a fresh closure each render from the caller's own setState; including it
     // would refetch on every render for nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId]);
+
+  const loadRequestId = useRef(0);
 
   useEffect(() => {
     void load();
@@ -121,8 +133,10 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
         canDelete: true,
         pending: true,
       };
-      setComments((prev) => [...(prev ?? []), optimistic]);
-      onCountChange?.((commentsRef.current?.length ?? 0) + 1);
+      const nextComments = [...(commentsRef.current ?? []), optimistic];
+      commentsRef.current = nextComments;
+      setComments(nextComments);
+      onCountChange?.(nextComments.length);
 
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST",
@@ -131,12 +145,20 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
       }).catch(() => null);
 
       if (!res?.ok) {
-        setComments((prev) => (prev ?? []).map((c) => (c.id === tempId ? { ...c, pending: false, failed: true } : c)));
+        setComments((prev) => {
+          const next = (prev ?? []).map((c) => (c.id === tempId ? { ...c, pending: false, failed: true } : c));
+          commentsRef.current = next;
+          return next;
+        });
         return false;
       }
 
       const body = (await res.json().catch(() => null)) as { id?: string } | null;
-      setComments((prev) => (prev ?? []).map((c) => (c.id === tempId ? { ...c, id: body?.id ?? c.id, pending: false } : c)));
+      setComments((prev) => {
+        const next = (prev ?? []).map((c) => (c.id === tempId ? { ...c, id: body?.id ?? c.id, pending: false } : c));
+        commentsRef.current = next;
+        return next;
+      });
       return true;
     },
     // Deliberately just [postId] - onCountChange is a fresh closure every render from the caller's

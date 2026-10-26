@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
-import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
+import { getMemberRole, joinGroup, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
 import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
@@ -147,13 +147,23 @@ function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
 }
 
-/** group_id null means a personal/global post - no group to enforce membership against, so this
- * is a no-op in that case. Every other call in this file that touches a specific group_id routes
- * through this instead of calling requireMember directly, so "personal posts skip group checks
- * entirely" stays true in exactly one place. */
-async function requireMemberIfGrouped(groupId: string | null, uid: string): Promise<GroupRole | null> {
+/**
+ * Resolves whether the user can view or interact with a post (comments, votes, details).
+ * - groupId null (personal post): allowed for any signed-in user, returns null role.
+ * - Group member: returns their GroupRole ("admin" | "moderator" | "member").
+ * - Non-member of a public group: allowed for any signed-in user, returns null role.
+ * - Non-member of a private/hidden group: throws 403 ("You're not a member of this community.").
+ */
+export async function requireCanViewPost(groupId: string | null, uid: string): Promise<GroupRole | null> {
   if (groupId === null) return null;
-  return requireMember(groupId, uid);
+  const role = await getMemberRole(groupId, uid);
+  if (role) return role;
+  const { data: group, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("groups").select("visibility").eq("id", groupId).maybeSingle(),
+  );
+  if (error) throw new Error(`requireCanViewPost(${groupId}): ${error.message}`);
+  if (group?.visibility === "public") return null;
+  throw new ServiceError("You're not a member of this community.", 403);
 }
 
 /** A published post whose content later turns out unwelcome can still be pulled by a moderator
@@ -299,7 +309,7 @@ export async function listPosts(
   uid: string,
   opts: ListPostsOptions = {},
 ): Promise<{ posts: GroupPost[]; nextCursor: string | null }> {
-  const role = await requireMember(groupId, uid);
+  const role = await requireCanViewPost(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
   const limit = opts.limit ?? GROUP_PAGE_SIZE;
   const sort: PostSort = opts.sort ?? "new";
@@ -431,7 +441,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
   if (!post) return null;
 
   const groupId = (post.group_id as string | null) ?? null;
-  const role = groupId ? await requireMember(groupId, uid) : null;
+  const role = await requireCanViewPost(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
   const status = post.status as PostStatus;
   const isMine = (post.user_id as string) === uid;
@@ -639,7 +649,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
  * (post_id, user_id) makes that structurally impossible anyway). groupId null skips the group-
  * membership gate (see requireMemberIfGrouped). */
 export async function setVote(groupId: string | null, postId: string, uid: string, direction: 1 | -1): Promise<{ myVote: VoteValue }> {
-  await requireMemberIfGrouped(groupId, uid);
+  await requireCanViewPost(groupId, uid);
   const { data: existing, error: existingError } = await supabaseAdmin.from("group_post_votes").select("value").eq("post_id", postId).eq("user_id", uid).maybeSingle();
   if (existingError) throw new Error(`setVote(${postId}): ${existingError.message}`);
 
@@ -659,7 +669,7 @@ export async function setVote(groupId: string | null, postId: string, uid: strin
  * pairing it with a post the caller can reach (audit SEC-12). Toggle + upsert happen atomically in
  * SQL, so a double click can never leave two rows or a stale toggle. */
 export async function setCommentVote(groupId: string | null, postId: string, commentId: string, uid: string, direction: 1 | -1): Promise<{ myVote: VoteValue }> {
-  await requireMemberIfGrouped(groupId, uid);
+  await requireCanViewPost(groupId, uid);
   const { data, error } = await supabaseAdmin.rpc("cast_comment_vote", { p_post_id: postId, p_comment_id: commentId, p_user_id: uid, p_direction: direction });
   if (error) {
     if (error.message.includes("comment_not_in_post")) throw new ServiceError("Comment not found.", 404);
@@ -672,7 +682,7 @@ export async function setCommentVote(groupId: string | null, postId: string, com
  * comments per post at most, cheap to nest in JS; a recursive CTE would be real complexity for no
  * real benefit at this scale). */
 export async function listComments(groupId: string | null, postId: string, uid: string): Promise<PostComment[]> {
-  const role = await requireMemberIfGrouped(groupId, uid);
+  const role = await requireCanViewPost(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
   const { data: comments, error } = await queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).order("created_at"));
   if (error) throw new Error(`listComments(${postId}): ${error.message}`);
@@ -707,13 +717,24 @@ export async function listComments(groupId: string | null, postId: string, uid: 
 }
 
 export async function addComment(groupId: string | null, postId: string, uid: string, content: string, parentCommentId?: string | null): Promise<{ id: string }> {
-  const role = await requireMemberIfGrouped(groupId, uid);
+  let role = groupId ? await getMemberRole(groupId, uid) : null;
   // groupId null is a personal post - there's no community to take a permission policy from, so
   // the only gate is being signed in (already checked by the route).
   if (groupId !== null) {
-    const { data: group, error } = await supabaseAdmin.from("groups").select("permissions").eq("id", groupId).maybeSingle();
+    const { data: group, error } = await supabaseAdmin.from("groups").select("visibility, permissions").eq("id", groupId).maybeSingle();
     if (error) throw new Error(`addComment(${groupId}): ${error.message}`);
-    if (!canDo(group?.permissions, "comment", role)) throw new ServiceError("Only certain roles can reply in this community.", 403);
+    if (!group) throw new ServiceError("Community not found.", 404);
+
+    if (!role) {
+      if (group.visibility === "public") {
+        await joinGroup(uid, groupId);
+        role = "member";
+      } else {
+        throw new ServiceError("You're not a member of this community.", 403);
+      }
+    }
+
+    if (!canDo(group.permissions, "comment", role)) throw new ServiceError("Only certain roles can reply in this community.", 403);
   }
 
   const trimmed = content.trim();

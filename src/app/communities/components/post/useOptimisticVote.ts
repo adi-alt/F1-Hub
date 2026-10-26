@@ -19,16 +19,25 @@ import type { VoteValue } from "@/lib/supabase/groupPosts";
  * whichever request actually corresponds to the current vote will resolve on its own. */
 export function useOptimisticVote(voteUrl: string, initialScore: number, initialMyVote: VoteValue) {
   const [state, setState] = useState({ score: initialScore, myVote: initialMyVote });
+  // A second click can arrive before React has rendered the first optimistic update. Reading the
+  // state captured by the function closure in that window applies both clicks to the same old
+  // vote, which is why a quick up/down sequence used to look like the button had done nothing.
+  const stateRef = useRef(state);
   const requestId = useRef(0);
 
   async function vote(direction: 1 | -1) {
     const id = ++requestId.current;
-    const prev = state;
+    const prev = stateRef.current;
     const nextVote: VoteValue = prev.myVote === direction ? 0 : direction;
-    setState({ score: prev.score + (nextVote - prev.myVote), myVote: nextVote });
+    const next = { score: prev.score + (nextVote - prev.myVote), myVote: nextVote };
+    stateRef.current = next;
+    setState(next);
     const res = await fetch(voteUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ direction }) }).catch(() => null);
     if (id !== requestId.current) return; // a newer click already superseded this request
-    if (!res?.ok) setState(prev);
+    if (!res?.ok) {
+      stateRef.current = prev;
+      setState(prev);
+    }
   }
 
   return { score: state.score, myVote: state.myVote, vote };
