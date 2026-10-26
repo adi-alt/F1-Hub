@@ -2,7 +2,6 @@
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useState } from "react";
-import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
@@ -22,6 +21,7 @@ export function CommentTree({
   postId,
   onReply,
   onDiscard,
+  commentsLocked,
   /** Called when a deep thread wants to open in the side panel, focused on that comment. Absent in
    * the drawer itself, where there's nowhere further to escalate to - it flattens instead. */
   onOpenConversation,
@@ -31,6 +31,7 @@ export function CommentTree({
   postId: string;
   onReply: (content: string, parentCommentId: string | null) => Promise<boolean>;
   onDiscard: (id: string) => void;
+  commentsLocked: boolean;
   onOpenConversation?: (commentId: string) => void;
 }) {
   return (
@@ -44,6 +45,7 @@ export function CommentTree({
           depth={0}
           onReply={onReply}
           onDiscard={onDiscard}
+          commentsLocked={commentsLocked}
           onOpenConversation={onOpenConversation}
         />
       ))}
@@ -58,6 +60,7 @@ function CommentNode({
   depth,
   onReply,
   onDiscard,
+  commentsLocked,
   onOpenConversation,
 }: {
   comment: LocalComment;
@@ -66,6 +69,7 @@ function CommentNode({
   depth: number;
   onReply: (content: string, parentCommentId: string | null) => Promise<boolean>;
   onDiscard: (id: string) => void;
+  commentsLocked: boolean;
   onOpenConversation?: (commentId: string) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${postId}/comments/${comment.id}/vote`, comment.score, comment.myVote);
@@ -147,7 +151,7 @@ function CommentNode({
 
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <VoteControl score={score} myVote={myVote} onVote={vote} compact />
-            {!comment.pending && (
+            {!comment.pending && !commentsLocked && (
               <button type="button" onClick={() => setReplying((v) => !v)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white">
                 <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
                   <path d="M2.5 4h11a.8.8 0 0 1 .8.8v6a.8.8 0 0 1-.8.8H6.2L3.5 14v-2.4H2.5a.8.8 0 0 1-.8-.8v-6A.8.8 0 0 1 2.5 4Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
@@ -174,7 +178,7 @@ function CommentNode({
         </div>
       </div>
 
-      {replying && (
+      {replying && !commentsLocked && (
         <div className="ml-[38px] mt-2">
           <CommentComposer
             autoFocus
@@ -215,6 +219,7 @@ function CommentNode({
               depth={Math.min(depth + 1, MAX_VISIBLE_DEPTH)}
               onReply={onReply}
               onDiscard={onDiscard}
+              commentsLocked={commentsLocked}
               onOpenConversation={onOpenConversation}
             />
           ))}

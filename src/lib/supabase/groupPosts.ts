@@ -44,6 +44,7 @@ export type GroupPost = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  commentsLocked: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -90,6 +91,7 @@ export type FeedPost = {
   score: number;
   myVote: VoteValue;
   commentCount: number;
+  commentsLocked: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -410,6 +412,7 @@ export async function listPosts(
     score: scoreByTarget.get(p.id as string) ?? 0,
     myVote: myVoteByTarget.get(p.id as string) ?? 0,
     commentCount: commentCounts.get(p.id as string) ?? 0,
+    commentsLocked: !!p.comments_locked_at,
   }));
 
   if (ranked) {
@@ -478,6 +481,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     score: scoreByTarget.get(postId) ?? 0,
     myVote: myVoteByTarget.get(postId) ?? 0,
     commentCount: (comments ?? []).length,
+    commentsLocked: !!post.comments_locked_at,
   };
   return (await withCalls([view]))[0];
 }
@@ -639,6 +643,7 @@ export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?
       score: scoreByTarget.get(p.id as string) ?? 0,
       myVote: myVoteByTarget.get(p.id as string) ?? 0,
       commentCount: commentCounts.get(p.id as string) ?? 0,
+      commentsLocked: !!p.comments_locked_at,
     };
   });
   return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };
@@ -736,6 +741,11 @@ export async function addComment(groupId: string | null, postId: string, uid: st
 
     if (!canDo(group.permissions, "comment", role)) throw new ServiceError("Only certain roles can reply in this community.", 403);
   }
+
+  const { data: post, error: postError } = await supabaseAdmin.from("group_posts").select("comments_locked_at").eq("id", postId).maybeSingle();
+  if (postError) throw new Error(`addComment(${postId}): ${postError.message}`);
+  if (!post) throw new ServiceError("Post not found.", 404);
+  if (post.comments_locked_at) throw new ServiceError("Comments are locked on this post.", 403);
 
   const trimmed = content.trim();
   if (!trimmed) throw new ServiceError("Write a comment first.", 400);

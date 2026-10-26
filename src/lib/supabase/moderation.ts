@@ -70,6 +70,17 @@ export async function deletePost(postId: string, uid: string): Promise<{ removed
   return { removed: "moderated" };
 }
 
+/** Only community moderators can close or reopen a discussion. A lock is enforced by addComment,
+ * so a handcrafted request cannot bypass the UI state. */
+export async function setCommentsLocked(postId: string, uid: string, locked: boolean): Promise<void> {
+  const post = await loadPost(postId);
+  if (!post.group_id) throw new ServiceError("Only community posts can lock comments.", 400);
+  const role = await roleFor(post, uid);
+  if (!isModerator(role)) throw new ServiceError("Only a moderator can lock comments.", 403);
+  const { error } = await supabaseAdmin.from("group_posts").update({ comments_locked_at: locked ? new Date().toISOString() : null }).eq("id", postId).eq("group_id", post.group_id);
+  if (error) throw new Error(`setCommentsLocked(${postId}): ${error.message}`);
+}
+
 export async function editComment(postId: string, commentId: string, uid: string, content: string): Promise<{ editedAt: string }> {
   const post = await loadPost(postId);
   await roleFor(post, uid);

@@ -513,6 +513,7 @@ function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => vo
       onVote={vote}
       roleLabel={roleLabel}
       pending={post.status === "pending"}
+      commentsLocked={post.commentsLocked}
       focusCommentId={null}
       onClose={onClose}
     />

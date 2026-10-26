@@ -34,6 +34,7 @@ export function PostDetailWindow({
   onVote,
   roleLabel,
   pending,
+  commentsLocked,
   focusCommentId,
   onClose,
   onCountChange,
@@ -44,6 +45,7 @@ export function PostDetailWindow({
   onVote: (direction: 1 | -1) => void;
   roleLabel?: string;
   pending?: boolean;
+  commentsLocked: boolean;
   /** When set, only this comment's own sub-thread renders, with the same "this IS the conversation
    * view" framing - CommentTree flattens at its depth limit here rather than offering to open a
    * second window on top of this one. */
@@ -79,11 +81,15 @@ export function PostDetailWindow({
       size="lg"
       footer={
         <div className="w-full">
-          <CommentComposer
-            variant="inline"
-            onSubmit={(content) => add(content, focused ? focused.id : null)}
-            placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."}
-          />
+          {commentsLocked ? (
+            <p className="rounded-control border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-caption text-tertiary">Comments are locked on this post.</p>
+          ) : (
+            <CommentComposer
+              variant="inline"
+              onSubmit={(content) => add(content, focused ? focused.id : null)}
+              placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."}
+            />
+          )}
         </div>
       }
     >
@@ -174,7 +180,7 @@ export function PostDetailWindow({
             <>
               {/* No onOpenConversation: this IS the conversation view, so the tree flattens at
                     its depth limit rather than opening a second window over this one. */}
-              <CommentTree roots={roots} childrenOf={tree.childrenOf} postId={post.id} onReply={add} onDiscard={discard} />
+              <CommentTree roots={roots} childrenOf={tree.childrenOf} postId={post.id} onReply={add} onDiscard={discard} commentsLocked={commentsLocked} />
               {remaining > 0 && (
                 <button
                   type="button"
