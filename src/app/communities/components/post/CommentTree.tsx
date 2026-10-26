@@ -2,7 +2,6 @@
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useState } from "react";
-import { EntityAvatar } from "@/components/EntityAvatar";
 import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
@@ -75,7 +74,6 @@ function CommentNode({
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(comment.content);
   const [editedAt, setEditedAt] = useState(comment.editedAt ?? null);
-  const [gone, setGone] = useState(!!comment.deleted);
 
   async function saveEdit(next: string): Promise<boolean> {
     const res = await fetch(`/api/posts/${postId}/comments/${comment.id}`, {
@@ -132,9 +130,7 @@ function CommentNode({
             </span>
             <span className="text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
           </p>
-          {gone ? (
-            <p className="mt-1 text-body-sm italic text-tertiary">Comment deleted</p>
-          ) : editing ? (
+          {editing ? (
             <div className="mt-1.5">
               <CommentComposer autoFocus initialValue={content} submitLabel="Save" onCancel={() => setEditing(false)} onSubmit={saveEdit} placeholder="Edit your comment..." />
             </div>
@@ -155,14 +151,14 @@ function CommentNode({
                 Reply
               </button>
             )}
-            {!comment.pending && !gone && (
+            {!comment.pending && (
               <CommentActions
                 postId={postId}
                 commentId={comment.id}
                 mine={!!comment.mine}
                 canDelete={!!comment.canDelete}
                 onEdit={() => setEditing(true)}
-                onDeleted={() => setGone(true)}
+                onDeleted={() => onDiscard(comment.id)}
               />
             )}
             {!atDepthLimit && children.length > 0 && (
