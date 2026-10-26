@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { Sheet } from "@/components/ui/Dialog";
+import { commentHref } from "@/lib/routes";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
+import { postCommentListeners, postCommentsChannelKey } from "@/lib/realtime/channels";
 import { attachmentBadge, attachmentKind, displayName } from "./attachmentMeta";
 import { mediaKind } from "@/lib/mediaKind";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
@@ -53,6 +56,21 @@ export function PostDetailWindow({
 }) {
   const { comments, tree, sort, setSort, add, discard, reload, error, loading } = useComments(post.id, onCountChange);
   const [visibleThreads, setVisibleThreads] = useState(THREADS_PER_PAGE);
+
+  const commentListeners = postCommentListeners(post.id);
+  useRealtimeSubscription(postCommentsChannelKey(post.id), commentListeners, commentListeners[0], () => void reload(), reload);
+
+  async function shareComment(commentId: string): Promise<boolean> {
+    if (!post.groupId) return false;
+    const url = `${window.location.origin}${commentHref(post.groupId, post.id, commentId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      window.prompt("Copy this comment's link:", url);
+      return false;
+    }
+  }
 
   const focused = useMemo<LocalComment | null>(
     () => (focusCommentId ? ((comments ?? []).find((c) => c.id === focusCommentId) ?? null) : null),
@@ -174,7 +192,14 @@ export function PostDetailWindow({
             <>
               {/* No onOpenConversation: this IS the conversation view, so the tree flattens at
                     its depth limit rather than opening a second window over this one. */}
-              <CommentTree roots={roots} childrenOf={tree.childrenOf} postId={post.id} onReply={add} onDiscard={discard} />
+              <CommentTree
+                roots={roots}
+                childrenOf={tree.childrenOf}
+                postId={post.id}
+                onReply={add}
+                onDiscard={discard}
+                onShareComment={post.groupId ? shareComment : undefined}
+              />
               {remaining > 0 && (
                 <button
                   type="button"

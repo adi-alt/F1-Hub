@@ -21,6 +21,7 @@ export function CommentTree({
   postId,
   onReply,
   onDiscard,
+  onShareComment,
   /** Called when a deep thread wants to open in the side panel, focused on that comment. Absent in
    * the drawer itself, where there's nowhere further to escalate to - it flattens instead. */
   onOpenConversation,
@@ -30,6 +31,7 @@ export function CommentTree({
   postId: string;
   onReply: (content: string, parentCommentId: string | null) => Promise<boolean>;
   onDiscard: (id: string) => void;
+  onShareComment?: (id: string) => Promise<boolean>;
   onOpenConversation?: (commentId: string) => void;
 }) {
   return (
@@ -43,6 +45,7 @@ export function CommentTree({
           depth={0}
           onReply={onReply}
           onDiscard={onDiscard}
+          onShareComment={onShareComment}
           onOpenConversation={onOpenConversation}
         />
       ))}
@@ -57,6 +60,7 @@ function CommentNode({
   depth,
   onReply,
   onDiscard,
+  onShareComment,
   onOpenConversation,
 }: {
   comment: LocalComment;
@@ -65,6 +69,7 @@ function CommentNode({
   depth: number;
   onReply: (content: string, parentCommentId: string | null) => Promise<boolean>;
   onDiscard: (id: string) => void;
+  onShareComment?: (id: string) => Promise<boolean>;
   onOpenConversation?: (commentId: string) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${postId}/comments/${comment.id}/vote`, comment.score, comment.myVote);
@@ -159,6 +164,7 @@ function CommentNode({
                 canDelete={!!comment.canDelete}
                 onEdit={() => setEditing(true)}
                 onDeleted={() => onDiscard(comment.id)}
+                onShare={onShareComment ? () => onShareComment(comment.id) : undefined}
               />
             )}
             {!atDepthLimit && children.length > 0 && (
@@ -211,6 +217,7 @@ function CommentNode({
               depth={Math.min(depth + 1, MAX_VISIBLE_DEPTH)}
               onReply={onReply}
               onDiscard={onDiscard}
+              onShareComment={onShareComment}
               onOpenConversation={onOpenConversation}
             />
           ))}
@@ -223,11 +230,12 @@ function CommentNode({
 const ACTION = "rounded-lg px-2 py-1 text-xs text-tertiary transition hover:bg-white/[0.05] hover:text-white";
 
 /** Edit and delete for the author (delete for a moderator too), Report for everyone else. */
-function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted }: { postId: string; commentId: string; mine: boolean; canDelete: boolean; onEdit: () => void; onDeleted: () => void }) {
+function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted, onShare }: { postId: string; commentId: string; mine: boolean; canDelete: boolean; onEdit: () => void; onDeleted: () => void; onShare?: () => Promise<boolean> }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  const [shared, setShared] = useState(false);
 
   async function remove() {
     setBusy(true);
@@ -250,6 +258,15 @@ function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted 
     return true;
   }
 
+  async function share() {
+    if (!onShare) return;
+    const ok = await onShare();
+    if (ok) {
+      setShared(true);
+      window.setTimeout(() => setShared(false), 2000);
+    }
+  }
+
   return (
     <>
       {mine && (
@@ -270,6 +287,11 @@ function CommentActions({ postId, commentId, mine, canDelete, onEdit, onDeleted 
             Report
           </button>
         ))}
+      {onShare && (
+        <button type="button" onClick={() => void share()} className={ACTION}>
+          {shared ? "Link copied" : "Share"}
+        </button>
+      )}
       {error && (
         <span role="alert" className="text-xs text-danger">
           {error}

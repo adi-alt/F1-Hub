@@ -81,6 +81,7 @@ export function CommunityWorkspace({
   pendingPosts,
   initialTab,
   focusPostId,
+  focusCommentId,
   isF1,
   weekend = null,
   crowdVsModel = null,
@@ -111,6 +112,8 @@ export function CommunityWorkspace({
   initialTab: string | null;
   /** Server-resolved `?post=` value from a shared post permalink. */
   focusPostId: string | null;
+  /** Server-resolved `?comment=` value from a shared comment permalink. */
+  focusCommentId: string | null;
   /** Whether this community is about Formula 1 at all. Decides whether the race card exists - an
    * F1 community with nothing scheduled still gets the card (saying so); a Photography community
    * never gets one, and the page never even fetches a race for it. */
@@ -287,6 +290,7 @@ export function CommunityWorkspace({
                     composerOpen={composerOpen}
                     onComposerOpenChange={setComposerOpen}
                     focusPostId={focusPostId}
+                    focusCommentId={focusCommentId}
                     weekend={weekend}
                   />
                 )}

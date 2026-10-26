@@ -81,6 +81,7 @@ export function CommunityFeed({
   composerOpen,
   onComposerOpenChange,
   focusPostId,
+  focusCommentId,
   weekend = null,
 }: {
   groupId: string;
@@ -111,6 +112,8 @@ export function CommunityFeed({
   /** A shared post permalink's `?post=` id, resolved by the server component. The post it names
    * may or may not be in this feed's first page, so it's fetched on demand - see PermalinkPost. */
   focusPostId: string | null;
+  /** A shared comment permalink's `?comment=` id, resolved alongside its post. */
+  focusCommentId: string | null;
   /** The race weekend this community is living in: the session bar above the feed, a session tag on each post, and
    * each session's result dropped into the stream where it ended. Null outside F1 communities. */
   weekend?: CommunityWeekendData;
@@ -421,7 +424,7 @@ export function CommunityFeed({
 
       {!cursor && !reloading && posts.length > 5 && <p className="pt-6 text-center text-xs text-tertiary">You&apos;re all caught up.</p>}
 
-      {focusPostId && <PermalinkPost key={focusPostId} postId={focusPostId} />}
+      {focusPostId && <PermalinkPost key={`${focusPostId}:${focusCommentId ?? ""}`} postId={focusPostId} commentId={focusCommentId} />}
 
       {canPost && (
         <CreatePostModal
@@ -439,18 +442,18 @@ export function CommunityFeed({
 }
 
 /**
- * A post arrived at by permalink (`/groups/{id}?post={postId}`).
+ * A post or comment arrived at by permalink (`/groups/{id}?post={postId}[&comment={commentId}]`).
  *
  * Fetched rather than looked up in the loaded feed, because a shared link routinely points at
  * something older than the fifteen posts this page starts with - resolving it against what happens
  * to be loaded would open nothing for exactly the links most worth sharing. The endpoint enforces
  * membership itself, so a link into a community the reader isn't in is a 403 there, not a hole.
  *
- * Renders the post's own discussion window, which is what the link is for: someone shared a
- * conversation, not a position in a feed. Closing it clears `?post=` from the URL so a refresh
- * doesn't reopen it, and a post that can't be loaded says so once instead of failing silently.
+ * Renders the post's own discussion window, focused on the shared comment when one was supplied.
+ * Closing it clears the discussion parameters from the URL so a refresh doesn't reopen it, and a
+ * post that can't be loaded says so once instead of failing silently.
  */
-function PermalinkPost({ postId }: { postId: string }) {
+function PermalinkPost({ postId, commentId }: { postId: string; commentId: string | null }) {
   const [post, setPost] = useState<GroupPost | null>(null);
   const [error, setError] = useState("");
   const [dismissed, setDismissed] = useState(false);
@@ -476,6 +479,7 @@ function PermalinkPost({ postId }: { postId: string }) {
     setDismissed(true);
     const url = new URL(window.location.href);
     url.searchParams.delete("post");
+    url.searchParams.delete("comment");
     window.history.replaceState(null, "", url);
   }
 
@@ -495,13 +499,13 @@ function PermalinkPost({ postId }: { postId: string }) {
 
   if (!post) return null;
 
-  return <PermalinkWindow post={post} onClose={close} />;
+  return <PermalinkWindow post={post} commentId={commentId} onClose={close} />;
 }
 
 /** Split out purely so the vote hook can run unconditionally - it can't live behind the
  * `if (!post)` guard above. Voting here writes to the same endpoint the feed row does; the row
  * behind it reconciles on its own next load rather than sharing state across a fetch boundary. */
-function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => void }) {
+function PermalinkWindow({ post, commentId, onClose }: { post: GroupPost; commentId: string | null; onClose: () => void }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
   const roleLabel = post.authorRole && post.authorRole !== "member" ? post.authorRole[0].toUpperCase() + post.authorRole.slice(1) : undefined;
 
@@ -513,7 +517,7 @@ function PermalinkWindow({ post, onClose }: { post: GroupPost; onClose: () => vo
       onVote={vote}
       roleLabel={roleLabel}
       pending={post.status === "pending"}
-      focusCommentId={null}
+      focusCommentId={commentId}
       onClose={onClose}
     />
   );
