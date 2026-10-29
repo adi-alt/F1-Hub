@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
-import { getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
+import { getRace, getRaceById, getRaceRoster } from "@/lib/supabase/races";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { pickWeekend, sessionsOf } from "@/lib/communityWeekend";
 import { callRecord, callSession, describeCall, gradeCall, parseCall, type CallVerdict, type PostCall } from "@/lib/postCalls";
@@ -22,15 +22,9 @@ export type CallableRace = {
 };
 
 export async function getCallableRace(season: number, nowMs = Date.now()): Promise<CallableRace | null> {
-  // Until 20261021_post_calls.sql is applied there is nowhere to store a call, so "Make a call" stays hidden rather
-  // than offering something that would fail on Post. limit(0) reads no rows; a plain select, because a HEAD request
-  // doesn't surface PostgREST's "no such table" error.
-  const { error: tableError } = await supabaseAdmin.from("post_calls").select("post_id").limit(0);
-  if (tableError) return null;
-  const [entries, races] = await Promise.all([getCalendarEntriesByYear(season), getRacesByYear(season)]);
+  const entries = await getCalendarEntriesByYear(season);
   const entry = pickWeekend(entries, nowMs);
-  const race = entry ? races.find((r) => r.round === entry.round) : null;
-  if (!entry || !race?.id) return null;
+  if (!entry) return null;
   const sessions = sessionsOf(entry);
   const at = (key: "Q" | "R") => {
     const s = sessions.find((x) => x.key === key);
@@ -38,6 +32,14 @@ export async function getCallableRace(season: number, nowMs = Date.now()): Promi
   };
   const locks = { Q: at("Q"), R: at("R") };
   if (![locks.Q, locks.R].some((t) => t && Date.parse(t) > nowMs)) return null;
+  // Until 20261021_post_calls.sql is applied there is nowhere to store a call, so "Make a call" stays hidden rather
+  // than offering something that would fail on Post. limit(0) reads no rows; a plain select, because a HEAD request
+  // doesn't surface PostgREST's "no such table" error.
+  const [{ error: tableError }, race] = await Promise.all([
+    supabaseAdmin.from("post_calls").select("post_id").limit(0),
+    getRace(season, entry.round),
+  ]);
+  if (tableError || !race?.id) return null;
   const roster = await getRaceRoster(race);
   return { raceId: race.id, raceName: entry.name ?? race.name, locks, drivers: roster.map((r) => ({ code: r.driver, name: r.driverName, team: r.team })) };
 }
@@ -111,6 +113,9 @@ export async function withCalls<T extends { id: string; userId: string }>(posts:
       .select("post_id, user_id, race_id, kind, driver, rival, threshold, locks_at")
       .in("post_id", posts.map((p) => p.id)),
   );
+  if (!rows.length) {
+    return posts.map((p) => ({ ...p, call: null, authorRecord: null }));
+  }
   // Records: every call by these posts' authors in the seasons these calls are in (usually one).
   const authors = [...new Set(posts.map((p) => p.userId))];
   const seasons = [...new Set(rows.map((r) => r.race_id.slice(0, 4)))].filter((y) => /^\d{4}$/.test(y));

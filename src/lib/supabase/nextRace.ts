@@ -1,5 +1,7 @@
-import { getAllArchiveCircuits } from "@/lib/supabase/archive";
-import { getRacesByYear } from "@/lib/supabase/races";
+import { unstable_cache } from "next/cache";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { getRaceScheduleByYear, type getRacesByYear } from "@/lib/supabase/races";
 import { resolveCurrentCircuitToArchiveId } from "@/lib/circuitSlug";
 import { getRecentCircuitPhotos } from "@/lib/personalization";
 import { getCurrentSeason } from "@/lib/currentSeason";
@@ -17,6 +19,24 @@ export type NextRaceSummary = {
   photoUrl: string | null;
 } | null;
 
+const resolveFallbackCircuitPhoto = unstable_cache(
+  async (circuit: string, year: number): Promise<string | null> => {
+    const { data: circuits } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_circuits").select("circuit_id, name, locality"),
+    );
+    const rows = (circuits ?? []) as { circuit_id: string; name: string | null; locality: string | null }[];
+    const localities = new Map(rows.filter((c) => c.locality).map((c) => [c.circuit_id, c.locality as string]));
+    const idsByName = new Map(rows.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuit_id]));
+    const archiveId = resolveCurrentCircuitToArchiveId(circuit, localities, idsByName);
+    // Photos of past races AT this circuit - the same real source the homepage's rotating backdrop
+    // draws on. Sorted ascending by year, so the last entry is the most recent one.
+    const recent = await getRecentCircuitPhotos(archiveId, circuit, year);
+    return recent.at(-1)?.url ?? null;
+  },
+  ["next-race-circuit-photo"],
+  { revalidate: false, tags: ["races", "archive-data", "race-photos"] },
+);
+
 /**
  * Lives here rather than inside one page because two surfaces now render it: the Communities index
  * rail and a single community's own rail. Previously it was a private helper in
@@ -30,20 +50,13 @@ export type NextRaceSummary = {
  * its plain header, rather than to a stand-in.
  */
 export async function getNextRace(races?: Awaited<ReturnType<typeof getRacesByYear>>): Promise<NextRaceSummary> {
-  const all = races ?? (await getRacesByYear(await getCurrentSeason()));
+  const all = races ?? (await getRaceScheduleByYear(await getCurrentSeason()));
   const upcoming = all.filter((r) => r.status !== "completed").sort((a, b) => a.round - b.round)[0];
   if (!upcoming) return null;
 
   let photoUrl = upcoming.photoUrls?.[0] ?? upcoming.photoUrl ?? null;
   if (!photoUrl && upcoming.circuit) {
-    const archiveCircuits = await getAllArchiveCircuits();
-    const localities = new Map(archiveCircuits.filter((c) => c.locality).map((c) => [c.circuitId, c.locality as string]));
-    const idsByName = new Map(archiveCircuits.filter((c) => c.name).map((c) => [c.name!.trim().toLowerCase(), c.circuitId]));
-    const archiveId = resolveCurrentCircuitToArchiveId(upcoming.circuit, localities, idsByName);
-    // Photos of past races AT this circuit - the same real source the homepage's rotating backdrop
-    // draws on. Sorted ascending by year, so the last entry is the most recent one.
-    const recent = await getRecentCircuitPhotos(archiveId, upcoming.circuit, upcoming.year);
-    photoUrl = recent.at(-1)?.url ?? null;
+    photoUrl = await resolveFallbackCircuitPhoto(upcoming.circuit, upcoming.year).catch(() => null);
   }
 
   return {

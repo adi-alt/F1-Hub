@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getCalendarEntriesByYear } from "@/lib/supabase/calendar";
-import { getQualifyingStages, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
+import { getQualifyingStages, getRace, getRaceById, getRaceRoster } from "@/lib/supabase/races";
 import type { PredictionGuess, PredictionType } from "@/lib/groupPredictionTypes";
 import {
   comparableDriver,
@@ -61,11 +61,15 @@ function crowdPick(type: PredictionType, guesses: readonly PredictionGuess[]): s
  * how many of their entries called it. Pass `groupIds` to count one community's entries rather than all of yours.
  */
 export async function getCommunityWeekend(uid: string, season: number, nowMs = Date.now(), { groupIds }: { groupIds?: string[] } = {}): Promise<CommunityWeekendData> {
-  const [entries, races] = await Promise.all([getCalendarEntriesByYear(season), getRacesByYear(season)]);
+  const entries = await getCalendarEntriesByYear(season);
   const entry = pickWeekend(entries, nowMs);
   if (!entry) return null;
-  const race = races.find((r) => r.round === entry.round) ?? null;
-  const stages = race?.id ? await getQualifyingStages(race.id) : [];
+  const race = await getRace(season, entry.round);
+  const [stages, roster, calledIt] = await Promise.all([
+    race?.id ? getQualifyingStages(race.id) : Promise.resolve([]),
+    race ? getRaceRoster(race).catch(() => []) : Promise.resolve([]),
+    race?.id ? calledItFor(uid, race.id, groupIds) : Promise.resolve({}),
+  ]);
   const sessions = sessionsOf(entry, {
     FP1: !!race?.practice?.FP1,
     FP2: !!race?.practice?.FP2,
@@ -75,9 +79,7 @@ export async function getCommunityWeekend(uid: string, season: number, nowMs = D
     Q: stages.some((r) => r.session === "Q") || !!race?.poleSitter,
     R: race?.status === "completed" && !!race.results?.length,
   });
-  const roster = race ? await getRaceRoster(race).catch(() => []) : [];
   const results = sessionResults(race, stages, new Map(roster.map((r) => [r.driver, { name: r.driverName, team: r.team }])));
-  const calledIt = race?.id ? await calledItFor(uid, race.id, groupIds) : {};
   return { year: entry.year, round: entry.round, raceId: race?.id ?? null, raceName: entry.name ?? race?.name ?? "", sessions, results, calledIt };
 }
 

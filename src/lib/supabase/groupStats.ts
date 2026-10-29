@@ -1,6 +1,6 @@
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { requireMember } from "@/lib/supabase/groups";
+import { requireMember, type GroupRole } from "@/lib/supabase/groups";
 
 /**
  * One community's own numbers, and its own "since you were last here".
@@ -65,8 +65,8 @@ async function countRows(build: () => PromiseLike<{ count: number | null; error:
  * The Community Stats widget's numbers. Membership-gated like every other read in this file's
  * neighbours: a community's post volume is not public information.
  */
-export async function getGroupStats(groupId: string, uid: string): Promise<GroupStats> {
-  await requireMember(groupId, uid);
+export async function getGroupStats(groupId: string, uid: string, opts: { role?: GroupRole } = {}): Promise<GroupStats> {
+  if (!opts.role) await requireMember(groupId, uid);
 
   const now = Date.now();
   const weekAgo = new Date(now - WEEK_MS).toISOString();
@@ -152,16 +152,13 @@ export async function getGroupPulse(groupId: string, uid: string): Promise<Group
 
     if (since === null) return { ...EMPTY_PULSE, hasPriorVisit: false, since: null };
 
-    const { data: myPostRows, error: myPostsError } = await queryWithRetry(() =>
-      supabaseAdmin.from("group_posts").select("id").eq("group_id", groupId).eq("user_id", uid),
-    );
+    const [{ data: myPostRows, error: myPostsError }, { data: openPredictionRows, error: predictionsError }] = await Promise.all([
+      queryWithRetry(() => supabaseAdmin.from("group_posts").select("id").eq("group_id", groupId).eq("user_id", uid)),
+      queryWithRetry(() => supabaseAdmin.from("group_predictions").select("id").eq("group_id", groupId).eq("status", "open")),
+    ]);
     if (myPostsError) throw new Error(myPostsError.message);
-    const myPostIds = (myPostRows ?? []).map((p) => p.id as string);
-
-    const { data: openPredictionRows, error: predictionsError } = await queryWithRetry(() =>
-      supabaseAdmin.from("group_predictions").select("id").eq("group_id", groupId).eq("status", "open"),
-    );
     if (predictionsError) throw new Error(predictionsError.message);
+    const myPostIds = (myPostRows ?? []).map((p) => p.id as string);
     const openPredictionIds = (openPredictionRows ?? []).map((p) => p.id as string);
 
     const [newPosts, repliesToYou, newPredictionEntries, newMembers] = await Promise.all([

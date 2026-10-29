@@ -365,6 +365,35 @@ export const getRaceListByYear = unstable_cache(
   { revalidate: false, tags: ["races", "calendar"] },
 );
 
+const RACE_SCHEDULE_SELECT = "id, year, round, name, circuit, country, status, race_date, photo_url, photo_urls, updated_at";
+const SCHEDULE_ROW_DEFAULTS = {
+  ...LIST_ROW_DEFAULTS,
+  pole_sitter: null,
+  pole_time_sec: null,
+  weather: null,
+  prediction: null,
+  pole_prediction: null,
+  simulation: null,
+  safety_car_periods: null,
+  results_source: null,
+  data_completeness: null,
+  race_results: [],
+  sprint_results: [],
+} satisfies Partial<RaceRow>;
+
+/** Lightweight season schedule (identity, status, dates, and photo URLs, without results or predictions JSON),
+ * for context rails and round pickers (Communities home, Community detail, getNextRace). ~3 KB per season. */
+export const getRaceScheduleByYear = unstable_cache(
+  async (year: number): Promise<RaceDoc[]> => {
+    const { data, error } = await queryWithRetry(() => supabaseAdmin.from("races").select(RACE_SCHEDULE_SELECT).eq("year", year).order("round"));
+    if (error) throw new Error(`getRaceScheduleByYear(${year}): ${error.message}`);
+    const races = ((data ?? []) as unknown as Omit<RaceRow, keyof typeof SCHEDULE_ROW_DEFAULTS>[]).map((row) => toRaceDoc({ ...SCHEDULE_ROW_DEFAULTS, ...row }));
+    return withCalendarPlaceholders(year, races);
+  },
+  ["get-race-schedule-by-year"],
+  { revalidate: false, tags: ["races", "calendar"] },
+);
+
 /**
  * A circuit's full history across seasons, oldest first. Queries FastF1's `circuit` field
  * (e.g. "Budapest") rather than a derived slug — event names can and do change across eras for
@@ -378,6 +407,25 @@ export const getRacesByCircuit = unstable_cache(
     return ((data ?? []) as RaceRow[]).map(toRaceDoc);
   },
   ["get-races-by-circuit"],
+  { revalidate: false, tags: ["races"] },
+);
+
+/** Lightweight photo-only projection for getRecentCircuitPhotos: avoids fetching RACE_SELECT
+ * (practice laps, tire stints, traffic stats) when only id, year, and photo URLs are needed. */
+export const getRacePhotosByCircuit = unstable_cache(
+  async (circuit: string): Promise<{ id: string; year: number; photoUrl: string | null; photoUrls: string[] | null }[]> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("races").select("id, year, photo_url, photo_urls").eq("circuit", circuit).order("year"),
+    );
+    if (error) throw new Error(`getRacePhotosByCircuit(${circuit}): ${error.message}`);
+    return ((data ?? []) as { id: string; year: number; photo_url: string | null; photo_urls: string[] | null }[]).map((r) => ({
+      id: r.id,
+      year: r.year,
+      photoUrl: r.photo_url ?? null,
+      photoUrls: r.photo_urls ?? null,
+    }));
+  },
+  ["get-race-photos-by-circuit"],
   { revalidate: false, tags: ["races"] },
 );
 
@@ -408,14 +456,26 @@ export const getNextUpcomingRace = unstable_cache(
 /** The current grid — driver/team pairs from the most recent race with real results or a real
  * qualifying-based grid, so this never needs a hardcoded roster that goes stale the moment a
  * seat changes. Shared by the personalization page and the signup form. */
-export async function getCurrentEntrants(year: number): Promise<{ driver: string; driverName: string; team: string }[]> {
-  const races = await getRacesByYear(year);
-  const withEntrants = [...races].reverse().find((r) => (r.results?.length ?? 0) > 0 || (r.inputs?.length ?? 0) > 0);
-  if (!withEntrants) return [];
-  return withEntrants.results?.length
-    ? withEntrants.results.map((r) => ({ driver: r.driver, driverName: r.driverName, team: r.team }))
-    : (withEntrants.inputs ?? []).map((i) => ({ driver: i.driver, driverName: i.driverName, team: i.team }));
-}
+export const getCurrentEntrants = unstable_cache(
+  async (year: number): Promise<{ driver: string; driverName: string; team: string }[]> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("races")
+        .select("round, race_results(driver, driver_name, team), race_inputs(driver, driver_name, team)")
+        .eq("year", year)
+        .order("round", { ascending: false }),
+    );
+    if (error) throw new Error(`getCurrentEntrants(${year}): ${error.message}`);
+    type EntrantRow = { driver: string; driver_name: string; team: string };
+    const rows = (data ?? []) as { round: number; race_results?: EntrantRow[]; race_inputs?: EntrantRow[] }[];
+    const withEntrants = rows.find((r) => (r.race_results?.length ?? 0) > 0 || (r.race_inputs?.length ?? 0) > 0);
+    if (!withEntrants) return [];
+    const source = withEntrants.race_results?.length ? withEntrants.race_results : (withEntrants.race_inputs ?? []);
+    return source.map((r) => ({ driver: r.driver, driverName: r.driver_name, team: r.team }));
+  },
+  ["get-current-entrants"],
+  { revalidate: false, tags: ["races"] },
+);
 
 /**
  * A prediction round's own driver picker, for a race the pipeline hasn't touched yet.

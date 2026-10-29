@@ -171,21 +171,26 @@ type ProfileLite = { id: string; display_name: string | null; username: string |
 
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
-  const [{ data, error }, photos] = await Promise.all([
-    queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, points_balance").in("id", userIds)),
-    // Built avatars (profiles.avatar), read on their own: a database without that column yet costs only the avatars,
-    // never the members.
-    supabaseAdmin.from("profiles").select("id, avatar").in("id", userIds).then(
-      ({ data: rows, error: avatarError }) =>
-        new Map(avatarError ? [] : (rows ?? []).flatMap((r) => {
-          const avatar = parseAvatar(r.avatar);
-          return avatar ? [[r.id as string, avatar] as const] : [];
-        })),
-      () => new Map<string, AvatarConfig>(),
-    ),
-  ]);
+  // Built avatars (profiles.avatar) are read in the same query; a database without that column yet falls back to the
+  // base columns so it costs only the avatars, never the members.
+  const primary = await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, points_balance, avatar").in("id", userIds));
+  if (!primary.error) {
+    return new Map(
+      (primary.data ?? []).map((p) => [
+        p.id as string,
+        {
+          id: p.id as string,
+          display_name: (p.display_name as string | null) ?? null,
+          username: (p.username as string | null) ?? null,
+          points_balance: (p.points_balance as number) ?? 0,
+          avatar: parseAvatar(p.avatar),
+        },
+      ]),
+    );
+  }
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, points_balance").in("id", userIds));
   if (error) throw new Error(`profilesById: ${error.message}`);
-  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar: photos.get(p.id as string) ?? null }]));
+  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar: null }]));
 }
 
 /** Every group read below needs this first — `supabaseAdmin` bypasses RLS entirely (same trust
@@ -231,13 +236,14 @@ async function raceDatesFor(raceIds: string[]): Promise<Map<string, string | nul
 /** One query, two real signals per group: the most recent published post (for a card's "Latest:
  * ..." preview) and how many were posted in the last 7 days (for "12 posts this week") - both
  * derived from the same result set, so this doesn't cost a second round trip. */
-async function groupActivitySignals(groupIds: string[]): Promise<{ latestByGroup: Map<string, LatestPost>; weeklyPosts: Map<string, number> }> {
-  if (groupIds.length === 0) return { latestByGroup: new Map(), weeklyPosts: new Map() };
+async function groupActivityPosts(groupIds: string[]): Promise<{ firstSeen: Map<string, { user_id: string; created_at: string; content: string }>; weeklyPosts: Map<string, number> }> {
+  if (groupIds.length === 0) return { firstSeen: new Map(), weeklyPosts: new Map() };
+  const rowCap = Math.max(200, groupIds.length * 25);
   const { data: posts, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_posts").select("group_id, user_id, created_at, content").in("group_id", groupIds).eq("status", "published").order("created_at", { ascending: false }),
+    supabaseAdmin.from("group_posts").select("group_id, user_id, created_at, content").in("group_id", groupIds).eq("status", "published").order("created_at", { ascending: false }).limit(rowCap),
   );
   if (error) throw new Error(`groupActivitySignals: ${error.message}`);
-  if (!posts?.length) return { latestByGroup: new Map(), weeklyPosts: new Map() };
+  if (!posts?.length) return { firstSeen: new Map(), weeklyPosts: new Map() };
 
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const firstSeen = new Map<string, { user_id: string; created_at: string; content: string }>();
@@ -247,6 +253,12 @@ async function groupActivitySignals(groupIds: string[]): Promise<{ latestByGroup
     if (!firstSeen.has(groupId)) firstSeen.set(groupId, { user_id: p.user_id as string, created_at: p.created_at as string, content: p.content as string });
     if (new Date(p.created_at as string).getTime() >= weekAgo) weeklyPosts.set(groupId, (weeklyPosts.get(groupId) ?? 0) + 1);
   }
+  return { firstSeen, weeklyPosts };
+}
+
+async function groupActivitySignals(groupIds: string[]): Promise<{ latestByGroup: Map<string, LatestPost>; weeklyPosts: Map<string, number> }> {
+  const { firstSeen, weeklyPosts } = await groupActivityPosts(groupIds);
+  if (firstSeen.size === 0) return { latestByGroup: new Map(), weeklyPosts };
   const profileById = await profilesById([...firstSeen.values()].map((v) => v.user_id));
   const latestByGroup = new Map(
     [...firstSeen.entries()].map(([groupId, v]) => [groupId, { authorName: profileById.get(v.user_id)?.display_name ?? "A member", createdAt: v.created_at, content: v.content }]),
@@ -254,26 +266,55 @@ async function groupActivitySignals(groupIds: string[]): Promise<{ latestByGroup
   return { latestByGroup, weeklyPosts };
 }
 
-export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
+export async function getUserMemberships(uid: string): Promise<{ group_id: string; role: GroupRole }[]> {
   const { data: memberships, error: membershipsError } = await queryWithRetry(() =>
     supabaseAdmin.from("group_members").select("group_id, role").eq("user_id", uid),
   );
   if (membershipsError) throw new Error(`getUserGroups(${uid}): ${membershipsError.message}`);
-  if (!memberships?.length) return [];
+  return (memberships ?? []).map((m) => ({ group_id: m.group_id as string, role: m.role as GroupRole }));
+}
 
-  const groupIds = memberships.map((m) => m.group_id as string);
+export async function getUserGroups(
+  uid: string,
+  opts: { memberships?: { group_id: string; role: GroupRole }[]; includeStandings?: boolean } = {},
+): Promise<GroupSummary[]> {
+  const memberships = opts.memberships ?? (await getUserMemberships(uid));
+  if (!memberships.length) return [];
+
+  const includeStandings = opts.includeStandings ?? true;
+  const groupIds = memberships.map((m) => m.group_id);
+  const weekAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
   const [
     { data: groups, error: groupsError },
     { data: allMembers, error: allMembersError },
-    { data: scores, error: scoresError },
+    { scores, scoresError, raceDates },
     { data: predictions, error: predictionsError },
-    activitySignals,
+    activityPosts,
   ] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, visibility, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).in("id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id, user_id, joined_at").in("group_id", groupIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, race_id, user_id, score").in("group_id", groupIds)),
+    includeStandings
+      ? queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("group_id, race_id, user_id, score").in("group_id", groupIds)).then(async ({ data, error }) => ({
+          scores: data,
+          scoresError: error,
+          raceDates: error ? new Map<string, string | null>() : await raceDatesFor((data ?? []).map((r) => r.race_id as string)),
+        }))
+      : Promise.resolve({ scores: [] as { group_id: string; race_id: string; user_id: string; score: number }[], scoresError: null, raceDates: new Map<string, string | null>() }),
     queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
-    groupActivitySignals(groupIds),
+    includeStandings
+      ? groupActivityPosts(groupIds)
+      : queryWithRetry(() =>
+          supabaseAdmin.from("group_posts").select("group_id").in("group_id", groupIds).eq("status", "published").gte("created_at", weekAgoIso),
+        ).then(({ data, error }) => {
+          if (error) throw new Error(`groupActivitySignals: ${error.message}`);
+          const weeklyPosts = new Map<string, number>();
+          for (const p of data ?? []) {
+            const gid = p.group_id as string;
+            weeklyPosts.set(gid, (weeklyPosts.get(gid) ?? 0) + 1);
+          }
+          return { firstSeen: new Map<string, { user_id: string; created_at: string; content: string }>(), weeklyPosts };
+        }),
   ]);
   if (groupsError) throw new Error(`getUserGroups(${uid}): ${groupsError.message}`);
   if (allMembersError) throw new Error(`getUserGroups(${uid}): ${allMembersError.message}`);
@@ -285,20 +326,25 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
   const roleByGroup = new Map(memberships.map((m) => [m.group_id as string, m.role as GroupRole]));
   const activePredictionCounts = new Map<string, number>();
   for (const p of predictions ?? []) activePredictionCounts.set(p.group_id as string, (activePredictionCounts.get(p.group_id as string) ?? 0) + 1);
-  const raceDates = await raceDatesFor((scores ?? []).map((r) => r.race_id as string));
-  const ranksByGroup = new Map(
-    groupIds.map((groupId) => [
-      groupId,
-      computeLeagueTable(
-        (scores ?? []).filter((r) => r.group_id === groupId).map((r) => ({ userId: r.user_id as string, raceId: r.race_id as string, score: Number(r.score) })),
-        (allMembers ?? []).filter((m) => m.group_id === groupId).map((m) => ({ userId: m.user_id as string, joinedAt: m.joined_at as string })),
-        raceDates,
-      ),
-    ]),
-  );
+  const ranksByGroup = includeStandings
+    ? new Map(
+        groupIds.map((groupId) => [
+          groupId,
+          computeLeagueTable(
+            (scores ?? []).filter((r) => r.group_id === groupId).map((r) => ({ userId: r.user_id as string, raceId: r.race_id as string, score: Number(r.score) })),
+            (allMembers ?? []).filter((m) => m.group_id === groupId).map((m) => ({ userId: m.user_id as string, joinedAt: m.joined_at as string })),
+            raceDates,
+          ),
+        ]),
+      )
+    : new Map<string, ReturnType<typeof computeLeagueTable>>();
 
   const leaderIds = [...ranksByGroup.values()].map((rows) => rows[0]?.userId).filter((id): id is string => !!id);
-  const leaderProfiles = await profilesById(leaderIds);
+  const latestPostUserIds = [...activityPosts.firstSeen.values()].map((v) => v.user_id);
+  const profileById = includeStandings ? await profilesById([...new Set([...leaderIds, ...latestPostUserIds])]) : new Map<string, ProfileLite>();
+  const latestByGroup = new Map(
+    [...activityPosts.firstSeen.entries()].map(([groupId, v]) => [groupId, { authorName: profileById.get(v.user_id)?.display_name ?? "A member", createdAt: v.created_at, content: v.content }]),
+  );
 
   return (groups ?? [])
     .map((g) => {
@@ -319,10 +365,10 @@ export async function getUserGroups(uid: string): Promise<GroupSummary[]> {
         myRole: roleByGroup.get(groupId) ?? "member",
         createdAt: g.created_at as string,
         activePredictions,
-        weeklyPosts: activitySignals.weeklyPosts.get(groupId) ?? 0,
-        latestPost: activitySignals.latestByGroup.get(groupId) ?? null,
+        weeklyPosts: activityPosts.weeklyPosts.get(groupId) ?? 0,
+        latestPost: latestByGroup.get(groupId) ?? null,
         myRank: myRow?.rank ?? null,
-        leader: leaderRow ? { name: leaderProfiles.get(leaderRow.userId)?.display_name ?? "Member", totalScore: leaderRow.totalScore } : null,
+        leader: leaderRow ? { name: profileById.get(leaderRow.userId)?.display_name ?? "Member", totalScore: leaderRow.totalScore } : null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -342,6 +388,9 @@ export type DiscoverOptions = {
   cursor?: string;
   limit?: number;
   uid?: string;
+  /** Optional pre-fetched membership ids and topics for `uid` so callers that already loaded `getUserGroups` skip re-querying. */
+  memberGroupIds?: Iterable<string>;
+  memberTopics?: Iterable<string>;
 };
 
 export type DiscoverResult = {
@@ -373,11 +422,44 @@ const DISCOVER_PAGE_SIZE = 12;
  * pipeline, then ORDER BY/LIMIT against it. Until then paging is real - the server returns one page
  * at a time - it just costs a full scan of a small table to build.
  */
-export const discoverCommunities = unstable_cache(
-  async (opts: DiscoverOptions): Promise<DiscoverResult> => discoverCommunitiesUncached(opts),
+const discoverPublicDirectoryCached = unstable_cache(
+  async (query?: string, topics?: string[]) => discoverPublicDirectoryUncached(query, topics),
   ["discover-communities"],
   { revalidate: GROUP_DISCOVERY_REVALIDATE_SECONDS, tags: [GROUP_DISCOVERY_TAG] },
 );
+
+export async function discoverCommunities(opts: DiscoverOptions): Promise<DiscoverResult> {
+  const { query, topics, sort = "recommended", cursor, limit = DISCOVER_PAGE_SIZE, uid, memberGroupIds, memberTopics } = opts;
+  const normalizedTopics = topics?.length ? [...topics].filter(Boolean).sort() : undefined;
+  const [directory, userContext] = await Promise.all([
+    discoverPublicDirectoryCached(query?.trim() || undefined, normalizedTopics),
+    uid
+      ? resolveDiscoverUserContext(uid, memberGroupIds, memberTopics)
+      : Promise.resolve({ myGroupIds: new Set<string>(), myTopics: new Set<string>() }),
+  ]);
+
+  if (directory.communities.length === 0) {
+    return { communities: [], nextCursor: null, total: 0, facets: directory.facets };
+  }
+
+  const all: PublicGroupSummary[] = directory.communities.map((c) => ({
+    ...c,
+    isMember: userContext.myGroupIds.has(c.id),
+  }));
+
+  const sorted = sortDiscover(all, sort, userContext.myTopics);
+  const offset = Number.parseInt(cursor ?? "0", 10);
+  const start = Number.isFinite(offset) && offset > 0 ? offset : 0;
+  const page = sorted.slice(start, start + limit);
+  const nextOffset = start + page.length;
+
+  return {
+    communities: page,
+    nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+    total: sorted.length,
+    facets: directory.facets,
+  };
+}
 
 /** Backward-compatible shim: the flat array shape `homeData.ts` and the original Discover tab were
  * written against. New callers should use discoverCommunities. */
@@ -389,9 +471,11 @@ export async function listPublicGroups(query?: string, uid?: string): Promise<Pu
 /** Longer than any real search; a pasted essay is cut here, not sent to the database. */
 const MAX_DISCOVER_QUERY_CHARS = 100;
 
-async function discoverCommunitiesUncached(opts: DiscoverOptions): Promise<DiscoverResult> {
-  const { query, topics, sort = "recommended", cursor, limit = DISCOVER_PAGE_SIZE, uid } = opts;
-  const empty: DiscoverResult = { communities: [], nextCursor: null, total: 0, facets: [] };
+async function discoverPublicDirectoryUncached(
+  query?: string,
+  topics?: string[],
+): Promise<{ communities: Omit<PublicGroupSummary, "isMember">[]; facets: { topic: string; count: number }[] }> {
+  const empty = { communities: [] as Omit<PublicGroupSummary, "isMember">[], facets: [] as { topic: string; count: number }[] };
 
   let builder = supabaseAdmin.from("groups").select(`id, name, description, avatar_url, banner_url, created_at, ${COMMUNITY_SHAPE_COLUMNS}`).eq("visibility", "public");
   const trimmed = query?.trim().slice(0, MAX_DISCOVER_QUERY_CHARS);
@@ -425,27 +509,19 @@ async function discoverCommunitiesUncached(opts: DiscoverOptions): Promise<Disco
   if (matching.length === 0) return { ...empty, facets };
 
   const groupIds = matching.map((g) => g.id as string);
-  const [{ data: allMembers, error: membersError }, { data: predictions, error: predictionsError }, activitySignals, myMemberships, myTopics] = await Promise.all([
+  const [{ data: allMembers, error: membersError }, { data: predictions, error: predictionsError }, activitySignals] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").in("group_id", groupIds)),
     queryWithRetry(() => supabaseAdmin.from("group_predictions").select("group_id").in("group_id", groupIds).eq("status", "open")),
     groupActivitySignals(groupIds),
-    uid
-      ? queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid).in("group_id", groupIds))
-      : Promise.resolve({ data: [] as { group_id: string }[], error: null }),
-    // The one real input "Recommended" has: the topics of the communities this user already joined.
-    // Not an F1-only signal - it works identically for someone whose only community is Photography.
-    uid ? topicsOfMyCommunities(uid) : Promise.resolve(new Set<string>()),
   ]);
   if (membersError) throw new Error(`discoverCommunities: ${membersError.message}`);
   if (predictionsError) throw new Error(`discoverCommunities: ${predictionsError.message}`);
-  if (myMemberships.error) throw new Error(`discoverCommunities: ${myMemberships.error.message}`);
   const memberCounts = new Map<string, number>();
   for (const m of allMembers ?? []) memberCounts.set(m.group_id as string, (memberCounts.get(m.group_id as string) ?? 0) + 1);
   const activePredictionCounts = new Map<string, number>();
   for (const p of predictions ?? []) activePredictionCounts.set(p.group_id as string, (activePredictionCounts.get(p.group_id as string) ?? 0) + 1);
-  const myGroupIds = new Set((myMemberships.data ?? []).map((m) => m.group_id as string));
 
-  const all: PublicGroupSummary[] = matching.map((g) => {
+  const communities = matching.map((g) => {
     const groupId = g.id as string;
     return {
       ...communityShapeOf(g),
@@ -459,33 +535,39 @@ async function discoverCommunitiesUncached(opts: DiscoverOptions): Promise<Disco
       activePredictions: activePredictionCounts.get(groupId) ?? 0,
       weeklyPosts: activitySignals.weeklyPosts.get(groupId) ?? 0,
       latestPost: activitySignals.latestByGroup.get(groupId) ?? null,
-      isMember: myGroupIds.has(groupId),
     };
   });
 
-  const sorted = sortDiscover(all, sort, myTopics);
-  const offset = Number.parseInt(cursor ?? "0", 10);
-  const start = Number.isFinite(offset) && offset > 0 ? offset : 0;
-  const page = sorted.slice(start, start + limit);
-  const nextOffset = start + page.length;
-
-  return {
-    communities: page,
-    nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
-    total: sorted.length,
-    facets,
-  };
+  return { communities, facets };
 }
 
-/** Every distinct topic across the communities this user already belongs to. */
-async function topicsOfMyCommunities(uid: string): Promise<Set<string>> {
-  const { data: memberships, error } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
-  if (error) throw new Error(`topicsOfMyCommunities: ${error.message}`);
-  const ids = (memberships ?? []).map((m) => m.group_id as string);
-  if (ids.length === 0) return new Set();
+/** Resolves a user's joined community ids and their distinct topics, reusing pre-fetched values when the caller already has them. */
+async function resolveDiscoverUserContext(
+  uid: string,
+  knownGroupIds?: Iterable<string>,
+  knownTopics?: Iterable<string>,
+): Promise<{ myGroupIds: Set<string>; myTopics: Set<string> }> {
+  let ids: string[];
+  if (knownGroupIds) {
+    ids = [...new Set(knownGroupIds)];
+  } else {
+    const { data: memberships, error } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
+    if (error) throw new Error(`discoverCommunities: ${error.message}`);
+    ids = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+  }
+  const myGroupIds = new Set(ids);
+  if (knownTopics) {
+    return { myGroupIds, myTopics: new Set(knownTopics) };
+  }
+  if (ids.length === 0) return { myGroupIds, myTopics: new Set() };
+  // The one real input "Recommended" has: the topics of the communities this user already joined.
+  // Not an F1-only signal - it works identically for someone whose only community is Photography.
   const { data: rows, error: topicsError } = await queryWithRetry(() => supabaseAdmin.from("groups").select("topic").in("id", ids));
   if (topicsError) throw new Error(`topicsOfMyCommunities: ${topicsError.message}`);
-  return new Set((rows ?? []).map((r) => r.topic as string | null).filter((t): t is string => !!t));
+  return {
+    myGroupIds,
+    myTopics: new Set((rows ?? []).map((r) => r.topic as string | null).filter((t): t is string => !!t)),
+  };
 }
 
 
@@ -660,8 +742,8 @@ export async function isBanned(groupId: string, uid: string): Promise<boolean> {
   return !!data;
 }
 
-export async function getGroupDetail(groupId: string, uid: string): Promise<GroupDetail> {
-  const myRole = await requireMember(groupId, uid);
+export async function getGroupDetail(groupId: string, uid: string, opts: { role?: GroupRole } = {}): Promise<GroupDetail> {
+  const myRole = opts.role ?? (await requireMember(groupId, uid));
 
   const [{ data: group, error: groupError }, { data: members, error: membersError }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("groups").select("*").eq("id", groupId).single()),
@@ -704,8 +786,8 @@ export async function getGroupDetail(groupId: string, uid: string): Promise<Grou
 /** The community's league table: `group_race_scores` (pipeline/compute_group_scores.py) for current
  * members only, from the day each joined (computeLeagueTable, the one shared ranking). The rail's
  * LeagueTable and the leaderboard tab both render these rows. */
-export async function getGroupLeaderboard(groupId: string, uid: string): Promise<LeaderboardRow[]> {
-  await requireMember(groupId, uid);
+export async function getGroupLeaderboard(groupId: string, uid: string, opts: { role?: GroupRole } = {}): Promise<LeaderboardRow[]> {
+  if (!opts.role) await requireMember(groupId, uid);
 
   const [{ data: scores, error }, { data: members, error: membersError }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_race_scores").select("user_id, race_id, score").eq("group_id", groupId)),

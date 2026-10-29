@@ -1,6 +1,7 @@
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
+import { getRaceById } from "@/lib/supabase/races";
 
 /**
  * "Since you were last here" for Communities - a real diff, not a summary of the present.
@@ -51,12 +52,19 @@ const EMPTY: CommunityPulseData = {
  * A failure anywhere here degrades to the first-visit shape rather than throwing: the pulse widget
  * is context beside the feed, and it must not be able to take the page down with it.
  */
-export async function getCommunityPulse(uid: string): Promise<CommunityPulseData> {
+export async function getCommunityPulse(
+  uid: string,
+  opts: { groupIds?: string[]; groupNamesById?: ReadonlyMap<string, string> } = {},
+): Promise<CommunityPulseData> {
   try {
-    const { data: profile, error: profileError } = await queryWithRetry(() =>
-      supabaseAdmin.from("profiles").select("last_communities_visit_at").eq("id", uid).maybeSingle(),
-    );
+    const [{ data: profile, error: profileError }, membershipsResult] = await Promise.all([
+      queryWithRetry(() => supabaseAdmin.from("profiles").select("last_communities_visit_at").eq("id", uid).maybeSingle()),
+      opts.groupIds
+        ? Promise.resolve({ data: null, error: null })
+        : queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid)),
+    ]);
     if (profileError) throw new Error(profileError.message);
+    if (membershipsResult.error) throw new Error(membershipsResult.error.message);
 
     const since = (profile?.last_communities_visit_at as string | null) ?? null;
 
@@ -68,11 +76,12 @@ export async function getCommunityPulse(uid: string): Promise<CommunityPulseData
       .eq("id", uid)
       .then(() => undefined);
 
-    const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
-    if (membershipsError) throw new Error(membershipsError.message);
-    const groupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+    const groupIds = opts.groupIds
+      ? [...new Set(opts.groupIds)]
+      : [...new Set((membershipsResult.data ?? []).map((m) => m.group_id as string))];
     if (groupIds.length === 0) return { ...EMPTY, hasPriorVisit: since !== null, since };
 
+    const mostDiscussedPromise = findMostDiscussed(groupIds, since);
     const [{ data: openPredictionRows }, { data: myPostRows }] = await Promise.all([
       queryWithRetry(() => supabaseAdmin.from("group_predictions").select("id").in("group_id", groupIds).eq("status", "open")),
       queryWithRetry(() => supabaseAdmin.from("group_posts").select("id").eq("user_id", uid).in("group_id", groupIds)),
@@ -82,11 +91,11 @@ export async function getCommunityPulse(uid: string): Promise<CommunityPulseData
 
     if (since === null) {
       // First visit: nothing to diff, but the standing figures are still real and worth showing.
-      const [mostDiscussed, predictionPulse] = await Promise.all([findMostDiscussed(groupIds, null), findPredictionPulse(openPredictionIds)]);
+      const [mostDiscussed, predictionPulse] = await Promise.all([mostDiscussedPromise, findPredictionPulse(openPredictionIds)]);
       return { ...EMPTY, hasPriorVisit: false, since: null, openPredictions: openPredictionIds.length, mostDiscussed, predictionPulse };
     }
 
-    const [{ data: newPostRows }, { data: replyRows }, { data: entryRows }] = await Promise.all([
+    const [{ data: newPostRows }, { data: replyRows }, { data: entryRows }, mostDiscussed, predictionPulse] = await Promise.all([
       // Other people's posts - a digest that counted the viewer's own would be telling them about
       // themselves. Scheduled posts aren't published yet, so they aren't news either.
       queryWithRetry(() =>
@@ -98,6 +107,8 @@ export async function getCommunityPulse(uid: string): Promise<CommunityPulseData
       openPredictionIds.length > 0
         ? queryWithRetry(() => supabaseAdmin.from("group_prediction_entries").select("prediction_id").in("prediction_id", openPredictionIds).gt("created_at", since))
         : Promise.resolve({ data: [], error: null }),
+      mostDiscussedPromise,
+      findPredictionPulse(openPredictionIds),
     ]);
 
     const postsByGroup = new Map<string, number>();
@@ -109,11 +120,14 @@ export async function getCommunityPulse(uid: string): Promise<CommunityPulseData
     let mostActive: CommunityPulseData["mostActive"] = null;
     if (postsByGroup.size > 0) {
       const [topId, posts] = [...postsByGroup.entries()].sort((a, b) => b[1] - a[1])[0];
-      const { data: group } = await queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").eq("id", topId).maybeSingle());
-      if (group) mostActive = { id: group.id as string, name: group.name as string, posts };
+      const knownName = opts.groupNamesById?.get(topId);
+      if (knownName) {
+        mostActive = { id: topId, name: knownName, posts };
+      } else {
+        const { data: group } = await queryWithRetry(() => supabaseAdmin.from("groups").select("id, name").eq("id", topId).maybeSingle());
+        if (group) mostActive = { id: group.id as string, name: group.name as string, posts };
+      }
     }
-
-    const [mostDiscussed, predictionPulse] = await Promise.all([findMostDiscussed(groupIds, since), findPredictionPulse(openPredictionIds)]);
 
     return {
       hasPriorVisit: true,
@@ -208,12 +222,12 @@ async function findPredictionPulse(openPredictionIds: string[]): Promise<Communi
     getAllCurrentDrivers().catch(() => []),
   ]);
   if (!prediction) return null;
-  const { data: race } = await queryWithRetry(() => supabaseAdmin.from("races").select("name").eq("id", prediction.race_id as string).maybeSingle());
+  const race = await getRaceById(prediction.race_id as string).catch(() => null);
 
   return {
     predictionId,
     groupId: prediction.group_id as string,
-    raceName: (race?.name as string | undefined) ?? "this round",
+    raceName: race?.name ?? "this round",
     leader: drivers.find((d) => d.code === code)?.name ?? code,
     pct: Math.round((count / guesses.length) * 100),
     total: guesses.length,

@@ -3,7 +3,7 @@ import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getRaceById, promoteCalendarRace } from "@/lib/supabase/races";
 import { getAllCurrentDrivers } from "@/lib/supabase/media";
 import { canDo } from "@/lib/communities";
-import { listPublicGroups, requireAdmin, requireMember } from "@/lib/supabase/groups";
+import { listPublicGroups, requireAdmin, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ServiceError } from "@/services/errors";
 import type { RaceDoc } from "@/lib/types/race";
@@ -97,16 +97,25 @@ export const MAX_TREND_BATCH = 50;
  * aggregate: rounds in a community the viewer doesn't belong to (or that don't exist) are left out
  * rather than failing the batch.
  */
-export async function getPredictionTrends(predictionIds: string[], uid: string): Promise<Record<string, PredictionTrend>> {
+export async function getPredictionTrends(
+  predictionIds: string[],
+  uid: string,
+  opts: { memberGroupIds?: Iterable<string> } = {},
+): Promise<Record<string, PredictionTrend>> {
   const ids = [...new Set(predictionIds)].slice(0, MAX_TREND_BATCH);
   if (ids.length === 0) return {};
   const { data: predictions, error } = await queryWithRetry(() => supabaseAdmin.from("group_predictions").select("id, group_id, type").in("id", ids));
   if (error) throw new Error(`getPredictionTrends: ${error.message}`);
   const groupIds = [...new Set((predictions ?? []).map((p) => p.group_id as string))];
   if (groupIds.length === 0) return {};
-  const { data: memberships, error: membershipError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid).in("group_id", groupIds));
-  if (membershipError) throw new Error(`getPredictionTrends: ${membershipError.message}`);
-  const memberOf = new Set((memberships ?? []).map((m) => m.group_id as string));
+  let memberOf: Set<string>;
+  if (opts.memberGroupIds) {
+    memberOf = new Set(opts.memberGroupIds);
+  } else {
+    const { data: memberships, error: membershipError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid).in("group_id", groupIds));
+    if (membershipError) throw new Error(`getPredictionTrends: ${membershipError.message}`);
+    memberOf = new Set((memberships ?? []).map((m) => m.group_id as string));
+  }
   const allowed = (predictions ?? []).filter((p) => memberOf.has(p.group_id as string));
   if (allowed.length === 0) return {};
   const { data: entries, error: entriesError } = await queryWithRetry(() =>
@@ -147,10 +156,15 @@ const RECENT_RESOLVED_WINDOW_DAYS = 7;
  * Callers that want ONLY genuinely open rounds (the right-sidebar's "Active predictions" widget)
  * filter `status === "open"` themselves rather than this function silently narrowing back down -
  * see ActivePredictions' own filter. */
-export async function listMyPredictions(uid: string, limit = 5): Promise<FeedPrediction[]> {
-  const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
-  if (membershipsError) throw new Error(`listMyPredictions: ${membershipsError.message}`);
-  const groupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+export async function listMyPredictions(uid: string, limit = 5, opts: { groupIds?: string[] } = {}): Promise<FeedPrediction[]> {
+  let groupIds: string[];
+  if (opts.groupIds) {
+    groupIds = [...new Set(opts.groupIds)];
+  } else {
+    const { data: memberships, error: membershipsError } = await queryWithRetry(() => supabaseAdmin.from("group_members").select("group_id").eq("user_id", uid));
+    if (membershipsError) throw new Error(`listMyPredictions: ${membershipsError.message}`);
+    groupIds = [...new Set((memberships ?? []).map((m) => m.group_id as string))];
+  }
   if (groupIds.length === 0) return [];
 
   const resolvedCutoff = new Date(Date.now() - RECENT_RESOLVED_WINDOW_DAYS * 86_400_000).toISOString();
@@ -393,8 +407,8 @@ export async function createPrediction(
   return { id: data.id as string };
 }
 
-export async function listPredictions(groupId: string, uid: string): Promise<GroupPrediction[]> {
-  await requireMember(groupId, uid);
+export async function listPredictions(groupId: string, uid: string, opts: { role?: GroupRole } = {}): Promise<GroupPrediction[]> {
+  if (!opts.role) await requireMember(groupId, uid);
 
   const { data: predictions, error } = await queryWithRetry(() =>
     supabaseAdmin.from("group_predictions").select("*").eq("group_id", groupId).order("created_at", { ascending: false }),

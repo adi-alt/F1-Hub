@@ -1,12 +1,13 @@
 "use client";
 
 import { RegionBoundary } from "@/components/ui/RegionBoundary";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "motion/react";
 import { ChevronRight, Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { CreateCommunityModal } from "./create/CreateCommunityModal";
 import type { FeedPost } from "@/lib/supabase/groupPosts";
 import type { FeedPrediction } from "@/lib/supabase/groupPredictions";
@@ -15,18 +16,23 @@ import { useRegisterApexScope } from "@/components/apex/ApexScopeProvider";
 import { WeekendBar } from "./weekend/WeekendBar";
 import type { ModelPick, SessionKey } from "@/lib/communityWeekend";
 import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communityWeekend";
-import type { PredictionType } from "@/lib/groupPredictionTypes";
+import type { PredictionTrend, PredictionType } from "@/lib/groupPredictionTypes";
 import type { CallableRace } from "@/lib/supabase/postCalls";
 import { DiscoverSheet } from "./discover/DiscoverSheet";
-import { GroupsFeed } from "./GroupsFeed";
+import { GroupsFeed, type PredictionsBundle } from "./GroupsFeed";
 import { GroupsLeftSidebar, MobileCommunitySelector } from "./GroupsLeftSidebar";
 import { GroupsRightSidebar, type NextRace } from "./GroupsRightSidebar";
+import { PANEL } from "./panel";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown, parseUtcDateTime } from "@/lib/countdown";
 import { predictionStateAt } from "@/lib/groupPredictionTypes";
 import { groupHref, raceHref } from "@/lib/routes";
 import type { RaceOption } from "./post/PredictionComposer";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
+import { isPromiseLike, useProgressive, useStreamed, type Streamable } from "./useStreamed";
+
+const EMPTY_PREDICTIONS: FeedPrediction[] = [];
+const EMPTY_RACES: RaceOption[] = [];
 
 /** The Communities home, an app shell: your communities on the left (with Pulse under them), the feed in the
  * middle, the race weekend on the right from xl. From lg only the feed scrolls; the rails fit the window and never
@@ -37,38 +43,47 @@ import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
  * community, the feed, then the race-weekend widgets. */
 export function GroupsHomeClient({
   groups,
-  initialPosts,
-  initialCursor,
-  predictions,
-  nextRace,
-  upcomingRaces,
+  initialPosts = [],
+  initialCursor = null,
+  initialFeed,
+  predictions = EMPTY_PREDICTIONS,
+  predictionsBundle,
+  nextRace = null,
+  upcomingRaces = EMPTY_RACES,
+  raceContext,
   pulse,
-  driversByRace,
+  driversByRace = {},
   modelByRace = {},
+  initialTrends,
   weekend = null,
   crowdVsModel = null,
   callableRace = null,
   suggestions = [],
 }: {
   groups: GroupSummary[];
-  initialPosts: FeedPost[];
-  initialCursor: string | null;
-  predictions: FeedPrediction[];
-  nextRace: NextRace;
-  upcomingRaces: RaceOption[];
-  pulse: CommunityPulseData;
+  initialPosts?: FeedPost[];
+  initialCursor?: string | null;
+  initialFeed?: Streamable<{ posts: FeedPost[]; nextCursor: string | null }>;
+  predictions?: FeedPrediction[];
+  predictionsBundle?: Streamable<PredictionsBundle>;
+  nextRace?: Streamable<NextRace>;
+  upcomingRaces?: Streamable<RaceOption[]>;
+  raceContext?: Streamable<{ nextRace: NextRace; upcomingRaces: RaceOption[] }>;
+  pulse: Streamable<CommunityPulseData>;
   /** Driver roster per race id, for the open rounds shown in the feed. */
-  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
+  driversByRace?: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
   /** The Apex model's pick per race and round type (see getModelPicks). */
   modelByRace?: Record<string, Partial<Record<PredictionType, ModelPick>>>;
+  /** Server-prefetched trends for the initial prediction rounds. */
+  initialTrends?: Record<string, PredictionTrend>;
   /** The race weekend Communities is living in (see getCommunityWeekend): the bar above the feed, results in it. */
-  weekend?: CommunityWeekendData;
+  weekend?: Streamable<CommunityWeekendData>;
   /** Your communities against the Apex model this season (see getCrowdVsModel). */
-  crowdVsModel?: CrowdVsModel | null;
+  crowdVsModel?: Streamable<CrowdVsModel | null>;
   /** This weekend's race while calls on it are open (see getCallableRace). */
-  callableRace?: CallableRace | null;
+  callableRace?: Streamable<CallableRace | null>;
   /** Public communities the viewer isn't in, for the rail's "Communities to join". */
-  suggestions?: PublicGroupSummary[];
+  suggestions?: Streamable<PublicGroupSummary[]>;
 }) {
   const [showDiscover, setShowDiscover] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -80,7 +95,19 @@ export function GroupsHomeClient({
   const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
   // A session chosen on the weekend bar narrows the feed to what was said during and after it.
   const [sessionFilter, setSessionFilter] = useState<SessionKey | null>(null);
-  const openRounds = predictions.filter((p) => p.state === "open");
+
+  const nextRaceSource = useMemo<Streamable<NextRace>>(
+    () => (raceContext ? (isPromiseLike(raceContext) ? raceContext.then((r) => r.nextRace) : raceContext.nextRace) : nextRace),
+    [raceContext, nextRace],
+  );
+  const upcomingRacesSource = useMemo<Streamable<RaceOption[]>>(
+    () => (raceContext ? (isPromiseLike(raceContext) ? raceContext.then((r) => r.upcomingRaces) : raceContext.upcomingRaces) : upcomingRaces),
+    [raceContext, upcomingRaces],
+  );
+  const predictionsSource = useMemo<Streamable<FeedPrediction[]>>(
+    () => (predictionsBundle ? (isPromiseLike(predictionsBundle) ? predictionsBundle.then((b) => b.predictions) : predictionsBundle.predictions) : predictions),
+    [predictionsBundle, predictions],
+  );
 
   // Picking another community swaps the feed, so bring its top into view: the feed column on a desktop, the page
   // on a phone. Not on first render.
@@ -140,7 +167,7 @@ export function GroupsHomeClient({
 
   const rightRail = (
     <RegionBoundary label="the race weekend">
-      <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />
+      <GroupsRightSidebar predictions={predictionsSource} nextRace={nextRaceSource} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />
     </RegionBoundary>
   );
 
@@ -171,28 +198,29 @@ export function GroupsHomeClient({
               reach 12px past the text), so nothing spills sideways. A div, not a second <main>. */}
           <div ref={feedRef} data-feed-scroll className="min-w-0 lg:-mx-3 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain lg:px-3 lg:scrollbar-hide">
             <div className="space-y-3 lg:pb-8">
-              {weekend ? (
-                <WeekendBar
+              <Suspense fallback={<WeekendBarSkeleton />}>
+                <StreamedWeekendHeader
                   weekend={weekend}
+                  nextRace={nextRaceSource}
+                  predictions={predictionsSource}
                   selected={sessionFilter}
                   onSelect={setSessionFilter}
-                  openRounds={openRounds.length}
-                  roundsHref={openRounds[0] ? `${groupHref(openRounds[0].groupId)}&tab=predictions` : undefined}
                 />
-              ) : (
-                <WeekendStrip race={nextRace} predictions={predictions} />
-              )}
+              </Suspense>
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
               <RegionBoundary label="the feed">
               <GroupsFeed
                 groups={groups}
                 initialPosts={initialPosts}
                 initialCursor={initialCursor}
+                initialFeed={initialFeed}
                 selectedCommunity={selectedCommunity}
                 predictions={predictions}
-                upcomingRaces={upcomingRaces}
+                predictionsBundle={predictionsBundle}
+                upcomingRaces={upcomingRacesSource}
                 driversByRace={driversByRace}
                 modelByRace={modelByRace}
+                initialTrends={initialTrends}
                 weekend={weekend}
                 sessionFilter={sessionFilter}
                 onClearSession={() => setSessionFilter(null)}
@@ -218,6 +246,51 @@ export function GroupsHomeClient({
 
 /** The fallback above the feed when there's no race weekend to live in (the season is over, or its calendar can't be
  * read): the race and what's open to predict, below xl where the race rail isn't shown. */
+function StreamedWeekendHeader({
+  weekend,
+  nextRace,
+  predictions,
+  selected,
+  onSelect,
+}: {
+  weekend: Streamable<CommunityWeekendData>;
+  nextRace: Streamable<NextRace>;
+  predictions: Streamable<FeedPrediction[]>;
+  selected: SessionKey | null;
+  onSelect: (key: SessionKey | null) => void;
+}) {
+  const resolvedWeekend = useStreamed(weekend);
+  const { data: resolvedPredictions } = useProgressive(predictions, EMPTY_PREDICTIONS);
+  const { data: resolvedNextRace } = useProgressive<NextRace>(nextRace, null);
+  const openRounds = resolvedPredictions.filter((p) => p.state === "open");
+
+  if (resolvedWeekend) {
+    return (
+      <WeekendBar
+        weekend={resolvedWeekend}
+        selected={selected}
+        onSelect={onSelect}
+        openRounds={openRounds.length}
+        roundsHref={openRounds[0] ? `${groupHref(openRounds[0].groupId)}&tab=predictions` : undefined}
+      />
+    );
+  }
+  return <WeekendStrip race={resolvedNextRace} predictions={resolvedPredictions} />;
+}
+
+export function WeekendBarSkeleton() {
+  return (
+    <div role="status" aria-label="Loading race weekend bar" className={`flex h-11 items-center justify-between gap-3 px-3.5 ${PANEL}`}>
+      <Skeleton shape="block" className="h-3.5 w-40" />
+      <div className="flex items-center gap-1.5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} shape="block" className="h-6 w-10 rounded-full" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WeekendStrip({ race, predictions }: { race: NextRace; predictions: FeedPrediction[] }) {
   const now = useMinuteClock();
   const open = predictions.filter((p) => predictionStateAt(p.status, p.lockAt, now) === "open");

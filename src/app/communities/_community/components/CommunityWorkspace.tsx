@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CallableRace } from "@/lib/supabase/postCalls";
 import { motion } from "motion/react";
 import { Plus } from "lucide-react";
@@ -15,6 +15,8 @@ import type { GroupDetail, LeaderboardRow } from "@/lib/supabase/groups";
 import type { GroupPulse, GroupStats } from "@/lib/supabase/groupStats";
 import type { NextRaceSummary } from "@/lib/supabase/nextRace";
 import type { RaceOption } from "../../components/post/PredictionComposer";
+import { FeedStreamSkeleton } from "../../components/GroupsFeed";
+import { isPromiseLike, useProgressive, useStreamed, type Streamable } from "../../components/useStreamed";
 import { CommunityFeed } from "./CommunityFeed";
 import { CommunityHeader, type CommunityWindow } from "./CommunityHeader";
 import { Dialog } from "@/components/ui/Dialog";
@@ -24,6 +26,14 @@ import type { CommunityWeekendData, CrowdVsModel } from "@/lib/supabase/communit
 import { GroupLeaderboardTab } from "./GroupLeaderboardTab";
 import { GroupMembersTab, managesMembers } from "./GroupMembersTab";
 import { GroupPredictions } from "./GroupPredictions";
+
+export type CommunityPredictionsBundle = {
+  predictions: GroupPrediction[];
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
+  railPredictions: RailPrediction[];
+};
+
+const EMPTY_RACES: RaceOption[] = [];
 
 /** Manage isn't a module - it's an admin surface, so it never appears in resolveModules and is
  * appended here only for the people who can actually use it. */
@@ -64,14 +74,16 @@ export function CommunityWorkspace({
   group,
   myUserId,
   leaderboard,
-  posts,
-  postsCursor,
-  predictions,
-  railPredictions,
-  races,
-  upcomingRaces,
+  posts = [],
+  postsCursor = null,
+  feed,
+  predictions = [],
+  railPredictions = [],
+  predictionsBundle,
+  races = EMPTY_RACES,
+  upcomingRaces = EMPTY_RACES,
   callableRace = null,
-  driversByRace,
+  driversByRace = {},
   pointsBalance,
   memberCount,
   stats,
@@ -88,24 +100,26 @@ export function CommunityWorkspace({
 }: {
   group: GroupDetail;
   myUserId: string;
-  leaderboard: LeaderboardRow[];
-  posts: GroupPost[];
-  postsCursor: string | null;
-  predictions: GroupPrediction[];
-  railPredictions: RailPrediction[];
+  leaderboard: Streamable<LeaderboardRow[]>;
+  posts?: GroupPost[];
+  postsCursor?: string | null;
+  feed?: Streamable<{ posts: GroupPost[]; nextCursor: string | null }>;
+  predictions?: GroupPrediction[];
+  railPredictions?: RailPrediction[];
+  predictionsBundle?: Streamable<CommunityPredictionsBundle>;
   /** Every round of this season, newest first - what the Predictions tab's own picker offers. */
-  races: RaceOption[];
+  races?: Streamable<RaceOption[]>;
   /** The subset that hasn't run yet, which is exactly what createPrediction will accept. The
    * composer gets this one, so it can't offer a round the server would refuse. */
-  upcomingRaces: RaceOption[];
+  upcomingRaces?: Streamable<RaceOption[]>;
   /** This weekend's race while calls on it are open (takes with receipts). */
-  callableRace?: CallableRace | null;
-  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
+  callableRace?: Streamable<CallableRace | null>;
+  driversByRace?: Record<string, { code: string; name: string; headshotUrl: string | null }[]>;
   pointsBalance: number;
   memberCount: number;
-  stats: GroupStats;
-  pulse: GroupPulse;
-  nextRace: NextRaceSummary;
+  stats: Streamable<GroupStats>;
+  pulse: Streamable<GroupPulse>;
+  nextRace: Streamable<NextRaceSummary>;
   pendingRequests?: number;
   pendingPosts?: number;
   /** Server-resolved `?tab=` value, so the first render is already correct. */
@@ -119,9 +133,9 @@ export function CommunityWorkspace({
    * never gets one, and the page never even fetches a race for it. */
   isF1: boolean;
   /** The race weekend this community is living in (F1 communities): the bar above the feed, session tags, results. */
-  weekend?: CommunityWeekendData;
+  weekend?: Streamable<CommunityWeekendData>;
   /** This community against the Apex model this season. */
-  crowdVsModel?: CrowdVsModel | null;
+  crowdVsModel?: Streamable<CrowdVsModel | null>;
 }) {
   const isAdmin = group.myRole === "admin";
   const canInvite = canDo(group.permissions, "invite", group.myRole);
@@ -135,8 +149,23 @@ export function CommunityWorkspace({
     const own: CommunityWindow[] = modules.filter((m): m is CommunityModule & CommunityWindow => isWindow(m));
     return [...own, ...(canInvite ? (["invite"] as const) : []), ...(canManage ? (["manage"] as const) : [])];
   }, [canInvite, canManage, modules]);
+
+  const fallbackPredBundle = useMemo<CommunityPredictionsBundle>(
+    () => ({ predictions, driversByRace, railPredictions }),
+    [predictions, driversByRace, railPredictions],
+  );
+  const { data: resolvedPredBundle } = useProgressive(predictionsBundle ?? fallbackPredBundle, fallbackPredBundle);
+  const railPredictionsSource = useMemo<Streamable<RailPrediction[]>>(
+    () => (predictionsBundle ? (isPromiseLike(predictionsBundle) ? predictionsBundle.then((b) => b.railPredictions) : predictionsBundle.railPredictions) : railPredictions),
+    [predictionsBundle, railPredictions],
+  );
+  const feedSource = useMemo<Streamable<{ posts: GroupPost[]; nextCursor: string | null }>>(
+    () => feed ?? { posts, nextCursor: postsCursor },
+    [feed, posts, postsCursor],
+  );
+
   // Counts where a count is the useful thing to know before opening a tab.
-  const openRoundCount = predictions.filter((p) => p.state === "open").length;
+  const openRoundCount = resolvedPredBundle.predictions.filter((p) => p.state === "open").length;
   const tabCount: Partial<Record<Tab, number>> = { predictions: openRoundCount || undefined };
   const tabItems: TabItem<Tab>[] = tabs.map((t) => ({ value: t, label: t === "manage" ? "Manage" : MODULE_LABELS[t], count: tabCount[t] }));
 
@@ -272,40 +301,40 @@ export function CommunityWorkspace({
               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}>
                 <RegionBoundary label={tab === "feed" ? "the feed" : tab === "predictions" ? "the predictions" : "the leaderboard"}>
                 {tab === "feed" && (
-                  <CommunityFeed
-                    groupId={group.id}
-                    communityName={group.name}
-                    communityAvatarUrl={group.avatarUrl}
-                    communityDescription={group.description}
-                    communityType={group.communityType}
-                    features={group.features}
-                    permissions={group.permissions}
-                    initialPosts={posts}
-                    initialCursor={postsCursor}
-                    myRole={group.myRole}
-                    moderationEnabled={group.moderationEnabled}
-                    pendingCount={pendingPosts}
-                    upcomingRaces={upcomingRaces}
-                    callableRace={callableRace}
-                    composerOpen={composerOpen}
-                    onComposerOpenChange={setComposerOpen}
-                    focusPostId={focusPostId}
-                    focusCommentId={focusCommentId}
-                    weekend={weekend}
-                  />
+                  <Suspense fallback={<FeedStreamSkeleton />}>
+                    <StreamedCommunityFeed
+                      group={group}
+                      feedSource={feedSource}
+                      pendingPosts={pendingPosts}
+                      upcomingRaces={upcomingRaces}
+                      callableRace={callableRace}
+                      composerOpen={composerOpen}
+                      onComposerOpenChange={setComposerOpen}
+                      focusPostId={focusPostId}
+                      focusCommentId={focusCommentId}
+                      weekend={weekend}
+                    />
+                  </Suspense>
                 )}
                 {tab === "predictions" && (
-                  <GroupPredictions
-                    groupId={group.id}
-                    myRole={group.myRole}
-                    predictions={predictions}
-                    races={races}
-                    driversByRace={driversByRace}
-                    pointsBalance={pointsBalance}
-                    groupName={group.name}
-                  />
+                  <Suspense fallback={<FeedStreamSkeleton />}>
+                    <StreamedGroupPredictions
+                      group={group}
+                      predictionsBundle={predictionsBundle ?? fallbackPredBundle}
+                      races={races}
+                      pointsBalance={pointsBalance}
+                    />
+                  </Suspense>
                 )}
-                {tab === "leaderboard" && <GroupLeaderboardTab rows={leaderboard} myUserId={myUserId} avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatar ?? null]))} />}
+                {tab === "leaderboard" && (
+                  <Suspense fallback={<FeedStreamSkeleton />}>
+                    <StreamedGroupLeaderboard
+                      leaderboard={leaderboard}
+                      myUserId={myUserId}
+                      avatars={Object.fromEntries(group.members.map((m) => [m.userId, m.avatar ?? null]))}
+                    />
+                  </Suspense>
+                )}
                 </RegionBoundary>
               </motion.div>
             </TabPanels>
@@ -318,7 +347,7 @@ export function CommunityWorkspace({
               stats={stats}
               pulse={pulse}
               race={nextRace}
-              predictions={railPredictions}
+              predictions={railPredictionsSource}
               leaderboard={leaderboard}
               members={group.members}
               myUserId={myUserId}
@@ -375,6 +404,100 @@ export function CommunityWorkspace({
       )}
     </>
   );
+}
+
+function StreamedCommunityFeed({
+  group,
+  feedSource,
+  pendingPosts,
+  upcomingRaces,
+  callableRace,
+  composerOpen,
+  onComposerOpenChange,
+  focusPostId,
+  focusCommentId,
+  weekend,
+}: {
+  group: GroupDetail;
+  feedSource: Streamable<{ posts: GroupPost[]; nextCursor: string | null }>;
+  pendingPosts?: number;
+  upcomingRaces: Streamable<RaceOption[]>;
+  callableRace: Streamable<CallableRace | null>;
+  composerOpen: boolean;
+  onComposerOpenChange: (open: boolean) => void;
+  focusPostId: string | null;
+  focusCommentId: string | null;
+  weekend: Streamable<CommunityWeekendData>;
+}) {
+  const resolvedFeed = useStreamed(feedSource);
+  const { data: resolvedUpcomingRaces } = useProgressive(upcomingRaces, EMPTY_RACES);
+  const { data: resolvedCallableRace } = useProgressive<CallableRace | null>(callableRace, null);
+  const { data: resolvedWeekend } = useProgressive<CommunityWeekendData>(weekend, null);
+  const canModerate = group.myRole === "admin" || group.myRole === "moderator";
+  const resolvedPending = pendingPosts ?? (canModerate ? resolvedFeed.posts.filter((p) => p.status === "pending").length : undefined);
+
+  return (
+    <CommunityFeed
+      groupId={group.id}
+      communityName={group.name}
+      communityAvatarUrl={group.avatarUrl}
+      communityDescription={group.description}
+      communityType={group.communityType}
+      features={group.features}
+      permissions={group.permissions}
+      initialPosts={resolvedFeed.posts}
+      initialCursor={resolvedFeed.nextCursor}
+      myRole={group.myRole}
+      moderationEnabled={group.moderationEnabled}
+      pendingCount={resolvedPending}
+      upcomingRaces={resolvedUpcomingRaces}
+      callableRace={resolvedCallableRace}
+      composerOpen={composerOpen}
+      onComposerOpenChange={onComposerOpenChange}
+      focusPostId={focusPostId}
+      focusCommentId={focusCommentId}
+      weekend={resolvedWeekend}
+    />
+  );
+}
+
+function StreamedGroupPredictions({
+  group,
+  predictionsBundle,
+  races,
+  pointsBalance,
+}: {
+  group: GroupDetail;
+  predictionsBundle: Streamable<CommunityPredictionsBundle>;
+  races: Streamable<RaceOption[]>;
+  pointsBalance: number;
+}) {
+  const resolvedBundle = useStreamed(predictionsBundle);
+  const resolvedRaces = useStreamed(races);
+  return (
+    <GroupPredictions
+      groupId={group.id}
+      myRole={group.myRole}
+      predictions={resolvedBundle.predictions}
+      races={resolvedRaces}
+      driversByRace={resolvedBundle.driversByRace}
+      pointsBalance={pointsBalance}
+      groupName={group.name}
+    />
+  );
+}
+
+function StreamedGroupLeaderboard({
+  leaderboard,
+  myUserId,
+  avatars,
+}: {
+  leaderboard: Streamable<LeaderboardRow[]>;
+  myUserId: string;
+  avatars: Record<string, NonNullable<GroupDetail["members"][number]["avatar"]> | null>;
+}) {
+  const rows = useStreamed(leaderboard);
+  return <GroupLeaderboardTab rows={rows} myUserId={myUserId} avatars={avatars} />;
 }
 
 /** Manage is the heaviest panel and the least-visited, so it's only imported when an admin (or moderator) actually

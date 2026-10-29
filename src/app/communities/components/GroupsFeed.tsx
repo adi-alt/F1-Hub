@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { PANEL } from "./panel";
@@ -24,8 +24,24 @@ import { SessionResultCard } from "./weekend/SessionResultCard";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { liveSession, sessionEndsAt, sessionPhaseAt, type CommunitySession, type ModelPick, type ResultLine, type SessionKey } from "@/lib/communityWeekend";
 import type { CommunityWeekendData } from "@/lib/supabase/communityWeekend";
-import type { PredictionType } from "@/lib/groupPredictionTypes";
+import type { PredictionTrend, PredictionType } from "@/lib/groupPredictionTypes";
 import type { CallableRace } from "@/lib/supabase/postCalls";
+import { useProgressive, useStreamed, type Streamable } from "./useStreamed";
+
+export type PredictionsBundle = {
+  predictions: FeedPrediction[];
+  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
+  modelByRace: Record<string, Partial<Record<PredictionType, ModelPick>>>;
+  initialTrends: Record<string, PredictionTrend>;
+};
+
+const EMPTY_PREDICTIONS_BUNDLE: PredictionsBundle = {
+  predictions: [],
+  driversByRace: {},
+  modelByRace: {},
+  initialTrends: {},
+};
+const EMPTY_RACES: RaceOption[] = [];
 
 /** One row of the stream: a discussion, a prediction round, or a race-weekend session's result, ordered together by
  * when each happened (a result sits where its session ended). Keeping them in one list (rather than strips above the
@@ -97,46 +113,74 @@ function scrollRootOf(el: Element): Element | null {
  */
 export function GroupsFeed({
   groups,
-  initialPosts,
-  initialCursor,
+  initialPosts = [],
+  initialCursor = null,
+  initialFeed,
   selectedCommunity,
-  predictions,
-  upcomingRaces,
-  driversByRace,
-  modelByRace = {},
-  weekend = null,
+  predictions: propPredictions,
+  upcomingRaces = EMPTY_RACES,
+  driversByRace: propDriversByRace,
+  modelByRace: propModelByRace = {},
+  initialTrends: propInitialTrends,
+  predictionsBundle,
+  weekend: weekendProp = null,
   sessionFilter = null,
   onClearSession,
-  callableRace = null,
+  callableRace: callableRaceProp = null,
 }: {
   groups: GroupSummary[];
-  initialPosts: FeedPost[];
-  initialCursor: string | null;
+  initialPosts?: FeedPost[];
+  initialCursor?: string | null;
+  /** Streamable initial feed from the server; suspends only the feed list below the composer/tabs. */
+  initialFeed?: Streamable<{ posts: FeedPost[]; nextCursor: string | null }>;
   selectedCommunity: GroupSummary | null;
   /** The viewer's real open prediction rounds - the SAME array the context rail renders, fetched
    * once by the page, not a second query. Interleaved into the stream below by their own
    * createdAt so a round shows up where it actually happened rather than pinned to the top. */
-  predictions: FeedPrediction[];
+  predictions?: FeedPrediction[];
   /** This season's un-finished rounds, for opening a prediction from the composer. */
-  upcomingRaces: RaceOption[];
+  upcomingRaces?: Streamable<RaceOption[]>;
   /** Driver roster per race id, so a round can be entered from the feed itself. */
-  driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
+  driversByRace?: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
   /** The Apex model's pick per race and round type, for the cards' crowd-vs-Apex line. */
   modelByRace?: Record<string, Partial<Record<PredictionType, ModelPick>>>;
+  /** Server-prefetched trends for the initial prediction rounds, avoiding a post-hydration client fetch. */
+  initialTrends?: Record<string, PredictionTrend>;
+  /** Streamable prediction bundle (rounds + rosters + model picks + trends). */
+  predictionsBundle?: Streamable<PredictionsBundle>;
   /** The race weekend Communities is living in: tags posts with their session, drops each session's result in. */
-  weekend?: CommunityWeekendData;
+  weekend?: Streamable<CommunityWeekendData>;
   /** A session chosen on the weekend bar: the feed narrows to what was said during and after it. */
   sessionFilter?: SessionKey | null;
   onClearSession?: () => void;
   /** This weekend's race while calls are open (takes with receipts), for the composer. */
-  callableRace?: CallableRace | null;
+  callableRace?: Streamable<CallableRace | null>;
 }) {
+  const fallbackBundle = useMemo<PredictionsBundle>(
+    () => ({
+      predictions: propPredictions ?? EMPTY_PREDICTIONS_BUNDLE.predictions,
+      driversByRace: propDriversByRace ?? EMPTY_PREDICTIONS_BUNDLE.driversByRace,
+      modelByRace: propModelByRace,
+      initialTrends: propInitialTrends ?? EMPTY_PREDICTIONS_BUNDLE.initialTrends,
+    }),
+    [propPredictions, propDriversByRace, propModelByRace, propInitialTrends],
+  );
+  const { data: resolvedBundle } = useProgressive(predictionsBundle ?? fallbackBundle, fallbackBundle);
+  const { predictions, driversByRace, modelByRace, initialTrends } = resolvedBundle;
+  const { data: resolvedUpcomingRaces } = useProgressive(upcomingRaces, EMPTY_RACES);
+  const { data: weekend } = useProgressive<CommunityWeekendData>(weekendProp, null);
+  const { data: callableRace } = useProgressive<CallableRace | null>(callableRaceProp, null);
+  const feedSource = useMemo<Streamable<{ posts: FeedPost[]; nextCursor: string | null }>>(
+    () => initialFeed ?? { posts: initialPosts, nextCursor: initialCursor },
+    [initialFeed, initialPosts, initialCursor],
+  );
+
   const communityId = selectedCommunity?.id ?? null;
   // Each community's picture, for the prediction cards (a round carries its community's name, not its picture).
   const avatarById = new Map(groups.map((g) => [g.id, g.avatarUrl]));
   const communityPredictions = communityId ? predictions.filter((p) => p.groupId === communityId) : predictions;
   // Every round's community trend in one request, not one per card.
-  const trends = usePredictionTrends(predictions);
+  const trends = usePredictionTrends(predictions, initialTrends);
 
   // Race-weekend mode. A minute clock keeps the composer's prompt and the live tags current.
   const now = useMinuteClock();
@@ -247,72 +291,12 @@ export function GroupsFeed({
     el.querySelector("textarea")?.focus({ preventScroll: true });
   }
 
-  // ---- Aggregate (cross-community) feed - identical behavior to before this pass ----
+  // ---- Aggregate (cross-community) feed ----
   const [feedType, setFeedType] = useState<FeedType>("following");
-  const [posts, setPosts] = useState(initialPosts);
-  const [cursor, setCursor] = useState(initialCursor);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(false);
-  // The tab itself failed to load (not a later page): said in place of the list, with Retry.
-  const [tabError, setTabError] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  function switchTab(next: FeedType, force = false) {
-    if (next === feedType && !force) return;
-    setFeedType(next);
-    setLoading(true);
-    setError(false);
-    setTabError(false);
-    fetch(`/api/groups/feed?feedType=${next}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
-      .then((body: { posts: FeedPost[]; nextCursor: string | null }) => {
-        setPosts(body.posts);
-        setCursor(body.nextCursor);
-      })
-      // Never the previous tab's posts under the new tab's name.
-      .catch(() => {
-        setPosts([]);
-        setCursor(null);
-        setTabError(true);
-      })
-      .finally(() => setLoading(false));
-  }
-
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !cursor) return;
-    setLoadingMore(true);
-    setError(false);
-    try {
-      const res = await fetch(`/api/groups/feed?feedType=${feedType}&cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) throw new Error("failed");
-      const body = (await res.json()) as { posts: FeedPost[]; nextCursor: string | null };
-      setPosts((prev) => [...prev, ...body.posts]);
-      setCursor(body.nextCursor);
-    } catch {
-      setError(true);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [cursor, feedType, loadingMore]);
-
-  useEffect(() => {
-    if (communityId) return; // the community stream below owns the sentinel while one is selected
-    const el = sentinelRef.current;
-    if (!el || !cursor) return;
-    const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { root: scrollRootOf(el), rootMargin: "400px" });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [cursor, loadMore, communityId]);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   function refreshAggregate() {
-    fetch(`/api/groups/feed?feedType=${feedType}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
-      .then((body: { posts: FeedPost[]; nextCursor: string | null }) => {
-        setPosts(body.posts);
-        setCursor(body.nextCursor);
-      })
-      .catch(() => {});
+    setRefreshTick((t) => t + 1);
   }
 
   // ---- One community's own stream ----
@@ -415,7 +399,7 @@ export function GroupsFeed({
           onPosted={communityId ? refreshCommunity : refreshAggregate}
           fixedGroupId={communityId ?? undefined}
           placeholder={selectedCommunity ? `Share something with ${selectedCommunity.name}...` : live ? `${live.label} is live. What's happening?` : undefined}
-          upcomingRaces={upcomingRaces}
+          upcomingRaces={resolvedUpcomingRaces}
           callableRace={callableRace}
         />
       </div>
@@ -426,11 +410,7 @@ export function GroupsFeed({
             communityInitialError ? (
               <RetryLine message="Couldn't load this community's feed." onRetry={refreshCommunity} />
             ) : (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <PostCardSkeleton key={i} />
-                ))}
-              </div>
+              <FeedStreamSkeleton />
             )
           ) : communityPosts.length === 0 ? (
             <EmptyState
@@ -446,10 +426,18 @@ export function GroupsFeed({
           ) : (
             renderList(interleave(communityPosts, communityPredictions, results), false)
           )}
+          {communityCursor ? (
+            <div ref={communitySentinelRef} className="py-2">
+              {communityLoadingMore && <PostCardSkeleton />}
+              {communityMoreError && <RetryLine message="Couldn't load more." onRetry={() => void loadMoreCommunity()} />}
+            </div>
+          ) : (
+            (communityPosts?.length ?? 0) > 0 && <EndOfFeed />
+          )}
         </div>
       ) : (
         // Only the aggregate feed is a set of tabs; a selected community's own stream isn't one.
-        <Tabs value={feedType} onValueChange={switchTab} items={TAB_ITEMS}>
+        <Tabs value={feedType} onValueChange={setFeedType} items={TAB_ITEMS}>
           {/* Pinned under the site header while the feed scrolls, the way a social feed keeps its tabs in reach. It
               only gets a background (and a hairline) once it's actually pinned, so at rest it sits on the page. */}
           <div ref={tabsSentinelRef} aria-hidden className="h-px" />
@@ -478,48 +466,19 @@ export function GroupsFeed({
             )}
           </div>
           <TabPanels>
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <PostCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : tabError ? (
-              <RetryLine message="Couldn't load these posts." onRetry={() => switchTab(feedType, true)} />
-            ) : posts.length === 0 ? (
-              <EmptyState
-                boxed
-                icon={MessageSquare}
-                message={feedType === "following" ? "It's quiet in your communities. Start the conversation: the race weekend is a good place to begin." : "No posts to show right now."}
-                action={
-                  <Button variant="secondary" size="md" iconStart={Plus} onClick={jumpToComposer}>
-                    Write a post
-                  </Button>
-                }
+            <Suspense fallback={<FeedStreamSkeleton />}>
+              <AggregateFeedStream
+                feedSource={feedSource}
+                feedType={feedType}
+                refreshTick={refreshTick}
+                predictions={predictions}
+                results={results}
+                renderList={renderList}
+                onWritePost={jumpToComposer}
               />
-            ) : (
-              renderList(interleave(posts, predictions, results), true)
-            )}
+            </Suspense>
           </TabPanels>
         </Tabs>
-      )}
-
-      {selectedCommunity ? (
-        communityCursor ? (
-          <div ref={communitySentinelRef} className="py-2">
-            {communityLoadingMore && <PostCardSkeleton />}
-            {communityMoreError && <RetryLine message="Couldn't load more." onRetry={() => void loadMoreCommunity()} />}
-          </div>
-        ) : (
-          (communityPosts?.length ?? 0) > 0 && <EndOfFeed />
-        )
-      ) : cursor ? (
-        <div ref={sentinelRef} className="py-2">
-          {loadingMore && <PostCardSkeleton />}
-          {error && <RetryLine message="Couldn't load more." onRetry={() => void loadMore()} />}
-        </div>
-      ) : (
-        !loading && posts.length > 0 && <EndOfFeed />
       )}
 
       {/* Sticky rather than fixed: it belongs to the feed column and pins to the bottom of
@@ -536,6 +495,136 @@ export function GroupsFeed({
         </div>
       )}
     </div>
+  );
+}
+
+export function FeedStreamSkeleton() {
+  return (
+    <div role="status" aria-label="Loading posts" className="space-y-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <PostCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
+function AggregateFeedStream({
+  feedSource,
+  feedType,
+  refreshTick,
+  predictions,
+  results,
+  renderList,
+  onWritePost,
+}: {
+  feedSource: Streamable<{ posts: FeedPost[]; nextCursor: string | null }>;
+  feedType: FeedType;
+  refreshTick: number;
+  predictions: FeedPrediction[];
+  results: ResultItem[];
+  renderList: (items: FeedItem[], showGroup: boolean) => React.ReactNode;
+  onWritePost: () => void;
+}) {
+  const initial = useStreamed(feedSource);
+  const [posts, setPosts] = useState(initial.posts);
+  const [cursor, setCursor] = useState(initial.nextCursor);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(false);
+  const [tabError, setTabError] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const prevFeedType = useRef<FeedType>("following");
+  const prevRefreshTick = useRef(0);
+
+  const fetchTab = useCallback((targetType: FeedType, isRefresh: boolean) => {
+    if (!isRefresh) {
+      setLoading(true);
+      setError(false);
+      setTabError(false);
+    }
+    fetch(`/api/groups/feed?feedType=${targetType}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))))
+      .then((body: { posts: FeedPost[]; nextCursor: string | null }) => {
+        setPosts(body.posts);
+        setCursor(body.nextCursor);
+      })
+      .catch(() => {
+        if (!isRefresh) {
+          setPosts([]);
+          setCursor(null);
+          setTabError(true);
+        }
+      })
+      .finally(() => {
+        if (!isRefresh) setLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (prevFeedType.current !== feedType) {
+      prevFeedType.current = feedType;
+      fetchTab(feedType, false);
+    } else if (prevRefreshTick.current !== refreshTick) {
+      prevRefreshTick.current = refreshTick;
+      fetchTab(feedType, true);
+    }
+  }, [feedType, refreshTick, fetchTab]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !cursor) return;
+    setLoadingMore(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/groups/feed?feedType=${feedType}&cursor=${encodeURIComponent(cursor)}`);
+      if (!res.ok) throw new Error("failed");
+      const body = (await res.json()) as { posts: FeedPost[]; nextCursor: string | null };
+      setPosts((prev) => [...prev, ...body.posts]);
+      setCursor(body.nextCursor);
+    } catch {
+      setError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [cursor, feedType, loadingMore]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !cursor) return;
+    const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { root: scrollRootOf(el), rootMargin: "400px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cursor, loadMore]);
+
+  return (
+    <>
+      {loading ? (
+        <FeedStreamSkeleton />
+      ) : tabError ? (
+        <RetryLine message="Couldn't load these posts." onRetry={() => fetchTab(feedType, false)} />
+      ) : posts.length === 0 ? (
+        <EmptyState
+          boxed
+          icon={MessageSquare}
+          message={feedType === "following" ? "It's quiet in your communities. Start the conversation: the race weekend is a good place to begin." : "No posts to show right now."}
+          action={
+            <Button variant="secondary" size="md" iconStart={Plus} onClick={onWritePost}>
+              Write a post
+            </Button>
+          }
+        />
+      ) : (
+        renderList(interleave(posts, predictions, results), true)
+      )}
+
+      {cursor ? (
+        <div ref={sentinelRef} className="py-2">
+          {loadingMore && <PostCardSkeleton />}
+          {error && <RetryLine message="Couldn't load more." onRetry={() => void loadMore()} />}
+        </div>
+      ) : (
+        !loading && posts.length > 0 && <EndOfFeed />
+      )}
+    </>
   );
 }
 
