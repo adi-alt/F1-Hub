@@ -34,7 +34,9 @@ concurrency:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: that label moved to Ubuntu 26.04, which Playwright 1.55 cannot install
+    # Chromium on ("Playwright does not support chromium on ubuntu26.04-x64"). Move with the Playwright upgrade.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:
@@ -103,7 +105,7 @@ jobs:
     # Runs against the staging database, so off while there is none. A fork's pull request gets no secrets
     # and is skipped.
     if: vars.STAGING_ENABLED == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # see e2e above
     timeout-minutes: 25
     environment: staging
     env:

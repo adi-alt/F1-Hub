@@ -52,7 +52,7 @@ export function PostActionBar({
   return (
     // h-7 controls (28px) rather than the 36px these were: still a comfortable target, but a row of
     // them no longer costs a third of the card's height.
-    <div className="-ml-2 mt-2 flex items-center gap-1">
+    <div className="-ml-2 mt-2 flex flex-wrap items-center gap-1">
       <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
       <button type="button" onClick={onOpenComments} aria-label={`Open discussion, ${commentCount} comment${commentCount === 1 ? "" : "s"}`} className={ACTION}>
         <Icon icon={MessageSquare} size={16} />
@@ -60,7 +60,8 @@ export function PostActionBar({
       </button>
       <button type="button" onClick={onSave} disabled={savePending} aria-pressed={saved} aria-label={saved ? "Remove saved post" : "Save post"} className={ACTION}>
         <Bookmark size={16} fill={saved ? "currentColor" : "none"} />
-        <span>{saved ? "Saved" : "Save"}</span>
+        {/* Icon-only on phones (the aria-label names it) so vote, reply, save and share still fit one row at 320px. */}
+        <span className="hidden sm:inline">{saved ? "Saved" : "Save"}</span>
       </button>
       {onShare && (
         <button type="button" onClick={onShare} className={ACTION}>
