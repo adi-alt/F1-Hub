@@ -33,13 +33,16 @@ export function useProgressive<T>(value: Streamable<T>, fallback: T): { data: T;
   useEffect(() => {
     if (!isPromiseLike(value)) return;
     let cancelled = false;
-    value
-      .then((resolved) => {
+    // Pass both handlers to `.then(onFulfilled, onRejected)` rather than chaining `.catch()`:
+    // React Flight's `ReactPromise.prototype.then` is a custom Thenable whose `.then()` returns `undefined`.
+    value.then(
+      (resolved) => {
         if (!cancelled) setState({ source: value, data: resolved, loading: false });
-      })
-      .catch(() => {
+      },
+      () => {
         if (!cancelled) setState({ source: value, data: fallback, loading: false });
-      });
+      },
+    );
     return () => {
       cancelled = true;
     };

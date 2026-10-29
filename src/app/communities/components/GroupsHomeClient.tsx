@@ -1,7 +1,7 @@
 "use client";
 
 import { RegionBoundary } from "@/components/ui/RegionBoundary";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "motion/react";
 import { ChevronRight, Compass, MessageSquare, Plus, Trophy, Users } from "lucide-react";
@@ -50,7 +50,6 @@ export function GroupsHomeClient({
   predictionsBundle,
   nextRace = null,
   upcomingRaces = EMPTY_RACES,
-  raceContext,
   pulse,
   driversByRace = {},
   modelByRace = {},
@@ -64,11 +63,10 @@ export function GroupsHomeClient({
   initialPosts?: FeedPost[];
   initialCursor?: string | null;
   initialFeed?: Streamable<{ posts: FeedPost[]; nextCursor: string | null }>;
-  predictions?: FeedPrediction[];
+  predictions?: Streamable<FeedPrediction[]>;
   predictionsBundle?: Streamable<PredictionsBundle>;
   nextRace?: Streamable<NextRace>;
   upcomingRaces?: Streamable<RaceOption[]>;
-  raceContext?: Streamable<{ nextRace: NextRace; upcomingRaces: RaceOption[] }>;
   pulse: Streamable<CommunityPulseData>;
   /** Driver roster per race id, for the open rounds shown in the feed. */
   driversByRace?: Record<string, { code: string; name: string; headshotUrl: string | null; team?: string }[]>;
@@ -95,19 +93,6 @@ export function GroupsHomeClient({
   const selectedCommunity = selectedId ? (groups.find((g) => g.id === selectedId) ?? null) : null;
   // A session chosen on the weekend bar narrows the feed to what was said during and after it.
   const [sessionFilter, setSessionFilter] = useState<SessionKey | null>(null);
-
-  const nextRaceSource = useMemo<Streamable<NextRace>>(
-    () => (raceContext ? (isPromiseLike(raceContext) ? raceContext.then((r) => r.nextRace) : raceContext.nextRace) : nextRace),
-    [raceContext, nextRace],
-  );
-  const upcomingRacesSource = useMemo<Streamable<RaceOption[]>>(
-    () => (raceContext ? (isPromiseLike(raceContext) ? raceContext.then((r) => r.upcomingRaces) : raceContext.upcomingRaces) : upcomingRaces),
-    [raceContext, upcomingRaces],
-  );
-  const predictionsSource = useMemo<Streamable<FeedPrediction[]>>(
-    () => (predictionsBundle ? (isPromiseLike(predictionsBundle) ? predictionsBundle.then((b) => b.predictions) : predictionsBundle.predictions) : predictions),
-    [predictionsBundle, predictions],
-  );
 
   // Picking another community swaps the feed, so bring its top into view: the feed column on a desktop, the page
   // on a phone. Not on first render.
@@ -167,7 +152,7 @@ export function GroupsHomeClient({
 
   const rightRail = (
     <RegionBoundary label="the race weekend">
-      <GroupsRightSidebar predictions={predictionsSource} nextRace={nextRaceSource} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />
+      <GroupsRightSidebar predictions={predictions} nextRace={nextRace} suggestions={suggestions} onDiscover={() => setShowDiscover(true)} fixedHeight={groups.length > 0} crowdVsModel={crowdVsModel} />
     </RegionBoundary>
   );
 
@@ -198,15 +183,17 @@ export function GroupsHomeClient({
               reach 12px past the text), so nothing spills sideways. A div, not a second <main>. */}
           <div ref={feedRef} data-feed-scroll className="min-w-0 lg:-mx-3 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain lg:px-3 lg:scrollbar-hide">
             <div className="space-y-3 lg:pb-8">
-              <Suspense fallback={<WeekendBarSkeleton />}>
-                <StreamedWeekendHeader
-                  weekend={weekend}
-                  nextRace={nextRaceSource}
-                  predictions={predictionsSource}
-                  selected={sessionFilter}
-                  onSelect={setSessionFilter}
-                />
-              </Suspense>
+              <RegionBoundary label="this weekend">
+                <Suspense fallback={<WeekendBarSkeleton />}>
+                  <StreamedWeekendHeader
+                    weekend={weekend}
+                    nextRace={nextRace}
+                    predictions={predictions}
+                    selected={sessionFilter}
+                    onSelect={setSessionFilter}
+                  />
+                </Suspense>
+              </RegionBoundary>
               <MobileCommunitySelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} onCreate={() => setShowCreate(true)} onDiscover={() => setShowDiscover(true)} />
               <RegionBoundary label="the feed">
               <GroupsFeed
@@ -215,9 +202,9 @@ export function GroupsHomeClient({
                 initialCursor={initialCursor}
                 initialFeed={initialFeed}
                 selectedCommunity={selectedCommunity}
-                predictions={predictions}
+                predictions={isPromiseLike(predictions) ? undefined : predictions}
                 predictionsBundle={predictionsBundle}
-                upcomingRaces={upcomingRacesSource}
+                upcomingRaces={upcomingRaces}
                 driversByRace={driversByRace}
                 modelByRace={modelByRace}
                 initialTrends={initialTrends}

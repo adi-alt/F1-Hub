@@ -175,6 +175,7 @@ export async function CommunityView({
     const railPredictions: RailPrediction[] = openPredictions.map((prediction) => ({ prediction, trend: railTrends[prediction.id] ?? null }));
     return { predictions, driversByRace, railPredictions };
   });
+  const railPredictionsPromise = predictionsBundlePromise.then((b) => b.railPredictions);
   const statsPromise = getGroupStats(id, uid, { role }).catch(() => statsFallback(group.members.length));
   // Reads this member's previous visit to THIS community. Read-only: the visit is stamped when
   // the page is left (GroupVisitBeacon), so a refresh during the visit doesn't reset the window.
@@ -227,6 +228,7 @@ export async function CommunityView({
           leaderboard={leaderboardPromise}
           feed={feedPromise}
           predictionsBundle={predictionsBundlePromise}
+          railPredictions={railPredictionsPromise}
           races={racesPromise}
           upcomingRaces={upcomingRacesPromise}
           callableRace={callableRacePromise}
