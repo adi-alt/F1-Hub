@@ -155,7 +155,8 @@ async function GroupsHome({ uid }: { uid: string }) {
     }),
   );
   const feedPromise = listFeedPosts(uid, { joinedGroupIds: groupIds });
-  const predictionsBundlePromise = listMyPredictions(uid, 5, { groupIds }).then(async (predictions) => {
+  const predictionsPromise = listMyPredictions(uid, 5, { groupIds });
+  const predictionsBundlePromise = predictionsPromise.then(async (predictions) => {
     const raceIds = predictions.map((p) => p.raceId);
     const trendIds = predictions.filter((p) => p.entryCount > 0).map((p) => p.id);
     const [{ driversByRace, modelByRace }, initialTrends] = await Promise.all([
@@ -167,6 +168,8 @@ async function GroupsHome({ uid }: { uid: string }) {
     return { predictions, driversByRace, modelByRace, initialTrends };
   });
   const raceContextPromise = getRaceContext(season);
+  const nextRacePromise = raceContextPromise.then((r) => r.nextRace);
+  const upcomingRacesPromise = raceContextPromise.then((r) => r.upcomingRaces);
   // Reads the previous visit timestamp and stamps a new one - so it must run exactly once per
   // page load, here, not inside a client component that could re-run and collapse the window.
   const pulsePromise = getCommunityPulse(uid, { groupIds });
@@ -201,8 +204,10 @@ async function GroupsHome({ uid }: { uid: string }) {
         <GroupsHomeClient
           groups={groups}
           initialFeed={feedPromise}
+          predictions={predictionsPromise}
           predictionsBundle={predictionsBundlePromise}
-          raceContext={raceContextPromise}
+          nextRace={nextRacePromise}
+          upcomingRaces={upcomingRacesPromise}
           pulse={pulsePromise}
           weekend={weekendPromise}
           crowdVsModel={crowdVsModelPromise}

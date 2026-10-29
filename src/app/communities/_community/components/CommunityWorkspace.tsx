@@ -105,7 +105,7 @@ export function CommunityWorkspace({
   postsCursor?: string | null;
   feed?: Streamable<{ posts: GroupPost[]; nextCursor: string | null }>;
   predictions?: GroupPrediction[];
-  railPredictions?: RailPrediction[];
+  railPredictions?: Streamable<RailPrediction[]>;
   predictionsBundle?: Streamable<CommunityPredictionsBundle>;
   /** Every round of this season, newest first - what the Predictions tab's own picker offers. */
   races?: Streamable<RaceOption[]>;
@@ -151,14 +151,14 @@ export function CommunityWorkspace({
   }, [canInvite, canManage, modules]);
 
   const fallbackPredBundle = useMemo<CommunityPredictionsBundle>(
-    () => ({ predictions, driversByRace, railPredictions }),
+    () => ({ predictions, driversByRace, railPredictions: isPromiseLike(railPredictions) ? [] : railPredictions }),
     [predictions, driversByRace, railPredictions],
   );
   const { data: resolvedPredBundle } = useProgressive(predictionsBundle ?? fallbackPredBundle, fallbackPredBundle);
-  const railPredictionsSource = useMemo<Streamable<RailPrediction[]>>(
-    () => (predictionsBundle ? (isPromiseLike(predictionsBundle) ? predictionsBundle.then((b) => b.railPredictions) : predictionsBundle.railPredictions) : railPredictions),
-    [predictionsBundle, railPredictions],
-  );
+  const railPredictionsSource: Streamable<RailPrediction[]> =
+    !isPromiseLike(railPredictions) && railPredictions.length === 0 && predictionsBundle && !isPromiseLike(predictionsBundle)
+      ? predictionsBundle.railPredictions
+      : railPredictions;
   const feedSource = useMemo<Streamable<{ posts: GroupPost[]; nextCursor: string | null }>>(
     () => feed ?? { posts, nextCursor: postsCursor },
     [feed, posts, postsCursor],
