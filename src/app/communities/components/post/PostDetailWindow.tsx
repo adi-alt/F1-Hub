@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Bookmark, MessageSquare, Search, X } from "lucide-react";
 import { Sheet } from "@/components/ui/Dialog";
+import { Icon } from "@/components/ui/Icon";
 import { commentHref } from "@/lib/routes";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { postCommentListeners, postCommentsChannelKey } from "@/lib/realtime/channels";
@@ -130,7 +132,7 @@ export function PostDetailWindow({
       }
     >
       {/* The post, pinned above the scrolling discussion so it never leaves the screen. */}
-      <div className="border-b border-subtle pb-3">
+      <div className="border-b border-subtle pb-3.5">
         <div className="flex items-start gap-2">
           <PostHeader post={post} showGroup roleLabel={roleLabel} pending={pending} />
         </div>
@@ -138,11 +140,11 @@ export function PostDetailWindow({
         <div className="mt-2.5 flex items-start gap-3">
           <div className="min-w-0 flex-1">
             {post.title && <p className="text-body-sm font-semibold text-primary">{post.title}</p>}
-            <p className={`whitespace-pre-wrap break-words text-body-sm leading-relaxed text-secondary ${post.title ? "mt-1" : ""}`}>{post.content}</p>
+            <p className={`whitespace-pre-wrap break-words text-body-sm leading-6 text-primary/85 ${post.title ? "mt-1" : ""}`}>{post.content}</p>
           </div>
           {thumbSrc && (
             // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize
-            <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-card border border-white/10 object-cover" />
+            <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-control border border-white/10 object-cover" />
           )}
         </div>
 
@@ -162,37 +164,30 @@ export function PostDetailWindow({
           </a>
         )}
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <div className="rounded-full border border-white/10 bg-white/[0.03] px-1 py-0.5">
-            <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
-          </div>
+        <div className="-ml-1.5 mt-2.5 flex flex-wrap items-center gap-1">
+          <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
           <button
             type="button"
             onClick={onSave}
             disabled={savePending}
             aria-pressed={saved}
-            className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-caption font-medium text-secondary transition-colors hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className={`flex h-7 items-center gap-1.5 rounded-control px-2.5 text-caption transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+              saved ? "bg-surface-2 font-medium text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"
+            }`}
           >
-            <span aria-hidden>{saved ? "★" : "☆"}</span>
+            <Bookmark size={14} fill={saved ? "currentColor" : "none"} />
             {saved ? "Saved" : "Save"}
           </button>
-          <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-caption font-medium text-secondary">
-            <svg viewBox="0 0 20 20" width="13" height="13" fill="none" aria-hidden>
-              <path
-                d="M3 4.5h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-3.5 3v-3H3a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"
-                stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              />
-            </svg>
+          <span className="flex h-7 items-center gap-1.5 rounded-control px-2.5 text-caption text-tertiary">
+            <Icon icon={MessageSquare} size={16} className="size-3.5" />
             <span className="tabular-nums">{totalCount}</span>
           </span>
         </div>
       </div>
 
-      <div className="pt-3">
+      <div className="pt-3.5">
         {focused && (
-          <div className="mb-3 flex items-center justify-between gap-2 rounded-card border border-brand/30 bg-brand/[0.06] px-3 py-2">
+          <div className="mb-3.5 flex items-center justify-between gap-2 rounded-lg border border-brand/30 bg-brand/[0.06] px-3 py-2">
             <span className="text-caption text-secondary">Viewing single comment thread</span>
             <button
               type="button"
@@ -204,35 +199,42 @@ export function PostDetailWindow({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-2.5">
           <div className="flex items-center gap-2">
             <p className="text-body-sm font-semibold text-primary">
               {focused ? "This thread" : "Comments"}
-              {!focused && totalCount > 0 && <span className="ml-1.5 text-caption font-normal tabular-nums text-tertiary">{totalCount}</span>}
+              {!focused && totalCount > 0 && (
+                <span className="ml-1.5 rounded-control bg-white/[0.06] px-1.5 py-0.5 text-caption font-medium tabular-nums text-secondary">
+                  {totalCount}
+                </span>
+              )}
             </p>
             {!focused && (hasOpComments || hasMediaComments) && (
               <div className="flex items-center gap-1" role="group" aria-label="Filter comments">
-                {(
-                  [
-                    { id: "all", label: "All", show: true },
-                    { id: "op", label: "OP", show: hasOpComments },
-                    { id: "media", label: "Media", show: hasMediaComments },
-                  ] as const
-                )
-                  .filter((item) => item.show)
-                  .map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={filter === item.id}
-                      onClick={() => setFilter(item.id)}
-                      className={`rounded-full px-2 py-0.5 text-caption font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-                        filter === item.id ? "bg-brand/20 text-brand-text" : "text-tertiary hover:text-secondary"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                {hasOpComments && (
+                  <button
+                    type="button"
+                    aria-pressed={filter === "op"}
+                    onClick={() => setFilter((prev) => (prev === "op" ? "all" : "op"))}
+                    className={`rounded-control px-2 py-1 text-caption transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                      filter === "op" ? "bg-white/[0.08] font-medium text-primary" : "text-tertiary hover:bg-white/[0.04] hover:text-secondary"
+                    }`}
+                  >
+                    OP replies
+                  </button>
+                )}
+                {hasMediaComments && (
+                  <button
+                    type="button"
+                    aria-pressed={filter === "media"}
+                    onClick={() => setFilter((prev) => (prev === "media" ? "all" : "media"))}
+                    className={`rounded-control px-2 py-1 text-caption transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                      filter === "media" ? "bg-white/[0.08] font-medium text-primary" : "text-tertiary hover:bg-white/[0.04] hover:text-secondary"
+                    }`}
+                  >
+                    Media
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -252,14 +254,13 @@ export function PostDetailWindow({
                   aria-expanded={searchOpen}
                   aria-label="Search comments"
                   title="Search comments"
-                  className={`flex size-7 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-                    searchOpen || searchQuery ? "bg-white/[0.08] text-primary" : "text-tertiary hover:bg-white/[0.05] hover:text-secondary"
+                  className={`flex size-7 items-center justify-center rounded-control border transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                    searchOpen || searchQuery
+                      ? "border-white/[0.16] bg-white/[0.08] text-primary"
+                      : "border-white/[0.06] bg-white/[0.02] text-tertiary hover:border-white/[0.14] hover:text-secondary"
                   }`}
                 >
-                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
-                    <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.4" />
-                    <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  </svg>
+                  <Icon icon={Search} size={16} className="size-3.5" />
                 </button>
               )}
             </div>
@@ -267,28 +268,30 @@ export function PostDetailWindow({
         </div>
 
         {!focused && searchOpen && (
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2.5 flex items-center gap-2 rounded-control border border-white/10 bg-surface-1 px-2.5 py-1.5">
+            <Icon icon={Search} size={16} className="size-3.5 shrink-0 text-tertiary" />
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search comments or authors..."
               autoFocus
-              className="w-full rounded-control border border-white/10 bg-surface-1 px-3 py-1.5 text-caption text-primary placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              className="w-full bg-transparent text-caption text-primary placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-transparent"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="shrink-0 rounded-control px-2 py-1 text-caption text-tertiary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                aria-label="Clear search"
+                className="flex size-5 shrink-0 items-center justify-center rounded-control text-tertiary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
-                Clear
+                <Icon icon={X} size={16} className="size-3.5" />
               </button>
             )}
           </div>
         )}
 
-        <div className="mt-3">
+        <div className="mt-3.5">
           {loading ? (
             <CommentsSkeleton count={3} />
           ) : error ? (
@@ -303,7 +306,7 @@ export function PostDetailWindow({
               </button>
             </p>
           ) : allRoots.length === 0 ? (
-            <div className="py-5 text-center">
+            <div className="py-6 text-center">
               <p className="text-body-sm font-medium text-secondary">
                 {searchQuery || filter !== "all" ? "No matching comments" : "No comments yet"}
               </p>
@@ -333,7 +336,7 @@ export function PostDetailWindow({
                 <button
                   type="button"
                   onClick={() => setVisibleThreads((n) => n + THREADS_PER_PAGE)}
-                  className="mt-3 w-full rounded-card border border-white/10 bg-white/[0.02] px-3 py-2 text-caption font-medium text-secondary transition-colors hover:border-white/20 hover:bg-white/[0.05] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  className="mt-3.5 w-full rounded-control border border-white/10 bg-white/[0.02] px-3 py-2 text-caption font-medium text-secondary transition-colors hover:border-white/20 hover:bg-white/[0.05] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
                   Load more comments ({remaining} remaining)
                 </button>

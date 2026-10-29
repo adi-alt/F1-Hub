@@ -2,13 +2,16 @@
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Fragment, useState } from "react";
+import { MessageSquare, MoreHorizontal, Quote, SmilePlus } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { timeAgo } from "@/lib/format";
 import { safeHttpUrl } from "@/lib/linkPreview";
 import { COMMENT_REACTIONS, type CommentReactionEmoji } from "@/lib/communities";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
+import { MENU_ITEM } from "@/components/ui/panel";
 import { CommentComposer } from "./CommentComposer";
 import { useOptimisticVote } from "./useOptimisticVote";
 import { VoteControl } from "./VoteControl";
@@ -52,7 +55,7 @@ export function CommentTree({
   onOpenConversation?: (commentId: string) => void;
 }) {
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-4">
       {roots.map((comment) => (
         <CommentNode
           key={comment.id}
@@ -174,63 +177,83 @@ function CommentNode({
   const hiddenCount = atDepthLimit ? totalDescendants : 0;
   const isHighlighted = Boolean(highlightedCommentId && highlightedCommentId === comment.id);
   const reactions = comment.reactions ?? [];
+  const nestChildrenInline = !collapsed && children.length > 0 && !atDepthLimit;
+  const flattenChildrenBelow = !collapsed && children.length > 0 && atDepthLimit && !onOpenConversation;
+  const showSpine = !collapsed && (nestChildrenInline || replying);
 
   if (comment.failed) {
     return (
-      <div className={indent(depth)}>
-        <div className="rounded-card border border-brand/40 bg-brand/5 px-3 py-2">
-          <p className="text-caption font-semibold text-brand-text">Couldn&apos;t post this reply.</p>
-          {comment.content && <p className="mt-1 whitespace-pre-wrap text-body-sm text-secondary">{comment.content}</p>}
-          <div className="mt-1.5 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void onReply(comment.content, comment.parentCommentId, comment.mediaUrl)}
-              className="rounded-control text-caption font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              Retry
-            </button>
-            <button
-              type="button"
-              onClick={() => onDiscard(comment.id)}
-              className="rounded-control text-caption text-tertiary transition-colors hover:text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              Discard
-            </button>
-          </div>
+      <div className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2.5">
+        <p className="text-caption font-semibold text-brand-text">Couldn&apos;t post this reply.</p>
+        {comment.content && <p className="mt-1 whitespace-pre-wrap text-body-sm text-secondary">{comment.content}</p>}
+        <div className="mt-1.5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void onReply(comment.content, comment.parentCommentId, comment.mediaUrl)}
+            className="rounded-control text-caption font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={() => onDiscard(comment.id)}
+            className="rounded-control text-caption text-tertiary transition-colors hover:text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            Discard
+          </button>
         </div>
       </div>
     );
   }
 
   const cardSurface = comment.accepted
-    ? "rounded-card border border-success/30 bg-success/[0.04] p-2.5"
+    ? "rounded-lg border border-success/30 bg-success/[0.04] p-3"
     : comment.pinned
-      ? "rounded-card border border-warning/25 bg-warning/[0.03] p-2.5"
+      ? "rounded-lg border border-warning/25 bg-warning/[0.03] p-3"
       : isHighlighted
-        ? "rounded-card border border-brand/35 bg-brand/[0.04] p-2.5"
+        ? "rounded-lg border border-brand/35 bg-brand/[0.04] p-3"
         : "";
 
+  const childNodes = children.map((child) => (
+    <CommentNode
+      key={child.id}
+      comment={child}
+      childrenOf={childrenOf}
+      postId={postId}
+      depth={Math.min(depth + 1, MAX_VISIBLE_DEPTH)}
+      onReply={onReply}
+      onDiscard={onDiscard}
+      onTogglePin={onTogglePin}
+      onToggleAccept={onToggleAccept}
+      onToggleReaction={onToggleReaction}
+      commentsLocked={commentsLocked}
+      onShareComment={onShareComment}
+      highlightedCommentId={highlightedCommentId}
+      onOpenConversation={onOpenConversation}
+    />
+  ));
+
   return (
-    <div className={indent(depth)}>
+    <div>
       <div className={cardSurface}>
-        <div className={`flex gap-2.5 ${comment.pending ? "opacity-60" : ""}`}>
-          <div className="flex flex-col items-center">
+        <div className={`flex gap-3 ${comment.pending ? "opacity-60" : ""}`}>
+          <div className="flex w-7 shrink-0 flex-col items-center">
             <PersonAvatar id={comment.userId || comment.authorName} avatar={avatar} size={28} />
-            {children.length > 0 && !collapsed && (
+            {showSpine && (
               <button
                 type="button"
                 onClick={() => setCollapsed(true)}
                 aria-label={`Collapse thread by ${comment.authorName}`}
                 title="Collapse thread"
-                className="group/spine mt-1.5 flex w-5 flex-1 justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="group/spine mt-2 flex w-5 flex-1 justify-center rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
-                <span className="h-full w-px bg-white/10 transition-colors group-hover/spine:w-0.5 group-hover/spine:bg-white/35" />
+                <span className="h-full w-px bg-white/[0.08] transition-colors duration-fast group-hover/spine:w-0.5 group-hover/spine:bg-white/30" />
               </button>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-body-sm leading-5">
               <span className="font-semibold text-primary">{comment.authorName}</span>
               {comment.isOp && <Badge tone="info">OP</Badge>}
               {comment.authorRole === "admin" && <Badge tone="neutral">Admin</Badge>}
@@ -238,21 +261,23 @@ function CommentNode({
               {comment.accepted && <Badge tone="success">✓ Answered</Badge>}
               {comment.pinned && <Badge tone="warning">Pinned</Badge>}
               {depth >= MAX_VISIBLE_DEPTH && comment.parentAuthorName && (
-                <span className="rounded-control bg-white/[0.05] px-1.5 py-0.5 text-caption text-tertiary">
+                <span className="rounded-control bg-surface-2 px-1.5 py-0.5 text-caption text-tertiary">
                   ↳ @{comment.parentAuthorName}
                 </span>
               )}
-              <span className="text-tertiary">·</span>
-              <span className="text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
-              {editedAt && <span className="text-tertiary">(edited)</span>}
-              {shared && <span className="text-success">Link copied</span>}
+              <span aria-hidden className="text-tertiary">
+                ·
+              </span>
+              <span className="text-caption text-tertiary">{comment.pending ? "Sending…" : timeAgo(comment.createdAt)}</span>
+              {editedAt && <span className="text-caption text-tertiary">(edited)</span>}
+              {shared && <span className="text-caption text-success">Link copied</span>}
             </div>
 
             {collapsed ? (
               <button
                 type="button"
                 onClick={() => setCollapsed(false)}
-                className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5 text-caption text-secondary transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                className="mt-1.5 inline-flex items-center gap-1.5 rounded-control border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-caption text-secondary transition-colors duration-fast hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 <span>+{totalDescendants + 1} hidden</span>
                 <span aria-hidden>·</span>
@@ -261,7 +286,7 @@ function CommentNode({
             ) : (
               <>
                 {editing ? (
-                  <div className="mt-1.5">
+                  <div className="mt-2">
                     <CommentComposer
                       autoFocus
                       initialValue={content}
@@ -276,7 +301,7 @@ function CommentNode({
                   <CommentBody content={content} mediaUrl={comment.mediaUrl ?? null} />
                 )}
 
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <div className="-ml-1.5 mt-1 flex flex-wrap items-center gap-1">
                   <VoteControl score={score} myVote={myVote} onVote={vote} compact />
 
                   {reactions.map((r) => (
@@ -286,10 +311,10 @@ function CommentNode({
                       disabled={comment.pending || !onToggleReaction}
                       onClick={() => void onToggleReaction?.(comment.id, r.emoji)}
                       aria-pressed={r.mine}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                      className={`inline-flex h-7 items-center gap-1 rounded-control border px-2 text-caption tabular-nums transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
                         r.mine
                           ? "border-brand/40 bg-brand/15 text-primary"
-                          : "border-white/10 bg-white/[0.03] text-secondary hover:border-white/20 hover:text-primary"
+                          : "border-white/[0.08] bg-white/[0.02] text-secondary hover:border-white/[0.16] hover:text-primary"
                       }`}
                     >
                       <span>{r.emoji}</span>
@@ -306,36 +331,23 @@ function CommentNode({
                       <button
                         type="button"
                         onClick={() => setReplying((v) => !v)}
-                        className="flex items-center gap-1 rounded-control px-2 py-1 text-caption text-tertiary transition-colors hover:bg-white/[0.05] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                        aria-pressed={replying}
+                        className={`flex h-7 items-center gap-1.5 rounded-control px-2 text-caption transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+                          replying ? "bg-surface-2 text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"
+                        }`}
                       >
-                        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden>
-                          <path
-                            d="M2.5 4h11a.8.8 0 0 1 .8.8v6a.8.8 0 0 1-.8.8H6.2L3.5 14v-2.4H2.5a.8.8 0 0 1-.8-.8v-6A.8.8 0 0 1 2.5 4Z"
-                            stroke="currentColor"
-                            strokeWidth="1.3"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <Icon icon={MessageSquare} size={16} className="size-3.5" />
                         Reply
                       </button>
                       <button
                         type="button"
                         onClick={handleQuote}
-                        className="rounded-control px-2 py-1 text-caption text-tertiary transition-colors hover:bg-white/[0.05] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                        className="flex h-7 items-center gap-1 rounded-control px-2 text-caption text-tertiary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                       >
+                        <Icon icon={Quote} size={16} className="size-3" />
                         Quote
                       </button>
                     </>
-                  )}
-
-                  {!atDepthLimit && children.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setCollapsed(true)}
-                      className="rounded-control px-2 py-1 text-caption text-tertiary transition-colors hover:bg-white/[0.05] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-                    >
-                      Collapse ({totalDescendants})
-                    </button>
                   )}
 
                   {!comment.pending && (
@@ -348,9 +360,12 @@ function CommentNode({
                       pinned={!!comment.pinned}
                       canAccept={!!comment.canAccept && !!onToggleAccept}
                       accepted={!!comment.accepted}
+                      hasReplies={children.length > 0}
+                      replyCount={totalDescendants}
                       reported={reported}
                       onEdit={() => setEditing(true)}
                       onDeleted={() => onDiscard(comment.id)}
+                      onCollapse={() => setCollapsed(true)}
                       onTogglePin={onTogglePin ? () => void onTogglePin(comment.id, !comment.pinned) : undefined}
                       onToggleAccept={onToggleAccept ? () => void onToggleAccept(comment.id, !comment.accepted) : undefined}
                       onShare={onShareComment ? () => void handleShare() : undefined}
@@ -367,7 +382,7 @@ function CommentNode({
                 )}
 
                 {reporting && (
-                  <div className="mt-2">
+                  <div className="mt-2.5">
                     <CommentComposer
                       autoFocus
                       submitLabel="Report"
@@ -378,67 +393,43 @@ function CommentNode({
                     />
                   </div>
                 )}
+
+                {replying && !commentsLocked && (
+                  <div className="mt-2.5">
+                    <CommentComposer
+                      autoFocus
+                      draftKey={`reply:${postId}:${comment.id}`}
+                      quoteText={quoteText}
+                      onQuoteConsumed={() => setQuoteText(null)}
+                      onCancel={() => setReplying(false)}
+                      onSubmit={async (replyContent, replyMediaUrl) => {
+                        const ok = await onReply(replyContent, comment.id, replyMediaUrl);
+                        if (ok) setReplying(false);
+                        return ok;
+                      }}
+                      placeholder={`Reply to ${comment.authorName}...`}
+                    />
+                  </div>
+                )}
+
+                {atDepthLimit && hiddenCount > 0 && onOpenConversation && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenConversation(comment.id)}
+                    className="mt-2 inline-flex items-center gap-1 rounded-control px-2 py-1 text-caption font-medium text-secondary transition-colors duration-fast hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  >
+                    View conversation ({hiddenCount} more)
+                  </button>
+                )}
+
+                {nestChildrenInline && <div className="mt-3.5 space-y-3.5">{childNodes}</div>}
               </>
             )}
           </div>
         </div>
-
-        {replying && !commentsLocked && !collapsed && (
-          <div className="ml-9 mt-2">
-            <CommentComposer
-              autoFocus
-              draftKey={`reply:${postId}:${comment.id}`}
-              quoteText={quoteText}
-              onQuoteConsumed={() => setQuoteText(null)}
-              onCancel={() => setReplying(false)}
-              onSubmit={async (replyContent, replyMediaUrl) => {
-                const ok = await onReply(replyContent, comment.id, replyMediaUrl);
-                if (ok) setReplying(false);
-                return ok;
-              }}
-              placeholder={`Reply to ${comment.authorName}...`}
-            />
-          </div>
-        )}
       </div>
 
-      {/* Past the depth limit the subtree stops rendering entirely and offers one link instead. In
-          the drawer (no onOpenConversation) there's nowhere to escalate to, so it keeps rendering
-          flat at the limit rather than dead-ending the reader. */}
-      {!collapsed && atDepthLimit && hiddenCount > 0 && onOpenConversation && (
-        <button
-          type="button"
-          onClick={() => onOpenConversation(comment.id)}
-          className="ml-9 mt-1.5 rounded-control text-caption font-medium text-secondary underline-offset-2 transition-colors hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-        >
-          View conversation ({hiddenCount} more)
-        </button>
-      )}
-
-      {!collapsed && children.length > 0 && (!atDepthLimit || !onOpenConversation) && (
-        <div className="mt-3 space-y-3">
-          {children.map((child) => (
-            <CommentNode
-              key={child.id}
-              comment={child}
-              childrenOf={childrenOf}
-              postId={postId}
-              // Held at the limit rather than incremented, so a very deep thread in the drawer
-              // stays readable instead of indenting off the right edge.
-              depth={Math.min(depth + 1, MAX_VISIBLE_DEPTH)}
-              onReply={onReply}
-              onDiscard={onDiscard}
-              onTogglePin={onTogglePin}
-              onToggleAccept={onToggleAccept}
-              onToggleReaction={onToggleReaction}
-              commentsLocked={commentsLocked}
-              onShareComment={onShareComment}
-              highlightedCommentId={highlightedCommentId}
-              onOpenConversation={onOpenConversation}
-            />
-          ))}
-        </div>
-      )}
+      {flattenChildrenBelow && <div className="mt-3.5 space-y-3.5">{childNodes}</div>}
     </div>
   );
 }
@@ -457,12 +448,12 @@ function CommentBody({ content, mediaUrl }: { content: string; mediaUrl: string 
         block.type === "quote" ? (
           <blockquote
             key={index}
-            className="rounded-r-control border-l-2 border-white/25 bg-white/[0.03] px-2.5 py-1 text-caption leading-relaxed text-secondary"
+            className="rounded-r-control border-l-2 border-white/25 bg-white/[0.03] px-2.5 py-1.5 text-caption leading-relaxed text-secondary"
           >
             {renderRichTokens(block.text)}
           </blockquote>
         ) : (
-          <p key={index} className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body-sm leading-relaxed text-secondary">
+          <p key={index} className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-body-sm leading-6 text-primary/90">
             {renderRichTokens(block.text)}
           </p>
         ),
@@ -477,7 +468,7 @@ function CommentBody({ content, mediaUrl }: { content: string; mediaUrl: string 
         </button>
       )}
       {mediaUrl && (
-        <div className="mt-1.5 overflow-hidden rounded-card border border-white/10 bg-surface-1 max-w-xs">
+        <div className="mt-2 max-w-xs overflow-hidden rounded-lg border border-white/10 bg-surface-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={mediaUrl} alt="Comment attachment" loading="lazy" className="max-h-60 w-full object-contain" />
         </div>
@@ -542,14 +533,16 @@ function ReactionPicker({ onSelect }: { onSelect: (emoji: CommentReactionEmoji) 
           aria-expanded={open}
           aria-label="React to comment"
           title="React"
-          className="inline-flex h-6 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] px-2 text-caption text-tertiary transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className={`flex size-7 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+            open ? "bg-surface-2 text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"
+          }`}
         >
-          +
+          <Icon icon={SmilePlus} size={16} className="size-3.5" />
         </button>
       )}
     >
       {({ close }) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {COMMENT_REACTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -570,9 +563,6 @@ function ReactionPicker({ onSelect }: { onSelect: (emoji: CommentReactionEmoji) 
   );
 }
 
-const MENU_ITEM =
-  "flex w-full items-center gap-2 rounded-control px-2.5 py-1.5 text-left text-caption text-secondary transition-colors hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
-
 function CommentOverflowMenu({
   postId,
   commentId,
@@ -582,9 +572,12 @@ function CommentOverflowMenu({
   pinned,
   canAccept,
   accepted,
+  hasReplies,
+  replyCount,
   reported,
   onEdit,
   onDeleted,
+  onCollapse,
   onTogglePin,
   onToggleAccept,
   onShare,
@@ -599,9 +592,12 @@ function CommentOverflowMenu({
   pinned: boolean;
   canAccept: boolean;
   accepted: boolean;
+  hasReplies: boolean;
+  replyCount: number;
   reported: boolean;
   onEdit: () => void;
   onDeleted: () => void;
+  onCollapse: () => void;
   onTogglePin?: () => void;
   onToggleAccept?: () => void;
   onShare?: () => void;
@@ -624,7 +620,7 @@ function CommentOverflowMenu({
     <Popover
       align="end"
       ariaLabel="Comment actions"
-      panelClassName="!min-w-44 p-1"
+      panelClassName="!min-w-44 p-1.5"
       trigger={({ open, toggle, ref }) => (
         <button
           ref={ref}
@@ -632,9 +628,11 @@ function CommentOverflowMenu({
           onClick={toggle}
           aria-expanded={open}
           aria-label="More comment actions"
-          className="flex h-6 items-center justify-center rounded-control px-1.5 text-caption text-tertiary transition-colors hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className={`flex size-7 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+            open ? "bg-surface-2 text-primary" : "text-tertiary hover:bg-surface-2 hover:text-primary"
+          }`}
         >
-          ⋯
+          <Icon icon={MoreHorizontal} size={16} className="size-3.5" />
         </button>
       )}
     >
@@ -662,6 +660,18 @@ function CommentOverflowMenu({
               className={MENU_ITEM}
             >
               {accepted ? "Unmark answer" : "Mark as answer"}
+            </button>
+          )}
+          {hasReplies && (
+            <button
+              type="button"
+              onClick={() => {
+                onCollapse();
+                close();
+              }}
+              className={MENU_ITEM}
+            >
+              Collapse thread ({replyCount})
             </button>
           )}
           {onShare && (
@@ -701,7 +711,7 @@ function CommentOverflowMenu({
           )}
           {!mine &&
             (reported ? (
-              <span className="px-2.5 py-1.5 text-caption text-tertiary">Reported</span>
+              <span className="px-2.5 py-2 text-body-sm text-tertiary">Reported</span>
             ) : (
               <button
                 type="button"
@@ -720,12 +730,6 @@ function CommentOverflowMenu({
   );
 }
 
-/** Replies sit under their parent's avatar column, with a hairline rule marking the thread - enough
- * to read as nested without marching right until the text is one word wide. */
-function indent(depth: number): string {
-  return depth > 0 ? "ml-9 border-l border-white/10 pl-3" : "";
-}
-
 const SORT_LABELS: Record<CommentSort, string> = {
   top: "Top",
   newest: "Newest",
@@ -734,15 +738,15 @@ const SORT_LABELS: Record<CommentSort, string> = {
 
 export function CommentSortControl({ value, onChange }: { value: CommentSort; onChange: (sort: CommentSort) => void }) {
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="Sort comments">
+    <div className="inline-flex items-center gap-0.5 rounded-control border border-white/[0.06] bg-white/[0.02] p-0.5" role="group" aria-label="Sort comments">
       {(["top", "newest", "oldest"] as const).map((option) => (
         <button
           key={option}
           type="button"
           aria-pressed={value === option}
           onClick={() => onChange(option)}
-          className={`rounded-full px-2.5 py-0.5 text-caption font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-            value === option ? "bg-white/[0.08] text-primary" : "text-tertiary hover:text-secondary"
+          className={`rounded-control px-2 py-1 text-caption transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+            value === option ? "bg-white/[0.08] font-medium text-primary" : "text-tertiary hover:text-secondary"
           }`}
         >
           {SORT_LABELS[option]}

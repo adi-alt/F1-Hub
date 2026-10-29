@@ -2,9 +2,11 @@
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Button } from "@/components/ui/Button";
-import { fieldControlClass } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
+import { FaceSlightlySmiling, Image, ImagePlay, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/providers/AuthProvider";
+import { PANEL } from "../panel";
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
 
@@ -30,11 +32,9 @@ function clearDraft(key: string | null) {
 }
 
 /**
- * Rich comment & reply composer with auto-expanding textarea, Emoji picker, GIF picker, image
- * upload, quote insertion, and per-thread localStorage draft persistence.
- *
- * `variant="inline"` is the discussion window's own footer. The default stacked form is used by
- * nested reply boxes, inline edits, and report forms.
+ * Unified glass-panel comment & reply composer matching `PostComposer`: a borderless auto-expanding
+ * textarea on top and monochrome `rounded-control` tool buttons (Photo, GIF, Emoji) + Submit on the
+ * bottom row inside one rounded-rectangle container.
  */
 export function CommentComposer({
   onSubmit,
@@ -140,7 +140,7 @@ export function CommentComposer({
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    const nextHeight = Math.min(Math.max(el.scrollHeight, 40), 144);
+    const nextHeight = Math.min(Math.max(el.scrollHeight, 24), 132);
     el.style.height = `${nextHeight}px`;
   }, [content]);
 
@@ -215,9 +215,9 @@ export function CommentComposer({
   }
 
   const mediaPreview = (mediaUrl || uploadingMedia || uploadError) && (
-    <div className="mb-2 flex items-center gap-2.5">
+    <div className="mt-2 flex items-center gap-2">
       {uploadingMedia && (
-        <span className="inline-flex items-center gap-1.5 rounded-control border border-white/10 bg-white/[0.04] px-2.5 py-1 text-caption text-secondary">
+        <span className="inline-flex items-center gap-1.5 rounded-control border border-white/10 bg-surface-2 px-2.5 py-1 text-caption text-secondary">
           Uploading image…
         </span>
       )}
@@ -227,10 +227,10 @@ export function CommentComposer({
           <button
             type="button"
             onClick={() => setUploadError(null)}
-            className="text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className="rounded-control text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             aria-label="Dismiss upload error"
           >
-            ×
+            <Icon icon={X} size={16} />
           </button>
         </span>
       )}
@@ -242,62 +242,43 @@ export function CommentComposer({
             type="button"
             onClick={() => setMediaUrl(null)}
             aria-label="Remove attachment"
-            className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/75 text-caption text-white transition-colors hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-control bg-black/80 text-white transition-colors hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
-            ×
+            <Icon icon={X} size={16} />
           </button>
         </div>
       )}
     </div>
   );
 
-  const mediaButtons = (
-    <div className="flex items-center gap-0.5">
-      <button
-        ref={emojiAnchorRef}
-        type="button"
-        onClick={() => {
-          setShowGif(false);
-          setShowEmoji((v) => !v);
-        }}
-        aria-label="Add emoji"
-        title="Add emoji"
-        className="flex size-8 items-center justify-center rounded-control text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-      >
-        <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-          <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-          <path d="M6.4 10.4a3.1 3.1 0 0 0 5.2 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          <circle cx="6.8" cy="7.2" r=".85" fill="currentColor" />
-          <circle cx="11.2" cy="7.2" r=".85" fill="currentColor" />
-        </svg>
-      </button>
+  const toolButtons = (
+    <div className="-ml-1 flex items-center gap-0.5">
       {mediaEnabled && (
         <>
           <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach photo"
+            title="Attach photo (max 500KB)"
+            className="flex size-7 shrink-0 items-center justify-center rounded-control text-tertiary transition-colors duration-fast hover:bg-white/[0.07] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            <Icon icon={Image} size={16} />
+          </button>
+          <button
             ref={gifAnchorRef}
             type="button"
+            aria-pressed={showGif}
             onClick={() => {
               setShowEmoji(false);
               setShowGif((v) => !v);
             }}
             aria-label="Add GIF"
             title="Add GIF"
-            className="flex h-8 items-center justify-center rounded-control px-1.5 text-caption font-semibold tracking-wider text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className={`flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+              showGif ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
+            }`}
           >
-            GIF
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach image"
-            title="Attach image (max 500KB)"
-            className="flex size-8 items-center justify-center rounded-control text-tertiary transition-colors duration-fast hover:bg-white/[0.06] hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-          >
-            <svg viewBox="0 0 18 18" width="15" height="15" fill="none" aria-hidden>
-              <rect x="2.5" y="3.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.4" />
-              <circle cx="6.5" cy="7.2" r="1.1" fill="currentColor" />
-              <path d="m3.5 13 3.6-3.4a1 1 0 0 1 1.4 0l2.1 2 1.8-1.7a1 1 0 0 1 1.4 0l1.7 1.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
+            <Icon icon={ImagePlay} size={16} />
           </button>
           <input
             ref={fileInputRef}
@@ -308,6 +289,22 @@ export function CommentComposer({
           />
         </>
       )}
+      <button
+        ref={emojiAnchorRef}
+        type="button"
+        aria-pressed={showEmoji}
+        onClick={() => {
+          setShowGif(false);
+          setShowEmoji((v) => !v);
+        }}
+        aria-label="Add emoji"
+        title="Add emoji"
+        className={`flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+          showEmoji ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
+        }`}
+      >
+        <Icon icon={FaceSlightlySmiling} size={16} />
+      </button>
     </div>
   );
 
@@ -317,80 +314,47 @@ export function CommentComposer({
     </span>
   );
 
-  if (variant === "inline") {
-    return (
-      <div className="relative">
-        {mediaPreview}
-        <div className="relative flex items-end gap-2.5">
-          <div className="shrink-0 pb-0.5">
-            <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={36} />
-          </div>
-          <div className="relative min-w-0 flex-1">
-            <textarea
-              ref={inputRef}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder={placeholder}
-              autoFocus={autoFocus}
-              rows={1}
-              maxLength={MAX_CHARS}
-              className={`min-h-10 max-h-36 py-2 leading-5 resize-none pr-28 ${fieldControlClass(false)}`}
-            />
-            <div className="absolute bottom-1 right-1.5 flex items-center gap-1">
-              {charCounter}
-              {mediaButtons}
-            </div>
-          </div>
-          <Button variant="primary" size="md" className="shrink-0" onClick={() => void submit()} disabled={!canSubmit} loading={posting}>
-            Post
-          </Button>
-        </div>
-        {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
-        {showGif && (
-          <GifPicker
-            anchorRef={gifAnchorRef}
-            onSelect={(url) => {
-              setMediaUrl(url);
-              setShowGif(false);
-            }}
-            onClose={() => setShowGif(false)}
-          />
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="relative">
-      {mediaPreview}
-      <textarea
-        ref={inputRef}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        rows={1}
-        maxLength={MAX_CHARS}
-        className={`min-h-10 max-h-36 py-2 leading-5 resize-none ${fieldControlClass(false)}`}
-      />
-      <div className="mt-1.5 flex items-center justify-between gap-2">
+    <div className={`relative px-3 py-2.5 ${PANEL} transition-colors duration-fast focus-within:border-white/[0.18]`}>
+      <div className="flex items-start gap-2.5">
+        {variant === "inline" && (
+          <div className="shrink-0 pt-0.5">
+            <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={28} />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <textarea
+            ref={inputRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            autoFocus={autoFocus}
+            rows={1}
+            maxLength={MAX_CHARS}
+            className="block max-h-32 min-h-[1.5rem] w-full resize-none bg-transparent py-0.5 text-body-sm leading-5 text-primary placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-transparent"
+          />
+          {mediaPreview}
+        </div>
+      </div>
+
+      <div className={`mt-2 flex items-center justify-between gap-2 border-t border-white/[0.05] pt-2 ${variant === "inline" ? "pl-9" : ""}`}>
         <div className="flex items-center gap-2">
-          {mediaButtons}
+          {toolButtons}
           {charCounter}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {onCancel && (
             <Button variant="ghost" size="sm" onClick={cancel}>
               Cancel
             </Button>
           )}
           <Button variant="primary" size="sm" onClick={() => void submit()} disabled={!canSubmit} loading={posting}>
-            {submitLabel}
+            {variant === "inline" ? "Post" : submitLabel}
           </Button>
         </div>
       </div>
+
       {showEmoji && <EmojiPicker anchorRef={emojiAnchorRef} onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
       {showGif && (
         <GifPicker
