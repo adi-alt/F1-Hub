@@ -159,7 +159,7 @@ export function PostDetailWindow({
           </a>
         )}
 
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <div className="rounded-full border border-white/10 bg-white/[0.03] px-1 py-0.5">
               <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
             </div>
