@@ -101,6 +101,26 @@ describe("editing and deleting comments", () => {
     // Gone means gone: it can't be deleted or edited again.
     assert.equal((await comment.DELETE(json("DELETE"), commentParams)).status, 404);
   });
+
+  test("the post author or moderator can pin and accept top-level comments; members can toggle reactions", async () => {
+    as("reader");
+    assert.equal((await comment.PATCH(json("PATCH", { pinned: true }), commentParams)).status, 403);
+    assert.equal((await comment.PATCH(json("PATCH", { accepted: true }), commentParams)).status, 403);
+    as("author");
+    assert.deepEqual(await (await comment.PATCH(json("PATCH", { pinned: true }), commentParams)).json(), { pinned: true });
+    assert.ok(fake.rows("group_post_comments")[0].pinned_at);
+    assert.deepEqual(await (await comment.PATCH(json("PATCH", { accepted: true }), commentParams)).json(), { accepted: true });
+    assert.ok(fake.rows("group_post_comments")[0].accepted_at);
+
+    as("reader");
+    const reactRes = await comment.PATCH(json("PATCH", { reaction: "🔥" }), commentParams);
+    assert.equal(reactRes.status, 200);
+    assert.deepEqual(await reactRes.json(), { reactions: [{ emoji: "🔥", count: 1, mine: true }] });
+
+    const unreactRes = await comment.PATCH(json("PATCH", { reaction: "🔥" }), commentParams);
+    assert.equal(unreactRes.status, 200);
+    assert.deepEqual(await unreactRes.json(), { reactions: [] });
+  });
 });
 
 describe("reports", () => {

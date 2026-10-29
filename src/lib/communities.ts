@@ -36,6 +36,16 @@ export type CommunityModule = "feed" | "predictions" | "leaderboard" | "media" |
  * No 'poll' - see the migration's own note on why. */
 export type PostKind = "discussion" | "question" | "race_discussion" | "prediction" | "announcement";
 
+/** Curated quick-reaction emojis for comment threads. Kept in this pure module so client components
+ * (`CommentTree`) can render the picker without importing `groupPosts.ts` into the browser bundle. */
+export const COMMENT_REACTIONS = ["🔥", "🏁", "💯", "😂", "👍"] as const;
+export type CommentReactionEmoji = (typeof COMMENT_REACTIONS)[number];
+export type CommentReactionSummary = {
+  emoji: CommentReactionEmoji;
+  count: number;
+  mine: boolean;
+};
+
 // ---------------------------------------------------------------- community types
 
 export type CommunityTypeMeta = {

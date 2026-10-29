@@ -1,7 +1,15 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
-import { MAX_COMMENT_CHARS, MAX_POST_CHARS, MAX_TITLE_CHARS } from "@/lib/supabase/groupPosts";
+import {
+  COMMENT_REACTIONS,
+  MAX_COMMENT_CHARS,
+  MAX_POST_CHARS,
+  MAX_TITLE_CHARS,
+  summarizeCommentReactions,
+  type CommentReactionEmoji,
+  type CommentReactionSummary,
+} from "@/lib/supabase/groupPosts";
 import { displayNames, logModeration } from "@/lib/supabase/moderationLog";
 import { ServiceError } from "@/services/errors";
 
@@ -15,7 +23,15 @@ const isModerator = (role: GroupRole | null) => role === "admin" || role === "mo
 const MAX_REASON_CHARS = 500;
 
 type PostRow = { id: string; group_id: string | null; user_id: string; content: string };
-type CommentRow = { id: string; post_id: string; user_id: string; content: string; deleted_at: string | null };
+type CommentRow = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  deleted_at: string | null;
+  parent_comment_id?: string | null;
+  reactions?: unknown;
+};
 
 async function loadPost(postId: string): Promise<PostRow> {
   const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_posts").select("id, group_id, user_id, content").eq("id", postId).maybeSingle());
@@ -25,9 +41,26 @@ async function loadPost(postId: string): Promise<PostRow> {
 }
 
 async function loadComment(postId: string, commentId: string): Promise<CommentRow> {
-  const { data, error } = await queryWithRetry(() =>
-    supabaseAdmin.from("group_post_comments").select("id, post_id, user_id, content, deleted_at").eq("id", commentId).eq("post_id", postId).maybeSingle(),
+  let { data, error } = await queryWithRetry(() =>
+    supabaseAdmin
+      .from("group_post_comments")
+      .select("id, post_id, user_id, content, deleted_at, parent_comment_id, reactions")
+      .eq("id", commentId)
+      .eq("post_id", postId)
+      .maybeSingle(),
   );
+  if (error && (error.code === "42703" || error.message.includes("reactions"))) {
+    const fallback = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("group_post_comments")
+        .select("id, post_id, user_id, content, deleted_at, parent_comment_id")
+        .eq("id", commentId)
+        .eq("post_id", postId)
+        .maybeSingle(),
+    );
+    data = fallback.data as typeof data;
+    error = fallback.error;
+  }
   if (error) throw new Error(`loadComment(${commentId}): ${error.message}`);
   if (!data || data.deleted_at) throw new ServiceError("Comment not found.", 404);
   return data as CommentRow;
@@ -93,6 +126,88 @@ export async function editComment(postId: string, commentId: string, uid: string
   const { error } = await supabaseAdmin.from("group_post_comments").update({ content: trimmed, edited_at: editedAt }).eq("id", commentId).eq("user_id", uid);
   if (error) throw new Error(`editComment(${commentId}): ${error.message}`);
   return { editedAt };
+}
+
+/** Pins or unpins a top-level comment on a post (post author or community moderator). */
+export async function setCommentPinned(postId: string, commentId: string, uid: string, pinned: boolean): Promise<{ pinned: boolean }> {
+  const post = await loadPost(postId);
+  const role = await roleFor(post, uid);
+  if (post.user_id !== uid && !(post.group_id && isModerator(role))) {
+    throw new ServiceError("Only the post author or a moderator can pin a comment.", 403);
+  }
+  const comment = await loadComment(postId, commentId);
+  if (comment.parent_comment_id) throw new ServiceError("Only top-level comments can be pinned.", 400);
+  if (pinned) {
+    await supabaseAdmin.from("group_post_comments").update({ pinned_at: null }).eq("post_id", postId);
+  }
+  const { error } = await supabaseAdmin
+    .from("group_post_comments")
+    .update({ pinned_at: pinned ? new Date().toISOString() : null })
+    .eq("id", commentId)
+    .eq("post_id", postId);
+  if (error) throw new Error(`setCommentPinned(${commentId}): ${error.message}`);
+  return { pinned };
+}
+
+/** Marks or unmarks a top-level comment as the accepted answer on a question post (post author or community moderator). */
+export async function setCommentAccepted(postId: string, commentId: string, uid: string, accepted: boolean): Promise<{ accepted: boolean }> {
+  const post = await loadPost(postId);
+  const role = await roleFor(post, uid);
+  if (post.user_id !== uid && !(post.group_id && isModerator(role))) {
+    throw new ServiceError("Only the post author or a moderator can mark an answer.", 403);
+  }
+  const comment = await loadComment(postId, commentId);
+  if (comment.parent_comment_id) throw new ServiceError("Only top-level comments can be marked as the answer.", 400);
+  if (accepted) {
+    await supabaseAdmin.from("group_post_comments").update({ accepted_at: null }).eq("post_id", postId);
+  }
+  const { error } = await supabaseAdmin
+    .from("group_post_comments")
+    .update({ accepted_at: accepted ? new Date().toISOString() : null })
+    .eq("id", commentId)
+    .eq("post_id", postId);
+  if (error) throw new Error(`setCommentAccepted(${commentId}): ${error.message}`);
+  return { accepted };
+}
+
+/** Toggles an emoji reaction (`🔥`, `🏁`, `💯`, `😂`, `👍`) on a comment. */
+export async function toggleCommentReaction(
+  postId: string,
+  commentId: string,
+  uid: string,
+  emoji: string,
+): Promise<{ reactions: CommentReactionSummary[] }> {
+  if (!COMMENT_REACTIONS.includes(emoji as CommentReactionEmoji)) {
+    throw new ServiceError("Invalid reaction emoji.", 400);
+  }
+  const post = await loadPost(postId);
+  await roleFor(post, uid);
+  const comment = await loadComment(postId, commentId);
+  const raw =
+    comment.reactions && typeof comment.reactions === "object" && !Array.isArray(comment.reactions)
+      ? (comment.reactions as Record<string, unknown>)
+      : {};
+  const existing = Array.isArray(raw[emoji])
+    ? (raw[emoji] as unknown[]).filter((item): item is string => typeof item === "string" && item.length > 0)
+    : [];
+  const unique = [...new Set(existing)];
+  const updated = unique.includes(uid) ? unique.filter((id) => id !== uid) : [...unique, uid];
+  const nextReactions: Record<string, string[]> = {};
+  for (const key of COMMENT_REACTIONS) {
+    if (key === emoji) {
+      if (updated.length > 0) nextReactions[key] = updated;
+    } else if (Array.isArray(raw[key])) {
+      const list = [...new Set((raw[key] as unknown[]).filter((item): item is string => typeof item === "string" && item.length > 0))];
+      if (list.length > 0) nextReactions[key] = list;
+    }
+  }
+  const { error } = await supabaseAdmin
+    .from("group_post_comments")
+    .update({ reactions: nextReactions })
+    .eq("id", commentId)
+    .eq("post_id", postId);
+  if (error) throw new Error(`toggleCommentReaction(${commentId}): ${error.message}`);
+  return { reactions: summarizeCommentReactions(nextReactions, uid) };
 }
 
 /** A tombstone rather than a delete, so replies keep their thread: the text goes, the place stays. */

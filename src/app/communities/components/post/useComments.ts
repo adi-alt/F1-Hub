@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PostComment } from "@/lib/supabase/groupPosts";
+import type { CommentReactionEmoji, CommentReactionSummary, PostComment } from "@/lib/supabase/groupPosts";
 
-export type CommentSort = "top" | "newest";
+export type CommentSort = "top" | "newest" | "oldest";
+export type CommentFilter = "all" | "op" | "media";
 
 /** A comment that exists on screen but not yet on the server. */
 export type LocalComment = PostComment & { pending?: boolean; failed?: boolean };
@@ -15,6 +16,7 @@ export type LocalComment = PostComment & { pending?: boolean; failed?: boolean }
 export function sortComments<T extends { score: number; createdAt: string }>(comments: T[], sort: CommentSort): T[] {
   const out = [...comments];
   if (sort === "newest") return out.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  if (sort === "oldest") return out.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   // Ties broken by age (older first), so an all-zero-score thread reads chronologically rather
   // than shuffling whenever React re-renders.
   return out.sort((a, b) => b.score - a.score || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -26,9 +28,20 @@ export function sortComments<T extends { score: number; createdAt: string }>(com
 export function buildTree(comments: LocalComment[], sort: CommentSort): { roots: LocalComment[]; childrenOf: Map<string, LocalComment[]> } {
   const childrenOf = new Map<string, LocalComment[]>();
   const roots: LocalComment[] = [];
+  const authorById = new Map<string, string>();
+  for (const comment of comments) {
+    if (!comment.deleted && comment.authorName) authorById.set(comment.id, comment.authorName);
+  }
   // Deleted comments are omitted from the conversation. Replies whose parent was deleted remain
   // visible and are promoted to the nearest visible level by the orphan handling below.
-  const visibleComments = comments.filter((comment) => !comment.deleted);
+  const visibleComments = comments
+    .filter((comment) => !comment.deleted)
+    .map((comment) => {
+      if (comment.parentCommentId && comment.parentAuthorName === undefined && authorById.has(comment.parentCommentId)) {
+        return { ...comment, parentAuthorName: authorById.get(comment.parentCommentId) ?? null };
+      }
+      return comment;
+    });
 
   for (const comment of visibleComments) {
     if (comment.parentCommentId === null) {
@@ -50,7 +63,38 @@ export function buildTree(comments: LocalComment[], sort: CommentSort): { roots:
 
   const sortedChildren = new Map<string, LocalComment[]>();
   for (const [parentId, list] of childrenOf) sortedChildren.set(parentId, sortComments(list, sort));
-  return { roots: sortComments(roots, sort), childrenOf: sortedChildren };
+  const sortedRoots = sortComments(roots, sort).sort(
+    (a, b) => Number(Boolean(b.accepted)) - Number(Boolean(a.accepted)) || Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)),
+  );
+  return { roots: sortedRoots, childrenOf: sortedChildren };
+}
+
+/** Filters a comment tree by search query and/or quick filter (`all` | `op` | `media`) while preserving ancestor chains. */
+export function filterCommentTree(
+  tree: { roots: LocalComment[]; childrenOf: Map<string, LocalComment[]> },
+  query: string,
+  filter: CommentFilter = "all",
+): { roots: LocalComment[]; childrenOf: Map<string, LocalComment[]> } {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed && filter === "all") return tree;
+
+  const matches = (comment: LocalComment): boolean => {
+    if (filter === "op" && !comment.isOp) return false;
+    if (filter === "media" && !comment.mediaUrl) return false;
+    if (!trimmed) return true;
+    return comment.content.toLowerCase().includes(trimmed) || comment.authorName.toLowerCase().includes(trimmed);
+  };
+
+  const filteredChildren = new Map<string, LocalComment[]>();
+  const keepNode = (node: LocalComment): boolean => {
+    const kids = tree.childrenOf.get(node.id) ?? [];
+    const keptKids = kids.filter(keepNode);
+    if (keptKids.length > 0) filteredChildren.set(node.id, keptKids);
+    return matches(node) || keptKids.length > 0;
+  };
+
+  const filteredRoots = tree.roots.filter(keepNode);
+  return { roots: filteredRoots, childrenOf: filteredChildren };
 }
 
 /** Total descendants under a comment - what "View all N replies" counts. */
@@ -120,7 +164,7 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
   }, [load]);
 
   const add = useCallback(
-    async (content: string, parentCommentId: string | null): Promise<boolean> => {
+    async (content: string, parentCommentId: string | null, mediaUrl?: string | null): Promise<boolean> => {
       const tempId = `temp-${Date.now()}`;
       const optimistic: LocalComment = {
         id: tempId,
@@ -129,6 +173,7 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
         authorName: "You",
         authorAvatar: null,
         content,
+        mediaUrl: mediaUrl ?? null,
         parentCommentId,
         createdAt: new Date().toISOString(),
         score: 0,
@@ -145,7 +190,7 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, parentCommentId }),
+        body: JSON.stringify({ content, parentCommentId, mediaUrl: mediaUrl ?? null }),
       }).catch(() => null);
 
       if (!res?.ok) {
@@ -168,6 +213,105 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
     [postId],
   );
 
+  const togglePin = useCallback(
+    async (commentId: string, pinned: boolean) => {
+      const snapshot = commentsRef.current;
+      setComments((prev) => {
+        const next = (prev ?? []).map((c) => {
+          if (c.id === commentId) return { ...c, pinned };
+          if (pinned && c.pinned) return { ...c, pinned: false };
+          return c;
+        });
+        commentsRef.current = next;
+        return next;
+      });
+      const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned }),
+      }).catch(() => null);
+      if (!res?.ok) {
+        commentsRef.current = snapshot;
+        setComments(snapshot);
+      }
+    },
+    [postId],
+  );
+
+  const toggleAccept = useCallback(
+    async (commentId: string, accepted: boolean) => {
+      const snapshot = commentsRef.current;
+      setComments((prev) => {
+        const next = (prev ?? []).map((c) => {
+          if (c.id === commentId) return { ...c, accepted };
+          if (accepted && c.accepted) return { ...c, accepted: false };
+          return c;
+        });
+        commentsRef.current = next;
+        return next;
+      });
+      const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accepted }),
+      }).catch(() => null);
+      if (!res?.ok) {
+        commentsRef.current = snapshot;
+        setComments(snapshot);
+      }
+    },
+    [postId],
+  );
+
+  const toggleReaction = useCallback(
+    async (commentId: string, emoji: CommentReactionEmoji) => {
+      const snapshot = commentsRef.current;
+      setComments((prev) => {
+        const next = (prev ?? []).map((c) => {
+          if (c.id !== commentId) return c;
+          const current = c.reactions ?? [];
+          const existing = current.find((r) => r.emoji === emoji);
+          let nextReactions: CommentReactionSummary[];
+          if (existing) {
+            if (existing.mine) {
+              nextReactions =
+                existing.count <= 1
+                  ? current.filter((r) => r.emoji !== emoji)
+                  : current.map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r));
+            } else {
+              nextReactions = current.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r));
+            }
+          } else {
+            nextReactions = [...current, { emoji, count: 1, mine: true }];
+          }
+          return { ...c, reactions: nextReactions };
+        });
+        commentsRef.current = next;
+        return next;
+      });
+
+      const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reaction: emoji }),
+      }).catch(() => null);
+      if (!res?.ok) {
+        commentsRef.current = snapshot;
+        setComments(snapshot);
+        return;
+      }
+      const body = (await res.json().catch(() => null)) as { reactions?: CommentReactionSummary[] } | null;
+      if (body?.reactions) {
+        setComments((prev) => {
+          const next = (prev ?? []).map((c) => (c.id === commentId ? { ...c, reactions: body.reactions } : c));
+          commentsRef.current = next;
+          return next;
+        });
+      }
+    },
+    [postId],
+  );
+
   const discard = useCallback((id: string) => {
     const next = (commentsRef.current ?? []).filter((comment) => comment.id !== id);
     commentsRef.current = next;
@@ -177,5 +321,18 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
 
   const tree = useMemo(() => buildTree(comments ?? [], sort), [comments, sort]);
 
-  return { comments, tree, sort, setSort, add, discard, reload: load, error, loading: comments === null };
+  return {
+    comments,
+    tree,
+    sort,
+    setSort,
+    add,
+    togglePin,
+    toggleAccept,
+    toggleReaction,
+    discard,
+    reload: load,
+    error,
+    loading: comments === null,
+  };
 }

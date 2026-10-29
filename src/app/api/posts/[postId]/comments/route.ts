@@ -29,13 +29,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
   if (limited) return limited;
   const { postId } = await params;
   if (!isUuid(postId)) return NextResponse.json({ error: "Invalid post id" }, { status: 400 });
-  const { content, parentCommentId } = (await request.json().catch(() => ({}))) as { content?: string; parentCommentId?: string | null };
-  if (typeof content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
+  const { content, parentCommentId, mediaUrl } = (await request.json().catch(() => ({}))) as {
+    content?: string;
+    parentCommentId?: string | null;
+    mediaUrl?: string | null;
+  };
+  if (typeof content !== "string" && typeof mediaUrl !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
   if (parentCommentId != null && !isUuid(parentCommentId)) return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
 
   try {
     const groupId = await getPostGroupId(postId);
-    const comment = await addComment(groupId, postId, session.uid, content, parentCommentId);
+    const comment = await addComment(groupId, postId, session.uid, content ?? "", parentCommentId, mediaUrl);
     return NextResponse.json(comment);
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });

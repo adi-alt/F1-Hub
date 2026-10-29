@@ -1,7 +1,15 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
-import { canDo, postKindsFor, type PostKind } from "@/lib/communities";
+import {
+  COMMENT_REACTIONS,
+  canDo,
+  postKindsFor,
+  type CommentReactionEmoji,
+  type CommentReactionSummary,
+  type PostKind,
+} from "@/lib/communities";
+export { COMMENT_REACTIONS, type CommentReactionEmoji, type CommentReactionSummary };
 import { getMemberRole, joinGroup, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
@@ -46,6 +54,8 @@ export type GroupPost = {
   saved: boolean;
   commentCount: number;
   commentsLocked: boolean;
+  /** Whether a comment on this question post has been marked as the accepted answer. */
+  answered?: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -56,6 +66,19 @@ export type GroupPost = {
   authorRecord?: AuthorRecord | null;
 };
 
+export function summarizeCommentReactions(raw: unknown, uid: string): CommentReactionSummary[] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const map = raw as Record<string, unknown>;
+  const out: CommentReactionSummary[] = [];
+  for (const emoji of COMMENT_REACTIONS) {
+    const list = map[emoji];
+    if (!Array.isArray(list)) continue;
+    const users = [...new Set(list.filter((id): id is string => typeof id === "string" && id.length > 0))];
+    if (users.length > 0) out.push({ emoji, count: users.length, mine: users.includes(uid) });
+  }
+  return out;
+}
+
 export type PostComment = {
   id: string;
   postId: string;
@@ -63,7 +86,14 @@ export type PostComment = {
   userId: string;
   authorName: string;
   authorAvatar: AvatarConfig | null;
+  /** The commenter's role in the community ("admin" | "moderator" | "member" | null). */
+  authorRole?: GroupRole | null;
+  /** Whether this comment was written by the post's own author (OP). */
+  isOp?: boolean;
+  /** Display name of the parent comment's author, for flattened deep-thread context pills. */
+  parentAuthorName?: string | null;
   content: string;
+  mediaUrl?: string | null;
   createdAt: string;
   score: number;
   myVote: VoteValue;
@@ -73,6 +103,16 @@ export type PostComment = {
   canDelete?: boolean;
   /** Deleted by its author or removed by a moderator: kept so the replies under it keep their thread, with no text. */
   deleted?: boolean;
+  /** Pinned to the top of the discussion by a moderator or the post author. */
+  pinned?: boolean;
+  /** Marked as the accepted answer on a question post by the post author or a moderator. */
+  accepted?: boolean;
+  /** Whether the viewer can pin/unpin this comment. */
+  canPin?: boolean;
+  /** Whether the viewer can mark/unmark this comment as the accepted answer. */
+  canAccept?: boolean;
+  /** Quick emoji reaction counts and whether the viewer reacted. */
+  reactions?: CommentReactionSummary[];
 };
 
 export type FeedPost = {
@@ -94,6 +134,8 @@ export type FeedPost = {
   saved: boolean;
   commentCount: number;
   commentsLocked: boolean;
+  /** Whether a comment on this question post has been marked as the accepted answer. */
+  answered?: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -151,6 +193,18 @@ async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>
 }
 function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
+}
+
+async function selectCommentsForPostSummary(postIds: string[]) {
+  if (postIds.length === 0) return { data: [] as Record<string, unknown>[], error: null };
+  const primary = await queryWithRetry(() =>
+    supabaseAdmin.from("group_post_comments").select("post_id, accepted_at").in("post_id", postIds).is("deleted_at", null),
+  );
+  if (!primary.error) return { data: (primary.data ?? []) as Record<string, unknown>[], error: null };
+  const fallback = await queryWithRetry(() =>
+    supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null),
+  );
+  return { data: (fallback.data ?? []) as Record<string, unknown>[], error: fallback.error };
 }
 
 /**
@@ -383,7 +437,7 @@ export async function listPosts(
   const authorIds = [...new Set(enriching.map((p) => p.user_id as string))];
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: members, error: membersError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null)),
+    selectCommentsForPostSummary(postIds),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role").eq("group_id", groupId).in("user_id", authorIds)),
     queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).in("post_id", postIds)),
     profilesById(authorIds),
@@ -397,7 +451,12 @@ export async function listPosts(
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
   const commentCounts = new Map<string, number>();
-  for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
+  const answeredPostIds = new Set<string>();
+  for (const c of comments ?? []) {
+    const pid = c.post_id as string;
+    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
+    if (c.accepted_at) answeredPostIds.add(pid);
+  }
 
   const mapped: GroupPost[] = enriching.map((p) => ({
     id: p.id as string,
@@ -421,6 +480,7 @@ export async function listPosts(
     saved: savedPostIds.has(p.id as string),
     commentCount: commentCounts.get(p.id as string) ?? 0,
     commentsLocked: !!p.comments_locked_at,
+    answered: answeredPostIds.has(p.id as string),
   }));
 
   if (ranked) {
@@ -648,7 +708,7 @@ export async function listFeedPosts(
 
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: groupsData, error: groupsError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null)),
+    selectCommentsForPostSummary(postIds),
     postGroupIds.length > 0 ? queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", postGroupIds)) : Promise.resolve({ data: [], error: null }),
     queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).in("post_id", postIds)),
     profilesById(authorIds),
@@ -662,7 +722,12 @@ export async function listFeedPosts(
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
   const commentCounts = new Map<string, number>();
-  for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
+  const answeredPostIds = new Set<string>();
+  for (const c of comments ?? []) {
+    const pid = c.post_id as string;
+    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
+    if (c.accepted_at) answeredPostIds.add(pid);
+  }
 
   const posts: FeedPost[] = page.map((p) => {
     const groupId = (p.group_id as string | null) ?? null;
@@ -689,6 +754,7 @@ export async function listFeedPosts(
       saved: savedPostIds.has(p.id as string),
       commentCount: commentCounts.get(p.id as string) ?? 0,
       commentsLocked: !!p.comments_locked_at,
+      answered: answeredPostIds.has(p.id as string),
     };
   });
   return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };
@@ -734,39 +800,74 @@ export async function setCommentVote(groupId: string | null, postId: string, com
 export async function listComments(groupId: string | null, postId: string, uid: string): Promise<PostComment[]> {
   const role = await requireCanViewPost(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
-  const { data: comments, error } = await queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).is("deleted_at", null).order("created_at"));
+  const [{ data: comments, error }, { data: postRow }] = await Promise.all([
+    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).is("deleted_at", null).order("created_at")),
+    queryWithRetry(() => supabaseAdmin.from("group_posts").select("user_id, kind").eq("id", postId).maybeSingle()),
+  ]);
   if (error) throw new Error(`listComments(${postId}): ${error.message}`);
   if (!comments?.length) return [];
 
+  const postAuthorId = (postRow?.user_id as string | undefined) ?? null;
+  const postKind = ((postRow?.kind as PostKind | null | undefined) ?? "discussion") as PostKind;
   const commentIds = comments.map((c) => c.id as string);
-  const [profileById, { data: votes, error: votesError }] = await Promise.all([
-    profilesById([...new Set(comments.map((c) => c.user_id as string))]),
+  const authorIds = [...new Set(comments.map((c) => c.user_id as string))];
+  const [profileById, { data: votes, error: votesError }, { data: memberRows }] = await Promise.all([
+    profilesById(authorIds),
     queryWithRetry(() => supabaseAdmin.from("group_comment_votes").select("comment_id, user_id, value").in("comment_id", commentIds)),
+    groupId
+      ? queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role").eq("group_id", groupId).in("user_id", authorIds))
+      : Promise.resolve({ data: [] as { user_id: string; role: string }[] }),
   ]);
   if (votesError) throw new Error(`listComments(${postId}): ${votesError.message}`);
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
+  const roleByUserId = new Map<string, GroupRole>((memberRows ?? []).map((m) => [m.user_id as string, m.role as GroupRole]));
+  const authorNameByCommentId = new Map<string, string>(
+    comments.map((c) => [c.id as string, nameFor(profileById.get(c.user_id as string), c.user_id as string)]),
+  );
 
-  return comments.map((c) => ({
-    id: c.id as string,
-    postId: c.post_id as string,
-    parentCommentId: (c.parent_comment_id as string | null) ?? null,
-    userId: c.user_id as string,
-    authorName: nameFor(profileById.get(c.user_id as string), c.user_id as string),
+  const canManageThread = canModerate || postAuthorId === uid;
 
-    authorAvatar: profileById.get(c.user_id as string)?.avatar ?? null,
-    // A tombstone keeps its place in the thread, never its text.
-    content: c.deleted_at ? "" : (c.content as string),
-    createdAt: c.created_at as string,
-    editedAt: (c.edited_at as string | null) ?? null,
-    deleted: !!c.deleted_at,
-    mine: c.user_id === uid,
-    canDelete: !c.deleted_at && (c.user_id === uid || canModerate),
-    score: scoreByTarget.get(c.id as string) ?? 0,
-    myVote: myVoteByTarget.get(c.id as string) ?? 0,
-  }));
+  return comments.map((c) => {
+    const parentId = (c.parent_comment_id as string | null) ?? null;
+    const rawContent = c.deleted_at ? "" : (c.content as string);
+    return {
+      id: c.id as string,
+      postId: c.post_id as string,
+      parentCommentId: parentId,
+      userId: c.user_id as string,
+      authorName: authorNameByCommentId.get(c.id as string) ?? "Member",
+      authorAvatar: profileById.get(c.user_id as string)?.avatar ?? null,
+      authorRole: roleByUserId.get(c.user_id as string) ?? null,
+      isOp: postAuthorId !== null && (c.user_id as string) === postAuthorId,
+      parentAuthorName: parentId ? (authorNameByCommentId.get(parentId) ?? null) : null,
+      // A tombstone keeps its place in the thread, never its text. Zero-width space is used when a
+      // media-only comment is stored against the >=1 char constraint.
+      content: rawContent === "\u200b" ? "" : rawContent,
+      mediaUrl: c.deleted_at ? null : allowedMediaUrl((c as Record<string, unknown>).media_url),
+      createdAt: c.created_at as string,
+      editedAt: (c.edited_at as string | null) ?? null,
+      deleted: !!c.deleted_at,
+      mine: c.user_id === uid,
+      canDelete: !c.deleted_at && (c.user_id === uid || canModerate),
+      pinned: !!(c as Record<string, unknown>).pinned_at,
+      accepted: !!(c as Record<string, unknown>).accepted_at,
+      canPin: !c.deleted_at && parentId === null && canManageThread,
+      canAccept: !c.deleted_at && parentId === null && postKind === "question" && canManageThread,
+      reactions: summarizeCommentReactions((c as Record<string, unknown>).reactions, uid),
+      score: scoreByTarget.get(c.id as string) ?? 0,
+      myVote: myVoteByTarget.get(c.id as string) ?? 0,
+    };
+  });
 }
 
-export async function addComment(groupId: string | null, postId: string, uid: string, content: string, parentCommentId?: string | null): Promise<{ id: string }> {
+export async function addComment(
+  groupId: string | null,
+  postId: string,
+  uid: string,
+  content: string,
+  parentCommentId?: string | null,
+  mediaUrl?: string | null,
+): Promise<{ id: string }> {
   let role = groupId ? await getMemberRole(groupId, uid) : null;
   // groupId null is a personal post - there's no community to take a permission policy from, so
   // the only gate is being signed in (already checked by the route).
@@ -792,15 +893,25 @@ export async function addComment(groupId: string | null, postId: string, uid: st
   if (!post) throw new ServiceError("Post not found.", 404);
   if (post.comments_locked_at) throw new ServiceError("Comments are locked on this post.", 403);
 
+  const storedMedia = mediaUrl ? storedMediaUrl(mediaUrl) : null;
+  if (storedMedia && !isAllowedMediaUrl(storedMedia)) {
+    throw new ServiceError("Attachments must be uploaded through Apex F1 Hub or chosen from the GIF picker.", 400);
+  }
   const trimmed = content.trim();
-  if (!trimmed) throw new ServiceError("Write a comment first.", 400);
+  if (!trimmed && !storedMedia) throw new ServiceError("Write a comment first.", 400);
   if (trimmed.length > MAX_COMMENT_CHARS) throw new ServiceError(`Comments are limited to ${MAX_COMMENT_CHARS} characters.`, 400);
+  const storedContent = trimmed || "\u200b";
 
-  const { data, error } = await supabaseAdmin
+  const basePayload: Record<string, unknown> = { post_id: postId, user_id: uid, content: storedContent, parent_comment_id: parentCommentId ?? null };
+  const insertPayload: Record<string, unknown> = storedMedia ? { ...basePayload, media_url: storedMedia } : basePayload;
+  let { data, error } = await supabaseAdmin
     .from("group_post_comments")
-    .insert({ post_id: postId, user_id: uid, content: trimmed, parent_comment_id: parentCommentId ?? null })
+    .insert(insertPayload)
     .select("id")
     .single();
+  if (error && storedMedia && error.message.includes("media_url")) {
+    ({ data, error } = await supabaseAdmin.from("group_post_comments").insert(basePayload).select("id").single());
+  }
   // The group_post_comments trigger rejects a parent that belongs to a different post.
   if (error?.message.includes("parent_comment_not_in_post")) throw new ServiceError("That comment isn't part of this discussion.", 400);
   if (error || !data) throw error ?? new ServiceError("Could not add comment.", 500);
