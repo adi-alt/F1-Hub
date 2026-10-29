@@ -2,10 +2,16 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import { getMemberRole, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import {
+  summarizePoll,
+  type PostPollView,
+  type PostSubscriptionState,
+} from "@/lib/communities";
+import {
   COMMENT_REACTIONS,
   MAX_COMMENT_CHARS,
   MAX_POST_CHARS,
   MAX_TITLE_CHARS,
+  requireCanViewPost,
   summarizeCommentReactions,
   type CommentReactionEmoji,
   type CommentReactionSummary,
@@ -112,6 +118,111 @@ export async function setCommentsLocked(postId: string, uid: string, locked: boo
   if (!isModerator(role)) throw new ServiceError("Only a moderator can lock comments.", 403);
   const { error } = await supabaseAdmin.from("group_posts").update({ comments_locked_at: locked ? new Date().toISOString() : null }).eq("id", postId).eq("group_id", post.group_id);
   if (error) throw new Error(`setCommentsLocked(${postId}): ${error.message}`);
+}
+
+/** Pins or unpins a post in its community (community moderator only). Caps at 3 pinned posts per community. */
+export async function setPostPinned(postId: string, uid: string, pinned: boolean): Promise<{ pinned: boolean }> {
+  const post = await loadPost(postId);
+  if (!post.group_id) throw new ServiceError("Only community posts can be pinned.", 400);
+  const role = await roleFor(post, uid);
+  if (!isModerator(role)) throw new ServiceError("Only a moderator can pin a post.", 403);
+
+  if (pinned) {
+    const { data: currentPinned } = await supabaseAdmin
+      .from("group_posts")
+      .select("id")
+      .eq("group_id", post.group_id)
+      .not("pinned_at", "is", null)
+      .order("pinned_at", { ascending: true });
+    const existing = (currentPinned ?? []).filter((p) => p.id !== postId);
+    if (existing.length >= 3) {
+      const toUnpin = existing.slice(0, existing.length - 2).map((p) => p.id as string);
+      if (toUnpin.length > 0) {
+        await supabaseAdmin.from("group_posts").update({ pinned_at: null }).in("id", toUnpin);
+      }
+    }
+  }
+
+  const { error } = await supabaseAdmin
+    .from("group_posts")
+    .update({ pinned_at: pinned ? new Date().toISOString() : null })
+    .eq("id", postId)
+    .eq("group_id", post.group_id);
+  if (error) throw new Error(`setPostPinned(${postId}): ${error.message}`);
+  return { pinned };
+}
+
+/** Toggles or casts a vote on an interactive post poll. */
+export async function votePostPoll(postId: string, uid: string, optionId: string): Promise<{ poll: PostPollView }> {
+  const post = await loadPost(postId);
+  await requireCanViewPost(post.group_id, uid);
+  const { data: row, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_posts").select("poll").eq("id", postId).maybeSingle(),
+  );
+  if (error) throw new Error(`votePostPoll(${postId}): ${error.message}`);
+  if (!row?.poll || typeof row.poll !== "object" || Array.isArray(row.poll)) {
+    throw new ServiceError("This post does not have a poll.", 404);
+  }
+  const poll = row.poll as {
+    question?: string | null;
+    options: { id: string; label: string }[];
+    votes?: Record<string, string>;
+    closesAt?: string | null;
+  };
+  const validOption = Array.isArray(poll.options) && poll.options.some((o) => o.id === optionId);
+  if (!validOption) throw new ServiceError("Invalid poll option.", 400);
+
+  if (poll.closesAt && Date.parse(poll.closesAt) <= Date.now()) {
+    throw new ServiceError("This poll is closed.", 400);
+  }
+
+  const currentVotes =
+    poll.votes && typeof poll.votes === "object" && !Array.isArray(poll.votes)
+      ? { ...(poll.votes as Record<string, string>) }
+      : {};
+
+  if (currentVotes[uid] === optionId) {
+    delete currentVotes[uid];
+  } else {
+    currentVotes[uid] = optionId;
+  }
+
+  const nextPoll = { ...poll, votes: currentVotes };
+  const { error: updateError } = await supabaseAdmin.from("group_posts").update({ poll: nextPoll }).eq("id", postId);
+  if (updateError) throw new Error(`votePostPoll(${postId}): ${updateError.message}`);
+
+  const summarized = summarizePoll(nextPoll, uid);
+  if (!summarized) throw new ServiceError("Could not summarize poll.", 500);
+  return { poll: summarized };
+}
+
+/** Sets a user's notification subscription for a post ("default" | "following" | "muted"). */
+export async function setPostSubscription(
+  postId: string,
+  uid: string,
+  state: PostSubscriptionState,
+): Promise<{ subscription: PostSubscriptionState }> {
+  const post = await loadPost(postId);
+  await requireCanViewPost(post.group_id, uid);
+  const { data: row, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_posts").select("subscriptions").eq("id", postId).maybeSingle(),
+  );
+  if (error) throw new Error(`setPostSubscription(${postId}): ${error.message}`);
+  const raw =
+    row?.subscriptions && typeof row.subscriptions === "object" && !Array.isArray(row.subscriptions)
+      ? (row.subscriptions as Record<string, unknown>)
+      : {};
+  let following = Array.isArray(raw.following) ? raw.following.filter((id): id is string => typeof id === "string") : [];
+  let muted = Array.isArray(raw.muted) ? raw.muted.filter((id): id is string => typeof id === "string") : [];
+  following = following.filter((id) => id !== uid);
+  muted = muted.filter((id) => id !== uid);
+  if (state === "following") following.push(uid);
+  if (state === "muted") muted.push(uid);
+
+  const nextSubs = { following, muted };
+  const { error: updateError } = await supabaseAdmin.from("group_posts").update({ subscriptions: nextSubs }).eq("id", postId);
+  if (updateError) throw new Error(`setPostSubscription(${postId}): ${updateError.message}`);
+  return { subscription: state };
 }
 
 export async function editComment(postId: string, commentId: string, uid: string, content: string): Promise<{ editedAt: string }> {

@@ -3,7 +3,7 @@
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Target, X, type LucideIcon } from "lucide-react";
+import { BarChart2, Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, Target, Trash2, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
@@ -21,6 +21,7 @@ import type { CallableRace } from "@/lib/supabase/postCalls";
 import { CommunitySelector } from "./post/CommunitySelector";
 import { EmojiPicker } from "./post/EmojiPicker";
 import { GifPicker } from "./post/GifPicker";
+import { MentionAutocomplete } from "./post/MentionAutocomplete";
 
 const IMAGE_MAX_BYTES = 500 * 1024;
 const OTHER_MAX_BYTES = 2 * 1024 * 1024;
@@ -68,6 +69,14 @@ function clearSavedDraft(key: string | null) {
   } catch {
     // Draft persistence is best-effort; a blocked or full browser store must not affect posting.
   }
+}
+
+function checkMention(val: string, pos: number): { query: string; startIndex: number } | null {
+  const before = val.slice(0, pos);
+  const match = /(?:^|\s)@([a-zA-Z0-9_.-]*)$/.exec(before);
+  if (!match) return null;
+  const atPos = before.lastIndexOf("@");
+  return { query: match[1], startIndex: atPos };
 }
 
 /**
@@ -161,6 +170,12 @@ export function PostComposer({
   // A call that's been started but isn't finished holds the post back, so it never goes out without the call meant.
   const callIncomplete = !!callableRace && callOpen && !hasCall;
   const [scheduledConfirmation, setScheduledConfirmation] = useState("");
+  const [gallery, setGallery] = useState<AttachmentView[]>([]);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollDraft, setPollDraft] = useState<{ question: string; options: string[]; durationHours: number } | null>(null);
+  const [mentionState, setMentionState] = useState<{ query: string; startIndex: number } | null>(null);
+  const validPollOptions = pollDraft?.options.map((o) => o.trim()).filter(Boolean) ?? [];
+  const pollIncomplete = pollOpen && validPollOptions.length < 2;
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
   // that community's own permission map, through the exact helper createPrediction uses
@@ -227,7 +242,7 @@ export function PostComposer({
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
   const canPredict = !!targetGroup && postKindsFor(targetGroup.communityType, targetGroup.features).includes("prediction");
-  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen;
+  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen || pollOpen || gallery.length > 0;
 
   // A blob: URL (createObjectURL below) holds its referenced data in memory until explicitly
   // revoked or the document unloads - real, if minor, for a composer someone can attach/remove
@@ -246,6 +261,7 @@ export function PostComposer({
     setIsPrediction(false);
     setMediaPreview(null);
     setAttachment(null);
+    setGallery([]);
     setMediaUrl(null);
     setMediaError("");
     setNotice("");
@@ -253,79 +269,140 @@ export function PostComposer({
     setScheduledAt("");
     setCallOpen(false);
     setCallDraft(null);
+    setPollOpen(false);
+    setPollDraft(null);
+    setMentionState(null);
     setDraftRestored(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
    * viewer typed is thrown away on a single stray click. */
   function requestClose() {
-    if (title.trim() || content.trim() || mediaPreview) {
+    if (title.trim() || content.trim() || mediaPreview || gallery.length > 0 || (pollOpen && validPollOptions.length > 0)) {
       setConfirmDiscard(true);
       return;
     }
     reset();
   }
 
-  async function pickMedia(file: File) {
-    setMediaError("");
+  async function uploadSingleFile(file: File): Promise<AttachmentView | null> {
     const maxBytes = MEDIA_MAX_BYTES[file.type];
     if (!maxBytes) {
       setMediaError("Images, video, audio, PDF, Word, Excel, PowerPoint, text or ZIP files only.");
-      return;
+      return null;
     }
     if (file.size > maxBytes) {
       setMediaError(`This file type is limited to ${maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB"}.`);
-      return;
+      return null;
     }
-    releasePreview(); // a file already attached is being replaced - its own blob URL is done for
-    const localUrl = URL.createObjectURL(file);
-    setMediaPreview(localUrl);
-    setMediaUrl(null);
-    // Shown immediately from the real File, so the preview names the actual file the moment it is
-    // picked rather than after the round trip.
-    setAttachment({ url: localUrl, name: file.name, mime: file.type, size: file.size, thumbUrl: null, pages: null });
-    setUploadingMedia(true);
-
-    // Rendered before upload so the PNG can travel with it in one request.
     const preview = file.type === "application/pdf" ? await renderPdfFirstPage(file) : null;
-
     const form = new FormData();
     form.append("media", file);
     if (preview) {
       form.append("thumbnail", new File([preview.thumbnail], "thumb.png", { type: "image/png" }));
       form.append("pages", String(preview.pages));
     }
-
-    // A dropped connection is a failed upload, never a spinner that never stops.
     const res = await fetch("/api/posts/media", { method: "POST", body: form }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as
       | { mediaUrl?: string; name?: string; mime?: string; size?: number; thumbUrl?: string | null; pages?: number | null; error?: string }
       | null;
 
     if (res?.ok && body?.mediaUrl) {
-      setMediaUrl(body.mediaUrl);
-      setAttachment({
+      return {
         url: body.mediaUrl,
         name: body.name ?? file.name,
         mime: body.mime ?? file.type,
         size: body.size ?? file.size,
         thumbUrl: body.thumbUrl ?? null,
         pages: body.pages ?? preview?.pages ?? null,
-      });
-    } else {
-      setMediaError(body?.error ?? "Upload failed.");
-      setMediaPreview(null);
-      setAttachment(null);
+      };
     }
+    setMediaError(body?.error ?? "Upload failed.");
+    return null;
+  }
+
+  async function pickMediaFiles(files: File[]) {
+    if (files.length === 0) return;
+    setMediaError("");
+
+    const isImageFile = (f: File) => f.type.startsWith("image/");
+    const areAllImages = files.every(isImageFile);
+
+    if (files.length > 1 || gallery.length > 0) {
+      if (!areAllImages) {
+        setMediaError("Galleries only support images (PNG, JPEG, WebP, GIF).");
+        return;
+      }
+      const remainingSlots = 4 - gallery.length;
+      if (remainingSlots <= 0) {
+        setMediaError("You can attach up to 4 images.");
+        return;
+      }
+      const toUpload = files.slice(0, remainingSlots);
+      setUploadingMedia(true);
+      const uploaded: AttachmentView[] = [];
+      for (const f of toUpload) {
+        const item = await uploadSingleFile(f);
+        if (item) uploaded.push(item);
+      }
+      setUploadingMedia(false);
+      if (uploaded.length > 0) {
+        setGallery((prev) => {
+          const next = [...prev, ...uploaded].slice(0, 4);
+          if (next.length === 1) {
+            setAttachment(next[0]);
+            setMediaUrl(next[0].url);
+            setMediaPreview(next[0].url);
+          } else {
+            setAttachment(null);
+            setMediaUrl(next[0]?.url ?? null);
+            setMediaPreview(null);
+          }
+          return next;
+        });
+      }
+      return;
+    }
+
+    const file = files[0];
+    setUploadingMedia(true);
+    const item = await uploadSingleFile(file);
     setUploadingMedia(false);
+    if (item) {
+      if (isImageFile(file)) {
+        setGallery([item]);
+      } else {
+        setGallery([]);
+      }
+      setAttachment(item);
+      setMediaUrl(item.url);
+      setMediaPreview(item.url);
+    }
   }
 
   function removeMedia() {
     releasePreview();
+    setGallery([]);
     setMediaPreview(null);
     setAttachment(null);
     setMediaUrl(null);
     setMediaError("");
+  }
+
+  function removeGalleryItem(index: number) {
+    setGallery((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) {
+        setAttachment(null);
+        setMediaUrl(null);
+        setMediaPreview(null);
+      } else if (next.length === 1) {
+        setAttachment(next[0]);
+        setMediaUrl(next[0].url);
+        setMediaPreview(next[0].url);
+      }
+      return next;
+    });
   }
 
   function insertAtCursor(text: string) {
@@ -345,9 +422,41 @@ export function PostComposer({
     el.focus();
   }
 
+  function handleContentChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const next = e.target.value;
+    setContent(next);
+    const pos = e.target.selectionStart ?? next.length;
+    setMentionState(checkMention(next, pos));
+  }
+
+  function handleKeyUp(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const pos = e.currentTarget.selectionStart ?? content.length;
+      setMentionState(checkMention(content, pos));
+    }
+  }
+
+  function handleSelectMention(username: string) {
+    if (!mentionState) return;
+    const el = bodyRef.current;
+    const pos = el?.selectionStart ?? content.length;
+    const before = content.slice(0, mentionState.startIndex);
+    const after = content.slice(pos);
+    const next = `${before}@${username} ${after}`.slice(0, 2000);
+    setContent(next);
+    setMentionState(null);
+    requestAnimationFrame(() => {
+      if (el) {
+        el.focus();
+        const nextPos = Math.min(mentionState.startIndex + username.length + 2, 2000);
+        el.setSelectionRange(nextPos, nextPos);
+      }
+    });
+  }
+
   async function submit() {
     const trimmed = content.trim();
-    if (!trimmed || uploadingMedia) return;
+    if (!trimmed || uploadingMedia || callIncomplete || pollIncomplete) return;
     setPosting(true);
     setNotice("");
     const res = await fetch("/api/posts", {
@@ -357,8 +466,29 @@ export function PostComposer({
         groupId: targetGroupId || null,
         title: title.trim() || undefined,
         content: trimmed,
-        mediaUrl,
-        attachment: attachment ? { name: attachment.name, mime: attachment.mime, size: attachment.size, thumbUrl: attachment.thumbUrl, pages: attachment.pages } : null,
+        mediaUrl: gallery.length > 0 ? gallery[0].url : mediaUrl,
+        attachment:
+          gallery.length < 2 && attachment
+            ? { name: attachment.name, mime: attachment.mime, size: attachment.size, thumbUrl: attachment.thumbUrl, pages: attachment.pages }
+            : null,
+        gallery:
+          gallery.length >= 2
+            ? gallery.map((g) => ({
+                url: g.url,
+                name: g.name,
+                mime: g.mime,
+                size: g.size,
+                thumbUrl: g.thumbUrl,
+              }))
+            : undefined,
+        poll:
+          pollOpen && validPollOptions.length >= 2
+            ? {
+                question: pollDraft?.question.trim() || undefined,
+                options: validPollOptions,
+                durationHours: pollDraft?.durationHours ?? 24,
+              }
+            : undefined,
         kind: isPrediction && canPredict ? "prediction" : undefined,
         scheduledAt: scheduledAt && !hasCall ? new Date(scheduledAt).toISOString() : null,
         call: hasCall && callableRace && callDraft ? { raceId: callableRace.raceId, ...callDraft } : undefined,
@@ -443,7 +573,8 @@ export function PostComposer({
               <textarea
                 ref={bodyRef}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={handleContentChange}
+                onKeyUp={handleKeyUp}
                 onFocus={() => setFocused(true)}
                 placeholder={placeholder ?? (displayName ? `What's on your mind, ${displayName.split(" ")[0]}?` : "What's on your mind?")}
                 aria-label="Post"
@@ -457,6 +588,14 @@ export function PostComposer({
               />
             </div>
           </div>
+
+          {mentionState && (
+            <MentionAutocomplete
+              query={mentionState.query}
+              onSelect={handleSelectMention}
+              onClose={() => setMentionState(null)}
+            />
+          )}
 
           {callOpen && callableRace && (
             <div className="pl-11">
@@ -472,9 +611,160 @@ export function PostComposer({
             </div>
           )}
 
-          {(attachment || mediaError || scheduledConfirmation) && (
+          {pollOpen && (
+            <div className="pl-11 pt-2">
+              <div className="space-y-3 rounded-control border border-white/10 bg-surface-2/60 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-secondary">
+                    <Icon icon={BarChart2} size={16} className="text-brand" />
+                    Poll
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPollOpen(false);
+                      setPollDraft(null);
+                    }}
+                    className="rounded-control text-caption text-tertiary transition-colors hover:text-primary"
+                  >
+                    Remove poll
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  value={pollDraft?.question ?? ""}
+                  onChange={(e) =>
+                    setPollDraft((prev) => ({
+                      question: e.target.value,
+                      options: prev?.options ?? ["", ""],
+                      durationHours: prev?.durationHours ?? 24,
+                    }))
+                  }
+                  placeholder="Poll question (optional, uses post text if blank)"
+                  maxLength={140}
+                  className="w-full rounded-control border border-white/10 bg-surface-1 px-3 py-1.5 text-body-sm text-primary placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+                />
+
+                <div className="space-y-2">
+                  {pollDraft?.options.map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={opt}
+                        onChange={(e) => {
+                          const next = [...(pollDraft?.options ?? ["", ""])];
+                          next[idx] = e.target.value;
+                          setPollDraft((prev) => ({
+                            question: prev?.question ?? "",
+                            options: next,
+                            durationHours: prev?.durationHours ?? 24,
+                          }));
+                        }}
+                        placeholder={`Option ${idx + 1}`}
+                        maxLength={80}
+                        className="flex-1 rounded-control border border-white/10 bg-surface-1 px-3 py-1.5 text-body-sm text-primary placeholder:text-tertiary focus:border-white/20 focus:outline-none"
+                      />
+                      {pollDraft.options.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = pollDraft.options.filter((_, i) => i !== idx);
+                            setPollDraft((prev) => ({
+                              question: prev?.question ?? "",
+                              options: next,
+                              durationHours: prev?.durationHours ?? 24,
+                            }));
+                          }}
+                          className="flex size-7 items-center justify-center rounded-control text-tertiary hover:bg-white/[0.06] hover:text-danger"
+                          aria-label={`Remove option ${idx + 1}`}
+                        >
+                          <Icon icon={Trash2} size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-1">
+                  {pollDraft && pollDraft.options.length < 6 ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPollDraft((prev) => ({
+                          question: prev?.question ?? "",
+                          options: [...(prev?.options ?? ["", ""]), ""],
+                          durationHours: prev?.durationHours ?? 24,
+                        }))
+                      }
+                      className="flex items-center gap-1 rounded-control px-2 py-1 text-caption font-medium text-secondary hover:bg-white/[0.06] hover:text-primary"
+                    >
+                      <Icon icon={Plus} size={16} />
+                      Add option
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+
+                  <div className="flex items-center gap-1 text-caption text-secondary">
+                    <span>Duration:</span>
+                    <select
+                      value={pollDraft?.durationHours ?? 24}
+                      onChange={(e) =>
+                        setPollDraft((prev) => ({
+                          question: prev?.question ?? "",
+                          options: prev?.options ?? ["", ""],
+                          durationHours: Number(e.target.value),
+                        }))
+                      }
+                      className="rounded-control border border-white/10 bg-surface-1 px-2 py-1 text-caption text-primary focus:outline-none"
+                    >
+                      <option value={24}>24 hours</option>
+                      <option value={72}>3 days</option>
+                      <option value={168}>7 days</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {gallery.length >= 2 && (
+            <div className="space-y-1.5 pl-11 pt-2">
+              <div className="flex items-center justify-between text-caption text-secondary">
+                <span>{gallery.length} of 4 photos attached</span>
+                {gallery.length < 4 && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-control text-brand hover:underline"
+                  >
+                    + Add more
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {gallery.map((item, idx) => (
+                  <div key={`${item.url}-${idx}`} className="relative aspect-[4/3] overflow-hidden rounded-control border border-white/10 bg-black/20">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.thumbUrl ?? item.url} alt={item.name ?? `Photo ${idx + 1}`} className="size-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeGalleryItem(idx)}
+                      aria-label={`Remove photo ${idx + 1}`}
+                      className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-control bg-black/80 text-white transition-colors hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                    >
+                      <Icon icon={X} size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {((gallery.length < 2 && attachment) || mediaError || scheduledConfirmation) && (
             <div className="space-y-2 pl-11 pt-2">
-              {attachment && (
+              {gallery.length < 2 && attachment && (
                 // The SAME component the published post renders, so what is previewed here is literally what will
                 // appear in the feed.
                 <div className="max-w-full">
@@ -499,6 +789,19 @@ export function PostComposer({
             <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photo" />
             <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
             <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
+            <ToolButton
+              onClick={() => {
+                setPollOpen((v) => {
+                  if (!v && !pollDraft) {
+                    setPollDraft({ question: "", options: ["", ""], durationHours: 24 });
+                  }
+                  return !v;
+                });
+              }}
+              active={pollOpen}
+              icon={BarChart2}
+              label="Poll"
+            />
             <ComposeAssist draft={content} onReplace={setContent} />
             {canPredict && <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={Compass} label="Prediction" />}
             {/* A different thing from the tag above: that marks THIS post as prediction talk, this opens a real
@@ -510,12 +813,13 @@ export function PostComposer({
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept={FILE_ACCEPT}
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
+                const files = Array.from(e.target.files ?? []);
                 e.target.value = "";
-                if (file) void pickMedia(file);
+                if (files.length > 0) void pickMediaFiles(files);
               }}
             />
 
@@ -543,9 +847,17 @@ export function PostComposer({
                 <button
                   type="button"
                   onClick={() => void submit()}
-                  disabled={posting || uploadingMedia || !content.trim() || callIncomplete}
+                  disabled={posting || uploadingMedia || !content.trim() || callIncomplete || pollIncomplete}
                   aria-busy={posting}
-                  title={callIncomplete ? "Finish the call, or remove it" : !content.trim() && !posting ? "Write something to post" : undefined}
+                  title={
+                    pollIncomplete
+                      ? "Add at least 2 poll options, or remove the poll"
+                      : callIncomplete
+                        ? "Finish the call, or remove it"
+                        : !content.trim() && !posting
+                          ? "Write something to post"
+                          : undefined
+                  }
                   className={`flex h-8 items-center gap-1.5 px-3.5 text-body-sm font-semibold transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${
                     justPosted ? "bg-success/15 text-success" : "bg-brand text-white hover:bg-brand-hover disabled:bg-white/[0.08] disabled:text-tertiary"
                   }`}

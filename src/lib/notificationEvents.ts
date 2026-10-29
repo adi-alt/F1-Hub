@@ -126,16 +126,25 @@ export const notifyNewRound = (groupId: string, predictionId: string, creatorId:
     });
   });
 
-/** A reply: the post's author hears about a comment on their post; a comment's author about a reply to it. */
+/** A reply: the post's author hears about a comment on their post; a comment's author about a reply to it;
+ * and anyone who explicitly followed the post hears about new comments (while anyone who muted it is skipped). */
 export const notifyReply = (groupId: string | null, postId: string, commentId: string, commenterId: string, parentCommentId: string | null) =>
   safely(async () => {
-    const [{ data: post }, parent, { data: comment }, commenter, c] = await Promise.all([
-      supabaseAdmin.from("group_posts").select("user_id").eq("id", postId).maybeSingle(),
+    const postQuery = await supabaseAdmin.from("group_posts").select("user_id, subscriptions").eq("id", postId).maybeSingle();
+    const post = postQuery.error
+      ? (await supabaseAdmin.from("group_posts").select("user_id").eq("id", postId).maybeSingle()).data
+      : postQuery.data;
+    const [parent, { data: comment }, commenter, c] = await Promise.all([
       parentCommentId ? supabaseAdmin.from("group_post_comments").select("user_id").eq("id", parentCommentId).maybeSingle() : Promise.resolve({ data: null }),
       supabaseAdmin.from("group_post_comments").select("content").eq("id", commentId).maybeSingle(),
       person(commenterId),
       groupId ? community(groupId) : Promise.resolve(null),
     ]);
+    const rawSubs = (post as { subscriptions?: unknown } | null)?.subscriptions;
+    const subsObj = rawSubs && typeof rawSubs === "object" && !Array.isArray(rawSubs) ? (rawSubs as Record<string, unknown>) : {};
+    const muted = new Set(Array.isArray(subsObj.muted) ? subsObj.muted.filter((id): id is string => typeof id === "string") : []);
+    const following = Array.isArray(subsObj.following) ? subsObj.following.filter((id): id is string => typeof id === "string") : [];
+
     const href = groupId ? `${groupHref(groupId)}&post=${postId}` : "/communities";
     const quote = excerpt(comment?.content);
     const email = (what: string) => ({
@@ -149,13 +158,81 @@ export const notifyReply = (groupId: string | null, postId: string, commentId: s
       reason: c ? `Someone replied to you in ${c.name}.` : "Someone replied to you.",
     });
     const parentAuthor = (parent.data?.user_id as string | undefined) ?? null;
-    if (parentAuthor) {
+    if (parentAuthor && !muted.has(parentAuthor)) {
       await notify([parentAuthor], { kind: "reply", title: `${commenter.name} replied to your comment`, href, actorId: commenterId, groupId, dedupeKey: `reply:${commentId}`, email: email("replied to your comment") });
     }
     const postAuthor = (post?.user_id as string | undefined) ?? null;
-    if (postAuthor && postAuthor !== parentAuthor) {
+    if (postAuthor && postAuthor !== parentAuthor && !muted.has(postAuthor)) {
       await notify([postAuthor], { kind: "reply", title: `${commenter.name} commented on your post`, href, actorId: commenterId, groupId, dedupeKey: `reply:${commentId}`, email: email("commented on your post") });
     }
+    const followerRecipients = [...new Set(following)].filter(
+      (id) => id !== commenterId && id !== parentAuthor && id !== postAuthor && !muted.has(id),
+    );
+    if (followerRecipients.length > 0) {
+      await notify(followerRecipients, {
+        kind: "reply",
+        title: `${commenter.name} commented on a post you follow`,
+        href,
+        actorId: commenterId,
+        groupId,
+        dedupeKey: `reply_follow:${commentId}`,
+        email: email("commented on a post you follow"),
+      });
+    }
+  });
+
+/** Notifies up to 5 `@username` mentions in a post or comment body (ignoring `>` quote lines). */
+export const notifyMentions = (groupId: string | null, postId: string, commentId: string | null, actorId: string, content: string) =>
+  safely(async () => {
+    const nonQuoteText = content
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith(">"))
+      .join("\n");
+    const matches = [...nonQuoteText.matchAll(/(?:^|[\s(])@([a-zA-Z0-9_.-]{2,32})/g)].map((m) => m[1].toLowerCase());
+    const handles = [...new Set(matches)].slice(0, 5);
+    if (handles.length === 0) return;
+
+    const filterClause = handles.map((h) => `username.ilike.${h.replace(/[,().:%_\\]/g, "")}`).filter(Boolean).join(",");
+    if (!filterClause) return;
+    const { data: matchedProfiles } = await supabaseAdmin.from("profiles").select("id, username").or(filterClause).limit(10);
+    let recipientIds = [...new Set((matchedProfiles ?? []).map((p) => p.id as string))].filter((id) => id !== actorId);
+    if (recipientIds.length === 0) return;
+
+    if (groupId) {
+      const { data: groupRow } = await supabaseAdmin.from("groups").select("visibility").eq("id", groupId).maybeSingle();
+      if (groupRow && groupRow.visibility !== "public") {
+        const members = new Set(await communityMembers(groupId));
+        recipientIds = recipientIds.filter((id) => members.has(id));
+      }
+    }
+    if (recipientIds.length === 0) return;
+
+    const [actor, c] = await Promise.all([person(actorId), groupId ? community(groupId) : Promise.resolve(null)]);
+    const where = commentId ? "comment" : "post";
+    const href = groupId
+      ? commentId
+        ? `${groupHref(groupId)}&post=${postId}&comment=${commentId}`
+        : `${groupHref(groupId)}&post=${postId}`
+      : "/communities";
+    const quote = excerpt(nonQuoteText);
+    await notify(recipientIds, {
+      kind: "reply",
+      title: `${actor.name} mentioned you in a ${where}`,
+      href,
+      actorId,
+      groupId,
+      dedupeKey: `mention:${commentId ?? postId}`,
+      email: {
+        subject: quote ? `${actor.name} mentioned you: "${excerpt(quote, 50)}"` : `${actor.name} mentioned you in a ${where}`,
+        preheader: quote ?? "",
+        context: c ? contextOf(c) : undefined,
+        eyebrow: "Mention",
+        who: { name: actor.name, sub: `mentioned you in a ${where}` },
+        quote,
+        cta: `View ${where}`,
+        reason: c ? `You were mentioned in ${c.name}.` : "You were mentioned in a discussion.",
+      },
+    });
   });
 
 /** A post is held for review: the community's moderators. */

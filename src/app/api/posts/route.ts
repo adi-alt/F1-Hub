@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type { PostKind } from "@/lib/communities";
-import { createPost, discardNewPost } from "@/lib/supabase/groupPosts";
+import type { PostKind, PostPollInput } from "@/lib/communities";
+import { createPost, discardNewPost, type PostAttachment } from "@/lib/supabase/groupPosts";
 import { saveCall, validateCall } from "@/lib/supabase/postCalls";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import type { PostCall } from "@/lib/postCalls";
@@ -27,6 +27,8 @@ export async function POST(request: Request) {
     content?: string;
     mediaUrl?: string | null;
     attachment?: { name?: string | null; mime?: string | null; size?: number | null; thumbUrl?: string | null; pages?: number | null } | null;
+    gallery?: ({ url: string } & Partial<Omit<PostAttachment, "url">>)[] | null;
+    poll?: PostPollInput | null;
     kind?: PostKind;
     scheduledAt?: string | null;
     /** A call on this weekend's race (takes with receipts), checked against the race and its lock below. */
@@ -60,6 +62,8 @@ export async function POST(request: Request) {
             pages: typeof body.attachment.pages === "number" && body.attachment.pages > 0 ? body.attachment.pages : null,
           }
         : null,
+      gallery: Array.isArray(body.gallery) ? body.gallery : null,
+      poll: body.poll ?? null,
       kind: body.kind,
       scheduledAt: body.scheduledAt,
     });

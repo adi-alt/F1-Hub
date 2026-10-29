@@ -2,6 +2,50 @@ import { countUsers, getUserProfile, listUsersPage, searchUsers, setUserRole, ty
 import { inviteUsersByEmail, type InviteResult } from "@/lib/supabase/userInvites";
 import type { Role } from "@/lib/rbac";
 import { requirePermission } from "@/lib/session/requirePermission";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
+
+export type MentionUser = {
+  uid: string;
+  username: string;
+  displayName: string;
+  avatar?: AvatarConfig | null;
+};
+
+/**
+ * Autocomplete candidate lookup for `@username` mentions. Available to any signed-in user
+ * without exposing email or admin permissions. Returns up to 6 matches.
+ */
+export async function searchMentions(term: string): Promise<MentionUser[]> {
+  const clean = term.trim().replace(/^@/, "").slice(0, 32);
+  if (!clean) return [];
+  const escaped = clean.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const value = `"${`%${escaped}%`.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+  const { data, error } = await queryWithRetry(() =>
+    supabaseAdmin
+      .from("profiles")
+      .select("id, username, display_name, first_name, last_name, avatar")
+      .or(`username.ilike.${value},display_name.ilike.${value},first_name.ilike.${value}`)
+      .limit(6),
+  );
+  if (error) throw new Error(`searchMentions(${clean}): ${error.message}`);
+  return (data ?? [])
+    .filter(
+      (row): row is typeof row & { id: string; username: string } =>
+        typeof row.id === "string" && typeof row.username === "string" && row.username.length > 0,
+    )
+    .map((row) => {
+      const parts = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
+      const name = (row.display_name as string | null) || parts || (row.username as string);
+      return {
+        uid: row.id,
+        username: row.username,
+        displayName: name,
+        avatar: parseAvatar(row.avatar),
+      };
+    });
+}
 
 /** The search box's minimum useful term. A single character matches most of the table via
  * `ilike '%a%'`, which is a full scan returning noise — not a result worth the query. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Bookmark, MessageSquare, Search, X } from "lucide-react";
+import { Bell, BellOff, Bookmark, MessageSquare, Search, X } from "lucide-react";
 import { Sheet } from "@/components/ui/Dialog";
 import { Icon } from "@/components/ui/Icon";
 import { commentHref } from "@/lib/routes";
@@ -9,11 +9,14 @@ import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 import { postCommentListeners, postCommentsChannelKey } from "@/lib/realtime/channels";
 import { attachmentBadge, attachmentKind, displayName } from "./attachmentMeta";
 import { mediaKind } from "@/lib/mediaKind";
+import type { PostSubscriptionState } from "@/lib/communities";
 import type { VoteValue } from "@/lib/supabase/groupPosts";
 import { CommentComposer } from "./CommentComposer";
 import { CommentsSkeleton } from "./CommentSkeleton";
 import { CommentSortControl, CommentTree } from "./CommentTree";
 import { PostHeader } from "./PostHeader";
+import { PostGallery } from "./PostGallery";
+import { PollCard } from "./PollCard";
 import type { PostCardData } from "./types";
 import { filterCommentTree, useComments, type CommentFilter, type LocalComment } from "./useComments";
 import { VoteControl } from "./VoteControl";
@@ -71,6 +74,21 @@ export function PostDetailWindow({
   const [filter, setFilter] = useState<CommentFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [subscription, setSubscription] = useState<PostSubscriptionState>(post.subscription ?? "default");
+  const [subscribing, setSubscribing] = useState(false);
+
+  async function toggleSubscription() {
+    if (subscribing) return;
+    const next: PostSubscriptionState = subscription === "following" ? "default" : "following";
+    setSubscription(next);
+    setSubscribing(true);
+    await fetch(`/api/posts/${post.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: next }),
+    }).catch(() => null);
+    setSubscribing(false);
+  }
 
   const commentListeners = postCommentListeners(post.id);
   useRealtimeSubscription(postCommentsChannelKey(post.id), commentListeners, commentListeners[0], () => void reload(), reload);
@@ -148,7 +166,9 @@ export function PostDetailWindow({
           )}
         </div>
 
-        {post.attachment && !thumbSrc && (
+        {post.gallery ? (
+          <PostGallery gallery={post.gallery} />
+        ) : post.attachment && !thumbSrc ? (
           <a
             href={post.attachment.url}
             target="_blank"
@@ -162,7 +182,9 @@ export function PostDetailWindow({
               {displayName(post.attachment.name, attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url))}
             </span>
           </a>
-        )}
+        ) : null}
+
+        {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
 
         <div className="-ml-1.5 mt-2.5 flex flex-wrap items-center gap-1">
           <VoteControl score={score} myVote={myVote} onVote={onVote} compact />
@@ -177,6 +199,23 @@ export function PostDetailWindow({
           >
             <Bookmark size={14} fill={saved ? "currentColor" : "none"} />
             {saved ? "Saved" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void toggleSubscription()}
+            disabled={subscribing}
+            aria-pressed={subscription === "following"}
+            title={subscription === "following" ? "Following discussion" : "Follow discussion"}
+            className={`flex h-7 items-center gap-1.5 rounded-control px-2.5 text-caption transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+              subscription === "following"
+                ? "bg-surface-2 font-medium text-brand-text"
+                : subscription === "muted"
+                  ? "text-danger hover:bg-surface-2"
+                  : "text-tertiary hover:bg-surface-2 hover:text-primary"
+            }`}
+          >
+            <Icon icon={subscription === "muted" ? BellOff : Bell} size={16} />
+            {subscription === "following" ? "Following" : subscription === "muted" ? "Muted" : "Follow"}
           </button>
           <span className="flex h-7 items-center gap-1.5 rounded-control px-2.5 text-caption text-tertiary">
             <Icon icon={MessageSquare} size={16} className="size-3.5" />

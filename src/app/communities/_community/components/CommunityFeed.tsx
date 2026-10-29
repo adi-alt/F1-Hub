@@ -300,7 +300,13 @@ export function CommunityFeed({
         ...posts.map((post) => ({ kind: "post" as const, post, at: Date.parse(post.createdAt) })),
         // Only results from within the loaded page's span, so a result never lands below posts that aren't loaded yet.
         ...(plainView ? results.filter((r) => !cursor || posts.length === 0 || r.at >= Date.parse(posts[posts.length - 1].createdAt)).map((r) => ({ kind: "result" as const, ...r })) : []),
-      ].sort((a, b) => (plainView ? b.at - a.at : 0));
+      ].sort((a, b) => {
+        if (!plainView) return 0;
+        const aPinned = a.kind === "post" && a.post.pinned ? 1 : 0;
+        const bPinned = b.kind === "post" && b.post.pinned ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+        return b.at - a.at;
+      });
 
   return (
     <div>

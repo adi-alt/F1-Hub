@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { listFeedPosts, type FeedType } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
 
-const FEED_TYPES: FeedType[] = ["following", "latest", "forYou"];
+const FEED_TYPES: FeedType[] = ["following", "latest", "forYou", "saved"];
 
 /** Groups home's own cross-group feed - cursor-paginated (see listFeedPosts), not the per-group
  * listPosts every group detail page already uses. */

@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { getPostById } from "@/lib/supabase/groupPosts";
-import { deletePost, editPost } from "@/lib/supabase/moderation";
+import {
+  deletePost,
+  editPost,
+  setPostPinned,
+  setPostSubscription,
+  votePostPoll,
+} from "@/lib/supabase/moderation";
+import type { PostSubscriptionState } from "@/lib/communities";
 import { getSession } from "@/lib/session/getSession";
 import { ServiceError } from "@/services/errors";
 
@@ -28,15 +35,33 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pos
   }
 }
 
-/** The author edits their post's title and text (attachments and calls stay as posted). */
+/** The author edits their post's title and text, a moderator pins/unpins, a member votes on a poll or toggles thread subscriptions. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ postId: string }> }) {
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { postId } = await params;
-  const body = (await request.json().catch(() => ({}))) as { title?: string | null; content?: string };
-  if (typeof body.content !== "string") return NextResponse.json({ error: "Missing content" }, { status: 400 });
+  const body = (await request.json().catch(() => ({}))) as {
+    title?: string | null;
+    content?: string;
+    pinned?: boolean;
+    pollOptionId?: string;
+    subscription?: PostSubscriptionState;
+  };
+
   try {
-    return NextResponse.json(await editPost(postId, session.uid, { title: typeof body.title === "string" ? body.title : null, content: body.content }));
+    if (typeof body.pinned === "boolean") {
+      return NextResponse.json(await setPostPinned(postId, session.uid, body.pinned));
+    }
+    if (typeof body.pollOptionId === "string") {
+      return NextResponse.json(await votePostPoll(postId, session.uid, body.pollOptionId));
+    }
+    if (typeof body.subscription === "string" && (body.subscription === "default" || body.subscription === "following" || body.subscription === "muted")) {
+      return NextResponse.json(await setPostSubscription(postId, session.uid, body.subscription));
+    }
+    if (typeof body.content === "string") {
+      return NextResponse.json(await editPost(postId, session.uid, { title: typeof body.title === "string" ? body.title : null, content: body.content }));
+    }
+    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
     throw err;

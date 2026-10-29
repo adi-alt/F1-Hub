@@ -9,6 +9,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { PANEL } from "../panel";
 import { EmojiPicker } from "./EmojiPicker";
 import { GifPicker } from "./GifPicker";
+import { MentionAutocomplete } from "./MentionAutocomplete";
 
 const DRAFT_PREFIX = "f1hub_comment_draft:";
 const MAX_CHARS = 1000;
@@ -29,6 +30,14 @@ function clearDraft(key: string | null) {
   } catch {
     // Draft persistence is best-effort only.
   }
+}
+
+function checkMention(val: string, pos: number): { query: string; startIndex: number } | null {
+  const before = val.slice(0, pos);
+  const match = /(?:^|\s)@([a-zA-Z0-9_.-]*)$/.exec(before);
+  if (!match) return null;
+  const atPos = before.lastIndexOf("@");
+  return { query: match[1], startIndex: atPos };
 }
 
 /**
@@ -76,6 +85,7 @@ export function CommentComposer({
   const [posting, setPosting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
+  const [mentionState, setMentionState] = useState<{ query: string; startIndex: number } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftLoaded = useRef(false);
@@ -181,6 +191,38 @@ export function CommentComposer({
       el.focus();
     } else {
       setContent((prev) => (prev + emoji).slice(0, MAX_CHARS));
+    }
+  }
+
+  function handleContentChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const next = e.target.value;
+    setContent(next);
+    const pos = e.target.selectionStart ?? next.length;
+    setMentionState(checkMention(next, pos));
+  }
+
+  function handleSelectMention(username: string) {
+    if (!mentionState) return;
+    const el = inputRef.current;
+    const pos = el?.selectionStart ?? content.length;
+    const before = content.slice(0, mentionState.startIndex);
+    const after = content.slice(pos);
+    const next = `${before}@${username} ${after}`.slice(0, MAX_CHARS);
+    setContent(next);
+    setMentionState(null);
+    requestAnimationFrame(() => {
+      if (el) {
+        el.focus();
+        const nextPos = Math.min(mentionState.startIndex + username.length + 2, MAX_CHARS);
+        el.setSelectionRange(nextPos, nextPos);
+      }
+    });
+  }
+
+  function handleKeyUp(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const pos = e.currentTarget.selectionStart ?? content.length;
+      setMentionState(checkMention(content, pos));
     }
   }
 
@@ -326,8 +368,9 @@ export function CommentComposer({
           <textarea
             ref={inputRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={handleContentChange}
             onKeyDown={onKeyDown}
+            onKeyUp={handleKeyUp}
             placeholder={placeholder}
             autoFocus={autoFocus}
             rows={1}
@@ -337,6 +380,14 @@ export function CommentComposer({
           {mediaPreview}
         </div>
       </div>
+
+      {mentionState && (
+        <MentionAutocomplete
+          query={mentionState.query}
+          onSelect={handleSelectMention}
+          onClose={() => setMentionState(null)}
+        />
+      )}
 
       <div className={`mt-2 flex items-center justify-between gap-2 border-t border-white/[0.05] pt-2 ${variant === "inline" ? "pl-9" : ""}`}>
         <div className="flex items-center gap-2">
