@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTree, countDescendants, sortComments, type LocalComment } from "./useComments";
+import { buildTree, countDescendants, filterCommentTree, sortComments, type LocalComment } from "./useComments";
 
 function comment(id: string, parentCommentId: string | null, over: Partial<LocalComment> = {}): LocalComment {
   return {
@@ -20,7 +20,7 @@ function comment(id: string, parentCommentId: string | null, over: Partial<Local
 
 const ids = (list: { id: string }[]) => list.map((c) => c.id);
 
-test("sortComments orders by score for 'top' and by recency for 'newest'", () => {
+test("sortComments orders by score for 'top', by recency for 'newest', and chronologically for 'oldest'", () => {
   const list = [
     comment("a", null, { score: 1, createdAt: "2026-01-03T00:00:00Z" }),
     comment("b", null, { score: 9, createdAt: "2026-01-01T00:00:00Z" }),
@@ -28,6 +28,7 @@ test("sortComments orders by score for 'top' and by recency for 'newest'", () =>
   ];
   assert.deepEqual(ids(sortComments(list, "top")), ["b", "c", "a"]);
   assert.deepEqual(ids(sortComments(list, "newest")), ["a", "c", "b"]);
+  assert.deepEqual(ids(sortComments(list, "oldest")), ["b", "c", "a"]);
 });
 
 test("sortComments breaks score ties by age, so an all-zero thread is stable", () => {
@@ -88,4 +89,36 @@ test("buildTree handles an empty list", () => {
   const { roots, childrenOf } = buildTree([], "top");
   assert.deepEqual(roots, []);
   assert.equal(childrenOf.size, 0);
+});
+
+test("buildTree floats accepted and pinned root comments to the top and enriches parentAuthorName", () => {
+  const list = [
+    comment("normalHigh", null, { score: 50, authorName: "Max" }),
+    comment("pinnedLow", null, { score: 2, pinned: true, authorName: "Lando" }),
+    comment("acceptedMid", null, { score: 10, accepted: true, authorName: "Oscar" }),
+    comment("replyToMax", "normalHigh", { score: 1, authorName: "Charles" }),
+  ];
+  const { roots, childrenOf } = buildTree(list, "top");
+  assert.deepEqual(ids(roots), ["acceptedMid", "pinnedLow", "normalHigh"]);
+  assert.equal(childrenOf.get("normalHigh")?.[0]?.parentAuthorName, "Max");
+});
+
+test("filterCommentTree preserves parent chains when filtering by query, OP, or media", () => {
+  const list = [
+    comment("root1", null, { content: "General strategy talk", authorName: "Reader" }),
+    comment("replyOp", "root1", { content: "Here is the telemetry breakdown", authorName: "OP", isOp: true }),
+    comment("root2", null, { content: "Check this lap", authorName: "Fan", mediaUrl: "https://media.giphy.com/media/1/giphy.gif" }),
+  ];
+  const tree = buildTree(list, "top");
+
+  const opOnly = filterCommentTree(tree, "", "op");
+  assert.deepEqual(ids(opOnly.roots), ["root1"]);
+  assert.deepEqual(ids(opOnly.childrenOf.get("root1") ?? []), ["replyOp"]);
+
+  const mediaOnly = filterCommentTree(tree, "", "media");
+  assert.deepEqual(ids(mediaOnly.roots), ["root2"]);
+
+  const searched = filterCommentTree(tree, "telemetry", "all");
+  assert.deepEqual(ids(searched.roots), ["root1"]);
+  assert.deepEqual(ids(searched.childrenOf.get("root1") ?? []), ["replyOp"]);
 });
